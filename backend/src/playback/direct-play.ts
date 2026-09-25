@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { defaultAudioIndex, type ClientCapabilities, type MediaFileRow, type PlaybackDecision, type PlaybackEngine, type PlaybackOptions } from './engine.js';
+import { defaultAudioIndex, wantsAudioProcessing, type ClientCapabilities, type MediaFileRow, type PlaybackDecision, type PlaybackEngine, type PlaybackOptions } from './engine.js';
 
 const MIME: Record<string, string> = {
   '.mp4': 'video/mp4',
@@ -80,6 +80,10 @@ export class DirectPlayEngine implements PlaybackEngine {
       // Browsers without the audioTracks API always play the default track.
       compatible = false;
       reasons.push('Another audio track was selected');
+    }
+    if (wantsAudioProcessing(options)) {
+      compatible = false;
+      reasons.push('Audio enhancements are enabled');
     }
     return {
       engine: this.id,

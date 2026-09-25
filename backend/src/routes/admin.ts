@@ -55,6 +55,7 @@ const settingsBody = z.object({
     .regex(/^([a-z]{2}(-[A-Z]{2})?)?$/, 'Use a language code like en-US or nl-NL')
     .optional(),
   includeAdult: z.boolean().optional(),
+  watchFolders: z.boolean().optional(),
 });
 
 const matchSearch = z.object({ type: z.enum(['movie', 'show']), query: z.string().trim().min(1).max(200), year: z.coerce.number().int().min(1870).max(2100).optional() });
@@ -173,6 +174,8 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       available: fs.existsSync(l.path),
       scanning: state.running?.libraryId === l.id ? state.running.progress : null,
       queued: state.queued.some((j) => j.libraryId === l.id),
+      watching: ctx.watcher.isWatching(l.id),
+      watchError: ctx.watcher.status().find((w) => w.libraryId === l.id)?.error ?? null,
     };
   };
 
@@ -191,6 +194,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const row = db.insert(libraries).values({ name: body.name, type: body.type, path: check.resolved! }).returning().get();
     log.info(`Library "${row.name}" added (${row.path})`);
     ctx.scans.enqueue(row.id);
+    ctx.watcher.sync(ctx.settings.get().watchFolders);
     return libraryView(row);
   });
 
@@ -220,6 +224,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (pathChanged) {
       // Files under the old path disappear during the next scan; files under the new one are added.
       ctx.scans.enqueue(id);
+      ctx.watcher.sync(ctx.settings.get().watchFolders);
     }
     return libraryView(row);
   });
@@ -230,6 +235,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const res = db.delete(libraries).where(eq(libraries.id, id)).run();
     if (res.changes === 0) throw notFound('Library');
     log.info(`Library ${id} removed (media files on disk were not touched)`);
+    ctx.watcher.sync(ctx.settings.get().watchFolders);
     return { ok: true };
   });
 
@@ -339,6 +345,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       serverUrl: s.serverUrl || ctx.config.serverUrl,
       tmdbLanguage: ctx.settings.tmdbLanguage(),
       includeAdult: s.includeAdult,
+      watchFolders: s.watchFolders,
       tmdb: {
         configured: key.length > 0,
         source: ctx.settings.tmdbKeySource(),
@@ -371,6 +378,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       if (tmdbApiKey === '') ctx.settings.delete('tmdbApiKey');
       else ctx.settings.update({ tmdbApiKey });
     }
+    if (rest.watchFolders !== undefined) ctx.watcher.sync(rest.watchFolders);
     if (!wasConfigured && ctx.tmdb.configured) {
       log.info('TMDB configured — fetching metadata for existing libraries');
       ctx.scans.enqueueAll(false);

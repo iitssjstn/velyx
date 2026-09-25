@@ -12,11 +12,11 @@ export function ServerSettingsPanel() {
   const qc = useQueryClient();
   const { refetchServer } = useAuth();
   const q = useQuery({ queryKey: ['admin', 'settings'], queryFn: () => api.get<ServerSettings>('/api/admin/settings') });
-  const [form, setForm] = useState({ serverName: '', serverUrl: '', tmdbLanguage: '', includeAdult: false });
+  const [form, setForm] = useState({ serverName: '', serverUrl: '', tmdbLanguage: '', includeAdult: false, watchFolders: true });
   const [key, setKey] = useState('');
 
   useEffect(() => {
-    if (q.data) setForm({ serverName: q.data.serverName, serverUrl: q.data.serverUrl, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult });
+    if (q.data) setForm({ serverName: q.data.serverName, serverUrl: q.data.serverUrl, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult, watchFolders: q.data.watchFolders });
   }, [q.data]);
 
   const save = useMutation({
@@ -63,6 +63,13 @@ export function ServerSettingsPanel() {
           <label className="flex items-center gap-3 self-center text-sm">
             <input type="checkbox" className="size-4 accent-[var(--color-accent)]" checked={form.includeAdult} onChange={(e) => setForm({ ...form, includeAdult: e.target.checked })} />
             Include adult titles in TMDB searches
+          </label>
+          <label className="flex items-start gap-3 text-sm sm:col-span-2">
+            <input type="checkbox" className="mt-0.5 size-4 accent-[var(--color-accent)]" checked={form.watchFolders} onChange={(e) => setForm({ ...form, watchFolders: e.target.checked })} />
+            <span>
+              Update libraries automatically when files change
+              <span className="block text-xs text-faint">New movies and episodes (for example from Radarr or Sonarr) appear about 30 seconds after they are added. Scheduled scans keep running as a fallback.</span>
+            </span>
           </label>
         </div>
         <dl className="grid gap-3 border-t border-line/60 pt-5 text-sm sm:grid-cols-3">

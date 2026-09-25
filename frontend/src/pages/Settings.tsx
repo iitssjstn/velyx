@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api, errorMessage } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
 import { setPrefs, usePrefs } from '../lib/prefs';
+import { subtitleLineStyle } from '../lib/subtitles';
 import { detectCapabilities } from '../lib/codecs';
 import { codecName } from '../lib/format';
 import type { User } from '../lib/types';
@@ -204,14 +205,6 @@ function PlaybackSettings() {
             </select>
           </div>
           <div className="flex items-center justify-between gap-6 py-3">
-            <span>Subtitle size</span>
-            <select className="input w-48" value={prefs.subtitleSize} onChange={(e) => setPrefs({ subtitleSize: e.target.value as 'small' | 'medium' | 'large' })}>
-              <option value="small">Small</option>
-              <option value="medium">Medium</option>
-              <option value="large">Large</option>
-            </select>
-          </div>
-          <div className="flex items-center justify-between gap-6 py-3">
             <span>
               Preferred audio language
               <span className="block text-sm text-muted">Only browsers that support audio track switching (e.g. Safari) apply this.</span>
@@ -226,6 +219,37 @@ function PlaybackSettings() {
             label="Warn about files this browser may not play"
             checked={prefs.showCompatibilityWarnings}
             onChange={(v) => setPrefs({ showCompatibilityWarnings: v })}
+          />
+        </div>
+      </Section>
+      <Section title="Audio" description="Used when Velyx converts audio (Dolby/DTS in browsers, or when an option below is on). Stored in this browser.">
+        <div className="divide-y divide-line/50">
+          <div className="flex items-center justify-between gap-6 py-3">
+            <span>
+              Sound
+              <span className="block text-sm text-muted">Surround keeps up to 5.1 channels; stereo mixes down for speakers and headphones.</span>
+            </span>
+            <select className="input w-48" value={prefs.audioOutput} onChange={(e) => setPrefs({ audioOutput: e.target.value as 'stereo' | 'surround' })}>
+              <option value="stereo">Stereo</option>
+              <option value="surround">Surround 5.1</option>
+            </select>
+          </div>
+          <Toggle label="Boost voices" hint="Makes dialogue clearer. Always converts the audio." checked={prefs.boostVoices} onChange={(v) => setPrefs({ boostVoices: v })} />
+          <Toggle label="Level volume" hint="Evens out loud and quiet scenes (night mode). Always converts the audio." checked={prefs.levelVolume} onChange={(v) => setPrefs({ levelVolume: v })} />
+        </div>
+      </Section>
+      <Section title="Subtitle appearance" description="Also adjustable from the subtitle menu in the player.">
+        <SubtitlePreview />
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <PrefSelect label="Size" value={prefs.subtitleSize} onChange={(v) => setPrefs({ subtitleSize: v })} options={[['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['xlarge', 'Extra large']]} />
+          <PrefSelect label="Color" value={prefs.subtitleColor} onChange={(v) => setPrefs({ subtitleColor: v })} options={[['white', 'White'], ['yellow', 'Yellow']]} />
+          <PrefSelect label="Background" value={prefs.subtitleBackground} onChange={(v) => setPrefs({ subtitleBackground: v })} options={[['none', 'None'], ['translucent', 'Dimmed box'], ['solid', 'Solid box']]} />
+          <PrefSelect label="Edge" value={prefs.subtitleEdge} onChange={(v) => setPrefs({ subtitleEdge: v })} options={[['shadow', 'Drop shadow'], ['outline', 'Outline'], ['none', 'None']]} />
+          <PrefSelect
+            label="Position"
+            value={String(prefs.subtitlePosition)}
+            onChange={(v) => setPrefs({ subtitlePosition: Number(v) })}
+            options={[['0', 'Bottom'], ['5', 'Slightly higher'], ['10', 'Higher'], ['15', 'Much higher'], ['20', 'Highest']]}
           />
         </div>
       </Section>
@@ -302,6 +326,36 @@ export function SettingsPage() {
         {isAdmin && <Route path="libraries" element={<LibrariesPanel />} />}
         <Route path="*" element={<Navigate to="/settings/account" replace />} />
       </Routes>
+    </div>
+  );
+}
+
+function PrefSelect<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
+  return (
+    <label className="block">
+      <span className="label">{label}</span>
+      <select className="input" value={value} onChange={(e) => onChange(e.target.value as T)}>
+        {options.map(([v, text]) => (
+          <option key={v} value={v}>{text}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/** Live preview of the subtitle style on a dark "video" background. */
+function SubtitlePreview() {
+  const prefs = usePrefs();
+  const style = subtitleLineStyle(prefs);
+  return (
+    <div className="relative h-40 overflow-hidden rounded-lg bg-[linear-gradient(135deg,#3a3450,#1a1622_60%,#0c0a10)]" aria-label="Subtitle preview">
+      <div className="absolute inset-x-0 flex justify-center px-4 text-center" style={{ bottom: `calc(8% + ${prefs.subtitlePosition}%)`, fontSize: style.fontSize }}>
+        <span style={style}>
+          This is how subtitles will look.
+          <br />
+          <i>Zo zien ondertitels eruit.</i>
+        </span>
+      </div>
     </div>
   );
 }

@@ -224,6 +224,8 @@ export function LibrariesPanel() {
                     <p className="mt-1.5 text-sm text-muted">
                       {l.itemCount.toLocaleString()} {l.type === 'movies' ? 'movies' : 'shows'}, {l.fileCount.toLocaleString()} files
                       {!l.available && <span className="ml-2 text-danger">Folder not available — check the volume mount</span>}
+                      {l.available && l.watching && <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-ok/10 px-2 py-0.5 text-xs text-ok">Auto-updating</span>}
+                      {l.available && l.watchError && <span className="ml-2 text-xs text-amber" title={l.watchError}>Auto-update unavailable: {l.watchError}</span>}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">

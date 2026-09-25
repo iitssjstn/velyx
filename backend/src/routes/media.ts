@@ -19,6 +19,9 @@ const capsBody = z
     videoCodecs: z.array(z.string().max(20)).max(30).optional(),
     audioCodecs: z.array(z.string().max(20)).max(30).optional(),
     audioIndex: z.number().int().min(0).max(1000).optional(),
+    audioChannels: z.enum(['stereo', 'surround']).optional(),
+    boostVoices: z.boolean().optional(),
+    levelVolume: z.boolean().optional(),
   })
   .default({});
 
@@ -90,9 +93,9 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   app.post<{ Params: { id: string } }>('/api/media/:id/playback', { preHandler: requireUser }, async (request) => {
     const { file } = loadFile(request.params.id);
-    const { audioIndex, ...caps } = capsBody.parse(request.body ?? {});
+    const { audioIndex, audioChannels, boostVoices, levelVolume, ...caps } = capsBody.parse(request.body ?? {});
     if (audioIndex !== undefined && !(file.audioTracks ?? []).some((t) => t.index === audioIndex)) throw new HttpError(400, 'Unknown audio track.');
-    const decision = ctx.playback.decide(file, caps, { audioIndex });
+    const decision = ctx.playback.decide(file, caps, { audioIndex, audioChannels, boostVoices, levelVolume });
     if (!decision) throw new HttpError(415, 'This file cannot be played.');
     const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, file.id)).all();
     return { decision, file: fileInfo(file, external), subtitles: subtitleList(file) };

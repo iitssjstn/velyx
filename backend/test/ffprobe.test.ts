@@ -138,8 +138,17 @@ describe.skipIf(!available)('remux streaming (real FFmpeg)', () => {
     expect(vtt.body).toMatch(/00:00:01\.0\d\d --> 00:00:02\.0\d\d\nLate line/);
   }, 30000);
 
+  it('applies voice boost and volume levelling with the real FFmpeg filters', async () => {
+    const res = await env.app.inject({ url: `/api/media/${fileId}/remux?audio=1&ch=2&voice=1&level=1`, headers: { cookie: admin } });
+    expect(res.statusCode).toBe(200);
+    const out = path.join(env.dir, 'fx.mp4');
+    fs.writeFileSync(out, res.rawPayload);
+    const info = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_name,channels', '-of', 'csv=p=0', out]).toString().trim().split('\n');
+    expect(info).toEqual(['h264', 'aac,2']);
+  }, 30000);
+
   it('rejects invalid remux parameters', async () => {
-    for (const q of ['audio=7', 'audio=1&start=-3', 'audio=1&start=abc', 'audio=1&start=99999']) {
+    for (const q of ['audio=7', 'audio=1&start=-3', 'audio=1&start=abc', 'audio=1&start=99999', 'audio=1&ch=8']) {
       const res = await env.app.inject({ url: `/api/media/${fileId}/remux?${q}`, headers: { cookie: admin } });
       expect(res.statusCode, q).toBe(400);
     }

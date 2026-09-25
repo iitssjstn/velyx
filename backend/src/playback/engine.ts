@@ -14,6 +14,17 @@ export interface ClientCapabilities {
 export interface PlaybackOptions {
   /** ffprobe stream index of the wanted audio track. */
   audioIndex?: number;
+  /** Channel layout for converted audio: stereo downmix or up to 5.1 surround. */
+  audioChannels?: 'stereo' | 'surround';
+  /** Make dialogue clearer (center channel emphasis for surround sources, speech EQ for stereo). */
+  boostVoices?: boolean;
+  /** Even out loud and quiet scenes (dynamic range compression, "night mode"). */
+  levelVolume?: boolean;
+}
+
+/** True when the listener asked for audio processing that needs the audio to be converted. */
+export function wantsAudioProcessing(options: PlaybackOptions): boolean {
+  return Boolean(options.boostVoices || options.levelVolume);
 }
 
 export interface PlaybackDecision {

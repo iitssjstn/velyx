@@ -34,6 +34,7 @@ async function main(): Promise<void> {
   if (!config.frontendDir) log.warn('Frontend build not found — only the API is served');
 
   ctx.scans.startSchedule(config.scanIntervalMinutes);
+  ctx.watcher.sync(ctx.settings.get().watchFolders);
   const purgeTimer = setInterval(() => ctx.sessions.purgeExpired(), 6 * 60 * 60 * 1000);
   purgeTimer.unref();
 
@@ -43,6 +44,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     log.info(`Received ${signal}, shutting down`);
     ctx.scans.stop();
+    ctx.watcher.stop();
     (ctx.playback.get('remux') as RemuxEngine | undefined)?.stopAll();
     clearInterval(purgeTimer);
     try {

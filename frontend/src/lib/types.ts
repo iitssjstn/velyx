@@ -327,6 +327,9 @@ export interface Library {
   available: boolean;
   scanning: ScanProgress | null;
   queued: boolean;
+  /** Folder watching: new files are picked up automatically. */
+  watching: boolean;
+  watchError: string | null;
 }
 
 export interface AdminUser extends User {
@@ -365,6 +368,7 @@ export interface ServerSettings {
   serverUrl: string;
   tmdbLanguage: string;
   includeAdult: boolean;
+  watchFolders: boolean;
   tmdb: { configured: boolean; source: 'environment' | 'settings' | 'none'; hint: string | null };
   version: string;
   mediaRoots: string[];

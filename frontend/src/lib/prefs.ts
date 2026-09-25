@@ -1,12 +1,26 @@
 import { useSyncExternalStore } from 'react';
 
 /** Per-browser playback preferences. Stored in localStorage (never credentials). */
+export type SubtitleSize = 'small' | 'medium' | 'large' | 'xlarge';
+export type SubtitleColor = 'white' | 'yellow';
+export type SubtitleBackground = 'none' | 'translucent' | 'solid';
+export type SubtitleEdge = 'shadow' | 'outline' | 'none';
+
 export interface PlaybackPrefs {
   autoplayNext: boolean;
   autoplayCountdown: number;
   subtitleLanguage: string; // '' = off, otherwise ISO code like 'en' / 'nl'
-  subtitleSize: 'small' | 'medium' | 'large';
+  subtitleSize: SubtitleSize;
+  subtitleColor: SubtitleColor;
+  subtitleBackground: SubtitleBackground;
+  subtitleEdge: SubtitleEdge;
+  /** Extra distance from the bottom, in percent of the player height (0–20). */
+  subtitlePosition: number;
   audioLanguage: string;
+  /** Converted audio: stereo downmix or keep up to 5.1 surround. */
+  audioOutput: 'stereo' | 'surround';
+  boostVoices: boolean;
+  levelVolume: boolean;
   showCompatibilityWarnings: boolean;
   volume: number;
   muted: boolean;
@@ -17,7 +31,14 @@ export const DEFAULT_PREFS: PlaybackPrefs = {
   autoplayCountdown: 10,
   subtitleLanguage: '',
   subtitleSize: 'medium',
+  subtitleColor: 'white',
+  subtitleBackground: 'none',
+  subtitleEdge: 'shadow',
+  subtitlePosition: 0,
   audioLanguage: '',
+  audioOutput: 'stereo',
+  boostVoices: false,
+  levelVolume: false,
   showCompatibilityWarnings: true,
   volume: 1,
   muted: false,
@@ -60,10 +81,11 @@ export function usePrefs(): PlaybackPrefs {
   );
 }
 
-export const SUBTITLE_SIZES: Record<PlaybackPrefs['subtitleSize'], string> = {
-  small: 'clamp(0.9rem, 1.6vw, 1.2rem)',
-  medium: 'clamp(1.05rem, 2.2vw, 1.6rem)',
-  large: 'clamp(1.25rem, 3vw, 2.2rem)',
+export const SUBTITLE_SIZES: Record<SubtitleSize, string> = {
+  small: 'clamp(0.95rem, 1.8vw, 1.35rem)',
+  medium: 'clamp(1.1rem, 2.4vw, 1.8rem)',
+  large: 'clamp(1.3rem, 3vw, 2.3rem)',
+  xlarge: 'clamp(1.5rem, 3.8vw, 2.9rem)',
 };
 
 /** Normalises ISO 639-1/-2 codes so "eng", "en" and "en-US" compare equal. */

@@ -22,10 +22,11 @@ import {
 import { api, errorMessage } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
-import { getPrefs, sameLanguage, setPrefs, SUBTITLE_SIZES, usePrefs } from '../lib/prefs';
+import { getPrefs, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
 import { isTyping, pickSubtitle, preferredAudioIndex, seekPlan, startPosition, withParam } from '../lib/player';
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo } from '../lib/types';
 import { Spinner } from '../components/States';
+import { SubtitleOverlay } from '../components/SubtitleOverlay';
 
 const SAVE_INTERVAL_MS = 10_000;
 const HIDE_CONTROLS_MS = 3000;
@@ -98,13 +99,19 @@ export default function PlayerPage() {
     if (file && audioChoice === null) setAudioChoice(preferredAudioIndex(file.audioTracks, getPrefs().audioLanguage, NATIVE_AUDIO_SWITCHING));
   }, [file, audioChoice]);
 
+  const audioPrefs = { audioChannels: prefs.audioOutput, boostVoices: prefs.boostVoices, levelVolume: prefs.levelVolume };
   const playback = useQuery({
-    queryKey: ['playback', file?.id, audioChoice],
+    queryKey: ['playback', file?.id, audioChoice, audioPrefs.audioChannels, audioPrefs.boostVoices, audioPrefs.levelVolume],
     enabled: Boolean(file) && audioChoice !== null,
     gcTime: 0,
     staleTime: Infinity,
     placeholderData: keepPreviousData,
-    queryFn: () => api.post<PlaybackInfo>(`/api/media/${file!.id}/playback`, { ...detectCapabilities(), ...(audioChoice !== undefined && audioChoice !== null ? { audioIndex: audioChoice } : {}) }),
+    queryFn: () =>
+      api.post<PlaybackInfo>(`/api/media/${file!.id}/playback`, {
+        ...detectCapabilities(),
+        ...audioPrefs,
+        ...(audioChoice !== undefined && audioChoice !== null ? { audioIndex: audioChoice } : {}),
+      }),
   });
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -136,6 +143,8 @@ export default function PlayerPage() {
   const playAfterLoadRef = useRef(true);
   const restartTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const subKeyRef = useRef<string | null>(null);
+  const [activeTrack, setActiveTrack] = useState<{ video: HTMLVideoElement; track: TextTrack } | null>(null);
+  const [subDelay, setSubDelay] = useState(0);
 
   const info = playback.data;
   const live = info?.decision.seek === 'restart';
@@ -159,6 +168,12 @@ export default function PlayerPage() {
     resumeAtRef.current = null;
     pendingSeekRef.current = target > 0 ? target : null;
     const base = info.decision.streamUrl;
+    if (stream && stream.base === base) {
+      // Same stream as before (e.g. a setting changed that does not affect this file): nothing to reload.
+      pendingSeekRef.current = null;
+      setBuffering(false);
+      return;
+    }
     if (info.decision.seek !== 'restart' || target <= 0) {
       setStream({ base, offset: 0 });
       return;
@@ -172,6 +187,8 @@ export default function PlayerPage() {
     return () => {
       cancelled = true;
     };
+    // `stream` is read only to detect "unchanged"; re-running on its changes would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [info, start]);
 
   /** Requests a new live stream starting at the keyframe before `target` (debounced while scrubbing). */
@@ -264,12 +281,30 @@ export default function PlayerPage() {
       subKeyRef.current = key;
       const v = videoRef.current;
       if (!v) return;
+      let selected: TextTrack | null = null;
       for (let i = 0; i < v.textTracks.length; i++) {
         const track = v.textTracks[i]!;
-        track.mode = subs[i]?.key === key ? 'showing' : 'disabled';
+        // "hidden" loads the cues without the browser drawing them; SubtitleOverlay renders them.
+        const on = subs[i]?.key === key;
+        track.mode = on ? 'hidden' : 'disabled';
+        if (on) selected = track;
       }
+      setActiveTrack(selected ? { video: v, track: selected } : null);
     },
     [subs],
+  );
+
+  /** Changes an audio setting and reloads the stream at the current position when needed. */
+  const changeAudioPrefs = useCallback(
+    (patch: Partial<Pick<PlaybackPrefs, 'audioOutput' | 'boostVoices' | 'levelVolume'>>) => {
+      const v = videoRef.current;
+      if (startedRef.current) {
+        resumeAtRef.current = currentTime();
+        playAfterLoadRef.current = v ? !v.paused : true;
+      }
+      setPrefs(patch);
+    },
+    [currentTime],
   );
 
   /** Native switching (Safari) when direct playing; otherwise ask the server for a stream with that track. */
@@ -313,6 +348,8 @@ export default function PlayerPage() {
     playAfterLoadRef.current = true;
     setAudioChoice(null);
     setStream(null);
+    setSubDelay(0);
+    setActiveTrack(null);
     setEnded(false);
     setCountdown(null);
     setError(null);
@@ -510,9 +547,6 @@ export default function PlayerPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [poke, togglePlay, seekBy, seekTo, applyVolume, toggleFullscreen, selectSubtitle, goNext, exit, subs, subKey, next, menu, volume, muted, totalDuration]);
 
-  useEffect(() => {
-    wrapRef.current?.style.setProperty('--velyx-sub-size', SUBTITLE_SIZES[prefs.subtitleSize]);
-  }, [prefs.subtitleSize]);
 
   // ---------------------------------------------------------------- render
   const loadError = item.error ?? playback.error;
@@ -582,6 +616,8 @@ export default function PlayerPage() {
           ))}
         </video>
       )}
+
+      <SubtitleOverlay video={activeTrack?.video ?? null} track={activeTrack?.track ?? null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />
 
       {(buffering || !streamSrc) && !error && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
@@ -746,8 +782,8 @@ export default function PlayerPage() {
             <button type="button" onClick={() => setMenu(menu === 'subs' ? null : 'subs')} className={`grid size-10 place-items-center rounded-full hover:bg-white/10 ${subKey ? 'text-accent' : ''}`} aria-label="Subtitles" title="Subtitles (C)">
               <Captions className="size-5" />
             </button>
-            {fileAudio.length > 1 && (
-              <button type="button" onClick={() => setMenu(menu === 'audio' ? null : 'audio')} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label="Audio track">
+            {fileAudio.length > 0 && (
+              <button type="button" onClick={() => setMenu(menu === 'audio' ? null : 'audio')} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label="Audio">
                 <AudioLines className="size-5" />
               </button>
             )}
@@ -759,13 +795,13 @@ export default function PlayerPage() {
             </button>
 
             {menu && (
-              <div className="absolute right-0 bottom-14 max-h-[60vh] w-72 overflow-y-auto rounded-xl border border-line bg-surface/95 py-2 shadow-2xl backdrop-blur" role="menu">
+              <div className="absolute right-0 bottom-14 max-h-[75vh] w-72 overflow-y-auto rounded-xl border border-line bg-surface/95 py-2 shadow-2xl backdrop-blur" role="menu">
                 {menu === 'subs' && (
                   <>
                     <p className="px-4 pt-1 pb-2 text-xs text-faint">Subtitles</p>
-                    <MenuItem active={subKey === null} onClick={() => { selectSubtitle(null); setMenu(null); }}>Off</MenuItem>
+                    <MenuItem active={subKey === null} onClick={() => selectSubtitle(null)}>Off</MenuItem>
                     {subs.map((s) => (
-                      <MenuItem key={s.key} active={subKey === s.key} onClick={() => { selectSubtitle(s.key); setMenu(null); }}>
+                      <MenuItem key={s.key} active={subKey === s.key} onClick={() => selectSubtitle(s.key)}>
                         {s.label}
                         <span className="ml-2 text-xs text-faint">{s.kind === 'embedded' ? 'embedded' : 'file'}</span>
                       </MenuItem>
@@ -774,21 +810,31 @@ export default function PlayerPage() {
                     {(file?.embeddedSubtitles.some((s) => !s.textBased) ?? false) && (
                       <p className="px-4 pt-2 text-xs text-faint">Image-based subtitles (PGS/VobSub) need transcoding and are not available yet.</p>
                     )}
-                    <div className="mt-2 border-t border-line/60 px-4 pt-2">
-                      <p className="pb-1 text-xs text-faint">Size</p>
-                      <div className="flex gap-1">
-                        {(['small', 'medium', 'large'] as const).map((sz) => (
-                          <button key={sz} type="button" onClick={() => setPrefs({ subtitleSize: sz })} className={`flex-1 rounded-md py-1 text-xs capitalize ${prefs.subtitleSize === sz ? 'bg-accent text-accent-ink' : 'bg-raised'}`}>
-                            {sz}
-                          </button>
-                        ))}
-                      </div>
+                    <div className="mt-2 space-y-3 border-t border-line/60 px-4 pt-3 pb-1">
+                      <Segmented label="Size" value={prefs.subtitleSize} onChange={(v) => setPrefs({ subtitleSize: v })} options={[['small', 'S'], ['medium', 'M'], ['large', 'L'], ['xlarge', 'XL']]} />
+                      <Segmented label="Color" value={prefs.subtitleColor} onChange={(v) => setPrefs({ subtitleColor: v })} options={[['white', 'White'], ['yellow', 'Yellow']]} />
+                      <Segmented label="Background" value={prefs.subtitleBackground} onChange={(v) => setPrefs({ subtitleBackground: v })} options={[['none', 'None'], ['translucent', 'Dim'], ['solid', 'Solid']]} />
+                      <Segmented label="Edge" value={prefs.subtitleEdge} onChange={(v) => setPrefs({ subtitleEdge: v })} options={[['shadow', 'Shadow'], ['outline', 'Outline'], ['none', 'None']]} />
+                      <Stepper
+                        label="Position"
+                        value={prefs.subtitlePosition === 0 ? 'Bottom' : `+${prefs.subtitlePosition}%`}
+                        onMinus={() => setPrefs({ subtitlePosition: Math.max(0, prefs.subtitlePosition - 5) })}
+                        onPlus={() => setPrefs({ subtitlePosition: Math.min(20, prefs.subtitlePosition + 5) })}
+                      />
+                      <Stepper
+                        label="Sync"
+                        value={subDelay === 0 ? 'In sync' : `${subDelay > 0 ? '+' : ''}${subDelay.toFixed(1)} s`}
+                        hint="+ shows subtitles later"
+                        onMinus={() => setSubDelay((d) => Math.round((d - 0.5) * 10) / 10)}
+                        onPlus={() => setSubDelay((d) => Math.round((d + 0.5) * 10) / 10)}
+                        onReset={subDelay !== 0 ? () => setSubDelay(0) : undefined}
+                      />
                     </div>
                   </>
                 )}
                 {menu === 'audio' && (
                   <>
-                    <p className="px-4 pt-1 pb-2 text-xs text-faint">Audio</p>
+                    <p className="px-4 pt-1 pb-2 text-xs text-faint">Audio track</p>
                     {canSwitchAudio && !live
                       ? audioTracks.map((t, i) => (
                           <MenuItem key={t.id || i} active={t.enabled} onClick={() => { selectNativeAudio(t.id); setMenu(null); }}>
@@ -801,6 +847,11 @@ export default function PlayerPage() {
                             <span className="ml-2 text-xs text-faint">{[codecName(a.codec), channelLabel(a.channels)].filter(Boolean).join(' ')}</span>
                           </MenuItem>
                         ))}
+                    <div className="mt-2 space-y-3 border-t border-line/60 px-4 pt-3 pb-1">
+                      <Segmented label="Sound" value={prefs.audioOutput} onChange={(v) => changeAudioPrefs({ audioOutput: v })} options={[['stereo', 'Stereo'], ['surround', 'Surround 5.1']]} />
+                      <Toggle label="Boost voices" checked={prefs.boostVoices} onChange={(v) => changeAudioPrefs({ boostVoices: v })} />
+                      <Toggle label="Level volume" hint="Quieter explosions, louder dialogue" checked={prefs.levelVolume} onChange={(v) => changeAudioPrefs({ levelVolume: v })} />
+                    </div>
                     {info?.decision.note && <p className="px-4 pt-2 text-xs text-faint">{info.decision.note}</p>}
                   </>
                 )}
@@ -836,6 +887,54 @@ function MenuItem({ active, onClick, children }: { active: boolean; onClick: () 
     <button type="button" role="menuitemradio" aria-checked={active} onClick={onClick} className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-raised">
       <Check className={`size-4 shrink-0 ${active ? 'text-accent' : 'invisible'}`} />
       <span className="min-w-0 flex-1 truncate">{children}</span>
+    </button>
+  );
+}
+
+function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
+  return (
+    <div>
+      <p className="pb-1 text-xs text-faint">{label}</p>
+      <div className="flex gap-1" role="radiogroup" aria-label={label}>
+        {options.map(([v, text]) => (
+          <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)} className={`flex-1 rounded-md px-1 py-1 text-xs ${value === v ? 'bg-accent font-semibold text-accent-ink' : 'bg-raised hover:bg-line'}`}>
+            {text}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Stepper({ label, value, hint, onMinus, onPlus, onReset }: { label: string; value: string; hint?: string; onMinus: () => void; onPlus: () => void; onReset?: () => void }) {
+  return (
+    <div>
+      <p className="pb-1 text-xs text-faint">
+        {label}
+        {hint && <span className="ml-1 text-faint/70">({hint})</span>}
+      </p>
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={onMinus} className="grid size-7 place-items-center rounded-md bg-raised text-sm hover:bg-line" aria-label={`${label} down`}>−</button>
+        <span className="flex-1 text-center text-xs tabular-nums">{value}</span>
+        <button type="button" onClick={onPlus} className="grid size-7 place-items-center rounded-md bg-raised text-sm hover:bg-line" aria-label={`${label} up`}>+</button>
+        {onReset && (
+          <button type="button" onClick={onReset} className="ml-1 rounded-md px-2 py-1 text-xs text-muted hover:text-ink">Reset</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Toggle({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} className="flex w-full items-center justify-between gap-3 text-left text-sm">
+      <span>
+        {label}
+        {hint && <span className="block text-xs text-faint">{hint}</span>}
+      </span>
+      <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${checked ? 'bg-accent' : 'bg-line'}`}>
+        <span className={`absolute top-0.5 size-4 rounded-full bg-ink transition ${checked ? 'left-[1.125rem]' : 'left-0.5'}`} />
+      </span>
     </button>
   );
 }

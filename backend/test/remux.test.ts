@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PlaybackRegistry, type MediaFileRow } from '../src/playback/engine.js';
 import { DirectPlayEngine } from '../src/playback/direct-play.js';
-import { RemuxEngine, pickKeyframe, planRemux, remuxArgs } from '../src/playback/remux.js';
+import { RemuxEngine, audioFilters, outputChannels, pickKeyframe, planRemux, remuxArgs } from '../src/playback/remux.js';
 import { shiftVtt } from '../src/services/subtitles.js';
 
 const CHROME = { containers: ['mp4', 'webm', 'mkv'], videoCodecs: ['h264', 'vp9', 'av1'], audioCodecs: ['aac', 'mp3', 'opus', 'flac'] };
@@ -36,7 +36,7 @@ describe('playback decisions', () => {
 
   it('converts unsupported audio (EAC3) while copying the video', () => {
     const d = registry().decide(file(), CHROME)!;
-    expect(d).toMatchObject({ engine: 'remux', seek: 'restart', compatible: true, audioIndex: 1, durationSec: 5400, streamUrl: '/api/media/5/remux?audio=1' });
+    expect(d).toMatchObject({ engine: 'remux', seek: 'restart', compatible: true, audioIndex: 1, durationSec: 5400, streamUrl: '/api/media/5/remux?audio=1&ch=2' });
     expect(d.note).toContain('EAC3');
   });
 
@@ -63,7 +63,38 @@ describe('playback decisions', () => {
 
   it('plans no remux for non-copyable video', () => {
     expect(planRemux(file({ videoCodec: 'mpeg2video' }), CHROME)).toBeNull();
-    expect(planRemux(file({ videoCodec: 'h264' }), {})).toEqual({ audioIndex: 1, copyAudio: false });
+    expect(planRemux(file({ videoCodec: 'h264' }), {})).toMatchObject({ audioIndex: 1, copyAudio: false, channels: 2, sourceChannels: 6 });
+  });
+});
+
+describe('audio options (Plex-style)', () => {
+  it('keeps 5.1 surround when asked, never upmixes and folds 7.1 into 5.1', () => {
+    expect(outputChannels(6, 'surround')).toBe(6);
+    expect(outputChannels(8, 'surround')).toBe(6);
+    expect(outputChannels(2, 'surround')).toBe(2);
+    expect(outputChannels(1, 'surround')).toBe(2);
+    expect(outputChannels(6, 'stereo')).toBe(2);
+    const d = registry().decide(file(), CHROME, { audioChannels: 'surround' })!;
+    expect(d.streamUrl).toBe('/api/media/5/remux?audio=1&ch=6');
+    expect(d.note).toContain('AAC 5.1');
+  });
+
+  it('forces conversion when voice boost or volume levelling is on, even for playable audio', () => {
+    const aac = file({ audioCodec: 'aac', audioTracks: [{ index: 1, codec: 'aac', language: 'eng', channels: 2, channelLayout: null, title: null, isDefault: true }] });
+    expect(registry().decide(aac, CHROME)!.engine).toBe('direct');
+    const d = registry().decide(aac, CHROME, { boostVoices: true, levelVolume: true })!;
+    expect(d).toMatchObject({ engine: 'remux', streamUrl: '/api/media/5/remux?audio=1&ch=2&voice=1&level=1' });
+    expect(d.note).toContain('voices boosted');
+  });
+
+  it('builds filter chains that work for any channel layout', () => {
+    expect(audioFilters({ audioIndex: 1, copyAudio: false, channels: 2, sourceChannels: 6, boostVoices: true })).toContain('pan=stereo|FL=0.9*FC');
+    expect(audioFilters({ audioIndex: 1, copyAudio: false, channels: 6, sourceChannels: 8, boostVoices: true })).toContain('aformat=channel_layouts=5.1,pan=5.1');
+    expect(audioFilters({ audioIndex: 1, copyAudio: false, channels: 2, sourceChannels: 2, boostVoices: true })).toContain('equalizer=f=2500');
+    expect(audioFilters({ audioIndex: 1, copyAudio: false, channels: 2, sourceChannels: 2, levelVolume: true })).toBe('dynaudnorm=f=250:g=15:m=8');
+    expect(audioFilters({ audioIndex: 1, copyAudio: false })).toBeNull();
+    const args = remuxArgs('/a.mkv', 'h264', { audioIndex: 1, copyAudio: false, channels: 6, sourceChannels: 6, levelVolume: true }, 0).join(' ');
+    expect(args).toContain('-af dynaudnorm=f=250:g=15:m=8 -c:a aac -ac 6 -b:a 384k');
   });
 });
 

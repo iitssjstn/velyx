@@ -14,6 +14,7 @@ import { ImageCache } from './services/images.js';
 import { MetadataService } from './services/metadata.js';
 import { LibraryScanner } from './services/scanner.js';
 import { ScanManager } from './services/scan-manager.js';
+import { LibraryWatcher } from './services/watcher.js';
 import { createFfprobe, type Prober } from './services/probe.js';
 import { EmbeddedSubtitleExtractor } from './services/subtitles.js';
 import { PlaybackRegistry } from './playback/engine.js';
@@ -42,6 +43,7 @@ export interface AppContext {
   metadata: MetadataService;
   scanner: LibraryScanner;
   scans: ScanManager;
+  watcher: LibraryWatcher;
   playback: PlaybackRegistry;
   subtitleExtractor: EmbeddedSubtitleExtractor;
   startedAt: number;
@@ -51,6 +53,8 @@ export interface BuildOptions {
   prober?: Prober;
   fetchImpl?: FetchLike;
   tmdbMinIntervalMs?: number;
+  /** Quiet period before a folder change triggers a scan (default 30 s). */
+  watchDebounceMs?: number;
 }
 
 export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}): AppContext {
@@ -67,11 +71,12 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const metadata = new MetadataService(db, tmdb, images);
   const scanner = new LibraryScanner(db, opts.prober ?? createFfprobe(config.ffprobePath), metadata);
   const scans = new ScanManager(db, scanner);
+  const watcher = new LibraryWatcher(db, scans, opts.watchDebounceMs);
   const playback = new PlaybackRegistry();
   playback.register(new DirectPlayEngine());
   playback.register(new RemuxEngine(config.ffmpegPath, config.ffprobePath));
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, playback, subtitleExtractor, startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

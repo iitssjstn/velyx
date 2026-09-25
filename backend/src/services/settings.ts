@@ -10,6 +10,8 @@ export interface ServerSettings {
   tmdbLanguage: string;
   /** Include adult titles in TMDB searches. */
   includeAdult: boolean;
+  /** Watch library folders and scan automatically when files change. */
+  watchFolders: boolean;
 }
 
 const DEFAULTS: ServerSettings = {
@@ -18,6 +20,7 @@ const DEFAULTS: ServerSettings = {
   tmdbApiKey: '',
   tmdbLanguage: '',
   includeAdult: false,
+  watchFolders: true,
 };
 
 export class SettingsService {

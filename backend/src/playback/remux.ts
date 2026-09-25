@@ -1,7 +1,7 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createLogger } from '../logger.js';
-import { defaultAudioIndex, type ClientCapabilities, type MediaFileRow, type PlaybackDecision, type PlaybackEngine, type PlaybackOptions } from './engine.js';
+import { defaultAudioIndex, wantsAudioProcessing, type ClientCapabilities, type MediaFileRow, type PlaybackDecision, type PlaybackEngine, type PlaybackOptions } from './engine.js';
 
 const log = createLogger('remux');
 
@@ -15,6 +15,42 @@ const MAX_PROCESSES = 6;
 export interface RemuxPlan {
   audioIndex: number | null;
   copyAudio: boolean;
+  /** Output channels when converting (2 = stereo, 6 = 5.1). */
+  channels?: number;
+  /** Source channel count of the selected track (used to pick the right filters). */
+  sourceChannels?: number | null;
+  boostVoices?: boolean;
+  levelVolume?: boolean;
+}
+
+/** Output channel count for converted audio. Surround keeps up to 5.1; 7.1 is folded down to 5.1. */
+export function outputChannels(sourceChannels: number | null | undefined, mode: 'stereo' | 'surround' = 'stereo'): number {
+  if (mode === 'stereo') return 2;
+  return (sourceChannels ?? 2) >= 6 ? 6 : 2;
+}
+
+/**
+ * FFmpeg audio filter chain for the requested processing, similar to Plex's "Boost voices" and
+ * volume levelling. Every chain first normalises the channel layout, so it works for 5.1, 5.1(side),
+ * 7.1 and stereo sources alike.
+ */
+export function audioFilters(plan: RemuxPlan): string | null {
+  const filters: string[] = [];
+  const channels = plan.channels ?? 2;
+  const multichannel = (plan.sourceChannels ?? 2) >= 3;
+  if (plan.boostVoices) {
+    if (multichannel && channels === 2) {
+      // Downmix with the dialogue (center) channel emphasised.
+      filters.push('aformat=channel_layouts=5.1', 'pan=stereo|FL=0.9*FC+0.55*FL+0.4*BL|FR=0.9*FC+0.55*FR+0.4*BR');
+    } else if (multichannel && channels === 6) {
+      filters.push('aformat=channel_layouts=5.1', 'pan=5.1|FL=0.7*FL|FR=0.7*FR|FC=FC|LFE=0.7*LFE|BL=0.7*BL|BR=0.7*BR');
+    } else {
+      // Stereo source: lift the speech band, tame rumble.
+      filters.push('equalizer=f=2500:t=q:w=1.2:g=4', 'equalizer=f=120:t=q:w=1:g=-3');
+    }
+  }
+  if (plan.levelVolume) filters.push('dynaudnorm=f=250:g=15:m=8');
+  return filters.length ? filters.join(',') : null;
 }
 
 /**
@@ -29,9 +65,18 @@ export function planRemux(file: MediaFileRow, caps: ClientCapabilities, options:
   const tracks = file.audioTracks ?? [];
   const wanted = options.audioIndex !== undefined ? tracks.find((t) => t.index === options.audioIndex) : undefined;
   const audioIndex = wanted?.index ?? defaultAudioIndex(file);
-  const codec = tracks.find((t) => t.index === audioIndex)?.codec ?? null;
-  const copyAudio = Boolean(codec && COPYABLE_AUDIO.has(codec) && (caps.audioCodecs ?? ['aac', 'mp3']).includes(codec));
-  return { audioIndex, copyAudio };
+  const track = tracks.find((t) => t.index === audioIndex);
+  const codec = track?.codec ?? null;
+  const processing = wantsAudioProcessing(options);
+  const copyAudio = !processing && Boolean(codec && COPYABLE_AUDIO.has(codec) && (caps.audioCodecs ?? ['aac', 'mp3']).includes(codec));
+  return {
+    audioIndex,
+    copyAudio,
+    channels: outputChannels(track?.channels, options.audioChannels),
+    sourceChannels: track?.channels ?? null,
+    boostVoices: Boolean(options.boostVoices),
+    levelVolume: Boolean(options.levelVolume),
+  };
 }
 
 /** Builds the FFmpeg arguments: copy video, copy or convert one audio track, write fragmented MP4 to stdout. */
@@ -46,7 +91,12 @@ export function remuxArgs(input: string, videoCodec: string | null, plan: RemuxP
   if (videoCodec === 'hevc') args.push('-tag:v', 'hvc1');
   if (plan.audioIndex !== null) {
     if (plan.copyAudio) args.push('-c:a', 'copy');
-    else args.push('-c:a', 'aac', '-ac', '2', '-b:a', '192k');
+    else {
+      const channels = plan.channels ?? 2;
+      const af = audioFilters(plan);
+      if (af) args.push('-af', af);
+      args.push('-c:a', 'aac', '-ac', String(channels), '-b:a', channels > 2 ? '384k' : '192k');
+    }
   }
   args.push(
     '-sn',
@@ -92,13 +142,15 @@ export class RemuxEngine implements PlaybackEngine {
     const plan = planRemux(file, caps, options);
     if (!plan) return null;
     const track = (file.audioTracks ?? []).find((t) => t.index === plan.audioIndex);
+    const extras = [plan.boostVoices ? 'voices boosted' : null, plan.levelVolume ? 'volume levelled' : null].filter(Boolean).join(', ');
     const note =
-      plan.audioIndex === null
+      plan.audioIndex === null || plan.copyAudio
         ? null
-        : plan.copyAudio
-          ? null
-          : `${(track?.codec ?? 'Audio').toUpperCase()} audio is converted to AAC stereo for this browser.`;
-    const query = plan.audioIndex !== null ? `?audio=${plan.audioIndex}${plan.copyAudio ? '&copy=1' : ''}` : '?audio=none';
+        : `${(track?.codec ?? 'Audio').toUpperCase()} audio is converted to AAC ${plan.channels === 6 ? '5.1' : 'stereo'}${extras ? ` (${extras})` : ''}.`;
+    const query =
+      plan.audioIndex === null
+        ? '?audio=none'
+        : `?audio=${plan.audioIndex}${plan.copyAudio ? '&copy=1' : `&ch=${plan.channels ?? 2}${plan.boostVoices ? '&voice=1' : ''}${plan.levelVolume ? '&level=1' : ''}`}`;
     return {
       engine: this.id,
       streamUrl: `/api/media/${file.id}/remux${query}`,
@@ -147,7 +199,7 @@ export class RemuxEngine implements PlaybackEngine {
   }
 
   async serve(request: FastifyRequest, reply: FastifyReply, file: MediaFileRow, absolutePath: string): Promise<FastifyReply> {
-    const q = request.query as { audio?: string; start?: string; copy?: string };
+    const q = request.query as { audio?: string; start?: string; copy?: string; ch?: string; voice?: string; level?: string };
     const tracks = file.audioTracks ?? [];
     let audioIndex: number | null;
     if (q.audio === 'none' || tracks.length === 0) audioIndex = null;
@@ -160,8 +212,18 @@ export class RemuxEngine implements PlaybackEngine {
     if (!Number.isFinite(start) || start < 0 || (file.durationSec && start > file.durationSec)) return reply.code(400).send({ error: 'Invalid start position.' });
 
     // copy=1 comes from our own decision (the browser decodes this codec); it is only honoured for MP4-safe codecs.
-    const codec = tracks.find((t) => t.index === audioIndex)?.codec ?? null;
-    const plan: RemuxPlan = { audioIndex, copyAudio: q.copy === '1' && Boolean(codec && COPYABLE_AUDIO.has(codec)) };
+    const track = tracks.find((t) => t.index === audioIndex);
+    const codec = track?.codec ?? null;
+    if (q.ch !== undefined && q.ch !== '2' && q.ch !== '6') return reply.code(400).send({ error: 'Invalid channel count.' });
+    const plan: RemuxPlan = {
+      audioIndex,
+      copyAudio: q.copy === '1' && Boolean(codec && COPYABLE_AUDIO.has(codec)),
+      // Never upmix: 5.1 only when the source has at least six channels.
+      channels: q.ch === '6' ? outputChannels(track?.channels, 'surround') : 2,
+      sourceChannels: track?.channels ?? null,
+      boostVoices: q.voice === '1',
+      levelVolume: q.level === '1',
+    };
 
     // Keep resource use bounded on small servers: drop the oldest stream when the limit is reached.
     if (this.processes.size >= MAX_PROCESSES) {

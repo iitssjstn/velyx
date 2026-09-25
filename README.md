@@ -4,7 +4,7 @@
 
 Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, favorites and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.2.0 — Direct Play, plus automatic audio conversion for Dolby/DTS audio and MKV in Safari. Full video transcoding is on the roadmap.
+> Version 0.3.0 — Direct Play, Plex-style audio conversion (surround, voice boost, volume levelling), customisable subtitles and automatic library updates. Full video transcoding is on the roadmap.
 
 ---
 
@@ -44,7 +44,10 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Fix Match** — items Velyx cannot identify confidently are listed for review; pick the right title with a confidence score per candidate.
 - **Incremental scanning** — only new or changed files (path, size, modification time) are analysed with FFprobe. Removed files disappear, and a library whose drive is not mounted is never wiped.
 - **Custom video player** — resume, seeking, subtitles (external `.srt`/`.vtt` and embedded text tracks), subtitle size, playback speed, audio track switching in every browser, auto-play next episode with countdown, fullscreen and keyboard shortcuts.
-- **Automatic audio conversion** — files with audio the browser cannot decode (EAC3, AC3, DTS, TrueHD) play anyway: the video is passed through untouched and only the audio is converted to AAC on the fly. Light enough for low-end CPUs.
+- **Automatic audio conversion** — files with audio the browser cannot decode (EAC3, AC3, DTS, TrueHD) play anyway: the video is passed through untouched and only the audio is converted to AAC on the fly (stereo or 5.1 surround). Light enough for low-end CPUs.
+- **Audio options like Plex** — *Boost voices* (clearer dialogue) and *Level volume* (night mode), switchable from the player.
+- **Subtitles your way** — size, colour, background, outline/shadow, position and timing (sync) adjustable from the player; subtitles always stay above the controls.
+- **Automatic library updates** — library folders are watched; new movies and episodes (e.g. from Radarr/Sonarr) appear about 30 seconds after they land.
 - **Per-user watch progress** — Continue Watching, "next up" episodes, watched markers (an item counts as watched at 90 %), mark seasons/shows as watched.
 - **Favorites, search, filters and sorting** across movies, shows and episodes.
 - **Multiple users** with administrator and user roles.
@@ -95,7 +98,7 @@ Deployment settings are environment variables that `docker-compose.yml` reads fr
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `VELYX_IMAGE` | `ghcr.io/iitssjstn/velyx:latest` | Image to pull (compose only). Pin a version with e.g. `:0.2.0`. |
+| `VELYX_IMAGE` | `ghcr.io/iitssjstn/velyx:latest` | Image to pull (compose only). Pin a version with e.g. `:0.3.0`. |
 | `VELYX_PORT` | `3000` | Host port for the web interface (compose only). |
 | `DATA_PATH` | `./data` | Host folder for the database, artwork cache, avatars and backups (compose only). |
 | `MOVIES_PATH` / `TV_PATH` | — | Host folders with your media, mounted read-only at `/media/movies` and `/media/tv` (compose only). |
@@ -182,7 +185,9 @@ Without a key Velyx still works: titles come from the file names and a typograph
 
 - Scans run one at a time in the background, with progress shown in **Admin → Libraries**.
 - Incremental: unchanged files are not analysed again, so rescans of large libraries are quick.
-- Automatic scans run every `SCAN_INTERVAL_MINUTES`; you can also scan a single library or all libraries manually.
+- **Automatic updates:** Velyx watches the library folders. After a change it waits until the folder has been quiet for 30 seconds (so files that are still copying are not read half-way), then runs an incremental scan. Libraries show *Auto-updating* in Admin → Libraries; switch it off in Admin → Server. Partial downloads (`.part`, `.!qb`) are ignored.
+- Scheduled scans run every `SCAN_INTERVAL_MINUTES` as a fallback; you can also scan a single library or all libraries manually.
+- Very large libraries can hit the Linux limit on watched folders. Velyx then shows *Auto-update unavailable* and keeps using scheduled scans; raise the limit on the host with `sudo sysctl fs.inotify.max_user_watches=524288` (add it to `/etc/sysctl.conf` to keep it).
 - **Scan issues** lists files FFprobe could not read and episodes without a recognisable number.
 - Removing a library only removes it from Velyx — your files are never modified (media is mounted read-only).
 
@@ -191,7 +196,7 @@ Without a key Velyx still works: titles come from the file names and a typograph
 Velyx picks the lightest way to play each file:
 
 1. **Direct Play** — the original file is streamed with HTTP range requests. Seeking is instant and the server does almost no work. Used whenever the browser supports the container, video and audio.
-2. **Audio conversion (remux)** — when the browser supports the *video* but not the audio or the container, FFmpeg copies the video stream unchanged and converts only the selected audio track to AAC stereo, streamed as fragmented MP4. Typical cases: Dolby Digital (AC3), Dolby Digital Plus (EAC3), DTS and TrueHD audio in Chrome/Edge/Firefox, and MKV files in Safari. The video is never re-encoded, so this costs little CPU. Seeking restarts the stream at the nearest keyframe (a short load of about a second). The player shows an *Audio converted* badge, and Admin → Dashboard shows how many conversions are running.
+2. **Audio conversion (remux)** — when the browser supports the *video* but not the audio or the container, FFmpeg copies the video stream unchanged and converts only the selected audio track to AAC (stereo, or 5.1 when *Surround* is chosen and the source has it), streamed as fragmented MP4. The same route is used when *Boost voices* or *Level volume* is switched on. Typical cases: Dolby Digital (AC3), Dolby Digital Plus (EAC3), DTS and TrueHD audio in Chrome/Edge/Firefox, and MKV files in Safari. The video is never re-encoded, so this costs little CPU. Seeking restarts the stream at the nearest keyframe (a short load of about a second). The player shows an *Audio converted* badge, and Admin → Dashboard shows how many conversions are running.
 3. **Not playable yet** — when the browser cannot decode the video codec itself (for example HEVC in Firefox), full video transcoding would be needed. That is planned; the player explains why the file does not play.
 
 | | Chrome / Edge | Firefox | Safari |
@@ -203,7 +208,19 @@ Velyx picks the lightest way to play each file:
 | AC3 / EAC3 / DTS / TrueHD audio | ✅ converted | ✅ converted | ✅ (converted where needed) |
 | MKV container | ✅ direct | ✅ direct | ✅ converted |
 
-**Settings → Playback** shows what the current browser supports.
+### Audio options
+
+Available in the player's audio menu and in **Settings → Playback** (saved per browser):
+
+| Option | What it does |
+| --- | --- |
+| Sound: Stereo / Surround 5.1 | Channel layout for converted audio. Surround keeps up to 5.1 (7.1 is folded to 5.1); stereo mixes down for speakers and headphones. |
+| Boost voices | 5.1 sources: dialogue (center channel) emphasised in the mix. Stereo sources: speech frequencies lifted. |
+| Level volume | Dynamic range compression — quieter explosions, louder dialogue. |
+
+Boost voices and Level volume always convert the audio, just like in Plex.
+
+**Settings → Playback** also shows what the current browser supports.
 
 **Keyboard shortcuts in the player:** `Space`/`K` play/pause, `←`/`→` or `J`/`L` seek 10 s, `↑`/`↓` volume, `M` mute, `F` fullscreen, `C` cycle subtitles, `N` next episode, `0`–`9` jump to 0–90 %, `Esc` back.
 
@@ -212,7 +229,8 @@ Velyx picks the lightest way to play each file:
 - External `.srt` (UTF-8, UTF-16 and Windows-1252 are detected) and `.vtt` files are converted to WebVTT on the fly.
 - Embedded text subtitles (SRT, ASS/SSA, MP4 text) are extracted with FFmpeg once and cached.
 - Image-based subtitles (PGS, VobSub) need transcoding and are not supported yet.
-- A preferred subtitle language and size can be set per browser in **Settings → Playback**.
+- Velyx draws subtitles itself, so they look the same in every browser and move above the player controls when those are shown.
+- Adjust **size, colour (white/yellow), background (none/dimmed/solid), edge (shadow/outline), position** and **sync** (±0.5 s steps) from the subtitle menu in the player, or set defaults with a live preview in **Settings → Playback**. A preferred subtitle language is picked automatically.
 - Audio tracks can be switched from the player in every browser: Safari switches natively, other browsers get a stream with the chosen track (converted when needed). A preferred audio language in **Settings → Playback** is applied automatically.
 
 ## Users and roles
@@ -340,9 +358,9 @@ The backend suite covers authentication, authorization, CSRF, the scanner (incre
 ## CI and the Docker image (GHCR)
 
 - `.github/workflows/ci.yml` runs on every push and pull request: install, lint, typecheck, tests (with FFmpeg), build, then builds the Docker image and checks `/health`.
-- `.github/workflows/docker-build.yml` publishes `ghcr.io/<owner>/velyx` for `linux/amd64` and `linux/arm64` on pushes to `main` (`latest`) and on version tags (`v0.2.0` → `0.2.0`, `0.2`). It authenticates with the built-in `GITHUB_TOKEN` — no extra secrets needed.
+- `.github/workflows/docker-build.yml` publishes `ghcr.io/<owner>/velyx` for `linux/amd64` and `linux/arm64` on pushes to `main` (`latest`) and on version tags (`v0.3.0` → `0.3.0`, `0.3`). It authenticates with the built-in `GITHUB_TOKEN` — no extra secrets needed.
 
-After the first publish, make the package public under **GitHub → Packages → velyx → Package settings** if you want to pull it without logging in. To release a version: bump `version` in `package.json` and `backend/package.json`, then `git tag v0.2.0 && git push --tags`.
+After the first publish, make the package public under **GitHub → Packages → velyx → Package settings** if you want to pull it without logging in. To release a version: bump `version` in `package.json` and `backend/package.json`, then `git tag v0.3.0 && git push --tags`.
 
 ## Architecture
 
@@ -371,6 +389,8 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 | Episodes missing | See Admin → Libraries → Scan issues; names need `S01E02` or `1x02`. |
 | Video does not play | The browser cannot decode the video codec (usually HEVC). Try Chrome/Edge or Safari. Audio problems are converted automatically. |
 | Playback starts slowly after seeking | Normal while audio is converted: the stream restarts at the nearest keyframe. |
+| Subtitles out of sync | Use Sync in the subtitle menu (+ shows them later, − earlier). |
+| New files do not appear automatically | Check Admin → Libraries for *Auto-updating*; see the inotify note under [Libraries and scanning](#libraries-and-scanning). |
 | Signed out behind HTTPS proxy | Set `TRUST_PROXY=true` and forward the `Host` header. |
 | Forgot the admin password | `docker compose exec velyx velyx reset-password <user> <password>` |
 | Container unhealthy | `docker compose logs velyx`. |
@@ -388,7 +408,6 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 - Burn-in or OCR for image-based subtitles.
 - Collections, watchlists and per-user library access.
 - Trickplay thumbnails on the seek bar, intro/credits detection.
-- File-system watching for instant library updates.
 - Apps for TV and mobile, Chromecast support.
 
 ## License
