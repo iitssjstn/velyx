@@ -1,0 +1,595 @@
+import type { FastifyInstance } from 'fastify';
+import { and, asc, count, desc, eq, inArray, like, or, sql, type SQL } from 'drizzle-orm';
+import { z } from 'zod';
+import type { AppContext } from '../app.js';
+import { requireUser } from '../app.js';
+import {
+  credits,
+  episodes,
+  favorites,
+  genres,
+  libraries,
+  mediaFiles,
+  movieGenres,
+  movies,
+  people,
+  seasons,
+  showGenres,
+  shows,
+  subtitles,
+  watchProgress,
+} from '../db/schema.js';
+import { Catalog } from '../services/catalog.js';
+import { notFound, parseId } from '../http-error.js';
+import { languageName } from '../services/parser.js';
+
+const listQuery = z.object({
+  page: z.coerce.number().int().min(1).max(100000).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(60),
+  sort: z.enum(['title', 'added', 'year', 'rating', 'release']).default('title'),
+  order: z.enum(['asc', 'desc']).optional(),
+  genre: z.coerce.number().int().positive().optional(),
+  library: z.coerce.number().int().positive().optional(),
+  filter: z.enum(['all', 'unwatched', 'in-progress', 'watched']).default('all'),
+});
+
+function escapeLike(q: string): string {
+  return q.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+type FileRow = typeof mediaFiles.$inferSelect;
+
+export function fileInfo(f: FileRow, externalSubs: Array<typeof subtitles.$inferSelect> = []) {
+  return {
+    id: f.id,
+    fileName: f.path.split('/').pop() ?? f.path,
+    size: f.size,
+    container: f.container,
+    durationSec: f.durationSec,
+    bitrate: f.bitrate,
+    videoCodec: f.videoCodec,
+    videoProfile: f.videoProfile,
+    width: f.width,
+    height: f.height,
+    fps: f.fps,
+    audioCodec: f.audioCodec,
+    audioChannels: f.audioChannels,
+    audioTracks: (f.audioTracks ?? []).map((a) => ({ ...a, languageName: a.language ? languageName(a.language) : null })),
+    embeddedSubtitles: (f.subtitleTracks ?? []).map((s) => ({ ...s, languageName: s.language ? languageName(s.language) : null })),
+    externalSubtitles: externalSubs.map((s) => ({ id: s.id, language: s.language, label: s.label, format: s.format, forced: s.forced })),
+    probeError: f.probeError,
+  };
+}
+
+export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
+  const catalog = new Catalog(ctx.db);
+  const db = ctx.db;
+
+  const subsFor = (fileIds: number[]) =>
+    fileIds.length ? db.select().from(subtitles).where(inArray(subtitles.mediaFileId, fileIds)).all() : [];
+
+  // ------------------------------------------------------------------ home
+  app.get('/api/home', { preHandler: requireUser }, async (request) => {
+    const userId = request.user!.id;
+
+    // Continue watching: partially watched items + "next up" episodes of shows in progress.
+    const inProgress = db
+      .select()
+      .from(watchProgress)
+      .where(and(eq(watchProgress.userId, userId), eq(watchProgress.completed, false), sql`${watchProgress.positionSec} >= 30`))
+      .orderBy(desc(watchProgress.updatedAt))
+      .limit(30)
+      .all();
+
+    const latestCompletedPerShow = db
+      .select({ showId: episodes.showId, episodeId: episodes.id, updatedAt: sql<number>`max(${watchProgress.updatedAt})` })
+      .from(watchProgress)
+      .innerJoin(episodes, eq(episodes.id, watchProgress.episodeId))
+      .where(and(eq(watchProgress.userId, userId), eq(watchProgress.completed, true)))
+      .groupBy(episodes.showId)
+      .orderBy(desc(sql`max(${watchProgress.updatedAt})`))
+      .limit(20)
+      .all();
+
+    type CW = {
+      type: 'movie' | 'episode';
+      id: number;
+      title: string;
+      subtitle: string | null;
+      imagePath: string | null;
+      posterPath: string | null;
+      showId: number | null;
+      progress: { positionSec: number; durationSec: number } | null;
+      updatedAt: number;
+    };
+    const cw: CW[] = [];
+    const showsInProgress = new Set<number>();
+
+    for (const p of inProgress) {
+      if (p.movieId) {
+        const m = db.select().from(movies).where(eq(movies.id, p.movieId)).get();
+        if (m)
+          cw.push({
+            type: 'movie',
+            id: m.id,
+            title: m.title,
+            subtitle: m.year ? String(m.year) : null,
+            imagePath: m.backdropPath,
+            posterPath: m.posterPath,
+            showId: null,
+            progress: { positionSec: p.positionSec, durationSec: p.durationSec },
+            updatedAt: p.updatedAt,
+          });
+      } else if (p.episodeId) {
+        const row = db
+          .select({ e: episodes, s: shows })
+          .from(episodes)
+          .innerJoin(shows, eq(shows.id, episodes.showId))
+          .where(eq(episodes.id, p.episodeId))
+          .get();
+        if (row && !showsInProgress.has(row.s.id)) {
+          showsInProgress.add(row.s.id);
+          cw.push({
+            type: 'episode',
+            id: row.e.id,
+            title: row.s.title,
+            subtitle: `S${row.e.seasonNumber} E${row.e.episodeNumber}${row.e.title ? ` · ${row.e.title}` : ''}`,
+            imagePath: row.e.stillPath ?? row.s.backdropPath,
+            posterPath: row.s.posterPath,
+            showId: row.s.id,
+            progress: { positionSec: p.positionSec, durationSec: p.durationSec },
+            updatedAt: p.updatedAt,
+          });
+        }
+      }
+    }
+    for (const c of latestCompletedPerShow) {
+      if (showsInProgress.has(c.showId)) continue;
+      // The most recently completed episode of this show:
+      const last = db
+        .select({ id: episodes.id })
+        .from(watchProgress)
+        .innerJoin(episodes, eq(episodes.id, watchProgress.episodeId))
+        .where(and(eq(watchProgress.userId, userId), eq(watchProgress.completed, true), eq(episodes.showId, c.showId)))
+        .orderBy(desc(watchProgress.updatedAt))
+        .limit(1)
+        .get();
+      const next = last ? catalog.nextEpisode(last.id) : null;
+      if (!next) continue;
+      const existing = db
+        .select()
+        .from(watchProgress)
+        .where(and(eq(watchProgress.userId, userId), eq(watchProgress.episodeId, next.id)))
+        .get();
+      if (existing?.completed) continue;
+      const s = db.select().from(shows).where(eq(shows.id, c.showId)).get();
+      if (!s) continue;
+      showsInProgress.add(s.id);
+      cw.push({
+        type: 'episode',
+        id: next.id,
+        title: s.title,
+        subtitle: `Next: S${next.seasonNumber} E${next.episodeNumber}${next.title ? ` · ${next.title}` : ''}`,
+        imagePath: next.stillPath ?? s.backdropPath,
+        posterPath: s.posterPath,
+        showId: s.id,
+        progress: existing ? { positionSec: existing.positionSec, durationSec: existing.durationSec } : null,
+        updatedAt: c.updatedAt,
+      });
+    }
+    cw.sort((a, b) => b.updatedAt - a.updatedAt);
+
+    const recentMovies = db.select().from(movies).orderBy(desc(movies.addedAt)).limit(20).all();
+    const recentShows = db.select().from(shows).orderBy(desc(shows.lastEpisodeAddedAt)).limit(20).all();
+    const recentlyAdded = [...catalog.movieCards(userId, recentMovies), ...catalog.showCards(userId, recentShows)]
+      .sort((a, b) => b.addedAt - a.addedAt)
+      .slice(0, 20);
+
+    // Recently watched: completed items, newest first, one card per show.
+    const watchedRows = db
+      .select()
+      .from(watchProgress)
+      .where(and(eq(watchProgress.userId, userId), eq(watchProgress.completed, true)))
+      .orderBy(desc(watchProgress.updatedAt))
+      .limit(60)
+      .all();
+    const watchedMovieIds: number[] = [];
+    const watchedShowIds: number[] = [];
+    for (const w of watchedRows) {
+      if (w.movieId && !watchedMovieIds.includes(w.movieId)) watchedMovieIds.push(w.movieId);
+      if (w.episodeId) {
+        const ep = db.select({ showId: episodes.showId }).from(episodes).where(eq(episodes.id, w.episodeId)).get();
+        if (ep && !watchedShowIds.includes(ep.showId)) watchedShowIds.push(ep.showId);
+      }
+    }
+    const order = new Map<string, number>();
+    watchedRows.forEach((w, i) => {
+      if (w.movieId && !order.has(`m${w.movieId}`)) order.set(`m${w.movieId}`, i);
+    });
+    const recentlyWatched = [
+      ...catalog.movieCards(userId, watchedMovieIds.length ? db.select().from(movies).where(inArray(movies.id, watchedMovieIds)).all() : []),
+      ...catalog.showCards(userId, watchedShowIds.length ? db.select().from(shows).where(inArray(shows.id, watchedShowIds)).all() : []),
+    ]
+      .sort((a, b) => {
+        const ka = a.type === 'movie' ? watchedMovieIds.indexOf(a.id) : watchedShowIds.indexOf(a.id);
+        const kb = b.type === 'movie' ? watchedMovieIds.indexOf(b.id) : watchedShowIds.indexOf(b.id);
+        return ka - kb;
+      })
+      .slice(0, 20);
+
+    const movieRow = db.select().from(movies).orderBy(desc(movies.releaseDate), desc(movies.year)).limit(20).all();
+    const showRow = db.select().from(shows).orderBy(desc(shows.rating)).limit(20).all();
+
+    const favRows = db.select().from(favorites).where(eq(favorites.userId, userId)).orderBy(desc(favorites.createdAt)).limit(40).all();
+    const favMovieIds = favRows.filter((f) => f.movieId).map((f) => f.movieId!);
+    const favShowIds = favRows.filter((f) => f.showId).map((f) => f.showId!);
+    const favoritesSection = [
+      ...catalog.movieCards(userId, favMovieIds.length ? db.select().from(movies).where(inArray(movies.id, favMovieIds)).all() : []),
+      ...catalog.showCards(userId, favShowIds.length ? db.select().from(shows).where(inArray(shows.id, favShowIds)).all() : []),
+    ];
+
+    const hero = cw[0] ?? null;
+    return {
+      hero,
+      continueWatching: cw.slice(0, 20),
+      recentlyAdded,
+      recentlyWatched,
+      movies: catalog.movieCards(userId, movieRow),
+      shows: catalog.showCards(userId, showRow),
+      favorites: favoritesSection,
+      counts: {
+        movies: db.select({ n: count() }).from(movies).get()!.n,
+        shows: db.select({ n: count() }).from(shows).get()!.n,
+        libraries: db.select({ n: count() }).from(libraries).get()!.n,
+      },
+    };
+  });
+
+  // ------------------------------------------------------------------ genres
+  app.get<{ Querystring: { type?: string } }>('/api/genres', { preHandler: requireUser }, async (request) => {
+    if (request.query.type === 'shows') {
+      return db
+        .select({ id: genres.id, name: genres.name, count: count() })
+        .from(genres)
+        .innerJoin(showGenres, eq(showGenres.genreId, genres.id))
+        .groupBy(genres.id)
+        .orderBy(asc(genres.name))
+        .all();
+    }
+    return db
+      .select({ id: genres.id, name: genres.name, count: count() })
+      .from(genres)
+      .innerJoin(movieGenres, eq(movieGenres.genreId, genres.id))
+      .groupBy(genres.id)
+      .orderBy(asc(genres.name))
+      .all();
+  });
+
+  // ------------------------------------------------------------------ movies
+  app.get('/api/movies', { preHandler: requireUser }, async (request) => {
+    const q = listQuery.parse(request.query);
+    const userId = request.user!.id;
+    const conds: SQL[] = [];
+    if (q.genre) conds.push(sql`${movies.id} IN (SELECT movie_id FROM movie_genres WHERE genre_id = ${q.genre})`);
+    if (q.library) conds.push(eq(movies.libraryId, q.library));
+    if (q.filter === 'watched') conds.push(sql`${movies.id} IN (SELECT movie_id FROM watch_progress WHERE user_id = ${userId} AND completed = 1 AND movie_id IS NOT NULL)`);
+    if (q.filter === 'unwatched') conds.push(sql`${movies.id} NOT IN (SELECT movie_id FROM watch_progress WHERE user_id = ${userId} AND completed = 1 AND movie_id IS NOT NULL)`);
+    if (q.filter === 'in-progress') conds.push(sql`${movies.id} IN (SELECT movie_id FROM watch_progress WHERE user_id = ${userId} AND completed = 0 AND position_sec >= 30 AND movie_id IS NOT NULL)`);
+    const where = conds.length ? and(...conds) : undefined;
+    const dir = q.order ?? (q.sort === 'title' ? 'asc' : 'desc');
+    const o = dir === 'asc' ? asc : desc;
+    const orderBy = {
+      title: [o(movies.sortTitle)],
+      added: [o(movies.addedAt), asc(movies.sortTitle)],
+      year: [o(movies.year), asc(movies.sortTitle)],
+      rating: [o(movies.rating), asc(movies.sortTitle)],
+      release: [o(movies.releaseDate), o(movies.year), asc(movies.sortTitle)],
+    }[q.sort];
+    const total = db.select({ n: count() }).from(movies).where(where).get()!.n;
+    const rows = db
+      .select()
+      .from(movies)
+      .where(where)
+      .orderBy(...orderBy)
+      .limit(q.limit)
+      .offset((q.page - 1) * q.limit)
+      .all();
+    return { items: catalog.movieCards(userId, rows), total, page: q.page, pageSize: q.limit };
+  });
+
+  app.get<{ Params: { id: string } }>('/api/movies/:id', { preHandler: requireUser }, async (request) => {
+    const id = parseId(request.params.id);
+    const userId = request.user!.id;
+    const m = db.select().from(movies).where(eq(movies.id, id)).get();
+    if (!m) throw notFound('Movie');
+    const g = db
+      .select({ id: genres.id, name: genres.name })
+      .from(movieGenres)
+      .innerJoin(genres, eq(genres.id, movieGenres.genreId))
+      .where(eq(movieGenres.movieId, id))
+      .all();
+    const people_ = db
+      .select({ id: people.id, name: people.name, profilePath: people.profilePath, kind: credits.kind, role: credits.role })
+      .from(credits)
+      .innerJoin(people, eq(people.id, credits.personId))
+      .where(eq(credits.movieId, id))
+      .orderBy(asc(credits.kind), asc(credits.sortOrder))
+      .all();
+    const files = db.select().from(mediaFiles).where(eq(mediaFiles.movieId, id)).orderBy(desc(mediaFiles.height), desc(mediaFiles.size)).all();
+    const subs = subsFor(files.map((f) => f.id));
+    const progress = catalog.movieProgress(userId, [id]).get(id) ?? null;
+    const favorite = catalog.favoriteIds(userId).movies.has(id);
+    const lib = db.select({ name: libraries.name }).from(libraries).where(eq(libraries.id, m.libraryId)).get();
+    return {
+      id: m.id,
+      type: 'movie',
+      title: m.title,
+      originalTitle: m.originalTitle,
+      year: m.year,
+      overview: m.overview,
+      tagline: m.tagline,
+      runtime: m.runtime ?? (files[0]?.durationSec ? Math.round(files[0].durationSec / 60) : null),
+      releaseDate: m.releaseDate,
+      rating: m.rating,
+      voteCount: m.voteCount,
+      director: m.director,
+      posterPath: m.posterPath,
+      backdropPath: m.backdropPath,
+      tmdbId: m.tmdbId,
+      imdbId: m.imdbId,
+      libraryName: lib?.name ?? null,
+      match: { status: m.matchStatus, confidence: m.matchConfidence, parsedTitle: m.parsedTitle, parsedYear: m.parsedYear },
+      genres: g,
+      cast: people_.filter((p) => p.kind === 'cast').map(({ kind: _k, ...p }) => p),
+      crew: people_.filter((p) => p.kind === 'crew').map(({ kind: _k, ...p }) => p),
+      files: files.map((f) => fileInfo(f, subs.filter((s) => s.mediaFileId === f.id))),
+      progress,
+      favorite,
+    };
+  });
+
+  // ------------------------------------------------------------------ shows
+  app.get('/api/shows', { preHandler: requireUser }, async (request) => {
+    const q = listQuery.parse(request.query);
+    const userId = request.user!.id;
+    const conds: SQL[] = [];
+    if (q.genre) conds.push(sql`${shows.id} IN (SELECT show_id FROM show_genres WHERE genre_id = ${q.genre})`);
+    if (q.library) conds.push(eq(shows.libraryId, q.library));
+    const watchedCount = sql`(SELECT count(*) FROM watch_progress wp JOIN episodes e ON e.id = wp.episode_id WHERE wp.user_id = ${userId} AND wp.completed = 1 AND e.show_id = ${shows.id})`;
+    const totalCount = sql`(SELECT count(*) FROM episodes e WHERE e.show_id = ${shows.id})`;
+    if (q.filter === 'watched') conds.push(sql`${watchedCount} >= ${totalCount}`);
+    if (q.filter === 'unwatched') conds.push(sql`${watchedCount} = 0`);
+    if (q.filter === 'in-progress') conds.push(sql`${watchedCount} > 0 AND ${watchedCount} < ${totalCount}`);
+    const where = conds.length ? and(...conds) : undefined;
+    const dir = q.order ?? (q.sort === 'title' ? 'asc' : 'desc');
+    const o = dir === 'asc' ? asc : desc;
+    const orderBy = {
+      title: [o(shows.sortTitle)],
+      added: [o(shows.lastEpisodeAddedAt), asc(shows.sortTitle)],
+      year: [o(shows.year), asc(shows.sortTitle)],
+      rating: [o(shows.rating), asc(shows.sortTitle)],
+      release: [o(shows.firstAirDate), asc(shows.sortTitle)],
+    }[q.sort];
+    const total = db.select({ n: count() }).from(shows).where(where).get()!.n;
+    const rows = db
+      .select()
+      .from(shows)
+      .where(where)
+      .orderBy(...orderBy)
+      .limit(q.limit)
+      .offset((q.page - 1) * q.limit)
+      .all();
+    return { items: catalog.showCards(userId, rows), total, page: q.page, pageSize: q.limit };
+  });
+
+  app.get<{ Params: { id: string } }>('/api/shows/:id', { preHandler: requireUser }, async (request) => {
+    const id = parseId(request.params.id);
+    const userId = request.user!.id;
+    const s = db.select().from(shows).where(eq(shows.id, id)).get();
+    if (!s) throw notFound('Show');
+    const g = db
+      .select({ id: genres.id, name: genres.name })
+      .from(showGenres)
+      .innerJoin(genres, eq(genres.id, showGenres.genreId))
+      .where(eq(showGenres.showId, id))
+      .all();
+    const people_ = db
+      .select({ id: people.id, name: people.name, profilePath: people.profilePath, kind: credits.kind, role: credits.role })
+      .from(credits)
+      .innerJoin(people, eq(people.id, credits.personId))
+      .where(eq(credits.showId, id))
+      .orderBy(asc(credits.kind), asc(credits.sortOrder))
+      .all();
+    const seasonRows = db.select().from(seasons).where(eq(seasons.showId, id)).orderBy(asc(seasons.seasonNumber)).all();
+    const eps = db
+      .select({ id: episodes.id, seasonId: episodes.seasonId, seasonNumber: episodes.seasonNumber, episodeNumber: episodes.episodeNumber, title: episodes.title })
+      .from(episodes)
+      .where(eq(episodes.showId, id))
+      .orderBy(asc(episodes.seasonNumber), asc(episodes.episodeNumber))
+      .all();
+    const progress = catalog.episodeProgress(userId, eps.map((e) => e.id));
+    // Up next: first in-progress episode, otherwise the first unwatched one after the last watched.
+    const regular = eps.filter((e) => e.seasonNumber > 0);
+    const ordered = regular.length ? regular : eps;
+    let upNext = ordered.find((e) => {
+      const p = progress.get(e.id);
+      return p && !p.completed && p.positionSec >= 30;
+    });
+    if (!upNext) {
+      let lastWatchedIdx = -1;
+      ordered.forEach((e, i) => {
+        if (progress.get(e.id)?.completed) lastWatchedIdx = i;
+      });
+      upNext = ordered[lastWatchedIdx + 1] ?? ordered[0];
+    }
+    const favorite = catalog.favoriteIds(userId).shows.has(id);
+    return {
+      id: s.id,
+      type: 'show',
+      title: s.title,
+      originalTitle: s.originalTitle,
+      year: s.year,
+      overview: s.overview,
+      firstAirDate: s.firstAirDate,
+      status: s.status,
+      network: s.network,
+      rating: s.rating,
+      posterPath: s.posterPath,
+      backdropPath: s.backdropPath,
+      tmdbId: s.tmdbId,
+      imdbId: s.imdbId,
+      match: { status: s.matchStatus, confidence: s.matchConfidence, parsedTitle: s.parsedTitle, parsedYear: s.parsedYear },
+      genres: g,
+      cast: people_.filter((p) => p.kind === 'cast').map(({ kind: _k, ...p }) => p),
+      crew: people_.filter((p) => p.kind === 'crew').map(({ kind: _k, ...p }) => p),
+      seasons: seasonRows.map((se) => {
+        const inSeason = eps.filter((e) => e.seasonId === se.id);
+        return {
+          id: se.id,
+          seasonNumber: se.seasonNumber,
+          name: se.name ?? (se.seasonNumber === 0 ? 'Specials' : `Season ${se.seasonNumber}`),
+          overview: se.overview,
+          airDate: se.airDate,
+          posterPath: se.posterPath,
+          episodeCount: inSeason.length,
+          watchedCount: inSeason.filter((e) => progress.get(e.id)?.completed).length,
+        };
+      }),
+      episodeCount: eps.length,
+      watchedCount: eps.filter((e) => progress.get(e.id)?.completed).length,
+      upNext: upNext
+        ? { id: upNext.id, seasonNumber: upNext.seasonNumber, episodeNumber: upNext.episodeNumber, title: upNext.title, progress: progress.get(upNext.id) ?? null }
+        : null,
+      favorite,
+    };
+  });
+
+  app.get<{ Params: { id: string; season: string } }>('/api/shows/:id/seasons/:season', { preHandler: requireUser }, async (request) => {
+    const id = parseId(request.params.id);
+    const n = Number(request.params.season);
+    if (!Number.isInteger(n) || n < 0) throw notFound('Season');
+    const userId = request.user!.id;
+    const season = db
+      .select()
+      .from(seasons)
+      .where(and(eq(seasons.showId, id), eq(seasons.seasonNumber, n)))
+      .get();
+    if (!season) throw notFound('Season');
+    const eps = db.select().from(episodes).where(eq(episodes.seasonId, season.id)).orderBy(asc(episodes.episodeNumber)).all();
+    const progress = catalog.episodeProgress(userId, eps.map((e) => e.id));
+    const files = eps.length
+      ? db
+          .select({ episodeId: mediaFiles.episodeId, durationSec: mediaFiles.durationSec, height: mediaFiles.height })
+          .from(mediaFiles)
+          .where(inArray(mediaFiles.episodeId, eps.map((e) => e.id)))
+          .all()
+      : [];
+    return {
+      id: season.id,
+      seasonNumber: season.seasonNumber,
+      name: season.name,
+      overview: season.overview,
+      posterPath: season.posterPath,
+      episodes: eps.map((e) => {
+        const f = files.find((x) => x.episodeId === e.id);
+        return {
+          id: e.id,
+          seasonNumber: e.seasonNumber,
+          episodeNumber: e.episodeNumber,
+          title: e.title,
+          overview: e.overview,
+          airDate: e.airDate,
+          runtime: e.runtime ?? (f?.durationSec ? Math.round(f.durationSec / 60) : null),
+          rating: e.rating,
+          stillPath: e.stillPath,
+          durationSec: f?.durationSec ?? null,
+          height: f?.height ?? null,
+          progress: progress.get(e.id) ?? null,
+        };
+      }),
+    };
+  });
+
+  app.get<{ Params: { id: string } }>('/api/episodes/:id', { preHandler: requireUser }, async (request) => {
+    const id = parseId(request.params.id);
+    const userId = request.user!.id;
+    const row = db
+      .select({ e: episodes, s: shows })
+      .from(episodes)
+      .innerJoin(shows, eq(shows.id, episodes.showId))
+      .where(eq(episodes.id, id))
+      .get();
+    if (!row) throw notFound('Episode');
+    const files = db.select().from(mediaFiles).where(eq(mediaFiles.episodeId, id)).orderBy(desc(mediaFiles.height)).all();
+    const subs = subsFor(files.map((f) => f.id));
+    const next = catalog.nextEpisode(id);
+    const prev = catalog.previousEpisode(id);
+    return {
+      id: row.e.id,
+      type: 'episode',
+      showId: row.s.id,
+      showTitle: row.s.title,
+      showPosterPath: row.s.posterPath,
+      showBackdropPath: row.s.backdropPath,
+      seasonNumber: row.e.seasonNumber,
+      episodeNumber: row.e.episodeNumber,
+      title: row.e.title,
+      overview: row.e.overview,
+      airDate: row.e.airDate,
+      runtime: row.e.runtime,
+      rating: row.e.rating,
+      stillPath: row.e.stillPath,
+      files: files.map((f) => fileInfo(f, subs.filter((s) => s.mediaFileId === f.id))),
+      progress: catalog.episodeProgress(userId, [id]).get(id) ?? null,
+      next: next ? { id: next.id, seasonNumber: next.seasonNumber, episodeNumber: next.episodeNumber, title: next.title, stillPath: next.stillPath } : null,
+      previous: prev ? { id: prev.id, seasonNumber: prev.seasonNumber, episodeNumber: prev.episodeNumber, title: prev.title } : null,
+    };
+  });
+
+  // ------------------------------------------------------------------ search
+  app.get<{ Querystring: { q?: string } }>('/api/search', { preHandler: requireUser }, async (request) => {
+    const q = (request.query.q ?? '').trim().slice(0, 100);
+    const userId = request.user!.id;
+    if (!q) return { query: q, movies: [], shows: [], episodes: [] };
+    const pattern = `%${escapeLike(q)}%`;
+    const likeEsc = (col: Parameters<typeof like>[0]) => sql`${col} LIKE ${pattern} ESCAPE '\\'`;
+    const movieRows = db
+      .select()
+      .from(movies)
+      .where(or(likeEsc(movies.title), likeEsc(movies.originalTitle), likeEsc(movies.parsedTitle)))
+      .orderBy(sql`CASE WHEN ${movies.title} LIKE ${escapeLike(q) + '%'} ESCAPE '\\' THEN 0 ELSE 1 END`, asc(movies.sortTitle))
+      .limit(30)
+      .all();
+    const showRows = db
+      .select()
+      .from(shows)
+      .where(or(likeEsc(shows.title), likeEsc(shows.originalTitle), likeEsc(shows.parsedTitle)))
+      .orderBy(sql`CASE WHEN ${shows.title} LIKE ${escapeLike(q) + '%'} ESCAPE '\\' THEN 0 ELSE 1 END`, asc(shows.sortTitle))
+      .limit(30)
+      .all();
+    const epRows = db
+      .select({ e: episodes, showTitle: shows.title, showBackdrop: shows.backdropPath })
+      .from(episodes)
+      .innerJoin(shows, eq(shows.id, episodes.showId))
+      .where(likeEsc(episodes.title))
+      .orderBy(asc(shows.sortTitle), asc(episodes.seasonNumber), asc(episodes.episodeNumber))
+      .limit(30)
+      .all();
+    const epProgress = catalog.episodeProgress(userId, epRows.map((r) => r.e.id));
+    return {
+      query: q,
+      movies: catalog.movieCards(userId, movieRows),
+      shows: catalog.showCards(userId, showRows),
+      episodes: epRows.map((r) => ({
+        id: r.e.id,
+        showId: r.e.showId,
+        showTitle: r.showTitle,
+        seasonNumber: r.e.seasonNumber,
+        episodeNumber: r.e.episodeNumber,
+        title: r.e.title,
+        stillPath: r.e.stillPath ?? r.showBackdrop,
+        progress: epProgress.get(r.e.id) ?? null,
+      })),
+    };
+  });
+}
