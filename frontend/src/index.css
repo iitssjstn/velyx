@@ -1,0 +1,113 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/bricolage-grotesque';
+@import '@fontsource-variable/figtree';
+
+@theme {
+  --color-bg: #14121c;
+  --color-surface: #1e1b29;
+  --color-raised: #2a2638;
+  --color-line: #37314a;
+  --color-ink: #ece8f4;
+  --color-muted: #9a93ad;
+  --color-faint: #6c6580;
+  --color-accent: #b69cff;
+  --color-accent-strong: #9f7fff;
+  --color-accent-ink: #1b1430;
+  --color-amber: #f2c46d;
+  --color-danger: #ff8193;
+  --color-ok: #7dd8b0;
+
+  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Figtree Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --radius-card: 0.9rem;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--color-bg);
+  }
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    min-height: 100dvh;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-accent) 40%, transparent);
+  }
+}
+
+@layer components {
+  .input {
+    @apply w-full rounded-lg border border-line bg-bg/60 px-3 py-2.5 text-ink placeholder:text-faint transition-colors;
+    @apply focus:border-accent focus:outline-none;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-muted;
+  }
+  .panel {
+    @apply rounded-[var(--radius-card)] border border-line/70 bg-surface;
+  }
+}
+
+/* Horizontal shelves: hide the scrollbar but keep keyboard/trackpad scrolling. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Subtitle rendering inside the custom player. Size is controlled with a CSS variable. */
+video::cue {
+  font-family: var(--font-sans);
+  font-size: var(--velyx-sub-size, 1.4rem);
+  line-height: 1.35;
+  color: #fff;
+  background: rgba(10, 8, 16, 0.62);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+input[type='range'].seek {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+input[type='range'].seek::-webkit-slider-runnable-track {
+  height: 4px;
+  background: transparent;
+}
+input[type='range'].seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 999px;
+  background: var(--color-ink);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 45%, transparent);
+}
+input[type='range'].seek::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-ink);
+}
+input[type='range'].seek::-moz-range-track {
+  height: 4px;
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
