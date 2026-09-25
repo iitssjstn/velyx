@@ -101,3 +101,40 @@ export class EmbeddedSubtitleExtractor {
     });
   }
 }
+
+/**
+ * Shifts every cue of a WebVTT document by -offset seconds (used when the player streams a file
+ * from a later start position). Cues that end before the new zero point are dropped.
+ */
+export function shiftVtt(vtt: string, offset: number): string {
+  if (!offset) return vtt;
+  const toSec = (t: string) => {
+    const parts = t.split(':').map(Number);
+    return parts.length === 3 ? parts[0]! * 3600 + parts[1]! * 60 + parts[2]! : parts[0]! * 60 + parts[1]!;
+  };
+  const fmt = (sec: number) => {
+    const ms = Math.round(Math.max(0, sec) * 1000);
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`;
+  };
+  const blocks = vtt.replace(/\r\n/g, '\n').split(/\n{2,}/);
+  const out: string[] = [];
+  for (const block of blocks) {
+    const lines = block.split('\n');
+    const i = lines.findIndex((l) => l.includes('-->'));
+    if (i === -1) {
+      out.push(block);
+      continue;
+    }
+    const m = /^\s*((?:\d+:)?\d{1,2}:\d{2}\.\d{1,3})\s*-->\s*((?:\d+:)?\d{1,2}:\d{2}\.\d{1,3})(.*)$/.exec(lines[i]!);
+    if (!m) continue;
+    const start = toSec(m[1]!) - offset;
+    const end = toSec(m[2]!) - offset;
+    if (end <= 0) continue;
+    lines[i] = `${fmt(start)} --> ${fmt(end)}${m[3] ?? ''}`;
+    out.push(lines.join('\n'));
+  }
+  return out.join('\n\n').replace(/\n*$/, '\n');
+}

@@ -4,7 +4,7 @@
 
 Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, favorites and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.1.0 — plays files directly (Direct Play). Transcoding is on the roadmap.
+> Version 0.2.0 — Direct Play, plus automatic audio conversion for Dolby/DTS audio and MKV in Safari. Full video transcoding is on the roadmap.
 
 ---
 
@@ -43,7 +43,8 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Metadata from TMDB** — posters, backdrops, descriptions, genres, cast, directors, ratings, episode titles and stills. Artwork is cached locally, so the library keeps working when TMDB is unreachable.
 - **Fix Match** — items Velyx cannot identify confidently are listed for review; pick the right title with a confidence score per candidate.
 - **Incremental scanning** — only new or changed files (path, size, modification time) are analysed with FFprobe. Removed files disappear, and a library whose drive is not mounted is never wiped.
-- **Custom video player** — resume, seeking, subtitles (external `.srt`/`.vtt` and embedded text tracks), subtitle size, playback speed, audio track switching where the browser supports it, auto-play next episode with countdown, fullscreen and keyboard shortcuts.
+- **Custom video player** — resume, seeking, subtitles (external `.srt`/`.vtt` and embedded text tracks), subtitle size, playback speed, audio track switching in every browser, auto-play next episode with countdown, fullscreen and keyboard shortcuts.
+- **Automatic audio conversion** — files with audio the browser cannot decode (EAC3, AC3, DTS, TrueHD) play anyway: the video is passed through untouched and only the audio is converted to AAC on the fly. Light enough for low-end CPUs.
 - **Per-user watch progress** — Continue Watching, "next up" episodes, watched markers (an item counts as watched at 90 %), mark seasons/shows as watched.
 - **Favorites, search, filters and sorting** across movies, shows and episodes.
 - **Multiple users** with administrator and user roles.
@@ -94,7 +95,7 @@ Deployment settings are environment variables that `docker-compose.yml` reads fr
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `VELYX_IMAGE` | `ghcr.io/iitssjstn/velyx:latest` | Image to pull (compose only). Pin a version with e.g. `:0.1.0`. |
+| `VELYX_IMAGE` | `ghcr.io/iitssjstn/velyx:latest` | Image to pull (compose only). Pin a version with e.g. `:0.2.0`. |
 | `VELYX_PORT` | `3000` | Host port for the web interface (compose only). |
 | `DATA_PATH` | `./data` | Host folder for the database, artwork cache, avatars and backups (compose only). |
 | `MOVIES_PATH` / `TV_PATH` | — | Host folders with your media, mounted read-only at `/media/movies` and `/media/tv` (compose only). |
@@ -164,7 +165,7 @@ Samples, trailers, extras and system folders (`@eaDir`, `#recycle`, …) are ign
 
 ## First-run setup
 
-The first visit opens a setup wizard where you create the administrator account, name the server and optionally enter a TMDB key. The wizard can only run once — as soon as an administrator exists it is closed. Next, add your libraries: **Admin → Libraries → Add library**, choose Movies or TV Shows and enter the folder inside the container (for example `/media/movies`). The first scan starts immediately.
+The first visit opens a setup wizard where you create the administrator account and name the server. The wizard can only run once — as soon as an administrator exists it is closed. Next, add your libraries: **Admin → Libraries → Add library**, choose Movies or TV Shows and enter the folder inside the container (for example `/media/movies`). The first scan starts immediately.
 
 ## TMDB metadata
 
@@ -187,17 +188,22 @@ Without a key Velyx still works: titles come from the file names and a typograph
 
 ## Playback and browser support
 
-Velyx v0.1 uses **Direct Play**: the original file is streamed with HTTP range requests, so seeking is instant and the server does almost no work. Whether a file plays depends on the browser:
+Velyx picks the lightest way to play each file:
+
+1. **Direct Play** — the original file is streamed with HTTP range requests. Seeking is instant and the server does almost no work. Used whenever the browser supports the container, video and audio.
+2. **Audio conversion (remux)** — when the browser supports the *video* but not the audio or the container, FFmpeg copies the video stream unchanged and converts only the selected audio track to AAC stereo, streamed as fragmented MP4. Typical cases: Dolby Digital (AC3), Dolby Digital Plus (EAC3), DTS and TrueHD audio in Chrome/Edge/Firefox, and MKV files in Safari. The video is never re-encoded, so this costs little CPU. Seeking restarts the stream at the nearest keyframe (a short load of about a second). The player shows an *Audio converted* badge, and Admin → Dashboard shows how many conversions are running.
+3. **Not playable yet** — when the browser cannot decode the video codec itself (for example HEVC in Firefox), full video transcoding would be needed. That is planned; the player explains why the file does not play.
 
 | | Chrome / Edge | Firefox | Safari |
 | --- | --- | --- | --- |
-| MP4 / MKV with H.264 + AAC | ✅ | ✅ | ✅ (MP4), ❌ MKV |
-| HEVC (H.265) | ✅ with hardware support | ❌ | ✅ |
-| AV1 / VP9 | ✅ | ✅ | recent versions |
-| AC3 / E-AC3 audio | depends on OS | ❌ | ✅ |
-| DTS / TrueHD audio | ❌ | ❌ | ❌ |
+| H.264 video | ✅ | ✅ | ✅ |
+| HEVC (H.265) video | ✅ with hardware support | ❌ | ✅ |
+| AV1 / VP9 video | ✅ | ✅ | recent versions |
+| AAC / MP3 / Opus audio | ✅ direct | ✅ direct | ✅ direct (AAC/MP3) |
+| AC3 / EAC3 / DTS / TrueHD audio | ✅ converted | ✅ converted | ✅ (converted where needed) |
+| MKV container | ✅ direct | ✅ direct | ✅ converted |
 
-When the browser reports that it cannot decode a file, Velyx shows a warning before playback and a clear explanation if it fails. **Settings → Playback** shows what the current browser supports. Transcoding for incompatible files is planned (see [Roadmap](#roadmap)).
+**Settings → Playback** shows what the current browser supports.
 
 **Keyboard shortcuts in the player:** `Space`/`K` play/pause, `←`/`→` or `J`/`L` seek 10 s, `↑`/`↓` volume, `M` mute, `F` fullscreen, `C` cycle subtitles, `N` next episode, `0`–`9` jump to 0–90 %, `Esc` back.
 
@@ -207,7 +213,7 @@ When the browser reports that it cannot decode a file, Velyx shows a warning bef
 - Embedded text subtitles (SRT, ASS/SSA, MP4 text) are extracted with FFmpeg once and cached.
 - Image-based subtitles (PGS, VobSub) need transcoding and are not supported yet.
 - A preferred subtitle language and size can be set per browser in **Settings → Playback**.
-- Switching between audio tracks requires the browser's `audioTracks` API (currently Safari). Other browsers play the file's default track; the player lists the available tracks.
+- Audio tracks can be switched from the player in every browser: Safari switches natively, other browsers get a stream with the chosen track (converted when needed). A preferred audio language in **Settings → Playback** is applied automatically.
 
 ## Users and roles
 
@@ -334,9 +340,9 @@ The backend suite covers authentication, authorization, CSRF, the scanner (incre
 ## CI and the Docker image (GHCR)
 
 - `.github/workflows/ci.yml` runs on every push and pull request: install, lint, typecheck, tests (with FFmpeg), build, then builds the Docker image and checks `/health`.
-- `.github/workflows/docker-build.yml` publishes `ghcr.io/<owner>/velyx` for `linux/amd64` and `linux/arm64` on pushes to `main` (`latest`) and on version tags (`v0.1.0` → `0.1.0`, `0.1`). It authenticates with the built-in `GITHUB_TOKEN` — no extra secrets needed.
+- `.github/workflows/docker-build.yml` publishes `ghcr.io/<owner>/velyx` for `linux/amd64` and `linux/arm64` on pushes to `main` (`latest`) and on version tags (`v0.2.0` → `0.2.0`, `0.2`). It authenticates with the built-in `GITHUB_TOKEN` — no extra secrets needed.
 
-After the first publish, make the package public under **GitHub → Packages → velyx → Package settings** if you want to pull it without logging in. To release a version: bump `version` in `package.json` and `backend/package.json`, then `git tag v0.1.0 && git push --tags`.
+After the first publish, make the package public under **GitHub → Packages → velyx → Package settings** if you want to pull it without logging in. To release a version: bump `version` in `package.json` and `backend/package.json`, then `git tag v0.2.0 && git push --tags`.
 
 ## Architecture
 
@@ -348,10 +354,10 @@ Fastify server ── Auth / sessions ── SQLite (Drizzle, WAL)
    ├── Scan queue ─ Scanner ─ FFprobe
    ├── Metadata service ─ TMDB client (rate-limited) ─ image cache
    ├── Subtitles (SRT→VTT, FFmpeg extraction cache)
-   └── PlaybackRegistry ─ DirectPlayEngine   (future: TranscodingEngine)
+   └── PlaybackRegistry ─ DirectPlayEngine ─ RemuxEngine (FFmpeg: copy video, convert audio)   (future: TranscodingEngine)
 ```
 
-The `PlaybackEngine` interface decides per file and client how media is delivered. A future transcoding engine (FFmpeg with CPU, NVENC, Quick Sync, VAAPI or AMF) plugs into the same registry without changing the player or API.
+The `PlaybackEngine` interface decides per file and client how media is delivered: Direct Play first, audio conversion when only the audio or container is the problem. A future transcoding engine (FFmpeg with CPU, NVENC, Quick Sync, VAAPI or AMF) plugs into the same registry without changing the player or API.
 
 ## Troubleshooting
 
@@ -363,21 +369,22 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 | No posters | Add a TMDB key in Admin → Server; check Admin → Logs for TMDB errors. |
 | Wrong movie or show | Use Fix match on the item, or rename the file with the correct year. |
 | Episodes missing | See Admin → Libraries → Scan issues; names need `S01E02` or `1x02`. |
-| Video does not play / only audio | The browser cannot decode the codec (common with HEVC, DTS, MKV in Safari). Try Chrome/Edge. |
+| Video does not play | The browser cannot decode the video codec (usually HEVC). Try Chrome/Edge or Safari. Audio problems are converted automatically. |
+| Playback starts slowly after seeking | Normal while audio is converted: the stream restarts at the nearest keyframe. |
 | Signed out behind HTTPS proxy | Set `TRUST_PROXY=true` and forward the `Host` header. |
 | Forgot the admin password | `docker compose exec velyx velyx reset-password <user> <password>` |
 | Container unhealthy | `docker compose logs velyx`. |
 
 ## Known limitations
 
-- No transcoding: files the browser cannot decode will not play.
+- No full video transcoding yet: a video codec the browser cannot decode (e.g. HEVC in Firefox) will not play. Unsupported audio and containers are handled by audio conversion.
 - Image-based subtitles (PGS/VobSub) are not supported yet.
-- Audio track switching only works in browsers with the `audioTracks` API (Safari).
+- While audio is converted, seeking outside the already loaded part restarts the stream (about a second).
 - Music, photos and live TV are out of scope for this version.
 
 ## Roadmap
 
-- Transcoding engine with hardware acceleration (NVENC, Quick Sync, VAAPI/AMF) and HLS output.
+- Full video transcoding with hardware acceleration (NVENC, Quick Sync, VAAPI/AMF) and HLS output.
 - Burn-in or OCR for image-based subtitles.
 - Collections, watchlists and per-user library access.
 - Trickplay thumbnails on the seek bar, intro/credits detection.

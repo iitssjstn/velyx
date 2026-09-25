@@ -6,7 +6,8 @@ import type { AppContext } from '../app.js';
 import { requireUser } from '../app.js';
 import { libraries, mediaFiles, subtitles } from '../db/schema.js';
 import { resolveMediaPath } from '../services/paths.js';
-import { readSubtitleAsVtt } from '../services/subtitles.js';
+import { readSubtitleAsVtt, shiftVtt } from '../services/subtitles.js';
+import type { RemuxEngine } from '../playback/remux.js';
 import { isValidImageRequest } from '../services/images.js';
 import { languageName } from '../services/parser.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
@@ -17,8 +18,18 @@ const capsBody = z
     containers: z.array(z.string().max(20)).max(30).optional(),
     videoCodecs: z.array(z.string().max(20)).max(30).optional(),
     audioCodecs: z.array(z.string().max(20)).max(30).optional(),
+    audioIndex: z.number().int().min(0).max(1000).optional(),
   })
   .default({});
+
+/** ?offset= on subtitle URLs: seconds to subtract from every cue (for streams that start later). */
+function offsetParam(query: unknown): number {
+  const raw = (query as { offset?: string } | undefined)?.offset;
+  if (raw === undefined) return 0;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 1e6) throw new HttpError(400, 'Invalid subtitle offset.');
+  return n;
+}
 
 export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   const db = ctx.db;
@@ -79,11 +90,28 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   app.post<{ Params: { id: string } }>('/api/media/:id/playback', { preHandler: requireUser }, async (request) => {
     const { file } = loadFile(request.params.id);
-    const caps = capsBody.parse(request.body ?? {});
-    const decision = ctx.playback.decide(file, caps);
+    const { audioIndex, ...caps } = capsBody.parse(request.body ?? {});
+    if (audioIndex !== undefined && !(file.audioTracks ?? []).some((t) => t.index === audioIndex)) throw new HttpError(400, 'Unknown audio track.');
+    const decision = ctx.playback.decide(file, caps, { audioIndex });
     if (!decision) throw new HttpError(415, 'This file cannot be played.');
     const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, file.id)).all();
     return { decision, file: fileInfo(file, external), subtitles: subtitleList(file) };
+  });
+
+  // Live remux: video copied, audio converted when needed. Seeking = request again with ?start=.
+  app.get<{ Params: { id: string } }>('/api/media/:id/remux', { preHandler: requireUser }, async (request, reply) => {
+    const { file, abs } = loadFile(request.params.id);
+    return ctx.playback.get('remux')!.serve(request, reply, file, abs);
+  });
+
+  /** Keyframe at or before ?t=, so a restarted remux stream (and its subtitles) line up exactly. */
+  app.get<{ Params: { id: string }; Querystring: { t?: string } }>('/api/media/:id/keyframe', { preHandler: requireUser }, async (request) => {
+    const { file, abs } = loadFile(request.params.id);
+    const t = Number(request.query.t ?? 0);
+    if (!Number.isFinite(t) || t < 0) throw new HttpError(400, 'Invalid time.');
+    const target = file.durationSec ? Math.min(t, Math.max(0, file.durationSec - 1)) : t;
+    const engine = ctx.playback.get('remux') as RemuxEngine;
+    return { start: await engine.keyframeBefore(abs, target) };
   });
 
   app.get<{ Params: { id: string } }>('/api/media/:id/subtitles', { preHandler: requireUser }, async (request) => {
@@ -103,7 +131,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (!row) throw notFound('Subtitle');
     const abs = resolveMediaPath(row.root, row.s.path);
     if (!abs || !fs.existsSync(abs)) throw notFound('Subtitle');
-    const vtt = await readSubtitleAsVtt(abs, row.s.format);
+    const vtt = shiftVtt(await readSubtitleAsVtt(abs, row.s.format), offsetParam(request.query));
     return reply.type('text/vtt; charset=utf-8').header('Cache-Control', 'private, max-age=3600').send(vtt);
   });
 
@@ -113,7 +141,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const track = (file.subtitleTracks ?? []).find((t) => t.index === index);
     if (!Number.isInteger(index) || !track) throw notFound('Subtitle track');
     if (!track.textBased) throw new HttpError(415, 'Image-based subtitles (PGS/VobSub) need transcoding, which arrives in a future version.');
-    const vtt = await ctx.subtitleExtractor.extract(file.id, file.mtimeMs, abs, index);
+    const vtt = shiftVtt(await ctx.subtitleExtractor.extract(file.id, file.mtimeMs, abs, index), offsetParam(request.query));
     return reply.type('text/vtt; charset=utf-8').header('Cache-Control', 'private, max-age=3600').send(vtt);
   });
 

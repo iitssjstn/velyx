@@ -34,3 +34,34 @@ export function isTyping(target: EventTarget | null): boolean {
   const t = target as HTMLElement | null;
   return Boolean(t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)));
 }
+
+/** Appends a query parameter to a URL that may already have a query string. */
+export function withParam(url: string, key: string, value: string | number): string {
+  return `${url}${url.includes('?') ? '&' : '?'}${key}=${encodeURIComponent(String(value))}`;
+}
+
+/**
+ * The audio track to request up front: the preferred language when the browser cannot switch
+ * tracks itself and that language is not already the default. undefined = file default.
+ */
+export function preferredAudioIndex(
+  tracks: { index: number; language: string | null; isDefault: boolean }[],
+  preferredLanguage: string,
+  nativeSwitching: boolean,
+): number | undefined {
+  if (!preferredLanguage || nativeSwitching || tracks.length < 2) return undefined;
+  const def = tracks.find((t) => t.isDefault) ?? tracks[0];
+  if (def && sameLanguage(def.language, preferredLanguage)) return undefined;
+  return tracks.find((t) => sameLanguage(t.language, preferredLanguage))?.index;
+}
+
+/**
+ * Where a seek should go for live (restart) streams: within what is already buffered the browser
+ * can seek locally; anything else needs a new stream from the server.
+ */
+/** `bufferedEnd` is measured in stream time (seconds since `offset`). */
+export function seekPlan(target: number, offset: number, bufferedEnd: number): { local: number } | { restart: true } {
+  const local = target - offset;
+  if (local >= 0 && local <= bufferedEnd - 0.3) return { local };
+  return { restart: true };
+}

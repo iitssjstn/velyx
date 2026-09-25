@@ -7,7 +7,7 @@ import { AuthShell } from './AuthShell';
 
 export function SetupPage() {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ username: '', password: '', confirm: '', serverName: 'Velyx', tmdbApiKey: '' });
+  const [form, setForm] = useState({ username: '', password: '', confirm: '', serverName: 'Velyx' });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -23,7 +23,6 @@ export function SetupPage() {
         username: form.username.trim(),
         password: form.password,
         serverName: form.serverName.trim() || 'Velyx',
-        tmdbApiKey: form.tmdbApiKey.trim() || undefined,
       });
       qc.setQueryData(['me'], res.user);
       // Once server-info reports setup as done, the router sends the new admin to the libraries page.
@@ -56,15 +55,7 @@ export function SetupPage() {
           <label className="label" htmlFor="serverName">Server name</label>
           <input id="serverName" className="input" value={form.serverName} onChange={set('serverName')} maxLength={64} />
         </div>
-        <div>
-          <label className="label" htmlFor="tmdb">
-            TMDB API key <span className="font-normal text-faint">(optional)</span>
-          </label>
-          <input id="tmdb" className="input font-mono text-sm" autoComplete="off" spellCheck={false} value={form.tmdbApiKey} onChange={set('tmdbApiKey')} placeholder="v3 key or v4 read access token" />
-          <p className="mt-1.5 text-xs text-faint">
-            Used for posters, descriptions and cast. Get a free key at themoviedb.org → Settings → API. You can add it later, and a TMDB_API_KEY environment variable works too.
-          </p>
-        </div>
+        <p className="text-xs text-faint">After setup, add your media folders in Admin → Libraries and a TMDB key for posters and descriptions in Admin → Server.</p>
         {error && (
           <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
             {error}

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { ClientCapabilities, MediaFileRow, PlaybackDecision, PlaybackEngine } from './engine.js';
+import { defaultAudioIndex, type ClientCapabilities, type MediaFileRow, type PlaybackDecision, type PlaybackEngine, type PlaybackOptions } from './engine.js';
 
 const MIME: Record<string, string> = {
   '.mp4': 'video/mp4',
@@ -56,7 +56,7 @@ const BROWSER_FRIENDLY_AUDIO = new Set(['aac', 'mp3', 'opus', 'vorbis', 'flac', 
 export class DirectPlayEngine implements PlaybackEngine {
   readonly id = 'direct';
 
-  decide(file: MediaFileRow, caps: ClientCapabilities): PlaybackDecision {
+  decide(file: MediaFileRow, caps: ClientCapabilities, options: PlaybackOptions = {}): PlaybackDecision {
     const reasons: string[] = [];
     const reported = Boolean(caps.videoCodecs?.length || caps.audioCodecs?.length || caps.containers?.length);
     let compatible: boolean | 'unknown' = reported ? true : 'unknown';
@@ -75,7 +75,22 @@ export class DirectPlayEngine implements PlaybackEngine {
       if (file.videoCodec && !BROWSER_FRIENDLY_VIDEO.has(file.videoCodec)) reasons.push(`Video codec ${file.videoCodec.toUpperCase()} may not play in browsers`);
       if (file.audioCodec && !BROWSER_FRIENDLY_AUDIO.has(file.audioCodec)) reasons.push(`Audio codec ${file.audioCodec.toUpperCase()} may not play in browsers`);
     }
-    return { engine: this.id, streamUrl: `/api/media/${file.id}/stream`, compatible, reasons };
+    const defaultAudio = defaultAudioIndex(file);
+    if (options.audioIndex !== undefined && options.audioIndex !== defaultAudio) {
+      // Browsers without the audioTracks API always play the default track.
+      compatible = false;
+      reasons.push('Another audio track was selected');
+    }
+    return {
+      engine: this.id,
+      streamUrl: `/api/media/${file.id}/stream`,
+      compatible,
+      reasons,
+      seek: 'range',
+      audioIndex: defaultAudio,
+      note: null,
+      durationSec: file.durationSec,
+    };
   }
 
   async serve(request: FastifyRequest, reply: FastifyReply, file: MediaFileRow, absolutePath: string): Promise<FastifyReply> {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -21,15 +21,17 @@ import {
 } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
-import { episodeCode, formatClock, imageUrl } from '../lib/format';
+import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
 import { getPrefs, sameLanguage, setPrefs, SUBTITLE_SIZES, usePrefs } from '../lib/prefs';
-import { isTyping, pickSubtitle, startPosition } from '../lib/player';
+import { isTyping, pickSubtitle, preferredAudioIndex, seekPlan, startPosition, withParam } from '../lib/player';
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo } from '../lib/types';
 import { Spinner } from '../components/States';
 
 const SAVE_INTERVAL_MS = 10_000;
 const HIDE_CONTROLS_MS = 3000;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+/** Only Safari exposes HTMLMediaElement.audioTracks by default; elsewhere the server switches tracks. */
+const NATIVE_AUDIO_SWITCHING = typeof HTMLMediaElement !== 'undefined' && 'audioTracks' in HTMLMediaElement.prototype;
 
 interface LoadedItem {
   kind: 'movie' | 'episode';
@@ -89,12 +91,20 @@ export default function PlayerPage() {
   const item = useQuery({ queryKey: ['play-item', kind, id], queryFn: () => loadItem(kind, id), gcTime: 0, staleTime: Infinity });
   const fileParam = Number(params.get('file'));
   const file = item.data?.files.find((f) => f.id === fileParam) ?? item.data?.files[0];
+
+  // Audio track to ask the server for. null = not decided yet, undefined = the file's default.
+  const [audioChoice, setAudioChoice] = useState<number | undefined | null>(null);
+  useEffect(() => {
+    if (file && audioChoice === null) setAudioChoice(preferredAudioIndex(file.audioTracks, getPrefs().audioLanguage, NATIVE_AUDIO_SWITCHING));
+  }, [file, audioChoice]);
+
   const playback = useQuery({
-    queryKey: ['playback', file?.id],
-    enabled: Boolean(file),
+    queryKey: ['playback', file?.id, audioChoice],
+    enabled: Boolean(file) && audioChoice !== null,
     gcTime: 0,
     staleTime: Infinity,
-    queryFn: () => api.post<PlaybackInfo>(`/api/media/${file!.id}/playback`, detectCapabilities()),
+    placeholderData: keepPreviousData,
+    queryFn: () => api.post<PlaybackInfo>(`/api/media/${file!.id}/playback`, { ...detectCapabilities(), ...(audioChoice !== undefined && audioChoice !== null ? { audioIndex: audioChoice } : {}) }),
   });
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -117,13 +127,96 @@ export default function PlayerPage() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [audioTracks, setAudioTracks] = useState<BrowserAudioTrack[]>([]);
   const [seekHover, setSeekHover] = useState<{ x: number; t: number } | null>(null);
+  // The stream to load: `base` is the decision's URL, live (restart) streams begin `offset` seconds in.
+  const [stream, setStream] = useState<{ base: string; offset: number } | null>(null);
   const startedRef = useRef(false);
   const lastSaveRef = useRef(0);
+  const pendingSeekRef = useRef<number | null>(null);
+  const resumeAtRef = useRef<number | null>(null);
+  const playAfterLoadRef = useRef(true);
+  const restartTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const subKeyRef = useRef<string | null>(null);
 
   const info = playback.data;
+  const live = info?.decision.seek === 'restart';
+  // Only use a stream that belongs to the current decision (avoids loading a stale URL after an audio switch).
+  const current = stream && info && stream.base === info.decision.streamUrl ? stream : null;
+  const offset = live && current ? current.offset : 0;
   const subs = useMemo(() => info?.subtitles ?? [], [info]);
   const next = item.data?.next ?? null;
   const start = useMemo(() => startPosition(params.get('t'), item.data?.progress), [params, item.data?.progress]);
+  const totalDuration = live ? (info?.decision.durationSec ?? file?.durationSec ?? 0) : duration;
+  const streamSrc = current ? (live && current.offset > 0 ? withParam(current.base, 'start', current.offset.toFixed(3)) : current.base) : null;
+
+  /** Current position in the file (not in the current stream). */
+  const currentTime = useCallback(() => offset + (videoRef.current?.currentTime ?? 0), [offset]);
+
+  // ---------------------------------------------------------------- stream (re)initialisation
+  // Decide where the stream starts whenever a new playback decision arrives (first load or audio switch).
+  useEffect(() => {
+    if (!info) return;
+    const target = resumeAtRef.current ?? (startedRef.current ? 0 : start);
+    resumeAtRef.current = null;
+    pendingSeekRef.current = target > 0 ? target : null;
+    const base = info.decision.streamUrl;
+    if (info.decision.seek !== 'restart' || target <= 0) {
+      setStream({ base, offset: 0 });
+      return;
+    }
+    let cancelled = false;
+    setStream(null);
+    api
+      .get<{ start: number }>(`/api/media/${info.file.id}/keyframe?t=${target.toFixed(3)}`)
+      .then((r) => !cancelled && setStream({ base, offset: r.start }))
+      .catch(() => !cancelled && setStream({ base, offset: target }));
+    return () => {
+      cancelled = true;
+    };
+  }, [info, start]);
+
+  /** Requests a new live stream starting at the keyframe before `target` (debounced while scrubbing). */
+  const restartAt = useCallback(
+    (target: number) => {
+      if (!info) return;
+      clearTimeout(restartTimer.current);
+      setTime(target);
+      restartTimer.current = setTimeout(async () => {
+        const v = videoRef.current;
+        playAfterLoadRef.current = v ? !v.paused || !startedRef.current : true;
+        setBuffering(true);
+        let k = target;
+        try {
+          k = (await api.get<{ start: number }>(`/api/media/${info.file.id}/keyframe?t=${target.toFixed(3)}`)).start;
+        } catch {
+          /* fall back to the exact time */
+        }
+        pendingSeekRef.current = target;
+        setStream({ base: info.decision.streamUrl, offset: k });
+      }, 250);
+    },
+    [info],
+  );
+  useEffect(() => () => clearTimeout(restartTimer.current), []);
+
+  const seekTo = useCallback(
+    (target: number) => {
+      const v = videoRef.current;
+      if (!v) return;
+      const max = Math.max(0, (totalDuration || v.duration || 0) - 0.5);
+      const t = Math.max(0, Math.min(max, target));
+      if (!live) {
+        v.currentTime = t;
+        return;
+      }
+      const end = v.buffered.length ? v.buffered.end(v.buffered.length - 1) : 0;
+      const plan = seekPlan(t, offset, end);
+      if ('local' in plan) {
+        clearTimeout(restartTimer.current);
+        v.currentTime = plan.local;
+      } else restartAt(t);
+    },
+    [live, offset, totalDuration, restartAt],
+  );
 
   // ---------------------------------------------------------------- controls visibility
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -147,11 +240,7 @@ export default function PlayerPage() {
     else v.pause();
   }, []);
 
-  const seekBy = useCallback((delta: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.currentTime = Math.max(0, Math.min((v.duration || 0) - 0.5, v.currentTime + delta));
-  }, []);
+  const seekBy = useCallback((delta: number) => seekTo(currentTime() + delta), [seekTo, currentTime]);
 
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
@@ -172,6 +261,7 @@ export default function PlayerPage() {
   const selectSubtitle = useCallback(
     (key: string | null) => {
       setSubKey(key);
+      subKeyRef.current = key;
       const v = videoRef.current;
       if (!v) return;
       for (let i = 0; i < v.textTracks.length; i++) {
@@ -182,12 +272,25 @@ export default function PlayerPage() {
     [subs],
   );
 
-  const selectAudio = useCallback((trackId: string) => {
+  /** Native switching (Safari) when direct playing; otherwise ask the server for a stream with that track. */
+  const selectNativeAudio = useCallback((trackId: string) => {
     const list = (videoRef.current as unknown as { audioTracks?: AudioTrackList } | null)?.audioTracks;
     if (!list) return;
     for (let i = 0; i < list.length; i++) list[i]!.enabled = list[i]!.id === trackId;
-    setAudioTracks(Array.from({ length: list.length }, (_, i) => ({ ...list[i]!, id: list[i]!.id, label: list[i]!.label, language: list[i]!.language, enabled: list[i]!.enabled })));
+    setAudioTracks(Array.from({ length: list.length }, (_, i) => ({ id: list[i]!.id, label: list[i]!.label, language: list[i]!.language, enabled: list[i]!.enabled })));
   }, []);
+
+  const selectServerAudio = useCallback(
+    (index: number) => {
+      if (index === info?.decision.audioIndex) return;
+      const v = videoRef.current;
+      resumeAtRef.current = currentTime();
+      playAfterLoadRef.current = v ? !v.paused : true;
+      setBuffering(true);
+      setAudioChoice(index);
+    },
+    [info, currentTime],
+  );
 
   const goNext = useCallback(() => {
     if (!next) return;
@@ -205,6 +308,11 @@ export default function PlayerPage() {
   // ---------------------------------------------------------------- reset when the item changes (auto-next)
   useEffect(() => {
     startedRef.current = false;
+    pendingSeekRef.current = null;
+    resumeAtRef.current = null;
+    playAfterLoadRef.current = true;
+    setAudioChoice(null);
+    setStream(null);
     setEnded(false);
     setCountdown(null);
     setError(null);
@@ -218,41 +326,52 @@ export default function PlayerPage() {
   const onLoadedMetadata = () => {
     const v = videoRef.current;
     if (!v) return;
-    setDuration(v.duration);
+    if (!live) setDuration(v.duration);
     v.volume = volume;
     v.muted = muted;
     v.playbackRate = speed;
+    const pending = pendingSeekRef.current;
+    pendingSeekRef.current = null;
+    if (pending !== null) {
+      const local = pending - offset;
+      if (local > 0.05 && (live || local < v.duration - 1)) v.currentTime = local;
+    }
     if (!startedRef.current) {
       startedRef.current = true;
-      if (start > 0 && start < v.duration - 5) v.currentTime = start;
-      // Default subtitle according to preferences.
       selectSubtitle(pickSubtitle(subs, getPrefs().subtitleLanguage));
-      // Preferred audio language when the browser supports switching.
+      // Preferred audio language in browsers that switch tracks natively (direct play only).
       const list = (v as unknown as { audioTracks?: AudioTrackList }).audioTracks;
-      if (list && list.length > 0) {
+      if (!live && list && list.length > 0) {
         const pref = getPrefs().audioLanguage;
         const tracks = Array.from({ length: list.length }, (_, i) => list[i]!);
         const match = pref ? tracks.find((t) => sameLanguage(t.language, pref)) : undefined;
         if (match) for (const t of tracks) t.enabled = t === match;
         setAudioTracks(tracks.map((t) => ({ id: t.id, label: t.label, language: t.language, enabled: t.enabled })));
       }
+    } else {
+      // A new stream (seek or audio switch) re-created the text tracks: restore the chosen subtitle.
+      selectSubtitle(subKeyRef.current);
+    }
+    if (playAfterLoadRef.current) {
       void v.play().catch(() => {
         // Autoplay with sound can be blocked; the user just presses play.
         setPlaying(false);
         setBuffering(false);
       });
-    }
+    } else setBuffering(false);
+    playAfterLoadRef.current = true;
   };
 
   const onTimeUpdate = () => {
     const v = videoRef.current;
     if (!v || !item.data) return;
-    setTime(v.currentTime);
-    if (v.buffered.length) setBuffered(v.buffered.end(v.buffered.length - 1));
+    const t = offset + v.currentTime;
+    setTime(t);
+    if (v.buffered.length) setBuffered(offset + v.buffered.end(v.buffered.length - 1));
     const now = Date.now();
     if (!v.paused && now - lastSaveRef.current > SAVE_INTERVAL_MS) {
       lastSaveRef.current = now;
-      void saveProgress(item.data, v.currentTime, v.duration);
+      void saveProgress(item.data, t, totalDuration || v.duration);
     }
   };
 
@@ -260,7 +379,7 @@ export default function PlayerPage() {
     setPlaying(false);
     setControlsVisible(true);
     const v = videoRef.current;
-    if (v && item.data && startedRef.current) void saveProgress(item.data, v.currentTime, v.duration);
+    if (v && item.data && startedRef.current && !v.ended) void saveProgress(item.data, currentTime(), totalDuration || v.duration);
   };
 
   const onEnded = () => {
@@ -268,7 +387,8 @@ export default function PlayerPage() {
     setPlaying(false);
     setControlsVisible(true);
     const v = videoRef.current;
-    if (v && item.data) void saveProgress(item.data, v.duration, v.duration)?.then(() => qc.invalidateQueries({ queryKey: ['home'] }));
+    const total = totalDuration || v?.duration || 0;
+    if (v && item.data) void saveProgress(item.data, total, total)?.then(() => qc.invalidateQueries({ queryKey: ['home'] }));
     if (next && getPrefs().autoplayNext) setCountdown(getPrefs().autoplayCountdown);
   };
 
@@ -279,8 +399,8 @@ export default function PlayerPage() {
     if (code === 4 || code === 3) {
       setError(
         reasons.length
-          ? `Your browser cannot play this file: ${reasons.join('; ')}. Velyx currently plays files directly (no transcoding yet).`
-          : 'Your browser cannot decode this file. Try another browser (Chrome/Edge handle the most formats) — transcoding arrives in a future Velyx version.',
+          ? `Your browser cannot play this file: ${reasons.join('; ')}. Velyx converts audio automatically, but this video format would need full transcoding, which is not supported yet.`
+          : 'Your browser cannot decode this file. Try Chrome or Edge, which handle the most formats.',
       );
     } else if (code === 2) {
       setError('The connection to the server was interrupted.');
@@ -302,10 +422,13 @@ export default function PlayerPage() {
   }, [countdown, goNext]);
 
   // ---------------------------------------------------------------- save on leave
+  const saveStateRef = useRef({ offset, total: totalDuration });
+  saveStateRef.current = { offset, total: totalDuration };
   useEffect(() => {
     const onHide = () => {
       const v = videoRef.current;
-      if (v && item.data && startedRef.current && !v.ended) void saveProgress(item.data, v.currentTime, v.duration, true);
+      const { offset: o, total } = saveStateRef.current;
+      if (v && item.data && startedRef.current && !v.ended) void saveProgress(item.data, o + v.currentTime, total || v.duration, true);
     };
     window.addEventListener('pagehide', onHide);
     return () => {
@@ -380,12 +503,12 @@ export default function PlayerPage() {
           else if (!document.fullscreenElement) exit();
           break;
         default:
-          if (/^[0-9]$/.test(e.key) && v?.duration) v.currentTime = (v.duration * Number(e.key)) / 10;
+          if (/^[0-9]$/.test(e.key) && totalDuration) seekTo((totalDuration * Number(e.key)) / 10);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [poke, togglePlay, seekBy, applyVolume, toggleFullscreen, selectSubtitle, goNext, exit, subs, subKey, next, menu, volume, muted]);
+  }, [poke, togglePlay, seekBy, seekTo, applyVolume, toggleFullscreen, selectSubtitle, goNext, exit, subs, subKey, next, menu, volume, muted, totalDuration]);
 
   useEffect(() => {
     wrapRef.current?.style.setProperty('--velyx-sub-size', SUBTITLE_SIZES[prefs.subtitleSize]);
@@ -419,17 +542,17 @@ export default function PlayerPage() {
       onMouseMove={poke}
       onTouchStart={poke}
     >
-      {info && (
+      {info && streamSrc && (
         <video
-          key={info.decision.streamUrl}
+          key={streamSrc}
           ref={videoRef}
-          src={info.decision.streamUrl}
+          src={streamSrc}
           className="h-full w-full"
           preload="metadata"
           playsInline
           poster={imageUrl(item.data?.backdrop, 'w1280') ?? undefined}
           onLoadedMetadata={onLoadedMetadata}
-          onDurationChange={() => setDuration(videoRef.current?.duration ?? 0)}
+          onDurationChange={() => !live && setDuration(videoRef.current?.duration ?? 0)}
           onTimeUpdate={onTimeUpdate}
           onPlay={() => {
             setPlaying(true);
@@ -443,7 +566,7 @@ export default function PlayerPage() {
           onCanPlay={() => setBuffering(false)}
           onSeeked={() => {
             const v = videoRef.current;
-            if (v && item.data && startedRef.current) void saveProgress(item.data, v.currentTime, v.duration);
+            if (v && item.data && startedRef.current) void saveProgress(item.data, offset + v.currentTime, totalDuration || v.duration);
           }}
           onEnded={onEnded}
           onError={onError}
@@ -454,12 +577,13 @@ export default function PlayerPage() {
           onDoubleClick={toggleFullscreen}
         >
           {subs.map((s) => (
-            <track key={s.key} kind="subtitles" src={s.url} label={s.label} srcLang={s.language ?? undefined} />
+            // Live streams start at `offset`, so their cues are shifted by the server to match.
+            <track key={s.key} kind="subtitles" src={offset > 0 ? withParam(s.url, 'offset', offset.toFixed(3)) : s.url} label={s.label} srcLang={s.language ?? undefined} />
           ))}
         </video>
       )}
 
-      {(buffering || !info) && !error && (
+      {(buffering || !streamSrc) && !error && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <Spinner className="size-10" />
         </div>
@@ -515,7 +639,7 @@ export default function PlayerPage() {
           <div className="text-center">
             <p className="font-display text-2xl font-semibold">Finished</p>
             <div className="mt-4 flex justify-center gap-3">
-              <button type="button" onClick={() => { const v = videoRef.current; if (v) { v.currentTime = 0; void v.play(); } }} className="flex h-10 items-center gap-2 rounded-lg bg-raised px-4">
+              <button type="button" onClick={() => { setEnded(false); if (live && offset > 0) restartAt(0); else { const v = videoRef.current; if (v) { v.currentTime = 0; void v.play(); } } }} className="flex h-10 items-center gap-2 rounded-lg bg-raised px-4">
                 <RotateCcw className="size-4" /> Watch again
               </button>
               <Link to={item.data?.backHref ?? '/'} className="flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">Done</Link>
@@ -533,6 +657,11 @@ export default function PlayerPage() {
           <p className="truncate font-display text-lg font-semibold">{item.data?.title}</p>
           {item.data?.subtitle && <p className="truncate text-sm text-ink/70">{item.data.subtitle}</p>}
         </div>
+        {info?.decision.note && (
+          <span className="ml-auto hidden shrink-0 items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs text-ink/80 sm:inline-flex" title={info.decision.note}>
+            <AudioLines className="size-3.5" /> Audio converted
+          </span>
+        )}
       </div>
 
       {/* Bottom controls */}
@@ -546,15 +675,18 @@ export default function PlayerPage() {
           onMouseMove={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
             const x = Math.min(Math.max(0, e.clientX - r.left), r.width);
-            setSeekHover({ x, t: duration ? (x / r.width) * duration : 0 });
+            setSeekHover({ x, t: totalDuration ? (x / r.width) * totalDuration : 0 });
           }}
           onMouseLeave={() => setSeekHover(null)}
         >
           <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-white/20 transition-all group-hover:h-1.5">
-            <div className="absolute inset-y-0 left-0 bg-white/30" style={{ width: `${duration ? (buffered / duration) * 100 : 0}%` }} />
-            <div className="absolute inset-y-0 left-0 bg-accent" style={{ width: `${duration ? (time / duration) * 100 : 0}%` }} />
+            {live && offset > 0 && totalDuration > 0 && (
+              <div className="absolute inset-y-0 bg-white/30" style={{ left: `${(offset / totalDuration) * 100}%`, width: `${Math.max(0, ((buffered - offset) / totalDuration) * 100)}%` }} />
+            )}
+            {!(live && offset > 0) && <div className="absolute inset-y-0 left-0 bg-white/30" style={{ width: `${totalDuration ? (buffered / totalDuration) * 100 : 0}%` }} />}
+            <div className="absolute inset-y-0 left-0 bg-accent" style={{ width: `${totalDuration ? Math.min(100, (time / totalDuration) * 100) : 0}%` }} />
           </div>
-          {seekHover && duration > 0 && (
+          {seekHover && totalDuration > 0 && (
             <span className="pointer-events-none absolute -top-7 -translate-x-1/2 rounded bg-black/80 px-1.5 py-0.5 text-xs tabular-nums" style={{ left: seekHover.x }}>
               {formatClock(seekHover.t)}
             </span>
@@ -563,15 +695,15 @@ export default function PlayerPage() {
             type="range"
             className="seek absolute inset-0 h-full w-full opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
             min={0}
-            max={duration || 0}
+            max={totalDuration || 0}
             step={0.1}
-            value={time}
+            value={Math.min(time, totalDuration || 0)}
             aria-label="Seek"
             aria-valuetext={formatClock(time)}
             onChange={(e) => {
-              const v = videoRef.current;
-              if (v) v.currentTime = Number(e.target.value);
-              setTime(Number(e.target.value));
+              const t = Number(e.target.value);
+              setTime(t);
+              seekTo(t);
             }}
           />
         </div>
@@ -602,7 +734,7 @@ export default function PlayerPage() {
             />
           </div>
           <span className="ml-2 text-sm text-ink/80 tabular-nums">
-            {formatClock(time)} <span className="text-ink/40">/ {formatClock(duration)}</span>
+            {formatClock(time)} <span className="text-ink/40">/ {formatClock(totalDuration)}</span>
           </span>
 
           <div className="relative ml-auto flex items-center gap-1">
@@ -657,22 +789,19 @@ export default function PlayerPage() {
                 {menu === 'audio' && (
                   <>
                     <p className="px-4 pt-1 pb-2 text-xs text-faint">Audio</p>
-                    {canSwitchAudio
+                    {canSwitchAudio && !live
                       ? audioTracks.map((t, i) => (
-                          <MenuItem key={t.id || i} active={t.enabled} onClick={() => { selectAudio(t.id); setMenu(null); }}>
+                          <MenuItem key={t.id || i} active={t.enabled} onClick={() => { selectNativeAudio(t.id); setMenu(null); }}>
                             {t.label || fileAudio[i]?.title || fileAudio[i]?.languageName || t.language || `Track ${i + 1}`}
                           </MenuItem>
                         ))
-                      : (
-                        <>
-                          {fileAudio.map((a) => (
-                            <div key={a.index} className="px-4 py-1.5 text-sm text-muted">
-                              {a.languageName ?? a.title ?? 'Unknown'} {a.isDefault && <span className="text-xs text-faint">(default)</span>}
-                            </div>
-                          ))}
-                          <p className="px-4 pt-2 text-xs text-faint">This browser plays the default track only. Safari supports switching; other browsers need transcoding (planned).</p>
-                        </>
-                      )}
+                      : fileAudio.map((a) => (
+                          <MenuItem key={a.index} active={info?.decision.audioIndex === a.index} onClick={() => { selectServerAudio(a.index); setMenu(null); }}>
+                            {a.title || a.languageName || 'Unknown'}
+                            <span className="ml-2 text-xs text-faint">{[codecName(a.codec), channelLabel(a.channels)].filter(Boolean).join(' ')}</span>
+                          </MenuItem>
+                        ))}
+                    {info?.decision.note && <p className="px-4 pt-2 text-xs text-faint">{info.decision.note}</p>}
                   </>
                 )}
                 {menu === 'speed' && (

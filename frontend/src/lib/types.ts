@@ -266,8 +266,20 @@ export interface SubtitleOption {
   url: string;
 }
 
+export interface PlaybackDecision {
+  engine: 'direct' | 'remux' | string;
+  streamUrl: string;
+  compatible: boolean | 'unknown';
+  reasons: string[];
+  /** 'range' = browser seeks itself; 'restart' = live stream, request again with &start= to seek. */
+  seek: 'range' | 'restart';
+  audioIndex: number | null;
+  note: string | null;
+  durationSec: number | null;
+}
+
 export interface PlaybackInfo {
-  decision: { engine: string; streamUrl: string; compatible: boolean | 'unknown'; reasons: string[] };
+  decision: PlaybackDecision;
   file: MediaFileInfo;
   subtitles: SubtitleOption[];
 }
@@ -333,6 +345,7 @@ export interface Dashboard {
   loadAverage: number[];
   cpus: number;
   ffprobe: string | null;
+  activeStreams: number;
   tmdb: { configured: boolean; source: 'environment' | 'settings' | 'none' };
   counts: { movies: number; shows: number; seasons: number; episodes: number; files: number; users: number; needsReview: number };
   storage: {

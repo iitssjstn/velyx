@@ -16,6 +16,7 @@ import { HttpError, notFound, parseId } from '../http-error.js';
 import { adminCount, publicUser } from './auth.js';
 import { createDatabaseSnapshot } from '../services/backup.js';
 import { createLogger } from '../logger.js';
+import type { RemuxEngine } from '../playback/remux.js';
 
 const log = createLogger('admin');
 
@@ -129,6 +130,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       loadAverage: os.loadavg(),
       cpus: os.cpus().length,
       ffprobe: ffmpegVersion,
+      activeStreams: (ctx.playback.get('remux') as RemuxEngine | undefined)?.activeStreams ?? 0,
       tmdb: { configured: ctx.tmdb.configured, source: ctx.settings.tmdbKeySource() },
       counts: {
         movies: db.select({ n: count() }).from(movies).get()!.n,

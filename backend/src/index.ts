@@ -7,6 +7,7 @@ import { buildApp, createContext } from './app.js';
 import { checkBinary } from './services/probe.js';
 import { createLogger } from './logger.js';
 import { APP_VERSION } from './version.js';
+import type { RemuxEngine } from './playback/remux.js';
 
 const log = createLogger('velyx');
 
@@ -42,6 +43,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     log.info(`Received ${signal}, shutting down`);
     ctx.scans.stop();
+    (ctx.playback.get('remux') as RemuxEngine | undefined)?.stopAll();
     clearInterval(purgeTimer);
     try {
       await app.close();

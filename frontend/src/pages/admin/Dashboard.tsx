@@ -63,6 +63,8 @@ export function DashboardPage() {
             <dd className={d.tmdb.configured ? 'text-ok' : 'text-amber'}>{d.tmdb.configured ? `Configured (${d.tmdb.source === 'environment' ? 'environment variable' : 'settings'})` : 'Not configured'}</dd>
             <dt className="text-faint">FFprobe</dt>
             <dd className={d.ffprobe ? '' : 'text-danger'}>{d.ffprobe ? d.ffprobe.split(' Copyright')[0] : 'Not found — media analysis is disabled'}</dd>
+            <dt className="text-faint">Audio conversions</dt>
+            <dd>{d.activeStreams === 0 ? 'None running' : `${d.activeStreams} running`}</dd>
             <dt className="text-faint">Memory (Velyx)</dt>
             <dd>{formatBytes(d.memory.rss)}</dd>
             <dt className="text-faint">System memory</dt>

@@ -66,3 +66,85 @@ describe.skipIf(!available)('real FFprobe / FFmpeg', () => {
     expect(vtt.body).toContain('Embedded line');
   }, 30000);
 });
+
+/** Live remux with the real binaries: EAC3/AC3 audio converted to AAC, video copied, seeking. */
+describe.skipIf(!available)('remux streaming (real FFmpeg)', () => {
+  let env: TestEnv;
+  let admin: string;
+  let fileId: number;
+
+  beforeAll(async () => {
+    env = await createTestEnv({ prober: createFfprobe('ffprobe') });
+    admin = await setupAdmin(env.app);
+    const dir = path.join(env.mediaDir, 'movies');
+    fs.mkdirSync(dir, { recursive: true });
+    const srt = path.join(env.dir, 'late.srt');
+    fs.writeFileSync(srt, '1\n00:00:01,000 --> 00:00:02,000\nEarly\n\n2\n00:00:05,000 --> 00:00:06,000\nLate line\n');
+    execFileSync('ffmpeg', [
+      '-v', 'error',
+      '-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=25:duration=8',
+      '-f', 'lavfi', '-i', 'sine=frequency=440:duration=8',
+      '-f', 'lavfi', '-i', 'sine=frequency=660:duration=8',
+      '-i', srt,
+      '-map', '0', '-map', '1', '-map', '2', '-map', '3',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '50',
+      '-c:a:0', 'eac3', '-c:a:1', 'aac', '-c:s', 'srt',
+      '-metadata:s:a:0', 'language=eng', '-metadata:s:a:1', 'language=nld', '-metadata:s:s:0', 'language=eng',
+      path.join(dir, 'Dolby Film (2021).mkv'),
+    ]);
+    await addLibrary(env, admin, 'movies', 'movies');
+    const [movie] = (await env.app.inject({ url: '/api/movies', headers: { cookie: admin } })).json().items;
+    fileId = (await env.app.inject({ url: `/api/movies/${movie.id}`, headers: { cookie: admin } })).json().files[0].id;
+  }, 60000);
+
+  afterAll(async () => {
+    await env?.cleanup();
+  });
+
+  const chrome = { containers: ['mp4', 'webm', 'mkv'], videoCodecs: ['h264', 'vp9'], audioCodecs: ['aac', 'mp3', 'opus'] };
+
+  it('chooses the remux engine for EAC3 audio', async () => {
+    const res = await env.app.inject({ method: 'POST', url: `/api/media/${fileId}/playback`, headers: { cookie: admin }, payload: chrome });
+    expect(res.json().decision).toMatchObject({ engine: 'remux', seek: 'restart', audioIndex: 1 });
+    const other = await env.app.inject({ method: 'POST', url: `/api/media/${fileId}/playback`, headers: { cookie: admin }, payload: { ...chrome, audioIndex: 2 } });
+    expect(other.json().decision).toMatchObject({ engine: 'remux', audioIndex: 2, streamUrl: `/api/media/${fileId}/remux?audio=2&copy=1` });
+    const bad = await env.app.inject({ method: 'POST', url: `/api/media/${fileId}/playback`, headers: { cookie: admin }, payload: { ...chrome, audioIndex: 9 } });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it('streams fragmented MP4 with AAC audio and copied H.264 video', async () => {
+    const res = await env.app.inject({ url: `/api/media/${fileId}/remux?audio=1`, headers: { cookie: admin } });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toBe('video/mp4');
+    const out = path.join(env.dir, 'out.mp4');
+    fs.writeFileSync(out, res.rawPayload);
+    expect(res.rawPayload.subarray(4, 8).toString()).toBe('ftyp');
+    const streams = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', out]).toString().trim().split('\n');
+    expect(streams).toEqual(['h264', 'aac']);
+  }, 30000);
+
+  it('aligns seeks to keyframes and shifts subtitles accordingly', async () => {
+    const kf = await env.app.inject({ url: `/api/media/${fileId}/keyframe?t=5.3`, headers: { cookie: admin } });
+    expect(kf.json().start).toBe(4);
+    const res = await env.app.inject({ url: `/api/media/${fileId}/remux?audio=1&start=4`, headers: { cookie: admin } });
+    const out = path.join(env.dir, 'seek.mp4');
+    fs.writeFileSync(out, res.rawPayload);
+    const dur = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', out]).toString());
+    expect(dur).toBeGreaterThan(3.5);
+    expect(dur).toBeLessThan(4.5);
+    const subs = (await env.app.inject({ url: `/api/media/${fileId}/subtitles`, headers: { cookie: admin } })).json();
+    const vtt = await env.app.inject({ url: `${subs[0].url}?offset=4`, headers: { cookie: admin } });
+    expect(vtt.body).not.toContain('Early');
+    expect(vtt.body).toMatch(/00:00:01\.0\d\d --> 00:00:02\.0\d\d\nLate line/);
+  }, 30000);
+
+  it('rejects invalid remux parameters', async () => {
+    for (const q of ['audio=7', 'audio=1&start=-3', 'audio=1&start=abc', 'audio=1&start=99999']) {
+      const res = await env.app.inject({ url: `/api/media/${fileId}/remux?${q}`, headers: { cookie: admin } });
+      expect(res.statusCode, q).toBe(400);
+    }
+    expect((await env.app.inject({ url: `/api/media/${fileId}/remux?audio=1` })).statusCode).toBe(401);
+    const subs = (await env.app.inject({ url: `/api/media/${fileId}/subtitles`, headers: { cookie: admin } })).json();
+    expect((await env.app.inject({ url: `${subs[0].url}?offset=-1`, headers: { cookie: admin } })).statusCode).toBe(400);
+  });
+});

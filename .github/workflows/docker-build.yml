@@ -10,6 +10,11 @@ permissions:
   contents: read
   packages: write
 
+# A newer push cancels a build that is still running, so an older commit can never overwrite :latest.
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   publish:
     runs-on: ubuntu-latest

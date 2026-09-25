@@ -18,6 +18,7 @@ import { createFfprobe, type Prober } from './services/probe.js';
 import { EmbeddedSubtitleExtractor } from './services/subtitles.js';
 import { PlaybackRegistry } from './playback/engine.js';
 import { DirectPlayEngine } from './playback/direct-play.js';
+import { RemuxEngine } from './playback/remux.js';
 import { createLogger } from './logger.js';
 import { HttpError } from './http-error.js';
 import { registerRoutes } from './routes/index.js';
@@ -68,6 +69,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const scans = new ScanManager(db, scanner);
   const playback = new PlaybackRegistry();
   playback.register(new DirectPlayEngine());
+  playback.register(new RemuxEngine(config.ffmpegPath, config.ffprobePath));
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
   return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, playback, subtitleExtractor, startedAt: Date.now() };
 }

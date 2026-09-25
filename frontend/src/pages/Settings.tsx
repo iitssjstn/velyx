@@ -229,7 +229,7 @@ function PlaybackSettings() {
           />
         </div>
       </Section>
-      <Section title="This browser" description="Velyx plays files directly without converting them. These formats are supported here:">
+      <Section title="This browser" description="Velyx plays files directly whenever possible. These formats are supported here:">
         <dl className="grid gap-3 text-sm sm:grid-cols-3">
           <div>
             <dt className="text-faint">Containers</dt>
@@ -244,7 +244,9 @@ function PlaybackSettings() {
             <dd>{caps.audioCodecs.map(codecName).join(', ') || '—'}</dd>
           </div>
         </dl>
-        <p className="mt-4 text-sm text-muted">Transcoding (for formats that are not listed) will be added in a future version.</p>
+        <p className="mt-4 text-sm text-muted">
+          When only the audio or the container is not supported (for example Dolby Digital, DTS or MKV in Safari), Velyx converts the audio on the fly and keeps the original video. Video formats that are not listed would need full transcoding, which is planned for a future version.
+        </p>
       </Section>
     </div>
   );
