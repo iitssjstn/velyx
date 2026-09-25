@@ -1,0 +1,31 @@
+{
+  "name": "velyx",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Velyx — Your media. Your server. A lightweight, Docker-first self-hosted media server.",
+  "license": "MIT",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace backend & npm run dev --workspace frontend",
+    "build": "npm run build --workspace frontend && npm run build --workspace backend",
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspace backend && npm run typecheck --workspace frontend",
+    "test": "npm run test --workspace backend && npm run test --workspace frontend",
+    "start": "npm run start --workspace backend",
+    "db:generate": "npm run db:generate --workspace backend"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
+    "typescript-eslint": "^8.70.1"
+  }
+}
