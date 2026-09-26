@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { HardDrive, Pause, Play, RefreshCw, TriangleAlert } from 'lucide-react';
 import { api } from '../../lib/api';
-import { formatBytes, formatClock, formatDuration, formatRelative, resolutionLabel } from '../../lib/format';
+import { formatBytes, formatClock, formatDuration, formatRelative, resolutionLabel, scheduleLabel } from '../../lib/format';
 import type { ActiveStream, Dashboard, DiskInfo, ScanState, StorageReport } from '../../lib/types';
 import { Button } from '../../components/Button';
 import { ErrorState, PageLoader } from '../../components/States';
@@ -111,6 +111,8 @@ function ScannerCard({ scan, probe, libraryName }: { scan: ScanState; probe: Das
         <dd className={scan.lastFailure?.message ? 'text-danger' : ''}>
           {scan.lastFailure ? `${formatRelative(scan.lastFailure.at)} · ${libraryName(scan.lastFailure.libraryId)}${scan.lastFailure.message ? ` — ${scan.lastFailure.message}` : ''}` : 'Never'}
         </dd>
+        <dt className="text-faint">Scheduled scans</dt>
+        <dd className={scan.schedule.waitingForPlayback ? 'text-amber' : ''}>{scheduleLabel(scan.schedule)}</dd>
         <dt className="text-faint">FFprobe</dt>
         <dd>{probe.active ? `${probe.active} running${probe.waiting ? `, ${probe.waiting} waiting` : ''}` : 'Idle'}</dd>
       </dl>
@@ -278,7 +280,7 @@ export function DashboardPage() {
             <dd>v{d.version} · up {formatDuration(d.uptimeSec)}</dd>
             <dt className="text-faint">TMDB</dt>
             <dd className={d.tmdb.configured ? 'text-ok' : 'text-amber'}>{d.tmdb.configured ? `Configured (${d.tmdb.source === 'environment' ? 'environment variable' : 'settings'})` : 'Not configured'}</dd>
-            <dt className="text-faint">FFprobe</dt>
+        <dt className="text-faint">FFprobe</dt>
             <dd className={d.ffprobe ? '' : 'text-danger'}>{d.ffprobe ? d.ffprobe.split(' Copyright')[0] : 'Not found — media analysis is disabled'}</dd>
             <dt className="text-faint">CPU</dt>
             <dd>

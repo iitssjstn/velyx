@@ -436,10 +436,11 @@ export interface ScanProgress {
 export interface ScanState {
   status: 'scanning' | 'queued' | 'paused' | 'failed' | 'idle';
   running: { libraryId: number; progress: ScanProgress; startedAt: number } | null;
-  queued: { libraryId: number; refreshMetadata: boolean }[];
+  queued: { libraryId: number; refreshMetadata: boolean; full: boolean }[];
   paused: { reason: 'manual' | 'low-disk'; since: number } | null;
   lastSuccess: { libraryId: number; at: number; durationMs: number | null } | null;
   lastFailure: { libraryId: number; at: number; message: string | null } | null;
+  schedule: { intervalMinutes: number; nextAt: number | null; waitingForPlayback: boolean };
 }
 
 export type DiskLevel = 'ok' | 'low' | 'critical';
@@ -554,7 +555,14 @@ export interface ServerSettings {
   tmdb: { configured: boolean; source: 'environment' | 'settings' | 'none'; hint: string | null };
   version: string;
   mediaRoots: string[];
+  /** Effective minutes between automatic scans (0 = off). */
   scanIntervalMinutes: number;
+  /** settings = chosen here; environment = SCAN_INTERVAL_MINUTES. */
+  scanIntervalSource: 'settings' | 'environment';
+  /** SCAN_INTERVAL_MINUTES, used when no interval is chosen here. */
+  scanIntervalDefault: number;
+  scanOnStartup: boolean;
+  deferScansWhilePlaying: boolean;
 }
 
 export interface ReviewItem {

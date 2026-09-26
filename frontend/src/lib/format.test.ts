@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { episodeCode, formatBytes, formatClock, formatRuntime, imageUrl, progressFraction, resolutionLabel, greeting } from './format';
+import { episodeCode, formatBytes, formatClock, formatIn, formatRuntime, imageUrl, intervalLabel, progressFraction, resolutionLabel, greeting, scheduleLabel } from './format';
 
 describe('format helpers', () => {
   it('formats clocks', () => {
@@ -37,5 +37,22 @@ describe('format helpers', () => {
   it('greets by time of day', () => {
     expect(greeting(new Date(2026, 0, 1, 9))).toBe('Good morning');
     expect(greeting(new Date(2026, 0, 1, 21))).toBe('Good evening');
+  });
+});
+
+describe('scan schedule labels', () => {
+  const now = Date.UTC(2026, 8, 26, 12);
+  it('describes intervals and the next run', () => {
+    expect(intervalLabel(0)).toBe('Off');
+    expect(intervalLabel(60)).toBe('Every hour');
+    expect(intervalLabel(360)).toBe('Every 6 hours');
+    expect(intervalLabel(1440)).toBe('Every day');
+    expect(intervalLabel(45)).toBe('Every 45 minutes');
+    expect(formatIn(now + 25 * 60_000, now)).toBe('in 25 min');
+    expect(formatIn(now + 3 * 3_600_000, now)).toBe('in 3 h');
+    expect(formatIn(now - 1000, now)).toBe('now');
+    expect(scheduleLabel({ intervalMinutes: 360, nextAt: now + 3 * 3_600_000, waitingForPlayback: false }, now)).toBe('Next in 3 h (every 6 hours)');
+    expect(scheduleLabel({ intervalMinutes: 360, nextAt: now, waitingForPlayback: true }, now)).toBe('Waiting until nobody is watching');
+    expect(scheduleLabel({ intervalMinutes: 0, nextAt: null, waitingForPlayback: false }, now)).toBe('Off');
   });
 });
