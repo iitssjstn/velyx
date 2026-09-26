@@ -32,27 +32,39 @@ export function PosterCard({ item, className = '' }: { item: Card; className?: s
   );
 }
 
+/**
+ * Continue Watching card. Clicking the card opens the movie or show page; the round play button
+ * resumes playback directly.
+ */
 export function ContinueCard({ item }: { item: ContinueItem }) {
-  const href = item.type === 'movie' ? `/play/movie/${item.id}` : `/play/episode/${item.id}`;
+  const playHref = item.type === 'movie' ? `/play/movie/${item.id}` : `/play/episode/${item.id}`;
+  const detailsHref = item.type === 'movie' ? `/movies/${item.id}` : `/shows/${item.showId}`;
   const fraction = progressFraction(item.progress);
   const remaining = item.progress ? item.progress.durationSec - item.progress.positionSec : 0;
   return (
-    <Link to={href} className="group block w-72 shrink-0 focus-visible:outline-none sm:w-80">
-      <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition group-hover:ring-accent/60 group-focus-visible:ring-2 group-focus-visible:ring-accent">
-        <Artwork path={item.imagePath ?? item.posterPath} size="w780" aspect="wide" title={item.title} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
-        <span className="absolute top-1/2 left-1/2 grid size-12 -translate-x-1/2 -translate-y-1/2 scale-90 place-items-center rounded-full bg-ink/90 text-bg opacity-0 transition group-hover:scale-100 group-hover:opacity-100">
-          <Play className="ml-0.5 size-5 fill-current" />
-        </span>
-        <div className="absolute inset-x-3 bottom-3">
-          <ProgressBar value={fraction} />
+    <div className="group relative w-72 shrink-0 sm:w-80">
+      <Link to={detailsHref} className="block focus-visible:outline-none" aria-label={`${item.title}${item.subtitle ? `, ${item.subtitle}` : ''}: details`}>
+        <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition group-hover:ring-accent/60 group-has-[a:focus-visible]:ring-2 group-has-[a:focus-visible]:ring-accent">
+          <Artwork path={item.imagePath ?? item.posterPath} size="w780" aspect="wide" title={item.title} />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+          <div className="absolute bottom-3 left-3 right-16">
+            <ProgressBar value={fraction} />
+          </div>
         </div>
-      </div>
-      <p className="mt-2 truncate text-sm font-medium">{item.title}</p>
-      <p className="truncate text-xs text-faint">
-        {item.subtitle}
-        {remaining > 60 && ` — ${formatClock(remaining)} left`}
-      </p>
-    </Link>
+        <p className="mt-2 truncate text-sm font-medium group-hover:text-ink">{item.title}</p>
+        <p className="truncate text-xs text-faint">
+          {item.subtitle}
+          {remaining > 60 && ` — ${formatClock(remaining)} left`}
+        </p>
+      </Link>
+      <Link
+        to={playHref}
+        aria-label={`Resume ${item.title}`}
+        title="Resume"
+        className="absolute right-3 bottom-[4.1rem] grid size-10 place-items-center rounded-full bg-ink/90 text-bg shadow-lg transition hover:scale-110 hover:bg-white focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+      >
+        <Play className="ml-0.5 size-4 fill-current" />
+      </Link>
+    </div>
   );
 }
