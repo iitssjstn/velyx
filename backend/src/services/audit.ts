@@ -16,6 +16,7 @@ export type AuditAction =
   | 'user.deleted'
   | 'user.password_reset'
   | 'account.password_changed'
+  | 'device.linked'
   | 'session.revoked'
   | 'session.revoked_all'
   | 'library.created'

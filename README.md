@@ -33,6 +33,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - [Backup and restore](#backup-and-restore)
 - [Maintenance CLI](#maintenance-cli)
 - [Security](#security)
+- [Signing in from an app](#signing-in-from-an-app)
 - [Development](#development)
 - [Testing](#testing)
 - [CI and the Docker image (GHCR)](#ci-and-the-docker-image-ghcr)
@@ -504,6 +505,7 @@ docker compose exec velyx velyx intros "Show title" 2     # explain intro/credit
 - Passwords are hashed with Argon2id. Sessions use random tokens (only their SHA-256 hash is stored) in signed, `HttpOnly`, `SameSite=Lax` cookies with a sliding expiry.
 - Failed sign-ins are throttled progressively per address and per account (no permanent lockout); with `TRUST_PROXY` set to a hop count or address list, clients cannot spoof their address.
 - Users and administrators can review and revoke sessions; security-relevant actions are written to an audit log without secrets.
+- Apps sign in with their own tokens (see [Signing in from an app](#signing-in-from-an-app)), stored hashed like browser sessions and listed per device. App tokens are only accepted as `Authorization: Bearer` headers and browser sessions only as cookies, so neither can stand in for the other.
 - State-changing requests must come from the same origin and use JSON bodies (CSRF protection).
 - Security headers (CSP, `nosniff`, frame protection, …) are set on every response.
 - Libraries must live inside `MEDIA_ROOTS`; every streamed file is re-checked against its library folder, which blocks path traversal and symlink escapes.
@@ -513,6 +515,18 @@ docker compose exec velyx velyx intros "Show title" 2     # explain intro/credit
 - Error pages never show stack traces to regular users (administrators can see diagnostic details).
 - The container drops root privileges and runs as `PUID`/`PGID`; media is mounted read-only.
 - For access from the internet, put Velyx behind a reverse proxy with HTTPS.
+
+## Signing in from an app
+
+Velyx has an API for apps (such as the Velyx app being built for Android). An app signs in with its own token instead of a browser cookie, and sends it as `Authorization: Bearer <token>` with every request, including streams and subtitles. Everything else works exactly as in the browser: the same accounts, library access and watch progress.
+
+- **Server check:** `GET /api/server/info` (no sign-in needed) returns the server name, version and `apiVersion` (currently `1`).
+- **With a password:** `POST /api/auth/app/login` with `username`, `password` and a `deviceName` (such as *Pixel 8*) returns a `token`. Wrong passwords are throttled exactly like on the sign-in page.
+- **With a code** (no typing a password on a phone or TV):
+  1. The app calls `POST /api/auth/pair/start` with its `deviceName` and shows the code it gets (such as `K7M-2QX`). Codes are valid for 10 minutes and work once.
+  2. Someone signed in to Velyx opens **Settings → Account → Connect the Velyx app** (or goes to `/link`), enters the code and confirms the device.
+  3. Meanwhile the app calls `POST /api/auth/pair/poll` with its `pollToken` every few seconds, and gets its `token` once the code was confirmed.
+- **Signing out:** `POST /api/auth/logout` with the token. Signed-in apps appear by device name under **Settings → Account → Devices**, where they can be signed out like any browser; disabling an account or resetting its password signs its apps out too.
 
 ## Development
 

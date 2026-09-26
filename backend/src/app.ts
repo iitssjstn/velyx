@@ -202,12 +202,25 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   // Resolve the session for every API request.
   app.addHook('onRequest', async (request, reply) => {
     if (!request.url.startsWith('/api/')) return;
+    // The Velyx app sends its token as "Authorization: Bearer …" instead of a cookie. Only tokens
+    // handed out to the app are accepted this way, never a browser's session.
+    const auth = request.headers.authorization;
+    if (auth?.startsWith('Bearer ')) {
+      const token = auth.slice(7).trim();
+      const resolved = ctx.sessions.resolveSession(token, request.ip);
+      if (resolved?.client === 'app') {
+        request.sessionToken = token;
+        request.user = resolved.user;
+      }
+      return;
+    }
     const raw = request.cookies[SESSION_COOKIE];
     if (!raw) return;
     const unsigned = request.unsignCookie(raw);
     if (!unsigned.valid || !unsigned.value) return;
-    request.sessionToken = unsigned.value;
     const resolved = ctx.sessions.resolveSession(unsigned.value, request.ip);
+    if (resolved?.client === 'app') return;
+    request.sessionToken = unsigned.value;
     request.user = resolved?.user ?? null;
     // The session was extended on the server: renew the cookie too, or the browser would still
     // drop it when the original sign-in expires, however often Velyx is used.

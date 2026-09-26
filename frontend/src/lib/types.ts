@@ -424,6 +424,9 @@ export interface DeviceReport {
 
 export interface SessionInfo {
   id: string;
+  /** 'app': the Velyx app (named by deviceName), 'web': a browser. */
+  client: 'web' | 'app';
+  deviceName: string | null;
   createdAt: number;
   lastSeenAt: number;
   expiresAt: number;

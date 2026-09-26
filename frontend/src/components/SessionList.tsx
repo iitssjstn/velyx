@@ -45,13 +45,15 @@ export function SessionList({ userId }: { userId?: number }) {
       ) : (
         <ul className="divide-y divide-line/60 rounded-xl border border-line">
           {q.data.map((s) => {
-            const Icon = /Android|iOS/.test(s.device) ? Smartphone : Monitor;
+            const app = s.client === 'app';
+            const Icon = app || /Android|iOS/.test(s.device) ? Smartphone : Monitor;
             return (
               <li key={s.id} className="flex items-center gap-3 px-4 py-3">
                 <Icon className="size-5 shrink-0 text-muted" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">
-                    {deviceName(s.device)}
+                    {app ? (s.deviceName ?? t('sessions.app')) : deviceName(s.device)}
+                    {app && <span className="ml-2 rounded-full bg-accent/15 px-2 py-0.5 text-xs text-accent">{t('sessions.app')}</span>}
                     {s.current && <span className="ml-2 rounded-full bg-ok/15 px-2 py-0.5 text-xs text-ok">{t('sessions.thisDevice')}</span>}
                   </p>
                   <p className="truncate text-xs text-faint" title={s.userAgent ?? undefined}>

@@ -51,6 +51,10 @@ export const sessions = sqliteTable(
     userAgent: text('user_agent'),
     /** Client address when the session was created / last refreshed (as seen through trusted proxies). */
     ip: text('ip'),
+    /** 'web' (browser, cookie) or 'app' (the Velyx app, bearer token). */
+    client: text('client', { enum: ['web', 'app'] }).notNull().default('web'),
+    /** The name an app gave its device ("Pixel 8"), shown in the session list. */
+    deviceName: text('device_name'),
   },
   (t) => [index('sessions_user_idx').on(t.userId), index('sessions_expires_idx').on(t.expiresAt)],
 );

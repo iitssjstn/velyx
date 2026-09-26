@@ -38,6 +38,7 @@ export const audit = {
     subtitlesSettings: 'OpenSubtitles settings changed',
     subtitlesDownloaded: 'Subtitle fetched online',
     subtitlesRemoved: 'Fetched subtitle removed',
+    deviceLinked: 'Connected the Velyx app on',
   },
   details: {
     wrongPassword: 'wrong password',

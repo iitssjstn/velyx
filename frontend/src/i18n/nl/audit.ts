@@ -39,6 +39,7 @@ export const audit: Messages['audit'] = {
     subtitlesSettings: 'OpenSubtitles-instellingen gewijzigd',
     subtitlesDownloaded: 'Ondertiteling online opgehaald',
     subtitlesRemoved: 'Opgehaalde ondertiteling verwijderd',
+    deviceLinked: 'Koppelde de Velyx-app op',
   },
   details: {
     wrongPassword: 'verkeerd wachtwoord',

@@ -8,6 +8,10 @@ import { requireUser } from '../app.js';
 import { users } from '../db/schema.js';
 import { SESSION_COOKIE, describeUserAgent, sessionCookieOptions } from '../auth/sessions.js';
 import { ProgressiveLimiter } from '../auth/rate-limit.js';
+import { PAIRING_POLL_SECONDS, PairingService } from '../services/pairing.js';
+
+/** Version of the API the Velyx app talks to. */
+export const API_VERSION = 1;
 
 /** Public session ids are 20 hex characters. */
 export const sessionIdParam = z.string().regex(/^[0-9a-f]{20}$/, 'Invalid session id.');
@@ -63,6 +67,8 @@ function setSessionCookie(ctx: AppContext, request: FastifyRequest, reply: Fasti
 }
 
 const loginBody = z.object({ username: z.string().trim().min(1).max(64), password: z.string().min(1).max(256) });
+/** The name the app gives its device ("Pixel 8"), shown in the session list. */
+const deviceNameSchema = z.string().trim().min(1).max(64);
 const setupBody = z.object({
   username: z.string().trim(),
   password: z.string(),
@@ -116,6 +122,8 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     product: APP_NAME,
     tagline: APP_TAGLINE,
     version: APP_VERSION,
+    /** Raised when the API changes in a way the Velyx app has to know about. */
+    apiVersion: API_VERSION,
     setupRequired: setupRequired(ctx),
   }));
 
@@ -153,9 +161,9 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     return { user: publicUser(user) };
   });
 
-  app.post('/api/auth/login', async (request, reply) => {
+  /** Checks a sign-in (throttled per address and per account); returns the account or throws. */
+  async function checkSignIn(request: FastifyRequest, body: z.infer<typeof loginBody>, reply: FastifyReply) {
     const ip = request.ip;
-    const body = loginBody.parse(request.body);
     // Throttled per client address and per account, so neither many addresses nor many accounts help.
     const keys = [`ip:${ip}`, `user:${body.username.toLowerCase()}`];
     const wait = limiter.retryAfter(keys);
@@ -178,10 +186,83 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     }
     limiter.reset(keys);
     ctx.db.update(users).set({ lastLoginAt: Date.now() }).where(eq(users.id, user.id)).run();
-    const { token } = ctx.sessions.create(user.id, request.headers['user-agent'], ip);
+    return user;
+  }
+
+  app.post('/api/auth/login', async (request, reply) => {
+    const user = await checkSignIn(request, loginBody.parse(request.body), reply);
+    const { token } = ctx.sessions.create(user.id, request.headers['user-agent'], request.ip);
     setSessionCookie(ctx, request, reply, token);
-    ctx.audit.record('login.success', { actor: user, ip, detail: describeUserAgent(request.headers['user-agent']) });
+    ctx.audit.record('login.success', { actor: user, ip: request.ip, detail: describeUserAgent(request.headers['user-agent']) });
     return { user: publicUser(user) };
+  });
+
+  // ---- the Velyx app: a token instead of a cookie, by password or by a code confirmed on the website
+  const pairing = new PairingService();
+  const pairStarts = new ProgressiveLimiter({ freeAttempts: 10, baseDelayMs: 60_000 });
+  const codeGuesses = new ProgressiveLimiter({ freeAttempts: 5, baseDelayMs: 30_000 });
+  const appSignIn = (user: { id: number; username: string }, deviceName: string, request: FastifyRequest, how: string) => {
+    const { token, expiresAt } = ctx.sessions.create(user.id, request.headers['user-agent'], request.ip, { deviceName });
+    ctx.audit.record('login.success', { actor: user, ip: request.ip, detail: `Velyx app (${how}): ${deviceName}` });
+    return { token, expiresAt };
+  };
+
+  app.post('/api/auth/app/login', async (request, reply) => {
+    const body = loginBody.extend({ deviceName: deviceNameSchema }).parse(request.body);
+    const user = await checkSignIn(request, body, reply);
+    return { ...appSignIn(user, body.deviceName, request, 'password'), user: publicUser(user) };
+  });
+
+  app.post('/api/auth/pair/start', async (request, reply) => {
+    const { deviceName } = z.object({ deviceName: deviceNameSchema }).parse(request.body);
+    const keys = [`pair-ip:${request.ip}`];
+    const wait = pairStarts.retryAfter(keys);
+    if (wait > 0) {
+      reply.header('Retry-After', String(Math.ceil(wait / 1000)));
+      throw new HttpError(429, 'Too many codes requested. Try again in {wait}.', { wait: (lang) => waitMessage(wait, lang) });
+    }
+    // Every code counts towards the limit; a normal app asks for one now and then.
+    pairStarts.fail(keys);
+    return { ...pairing.start(deviceName), interval: PAIRING_POLL_SECONDS };
+  });
+
+  app.post('/api/auth/pair/poll', async (request) => {
+    const { pollToken } = z.object({ pollToken: z.string().min(1).max(100) }).parse(request.body);
+    const result = pairing.poll(pollToken);
+    if (result.status === 'expired') throw new HttpError(410, 'This code has expired. Ask for a new one.');
+    if (result.status === 'pending') return { status: 'pending' };
+    const user = ctx.db.select().from(users).where(eq(users.id, result.userId)).get();
+    if (!user || user.disabled) throw new HttpError(410, 'This code has expired. Ask for a new one.');
+    return { status: 'approved', ...appSignIn(user, result.deviceName, request, 'code'), user: publicUser(user) };
+  });
+
+  /** A code someone signed in on the website entered: which device is waiting behind it. */
+  const pendingDevice = (request: FastifyRequest, reply: FastifyReply, input: string) => {
+    const keys = [`code:${request.user!.id}`];
+    const wait = codeGuesses.retryAfter(keys);
+    if (wait > 0) {
+      reply.header('Retry-After', String(Math.ceil(wait / 1000)));
+      throw new HttpError(429, 'Too many wrong codes. Try again in {wait}.', { wait: (lang) => waitMessage(wait, lang) });
+    }
+    const found = pairing.find(input);
+    if (!found) {
+      codeGuesses.fail(keys);
+      throw new HttpError(404, 'This code is not valid (any more). Check it, or ask the app for a new one.');
+    }
+    return found;
+  };
+
+  app.get<{ Params: { code: string } }>('/api/auth/pair/:code', { preHandler: requireUser }, async (request, reply) => {
+    const found = pendingDevice(request, reply, request.params.code.slice(0, 20));
+    return { code: found.code, deviceName: found.deviceName, expiresAt: found.expiresAt };
+  });
+
+  app.post<{ Params: { code: string } }>('/api/auth/pair/:code/approve', { preHandler: requireUser }, async (request, reply) => {
+    const found = pendingDevice(request, reply, request.params.code.slice(0, 20));
+    pairing.approve(found.code, request.user!.id);
+    codeGuesses.reset([`code:${request.user!.id}`]);
+    ctx.audit.record('device.linked', { actor: request.user, ip: request.ip, target: found.deviceName });
+    return { ok: true, deviceName: found.deviceName };
   });
 
   app.post('/api/auth/logout', async (request, reply) => {
