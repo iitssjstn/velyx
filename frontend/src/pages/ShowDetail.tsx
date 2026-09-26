@@ -1,11 +1,11 @@
-import { playHref } from '../lib/player';
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { Check, Eye, Play, Star } from 'lucide-react';
+import { Check, Eye, Play, RotateCcw, Star } from 'lucide-react';
+import { episodeHeading, episodePlayHref, episodeState, seriesContinue } from '../lib/series';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { episodeCode, formatDate, formatRuntime, progressFraction, resolutionLabel } from '../lib/format';
+import { formatDate, formatRuntime, resolutionLabel } from '../lib/format';
 import type { EpisodeSummary, SeasonDetail, ShowDetail } from '../lib/types';
 import { CollectionLinks, DetailHero, MetaList } from '../components/DetailHero';
 import { FavoriteButton, WatchlistButton } from '../components/FavoriteButton';
@@ -19,38 +19,52 @@ import { ErrorState, PageLoader, Spinner } from '../components/States';
 import { toast } from '../components/Toast';
 
 function EpisodeRow({ ep, onToggleWatched }: { ep: EpisodeSummary; onToggleWatched: (ep: EpisodeSummary) => void }) {
-  const watched = ep.progress?.completed;
-  const fraction = ep.progress && !watched ? progressFraction(ep.progress) : 0;
+  const state = episodeState(ep);
+  const heading = episodeHeading(ep);
+  const href = episodePlayHref(ep);
+  const action = state.kind === 'progress' ? 'Resume' : 'Play';
   return (
     <li className="group flex gap-4 rounded-xl p-2 transition hover:bg-surface sm:gap-5 sm:p-3">
-      <Link to={`/play/episode/${ep.id}`} className="relative w-36 shrink-0 overflow-hidden rounded-lg sm:w-56" aria-label={`Play episode ${ep.episodeNumber}`}>
+      <Link to={href} className="relative w-36 shrink-0 overflow-hidden rounded-lg sm:w-56" aria-hidden tabIndex={-1}>
         <Artwork path={ep.stillPath} size="w300" aspect="wide" title={ep.title ?? `Episode ${ep.episodeNumber}`} />
         <span className="absolute inset-0 grid place-items-center bg-black/40 opacity-0 transition group-hover:opacity-100">
           <Play className="size-8 fill-white text-white" />
         </span>
-        {fraction > 0 && <ProgressBar value={fraction} className="absolute inset-x-2 bottom-2 w-auto" />}
+        {state.kind === 'progress' && <ProgressBar value={state.percent / 100} className="absolute inset-x-2 bottom-2 w-auto" />}
+        {state.kind === 'watched' && (
+          <span className="absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full bg-ok text-bg shadow" aria-hidden>
+            <Check className="size-3.5" strokeWidth={3} />
+          </span>
+        )}
       </Link>
       <div className="min-w-0 flex-1 py-1">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-faint">
-              Episode {ep.episodeNumber}
-              {ep.runtime ? <span className="ml-3">{formatRuntime(ep.runtime)}</span> : null}
+            <p className="truncate font-medium">{heading}</p>
+            <p className="mt-0.5 text-xs text-faint">
+              {ep.runtime ? <span>{formatRuntime(ep.runtime)}</span> : null}
+              {state.kind === 'watched' && <span className="ml-3 text-ok">Watched</span>}
+              {state.kind === 'progress' && <span className="ml-3 text-accent">{state.percent}% watched</span>}
               {ep.airDate ? <span className="ml-3 hidden sm:inline">{formatDate(ep.airDate)}</span> : null}
               {ep.height ? <span className="ml-3 hidden sm:inline">{resolutionLabel(Math.round((ep.height * 16) / 9), ep.height)}</span> : null}
             </p>
-            <Link to={`/play/episode/${ep.id}`} className="mt-0.5 block truncate font-medium hover:text-accent">
-              {ep.title ?? `Episode ${ep.episodeNumber}`}
-            </Link>
           </div>
+          <Link
+            to={href}
+            aria-label={`${action} ${heading}`}
+            className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${state.kind === 'progress' ? 'bg-ink text-bg hover:bg-white' : 'bg-raised text-ink hover:bg-line'}`}
+          >
+            <Play className="size-3.5 fill-current" />
+            {action}
+          </Link>
           <button
             type="button"
             onClick={() => onToggleWatched(ep)}
-            className={`grid size-8 shrink-0 place-items-center rounded-full ${watched ? 'bg-ok/15 text-ok' : 'text-faint opacity-60 hover:bg-raised hover:text-ink group-hover:opacity-100'}`}
-            aria-label={watched ? 'Mark as unwatched' : 'Mark as watched'}
-            title={watched ? 'Mark as unwatched' : 'Mark as watched'}
+            className={`grid size-8 shrink-0 place-items-center rounded-full ${state.kind === 'watched' ? 'bg-ok/15 text-ok' : 'text-faint opacity-60 hover:bg-raised hover:text-ink group-hover:opacity-100'}`}
+            aria-label={state.kind === 'watched' ? `Mark ${heading} as unwatched` : `Mark ${heading} as watched`}
+            title={state.kind === 'watched' ? 'Mark as unwatched' : 'Mark as watched'}
           >
-            {watched ? <Check className="size-4" /> : <Eye className="size-4" />}
+            {state.kind === 'watched' ? <Check className="size-4" /> : <Eye className="size-4" />}
           </button>
         </div>
         {ep.overview && <p className="mt-1.5 line-clamp-2 text-sm text-muted sm:line-clamp-3">{ep.overview}</p>}
@@ -66,7 +80,7 @@ export function ShowPage() {
   const [params, setParams] = useSearchParams();
   const q = useQuery({ queryKey: ['show', id], queryFn: () => api.get<ShowDetail>(`/api/shows/${id}`) });
   const seasons = q.data?.seasons ?? [];
-  const defaultSeason = q.data?.upNext?.seasonNumber ?? seasons.find((s) => s.seasonNumber > 0)?.seasonNumber ?? seasons[0]?.seasonNumber;
+  const defaultSeason = q.data?.upNext && seasons.some((s) => s.seasonNumber === q.data!.upNext!.seasonNumber) ? q.data.upNext.seasonNumber : (seasons.find((s) => s.seasonNumber > 0)?.seasonNumber ?? seasons[0]?.seasonNumber);
   const seasonParam = params.get('season');
   const current = seasonParam !== null && seasons.some((s) => String(s.seasonNumber) === seasonParam) ? Number(seasonParam) : defaultSeason;
 
@@ -95,8 +109,8 @@ export function ShowPage() {
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const s = q.data;
   const currentSeason = seasons.find((x) => x.seasonNumber === current);
-  const up = s.upNext;
-  const resuming = up?.progress && !up.progress.completed && up.progress.positionSec >= 30;
+  const next = seriesContinue(s);
+  const regularSeasons = seasons.filter((x) => x.seasonNumber > 0).length || seasons.length;
   const creators = s.crew.filter((c) => c.role === 'Creator').map((c) => c.name);
 
   return (
@@ -108,8 +122,8 @@ export function ShowPage() {
             s.year,
             s.network,
             s.status,
-            `${seasons.filter((x) => x.seasonNumber > 0).length || seasons.length} ${seasons.length === 1 ? 'season' : 'seasons'}`,
-            `${s.watchedCount}/${s.episodeCount} watched`,
+            `${regularSeasons} ${regularSeasons === 1 ? 'season' : 'seasons'}`,
+            `${s.episodeCount} ${s.episodeCount === 1 ? 'episode' : 'episodes'}`,
             s.rating ? (
               <span className="inline-flex items-center gap-1">
                 <Star className="size-3.5 fill-amber text-amber" />
@@ -128,11 +142,29 @@ export function ShowPage() {
           </div>
         )}
         <CollectionLinks collections={s.collections} />
+        {s.watchedCount > 0 && (
+          <div className="mt-4 flex max-w-sm items-center gap-3 text-sm text-muted" aria-label={`${s.percentWatched}% watched`}>
+            <ProgressBar value={s.percentWatched / 100} className="flex-1" />
+            <span className="tabular-nums">{s.percentWatched}% watched</span>
+          </div>
+        )}
+        {next?.position && (
+          <p className="mt-4 text-sm text-muted">
+            {s.upNext!.title ? `${s.upNext!.title} · ` : ''}
+            <span className="tabular-nums">{next.position}</span>
+          </p>
+        )}
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          {up && (
-            <Link to={playHref('episode', up.id, resuming ? up.progress?.positionSec : null)} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 font-semibold text-bg hover:bg-white">
+          {next && (
+            <Link to={next.href} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 font-semibold whitespace-nowrap text-bg hover:bg-white">
               <Play className="size-5 fill-current" />
-              {resuming ? 'Resume' : s.watchedCount > 0 ? 'Play next' : 'Play'} {episodeCode(up.seasonNumber, up.episodeNumber)}
+              {next.label}
+            </Link>
+          )}
+          {next?.startOverHref && (
+            <Link to={next.startOverHref} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink/10 px-5 font-medium whitespace-nowrap hover:bg-ink/20">
+              <RotateCcw className="size-5" />
+              Start over
             </Link>
           )}
           <WatchlistButton key={String(s.watchlist)} type="show" id={s.id} initial={s.watchlist} />
@@ -164,12 +196,16 @@ export function ShowPage() {
                 className={`shrink-0 rounded-full px-4 py-2 text-sm transition ${x.seasonNumber === current ? 'bg-ink font-semibold text-bg' : 'text-muted hover:bg-raised hover:text-ink'}`}
               >
                 {x.name}
-                {x.episodeCount > 0 && x.watchedCount >= x.episodeCount && <Check className="ml-1.5 inline size-3.5" />}
+                {x.episodeCount > 0 && x.watchedCount >= x.episodeCount && <Check className="ml-1.5 inline size-3.5" aria-label="watched" />}
               </button>
             ))}
           </div>
           {currentSeason && (
-            <div className="flex gap-4 text-sm">
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              <span className="text-faint">
+                {currentSeason.episodeCount} {currentSeason.episodeCount === 1 ? 'episode' : 'episodes'}
+                {currentSeason.watchedCount > 0 && ` · ${currentSeason.percentWatched}% watched`}
+              </span>
               {currentSeason.watchedCount < currentSeason.episodeCount && (
                 <button type="button" className="text-muted hover:text-ink" onClick={() => watched.mutate({ seasonId: currentSeason.id, watched: true })}>
                   Mark season as watched
@@ -191,7 +227,7 @@ export function ShowPage() {
         ) : season.error ? (
           <ErrorState error={season.error} onRetry={() => season.refetch()} />
         ) : (
-          <ul className="mt-4 space-y-1">
+          <ul className="mt-4 space-y-1" aria-label="Episodes">
             {season.data?.episodes.map((ep) => (
               <EpisodeRow key={ep.id} ep={ep} onToggleWatched={(e) => watched.mutate({ episodeId: e.id, watched: !e.progress?.completed })} />
             ))}

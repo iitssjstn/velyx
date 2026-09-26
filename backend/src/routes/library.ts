@@ -472,7 +472,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       .all();
     const seasonRows = db.select().from(seasons).where(eq(seasons.showId, id)).orderBy(asc(seasons.seasonNumber)).all();
     const eps = db
-      .select({ id: episodes.id, seasonId: episodes.seasonId, seasonNumber: episodes.seasonNumber, episodeNumber: episodes.episodeNumber, title: episodes.title })
+      .select({ id: episodes.id, seasonId: episodes.seasonId, seasonNumber: episodes.seasonNumber, episodeNumber: episodes.episodeNumber, title: episodes.title, stillPath: episodes.stillPath })
       .from(episodes)
       .where(eq(episodes.showId, id))
       .orderBy(asc(episodes.seasonNumber), asc(episodes.episodeNumber))
@@ -493,6 +493,28 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       upNext = ordered[lastWatchedIdx + 1] ?? ordered[0];
     }
     const favorite = catalog.favoriteIds(userId).shows.has(id);
+    const pct = (watched: number, total: number) => (total ? Math.round((watched / total) * 100) : 0);
+    const watchedCount = eps.filter((e) => progress.get(e.id)?.completed).length;
+    // Seasons in order, specials last; a season without episodes (nothing on disk) is left out.
+    const seasonList = seasonRows
+      .map((se) => {
+        const inSeason = eps.filter((e) => e.seasonId === se.id);
+        const seasonWatched = inSeason.filter((e) => progress.get(e.id)?.completed).length;
+        return {
+          id: se.id,
+          seasonNumber: se.seasonNumber,
+          name: se.name ?? (se.seasonNumber === 0 ? 'Specials' : `Season ${se.seasonNumber}`),
+          overview: se.overview,
+          airDate: se.airDate,
+          posterPath: se.posterPath,
+          episodeCount: inSeason.length,
+          watchedCount: seasonWatched,
+          percentWatched: pct(seasonWatched, inSeason.length),
+        };
+      })
+      .filter((se) => se.episodeCount > 0)
+      .sort((a, b) => (a.seasonNumber === 0 ? 1 : 0) - (b.seasonNumber === 0 ? 1 : 0) || a.seasonNumber - b.seasonNumber);
+    const upNextDuration = upNext ? db.select({ d: mediaFiles.durationSec }).from(mediaFiles).where(eq(mediaFiles.episodeId, upNext.id)).orderBy(desc(mediaFiles.height)).get()?.d ?? null : null;
     return {
       id: s.id,
       type: 'show',
@@ -512,23 +534,12 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       genres: g,
       cast: people_.filter((p) => p.kind === 'cast').map(({ kind: _k, ...p }) => p),
       crew: people_.filter((p) => p.kind === 'crew').map(({ kind: _k, ...p }) => p),
-      seasons: seasonRows.map((se) => {
-        const inSeason = eps.filter((e) => e.seasonId === se.id);
-        return {
-          id: se.id,
-          seasonNumber: se.seasonNumber,
-          name: se.name ?? (se.seasonNumber === 0 ? 'Specials' : `Season ${se.seasonNumber}`),
-          overview: se.overview,
-          airDate: se.airDate,
-          posterPath: se.posterPath,
-          episodeCount: inSeason.length,
-          watchedCount: inSeason.filter((e) => progress.get(e.id)?.completed).length,
-        };
-      }),
+      seasons: seasonList,
       episodeCount: eps.length,
-      watchedCount: eps.filter((e) => progress.get(e.id)?.completed).length,
+      watchedCount,
+      percentWatched: pct(watchedCount, eps.length),
       upNext: upNext
-        ? { id: upNext.id, seasonNumber: upNext.seasonNumber, episodeNumber: upNext.episodeNumber, title: upNext.title, progress: progress.get(upNext.id) ?? null }
+        ? { id: upNext.id, seasonNumber: upNext.seasonNumber, episodeNumber: upNext.episodeNumber, title: upNext.title, stillPath: upNext.stillPath, durationSec: upNextDuration, progress: progress.get(upNext.id) ?? null }
         : null,
       favorite,
       watchlist: inWatchlist(userId, { showId: id }),
