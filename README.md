@@ -67,7 +67,8 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 
 ## Screenshots
 
-_Screenshots of the home page, a movie page, the player and the admin dashboard will be added here. To add your own, put PNG files in `docs/screenshots/` and link them in this section._
+<img width="1901" height="908" alt="image" src="https://github.com/user-attachments/assets/cc2623df-c4fe-4580-92dd-881d98267858" />
+
 
 ## Requirements
 
