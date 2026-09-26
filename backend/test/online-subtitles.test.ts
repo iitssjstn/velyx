@@ -18,7 +18,7 @@ interface Call {
 /** A stand-in for api.opensubtitles.com. */
 function fakeOpenSubtitles() {
   const calls: Call[] = [];
-  const state = { validKey: 'good-key', quota: false, blocked: false, downloadBody: SRT, results: [] as unknown[] };
+  const state = { validKey: 'good-key', quota: false, blocked: false, loginForbidden: false, downloadBody: SRT, results: [] as unknown[] };
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   const fetchImpl = async (input: string, init: RequestInit = {}) => {
     const url = new URL(input);
@@ -30,6 +30,7 @@ function fakeOpenSubtitles() {
     if (headers['api-key'] !== state.validKey) return json(401, { message: 'Invalid API key' });
     const p = url.pathname.replace('/api/v1', '');
     if (p === '/infos/formats') return json(200, { data: { output_formats: ['srt'] } });
+    if (p === '/login' && state.loginForbidden) return json(403, { message: 'You cannot consume this service' });
     if (p === '/login') {
       const b = calls.at(-1)!.body as { username: string; password: string };
       return b.username === 'anna' && b.password === 'secret' ? json(200, { token: 'tok', base_url: 'api.opensubtitles.com' }) : json(401, { message: 'Invalid username/password' });
@@ -147,6 +148,15 @@ describe('setting up OpenSubtitles', () => {
     const res = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna', password: 'secret' });
     expect(res.statusCode).toBe(502);
     expect(res.json().error).toBe('OpenSubtitles did not answer as expected (HTTP 403, no API answer). Something between this server and OpenSubtitles, such as a firewall or proxy, may be blocking it.');
+  });
+
+  it('checks the key with a real search, and reports a refused sign-in with 403 as a key problem', async () => {
+    await configure();
+    expect(os_.calls[0]!.url.pathname).toBe('/api/v1/subtitles');
+    os_.state.loginForbidden = true;
+    const res = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna', password: 'secret' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('OpenSubtitles did not accept this API key (403: You cannot consume this service).');
   });
 
   it('can be turned off again', async () => {

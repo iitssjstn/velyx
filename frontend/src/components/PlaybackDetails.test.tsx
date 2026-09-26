@@ -103,3 +103,26 @@ describe('PlaybackUnavailable', () => {
     expect(screen.queryByRole('img', { name: 'Not supported' })).toBeNull();
   });
 });
+
+describe('playback details panel', () => {
+  it('shows the bitrate, what converted audio becomes, why, and the subtitle in use', async () => {
+    render(<PlaybackBadge analysis={{ ...remux, bitrate: 24_000_000 }} subtitle="Dutch · File" />);
+    await userEvent.click(screen.getByRole('button'));
+    const panel = screen.getByRole('dialog');
+    expect(panel.textContent).toContain('DTS 5.1 → AAC stereo');
+    expect(panel.textContent).toContain('Bitrate24.0 Mbps');
+    expect(panel.textContent).toContain('Why');
+    expect(panel.textContent).toContain('Subtitle in useDutch · File');
+    expect(panel.textContent).toContain('Server transcodingNo');
+  });
+
+  it('says when no subtitle is on, and leaves out what is unknown', async () => {
+    render(<PlaybackBadge analysis={base} subtitle={null} />);
+    await userEvent.click(screen.getByRole('button'));
+    const panel = screen.getByRole('dialog');
+    expect(panel.textContent).toContain('Subtitle in useOff');
+    expect(panel.textContent).not.toContain('Bitrate');
+    // Direct Play needs no explanation heading.
+    expect(panel.textContent).not.toContain('Why');
+  });
+});

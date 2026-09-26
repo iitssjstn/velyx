@@ -76,6 +76,7 @@ describe('library health', () => {
       remux: 2, // Dts Movie, the DVD episode (AC3)
       'browser-dependent': 2, // Hevc Hdr, Two Versions 4K
       unsupported: 2, // Hi10P, DivX
+      '4k': 2, // Hevc Hdr, Two Versions 4K
       hevc: 2,
       av1: 1,
       '10-bit': 3,
@@ -92,6 +93,10 @@ describe('library health', () => {
       replaced: 0,
     });
     expect(health.files).toBe(14);
+    // What the library holds, from the database.
+    const q = (sql: string) => (env.ctx.db.$client.prepare(sql).get() as { n: number }).n;
+    expect(health.totals).toEqual({ movies: q('SELECT count(*) AS n FROM movies'), shows: 1, episodes: 1, bytes: q('SELECT sum(size) AS n FROM media_files') });
+    expect(health.totals.movies).toBeGreaterThan(5);
     expect(health.tmdbConfigured).toBe(false);
     expect(env.probeCalls.length).toBe(probesBefore);
   });

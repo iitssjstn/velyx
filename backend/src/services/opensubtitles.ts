@@ -217,7 +217,8 @@ export class OpenSubtitlesClient {
   async verify(creds: OpenSubtitlesCredentials): Promise<void> {
     this.token = null;
     try {
-      await this.call(`${API_BASE}/infos/formats`, { method: 'GET', headers: this.headers(creds.apiKey) });
+      // A small search: unlike the informational endpoints it needs a valid key, and it costs no downloads.
+      await this.call(`${API_BASE}/subtitles?languages=en&query=velyx&type=movie`, { method: 'GET', headers: this.headers(creds.apiKey) });
     } catch (err) {
       if (err instanceof OpenSubtitlesError && err.kind === 'auth') throw new OpenSubtitlesError(err.message, 'bad-key', err.status);
       throw err;
@@ -226,7 +227,8 @@ export class OpenSubtitlesClient {
     try {
       await this.session(creds);
     } catch (err) {
-      // A refused sign-in is about the account: the key itself just passed.
+      // 403 ("You cannot consume this service") is about the key; other refusals are about the account.
+      if (err instanceof OpenSubtitlesError && err.status === 403) throw new OpenSubtitlesError(err.message, 'bad-key', err.status);
       if (err instanceof OpenSubtitlesError && (err.kind === 'auth' || (err.kind === 'failed' && err.status !== null && err.status < 500))) {
         throw new OpenSubtitlesError(err.message, 'bad-account', err.status);
       }

@@ -1028,7 +1028,15 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           <p className="truncate font-display text-lg font-semibold sm:text-2xl">{item.data?.title}</p>
           {item.data?.subtitle && <p className="truncate text-sm text-ink/70 sm:text-base">{item.data.subtitle}</p>}
         </div>
-        {info?.analysis && <PlaybackBadge analysis={info.analysis} />}
+        {info?.analysis && (
+          <PlaybackBadge
+            analysis={info.analysis}
+            subtitle={(() => {
+              const active = subs.find((x) => x.key === subKey);
+              return active ? `${subtitleName(active)} · ${active.kind === 'embedded' ? t('player.embedded') : active.kind === 'online' ? t('onlineSubs.tag') : t('player.file')}` : null;
+            })()}
+          />
+        )}
       </div>
 
       {/* Bottom controls */}

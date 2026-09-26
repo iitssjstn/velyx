@@ -277,7 +277,7 @@ In the player, a small badge shows the mode (*Direct Play*, or *Remux • Audio 
 - **Resume:** opening a partly watched item from an episode list or search asks *Resume from 34:12* or *Start over*; the Resume buttons on detail pages and Continue Watching go straight to the saved position. This also works when you watch something again that you had already finished.
 - **Skip intro / credits:** while a detected intro or credits play, a *Skip intro* or *Skip credits* button appears in the bottom-right corner (clear of subtitles; also `S` on the keyboard). Skipping credits goes to a scene after the credits when there is one, otherwise the episode ends. With *Skip automatically* a short *Intro skipped · Undo* notice appears instead. Set this per account in **Settings → Playback → Intros & credits** (*Show a skip button* is the default, *Skip automatically* or *Never*).
 - **Next episode:** when the end credits begin (or in the last seconds, when the credits are unknown or a scene follows them) a card shows the next episode: its code, length, title and a short description, with two buttons. **Next episode** fills up during the countdown when *Autoplay next episode* is on and starts it; **Watch credits** stays in this episode (it says *Cancel* when no credits are playing). Pausing pauses the countdown too.
-- **Status:** a small label in the top-right corner reads *✓ Direct Play*, *↻ Remux* or *↻ Remux · Audio → AAC*; click it for the details (codecs, container, resolution, bit depth, HDR, subtitle formats, and that no video transcoding takes place).
+- **Status:** a small label in the top-right corner reads *✓ Direct Play*, *↻ Remux* or *↻ Remux · Audio → AAC*; click it for the details: video (codec, resolution, bit depth, HDR), audio and what it is converted to (*DTS 5.1 → AAC 5.1*), container, bitrate, the subtitle in use and the subtitle formats in the file, why the file is remuxed, and that no video transcoding takes place.
 - **Keyboard:** Space/K play or pause · ←/→ (J/L) 10 seconds · ↑/↓ volume · M mute · F full screen · I minimize · C subtitles · S skip intro/credits · N next episode · 0–9 jump · ? shortcuts · Esc close menu / leave.
 
 ### Audio options
@@ -342,10 +342,12 @@ Optional, and off until an administrator switches it on in **Admin → Server �
 
 **Admin → Library health** shows what is in your libraries and what needs attention, for all libraries or one at a time. It is built from what the scanner and FFprobe already stored: opening the page never rescans or reads a media file.
 
+At the top it shows what the library holds: movies, TV shows, episodes, files and their total size.
+
 | Group | Categories |
 | --- | --- |
 | Playback | Direct Play, Remux required, Depends on device (HEVC), Unsupported |
-| Formats | HEVC, AV1, 10-bit video, HDR, Dolby Vision, converted audio (DTS, TrueHD, AC3, …), PGS and VobSub subtitles |
+| Formats | 4K, HEVC, AV1, 10-bit video, HDR, Dolby Vision, converted audio (DTS, TrueHD, AC3, …), PGS and VobSub subtitles |
 | Library | Missing metadata, missing artwork, scan errors, not fully analysed, possible duplicates |
 
 Click a category to see the affected movies and episodes, each with its format (for example `HEVC · 2160p · 10-bit · HDR10 · E-AC3 5.1 · MKV`), its path inside the library and, where possible, a plain explanation — why a file cannot play, what a remux converts, which versions of a movie exist. The playback verdicts assume a typical current browser; the player still decides per device.

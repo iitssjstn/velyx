@@ -112,7 +112,7 @@ describe('library management', () => {
 
   it('shows the application version on the dashboard', async () => {
     const res = await env.app.inject({ url: '/api/admin/dashboard', headers: { cookie: admin } });
-    expect(res.json()).toMatchObject({ version: '0.6.2', counts: { movies: 0, shows: 0, users: 1 } });
+    expect(res.json()).toMatchObject({ version: '0.6.3', counts: { movies: 0, shows: 0, users: 1 } });
   });
 
   it('never returns the TMDB key from the settings API', async () => {

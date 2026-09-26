@@ -192,3 +192,20 @@ describe('choosing the interface language', () => {
     expect(setUser).toHaveBeenCalledWith(expect.objectContaining({ language: 'nl' }));
   });
 });
+
+describe('library health totals', () => {
+  it('shows what the library holds, in Dutch', async () => {
+    await setLanguage('nl');
+    const summary: HealthSummary = {
+      categories: [{ key: 'direct', label: 'Direct Play', group: 'playback', unit: 'files', description: '…', count: 2595 }],
+      files: 2595,
+      totals: { movies: 412, shows: 38, episodes: 2183, bytes: 3.4 * 1024 ** 4 },
+      tmdbConfigured: true,
+      analysis: { running: false, done: 0, total: 0, failed: 0 },
+    };
+    stubFetch((url) => (url === '/api/libraries' ? { libraries: [{ id: 1, name: 'Films' }] } : summary));
+    mount(<HealthPage />, '/admin/health');
+    const totals = await screen.findByRole('region', { name: 'Wat de bibliotheek bevat' });
+    expect(totals.textContent).toBe('Films412Series38Afleveringen2.183Bestanden2.595Totale grootte3,4 TB');
+  });
+});

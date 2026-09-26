@@ -29,7 +29,7 @@ const SAME_IN_DUTCH = new Set([
   'mediaInfo.media', 'home.details', 'home.greeting', 'browse.genre', 'browse.filtersTitle', 'smart.builtIn.hdr', 'admin.tabs.dashboard',
   'admin.tabs.metadata', 'admin.tabs.server', 'dashboard.scanner', 'dashboard.phase.metadata', 'dashboard.database', 'dashboard.cpuVelyx',
   'dashboard.runtime', 'server.status', 'audit.groups.tmdb', 'segments.intro',
-  'onlineSubs.hearingImpaired', 'onlineSubs.downloads.one', 'onlineSubs.downloads.other', 'onlineSubs.tag',
+  'onlineSubs.hearingImpaired', 'onlineSubs.downloads.one', 'onlineSubs.downloads.other', 'onlineSubs.tag', 'playback.bitrate',
 ]);
 
 describe('translations', () => {

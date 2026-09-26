@@ -31,4 +31,7 @@ export const playback = {
   checking: 'Checking…',
   checkFailed: 'Could not check playback for this device.',
   checkedFor: 'Checked for {device}.',
+  bitrate: 'Bitrate',
+  reason: 'Why',
+  subtitleInUse: 'Subtitle in use',
 };

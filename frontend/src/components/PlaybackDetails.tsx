@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, CircleHelp, RefreshCw, TriangleAlert, X } from 'lucide-react';
-import { channelLabel, resolutionLabel } from '../lib/format';
+import { channelLabel, formatBitrate, resolutionLabel } from '../lib/format';
 import type { ComponentStatus, PlaybackAnalysis } from '../lib/types';
 import { t, useT, type MessageKey } from '../i18n';
 
@@ -22,7 +22,9 @@ function videoLine(a: PlaybackAnalysis): string {
 
 function audioLine(a: PlaybackAnalysis): string {
   if (a.audio.action === 'none' && !a.audio.codec) return t('playback.none');
-  return [a.audio.label, channelLabel(a.audio.channels)].filter(Boolean).join(' ');
+  const source = [a.audio.label, channelLabel(a.audio.channels)].filter(Boolean).join(' ');
+  // "DTS-HD MA 5.1 → AAC 5.1" when the audio is converted on the way.
+  return a.audio.action === 'convert' && a.audio.target ? `${source} → ${a.audio.target}` : source;
 }
 
 const STATUS: Record<ComponentStatus, { icon: typeof Check; className: string; label: MessageKey }> = {
@@ -66,18 +68,32 @@ export function StreamRows({ analysis: a }: { analysis: PlaybackAnalysis }) {
 const MODE_TITLE: Record<PlaybackAnalysis['mode'], MessageKey> = { direct: 'playback.directPlay', remux: 'playback.remux', unsupported: 'playback.unavailable' };
 
 /** Overview of how a file is delivered, for the player's info panel. */
-export function PlaybackSummary({ analysis: a }: { analysis: PlaybackAnalysis }) {
+export function PlaybackSummary({ analysis: a, subtitle }: { analysis: PlaybackAnalysis; subtitle?: string | null }) {
   const { t } = useT();
+  const bitrate = formatBitrate(a.bitrate);
   return (
     <div>
       <p className="mb-3 font-display text-base font-semibold">{t(MODE_TITLE[a.mode])}</p>
       <StreamRows analysis={a} />
       <div className="mt-3 space-y-1 text-sm text-ink/85">
+        {a.mode !== 'direct' && a.summary.length > 0 && <p className="text-xs text-faint">{t('playback.reason')}</p>}
         {a.summary.map((s) => (
           <p key={s}>{s}</p>
         ))}
       </div>
       <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs text-muted">
+        {bitrate && (
+          <>
+            <dt>{t('playback.bitrate')}</dt>
+            <dd>{bitrate}</dd>
+          </>
+        )}
+        {subtitle !== undefined && (
+          <>
+            <dt>{t('playback.subtitleInUse')}</dt>
+            <dd>{subtitle ?? t('player.off')}</dd>
+          </>
+        )}
         {a.mode !== 'unsupported' && (
           <>
             <dt>{t('playback.serverTranscoding')}</dt>
@@ -111,7 +127,7 @@ export function PlaybackSummary({ analysis: a }: { analysis: PlaybackAnalysis })
 }
 
 /** Subtle status chip in the player's top bar; opens the playback details. */
-export function PlaybackBadge({ analysis }: { analysis: PlaybackAnalysis }) {
+export function PlaybackBadge({ analysis, subtitle }: { analysis: PlaybackAnalysis; subtitle?: string | null }) {
   const [open, setOpen] = useState(false);
   const { t } = useT();
   const ref = useRef<HTMLDivElement>(null);
@@ -136,7 +152,7 @@ export function PlaybackBadge({ analysis }: { analysis: PlaybackAnalysis }) {
       </button>
       {open && (
         <div role="dialog" aria-label={t('playback.details')} className="absolute right-0 z-30 mt-2 max-h-[70vh] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-line bg-surface/95 p-4 shadow-2xl backdrop-blur">
-          <PlaybackSummary analysis={analysis} />
+          <PlaybackSummary analysis={analysis} subtitle={subtitle} />
         </div>
       )}
     </div>
