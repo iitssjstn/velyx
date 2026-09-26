@@ -528,6 +528,29 @@ Velyx has an API for apps (such as the Velyx app being built for Android). An ap
   3. Meanwhile the app calls `POST /api/auth/pair/poll` with its `pollToken` every few seconds, and gets its `token` once the code was confirmed.
 - **Signing out:** `POST /api/auth/logout` with the token. Signed-in apps appear by device name under **Settings → Account → Devices**, where they can be signed out like any browser; disabling an account or resetting its password signs its apps out too.
 
+**Playback from an app.** An app identifies itself with a `User-Agent` starting with `VelyxApp/` (for example `VelyxApp/1.0 (Android 14; Pixel 8)`) and asks how to play a file with `POST /api/media/<file id>/playback`, reporting what the device decodes:
+
+```json
+{
+  "containers": ["mp4", "mkv", "webm"],
+  "videoCodecs": ["h264", "hevc", "vp9"],
+  "tenBitCodecs": ["hevc"],
+  "audioCodecs": ["aac", "mp3", "opus", "flac", "ac3", "eac3"],
+  "hdr": true,
+  "audioTrackSwitching": true,
+  "imageSubtitles": true,
+  "audioIndex": 2
+}
+```
+
+Velyx then decides exactly as for a browser (still without transcoding video), with three differences a native player makes possible:
+
+- `audioTrackSwitching`: another audio track (`audioIndex`) plays from the original file when the device decodes it, instead of through a remux.
+- `tenBitCodecs` may include `h264`: 10-bit H.264 plays when the device decodes it (no browser does).
+- `imageSubtitles`: no warning about image-based subtitles (PGS, VobSub) when the original file is played, as the app shows them itself.
+
+The answer has the `streamUrl` to play (`/api/media/<id>/stream` with byte ranges, or `/api/media/<id>/remux` when the audio or container has to be repackaged), the subtitles with their URLs, and the playback details. An app that reports nothing is treated as a typical Android device. Streams from the app appear in the activity overview as *Velyx app on Pixel 8*.
+
 ## Development
 
 Requirements: Node.js 22+ and FFmpeg (for `ffprobe`/`ffmpeg`).

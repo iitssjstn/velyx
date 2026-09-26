@@ -95,7 +95,8 @@ export function videoSupport(file: Pick<MediaFileRow, 'videoCodec' | 'videoBitDe
   if (depth > 8) {
     // Only trust the 10-bit list when the client sent one (older clients only report codecs).
     const tenBit = caps.tenBitCodecs ?? (isReported ? null : REFERENCE_CAPS.tenBitCodecs);
-    if (codec === 'h264') return { ok: false, problem: tr(lang, '{depth}-bit H.264 (Hi10P) cannot be decoded by web browsers.', { depth }) };
+    // No web browser decodes Hi10P; a native player may, when the device says so.
+    if (codec === 'h264' && !(isReported && caps.tenBitCodecs?.includes('h264'))) return { ok: false, problem: tr(lang, '{depth}-bit H.264 (Hi10P) cannot be decoded by web browsers.', { depth }) };
     if (tenBit && !tenBit.includes(codec)) return { ok: isReported ? false : 'unknown', problem: tr(lang, 'This browser cannot decode {depth}-bit {codec} video.', { depth, codec: codecLabel(codec, lang) }) };
   }
   return { ok: true, problem: null };
@@ -171,6 +172,8 @@ export function analyzePlayback(
   userAgent?: string,
   confidence: PlaybackAnalysis['confidence'] = reported(caps) ? 'reported' : 'assumed',
   lang: Language = 'en',
+  /** The name the Velyx app gave this device ("Pixel 8"). */
+  appDevice: string | null = null,
 ): PlaybackAnalysis {
   const T = (message: string, params?: Record<string, string | number>) => tr(lang, message, params);
   const video = videoSupport(file, caps, lang);
@@ -201,7 +204,8 @@ export function analyzePlayback(
   const hdr = hdrWarning(file.videoRange, caps, lang);
   if (hdr) warnings.push(hdr);
   const imageSubs = (file.subtitleTracks ?? []).filter((s) => !s.textBased);
-  if (imageSubs.length) {
+  // The Velyx app shows them itself when it plays the original file.
+  if (imageSubs.length && !(caps.imageSubtitles && mode === 'direct')) {
     const names = [...new Set(imageSubs.map((s) => codecLabel(s.codec, lang)))].join('/');
     warnings.push(T(imageSubs.length === 1 ? '1 image-based subtitle track ({names}) cannot be shown; text subtitles work.' : '{n} image-based subtitle tracks ({names}) cannot be shown; text subtitles work.', { n: imageSubs.length, names }));
   }
@@ -275,7 +279,7 @@ export function analyzePlayback(
     transcodeRequired: mode === 'unsupported',
     serverTranscoding: false,
     serverLoad: mode === 'remux' ? 'low' : 'none',
-    device: profile.family === 'unknown' && !profile.browser ? null : profileName(profile, lang),
+    device: appDevice ? profileName({ browser: tr(lang, 'Velyx app'), os: appDevice }, lang) : profile.family === 'unknown' && !profile.browser ? null : profileName(profile, lang),
     confidence,
     components,
     summary,

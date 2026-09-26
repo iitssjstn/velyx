@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
@@ -29,6 +29,8 @@ export const capsBody = z
     audioCodecs: z.array(z.string().max(20)).max(30).optional(),
     tenBitCodecs: z.array(z.string().max(20)).max(30).optional(),
     hdr: z.boolean().optional(),
+    audioTrackSwitching: z.boolean().optional(),
+    imageSubtitles: z.boolean().optional(),
     audioIndex: z.number().int().min(0).max(1000).optional(),
     audioChannels: z.enum(['stereo', 'surround']).optional(),
     boostVoices: z.boolean().optional(),
@@ -43,6 +45,11 @@ function offsetParam(query: unknown): number {
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 0 || n > 1e6) throw new HttpError(400, 'Invalid subtitle offset.');
   return n;
+}
+
+/** How a viewer's device shows in the activity overview: "Velyx app on Pixel 8" or "Chrome on Windows". */
+function deviceLabel(request: FastifyRequest): string {
+  return request.appDevice ? `Velyx app on ${request.appDevice}` : describeUserAgent(request.headers['user-agent']);
 }
 
 export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
@@ -106,7 +113,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     preHandler: requireUser,
     handler: async (request, reply) => {
       const { file, abs } = loadFile(request.params.id, request.user!);
-      if (request.method === 'GET') ctx.streams.touch(request.user!, file.id, 'direct', describeUserAgent(request.headers['user-agent']));
+      if (request.method === 'GET') ctx.streams.touch(request.user!, file.id, 'direct', deviceLabel(request));
       const engine = ctx.playback.get('direct')!;
       return engine.serve(request, reply, file, abs);
     },
@@ -147,7 +154,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const decision = ctx.playback.decide(file, caps, { audioIndex, audioChannels, boostVoices, levelVolume, lang });
     if (!decision) throw new HttpError(415, 'This file cannot be played.');
     const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, file.id)).all();
-    const analysis = analyzePlayback(file, caps, decision, ua, confidence, lang);
+    const analysis = analyzePlayback(file, caps, decision, ua, confidence, lang, request.appDevice);
     return { decision: { ...decision, mode: analysis.mode }, analysis, file: fileInfo(file, external), subtitles: subtitleList(file, request.user!), onlineSubtitles: ctx.openSubtitles.configured };
   });
 
@@ -171,7 +178,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const { file, abs } = loadFile(request.params.id, request.user!);
     // A HEAD request only asks whether the stream exists: never start FFmpeg for it.
     if (request.method === 'HEAD') return reply.code(200).header('Content-Type', 'video/mp4').header('Accept-Ranges', 'none').send();
-    ctx.streams.touch(request.user!, file.id, 'remux', describeUserAgent(request.headers['user-agent']), remuxAudioLabel(request.query as Record<string, string | undefined>));
+    ctx.streams.touch(request.user!, file.id, 'remux', deviceLabel(request), remuxAudioLabel(request.query as Record<string, string | undefined>));
     return ctx.playback.get('remux')!.serve(request, reply, file, abs);
   });
 

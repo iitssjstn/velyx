@@ -161,6 +161,7 @@ export const nl: Record<string, string> = {
   '{codec} audio is converted to {target} ({extras}).': '{codec}-audio wordt omgezet naar {target} ({extras}).',
   '{codec} audio is converted to {target}.': '{codec}-audio wordt omgezet naar {target}.',
   '{browser} on {os}': '{browser} op {os}',
+  'Velyx app': 'Velyx-app',
   'Browser on {os}': 'Browser op {os}',
   'Unknown device': 'Onbekend apparaat',
   'HDR screen': 'HDR-scherm',

@@ -46,6 +46,8 @@ declare module 'fastify' {
   interface FastifyRequest {
     user: SessionUser | null;
     sessionToken: string | undefined;
+    /** The device name of a Velyx app session ("Pixel 8"); null for browsers. */
+    appDevice: string | null;
   }
 }
 
@@ -198,6 +200,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
 
   app.decorateRequest('user', null);
   app.decorateRequest('sessionToken', undefined);
+  app.decorateRequest('appDevice', null);
 
   // Resolve the session for every API request.
   app.addHook('onRequest', async (request, reply) => {
@@ -211,6 +214,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
       if (resolved?.client === 'app') {
         request.sessionToken = token;
         request.user = resolved.user;
+        request.appDevice = resolved.deviceName ?? 'Velyx app';
       }
       return;
     }

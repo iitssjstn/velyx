@@ -153,7 +153,7 @@ export class SessionService {
   }
 
   /** Like resolve(), and says whether the session was just extended (so its cookie can be renewed too). */
-  resolveSession(token: string | undefined, ip?: string): { user: SessionUser; extended: boolean; client: SessionClient } | null {
+  resolveSession(token: string | undefined, ip?: string): { user: SessionUser; extended: boolean; client: SessionClient; deviceName: string | null } | null {
     if (!token || token.length > 128) return null;
     const id = hashToken(token);
     const now = Date.now();
@@ -162,6 +162,7 @@ export class SessionService {
         sessionId: sessions.id,
         lastSeenAt: sessions.lastSeenAt,
         client: sessions.client,
+        deviceName: sessions.deviceName,
         id: users.id,
         username: users.username,
         displayName: users.displayName,
@@ -184,7 +185,7 @@ export class SessionService {
         .run();
     }
     const user = { id: row.id, username: row.username, displayName: row.displayName, role: row.role, avatarFile: row.avatarFile, language: isLanguage(row.language) ? row.language : DEFAULT_LANGUAGE };
-    return { user, extended, client: row.client };
+    return { user, extended, client: row.client, deviceName: row.deviceName };
   }
 
   destroy(token: string | undefined): void {
