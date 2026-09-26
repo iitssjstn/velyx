@@ -39,10 +39,11 @@ export function createMockTmdb(validKey = 'test-key'): MockTmdb {
       const movie = /^\/movie\/(\d+)$/.exec(p);
       if (movie) {
         const id = Number(movie[1]);
-        const base: Record<number, { title: string; date: string; genres: string[] }> = {
+        const matrix = { id: 2344, name: 'The Matrix Collection', poster_path: '/matrix-coll.jpg', backdrop_path: '/matrix-coll-back.jpg' };
+        const base: Record<number, { title: string; date: string; genres: string[]; collection?: typeof matrix }> = {
           157336: { title: 'Interstellar', date: '2014-11-05', genres: ['Adventure', 'Drama', 'Science Fiction'] },
-          603: { title: 'The Matrix', date: '1999-03-30', genres: ['Action', 'Science Fiction'] },
-          604: { title: 'The Matrix Reloaded', date: '2003-05-15', genres: ['Action'] },
+          603: { title: 'The Matrix', date: '1999-03-30', genres: ['Action', 'Science Fiction'], collection: matrix },
+          604: { title: 'The Matrix Reloaded', date: '2003-05-15', genres: ['Action'], collection: matrix },
         };
         const m = base[id];
         if (!m) return json({ status_message: 'not found' }, 404);
@@ -60,6 +61,7 @@ export function createMockTmdb(validKey = 'test-key'): MockTmdb {
           backdrop_path: `/${id}-backdrop.jpg`,
           imdb_id: `tt${id}`,
           genres: m.genres.map((name, i) => ({ id: i + 1, name })),
+          belongs_to_collection: m.collection ?? null,
           credits: {
             cast: [
               { id: 10297, name: 'Matthew McConaughey', character: 'Cooper', profile_path: '/mm.jpg', order: 0 },

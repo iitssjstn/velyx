@@ -57,6 +57,7 @@ export interface TmdbMovieDetails {
   genres?: TmdbGenre[];
   credits?: { cast?: TmdbCast[]; crew?: TmdbCrew[] };
   external_ids?: { imdb_id?: string | null };
+  belongs_to_collection?: { id: number; name: string; poster_path?: string | null; backdrop_path?: string | null } | null;
 }
 
 export interface TmdbTvDetails {

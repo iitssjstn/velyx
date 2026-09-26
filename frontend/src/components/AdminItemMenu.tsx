@@ -1,15 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { MoreHorizontal, RefreshCw, Wand2 } from 'lucide-react';
+import { Layers, MoreHorizontal, RefreshCw, Wand2 } from 'lucide-react';
+import type { CollectionRef } from '../lib/types';
 import { api } from '../lib/api';
 import { toast } from './Toast';
 import { FixMatchModal } from './FixMatchModal';
+import { CollectionPicker } from './CollectionPicker';
 
-/** Admin-only actions for a movie or show: fix match and refresh metadata. */
-export function AdminItemMenu({ type, id, query, year, onMatched }: { type: 'movie' | 'show'; id: number; query: string; year: number | null; onMatched?: (id: number) => void }) {
+/** Admin-only actions for a movie or show: collections, fix match and refresh metadata. */
+export function AdminItemMenu({
+  type,
+  id,
+  query,
+  year,
+  collections,
+  onMatched,
+}: {
+  type: 'movie' | 'show';
+  id: number;
+  query: string;
+  year: number | null;
+  collections: CollectionRef[];
+  onMatched?: (id: number) => void;
+}) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [fix, setFix] = useState(false);
+  const [picking, setPicking] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -38,6 +55,9 @@ export function AdminItemMenu({ type, id, query, year, onMatched }: { type: 'mov
       </button>
       {open && (
         <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-line bg-raised py-1 shadow-2xl sm:right-auto sm:left-0">
+          <button type="button" className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-line" onClick={() => { setOpen(false); setPicking(true); }}>
+            <Layers className="size-4 text-muted" /> Add to collection
+          </button>
           <button type="button" className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-line" onClick={() => { setOpen(false); setFix(true); }}>
             <Wand2 className="size-4 text-muted" /> Fix match
           </button>
@@ -46,6 +66,7 @@ export function AdminItemMenu({ type, id, query, year, onMatched }: { type: 'mov
           </button>
         </div>
       )}
+      {picking && <CollectionPicker type={type} id={id} current={collections} onClose={() => setPicking(false)} />}
       {fix && <FixMatchModal open onClose={() => setFix(false)} type={type} id={id} initialQuery={query} initialYear={year} onMatched={onMatched} />}
     </div>
   );

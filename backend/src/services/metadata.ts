@@ -1,11 +1,11 @@
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, ne, notExists, sql } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
-import { credits, episodes, genres, mediaFiles, movieGenres, movies, people, seasons, showGenres, shows } from '../db/schema.js';
+import { collectionItems, collections, credits, episodes, genres, mediaFiles, movieGenres, movies, people, seasons, showGenres, shows } from '../db/schema.js';
 import { createLogger } from '../logger.js';
 import { pickBest, rankCandidates, type ScoredCandidate } from './matcher.js';
 import { sortTitle } from './parser.js';
 import type { ImageCache } from './images.js';
-import { TmdbClient, TmdbError, yearOf, type TmdbCast, type TmdbCrew, type TmdbGenre } from './tmdb.js';
+import { TmdbClient, TmdbError, yearOf, type TmdbCast, type TmdbCrew, type TmdbGenre, type TmdbMovieDetails } from './tmdb.js';
 
 const log = createLogger('metadata');
 const MAX_CAST = 20;
@@ -118,13 +118,46 @@ export class MetadataService {
         .run();
       this.replaceGenres(tx as unknown as DB, 'movie', targetId, d.genres ?? []);
       this.replaceCredits(tx as unknown as DB, 'movie', targetId, d.credits?.cast ?? [], d.credits?.crew ?? []);
+      this.syncAutoCollection(tx as unknown as DB, targetId, d.belongs_to_collection ?? null);
     });
     await this.images.prefetch([
       ['w342', d.poster_path],
       ['w1280', d.backdrop_path],
+      ['w342', d.belongs_to_collection?.poster_path ?? null],
+      ['w1280', d.belongs_to_collection?.backdrop_path ?? null],
     ]);
     log.info(`Metadata updated for movie "${d.title}"`);
     return targetId;
+  }
+
+  /**
+   * One-off job for libraries matched before collections existed: looks up only the TMDB collection of
+   * every matched movie. Returns false when TMDB could not be reached, so it can be retried later.
+   */
+  async backfillCollections(): Promise<boolean> {
+    if (!this.enabled) return false;
+    const rows = this.db
+      .select({ id: movies.id, tmdbId: movies.tmdbId })
+      .from(movies)
+      .where(and(isNotNull(movies.tmdbId), inArray(movies.matchStatus, ['matched', 'manual'])))
+      .all();
+    if (rows.length) log.info(`Looking up collections for ${rows.length} movies`);
+    for (const r of rows) {
+      try {
+        const d = await this.tmdb.movie(r.tmdbId!);
+        if (!this.db.select({ id: movies.id }).from(movies).where(eq(movies.id, r.id)).get()) continue;
+        this.db.transaction((tx) => this.syncAutoCollection(tx as unknown as DB, r.id, d.belongs_to_collection ?? null));
+        await this.images.prefetch([
+          ['w342', d.belongs_to_collection?.poster_path ?? null],
+          ['w1280', d.belongs_to_collection?.backdrop_path ?? null],
+        ]);
+      } catch (err) {
+        if (err instanceof TmdbError && err.status !== null) continue; // e.g. removed from TMDB: skip this movie
+        log.warn('Collection lookup stopped — TMDB is unreachable; will retry on the next start', err);
+        return false;
+      }
+    }
+    return true;
   }
 
   // ---------------------------------------------------------------- shows
@@ -251,6 +284,32 @@ export class MetadataService {
   }
 
   // ---------------------------------------------------------------- helpers
+
+  /** Links a movie to its TMDB collection (or unlinks it) and drops automatic collections left empty. */
+  private syncAutoCollection(db: DB, movieId: number, c: TmdbMovieDetails['belongs_to_collection']): void {
+    const autoIds = db.select({ id: collections.id }).from(collections).where(eq(collections.kind, 'auto'));
+    db.delete(collectionItems)
+      .where(and(eq(collectionItems.movieId, movieId), inArray(collectionItems.collectionId, autoIds)))
+      .run();
+    if (c) {
+      const values = { name: c.name, sortTitle: sortTitle(c.name), posterPath: c.poster_path ?? null, backdropPath: c.backdrop_path ?? null, updatedAt: Date.now() };
+      const row = db
+        .insert(collections)
+        .values({ kind: 'auto', tmdbId: c.id, ...values })
+        .onConflictDoUpdate({ target: collections.tmdbId, set: values })
+        .returning()
+        .get();
+      db.insert(collectionItems).values({ collectionId: row.id, movieId }).onConflictDoNothing().run();
+    }
+    db.delete(collections)
+      .where(
+        and(
+          eq(collections.kind, 'auto'),
+          notExists(db.select({ one: sql`1` }).from(collectionItems).where(eq(collectionItems.collectionId, collections.id))),
+        ),
+      )
+      .run();
+  }
 
   private replaceGenres(db: DB, kind: 'movie' | 'show', id: number, list: TmdbGenre[]): void {
     if (kind === 'movie') db.delete(movieGenres).where(eq(movieGenres.movieId, id)).run();

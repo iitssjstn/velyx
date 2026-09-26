@@ -51,6 +51,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Per-user watch progress** — Continue Watching, "next up" episodes, watched markers (an item counts as watched at 90 %), mark seasons/shows as watched.
 - **Watchlist, favorites, search, filters and sorting** across movies, shows and episodes. Watched movies leave the watchlist automatically.
 - **Per-user library access** — choose which libraries each user can see (for example a kids-only library).
+- **Collections** — movie series from TMDB (such as “The Matrix Collection”) are grouped automatically once you have two or more of their movies; administrators can also make their own collections of movies and shows.
 - **Multiple users** with administrator and user roles.
 - **Admin panel** — dashboard (counts, storage, server status, duplicates), libraries with live scan progress and scan issues, users, metadata review, server settings, logs and database backup.
 - **Responsive UI** for desktop, tablet and phone.
@@ -410,7 +411,6 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 
 - Full video transcoding with hardware acceleration (NVENC, Quick Sync, VAAPI/AMF) and HLS output.
 - Burn-in or OCR for image-based subtitles.
-- Collections.
 - Trickplay thumbnails on the seek bar, intro/credits detection.
 - Apps for TV and mobile, Chromecast support.
 

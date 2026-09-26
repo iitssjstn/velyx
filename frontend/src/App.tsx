@@ -13,6 +13,7 @@ import { FavoritesPage, WatchlistPage } from './pages/Favorites';
 import { SearchPage } from './pages/Search';
 import { SettingsPage } from './pages/Settings';
 import { NotFoundPage } from './pages/NotFound';
+import { CollectionPage, CollectionsPage } from './pages/Collections';
 
 // The player and the admin area are loaded on demand to keep the initial bundle small.
 const PlayerPage = lazy(() => import('./pages/Player'));
@@ -63,6 +64,8 @@ export function App() {
           <Route path="/shows" element={<BrowsePage kind="shows" />} />
           <Route path="/movies/:id" element={<MoviePage />} />
           <Route path="/shows/:id" element={<ShowPage />} />
+          <Route path="/collections" element={<CollectionsPage />} />
+          <Route path="/collections/:id" element={<CollectionPage />} />
           <Route path="/watchlist" element={<WatchlistPage />} />
           <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/search" element={<SearchPage />} />

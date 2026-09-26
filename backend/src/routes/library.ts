@@ -22,6 +22,7 @@ import {
 import { Catalog } from '../services/catalog.js';
 import { notFound, parseId } from '../http-error.js';
 import { languageName } from '../services/parser.js';
+import { visibleCollections } from '../services/collections.js';
 import { assertEpisode, assertMovie, assertShow, canSee, scopeCondition } from '../services/access.js';
 
 const listQuery = z.object({
@@ -75,6 +76,12 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
         .where(and(eq(watchlist.userId, userId), where.movieId ? eq(watchlist.movieId, where.movieId) : eq(watchlist.showId, where.showId!)))
         .get(),
     );
+
+  /** Collections (visible to this user) that contain the movie or show. */
+  const collectionsOf = (request: { user: { id: number; role: 'admin' | 'user' } | null }, where: { movieId?: number; showId?: number }) =>
+    visibleCollections(db, scopeOf(request), request.user!.role === 'admin')
+      .filter((c) => c.members.some((m) => (where.movieId ? m.movieId === where.movieId : m.showId === where.showId)))
+      .map((c) => ({ id: c.row.id, name: c.row.name, kind: c.row.kind }));
 
   const subsFor = (fileIds: number[]) =>
     fileIds.length ? db.select().from(subtitles).where(inArray(subtitles.mediaFileId, fileIds)).all() : [];
@@ -362,6 +369,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       progress,
       favorite,
       watchlist: inWatchlist(userId, { movieId: id }),
+      collections: collectionsOf(request, { movieId: id }),
     };
   });
 
@@ -480,6 +488,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
         : null,
       favorite,
       watchlist: inWatchlist(userId, { showId: id }),
+      collections: collectionsOf(request, { showId: id }),
     };
   });
 
