@@ -86,12 +86,7 @@ The Docker image is built by GitHub Actions and published to GHCR, so the server
 
 **1. Publish the image (once).** Push this repository to GitHub (for example `iitssjstn/velyx`). The workflow *Docker image* (`.github/workflows/docker-build.yml`) builds `ghcr.io/iitssjstn/velyx:latest` automatically on every push to `main`. Follow it under the repository's **Actions** tab.
 
-Then make the image pullable:
-- **Public:** GitHub → your profile → **Packages** → `velyx` → **Package settings** → *Change visibility* → Public. No login needed on the server.
-- **Private:** keep it private and log in once on the server with a personal access token (classic) that has the `read:packages` scope:
-  ```bash
-  echo <TOKEN> | docker login ghcr.io -u iitssjstn --password-stdin
-  ```
+Then make the image pullable: GitHub → your profile → **Packages** → `velyx` → **Package settings** → *Change visibility* → Public. No login is needed on the server.
 
 **2. Run it on your server.**
 
