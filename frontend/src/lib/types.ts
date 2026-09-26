@@ -250,6 +250,8 @@ export interface SeasonSummary {
   posterPath: string | null;
   episodeCount: number;
   watchedCount: number;
+  /** 0–100. */
+  percentWatched: number;
 }
 
 export interface ShowDetail {
@@ -274,7 +276,10 @@ export interface ShowDetail {
   seasons: SeasonSummary[];
   episodeCount: number;
   watchedCount: number;
-  upNext: { id: number; seasonNumber: number; episodeNumber: number; title: string | null; progress: Progress | null } | null;
+  /** 0–100. */
+  percentWatched: number;
+  /** The episode to continue with: in progress, else the one after the last watched. */
+  upNext: { id: number; seasonNumber: number; episodeNumber: number; title: string | null; stillPath?: string | null; durationSec?: number | null; progress: Progress | null } | null;
   favorite: boolean;
   watchlist: boolean;
   collections: CollectionRef[];
