@@ -388,7 +388,7 @@ Every user sees their own history under **Settings → History**. A viewing coun
 | Never watched | Added more than N days ago and not started by anyone | on, 365 days |
 | Not watched in a long time | Watched before, but nobody played it for N days | off, 730 days |
 | Very large files | Files above a size limit | on, 50 GB |
-| Extra versions | Lower-quality copies of a movie or episode (the version that plays by default is never suggested) | on |
+| Extra versions | Lower-quality copies of a movie or episode, also the same movie in two libraries (same TMDB entry). The best version — highest resolution, then HDR, then the larger file; an unreadable file never counts as best — is never suggested. Each suggestion lists every version side by side with its format and size, so you can review them. | on |
 | Unidentified or unreadable | Titles without metadata and files FFprobe could not read | on |
 
 Each suggestion shows the title, path, size, resolution, library, whether and when it was watched, and why it is suggested. Select files and choose:
