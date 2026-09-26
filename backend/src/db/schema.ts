@@ -230,6 +230,9 @@ export const mediaFiles = sqliteTable(
     bitrate: integer('bitrate'),
     videoCodec: text('video_codec'),
     videoProfile: text('video_profile'),
+    /** null = not analysed yet (files probed before 0.4.0). */
+    videoBitDepth: integer('video_bit_depth'),
+    videoRange: text('video_range', { enum: ['SDR', 'HDR10', 'HLG', 'DV'] }),
     width: integer('width'),
     height: integer('height'),
     fps: real('fps'),

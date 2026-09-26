@@ -14,12 +14,18 @@ import { languageName } from '../services/parser.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
 import { fileInfo } from './library.js';
 import { canSee } from '../services/access.js';
+import { analyzePlayback } from '../playback/compatibility.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('playback');
 
 const capsBody = z
   .object({
     containers: z.array(z.string().max(20)).max(30).optional(),
     videoCodecs: z.array(z.string().max(20)).max(30).optional(),
     audioCodecs: z.array(z.string().max(20)).max(30).optional(),
+    tenBitCodecs: z.array(z.string().max(20)).max(30).optional(),
+    hdr: z.boolean().optional(),
     audioIndex: z.number().int().min(0).max(1000).optional(),
     audioChannels: z.enum(['stereo', 'surround']).optional(),
     boostVoices: z.boolean().optional(),
@@ -94,14 +100,36 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     },
   });
 
+  /**
+   * Files scanned before 0.4.0 have no bit depth / HDR information. Look it up once, the first time
+   * the file is played (one FFprobe run through the shared queue), so the decision can use it.
+   */
+  async function ensureVideoDetails(file: typeof mediaFiles.$inferSelect, abs: string) {
+    if (file.videoBitDepth !== null || file.probeError || !file.videoCodec) return file;
+    try {
+      const info = await ctx.probe(abs);
+      return db
+        .update(mediaFiles)
+        .set({ videoBitDepth: info.videoBitDepth, videoRange: info.videoRange })
+        .where(eq(mediaFiles.id, file.id))
+        .returning()
+        .get();
+    } catch (err) {
+      log.warn(`Could not analyse ${abs}`, err);
+      return file;
+    }
+  }
+
   app.post<{ Params: { id: string } }>('/api/media/:id/playback', { preHandler: requireUser }, async (request) => {
-    const { file } = loadFile(request.params.id, request.user!);
+    const loaded = loadFile(request.params.id, request.user!);
+    const file = await ensureVideoDetails(loaded.file, loaded.abs);
     const { audioIndex, audioChannels, boostVoices, levelVolume, ...caps } = capsBody.parse(request.body ?? {});
     if (audioIndex !== undefined && !(file.audioTracks ?? []).some((t) => t.index === audioIndex)) throw new HttpError(400, 'Unknown audio track.');
     const decision = ctx.playback.decide(file, caps, { audioIndex, audioChannels, boostVoices, levelVolume });
     if (!decision) throw new HttpError(415, 'This file cannot be played.');
     const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, file.id)).all();
-    return { decision, file: fileInfo(file, external), subtitles: subtitleList(file) };
+    const analysis = analyzePlayback(file, caps, decision, request.headers['user-agent']);
+    return { decision: { ...decision, mode: analysis.mode }, analysis, file: fileInfo(file, external), subtitles: subtitleList(file) };
   });
 
   // Live remux: video copied, audio converted when needed. Seeking = request again with ?start=.

@@ -51,6 +51,8 @@ export function fileInfo(f: FileRow, externalSubs: Array<typeof subtitles.$infer
     bitrate: f.bitrate,
     videoCodec: f.videoCodec,
     videoProfile: f.videoProfile,
+    videoBitDepth: f.videoBitDepth,
+    videoRange: f.videoRange,
     width: f.width,
     height: f.height,
     fps: f.fps,

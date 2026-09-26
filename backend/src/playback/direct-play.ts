@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { videoSupport } from './compatibility.js';
 import { defaultAudioIndex, wantsAudioProcessing, type ClientCapabilities, type MediaFileRow, type PlaybackDecision, type PlaybackEngine, type PlaybackOptions } from './engine.js';
 
 const MIME: Record<string, string> = {
@@ -71,6 +72,12 @@ export class DirectPlayEngine implements PlaybackEngine {
       check(file.container, caps.containers, 'Container');
       check(file.videoCodec, caps.videoCodecs, 'Video codec');
       check(file.audioCodec, caps.audioCodecs, 'Audio codec');
+      const video = videoSupport(file, caps);
+      // Codec supported but not at this bit depth (e.g. 10-bit H.264).
+      if (video.ok === false && !reasons.some((r) => r.startsWith('Video codec'))) {
+        compatible = false;
+        reasons.push(video.problem!);
+      }
     } else {
       if (file.videoCodec && !BROWSER_FRIENDLY_VIDEO.has(file.videoCodec)) reasons.push(`Video codec ${file.videoCodec.toUpperCase()} may not play in browsers`);
       if (file.audioCodec && !BROWSER_FRIENDLY_AUDIO.has(file.audioCodec)) reasons.push(`Audio codec ${file.audioCodec.toUpperCase()} may not play in browsers`);

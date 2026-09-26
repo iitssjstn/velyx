@@ -22,6 +22,13 @@
       "when": 1790384652532,
       "tag": "0002_collections",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790387556212,
+      "tag": "0003_playback_details",
+      "breakpoints": true
     }
   ]
 }

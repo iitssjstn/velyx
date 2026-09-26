@@ -8,6 +8,10 @@ export interface ClientCapabilities {
   containers?: string[];
   videoCodecs?: string[];
   audioCodecs?: string[];
+  /** Codecs the client also decodes at 10-bit (e.g. HEVC Main10, VP9 profile 2, AV1). */
+  tenBitCodecs?: string[];
+  /** Whether the client's screen reports HDR (dynamic-range: high). */
+  hdr?: boolean;
 }
 
 /** Per-request playback wishes, e.g. an audio track the browser cannot switch to by itself. */

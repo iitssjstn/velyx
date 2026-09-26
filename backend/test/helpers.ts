@@ -18,6 +18,8 @@ export function fakeProbe(overrides: Partial<ProbeResult> = {}): ProbeResult {
     bitrate: 5_000_000,
     videoCodec: 'h264',
     videoProfile: 'High',
+    videoBitDepth: 8,
+    videoRange: 'SDR',
     width: 1920,
     height: 1080,
     fps: 23.976,

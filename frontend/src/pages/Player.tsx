@@ -27,6 +27,7 @@ import { isTyping, pickSubtitle, preferredAudioIndex, startPosition, withParam }
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo } from '../lib/types';
 import { Spinner } from '../components/States';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
+import { PlaybackBadge, PlaybackUnavailable } from '../components/PlaybackDetails';
 
 const SAVE_INTERVAL_MS = 10_000;
 const HIDE_CONTROLS_MS = 3000;
@@ -140,6 +141,10 @@ export default function PlayerPage() {
   const [speed, setSpeed] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [warningDismissed, setWarningDismissed] = useState(false);
+  // The server predicted the file cannot play here; the viewer can still try (browsers under-report).
+  const [tryAnyway, setTryAnyway] = useState(false);
+  // The browser reported a decoding error while playing.
+  const [decodeFailed, setDecodeFailed] = useState(false);
   const [ended, setEnded] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [audioTracks, setAudioTracks] = useState<BrowserAudioTrack[]>([]);
@@ -366,6 +371,8 @@ export default function PlayerPage() {
     setCountdown(null);
     setError(null);
     setWarningDismissed(false);
+    setTryAnyway(false);
+    setDecodeFailed(false);
     setTime(0);
     setDuration(0);
     setBuffering(true);
@@ -448,12 +455,10 @@ export default function PlayerPage() {
     const v = videoRef.current;
     const code = v?.error?.code;
     const reasons = info?.decision.reasons ?? [];
-    if (code === 4 || code === 3) {
-      setError(
-        reasons.length
-          ? `Your browser cannot play this file: ${reasons.join('; ')}. Velyx converts audio automatically, but this video format would need full transcoding, which is not supported yet.`
-          : 'Your browser cannot decode this file. Try Chrome or Edge, which handle the most formats.',
-      );
+    if ((code === 4 || code === 3) && info?.analysis) {
+      setDecodeFailed(true);
+    } else if (code === 4 || code === 3) {
+      setError(reasons.length ? `Your browser cannot play this file: ${reasons.join('; ')}.` : 'Your browser cannot decode this file. Try Chrome or Edge, which handle the most formats.');
     } else if (code === 2) {
       setError('The connection to the server was interrupted.');
     } else {
@@ -578,7 +583,10 @@ export default function PlayerPage() {
     );
   }
 
-  const showWarning = info && info.decision.compatible === false && prefs.showCompatibilityWarnings && !warningDismissed && !error;
+  // Files that cannot play here are explained up front instead of failing (unless the viewer tries anyway).
+  const blocked = Boolean(info && info.decision.mode === 'unsupported' && prefs.showCompatibilityWarnings && !tryAnyway);
+  const showUnavailable = Boolean(info?.analysis && (blocked || decodeFailed));
+  const showWarning = info && info.decision.compatible === false && prefs.showCompatibilityWarnings && !warningDismissed && !error && !showUnavailable;
   const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
   const fileAudio = file?.audioTracks ?? [];
   const canSwitchAudio = audioTracks.length > 1;
@@ -591,7 +599,20 @@ export default function PlayerPage() {
       onMouseMove={poke}
       onTouchStart={poke}
     >
-      {info && streamSrc && (
+      {showUnavailable && info && (
+        <PlaybackUnavailable
+          analysis={
+            decodeFailed && !info.analysis.problems.length
+              ? { ...info.analysis, problems: ['The browser stopped with a decoding error. It could not decode this file after all.'] }
+              : info.analysis
+          }
+          onBack={exit}
+          onTryAnyway={blocked ? () => setTryAnyway(true) : undefined}
+          onNext={next ? goNext : undefined}
+        />
+      )}
+
+      {info && streamSrc && !blocked && (
         <video
           key={streamSrc}
           ref={videoRef}
@@ -634,7 +655,7 @@ export default function PlayerPage() {
 
       <SubtitleOverlay video={activeTrack?.video ?? null} track={activeTrack?.track ?? null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />
 
-      {(buffering || !streamSrc) && !error && (
+      {(buffering || !streamSrc) && !error && !showUnavailable && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <Spinner className="size-10" />
         </div>
@@ -708,11 +729,7 @@ export default function PlayerPage() {
           <p className="truncate font-display text-lg font-semibold">{item.data?.title}</p>
           {item.data?.subtitle && <p className="truncate text-sm text-ink/70">{item.data.subtitle}</p>}
         </div>
-        {info?.decision.note && (
-          <span className="ml-auto hidden shrink-0 items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs text-ink/80 sm:inline-flex" title={info.decision.note}>
-            <AudioLines className="size-3.5" /> Audio converted
-          </span>
-        )}
+        {info?.analysis && <PlaybackBadge analysis={info.analysis} />}
       </div>
 
       {/* Bottom controls */}

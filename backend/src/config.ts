@@ -22,6 +22,8 @@ export interface AppConfig {
   cookieSecure: 'auto' | boolean;
   trustProxy: boolean;
   scanIntervalMinutes: number;
+  /** FFprobe processes allowed at once (scanner + on-demand analysis). 1–4, default 1. */
+  scanConcurrency: number;
   ffprobePath: string;
   ffmpegPath: string;
   frontendDir: string | null;
@@ -91,6 +93,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     cookieSecure: cookieSecureRaw === 'auto' ? 'auto' : bool(cookieSecureRaw, false),
     trustProxy: bool(env.TRUST_PROXY, false),
     scanIntervalMinutes: int(env.SCAN_INTERVAL_MINUTES, 360),
+    scanConcurrency: Math.min(4, Math.max(1, int(env.SCAN_CONCURRENCY, 1))),
     ffprobePath: env.FFPROBE_PATH || 'ffprobe',
     ffmpegPath: env.FFMPEG_PATH || 'ffmpeg',
     frontendDir: frontendCandidate,

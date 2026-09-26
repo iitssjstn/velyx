@@ -120,7 +120,7 @@ export class LibraryScanner {
     private readonly db: DB,
     private readonly probe: Prober,
     private readonly metadata: MetadataService,
-    private readonly probeConcurrency = 2,
+    private readonly probeConcurrency = 1,
   ) {}
 
   async scan(libraryId: number, opts: ScanOptions = {}): Promise<ScanSummary> {
@@ -185,6 +185,8 @@ export class LibraryScanner {
             bitrate: info?.bitrate ?? null,
             videoCodec: info?.videoCodec ?? null,
             videoProfile: info?.videoProfile ?? null,
+            videoBitDepth: info?.videoBitDepth ?? null,
+            videoRange: info?.videoRange ?? null,
             width: info?.width ?? null,
             height: info?.height ?? null,
             fps: info?.fps ?? null,

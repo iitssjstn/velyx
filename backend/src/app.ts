@@ -16,6 +16,7 @@ import { LibraryScanner } from './services/scanner.js';
 import { ScanManager } from './services/scan-manager.js';
 import { LibraryWatcher } from './services/watcher.js';
 import { createFfprobe, type Prober } from './services/probe.js';
+import { limitProber } from './services/probe-queue.js';
 import { EmbeddedSubtitleExtractor } from './services/subtitles.js';
 import { LibraryAccess } from './services/access.js';
 import { PlaybackRegistry } from './playback/engine.js';
@@ -48,6 +49,8 @@ export interface AppContext {
   playback: PlaybackRegistry;
   subtitleExtractor: EmbeddedSubtitleExtractor;
   access: LibraryAccess;
+  /** FFprobe behind the shared concurrency limit. */
+  probe: Prober & { readonly active: number; readonly waiting: number };
   startedAt: number;
 }
 
@@ -71,14 +74,15 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   });
   const images = new ImageCache(config.imageCacheDir, opts.fetchImpl);
   const metadata = new MetadataService(db, tmdb, images);
-  const scanner = new LibraryScanner(db, opts.prober ?? createFfprobe(config.ffprobePath), metadata);
+  const probe = limitProber(opts.prober ?? createFfprobe(config.ffprobePath), config.scanConcurrency);
+  const scanner = new LibraryScanner(db, probe, metadata, config.scanConcurrency);
   const scans = new ScanManager(db, scanner);
   const watcher = new LibraryWatcher(db, scans, opts.watchDebounceMs);
   const playback = new PlaybackRegistry();
   playback.register(new DirectPlayEngine());
   playback.register(new RemuxEngine(config.ffmpegPath));
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), probe, startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

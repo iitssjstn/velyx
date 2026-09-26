@@ -147,6 +147,8 @@ export interface MediaFileInfo {
   bitrate: number | null;
   videoCodec: string | null;
   videoProfile: string | null;
+  videoBitDepth: number | null;
+  videoRange: string | null;
   width: number | null;
   height: number | null;
   fps: number | null;
@@ -298,10 +300,28 @@ export interface PlaybackDecision {
   audioIndex: number | null;
   note: string | null;
   durationSec: number | null;
+  mode: PlaybackMode;
+}
+
+export type PlaybackMode = 'direct' | 'remux' | 'unsupported';
+
+/** Why and how a file plays (or does not) on this device; see backend playback/compatibility.ts. */
+export interface PlaybackAnalysis {
+  mode: PlaybackMode;
+  browser: string | null;
+  video: { codec: string | null; label: string; width: number | null; height: number | null; bitDepth: number | null; range: string | null; action: 'direct' | 'copy' | 'unsupported' };
+  audio: { codec: string | null; label: string; channels: number | null; action: 'direct' | 'copy' | 'convert' | 'none'; target: string | null };
+  container: { name: string | null; action: 'direct' | 'remux' };
+  problems: string[];
+  warnings: string[];
+  transcodeRequired: boolean;
+  serverTranscoding: false;
+  serverLoad: 'none' | 'low';
 }
 
 export interface PlaybackInfo {
   decision: PlaybackDecision;
+  analysis: PlaybackAnalysis;
   file: MediaFileInfo;
   subtitles: SubtitleOption[];
 }

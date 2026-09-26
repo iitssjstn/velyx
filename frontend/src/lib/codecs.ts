@@ -22,6 +22,14 @@ const AUDIO: Record<string, string[]> = {
   eac3: ['audio/mp4; codecs="ec-3"'],
 };
 
+/** 10-bit variants: HEVC Main10, VP9 profile 2, AV1 10-bit, H.264 High 10 (almost never supported). */
+const TEN_BIT: Record<string, string[]> = {
+  hevc: ['video/mp4; codecs="hvc1.2.4.L153.B0"', 'video/mp4; codecs="hev1.2.4.L153.B0"'],
+  vp9: ['video/webm; codecs="vp09.02.10.10"', 'video/mp4; codecs="vp09.02.10.10"'],
+  av1: ['video/mp4; codecs="av01.0.05M.10"'],
+  h264: ['video/mp4; codecs="avc1.6E0028"'],
+};
+
 const CONTAINERS: Record<string, string[]> = {
   mp4: ['video/mp4'],
   m4v: ['video/mp4', 'video/x-m4v'],
@@ -35,11 +43,14 @@ export interface Capabilities {
   containers: string[];
   videoCodecs: string[];
   audioCodecs: string[];
+  tenBitCodecs: string[];
+  /** The screen reports HDR (CSS dynamic-range: high). */
+  hdr: boolean;
 }
 
 let cached: Capabilities | null = null;
 
-export function detectCapabilities(videoEl?: Pick<HTMLVideoElement, 'canPlayType'>, ua?: string): Capabilities {
+export function detectCapabilities(videoEl?: Pick<HTMLVideoElement, 'canPlayType'>, ua?: string, hdrScreen?: boolean): Capabilities {
   const useCache = !videoEl && !ua;
   if (cached && useCache) return cached;
   const video = videoEl ?? document.createElement('video');
@@ -49,7 +60,8 @@ export function detectCapabilities(videoEl?: Pick<HTMLVideoElement, 'canPlayType
   const containers = pick(CONTAINERS);
   const isChromiumOrFirefox = /Chrome\/|Chromium\/|Firefox\/|Edg\//.test(userAgent) && !/Edge\/1[0-8]/.test(userAgent);
   if (isChromiumOrFirefox && !containers.includes('mkv')) containers.push('mkv');
-  const caps = { containers, videoCodecs: pick(VIDEO), audioCodecs: pick(AUDIO) };
+  const hdr = hdrScreen ?? (typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(dynamic-range: high)').matches);
+  const caps = { containers, videoCodecs: pick(VIDEO), audioCodecs: pick(AUDIO), tenBitCodecs: pick(TEN_BIT), hdr };
   if (useCache) cached = caps;
   return caps;
 }

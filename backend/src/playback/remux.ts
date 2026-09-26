@@ -1,12 +1,11 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createLogger } from '../logger.js';
+import { COPYABLE_VIDEO, videoSupport } from './compatibility.js';
 import { defaultAudioIndex, wantsAudioProcessing, type ClientCapabilities, type MediaFileRow, type PlaybackDecision, type PlaybackEngine, type PlaybackOptions } from './engine.js';
 
 const log = createLogger('remux');
 
-/** Video codecs that can be copied (not re-encoded) into fragmented MP4. */
-const COPYABLE_VIDEO = new Set(['h264', 'hevc', 'av1', 'vp9']);
 /** Audio codecs that can be copied into MP4 when the browser decodes them; everything else becomes AAC. */
 const COPYABLE_AUDIO = new Set(['aac', 'mp3']);
 
@@ -62,7 +61,8 @@ export function audioFilters(plan: RemuxPlan): string {
 export function planRemux(file: MediaFileRow, caps: ClientCapabilities, options: PlaybackOptions = {}): RemuxPlan | null {
   if (!file.videoCodec || !COPYABLE_VIDEO.has(file.videoCodec)) return null;
   const reported = Boolean(caps.videoCodecs?.length);
-  if (reported && !caps.videoCodecs!.includes(file.videoCodec)) return null;
+  const video = videoSupport(file, caps);
+  if (video.ok === false) return null;
   if (!reported && file.videoCodec !== 'h264') return null;
   const tracks = file.audioTracks ?? [];
   const wanted = options.audioIndex !== undefined ? tracks.find((t) => t.index === options.audioIndex) : undefined;
