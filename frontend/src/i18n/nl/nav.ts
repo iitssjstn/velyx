@@ -14,4 +14,6 @@ export const nav: Messages['nav'] = {
   openMenu: 'Menu openen',
   closeMenu: 'Menu sluiten',
   menu: 'Menu',
+  back: 'Terug',
+  installApp: 'App installeren',
 };

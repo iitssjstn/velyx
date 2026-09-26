@@ -53,6 +53,8 @@ export interface TestEnvOptions {
   segmentRetryMs?: number;
   frameReader?: FrameReader;
   chapterReader?: ChapterReader;
+  /** Serve a built frontend from this folder (off by default). */
+  frontendDir?: string;
 }
 
 export async function createTestEnv(opts: TestEnvOptions = {}): Promise<TestEnv> {
@@ -61,7 +63,7 @@ export async function createTestEnv(opts: TestEnvOptions = {}): Promise<TestEnv>
   fs.mkdirSync(mediaDir, { recursive: true });
   const config = loadConfig(
     { DATA_DIR: path.join(dir, 'data'), MEDIA_ROOTS: mediaDir, TMDB_API_KEY: opts.tmdbKey ?? '', SESSION_SECRET: 'test-secret-test-secret-1234' } as NodeJS.ProcessEnv,
-    { frontendDir: null },
+    { frontendDir: opts.frontendDir ?? null },
   );
   const db = openDatabase(config.dbPath);
   const probeCalls: string[] = [];

@@ -8,7 +8,11 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { App } from './App';
 import { Toaster } from './components/Toast';
 import { initialLanguage, setLanguage } from './i18n';
+import { initInstall, registerServiceWorker } from './lib/install';
 import './index.css';
+
+initInstall();
+registerServiceWorker();
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -20,6 +20,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - [TMDB metadata](#tmdb-metadata)
 - [Libraries and scanning](#libraries-and-scanning)
 - [Playback and browser support](#playback-and-browser-support)
+- [Installing Velyx as an app](#installing-velyx-as-an-app)
 - [Subtitles and audio tracks](#subtitles-and-audio-tracks)
 - [Users and roles](#users-and-roles)
 - [Monitoring and storage](#monitoring-and-storage)
@@ -75,6 +76,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Admin panel** — dashboard with CPU, memory, disk, scanner status, active streams and backups; activity and statistics; libraries with live scan progress; Library health; intros & credits; users and sessions; metadata review; server settings; logs; audit log; backups.
 - **Backups** — scheduled database backups with daily/weekly/monthly rotation, verification, and restore from the admin page or the command line.
 - **Storage monitoring** — warnings when the data volume runs low; scans pause automatically when it is critical; unused cache can be cleared.
+- **Install as an app** — on a phone, tablet or computer, Velyx can be installed from the browser and then opens from its own icon, in its own window without the browser bar.
 - **Responsive UI** for desktop, tablet and phone. On desktop, hovering a poster (or focusing it with the keyboard) shows its year, runtime or number of seasons, rating and genres — from data the page already has, without extra requests.
 - **Docker-first** — one container, SQLite database, migrations run automatically, health check included.
 
@@ -296,6 +298,20 @@ Boost voices and Level volume always convert the audio.
 **Settings → Playback** also shows what the current browser supports.
 
 **Keyboard shortcuts in the player:** `Space`/`K` play/pause, `←`/`→` or `J`/`L` seek 10 s, `↑`/`↓` volume, `M` mute, `F` fullscreen, `C` cycle subtitles, `S` skip intro/credits, `N` next episode, `0`–`9` jump to 0–90 %, `Esc` back.
+
+## Installing Velyx as an app
+
+Velyx can be installed from the browser, so it opens from its own icon like an app, full screen without the address bar. Nothing is downloaded from an app store: the app is your own Velyx server, and it updates itself whenever you update the server.
+
+- **Android (Chrome, Edge, Samsung Internet) and computers (Chrome, Edge):** choose **Install app** in the Velyx menu (or the install icon in the browser's address bar).
+- **iPhone and iPad:** open Velyx in Safari, tap the Share button and choose **Add to Home Screen**. **Install app** in the menu shows these steps.
+
+Good to know:
+
+- Installing needs **HTTPS** (for example behind a reverse proxy, see [Running behind a reverse proxy](#running-behind-a-reverse-proxy)); browsers only allow it on `http://` for `localhost`. **Install app** only appears where the browser allows it, and not once Velyx is installed.
+- The installed app is the same Velyx as in the browser: playback, what plays directly and what is remuxed, and your account work exactly the same. It needs the server to be reachable; when it is not, the app shows a short *Velyx is not reachable* page with **Try again** instead of the browser's error page.
+- Only that one page is stored on the device. Pages, artwork, video and your data always come straight from the server; nothing is kept offline.
+- The installed app has a **Back** button at the top of pages below the menu, as there is no browser bar with one.
 
 ## Subtitles and audio tracks
 
@@ -588,6 +604,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 | Signed out behind HTTPS proxy | Set `TRUST_PROXY` (e.g. `1`) and forward the `Host` header. |
 | Forgot the admin password | `docker compose exec velyx velyx reset-password <user> <password>` |
 | Intros or credits not found | Short title cards (under 10 seconds) are not intros; credits over running scenes or on light backgrounds are not recognised in the picture. Run `velyx intros "Show" <season>` (see [Maintenance CLI](#maintenance-cli)) to see what was compared, and correct episodes by hand in Admin → Intros & credits. |
+| No *Install app* in the menu | Installing needs HTTPS (or `localhost`) and a browser that supports it (Chrome, Edge, Samsung Internet; on an iPhone or iPad use Safari's *Add to Home Screen*). It is also hidden when Velyx is already installed on this device. |
 | Container unhealthy | `docker compose logs velyx`. |
 
 ## Known limitations
