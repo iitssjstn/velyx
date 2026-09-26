@@ -21,6 +21,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - [Libraries and scanning](#libraries-and-scanning)
 - [Playback and browser support](#playback-and-browser-support)
 - [Installing Velyx as an app](#installing-velyx-as-an-app)
+- [The Velyx app for Android](#the-velyx-app-for-android)
 - [Subtitles and audio tracks](#subtitles-and-audio-tracks)
 - [Users and roles](#users-and-roles)
 - [Monitoring and storage](#monitoring-and-storage)
@@ -314,6 +315,20 @@ Good to know:
 - Only that one page is stored on the device. Pages, artwork, video and your data always come straight from the server; nothing is kept offline.
 - The installed app has a **Back** button at the top of pages below the menu, as there is no browser bar with one.
 
+## The Velyx app for Android
+
+Besides installing the website as an app, Velyx has its own Android app (for phones and tablets). It is new: this first version connects to your server, signs in, and shows Home (Continue Watching, recently added, movies and shows), all movies and all TV shows, and the pages of movies and shows with their seasons and episodes. **Playing does not work in the app yet** — until the next version, play in the browser.
+
+**Installing:** every Velyx release on GitHub (the *Releases* page of this repository) has the app attached as `velyx-<version>.apk`. Open that file on your Android phone or tablet and allow installing apps from your browser when Android asks. A newer APK installs over the old one; you stay signed in. The app is not in the Play Store yet.
+
+**Connecting:**
+
+1. Enter the address you use in the browser (for example `velyx.example.com` or `192.168.1.10:3000`). Without `https://` or `http://`, the app tries HTTPS first and then plain HTTP. It needs Velyx 0.7.3 or newer.
+2. Sign in with your username and password, or choose **Code**: the app shows a code such as `K7M-2QX`. Enter it on the website under **Settings → Account → Connect the Velyx app** (or at `/link`) while signed in as yourself, and the app signs in by itself.
+3. The app appears as your device (for example *Pixel 8 · Velyx app*) under **Settings → Account → Devices**, where you can sign it out. **Account → Sign out** in the app does the same.
+
+The app follows your account's language (English or Dutch). Before signing in, it follows the phone's language.
+
 ## Subtitles and audio tracks
 
 - External `.srt` (UTF-8, UTF-16 and Windows-1252 are detected) and `.vtt` files are converted to WebVTT on the fly.
@@ -518,7 +533,7 @@ docker compose exec velyx velyx intros "Show title" 2     # explain intro/credit
 
 ## Signing in from an app
 
-Velyx has an API for apps (such as the Velyx app being built for Android). An app signs in with its own token instead of a browser cookie, and sends it as `Authorization: Bearer <token>` with every request, including streams and subtitles. Everything else works exactly as in the browser: the same accounts, library access and watch progress.
+Velyx has an API for apps (such as [the Velyx app for Android](#the-velyx-app-for-android)). An app signs in with its own token instead of a browser cookie, and sends it as `Authorization: Bearer <token>` with every request, including streams and subtitles. Everything else works exactly as in the browser: the same accounts, library access and watch progress.
 
 - **Server check:** `GET /api/server/info` (no sign-in needed) returns the server name, version and `apiVersion` (currently `1`).
 - **With a password:** `POST /api/auth/app/login` with `username`, `password` and a `deviceName` (such as *Pixel 8*) returns a `token`. Wrong passwords are throttled exactly like on the sign-in page.
@@ -591,6 +606,8 @@ npm test
 ```
 
 The backend suite covers authentication, authorization, CSRF, sessions and throttling, the audit log, the scanner (incremental, FFprobe queue, watcher batching, pause/resume, removals, unmounted drives, subtitles), TMDB matching with a mocked API (including offline behaviour), playback decisions and compatibility, library filters, sorting and paging (including 5,000-item libraries), full-text search, smart collections, recommendations, progress, favorites, watchlists, per-user library access, backups (rotation, verification, restore), migration safety, storage and cache clean-up, range requests and path security. When `ffprobe` and `ffmpeg` are installed, an extra suite analyses generated videos (including 10-bit HDR10 HEVC) and extracts embedded subtitles. The frontend suite covers the player's playback explanation and badge, filters, the virtual grid, session management, backups, storage warnings, watched controls, language preferences and more.
+
+The Android app (in `app/`) has its own checks: `cd app && npm ci && npm run typecheck && npm test` (finding the server, the API client, signing in by password and by code, texts in both languages). The APK itself is built by the *Android app* workflow on GitHub.
 
 ## CI and the Docker image (GHCR)
 
