@@ -7,6 +7,7 @@
  *   docker compose exec velyx velyx restore --cancel       cancel a staged restore
  *   docker compose exec velyx velyx reset-password <username> <new-password>
  *   docker compose exec velyx velyx scan [--refresh-metadata]
+ *   docker compose exec velyx velyx intros ["show title"|show-id] [season]
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,6 +19,10 @@ import { hashPassword, validatePassword } from './auth/password.js';
 import { SessionService } from './auth/sessions.js';
 import { backupPath, cancelRestore, createFullBackup, listBackups, stageRestore, verifyBackup } from './services/backup.js';
 import { createContext } from './app.js';
+import { episodes, shows } from './db/schema.js';
+import { ffmpegAudioReader, SegmentDetector } from './services/segments/detector.js';
+import { formatDiagnosis } from './services/segments/diagnose.js';
+import { ffmpegFrameReader, ffprobeChapterReader } from './services/segments/readers.js';
 import { setLogLevel } from './logger.js';
 
 const HELP = `Velyx maintenance commands:
@@ -27,7 +32,10 @@ const HELP = `Velyx maintenance commands:
   restore <name|path>        restore a backup when Velyx next starts
   restore --cancel           cancel a staged restore
   reset-password <username> <new-password>
-  scan [--refresh-metadata]`;
+  scan [--refresh-metadata]
+  intros                     list TV shows (for the next command)
+  intros <show> [season]     explain intro/credits detection for one season (stores nothing;
+                             --no-video skips the picture analysis)`;
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -36,7 +44,8 @@ function formatSize(bytes: number): string {
 }
 
 async function run(): Promise<number> {
-  const [cmd, ...args] = process.argv.slice(2);
+  const [cmd, ...rest] = process.argv.slice(2);
+  let args = rest;
   const config = loadConfig();
   if (cmd !== 'scan') setLogLevel('warn');
   const resolve = (arg: string) => backupPath(config.backupDir, arg) ?? (fs.existsSync(arg) ? path.resolve(arg) : null);
@@ -116,6 +125,32 @@ async function run(): Promise<number> {
       const ctx = createContext(config, db);
       ctx.scans.enqueueAll(args.includes('--refresh-metadata'));
       await ctx.scans.whenIdle();
+      return 0;
+    }
+    case 'intros': {
+      const flags = args.filter((a) => a.startsWith('--'));
+      args = args.filter((a) => !a.startsWith('--'));
+      const db = openDatabase(config.dbPath, { backupDir: config.backupDir });
+      const all = db.select({ id: shows.id, title: shows.title }).from(shows).orderBy(shows.sortTitle).all();
+      if (!args[0]) {
+        for (const s of all) console.log(`${String(s.id).padStart(5)}  ${s.title}`);
+        return 0;
+      }
+      const q = args[0].toLowerCase();
+      const show = all.find((s) => String(s.id) === args[0]) ?? all.find((s) => s.title.toLowerCase() === q) ?? all.find((s) => s.title.toLowerCase().includes(q));
+      if (!show) {
+        console.error(`No show matches "${args[0]}". Run "velyx intros" for the list.`);
+        return 1;
+      }
+      const seasons = [...new Set(db.select({ s: episodes.seasonNumber }).from(episodes).where(eq(episodes.showId, show.id)).all().map((r) => r.s))].sort((a, b) => a - b);
+      const season = args[1] !== undefined ? Number(args[1]) : (seasons.find((s) => s > 0) ?? seasons[0]);
+      if (season === undefined || !seasons.includes(season)) {
+        console.error(`${show.title} has seasons: ${seasons.join(', ') || 'none'}`);
+        return 1;
+      }
+      console.error(`Analysing ${show.title} season ${season} (audio, chapters${flags.includes('--no-video') ? '' : ' and picture'})… nothing is stored`);
+      const detector = new SegmentDetector(db, ffmpegAudioReader(config.ffmpegPath), { enabled: () => true, busy: () => null, video: () => !flags.includes('--no-video') }, { frames: ffmpegFrameReader(config.ffmpegPath), chapters: ffprobeChapterReader(config.ffprobePath) });
+      console.log(formatDiagnosis(show.title, season, await detector.diagnose(show.id, season)));
       return 0;
     }
     default:

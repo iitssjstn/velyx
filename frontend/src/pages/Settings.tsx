@@ -294,7 +294,7 @@ export function SkipSettings() {
     </div>
   );
   return (
-    <Section title="Intros & credits" description="Velyx recognises intros and credits of TV episodes by their recurring sound. Only confident results are used; a scene after the credits is never skipped.">
+    <Section title="Intros & credits" description="Velyx recognises intros and end credits of TV episodes by their recurring sound and, for credits, by the text in the picture. Only confident results are used; a scene after the credits is never skipped.">
       <div className="divide-y divide-line/50">
         {row('pref-skip-intro', 'Skip intros', 'The button appears only while the intro plays.', p?.skipIntro ?? 'ask', 'skipIntro')}
         {row('pref-skip-credits', 'Skip credits', 'Goes to a scene after the credits when there is one, otherwise to the next episode.', p?.skipCredits ?? 'ask', 'skipCredits')}

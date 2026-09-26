@@ -1,4 +1,6 @@
 import { FRAME_SEC, longestCommonSegment, soundRatio, type Fingerprint } from './fingerprint.js';
+import type { ChapterSegments } from './chapters.js';
+import type { VisualCredits } from './visual.js';
 
 /**
  * Season-level intro and credits detection from audio fingerprints (pure logic; reading the audio
@@ -11,7 +13,7 @@ import { FRAME_SEC, longestCommonSegment, soundRatio, type Fingerprint } from '.
  */
 
 /** Bumped whenever the algorithm changes, so older automatic results are redone. */
-export const DETECTION_VERSION = 1;
+export const DETECTION_VERSION = 2;
 
 export type Confidence = 'high' | 'medium' | 'low';
 
@@ -24,7 +26,14 @@ export interface EpisodeAudio {
   /** Fingerprint of the closing part, starting at `tailStart` seconds. */
   tail: Fingerprint;
   tailStart: number;
+  /** Credits recognised in the picture (text on a dark background), when the video was analysed. */
+  visual?: VisualCredits | null;
+  /** Intro/credits chapters named as such in the file. */
+  chapters?: ChapterSegments | null;
 }
+
+/** Where a result came from: chapter markers, the picture, or recurring audio. */
+export type SegmentSource = 'chapters' | 'video' | 'audio';
 
 export interface Span {
   start: number;
@@ -32,8 +41,8 @@ export interface Span {
 }
 
 export interface Detection {
-  intro: (Span & { confidence: Confidence }) | null;
-  credits: (Span & { confidence: Confidence }) | null;
+  intro: (Span & { confidence: Confidence; source: SegmentSource }) | null;
+  credits: (Span & { confidence: Confidence; source: SegmentSource }) | null;
   /** Content after the credits (a post-credits scene): never skipped automatically. */
   postCredits: Span | null;
   /** The frames of the intro/credits in this episode's own fingerprints, for new references. */
@@ -131,9 +140,11 @@ export function detectEpisode(ep: EpisodeAudio, peers: EpisodeAudio[], refs: Ref
     if (seg && seg.aEnd - seg.aStart >= r.words.length * 0.8) introCands.push({ start: seg.aStart * FRAME_SEC, end: seg.aEnd * FRAME_SEC, ratio: seg.ratio, reference: true, frames: [seg.aStart, seg.aEnd] });
   }
   const introGroup = cluster(introCands);
-  const intro = introGroup.length
-    ? { start: round(median(introGroup.map((c) => c.start))), end: round(median(introGroup.map((c) => c.end))), confidence: confidence(introGroup) }
-    : null;
+  const intro = ep.chapters?.intro
+    ? { start: round(ep.chapters.intro.start), end: round(ep.chapters.intro.end), confidence: 'high' as Confidence, source: 'chapters' as SegmentSource }
+    : introGroup.length
+      ? { start: round(median(introGroup.map((c) => c.start))), end: round(median(introGroup.map((c) => c.end))), confidence: confidence(introGroup), source: 'audio' as SegmentSource }
+      : null;
 
   // ---- credits: recurring audio in the closing part
   const creditCands: Candidate[] = [];
@@ -148,9 +159,24 @@ export function detectEpisode(ep: EpisodeAudio, peers: EpisodeAudio[], refs: Ref
     if (seg && seg.aEnd - seg.aStart >= r.words.length * 0.8) creditCands.push({ start: toAbs(seg.aStart), end: toAbs(seg.aEnd), ratio: seg.ratio, reference: true, frames: [seg.aStart, seg.aEnd] });
   }
   const creditGroup = cluster(creditCands);
-  let credits = creditGroup.length
-    ? { start: round(median(creditGroup.map((c) => c.start))), end: round(median(creditGroup.map((c) => c.end))), confidence: confidence(creditGroup) }
+  let credits: Detection['credits'] = creditGroup.length
+    ? { start: round(median(creditGroup.map((c) => c.start))), end: round(median(creditGroup.map((c) => c.end))), confidence: confidence(creditGroup), source: 'audio' }
     : null;
+
+  const introFrames = introGroup.length ? introGroup.sort((a, b) => b.ratio - a.ratio)[0].frames : null;
+  const creditsFrames = creditGroup.length ? creditGroup.sort((a, b) => b.ratio - a.ratio)[0].frames : null;
+
+  // Chapters and the picture are more direct than recurring audio: the credits really start where
+  // the text appears, also when the music differs every episode.
+  if (ep.chapters?.credits) {
+    const c = ep.chapters;
+    const end = c.postCredits ? c.postCredits.start : ep.duration;
+    return { intro, credits: { start: round(c.credits!.start), end: round(Math.max(c.credits!.end, end)), confidence: 'high', source: 'chapters' }, postCredits: c.postCredits ? { start: round(c.postCredits.start), end: round(c.postCredits.end) } : null, introFrames, creditsFrames };
+  }
+  if (ep.visual) {
+    const v = ep.visual;
+    return { intro, credits: { start: v.start, end: v.end, confidence: v.confidence, source: 'video' }, postCredits: v.postCredits, introFrames, creditsFrames };
+  }
 
   // ---- after the credits: a scene (real sound, long enough) or just the end of the file
   let postCredits: Span | null = null;
@@ -164,8 +190,6 @@ export function detectEpisode(ep: EpisodeAudio, peers: EpisodeAudio[], refs: Ref
       credits = { ...credits, end: round(ep.duration) };
     }
   }
-  const introFrames = introGroup.length ? introGroup.sort((a, b) => b.ratio - a.ratio)[0].frames : null;
-  const creditsFrames = creditGroup.length ? creditGroup.sort((a, b) => b.ratio - a.ratio)[0].frames : null;
   return { intro, credits, postCredits, introFrames, creditsFrames };
 }
 

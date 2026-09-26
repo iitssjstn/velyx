@@ -639,6 +639,7 @@ export interface ServerSettings {
   scanOnStartup: boolean;
   deferScansWhilePlaying: boolean;
   segmentDetection: boolean;
+  segmentVideo: boolean;
 }
 
 export interface ReviewItem {

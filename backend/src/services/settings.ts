@@ -53,6 +53,8 @@ export interface ServerSettings {
   deferScansWhilePlaying: boolean;
   /** Look for intros and credits in the background (audio only, never while someone watches). */
   segmentDetection: boolean;
+  /** Also recognise end credits in the picture (keyframes of the last minutes, low resolution). */
+  segmentVideo: boolean;
   cleanupRules: CleanupRules;
   /** Library clean-up may delete files (off by default; the library must also be mounted writable). */
   cleanupDeletion: boolean;
@@ -76,6 +78,7 @@ const DEFAULTS: ServerSettings = {
   scanOnStartup: false,
   deferScansWhilePlaying: true,
   segmentDetection: true,
+  segmentVideo: true,
   cleanupRules: DEFAULT_CLEANUP_RULES,
   cleanupDeletion: false,
 };

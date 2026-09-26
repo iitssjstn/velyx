@@ -51,8 +51,8 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Incremental scanning** — only new or changed files (path, size, modification time) are analysed with FFprobe. Removed files disappear, and a library whose drive is not mounted is never wiped.
 - **Custom video player** — resume, seeking, subtitles (external `.srt`/`.vtt` and embedded text tracks), subtitle size, playback speed, audio track switching in every browser, auto-play next episode with countdown, fullscreen and keyboard shortcuts.
 - **Automatic audio conversion** — files with audio the browser cannot decode (EAC3, AC3, DTS, TrueHD) play anyway: the video is passed through untouched and only the audio is converted to AAC on the fly (stereo or 5.1 surround). Light enough for low-end CPUs.
-- **Skip intros and credits** — Velyx recognises the recurring intro and credits of TV episodes by their sound, per season and on your own server. A *Skip intro* / *Skip credits* button appears while they play (or they are skipped automatically, if you prefer); a scene after the credits is never skipped.
-- **Audio options like Plex** — *Boost voices* (clearer dialogue) and *Level volume* (night mode), switchable from the player.
+- **Skip intros and credits** — Velyx recognises the intro of TV episodes by its recurring sound (per season), and the end credits by the text in the picture — also when the credits music changes every episode — all on your own server. Chapters named Intro or Credits are used when a file has them. A *Skip intro* / *Skip credits* button appears while they play (or they are skipped automatically, if you prefer); a scene after the credits is never skipped.
+- **Audio options** — *Boost voices* (clearer dialogue) and *Level volume* (night mode), switchable from the player.
 - **Subtitles your way** — size, colour, background, outline/shadow, position and timing (sync) adjustable from the player; subtitles always stay above the controls.
 - **Automatic library updates** — library folders are watched; new movies and episodes (e.g. from Radarr/Sonarr) appear about 30 seconds after they land.
 - **Playback compatibility, explained** — before playing, Velyx checks the file against what the device can decode (codec, 10-bit, HDR) and picks Direct Play or a light remux. When a file cannot play, the player says why (e.g. "This browser cannot decode HEVC video") instead of just failing. A subtle badge shows *Direct Play* or *Remux • Audio converted to AAC*, with details on click.
@@ -284,7 +284,7 @@ Available in the player's audio menu and in **Settings → Playback** (saved per
 | Boost voices | 5.1 sources: dialogue (center channel) emphasised in the mix. Stereo sources: speech frequencies lifted. |
 | Level volume | Dynamic range compression — quieter explosions, louder dialogue. |
 
-Boost voices and Level volume always convert the audio, just like in Plex.
+Boost voices and Level volume always convert the audio.
 
 **Settings → Playback** also shows what the current browser supports.
 
@@ -334,13 +334,19 @@ Click a category to see the affected movies and episodes, each with its format (
 
 ## Intros and credits
 
-Velyx finds intros and credits itself, without an online service or fixed timestamps. The audio of the first and last minutes of every episode is turned into a compact fingerprint, and parts that recur in several episodes of the same season are recognised as the intro (near the start) or the credits (near the end) — so every season can have its own intro, and a cold open before the intro is no problem.
+Velyx finds intros and credits itself, without an online service or fixed timestamps. It combines three sources, most reliable first:
+
+1. **Chapters** — chapters named *Intro*, *Opening*, *Credits*, *End Credits* (and *Post-credits*) in the file itself.
+2. **The picture (credits)** — keyframes of the last minutes are decoded small (320×180, grayscale) and checked for what end credits look like: mostly dark frames with lines of small bright text, still or scrolling. The start is then placed precisely with two frames per second around it. This finds credits whose music changes every episode, and a scene after them. Only keyframes are decoded, a fraction of the work of playing the video; nothing is transcoded.
+3. **Recurring audio** — the audio of the first and last minutes of every episode is turned into a compact fingerprint, and parts that recur in several episodes of the same season are recognised as the intro (near the start) or the credits (near the end) — so every season can have its own intro, and a cold open before the intro is no problem.
+
+The admin page shows for every result where it was found.
 
 - **Background job:** detection runs after library scans and a few minutes after start-up, one season at a time and at the lowest CPU priority. It only decodes audio (never video), waits while anyone is watching or a scan runs, and never delays playback. Each episode is analysed once; it is analysed again only when its file changes, when the detection improves in a newer Velyx version, or when a weak result can be improved because episodes were added to its season.
 - **Confidence:** *High* (several episodes agree), *Medium* (one clear match) or *Low*. Only high and medium results get a skip button; low results are shown to administrators and looked at again when the season grows.
-- **Post-credits scenes:** sound after the recurring credits music is treated as a scene and is never skipped; silence after the credits counts as part of them.
+- **Post-credits scenes:** a scene after the credits (picture or sound after the credits music) is never skipped; black, silence or a few seconds of logos after the credits count as part of them.
 - **Admin → Intros & credits** shows the progress (analysed, found, waiting, errors), the results per show, season and episode, and the errors. Administrators can correct the times of an episode (a manual correction always wins over automatic detection), remove a correction, and analyse an episode, season, show or everything again.
-- Detection can be switched off in **Admin → Server**. It needs at least two episodes of a season that share the same intro or credits; a season with a single episode gets no skip buttons.
+- Detection can be switched off in **Admin → Server**, and so can the picture analysis on its own (it uses more CPU than sound alone). It needs at least two episodes of a season that share the same intro or credits; a season with a single episode gets no skip buttons.
 
 ## Activity and statistics
 
@@ -447,9 +453,13 @@ docker compose exec velyx velyx restore --cancel
 docker compose exec velyx velyx reset-password <username> <new-password>
 docker compose exec velyx velyx scan                      # scan all libraries
 docker compose exec velyx velyx scan --refresh-metadata   # scan and refresh metadata
+docker compose exec velyx velyx intros                    # list TV shows
+docker compose exec velyx velyx intros "Show title" 2     # explain intro/credits detection for season 2
 ```
 
 `reset-password` is the way back in if the only administrator forgets their password.
+
+`intros` reads the audio of one season (nothing is stored or changed) and prints, per episode, the longest common part found with each neighbouring episode at the strictness detection uses and at two looser levels, the audio track that was analysed, and the final result. Useful when intros or credits are not found; the output contains only numbers and file names.
 
 ## Security
 
@@ -553,6 +563,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 | New files do not appear automatically | Check Admin → Libraries for *Auto-updating*; see the inotify note under [Libraries and scanning](#libraries-and-scanning). |
 | Signed out behind HTTPS proxy | Set `TRUST_PROXY` (e.g. `1`) and forward the `Host` header. |
 | Forgot the admin password | `docker compose exec velyx velyx reset-password <user> <password>` |
+| Intros or credits not found | Short title cards (under 10 seconds) are not intros; credits over running scenes or on light backgrounds are not recognised in the picture. Run `velyx intros "Show" <season>` (see [Maintenance CLI](#maintenance-cli)) to see what was compared, and correct episodes by hand in Admin → Intros & credits. |
 | Container unhealthy | `docker compose logs velyx`. |
 
 ## Known limitations
