@@ -59,6 +59,10 @@ export const nl: Record<string, string> = {
   // ---- accounts and sign-in
   'Incorrect username or password.': 'Gebruikersnaam of wachtwoord onjuist.',
   'Too many failed sign-in attempts. Try again in {wait}.': 'Te veel mislukte inlogpogingen. Probeer het over {wait} opnieuw.',
+  'Too many codes requested. Try again in {wait}.': 'Te veel codes aangevraagd. Probeer het over {wait} opnieuw.',
+  'This code has expired. Ask for a new one.': 'Deze code is verlopen. Vraag een nieuwe aan.',
+  'Too many wrong codes. Try again in {wait}.': 'Te veel verkeerde codes. Probeer het over {wait} opnieuw.',
+  'This code is not valid (any more). Check it, or ask the app for a new one.': 'Deze code is niet (meer) geldig. Controleer hem, of vraag in de app een nieuwe aan.',
   'This account is disabled. Ask an administrator to enable it.': 'Dit account is uitgeschakeld. Vraag een beheerder om het in te schakelen.',
   'Current password is incorrect.': 'Het huidige wachtwoord is onjuist.',
   'Password is required.': 'Een wachtwoord is verplicht.',

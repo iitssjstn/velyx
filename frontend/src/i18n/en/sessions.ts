@@ -11,4 +11,6 @@ export const sessions = {
   revoke: 'Revoke',
   revokeAll: 'Revoke all sessions',
   signOutOthers: 'Sign out all other devices',
+  app: 'Velyx app',
+  connectApp: 'Connect the Velyx app',
 };

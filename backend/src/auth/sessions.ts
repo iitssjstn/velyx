@@ -71,8 +71,13 @@ export function describeUserAgent(ua: string | null | undefined): string {
   return os ? `${browser} on ${os}` : browser;
 }
 
+export type SessionClient = 'web' | 'app';
+
 export interface SessionInfo {
   id: string;
+  /** 'app': signed in from the Velyx app (with deviceName), 'web': a browser. */
+  client: SessionClient;
+  deviceName: string | null;
   createdAt: number;
   lastSeenAt: number;
   expiresAt: number;
@@ -92,12 +97,20 @@ export class SessionService {
     return this.ttlDays * 24 * 60 * 60 * 1000;
   }
 
-  create(userId: number, userAgent?: string, ip?: string): { token: string; expiresAt: number } {
+  create(userId: number, userAgent?: string, ip?: string, app?: { deviceName: string }): { token: string; expiresAt: number } {
     const token = crypto.randomBytes(32).toString('base64url');
     const expiresAt = Date.now() + this.ttlMs;
     this.db
       .insert(sessions)
-      .values({ id: hashToken(token), userId, expiresAt, userAgent: userAgent?.slice(0, 255) ?? null, ip: ip?.slice(0, 64) ?? null })
+      .values({
+        id: hashToken(token),
+        userId,
+        expiresAt,
+        userAgent: userAgent?.slice(0, 255) ?? null,
+        ip: ip?.slice(0, 64) ?? null,
+        client: app ? 'app' : 'web',
+        deviceName: app ? app.deviceName.slice(0, 64) : null,
+      })
       .run();
     return { token, expiresAt };
   }
@@ -113,11 +126,13 @@ export class SessionService {
       .sort((a, b) => b.lastSeenAt - a.lastSeenAt)
       .map((s) => ({
         id: publicSessionId(s.id),
+        client: s.client,
+        deviceName: s.deviceName,
         createdAt: s.createdAt,
         lastSeenAt: s.lastSeenAt,
         expiresAt: s.expiresAt,
         userAgent: s.userAgent,
-        device: describeUserAgent(s.userAgent),
+        device: s.client === 'app' ? (s.deviceName ?? 'Velyx app') : describeUserAgent(s.userAgent),
         ip: s.ip,
         current: s.id === current,
       }));
@@ -138,7 +153,7 @@ export class SessionService {
   }
 
   /** Like resolve(), and says whether the session was just extended (so its cookie can be renewed too). */
-  resolveSession(token: string | undefined, ip?: string): { user: SessionUser; extended: boolean } | null {
+  resolveSession(token: string | undefined, ip?: string): { user: SessionUser; extended: boolean; client: SessionClient } | null {
     if (!token || token.length > 128) return null;
     const id = hashToken(token);
     const now = Date.now();
@@ -146,6 +161,7 @@ export class SessionService {
       .select({
         sessionId: sessions.id,
         lastSeenAt: sessions.lastSeenAt,
+        client: sessions.client,
         id: users.id,
         username: users.username,
         displayName: users.displayName,
@@ -168,7 +184,7 @@ export class SessionService {
         .run();
     }
     const user = { id: row.id, username: row.username, displayName: row.displayName, role: row.role, avatarFile: row.avatarFile, language: isLanguage(row.language) ? row.language : DEFAULT_LANGUAGE };
-    return { user, extended };
+    return { user, extended, client: row.client };
   }
 
   destroy(token: string | undefined): void {

@@ -19,6 +19,7 @@ const AUDIT_ACTIONS: Record<string, MessageKey> = {
   'user.deleted': 'audit.actions.userDeleted',
   'user.password_reset': 'audit.actions.userPasswordReset',
   'account.password_changed': 'audit.actions.accountPasswordChanged',
+  'device.linked': 'audit.actions.deviceLinked',
   'session.revoked': 'audit.actions.sessionRevoked',
   'session.revoked_all': 'audit.actions.sessionRevokedAll',
   'library.created': 'audit.actions.libraryCreated',

@@ -7,6 +7,7 @@ import { SetupPage } from './pages/Setup';
 import { LoginPage } from './pages/Login';
 import { HomePage } from './pages/Home';
 import { BrowsePage } from './pages/Browse';
+import { LinkDevicePage } from './pages/LinkDevice';
 import { MoviePage } from './pages/MovieDetail';
 import { ShowPage } from './pages/ShowDetail';
 import { FavoritesPage, WatchlistPage } from './pages/Favorites';
@@ -74,6 +75,7 @@ export function App() {
           <Route path="/watchlist" element={<WatchlistPage />} />
           <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/search" element={<SearchPage />} />
+          <Route path="/link" element={<LinkDevicePage />} />
           <Route path="/settings/*" element={<SettingsPage />} />
           <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="/admin/*" element={user.role === 'admin' ? <AdminLayout /> : <NotFoundPage />} />

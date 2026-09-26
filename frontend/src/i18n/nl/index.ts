@@ -21,6 +21,7 @@ import { home } from './home';
 import { install } from './install';
 import { libraries } from './libraries';
 import { library } from './library';
+import { link } from './link';
 import { lists } from './lists';
 import { logs } from './logs';
 import { media } from './media';
@@ -47,4 +48,4 @@ import { subtitleStyle } from './subtitleStyle';
 import { time } from './time';
 import { users } from './users';
 
-export const nl: Messages = { activity, admin, adminItem, audit, auth, backup, browse, cleanup, collections, common, continueWatching, dashboard, detail, device, errors, fixMatch, greeting, health, home, install, libraries, library, lists, logs, media, mediaInfo, metadata, nav, notFound, onlineSubs, playback, player, quickSearch, roles, schedule, search, searchPage, segments, series, server, sessions, settings, setup, smart, subtitleStyle, time, users };
+export const nl: Messages = { activity, admin, adminItem, audit, auth, backup, browse, cleanup, collections, common, continueWatching, dashboard, detail, device, errors, fixMatch, greeting, health, home, install, libraries, library, link, lists, logs, media, mediaInfo, metadata, nav, notFound, onlineSubs, playback, player, quickSearch, roles, schedule, search, searchPage, segments, series, server, sessions, settings, setup, smart, subtitleStyle, time, users };

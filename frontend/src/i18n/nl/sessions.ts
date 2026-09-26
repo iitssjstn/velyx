@@ -12,4 +12,6 @@ export const sessions: Messages['sessions'] = {
   revoke: 'Intrekken',
   revokeAll: 'Alle sessies intrekken',
   signOutOthers: 'Alle andere apparaten uitloggen',
+  app: 'Velyx-app',
+  connectApp: 'Velyx-app koppelen',
 };

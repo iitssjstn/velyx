@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { Check, CircleHelp, Repeat, X } from 'lucide-react';
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { Check, CircleHelp, Repeat, Smartphone, X } from 'lucide-react';
+import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { LanguagePreferences, SkipMode, SubtitleMode } from '../lib/player';
 import { api, errorMessage } from '../lib/api';
@@ -208,6 +208,10 @@ function AccountSettings() {
       </Section>
       <Section title={t('settings.account.devices')} description={t('settings.account.devicesHint')}>
         <SessionList />
+        <Link to="/link" className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">
+          <Smartphone className="size-4" />
+          {t('sessions.connectApp')}
+        </Link>
       </Section>
     </div>
   );

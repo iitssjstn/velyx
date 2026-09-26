@@ -7,6 +7,7 @@ import { SessionList } from './SessionList';
 afterEach(() => vi.unstubAllGlobals());
 
 const SESSIONS = [
+  { id: 'c'.repeat(20), client: 'app', deviceName: 'Pixel 8', createdAt: Date.now() - 86_400_000, lastSeenAt: Date.now(), expiresAt: 0, userAgent: 'okhttp', device: 'Pixel 8', ip: '192.168.2.20', current: false },
   { id: 'a'.repeat(20), createdAt: Date.now() - 86_400_000, lastSeenAt: Date.now(), expiresAt: 0, userAgent: 'x', device: 'Firefox on Linux', ip: '192.168.2.10', current: true },
   { id: 'b'.repeat(20), createdAt: Date.now() - 86_400_000, lastSeenAt: Date.now() - 3_600_000, expiresAt: 0, userAgent: 'y', device: 'Safari on iOS', ip: '203.0.113.9', current: false },
 ];
@@ -30,14 +31,20 @@ function setup(userId?: number) {
 }
 
 describe('SessionList', () => {
+  it('names devices signed in with the Velyx app', async () => {
+    setup();
+    const row = (await screen.findByText('Pixel 8')).closest('li')!;
+    expect(row.textContent).toContain('Velyx app');
+  });
+
   it('shows devices and revokes one session', async () => {
     const calls = setup();
     expect(await screen.findByText('Safari on iOS')).toBeTruthy();
     expect(screen.getByText('This device')).toBeTruthy();
     // The current device cannot be revoked from here; only the other one has a button.
     const buttons = screen.getAllByRole('button', { name: 'Revoke' });
-    expect(buttons).toHaveLength(1);
-    await userEvent.click(buttons[0]!);
+    expect(buttons).toHaveLength(2);
+    await userEvent.click(buttons[1]!);
     expect(calls).toContainEqual({ method: 'DELETE', url: `/api/account/sessions/${'b'.repeat(20)}` });
     await userEvent.click(screen.getByRole('button', { name: 'Sign out all other devices' }));
     expect(calls).toContainEqual({ method: 'POST', url: '/api/account/sessions/revoke-others' });
