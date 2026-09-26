@@ -16,7 +16,7 @@ import { MoreLikeThis } from '../components/MoreLikeThis';
 import { MediaInfo } from '../components/MediaInfo';
 import { DevicePlayback } from '../components/DevicePlayback';
 import { ProgressBar } from '../components/ProgressBar';
-import { ErrorState, PageLoader } from '../components/States';
+import { DetailSkeleton, ErrorState } from '../components/States';
 import { toast } from '../components/Toast';
 import { useT } from '../i18n';
 
@@ -39,7 +39,7 @@ export function MoviePage() {
     onError: (err) => toast.error(err),
   });
 
-  if (q.isLoading) return <PageLoader />;
+  if (q.isLoading) return <DetailSkeleton />;
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const m = q.data;
   const file = m.files[fileIdx] ?? m.files[0];

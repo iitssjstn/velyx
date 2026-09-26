@@ -9,7 +9,7 @@ import type { Card, ContinueItem, HomeData } from '../lib/types';
 import { toast } from '../components/Toast';
 import { ContinueCard, PosterCard } from '../components/Cards';
 import { Shelf } from '../components/Shelf';
-import { EmptyState, ErrorState, PageLoader } from '../components/States';
+import { EmptyState, ErrorState, ShelfSkeleton } from '../components/States';
 import { ProgressBar } from '../components/ProgressBar';
 import { useT } from '../i18n';
 
@@ -97,7 +97,7 @@ export function HomePage() {
     onError: (err) => toast.error(err),
   });
 
-  if (q.isLoading) return <PageLoader />;
+  if (q.isLoading) return <ShelfSkeleton rows={3} />;
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const d = q.data;
   const empty = d.counts.movies === 0 && d.counts.shows === 0;
