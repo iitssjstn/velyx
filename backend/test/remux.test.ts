@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PlaybackRegistry, type MediaFileRow } from '../src/playback/engine.js';
 import { DirectPlayEngine } from '../src/playback/direct-play.js';
-import { RemuxEngine, audioFilters, outputChannels, pickKeyframe, planRemux, remuxArgs } from '../src/playback/remux.js';
+import { RemuxEngine, audioFilters, outputChannels, parseFramemd5Start, planRemux, remuxArgs } from '../src/playback/remux.js';
 import { shiftVtt } from '../src/services/subtitles.js';
 
 const CHROME = { containers: ['mp4', 'webm', 'mkv'], videoCodecs: ['h264', 'vp9', 'av1'], audioCodecs: ['aac', 'mp3', 'opus', 'flac'] };
@@ -24,7 +24,7 @@ function file(over: Partial<MediaFileRow> = {}): MediaFileRow {
 function registry() {
   const r = new PlaybackRegistry();
   r.register(new DirectPlayEngine());
-  r.register(new RemuxEngine('ffmpeg', 'ffprobe'));
+  r.register(new RemuxEngine('ffmpeg'));
   return r;
 }
 
@@ -91,10 +91,10 @@ describe('audio options (Plex-style)', () => {
     expect(audioFilters({ audioIndex: 1, copyAudio: false, channels: 2, sourceChannels: 6, boostVoices: true })).toContain('pan=stereo|FL=0.9*FC');
     expect(audioFilters({ audioIndex: 1, copyAudio: false, channels: 6, sourceChannels: 8, boostVoices: true })).toContain('aformat=channel_layouts=5.1,pan=5.1');
     expect(audioFilters({ audioIndex: 1, copyAudio: false, channels: 2, sourceChannels: 2, boostVoices: true })).toContain('equalizer=f=2500');
-    expect(audioFilters({ audioIndex: 1, copyAudio: false, channels: 2, sourceChannels: 2, levelVolume: true })).toBe('dynaudnorm=f=250:g=15:m=8');
-    expect(audioFilters({ audioIndex: 1, copyAudio: false })).toBeNull();
+    expect(audioFilters({ audioIndex: 1, copyAudio: false, channels: 2, sourceChannels: 2, levelVolume: true })).toBe('aresample=async=1,dynaudnorm=f=250:g=15:m=8');
+    expect(audioFilters({ audioIndex: 1, copyAudio: false })).toBe('aresample=async=1');
     const args = remuxArgs('/a.mkv', 'h264', { audioIndex: 1, copyAudio: false, channels: 6, sourceChannels: 6, levelVolume: true }, 0).join(' ');
-    expect(args).toContain('-af dynaudnorm=f=250:g=15:m=8 -c:a aac -ac 6 -b:a 384k');
+    expect(args).toContain('-af aresample=async=1,dynaudnorm=f=250:g=15:m=8 -c:a aac -ac 6 -b:a 384k');
   });
 });
 
@@ -102,16 +102,17 @@ describe('remux helpers', () => {
   it('builds FFmpeg arguments that copy video and convert audio', () => {
     const args = remuxArgs('/media/a.mkv', 'hevc', { audioIndex: 1, copyAudio: false }, 12.5);
     const s = args.join(' ');
-    expect(s).toContain('-ss 12.600 -fflags +genpts -i /media/a.mkv -map 0:v:0 -map 0:1 -c:v copy -tag:v hvc1');
-    expect(s).toContain('-c:a aac -ac 2');
+    expect(s).toContain('-noaccurate_seek -ss 12.500 -fflags +genpts -i /media/a.mkv -map 0:v:0 -map 0:1 -c:v copy -tag:v hvc1');
+    expect(s).toContain('-af aresample=async=1 -c:a aac -ac 2');
     expect(s).toContain('-movflags frag_keyframe+empty_moov+default_base_moof pipe:1');
     expect(remuxArgs('/a.mkv', 'h264', { audioIndex: null, copyAudio: false }, 0)).not.toContain('-ss');
   });
 
-  it('picks the keyframe at or before the target', () => {
-    expect(pickKeyframe([0, 10.4, 20.8, 31.2], 25)).toBe(20.8);
-    expect(pickKeyframe([0, 10.4], 10.42)).toBe(10.4);
-    expect(pickKeyframe([], 5)).toBe(0);
+  it('reads the real stream start from FFmpeg framemd5 output', () => {
+    const out = '#format: frame checksums\n#version: 2\n#hash: MD5\n#tb 0: 1/1000\n#media_type 0: video\n#stream#, dts,        pts, duration,     size, hash\n0,     290212,     290295,       42,     1234, abc\n';
+    expect(parseFramemd5Start(out)).toBe(290.295);
+    expect(parseFramemd5Start('#tb 0: 1/90000\n0, 0, 900000, 3750, 10, x\n')).toBe(10);
+    expect(parseFramemd5Start('garbage')).toBeNull();
   });
 
   it('shifts WebVTT cues and drops cues before the new start', () => {

@@ -10,6 +10,10 @@ export interface PlaybackPrefs {
   autoplayNext: boolean;
   autoplayCountdown: number;
   subtitleLanguage: string; // '' = off, otherwise ISO code like 'en' / 'nl'
+  /** The last chosen subtitle was a forced track (foreign-language parts only). */
+  subtitleForced: boolean;
+  /** Fallback for tracks without a language tag: the label of the last chosen subtitle. */
+  subtitleLabel: string;
   subtitleSize: SubtitleSize;
   subtitleColor: SubtitleColor;
   subtitleBackground: SubtitleBackground;
@@ -30,6 +34,8 @@ export const DEFAULT_PREFS: PlaybackPrefs = {
   autoplayNext: true,
   autoplayCountdown: 10,
   subtitleLanguage: '',
+  subtitleForced: false,
+  subtitleLabel: '',
   subtitleSize: 'medium',
   subtitleColor: 'white',
   subtitleBackground: 'none',
@@ -89,12 +95,16 @@ export const SUBTITLE_SIZES: Record<SubtitleSize, string> = {
 };
 
 /** Normalises ISO 639-1/-2 codes so "eng", "en" and "en-US" compare equal. */
+const ISO_639_2: Record<string, string> = { eng: 'en', dut: 'nl', nld: 'nl', ger: 'de', deu: 'de', fre: 'fr', fra: 'fr', spa: 'es', ita: 'it', por: 'pt', jpn: 'ja', kor: 'ko', chi: 'zh', zho: 'zh', swe: 'sv', nor: 'no', nob: 'no', dan: 'da', fin: 'fi', pol: 'pl', rus: 'ru', tur: 'tr', ara: 'ar' };
+
+/** "eng", "en-US" and "EN" all become "en"; unknown codes are kept (lower-cased). */
+export function normalizeLanguage(code: string | null | undefined): string {
+  if (!code) return '';
+  const base = code.toLowerCase().split(/[-_]/)[0] ?? '';
+  return ISO_639_2[base] ?? base;
+}
+
 export function sameLanguage(a: string | null | undefined, b: string | null | undefined): boolean {
   if (!a || !b) return false;
-  const norm = (x: string) => {
-    const base = x.toLowerCase().split(/[-_]/)[0];
-    const map: Record<string, string> = { eng: 'en', dut: 'nl', nld: 'nl', ger: 'de', deu: 'de', fre: 'fr', fra: 'fr', spa: 'es', ita: 'it', por: 'pt', jpn: 'ja', kor: 'ko', chi: 'zh', zho: 'zh', swe: 'sv', nor: 'no', nob: 'no', dan: 'da', fin: 'fi', pol: 'pl', rus: 'ru', tur: 'tr', ara: 'ar' };
-    return map[base] ?? base;
-  };
-  return norm(a) === norm(b);
+  return normalizeLanguage(a) === normalizeLanguage(b);
 }

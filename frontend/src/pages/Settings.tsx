@@ -197,11 +197,15 @@ function PlaybackSettings() {
             </select>
           </div>
           <div className="flex items-center justify-between gap-6 py-3">
-            <span>Preferred subtitle language</span>
-            <select className="input w-48" value={prefs.subtitleLanguage} onChange={(e) => setPrefs({ subtitleLanguage: e.target.value })}>
+            <span>
+              Subtitles
+              <span className="block text-sm text-muted">Remembered automatically when you pick subtitles in the player.</span>
+            </span>
+            <select className="input w-48" value={prefs.subtitleLanguage} onChange={(e) => setPrefs({ subtitleLanguage: e.target.value, subtitleForced: false, subtitleLabel: '' })}>
               {LANGUAGES.map(([code, label]) => (
                 <option key={code} value={code}>{label}</option>
               ))}
+              {prefs.subtitleLanguage && !LANGUAGES.some(([code]) => code === prefs.subtitleLanguage) && <option value={prefs.subtitleLanguage}>{prefs.subtitleLanguage.toUpperCase()}</option>}
             </select>
           </div>
           <div className="flex items-center justify-between gap-6 py-3">

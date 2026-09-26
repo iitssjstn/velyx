@@ -123,20 +123,40 @@ describe.skipIf(!available)('remux streaming (real FFmpeg)', () => {
     expect(streams).toEqual(['h264', 'aac']);
   }, 30000);
 
-  it('aligns seeks to keyframes and shifts subtitles accordingly', async () => {
-    const kf = await env.app.inject({ url: `/api/media/${fileId}/keyframe?t=5.3`, headers: { cookie: admin } });
-    expect(kf.json().start).toBe(4);
-    const res = await env.app.inject({ url: `/api/media/${fileId}/remux?audio=1&start=4`, headers: { cookie: admin } });
+  it('reports where a seeked stream really starts, and that stream matches it', async () => {
+    const kf = (await env.app.inject({ url: `/api/media/${fileId}/keyframe?t=5.3`, headers: { cookie: admin } })).json();
+    expect(kf.seek).toBe(5.3);
+    expect(kf.start).toBeLessThanOrEqual(5.3);
+    expect(kf.start).toBeGreaterThanOrEqual(2);
+    const res = await env.app.inject({ url: `/api/media/${fileId}/remux?audio=1&start=${kf.seek}`, headers: { cookie: admin } });
     const out = path.join(env.dir, 'seek.mp4');
     fs.writeFileSync(out, res.rawPayload);
     const dur = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', out]).toString());
-    expect(dur).toBeGreaterThan(3.5);
-    expect(dur).toBeLessThan(4.5);
+    // The stream covers exactly [landing, end of file] (8 s source).
+    expect(Math.abs(dur - (8 - kf.start))).toBeLessThan(0.25);
+    const audio = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'packet=pts_time', '-of', 'csv=p=0', out]).toString().trim().split('\n').map(Number);
+    expect(audio[0]).toBeLessThan(0.1); // audio starts together with the video, no leading gap
     const subs = (await env.app.inject({ url: `/api/media/${fileId}/subtitles`, headers: { cookie: admin } })).json();
-    const vtt = await env.app.inject({ url: `${subs[0].url}?offset=4`, headers: { cookie: admin } });
+    const vtt = await env.app.inject({ url: `${subs[0].url}?offset=${kf.start}`, headers: { cookie: admin } });
     expect(vtt.body).not.toContain('Early');
-    expect(vtt.body).toMatch(/00:00:01\.0\d\d --> 00:00:02\.0\d\d\nLate line/);
+    expect(vtt.body).toContain('Late line');
   }, 30000);
+
+  it('keeps converted audio continuous when the source has timestamp gaps', async () => {
+    const gapped = path.join(env.mediaDir, 'movies', 'Gap Film (2022).mkv');
+    execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=160x120:rate=25:duration=6', '-f', 'lavfi', '-i', 'sine=duration=6', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'eac3', path.join(env.dir, 'src.mkv')]);
+    execFileSync('ffmpeg', ['-v', 'error', '-i', path.join(env.dir, 'src.mkv'), '-map', '0', '-c', 'copy', '-bsf:a', "noise=drop='between(pts*tb,2,2.5)'", gapped]);
+    await env.ctx.scans.enqueue((await env.app.inject({ url: '/api/libraries', headers: { cookie: admin } })).json().libraries[0].id);
+    await env.ctx.scans.whenIdle();
+    const list = (await env.app.inject({ url: '/api/search?q=gap', headers: { cookie: admin } })).json();
+    const id = (await env.app.inject({ url: `/api/movies/${list.movies[0].id}`, headers: { cookie: admin } })).json().files[0].id;
+    const res = await env.app.inject({ url: `/api/media/${id}/remux?audio=1&ch=2`, headers: { cookie: admin } });
+    const out = path.join(env.dir, 'gap.mp4');
+    fs.writeFileSync(out, res.rawPayload);
+    const ts = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'packet=pts_time', '-of', 'csv=p=0', out]).toString().trim().split('\n').map(Number);
+    const jumps = ts.slice(2).filter((t, i) => t - ts[i + 1]! > 0.05);
+    expect(jumps).toEqual([]);
+  }, 60000);
 
   it('applies voice boost and volume levelling with the real FFmpeg filters', async () => {
     const res = await env.app.inject({ url: `/api/media/${fileId}/remux?audio=1&ch=2&voice=1&level=1`, headers: { cookie: admin } });

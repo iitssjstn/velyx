@@ -107,14 +107,17 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return ctx.playback.get('remux')!.serve(request, reply, file, abs);
   });
 
-  /** Keyframe at or before ?t=, so a restarted remux stream (and its subtitles) line up exactly. */
+  /**
+   * Where a remux stream for ?t= will really start. The player requests the stream with ?start=`seek`
+   * and treats `start` as stream time 0, so the clock and subtitles line up with the picture.
+   */
   app.get<{ Params: { id: string }; Querystring: { t?: string } }>('/api/media/:id/keyframe', { preHandler: requireUser }, async (request) => {
     const { file, abs } = loadFile(request.params.id);
     const t = Number(request.query.t ?? 0);
     if (!Number.isFinite(t) || t < 0) throw new HttpError(400, 'Invalid time.');
     const target = file.durationSec ? Math.min(t, Math.max(0, file.durationSec - 1)) : t;
     const engine = ctx.playback.get('remux') as RemuxEngine;
-    return { start: await engine.keyframeBefore(abs, target) };
+    return { start: await engine.seekLanding(abs, target), seek: target };
   });
 
   app.get<{ Params: { id: string } }>('/api/media/:id/subtitles', { preHandler: requireUser }, async (request) => {

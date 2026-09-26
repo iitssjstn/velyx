@@ -34,8 +34,10 @@ export function outputChannels(sourceChannels: number | null | undefined, mode: 
  * volume levelling. Every chain first normalises the channel layout, so it works for 5.1, 5.1(side),
  * 7.1 and stereo sources alike.
  */
-export function audioFilters(plan: RemuxPlan): string | null {
-  const filters: string[] = [];
+export function audioFilters(plan: RemuxPlan): string {
+  // Fill gaps / drop overlaps in the source audio timestamps. Browsers play audio samples back to
+  // back and ignore timestamp jumps, so without this every gap makes the sound run ahead of the picture.
+  const filters: string[] = ['aresample=async=1'];
   const channels = plan.channels ?? 2;
   const multichannel = (plan.sourceChannels ?? 2) >= 3;
   if (plan.boostVoices) {
@@ -50,7 +52,7 @@ export function audioFilters(plan: RemuxPlan): string | null {
     }
   }
   if (plan.levelVolume) filters.push('dynaudnorm=f=250:g=15:m=8');
-  return filters.length ? filters.join(',') : null;
+  return filters.join(',');
 }
 
 /**
@@ -82,9 +84,10 @@ export function planRemux(file: MediaFileRow, caps: ClientCapabilities, options:
 /** Builds the FFmpeg arguments: copy video, copy or convert one audio track, write fragmented MP4 to stdout. */
 export function remuxArgs(input: string, videoCodec: string | null, plan: RemuxPlan, start: number): string[] {
   const args = ['-hide_banner', '-nostdin', '-loglevel', 'error'];
-  // `start` is a keyframe time. With stream copy FFmpeg begins at the keyframe at or before -ss, and
-  // some demuxers (Matroska) land one keyframe early when -ss hits it exactly — so aim just past it.
-  if (start > 0) args.push('-ss', (start + 0.1).toFixed(3));
+  // Seek to the keyframe at or before `start`. -noaccurate_seek makes the (converted) audio start at
+  // that same keyframe instead of exactly at `start`, so both streams begin together; the player learns
+  // the real starting point from seekLanding().
+  if (start > 0) args.push('-noaccurate_seek', '-ss', start.toFixed(3));
   args.push('-fflags', '+genpts', '-i', input, '-map', '0:v:0');
   if (plan.audioIndex !== null) args.push('-map', `0:${plan.audioIndex}`);
   args.push('-c:v', 'copy');
@@ -93,8 +96,7 @@ export function remuxArgs(input: string, videoCodec: string | null, plan: RemuxP
     if (plan.copyAudio) args.push('-c:a', 'copy');
     else {
       const channels = plan.channels ?? 2;
-      const af = audioFilters(plan);
-      if (af) args.push('-af', af);
+      args.push('-af', audioFilters(plan));
       args.push('-c:a', 'aac', '-ac', String(channels), '-b:a', channels > 2 ? '384k' : '192k');
     }
   }
@@ -116,11 +118,18 @@ export function remuxArgs(input: string, videoCodec: string | null, plan: RemuxP
   return args;
 }
 
-/** Picks the last value that is <= target (+ a small tolerance), used to find the keyframe before a seek point. */
-export function pickKeyframe(times: number[], target: number): number {
-  let best = 0;
-  for (const t of times) if (t <= target + 0.05 && t > best) best = t;
-  return best;
+/** Reads the first packet's presentation time (seconds) from FFmpeg framemd5 output. */
+export function parseFramemd5Start(output: string): number | null {
+  let tb: number | null = null;
+  for (const line of output.split('\n')) {
+    const m = /^#tb 0:\s*(\d+)\/(\d+)/.exec(line);
+    if (m) tb = Number(m[1]) / Number(m[2]);
+    else if (tb !== null && line && !line.startsWith('#')) {
+      const pts = Number(line.split(',')[2]);
+      return Number.isFinite(pts) ? Math.round(pts * tb * 1000) / 1000 : null;
+    }
+  }
+  return null;
 }
 
 /**
@@ -133,10 +142,7 @@ export class RemuxEngine implements PlaybackEngine {
   readonly id = 'remux';
   private readonly processes = new Set<ChildProcess>();
 
-  constructor(
-    private readonly ffmpegPath: string,
-    private readonly ffprobePath: string,
-  ) {}
+  constructor(private readonly ffmpegPath: string) {}
 
   decide(file: MediaFileRow, caps: ClientCapabilities, options: PlaybackOptions = {}): PlaybackDecision | null {
     const plan = planRemux(file, caps, options);
@@ -163,37 +169,23 @@ export class RemuxEngine implements PlaybackEngine {
     };
   }
 
-  /** Finds the video keyframe at or before `target`, so a restarted stream lines up exactly. */
-  keyframeBefore(absolutePath: string, target: number): Promise<number> {
+  /**
+   * Where a stream requested with ?start=`target` really begins: the video keyframe FFmpeg lands on.
+   * Found by running FFmpeg with the very same seek and reading the first packet's timestamp, so it
+   * always matches the stream (demuxers differ in which keyframe they pick). Reading one packet is fast.
+   */
+  seekLanding(absolutePath: string, target: number): Promise<number> {
     if (target <= 0) return Promise.resolve(0);
-    const from = Math.max(0, target - 20);
-    const args = [
-      '-v',
-      'error',
-      '-select_streams',
-      'v:0',
-      // Packet flags need no decoding, so this is fast even on slow CPUs.
-      '-show_entries',
-      'packet=pts_time,flags',
-      '-read_intervals',
-      `${from.toFixed(3)}%${(target + 0.1).toFixed(3)}`,
-      '-of',
-      'csv=p=0',
-      absolutePath,
-    ];
+    const args = ['-v', 'error', '-nostdin', '-noaccurate_seek', '-ss', target.toFixed(3), '-copyts', '-i', absolutePath, '-map', '0:v:0', '-c', 'copy', '-frames:v', '1', '-f', 'framemd5', '-'];
     return new Promise((resolve) => {
-      execFile(this.ffprobePath, args, { timeout: 15000, maxBuffer: 1024 * 1024 }, (err, stdout) => {
-        if (err) {
-          log.warn(`Keyframe lookup failed, seeking without alignment: ${err.message}`);
+      execFile(this.ffmpegPath, args, { timeout: 15000, maxBuffer: 1024 * 1024 }, (err, stdout) => {
+        const landing = err ? null : parseFramemd5Start(String(stdout));
+        if (landing === null) {
+          log.warn(`Could not determine the seek position for ${absolutePath}${err ? `: ${err.message}` : ''}`);
           resolve(target);
           return;
         }
-        const times = String(stdout)
-          .split('\n')
-          .filter((l) => l.split(',')[1]?.includes('K'))
-          .map((l) => Number.parseFloat(l.split(',')[0] ?? ''))
-          .filter((n) => Number.isFinite(n));
-        resolve(times.length ? pickKeyframe(times, target) : target);
+        resolve(Math.max(0, Math.min(landing, target)));
       });
     });
   }

@@ -13,17 +13,28 @@ export function startPosition(tParam: string | null, progress: { positionSec: nu
   return progress.positionSec;
 }
 
+export interface SubtitleChoice {
+  language: string;
+  forced?: boolean;
+  label?: string;
+}
+
 /**
- * Picks the subtitle to enable at start:
- * 1. a subtitle in the preferred language (full, non-forced first),
- * 2. otherwise a forced track (foreign-language parts) if the file flags one as default,
- * 3. otherwise none.
+ * Picks the subtitle to enable at start, based on what the viewer chose last time:
+ * 1. a subtitle in that language (full or forced, whichever was chosen; the other as fallback),
+ * 2. for untagged tracks: one with the same label,
+ * 3. otherwise a forced track (foreign-language parts) if the file flags one as default,
+ * 4. otherwise none.
  */
-export function pickSubtitle(options: SubtitleOption[], preferredLanguage: string): string | null {
-  if (preferredLanguage) {
-    const lang = options.filter((o) => sameLanguage(o.language, preferredLanguage));
-    const full = lang.find((o) => !o.forced) ?? lang[0];
-    if (full) return full.key;
+export function pickSubtitle(options: SubtitleOption[], choice: SubtitleChoice | string): string | null {
+  const c = typeof choice === 'string' ? { language: choice } : choice;
+  if (c.language) {
+    const lang = options.filter((o) => sameLanguage(o.language, c.language));
+    const match = lang.find((o) => o.forced === Boolean(c.forced)) ?? lang[0];
+    if (match) return match.key;
+  } else if (c.label) {
+    const byLabel = options.find((o) => o.label === c.label);
+    if (byLabel) return byLabel.key;
   }
   const forced = options.find((o) => o.forced && o.isDefault);
   return forced?.key ?? null;

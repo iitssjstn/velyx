@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { pickSubtitle, preferredAudioIndex, seekPlan, startPosition, withParam } from './player';
 import { detectCapabilities } from './codecs';
-import { sameLanguage } from './prefs';
+import { normalizeLanguage, sameLanguage } from './prefs';
 import type { SubtitleOption } from './types';
 
 const sub = (key: string, language: string | null, extra: Partial<SubtitleOption> = {}): SubtitleOption => ({
@@ -81,5 +81,32 @@ describe('live stream helpers', () => {
     expect(seekPlan(130, 120, 30)).toEqual({ local: 10 });
     expect(seekPlan(110, 120, 30)).toEqual({ restart: true });
     expect(seekPlan(200, 120, 30)).toEqual({ restart: true });
+  });
+});
+
+describe('remembered subtitle choice', () => {
+  const opts = [
+    sub('nl-forced', 'nl', { forced: true }),
+    sub('nl', 'dut'),
+    sub('en', 'eng'),
+    sub('untagged', null, { label: 'Director commentary' }),
+  ];
+  it('restores the same language and kind (full or forced)', () => {
+    expect(pickSubtitle(opts, { language: 'nl' })).toBe('nl');
+    expect(pickSubtitle(opts, { language: 'nl', forced: true })).toBe('nl-forced');
+    expect(pickSubtitle(opts, { language: 'en', forced: true })).toBe('en');
+  });
+  it('matches untagged tracks by label', () => {
+    expect(pickSubtitle(opts, { language: '', label: 'Director commentary' })).toBe('untagged');
+  });
+  it('stays off when nothing matches', () => {
+    expect(pickSubtitle(opts, { language: 'fr' })).toBeNull();
+    expect(pickSubtitle(opts, { language: '' })).toBeNull();
+  });
+  it('normalises language codes for storage', () => {
+    expect(normalizeLanguage('dut')).toBe('nl');
+    expect(normalizeLanguage('en-US')).toBe('en');
+    expect(normalizeLanguage('hun')).toBe('hun');
+    expect(normalizeLanguage(null)).toBe('');
   });
 });

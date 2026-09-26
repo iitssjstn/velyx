@@ -4,7 +4,7 @@
 
 Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, favorites and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.3.0 — Direct Play, Plex-style audio conversion (surround, voice boost, volume levelling), customisable subtitles and automatic library updates. Full video transcoding is on the roadmap.
+> Version 0.3.1 — Direct Play, Plex-style audio conversion (surround, voice boost, volume levelling), customisable subtitles and automatic library updates. Full video transcoding is on the roadmap.
 
 ---
 
@@ -98,7 +98,7 @@ Deployment settings are environment variables that `docker-compose.yml` reads fr
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `VELYX_IMAGE` | `ghcr.io/iitssjstn/velyx:latest` | Image to pull (compose only). Pin a version with e.g. `:0.3.0`. |
+| `VELYX_IMAGE` | `ghcr.io/iitssjstn/velyx:latest` | Image to pull (compose only). Pin a version with e.g. `:0.3.1`. |
 | `VELYX_PORT` | `3000` | Host port for the web interface (compose only). |
 | `DATA_PATH` | `./data` | Host folder for the database, artwork cache, avatars and backups (compose only). |
 | `MOVIES_PATH` / `TV_PATH` | — | Host folders with your media, mounted read-only at `/media/movies` and `/media/tv` (compose only). |
@@ -196,7 +196,7 @@ Without a key Velyx still works: titles come from the file names and a typograph
 Velyx picks the lightest way to play each file:
 
 1. **Direct Play** — the original file is streamed with HTTP range requests. Seeking is instant and the server does almost no work. Used whenever the browser supports the container, video and audio.
-2. **Audio conversion (remux)** — when the browser supports the *video* but not the audio or the container, FFmpeg copies the video stream unchanged and converts only the selected audio track to AAC (stereo, or 5.1 when *Surround* is chosen and the source has it), streamed as fragmented MP4. The same route is used when *Boost voices* or *Level volume* is switched on. Typical cases: Dolby Digital (AC3), Dolby Digital Plus (EAC3), DTS and TrueHD audio in Chrome/Edge/Firefox, and MKV files in Safari. The video is never re-encoded, so this costs little CPU. Seeking restarts the stream at the nearest keyframe (a short load of about a second). The player shows an *Audio converted* badge, and Admin → Dashboard shows how many conversions are running.
+2. **Audio conversion (remux)** — when the browser supports the *video* but not the audio or the container, FFmpeg copies the video stream unchanged and converts only the selected audio track to AAC (stereo, or 5.1 when *Surround* is chosen and the source has it), streamed as fragmented MP4. The same route is used when *Boost voices* or *Level volume* is switched on. Typical cases: Dolby Digital (AC3), Dolby Digital Plus (EAC3), DTS and TrueHD audio in Chrome/Edge/Firefox, and MKV files in Safari. The video is never re-encoded, so this costs little CPU. Seeking restarts the stream at the nearest keyframe (a short load of about a second); picture and sound always start at that same keyframe, and gaps in the source audio are filled so the sound cannot drift ahead of the picture. The player shows an *Audio converted* badge, and Admin → Dashboard shows how many conversions are running.
 3. **Not playable yet** — when the browser cannot decode the video codec itself (for example HEVC in Firefox), full video transcoding would be needed. That is planned; the player explains why the file does not play.
 
 | | Chrome / Edge | Firefox | Safari |
@@ -230,7 +230,8 @@ Boost voices and Level volume always convert the audio, just like in Plex.
 - Embedded text subtitles (SRT, ASS/SSA, MP4 text) are extracted with FFmpeg once and cached.
 - Image-based subtitles (PGS, VobSub) need transcoding and are not supported yet.
 - Velyx draws subtitles itself, so they look the same in every browser and move above the player controls when those are shown.
-- Adjust **size, colour (white/yellow), background (none/dimmed/solid), edge (shadow/outline), position** and **sync** (±0.5 s steps) from the subtitle menu in the player, or set defaults with a live preview in **Settings → Playback**. A preferred subtitle language is picked automatically.
+- Adjust **size, colour (white/yellow), background (none/dimmed/solid), edge (shadow/outline), position** and **sync** (±0.5 s steps) from the subtitle menu in the player, or set defaults with a live preview in **Settings → Playback**.
+- Your subtitle choice is remembered: pick Dutch subtitles once and the next episode or movie starts with Dutch subtitles (forced/full and untagged tracks included); turn them off and they stay off. Stored per browser.
 - Audio tracks can be switched from the player in every browser: Safari switches natively, other browsers get a stream with the chosen track (converted when needed). A preferred audio language in **Settings → Playback** is applied automatically.
 
 ## Users and roles
@@ -358,9 +359,9 @@ The backend suite covers authentication, authorization, CSRF, the scanner (incre
 ## CI and the Docker image (GHCR)
 
 - `.github/workflows/ci.yml` runs on every push and pull request: install, lint, typecheck, tests (with FFmpeg), build, then builds the Docker image and checks `/health`.
-- `.github/workflows/docker-build.yml` publishes `ghcr.io/<owner>/velyx` for `linux/amd64` and `linux/arm64` on pushes to `main` (`latest`) and on version tags (`v0.3.0` → `0.3.0`, `0.3`). It authenticates with the built-in `GITHUB_TOKEN` — no extra secrets needed.
+- `.github/workflows/docker-build.yml` publishes `ghcr.io/<owner>/velyx` for `linux/amd64` and `linux/arm64` on pushes to `main` (`latest`) and on version tags (`v0.3.1` → `0.3.1`, `0.3`). It authenticates with the built-in `GITHUB_TOKEN` — no extra secrets needed.
 
-After the first publish, make the package public under **GitHub → Packages → velyx → Package settings** if you want to pull it without logging in. To release a version: bump `version` in `package.json` and `backend/package.json`, then `git tag v0.3.0 && git push --tags`.
+After the first publish, make the package public under **GitHub → Packages → velyx → Package settings** if you want to pull it without logging in. To release a version: bump `version` in `package.json` and `backend/package.json`, then `git tag v0.3.1 && git push --tags`.
 
 ## Architecture
 
@@ -389,6 +390,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 | Episodes missing | See Admin → Libraries → Scan issues; names need `S01E02` or `1x02`. |
 | Video does not play | The browser cannot decode the video codec (usually HEVC). Try Chrome/Edge or Safari. Audio problems are converted automatically. |
 | Playback starts slowly after seeking | Normal while audio is converted: the stream restarts at the nearest keyframe. |
+| Audio out of sync in one specific file | If it also happens with Direct Play, the file itself is out of sync. While audio is converted Velyx keeps it aligned automatically. |
 | Subtitles out of sync | Use Sync in the subtitle menu (+ shows them later, − earlier). |
 | New files do not appear automatically | Check Admin → Libraries for *Auto-updating*; see the inotify note under [Libraries and scanning](#libraries-and-scanning). |
 | Signed out behind HTTPS proxy | Set `TRUST_PROXY=true` and forward the `Host` header. |

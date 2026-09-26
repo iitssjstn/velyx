@@ -22,7 +22,7 @@ import {
 import { api, errorMessage } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
-import { getPrefs, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
+import { getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
 import { isTyping, pickSubtitle, preferredAudioIndex, seekPlan, startPosition, withParam } from '../lib/player';
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo } from '../lib/types';
 import { Spinner } from '../components/States';
@@ -63,6 +63,16 @@ async function loadItem(kind: string, id: number): Promise<LoadedItem> {
     progress: e.progress,
     next: e.next,
   };
+}
+
+/** Asks the server where a live stream for `target` will really begin (the keyframe FFmpeg lands on). */
+async function locateStart(fileId: number, target: number): Promise<{ offset: number; seek: number }> {
+  try {
+    const r = await api.get<{ start: number; seek: number }>(`/api/media/${fileId}/keyframe?t=${target.toFixed(3)}`);
+    return { offset: r.start, seek: r.seek };
+  } catch {
+    return { offset: target, seek: target };
+  }
 }
 
 /** Minimal typing for the (not yet universal) HTMLMediaElement.audioTracks API. */
@@ -134,8 +144,9 @@ export default function PlayerPage() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [audioTracks, setAudioTracks] = useState<BrowserAudioTrack[]>([]);
   const [seekHover, setSeekHover] = useState<{ x: number; t: number } | null>(null);
-  // The stream to load: `base` is the decision's URL, live (restart) streams begin `offset` seconds in.
-  const [stream, setStream] = useState<{ base: string; offset: number } | null>(null);
+  // The stream to load: `base` is the decision's URL. Live (restart) streams are requested with
+  // &start=`seek` and really begin at `offset` seconds into the file (the keyframe FFmpeg lands on).
+  const [stream, setStream] = useState<{ base: string; offset: number; seek: number } | null>(null);
   const startedRef = useRef(false);
   const lastSaveRef = useRef(0);
   const pendingSeekRef = useRef<number | null>(null);
@@ -155,7 +166,7 @@ export default function PlayerPage() {
   const next = item.data?.next ?? null;
   const start = useMemo(() => startPosition(params.get('t'), item.data?.progress), [params, item.data?.progress]);
   const totalDuration = live ? (info?.decision.durationSec ?? file?.durationSec ?? 0) : duration;
-  const streamSrc = current ? (live && current.offset > 0 ? withParam(current.base, 'start', current.offset.toFixed(3)) : current.base) : null;
+  const streamSrc = current ? (live && current.seek > 0 ? withParam(current.base, 'start', current.seek.toFixed(3)) : current.base) : null;
 
   /** Current position in the file (not in the current stream). */
   const currentTime = useCallback(() => offset + (videoRef.current?.currentTime ?? 0), [offset]);
@@ -175,15 +186,12 @@ export default function PlayerPage() {
       return;
     }
     if (info.decision.seek !== 'restart' || target <= 0) {
-      setStream({ base, offset: 0 });
+      setStream({ base, offset: 0, seek: 0 });
       return;
     }
     let cancelled = false;
     setStream(null);
-    api
-      .get<{ start: number }>(`/api/media/${info.file.id}/keyframe?t=${target.toFixed(3)}`)
-      .then((r) => !cancelled && setStream({ base, offset: r.start }))
-      .catch(() => !cancelled && setStream({ base, offset: target }));
+    locateStart(info.file.id, target).then((r) => !cancelled && setStream({ base, ...r }));
     return () => {
       cancelled = true;
     };
@@ -201,14 +209,9 @@ export default function PlayerPage() {
         const v = videoRef.current;
         playAfterLoadRef.current = v ? !v.paused || !startedRef.current : true;
         setBuffering(true);
-        let k = target;
-        try {
-          k = (await api.get<{ start: number }>(`/api/media/${info.file.id}/keyframe?t=${target.toFixed(3)}`)).start;
-        } catch {
-          /* fall back to the exact time */
-        }
+        const r = await locateStart(info.file.id, target);
         pendingSeekRef.current = target;
-        setStream({ base: info.decision.streamUrl, offset: k });
+        setStream({ base: info.decision.streamUrl, ...r });
       }, 250);
     },
     [info],
@@ -294,6 +297,20 @@ export default function PlayerPage() {
     [subs],
   );
 
+  /** A subtitle picked by the viewer: apply it and remember the choice for the next episode or movie. */
+  const chooseSubtitle = useCallback(
+    (key: string | null) => {
+      selectSubtitle(key);
+      const opt = key ? subs.find((o) => o.key === key) : undefined;
+      setPrefs(
+        opt
+          ? { subtitleLanguage: normalizeLanguage(opt.language), subtitleForced: opt.forced, subtitleLabel: opt.language ? '' : opt.label }
+          : { subtitleLanguage: '', subtitleForced: false, subtitleLabel: '' },
+      );
+    },
+    [selectSubtitle, subs],
+  );
+
   /** Changes an audio setting and reloads the stream at the current position when needed. */
   const changeAudioPrefs = useCallback(
     (patch: Partial<Pick<PlaybackPrefs, 'audioOutput' | 'boostVoices' | 'levelVolume'>>) => {
@@ -375,7 +392,8 @@ export default function PlayerPage() {
     }
     if (!startedRef.current) {
       startedRef.current = true;
-      selectSubtitle(pickSubtitle(subs, getPrefs().subtitleLanguage));
+      const p = getPrefs();
+      selectSubtitle(pickSubtitle(subs, { language: p.subtitleLanguage, forced: p.subtitleForced, label: p.subtitleLabel }));
       // Preferred audio language in browsers that switch tracks natively (direct play only).
       const list = (v as unknown as { audioTracks?: AudioTrackList }).audioTracks;
       if (!live && list && list.length > 0) {
@@ -528,7 +546,7 @@ export default function PlayerPage() {
         case 'C': {
           if (!subs.length) break;
           const idx = subs.findIndex((s) => s.key === subKey);
-          selectSubtitle(idx + 1 < subs.length ? subs[idx + 1]!.key : null);
+          chooseSubtitle(idx + 1 < subs.length ? subs[idx + 1]!.key : null);
           break;
         }
         case 'n':
@@ -545,7 +563,7 @@ export default function PlayerPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [poke, togglePlay, seekBy, seekTo, applyVolume, toggleFullscreen, selectSubtitle, goNext, exit, subs, subKey, next, menu, volume, muted, totalDuration]);
+  }, [poke, togglePlay, seekBy, seekTo, applyVolume, toggleFullscreen, chooseSubtitle, goNext, exit, subs, subKey, next, menu, volume, muted, totalDuration]);
 
 
   // ---------------------------------------------------------------- render
@@ -799,9 +817,9 @@ export default function PlayerPage() {
                 {menu === 'subs' && (
                   <>
                     <p className="px-4 pt-1 pb-2 text-xs text-faint">Subtitles</p>
-                    <MenuItem active={subKey === null} onClick={() => selectSubtitle(null)}>Off</MenuItem>
+                    <MenuItem active={subKey === null} onClick={() => chooseSubtitle(null)}>Off</MenuItem>
                     {subs.map((s) => (
-                      <MenuItem key={s.key} active={subKey === s.key} onClick={() => selectSubtitle(s.key)}>
+                      <MenuItem key={s.key} active={subKey === s.key} onClick={() => chooseSubtitle(s.key)}>
                         {s.label}
                         <span className="ml-2 text-xs text-faint">{s.kind === 'embedded' ? 'embedded' : 'file'}</span>
                       </MenuItem>

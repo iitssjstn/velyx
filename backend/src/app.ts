@@ -74,7 +74,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const watcher = new LibraryWatcher(db, scans, opts.watchDebounceMs);
   const playback = new PlaybackRegistry();
   playback.register(new DirectPlayEngine());
-  playback.register(new RemuxEngine(config.ffmpegPath, config.ffprobePath));
+  playback.register(new RemuxEngine(config.ffmpegPath));
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
   return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, startedAt: Date.now() };
 }
