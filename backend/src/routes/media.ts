@@ -105,9 +105,12 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   /**
    * Files scanned before 0.4.0 have no bit depth / HDR information. Look it up once, the first time
    * the file is played (one FFprobe run through the shared queue), so the decision can use it.
+   * Detail pages ask for the same decision: a file that still gives no answer is not probed again.
    */
+  const detailsTried = new Set<number>();
   async function ensureVideoDetails(file: typeof mediaFiles.$inferSelect, abs: string) {
-    if (file.videoBitDepth !== null || file.probeError || !file.videoCodec) return file;
+    if (file.videoBitDepth !== null || file.probeError || !file.videoCodec || detailsTried.has(file.id)) return file;
+    detailsTried.add(file.id);
     try {
       const info = await ctx.probe.urgent(abs);
       return db

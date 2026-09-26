@@ -39,7 +39,7 @@ describe('MediaInfo', () => {
     expect(document.body.textContent).toContain('1080p · H.264 · WEB · 4.2 GB → 2160p · HEVC · HDR10 · Blu-ray Remux · 60.0 GB');
     expect(screen.getByText('Watch history was kept.')).toBeTruthy();
     // Image subtitles are described honestly.
-    expect(document.body.textContent).toContain('(image-based, not shown)');
+    expect(document.body.textContent).toContain('PGS · image-based, not shown');
   });
 
   it('has no replacement row for files that were never replaced', () => {
