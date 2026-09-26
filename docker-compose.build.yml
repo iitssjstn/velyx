@@ -16,6 +16,11 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-auto}
       TRUST_PROXY: ${TRUST_PROXY:-false}
       SCAN_INTERVAL_MINUTES: ${SCAN_INTERVAL_MINUTES:-360}
+      # FFprobe processes at once while scanning (1–4); 1 keeps old CPUs responsive.
+      SCAN_CONCURRENCY: ${SCAN_CONCURRENCY:-1}
+      # Free space (GB) on the data volume for the low / critical warnings.
+      LOW_DISK_GB: ${LOW_DISK_GB:-10}
+      CRITICAL_DISK_GB: ${CRITICAL_DISK_GB:-2}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ${DATA_PATH:-./data}:/data
