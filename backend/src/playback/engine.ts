@@ -13,6 +13,13 @@ export interface ClientCapabilities {
   tenBitCodecs?: string[];
   /** Whether the client's screen reports HDR (dynamic-range: high). */
   hdr?: boolean;
+  /**
+   * The player switches between a file's audio tracks itself (the Velyx app). Browsers cannot, so
+   * for them another audio track means a remux.
+   */
+  audioTrackSwitching?: boolean;
+  /** The player shows image-based subtitles (PGS, VobSub) from the file itself (the Velyx app). */
+  imageSubtitles?: boolean;
 }
 
 /** Per-request playback wishes, e.g. an audio track the browser cannot switch to by itself. */

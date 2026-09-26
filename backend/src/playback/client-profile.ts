@@ -7,7 +7,7 @@ import { tr, type Language } from '../i18n/index.js';
  * own report (canPlayType) always wins; this is not a device database.
  */
 
-export type ProfileFamily = 'chromium' | 'firefox' | 'safari' | 'ios' | 'android' | 'unknown';
+export type ProfileFamily = 'app' | 'chromium' | 'firefox' | 'safari' | 'ios' | 'android' | 'unknown';
 
 export interface ClientProfile {
   family: ProfileFamily;
@@ -41,6 +41,11 @@ function detectBrowser(ua: string): string | null {
 
 export function clientProfile(userAgent: string | undefined): ClientProfile {
   const ua = userAgent ?? '';
+  // The Velyx app: "VelyxApp/1.0 (Android 14; Pixel 8)".
+  if (/^VelyxApp\//.test(ua)) {
+    const os = /Android/.test(ua) ? 'Android' : /iOS|iPhone|iPad/.test(ua) ? 'iOS' : null;
+    return { family: 'app', browser: 'Velyx app', os, name: os ? `Velyx app on ${os}` : 'Velyx app', mobile: true };
+  }
   const { os, mobile } = detectOs(ua);
   const browser = detectBrowser(ua);
   let family: ProfileFamily = 'unknown';
@@ -65,6 +70,8 @@ type Caps = Required<Pick<ClientCapabilities, 'containers' | 'videoCodecs' | 'au
 
 /** What each family decodes on practically every device. Codecs that need hardware support are left out. */
 const DEFAULTS: Record<Exclude<ProfileFamily, 'unknown'>, Caps> = {
+  // The app reports what the device decodes; without a report, what every Android device plays.
+  app: { containers: ['mp4', 'm4v', 'webm', 'mkv'], videoCodecs: ['h264', 'vp8', 'vp9'], audioCodecs: ['aac', 'mp3', 'opus', 'vorbis', 'flac'], tenBitCodecs: [] },
   chromium: { containers: ['mp4', 'm4v', 'mov', 'webm', 'mkv'], videoCodecs: ['h264', 'vp8', 'vp9', 'av1'], audioCodecs: ['aac', 'mp3', 'opus', 'vorbis', 'flac'], tenBitCodecs: ['vp9', 'av1'] },
   firefox: { containers: ['mp4', 'm4v', 'webm', 'mkv'], videoCodecs: ['h264', 'vp8', 'vp9', 'av1'], audioCodecs: ['aac', 'mp3', 'opus', 'vorbis', 'flac'], tenBitCodecs: ['vp9', 'av1'] },
   safari: { containers: ['mp4', 'm4v', 'mov'], videoCodecs: ['h264', 'hevc'], audioCodecs: ['aac', 'mp3', 'flac', 'ac3', 'eac3'], tenBitCodecs: ['hevc'] },
@@ -74,6 +81,7 @@ const DEFAULTS: Record<Exclude<ProfileFamily, 'unknown'>, Caps> = {
 
 /** Codecs whose support depends on the device's hardware for a family. */
 const HARDWARE_DEPENDENT: Record<ProfileFamily, string[]> = {
+  app: ['hevc', 'av1', 'vp9'],
   chromium: ['hevc'],
   firefox: ['hevc'],
   safari: ['av1', 'vp9'],
@@ -139,7 +147,10 @@ export function deviceSupport(reportedCaps: ClientCapabilities, profile: ClientP
   return ROWS.map(({ key, kind, label }) => {
     const row = (support: SupportLevel, note: string | null = null): DeviceSupportRow => ({ key, kind, label: key === 'hdr' ? T(label) : label, support, note: note && T(note) });
     if (kind === 'video') {
-      if (key === 'h264-10') return row('no', 'No web browser decodes it; Velyx does not transcode video.');
+      if (key === 'h264-10') {
+        if (!guess && video.includes('h264') && tenBit.includes('h264')) return row('yes');
+        return row('no', 'No web browser decodes it; Velyx does not transcode video.');
+      }
       const codec = key === 'hevc10' ? 'hevc' : key;
       const base = video.includes(codec);
       const ok = key === 'hevc10' ? base && tenBit.includes('hevc') : base;

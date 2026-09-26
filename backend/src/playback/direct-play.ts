@@ -89,10 +89,21 @@ export class DirectPlayEngine implements PlaybackEngine {
       if (file.audioCodec && !BROWSER_FRIENDLY_AUDIO.has(file.audioCodec)) reasons.push(T('Audio codec {name} may not play in browsers', { name: file.audioCodec.toUpperCase() }));
     }
     const defaultAudio = defaultAudioIndex(file);
+    let audioIndex = defaultAudio;
     if (options.audioIndex !== undefined && options.audioIndex !== defaultAudio) {
-      // Browsers without the audioTracks API always play the default track.
-      compatible = false;
-      reasons.push(T('Another audio track was selected'));
+      if (caps.audioTrackSwitching) {
+        // A player that switches tracks itself (the Velyx app) plays the original file.
+        audioIndex = options.audioIndex;
+        const track = (file.audioTracks ?? []).find((t) => t.index === audioIndex);
+        if (reported && track?.codec && caps.audioCodecs && !caps.audioCodecs.includes(track.codec)) {
+          compatible = false;
+          reasons.push(T('Audio codec {name} is not supported by this browser', { name: track.codec.toUpperCase() }));
+        }
+      } else {
+        // Browsers without the audioTracks API always play the default track.
+        compatible = false;
+        reasons.push(T('Another audio track was selected'));
+      }
     }
     if (wantsAudioProcessing(options)) {
       compatible = false;
@@ -104,7 +115,7 @@ export class DirectPlayEngine implements PlaybackEngine {
       compatible,
       reasons,
       seek: 'range',
-      audioIndex: defaultAudio,
+      audioIndex,
       note: null,
       durationSec: file.durationSec,
     };

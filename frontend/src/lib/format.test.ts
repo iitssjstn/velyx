@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { setLanguage } from '../i18n';
-import { episodeCode, formatBitrate, formatBytes, formatClock, formatIn, formatRuntime, imageUrl, intervalLabel, progressFraction, resolutionLabel, greeting, scheduleLabel } from './format';
+import { deviceName, episodeCode, formatBitrate, formatBytes, formatClock, formatIn, formatRuntime, imageUrl, intervalLabel, progressFraction, resolutionLabel, greeting, scheduleLabel } from './format';
 
 describe('format helpers', () => {
   it('formats clocks', () => {
@@ -68,5 +68,18 @@ describe('scan schedule labels', () => {
     expect(scheduleLabel({ intervalMinutes: 360, nextAt: now + 3 * 3_600_000, waitingForPlayback: false }, now)).toBe('Next in 3 h (every 6 hours)');
     expect(scheduleLabel({ intervalMinutes: 360, nextAt: now, waitingForPlayback: true }, now)).toBe('Waiting until nobody is watching');
     expect(scheduleLabel({ intervalMinutes: 0, nextAt: null, waitingForPlayback: false }, now)).toBe('Off');
+  });
+});
+
+describe('device names', () => {
+  it('names the Velyx app and its device in the interface language', async () => {
+    expect(deviceName('Velyx app on Pixel 8')).toBe('Velyx app on Pixel 8');
+    await setLanguage('nl');
+    try {
+      expect(deviceName('Velyx app on Pixel 8')).toBe('Velyx-app op Pixel 8');
+      expect(deviceName('Chrome on Windows')).toBe('Chrome op Windows');
+    } finally {
+      await setLanguage('en');
+    }
   });
 });
