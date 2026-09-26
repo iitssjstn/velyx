@@ -271,7 +271,7 @@ describe('scheduled and full scans', () => {
     s = (await put({ scanIntervalMinutes: 60, scanOnStartup: true, deferScansWhilePlaying: false })).json();
     expect(s).toMatchObject({ scanIntervalMinutes: 60, scanIntervalSource: 'settings', scanOnStartup: true, deferScansWhilePlaying: false });
     expect(env.ctx.scans.state().schedule.intervalMinutes).toBe(60);
-    s = (await put({ scanIntervalMinutes: 0 })).json();
+    expect((await put({ scanIntervalMinutes: 0 })).json()).toMatchObject({ scanIntervalMinutes: 0 });
     expect(env.ctx.scans.state().schedule).toMatchObject({ intervalMinutes: 0, nextAt: null });
     // Back to the environment's value.
     s = (await put({ scanIntervalMinutes: null })).json();
