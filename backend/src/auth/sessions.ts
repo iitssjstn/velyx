@@ -6,6 +6,18 @@ import { DEFAULT_LANGUAGE, isLanguage, type Language } from '../i18n/index.js';
 
 export const SESSION_COOKIE = 'velyx_session';
 
+/** Cookie settings for a session: it lives as long as the session does on the server. */
+export function sessionCookieOptions(cookieSecure: 'auto' | boolean, protocol: string, ttlMs: number) {
+  return {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: cookieSecure === 'auto' ? protocol === 'https' : cookieSecure,
+    signed: true,
+    maxAge: Math.floor(ttlMs / 1000),
+  };
+}
+
 export interface SessionUser {
   id: number;
   username: string;
@@ -122,6 +134,11 @@ export class SessionService {
 
   /** Resolves a token to an active, enabled user. Extends the session (sliding expiry) at most once per hour. */
   resolve(token: string | undefined, ip?: string): SessionUser | null {
+    return this.resolveSession(token, ip)?.user ?? null;
+  }
+
+  /** Like resolve(), and says whether the session was just extended (so its cookie can be renewed too). */
+  resolveSession(token: string | undefined, ip?: string): { user: SessionUser; extended: boolean } | null {
     if (!token || token.length > 128) return null;
     const id = hashToken(token);
     const now = Date.now();
@@ -142,14 +159,16 @@ export class SessionService {
       .where(and(eq(sessions.id, id), gt(sessions.expiresAt, now)))
       .get();
     if (!row || row.disabled) return null;
-    if (now - row.lastSeenAt > 60 * 60 * 1000) {
+    const extended = now - row.lastSeenAt > 60 * 60 * 1000;
+    if (extended) {
       this.db
         .update(sessions)
         .set({ lastSeenAt: now, expiresAt: now + this.ttlMs, ...(ip ? { ip: ip.slice(0, 64) } : {}) })
         .where(eq(sessions.id, id))
         .run();
     }
-    return { id: row.id, username: row.username, displayName: row.displayName, role: row.role, avatarFile: row.avatarFile, language: isLanguage(row.language) ? row.language : DEFAULT_LANGUAGE };
+    const user = { id: row.id, username: row.username, displayName: row.displayName, role: row.role, avatarFile: row.avatarFile, language: isLanguage(row.language) ? row.language : DEFAULT_LANGUAGE };
+    return { user, extended };
   }
 
   destroy(token: string | undefined): void {

@@ -1,5 +1,6 @@
 import type { SubtitleOption } from './types';
 import { sameLanguage } from './prefs';
+import { languageLabel, t } from '../i18n';
 
 /** Where playback should start: explicit ?t= wins, then saved progress (unless finished or at the very end). */
 export function startPosition(tParam: string | null, progress: { positionSec: number; durationSec: number; completed: boolean } | null | undefined): number {
@@ -7,9 +8,16 @@ export function startPosition(tParam: string | null, progress: { positionSec: nu
     const t = Number(tParam);
     return Number.isFinite(t) && t > 0 ? t : 0;
   }
-  if (!progress || progress.completed) return 0;
-  if (progress.positionSec < 30) return 0;
-  if (progress.durationSec > 0 && progress.durationSec - progress.positionSec < 15) return 0;
+  return resumePoint(progress) ?? 0;
+}
+
+/**
+ * Where playback can resume, or null: from 30 seconds in until the last part. A watched item that is
+ * being watched again has a resume point too (the server resets it once a play is finished).
+ */
+export function resumePoint(progress: { positionSec: number; durationSec: number } | null | undefined): number | null {
+  if (!progress || progress.positionSec < 30) return null;
+  if (progress.durationSec > 0 && (progress.durationSec - progress.positionSec < 15 || progress.positionSec / progress.durationSec >= 0.9)) return null;
   return progress.positionSec;
 }
 
@@ -177,4 +185,16 @@ export function creditsPlaying(segments: EpisodeSegments | null | undefined, fil
   if (!segments?.credits || (segments.fileId !== null && fileId != null && segments.fileId !== fileId)) return false;
   if (segments.postCredits && segments.postCredits.start >= segments.credits.end - 1) return false;
   return time >= segments.credits.start && time < segments.credits.end;
+}
+
+/**
+ * A subtitle's name in the menu: its language in the interface language, plus its title when that
+ * tells tracks of the same language apart ("English · SDH", "English · Commentary").
+ */
+export function subtitleName(s: Pick<SubtitleOption, 'language' | 'languageName' | 'title'>): string {
+  const lang = languageLabel(s.language);
+  const title = s.title?.trim() || null;
+  if (!lang) return title ?? t('media.unknownLanguage');
+  const same = [lang, s.languageName].some((n) => n && title && n.toLowerCase() === title.toLowerCase());
+  return title && !same ? `${lang} · ${title}` : lang;
 }

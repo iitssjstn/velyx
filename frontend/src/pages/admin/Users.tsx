@@ -61,7 +61,7 @@ function UserForm({ user, isSelf, onDone }: { user?: AdminUser; isSelf: boolean;
     <form onSubmit={submit} className="space-y-4">
       <div>
         <label className="label" htmlFor="u-name">{t('auth.username')}</label>
-        <input id="u-name" className="input" required disabled={Boolean(user)} value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} autoComplete="off" />
+        <input id="u-name" className="input" autoCapitalize="none" autoCorrect="off" spellCheck={false} required disabled={Boolean(user)} value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} autoComplete="off" />
       </div>
       <div>
         <label className="label" htmlFor="u-display">{t('settings.account.displayName')}</label>

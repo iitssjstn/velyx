@@ -27,7 +27,7 @@ import { api, ApiError, errorMessage } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
 import { getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
-import { creditsPlaying, initialSubtitle, isTyping, preferredAudioIndex, skipAt, startPosition, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type SkipAction } from '../lib/player';
+import { creditsPlaying, initialSubtitle, isTyping, preferredAudioIndex, skipAt, startPosition, subtitleName, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type SkipAction } from '../lib/player';
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo } from '../lib/types';
 import { Spinner } from '../components/States';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
@@ -444,6 +444,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     autoSkipped.current.clear();
     setSkipNotice(null);
     setError(null);
+    setErrorGone(false);
+    setStalled(false);
     setWarningDismissed(false);
     setTryAnyway(false);
     setDecodeFailed(false);
@@ -629,9 +631,11 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       goNext();
       return;
     }
+    // Paused before the end: the countdown waits too (it carries on when playback resumes).
+    if (!playing && !ended) return;
     const t = setTimeout(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
     return () => clearTimeout(t);
-  }, [countdown, goNext]);
+  }, [countdown, goNext, playing, ended]);
 
   // ---------------------------------------------------------------- save on leave
   const saveStateRef = useRef({ offset, total: totalDuration });
@@ -810,8 +814,9 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           onTimeUpdate={onTimeUpdate}
           onPlay={() => {
             setPlaying(true);
+            // Playing again after the end cancels the countdown; resuming from a pause continues it.
+            if (ended) setCountdown(null);
             setEnded(false);
-            setCountdown(null);
             poke();
           }}
           onPause={onPause}
@@ -1095,7 +1100,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
                     <MenuItem active={subKey === null} onClick={() => chooseSubtitle(null)}>{t('player.off')}</MenuItem>
                     {subs.map((s) => (
                       <MenuItem key={s.key} active={subKey === s.key} onClick={() => chooseSubtitle(s.key)}>
-                        {languageLabel(s.language) ?? s.label}
+                        {subtitleName(s)}
                         {s.forced && ` (${t('media.forced').toLowerCase()})`}
                         <span className="ml-2 text-xs text-faint">{s.kind === 'embedded' ? t('player.embedded') : t('player.file')}</span>
                       </MenuItem>

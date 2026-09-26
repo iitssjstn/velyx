@@ -71,6 +71,9 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
         kind: 'external' as const,
         label: s.label,
         language: s.language,
+        languageName: s.language ? languageName(s.language) : null,
+        // What sets this file apart from other subtitles in the same language.
+        title: /\(SDH\)/i.test(s.label) ? 'SDH' : null,
         forced: s.forced,
         isDefault: false,
         url: `/api/subtitles/${s.id}.vtt`,
@@ -82,6 +85,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
           kind: 'embedded' as const,
           label: [t.title || languageName(t.language), t.isForced ? '(forced)' : ''].filter(Boolean).join(' '),
           language: t.language,
+          languageName: t.language ? languageName(t.language) : null,
+          title: t.title,
           forced: t.isForced,
           isDefault: t.isDefault,
           url: `/api/media/${file.id}/subtitles/${t.index}.vtt`,

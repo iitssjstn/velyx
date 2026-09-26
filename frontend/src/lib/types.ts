@@ -340,6 +340,10 @@ export interface SubtitleOption {
   kind: 'external' | 'embedded';
   label: string;
   language: string | null;
+  /** The language's English name, as the server knows it. */
+  languageName?: string | null;
+  /** Track title ("SDH", "Commentary"), when there is one. */
+  title?: string | null;
   forced: boolean;
   isDefault: boolean;
   url: string;

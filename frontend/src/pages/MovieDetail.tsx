@@ -1,4 +1,4 @@
-import { playHref } from '../lib/player';
+import { playHref, resumePoint } from '../lib/player';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -43,7 +43,7 @@ export function MoviePage() {
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const m = q.data;
   const file = m.files[fileIdx] ?? m.files[0];
-  const resume = m.progress && !m.progress.completed && m.progress.positionSec >= 30 ? m.progress : null;
+  const resume = resumePoint(m.progress) !== null ? m.progress : null;
   const director = m.director ?? m.crew.find((c) => c.role === 'Director')?.name;
   const writers = m.crew.filter((c) => c.role === 'Screenplay' || c.role === 'Writer').map((c) => c.name);
 

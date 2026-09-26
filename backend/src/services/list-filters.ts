@@ -70,9 +70,11 @@ export function showListWhere(q: Partial<ListQuery>, userId: number, scope: Libr
   if (q.library) conds.push(eq(shows.libraryId, q.library));
   const watchedCount = sql`(SELECT count(*) FROM watch_progress wp JOIN episodes e ON e.id = wp.episode_id WHERE wp.user_id = ${userId} AND wp.completed = 1 AND e.show_id = ${shows.id})`;
   const totalCount = sql`(SELECT count(*) FROM episodes e WHERE e.show_id = ${shows.id})`;
-  if (q.filter === 'watched' || q.filter === 'completed') conds.push(sql`${watchedCount} >= ${totalCount}`);
+  // An episode started but not finished (at least 30 seconds in) also makes a show "in progress".
+  const started = sql`EXISTS (SELECT 1 FROM watch_progress wp JOIN episodes e ON e.id = wp.episode_id WHERE wp.user_id = ${userId} AND wp.completed = 0 AND wp.position_sec >= 30 AND e.show_id = ${shows.id})`;
+  if (q.filter === 'watched' || q.filter === 'completed') conds.push(sql`${totalCount} > 0 AND ${watchedCount} >= ${totalCount}`);
   if (q.filter === 'unwatched') conds.push(sql`${watchedCount} = 0`);
-  if (q.filter === 'in-progress') conds.push(sql`${watchedCount} > 0 AND ${watchedCount} < ${totalCount}`);
+  if (q.filter === 'in-progress') conds.push(sql`${watchedCount} < ${totalCount} AND (${watchedCount} > 0 OR ${started})`);
   if (q.filter === 'favorites') conds.push(sql`${shows.id} IN (SELECT show_id FROM favorites WHERE user_id = ${userId} AND show_id IS NOT NULL)`);
   if (q.filter === 'watchlist') conds.push(sql`${shows.id} IN (SELECT show_id FROM watchlist WHERE user_id = ${userId} AND show_id IS NOT NULL)`);
   if (q.yearFrom) conds.push(sql`${shows.year} >= ${q.yearFrom}`);

@@ -46,7 +46,7 @@ export function SetupPage() {
       <form onSubmit={submit} className="mt-8 space-y-4">
         <div>
           <label className="label" htmlFor="username">{t('auth.username')}</label>
-          <input id="username" className="input" autoComplete="username" required value={form.username} onChange={set('username')} autoFocus />
+          <input id="username" className="input" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} required value={form.username} onChange={set('username')} autoFocus />
         </div>
         <div>
           <label className="label" htmlFor="password">{t('auth.password')}</label>
