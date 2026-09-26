@@ -22,6 +22,62 @@
       "when": 1790384652532,
       "tag": "0002_collections",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790387556212,
+      "tag": "0003_playback_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790387928087,
+      "tag": "0004_scan_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790388064792,
+      "tag": "0005_list_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790388379503,
+      "tag": "0006_sessions_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790389355861,
+      "tag": "0007_language_prefs",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790389356751,
+      "tag": "0008_search_fts",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1790389617327,
+      "tag": "0009_continue_dismissals",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1790389889623,
+      "tag": "0010_smart_collections",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,7 @@ import { collectionItems, collections, movies, shows } from '../db/schema.js';
 import { Catalog, type MovieCard, type ShowCard } from '../services/catalog.js';
 import { visibleCollections, type VisibleCollection } from '../services/collections.js';
 import { sortTitle } from '../services/parser.js';
+import { smartCollections, smartRules } from '../services/smart-collections.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
 
 const collectionBody = z.object({
@@ -60,12 +61,29 @@ export async function collectionRoutes(app: FastifyInstance, ctx: AppContext): P
     };
   }
 
-  function manualCollection(idParam: string) {
+  function manualCollection(idParam: string, allowSmart = false) {
     const row = db.select().from(collections).where(eq(collections.id, parseId(idParam))).get();
     if (!row) throw notFound('Collection');
-    if (row.kind !== 'manual') throw new HttpError(400, 'Collections from TMDB are managed automatically and cannot be edited.');
+    if (row.kind === 'auto') throw new HttpError(400, 'Collections from TMDB are managed automatically and cannot be edited.');
+    if (row.kind === 'smart' && !allowSmart) throw new HttpError(400, 'Smart collections are filters; change which items they show by editing the filter.');
     return row;
   }
+
+  // ---- smart collections (saved filters, evaluated per viewer)
+  app.get('/api/collections/smart', { preHandler: requireUser }, async (request) =>
+    smartCollections(db, request.user!.id, ctx.access.scope(request.user!), request.user!.role === 'admin'),
+  );
+
+  app.post('/api/collections/smart', { preHandler: requireAdmin }, async (request) => {
+    const body = z.object({ name: z.string().trim().min(1).max(100) }).and(smartRules).parse(request.body);
+    const row = db
+      .insert(collections)
+      .values({ kind: 'smart', name: body.name, sortTitle: sortTitle(body.name), rules: JSON.stringify({ kind: body.kind, query: body.query }) })
+      .returning()
+      .get();
+    ctx.audit.record('collection.created', { actor: request.user, ip: request.ip, target: row.name, detail: 'smart collection' });
+    return { id: row.id, name: row.name, kind: body.kind, query: body.query };
+  });
 
   app.get('/api/collections', { preHandler: requireUser }, async (request) => visible(request).map((c) => summary(request.user!.id, c)));
 
@@ -84,11 +102,12 @@ export async function collectionRoutes(app: FastifyInstance, ctx: AppContext): P
       .values({ kind: 'manual', name: body.name, sortTitle: sortTitle(body.name), overview: body.overview || null })
       .returning()
       .get();
+    ctx.audit.record('collection.created', { actor: request.user, ip: request.ip, target: row.name });
     return { id: row.id, kind: row.kind, name: row.name, overview: row.overview, posterPath: null, backdropPath: null, itemCount: 0 };
   });
 
   app.put<{ Params: { id: string } }>('/api/collections/:id', { preHandler: requireAdmin }, async (request) => {
-    const row = manualCollection(request.params.id);
+    const row = manualCollection(request.params.id, true);
     const body = collectionUpdate.parse(request.body);
     const patch: Partial<typeof collections.$inferInsert> = { updatedAt: Date.now() };
     if (body.name) {
@@ -101,8 +120,9 @@ export async function collectionRoutes(app: FastifyInstance, ctx: AppContext): P
   });
 
   app.delete<{ Params: { id: string } }>('/api/collections/:id', { preHandler: requireAdmin }, async (request) => {
-    const row = manualCollection(request.params.id);
+    const row = manualCollection(request.params.id, true);
     db.delete(collections).where(eq(collections.id, row.id)).run();
+    ctx.audit.record('collection.deleted', { actor: request.user, ip: request.ip, target: row.name });
     return { ok: true };
   });
 

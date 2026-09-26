@@ -6,7 +6,11 @@ import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireUser } from '../app.js';
 import { users } from '../db/schema.js';
-import { SESSION_COOKIE } from '../auth/sessions.js';
+import { SESSION_COOKIE, describeUserAgent } from '../auth/sessions.js';
+import { ProgressiveLimiter } from '../auth/rate-limit.js';
+
+/** Public session ids are 20 hex characters. */
+export const sessionIdParam = z.string().regex(/^[0-9a-f]{20}$/, 'Invalid session id.');
 import { dummyVerify, hashPassword, validatePassword, validateUsername, verifyPassword } from '../auth/password.js';
 import { HttpError } from '../http-error.js';
 import { createLogger } from '../logger.js';
@@ -14,31 +18,9 @@ import { APP_NAME, APP_TAGLINE, APP_VERSION } from '../version.js';
 
 const log = createLogger('auth');
 
-/** Small in-memory limiter for failed logins (per IP). */
-class LoginLimiter {
-  private attempts = new Map<string, { count: number; resetAt: number }>();
-  constructor(
-    private readonly max = 10,
-    private readonly windowMs = 15 * 60 * 1000,
-  ) {}
-  blocked(key: string): boolean {
-    const a = this.attempts.get(key);
-    if (!a) return false;
-    if (Date.now() > a.resetAt) {
-      this.attempts.delete(key);
-      return false;
-    }
-    return a.count >= this.max;
-  }
-  fail(key: string): void {
-    const a = this.attempts.get(key);
-    if (!a || Date.now() > a.resetAt) this.attempts.set(key, { count: 1, resetAt: Date.now() + this.windowMs });
-    else a.count++;
-    if (this.attempts.size > 10000) this.attempts.clear();
-  }
-  reset(key: string): void {
-    this.attempts.delete(key);
-  }
+function waitMessage(ms: number): string {
+  const s = Math.ceil(ms / 1000);
+  return s < 90 ? `${s} seconds` : `${Math.ceil(s / 60)} minutes`;
 }
 
 export function publicUser(u: { id: number; username: string; displayName: string | null; role: 'admin' | 'user'; avatarFile: string | null }) {
@@ -83,8 +65,24 @@ const setupBody = z.object({
   tmdbApiKey: z.string().trim().max(512).optional(),
 });
 const profileBody = z.object({ displayName: z.string().trim().max(64).nullable() });
-const passwordBody = z.object({ currentPassword: z.string().min(1).max(256), newPassword: z.string() });
+const passwordBody = z.object({
+  currentPassword: z.string().min(1).max(256),
+  newPassword: z.string(),
+  /** Sign out every other device (default: yes). */
+  signOutOthers: z.boolean().default(true),
+});
 const avatarBody = z.object({ dataUrl: z.string().max(3 * 1024 * 1024) });
+const language = z.string().trim().toLowerCase().regex(/^([a-z]{2,3})?$/, 'Use a language code like en or nl');
+const preferencesBody = z.object({
+  audioLanguage: language.optional(),
+  subtitleLanguage: language.optional(),
+  subtitleFallback: language.optional(),
+  subtitleMode: z.enum(['remember', 'always', 'foreign', 'forced', 'off']).optional(),
+});
+
+function preferencesView(u: typeof users.$inferSelect) {
+  return { audioLanguage: u.prefAudioLanguage, subtitleLanguage: u.prefSubtitleLanguage, subtitleFallback: u.prefSubtitleFallback, subtitleMode: u.prefSubtitleMode };
+}
 
 const AVATAR_TYPES: Record<string, { ext: string; magic: (b: Buffer) => boolean }> = {
   'image/png': { ext: 'png', magic: (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) },
@@ -93,7 +91,7 @@ const AVATAR_TYPES: Record<string, { ext: string; magic: (b: Buffer) => boolean 
 };
 
 export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
-  const limiter = new LoginLimiter();
+  const limiter = new ProgressiveLimiter();
 
   app.get('/health', async (_req, reply) => {
     try {
@@ -139,32 +137,46 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
       serverName: body.serverName || 'Velyx',
       ...(body.tmdbApiKey ? { tmdbApiKey: body.tmdbApiKey } : {}),
     });
-    const { token } = ctx.sessions.create(user.id, request.headers['user-agent']);
+    const { token } = ctx.sessions.create(user.id, request.headers['user-agent'], request.ip);
     setSessionCookie(ctx, request, reply, token);
     log.info(`Administrator "${user.username}" created during first-run setup`);
+    ctx.audit.record('setup.completed', { actor: user, ip: request.ip });
     return { user: publicUser(user) };
   });
 
   app.post('/api/auth/login', async (request, reply) => {
     const ip = request.ip;
-    if (limiter.blocked(ip)) throw new HttpError(429, 'Too many failed sign-in attempts. Wait 15 minutes and try again.');
     const body = loginBody.parse(request.body);
+    // Throttled per client address and per account, so neither many addresses nor many accounts help.
+    const keys = [`ip:${ip}`, `user:${body.username.toLowerCase()}`];
+    const wait = limiter.retryAfter(keys);
+    if (wait > 0) {
+      ctx.audit.record('login.blocked', { actorName: body.username, ip });
+      reply.header('Retry-After', String(Math.ceil(wait / 1000)));
+      throw new HttpError(429, `Too many failed sign-in attempts. Try again in ${waitMessage(wait)}.`);
+    }
     const user = ctx.db.select().from(users).where(eq(users.username, body.username)).get();
     const ok = user ? await verifyPassword(user.passwordHash, body.password) : await dummyVerify(body.password);
     if (!user || !ok) {
-      limiter.fail(ip);
+      limiter.fail(keys);
       log.warn(`Failed sign-in for "${body.username}" from ${ip}`);
+      ctx.audit.record('login.failed', { actorName: body.username, ip, detail: user ? 'wrong password' : 'unknown user' });
       throw new HttpError(401, 'Incorrect username or password.');
     }
-    if (user.disabled) throw new HttpError(403, 'This account is disabled. Ask an administrator to enable it.');
-    limiter.reset(ip);
+    if (user.disabled) {
+      ctx.audit.record('login.failed', { actor: user, ip, detail: 'account disabled' });
+      throw new HttpError(403, 'This account is disabled. Ask an administrator to enable it.');
+    }
+    limiter.reset(keys);
     ctx.db.update(users).set({ lastLoginAt: Date.now() }).where(eq(users.id, user.id)).run();
-    const { token } = ctx.sessions.create(user.id, request.headers['user-agent']);
+    const { token } = ctx.sessions.create(user.id, request.headers['user-agent'], ip);
     setSessionCookie(ctx, request, reply, token);
+    ctx.audit.record('login.success', { actor: user, ip, detail: describeUserAgent(request.headers['user-agent']) });
     return { user: publicUser(user) };
   });
 
   app.post('/api/auth/logout', async (request, reply) => {
+    if (request.user) ctx.audit.record('logout', { actor: request.user, ip: request.ip });
     ctx.sessions.destroy(request.sessionToken);
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     return { ok: true };
@@ -195,8 +207,48 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
       .set({ passwordHash: await hashPassword(body.newPassword), updatedAt: Date.now() })
       .where(eq(users.id, user.id))
       .run();
-    ctx.sessions.destroyAllForUser(user.id, request.sessionToken);
+    const ended = body.signOutOthers ? ctx.sessions.destroyAllForUser(user.id, request.sessionToken) : 0;
+    ctx.audit.record('account.password_changed', { actor: user, ip: request.ip, detail: body.signOutOthers ? `signed out ${ended} other session(s)` : 'other sessions kept' });
+    return { ok: true, signedOut: ended };
+  });
+
+  // ---- playback language preferences (per account, used on every device)
+  app.get('/api/account/preferences', { preHandler: requireUser }, async (request) => {
+    const u = ctx.db.select().from(users).where(eq(users.id, request.user!.id)).get()!;
+    return preferencesView(u);
+  });
+
+  app.put('/api/account/preferences', { preHandler: requireUser }, async (request) => {
+    const b = preferencesBody.parse(request.body);
+    const row = ctx.db
+      .update(users)
+      .set({
+        ...(b.audioLanguage !== undefined ? { prefAudioLanguage: b.audioLanguage } : {}),
+        ...(b.subtitleLanguage !== undefined ? { prefSubtitleLanguage: b.subtitleLanguage } : {}),
+        ...(b.subtitleFallback !== undefined ? { prefSubtitleFallback: b.subtitleFallback } : {}),
+        ...(b.subtitleMode !== undefined ? { prefSubtitleMode: b.subtitleMode } : {}),
+        updatedAt: Date.now(),
+      })
+      .where(eq(users.id, request.user!.id))
+      .returning()
+      .get();
+    return preferencesView(row);
+  });
+
+  // ---- own sessions
+  app.get('/api/account/sessions', { preHandler: requireUser }, async (request) => ctx.sessions.list(request.user!.id, request.sessionToken));
+
+  app.delete<{ Params: { id: string } }>('/api/account/sessions/:id', { preHandler: requireUser }, async (request) => {
+    const id = sessionIdParam.parse(request.params.id);
+    if (!ctx.sessions.revoke(request.user!.id, id)) throw new HttpError(404, 'Session not found.');
+    ctx.audit.record('session.revoked', { actor: request.user, ip: request.ip, target: request.user!.username });
     return { ok: true };
+  });
+
+  app.post('/api/account/sessions/revoke-others', { preHandler: requireUser }, async (request) => {
+    const n = ctx.sessions.destroyAllForUser(request.user!.id, request.sessionToken);
+    ctx.audit.record('session.revoked_all', { actor: request.user, ip: request.ip, target: request.user!.username, detail: `${n} session(s)` });
+    return { ok: true, revoked: n };
   });
 
   app.put('/api/account/avatar', { preHandler: requireUser }, async (request) => {

@@ -21,6 +21,12 @@ export const users = sqliteTable('users', {
   avatarFile: text('avatar_file'),
   /** When false, the user only sees the libraries listed in user_libraries. Admins always see everything. */
   allLibraries: integer('all_libraries', { mode: 'boolean' }).notNull().default(true),
+  /** Playback language preferences (ISO 639-1 codes; '' = no preference). */
+  prefAudioLanguage: text('pref_audio_language').notNull().default(''),
+  prefSubtitleLanguage: text('pref_subtitle_language').notNull().default(''),
+  prefSubtitleFallback: text('pref_subtitle_fallback').notNull().default(''),
+  /** remember = reuse the last choice; always; foreign = only when the audio is in another language; forced; off. */
+  prefSubtitleMode: text('pref_subtitle_mode', { enum: ['remember', 'always', 'foreign', 'forced', 'off'] }).notNull().default('remember'),
   createdAt: integer('created_at').notNull().default(now),
   updatedAt: integer('updated_at').notNull().default(now),
   lastLoginAt: integer('last_login_at'),
@@ -37,6 +43,8 @@ export const sessions = sqliteTable(
     expiresAt: integer('expires_at').notNull(),
     lastSeenAt: integer('last_seen_at').notNull().default(now),
     userAgent: text('user_agent'),
+    /** Client address when the session was created / last refreshed (as seen through trusted proxies). */
+    ip: text('ip'),
   },
   (t) => [index('sessions_user_idx').on(t.userId), index('sessions_expires_idx').on(t.expiresAt)],
 );
@@ -55,6 +63,9 @@ export const libraries = sqliteTable('libraries', {
   lastScanAt: integer('last_scan_at'),
   lastScanStatus: text('last_scan_status'),
   lastScanMessage: text('last_scan_message'),
+  lastScanDurationMs: integer('last_scan_duration_ms'),
+  lastSuccessAt: integer('last_success_at'),
+  lastFailureAt: integer('last_failure_at'),
 });
 
 export const userLibraries = sqliteTable(
@@ -107,6 +118,8 @@ export const movies = sqliteTable(
     index('movies_sort_idx').on(t.sortTitle),
     index('movies_added_idx').on(t.addedAt),
     index('movies_tmdb_idx').on(t.tmdbId),
+    index('movies_year_idx').on(t.year),
+    index('movies_rating_idx').on(t.rating),
   ],
 );
 
@@ -147,6 +160,8 @@ export const shows = sqliteTable(
     uniqueIndex('shows_group_idx').on(t.libraryId, t.groupKey),
     index('shows_sort_idx').on(t.sortTitle),
     index('shows_added_idx').on(t.lastEpisodeAddedAt),
+    index('shows_year_idx').on(t.year),
+    index('shows_rating_idx').on(t.rating),
   ],
 );
 
@@ -230,6 +245,9 @@ export const mediaFiles = sqliteTable(
     bitrate: integer('bitrate'),
     videoCodec: text('video_codec'),
     videoProfile: text('video_profile'),
+    /** null = not analysed yet (files probed before 0.4.0). */
+    videoBitDepth: integer('video_bit_depth'),
+    videoRange: text('video_range', { enum: ['SDR', 'HDR10', 'HLG', 'DV'] }),
     width: integer('width'),
     height: integer('height'),
     fps: real('fps'),
@@ -318,7 +336,7 @@ export const credits = sqliteTable(
     role: text('role'),
     sortOrder: integer('sort_order').notNull().default(0),
   },
-  (t) => [index('credits_movie_idx').on(t.movieId), index('credits_show_idx').on(t.showId)],
+  (t) => [index('credits_movie_idx').on(t.movieId), index('credits_show_idx').on(t.showId), index('credits_person_idx').on(t.personId)],
 );
 
 export const watchProgress = sqliteTable(
@@ -381,8 +399,13 @@ export const collections = sqliteTable(
   'collections',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    /** 'auto' collections come from TMDB (e.g. "The Matrix Collection"); 'manual' ones are made by an admin. */
-    kind: text('kind', { enum: ['auto', 'manual'] }).notNull(),
+    /**
+     * 'auto' collections come from TMDB (e.g. "The Matrix Collection"); 'manual' ones are hand-picked
+     * by an admin; 'smart' ones are saved filters (`rules`) evaluated for each viewer.
+     */
+    kind: text('kind', { enum: ['auto', 'manual', 'smart'] }).notNull(),
+    /** Smart collections: JSON {"kind": "movies" | "shows", "query": {...list filters}}. */
+    rules: text('rules'),
     tmdbId: integer('tmdb_id').unique(),
     name: text('name').notNull(),
     sortTitle: text('sort_title').notNull(),
@@ -412,4 +435,41 @@ export const collectionItems = sqliteTable(
     index('collection_items_movie_lookup_idx').on(t.movieId),
     index('collection_items_show_lookup_idx').on(t.showId),
   ],
+);
+
+/** Security-relevant and administrative actions. Never contains passwords, keys or session tokens. */
+export const auditLog = sqliteTable(
+  'audit_log',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    at: integer('at').notNull().default(now),
+    /** Who did it; null for anonymous actions such as a failed sign-in, or when the user was deleted. */
+    actorId: integer('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    /** Username at the time (kept when the user is later deleted). */
+    actorName: text('actor_name'),
+    action: text('action').notNull(),
+    /** Human-readable subject, e.g. a library or user name. */
+    target: text('target'),
+    detail: text('detail'),
+    ip: text('ip'),
+  },
+  (t) => [index('audit_at_idx').on(t.at), index('audit_action_idx').on(t.action, t.at)],
+);
+
+/**
+ * Items a user removed from Continue Watching. An item reappears as soon as there is newer
+ * activity (progress saved after `at`), so dismissing never loses watch history.
+ */
+export const continueDismissals = sqliteTable(
+  'continue_dismissals',
+  {
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** 'movie' or 'show' (for episodes the whole show is dismissed). */
+    kind: text('kind', { enum: ['movie', 'show'] }).notNull(),
+    itemId: integer('item_id').notNull(),
+    at: integer('at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.kind, t.itemId] })],
 );

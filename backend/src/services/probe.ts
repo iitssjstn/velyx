@@ -7,6 +7,10 @@ export interface ProbeResult {
   bitrate: number | null;
   videoCodec: string | null;
   videoProfile: string | null;
+  /** Bits per colour sample (8, 10, 12); null when unknown. */
+  videoBitDepth: number | null;
+  /** Dynamic range: SDR, HDR10 (PQ), HLG or DV (Dolby Vision); null when unknown. */
+  videoRange: VideoRange | null;
   width: number | null;
   height: number | null;
   fps: number | null;
@@ -15,6 +19,8 @@ export interface ProbeResult {
   audioTracks: AudioTrackInfo[];
   subtitleTracks: SubtitleTrackInfo[];
 }
+
+export type VideoRange = 'SDR' | 'HDR10' | 'HLG' | 'DV';
 
 export type Prober = (file: string) => Promise<ProbeResult>;
 
@@ -31,6 +37,10 @@ interface FfStream {
   r_frame_rate?: string;
   channels?: number;
   channel_layout?: string;
+  pix_fmt?: string;
+  bits_per_raw_sample?: string;
+  color_transfer?: string;
+  side_data_list?: { side_data_type?: string }[];
   disposition?: { default?: number; forced?: number; attached_pic?: number };
   tags?: Record<string, string>;
 }
@@ -61,6 +71,23 @@ function tag(s: FfStream, name: string): string | null {
   return v && v !== 'und' ? v : null;
 }
 
+/** Bit depth from the pixel format (yuv420p10le → 10), falling back to bits_per_raw_sample. */
+export function bitDepthOf(s: Pick<FfStream, 'pix_fmt' | 'bits_per_raw_sample'> | undefined): number | null {
+  if (!s) return null;
+  const m = /p(\d{2})(le|be)?$/.exec(s.pix_fmt ?? '');
+  if (m) return Number(m[1]);
+  if (s.pix_fmt) return 8;
+  return num(s.bits_per_raw_sample);
+}
+
+export function videoRangeOf(s: Pick<FfStream, 'color_transfer' | 'side_data_list'> | undefined): VideoRange | null {
+  if (!s) return null;
+  if (s.side_data_list?.some((d) => /dovi|dolby vision/i.test(d.side_data_type ?? ''))) return 'DV';
+  if (s.color_transfer === 'smpte2084') return 'HDR10';
+  if (s.color_transfer === 'arib-std-b67') return 'HLG';
+  return 'SDR';
+}
+
 /** Maps raw ffprobe JSON to Velyx' media info. Exported for tests. */
 export function mapProbeOutput(out: FfOutput, fileName: string): ProbeResult {
   const streams = out.streams ?? [];
@@ -76,6 +103,8 @@ export function mapProbeOutput(out: FfOutput, fileName: string): ProbeResult {
     bitrate: num(out.format?.bit_rate),
     videoCodec: video?.codec_name ?? null,
     videoProfile: video?.profile ?? null,
+    videoBitDepth: bitDepthOf(video),
+    videoRange: videoRangeOf(video),
     width: video?.width ?? null,
     height: video?.height ?? null,
     fps: video ? parseRate(video.avg_frame_rate) ?? parseRate(video.r_frame_rate) : null,

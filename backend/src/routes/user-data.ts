@@ -135,6 +135,7 @@ export async function userDataRoutes(app: FastifyInstance, ctx: AppContext): Pro
     if (body.movieId) assertMovie(db, scope, body.movieId);
     if (body.episodeId) assertEpisode(db, scope, body.episodeId);
     const row = saveProgress(ctx, request.user!.id, body, body.positionSec, body.durationSec);
+    ctx.streams.progress(request.user!.id, body, body.positionSec);
     return { positionSec: row.positionSec, durationSec: row.durationSec, completed: row.completed };
   });
 

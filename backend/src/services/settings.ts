@@ -14,6 +14,15 @@ export interface ServerSettings {
   watchFolders: boolean;
   /** Internal: TMDB collections were looked up once for movies matched before collections existed. */
   collectionsBackfilled: boolean;
+  /** Automatic database backups. */
+  backupSchedule: 'daily' | 'weekly' | 'off';
+  /** Local hour (0–23) after which the scheduled backup runs. */
+  backupHour: number;
+  backupKeepDaily: number;
+  backupKeepWeekly: number;
+  backupKeepMonthly: number;
+  /** Look for new Velyx versions (GitHub tags) at most once a day. */
+  updateCheck: boolean;
 }
 
 const DEFAULTS: ServerSettings = {
@@ -24,6 +33,12 @@ const DEFAULTS: ServerSettings = {
   includeAdult: false,
   watchFolders: true,
   collectionsBackfilled: false,
+  backupSchedule: 'daily',
+  backupHour: 3,
+  backupKeepDaily: 7,
+  backupKeepWeekly: 4,
+  backupKeepMonthly: 3,
+  updateCheck: true,
 };
 
 export class SettingsService {

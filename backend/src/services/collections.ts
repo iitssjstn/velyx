@@ -1,4 +1,4 @@
-import { asc, eq, sql } from 'drizzle-orm';
+import { asc, eq, ne, sql } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
 import { collectionItems, collections, movies, shows } from '../db/schema.js';
 import { canSee, type LibraryScope } from './access.js';
@@ -25,7 +25,8 @@ export interface VisibleCollection {
  * collections that are worth showing. Admins also see empty manual collections so they can fill them.
  */
 export function visibleCollections(db: DB, scope: LibraryScope, isAdmin: boolean): VisibleCollection[] {
-  const rows = db.select().from(collections).orderBy(asc(collections.sortTitle)).all();
+  // Smart collections have no members; they are listed separately (services/smart-collections.ts).
+  const rows = db.select().from(collections).where(ne(collections.kind, 'smart')).orderBy(asc(collections.sortTitle)).all();
   const members = db
     .select({
       collectionId: collectionItems.collectionId,

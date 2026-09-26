@@ -16,8 +16,15 @@ import { LibraryScanner } from './services/scanner.js';
 import { ScanManager } from './services/scan-manager.js';
 import { LibraryWatcher } from './services/watcher.js';
 import { createFfprobe, type Prober } from './services/probe.js';
+import { limitProber } from './services/probe-queue.js';
 import { EmbeddedSubtitleExtractor } from './services/subtitles.js';
 import { LibraryAccess } from './services/access.js';
+import { AuditLog } from './services/audit.js';
+import { BackupScheduler } from './services/backup-scheduler.js';
+import { DiskMonitor, StorageService } from './services/storage.js';
+import { StreamTracker } from './services/streams.js';
+import { DetailAnalyzer } from './services/compatibility-report.js';
+import { UpdateChecker } from './services/updates.js';
 import { PlaybackRegistry } from './playback/engine.js';
 import { DirectPlayEngine } from './playback/direct-play.js';
 import { RemuxEngine } from './playback/remux.js';
@@ -48,6 +55,15 @@ export interface AppContext {
   playback: PlaybackRegistry;
   subtitleExtractor: EmbeddedSubtitleExtractor;
   access: LibraryAccess;
+  audit: AuditLog;
+  backups: BackupScheduler;
+  storage: StorageService;
+  disk: DiskMonitor;
+  streams: StreamTracker;
+  analyzer: DetailAnalyzer;
+  updates: UpdateChecker;
+  /** FFprobe behind the shared concurrency limit. */
+  probe: Prober & { readonly active: number; readonly waiting: number };
   startedAt: number;
 }
 
@@ -71,14 +87,19 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   });
   const images = new ImageCache(config.imageCacheDir, opts.fetchImpl);
   const metadata = new MetadataService(db, tmdb, images);
-  const scanner = new LibraryScanner(db, opts.prober ?? createFfprobe(config.ffprobePath), metadata);
+  const probe = limitProber(opts.prober ?? createFfprobe(config.ffprobePath), config.scanConcurrency);
+  const scanner = new LibraryScanner(db, probe, metadata, config.scanConcurrency);
   const scans = new ScanManager(db, scanner);
   const watcher = new LibraryWatcher(db, scans, opts.watchDebounceMs);
   const playback = new PlaybackRegistry();
   playback.register(new DirectPlayEngine());
   playback.register(new RemuxEngine(config.ffmpegPath));
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), startedAt: Date.now() };
+  const storage = new StorageService(db, config);
+  // Critically low disk space pauses scans (which write artwork and rows); they resume on their own.
+  const disk = new DiskMonitor(storage, (level) => (level === 'critical' ? scans.pause('low-disk') : scans.resume('low-disk')));
+  const backups = new BackupScheduler(db, config.backupDir, settings, () => (storage.dataDisk()?.level === 'critical' ? 'disk space is critically low' : null));
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit: new AuditLog(db), backups, storage, disk, streams: new StreamTracker(db), analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateRepo, () => settings.get().updateCheck, opts.fetchImpl), probe, startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {
@@ -104,7 +125,8 @@ export function requireAdmin(request: FastifyRequest, reply: FastifyReply, done:
 export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   const app = Fastify({
     logger: false,
-    trustProxy: ctx.config.trustProxy,
+    // A hop count trusts exactly that many proxies in front of Velyx (e.g. 2 for Cloudflare + Nginx).
+    trustProxy: typeof ctx.config.trustProxy === 'number' ? ((_addr: string, hop: number) => hop < (ctx.config.trustProxy as number)) : ctx.config.trustProxy,
     bodyLimit: 4 * 1024 * 1024,
   });
 
@@ -140,7 +162,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     const unsigned = request.unsignCookie(raw);
     if (!unsigned.valid || !unsigned.value) return;
     request.sessionToken = unsigned.value;
-    request.user = ctx.sessions.resolve(unsigned.value);
+    request.user = ctx.sessions.resolve(unsigned.value, request.ip);
   });
 
   // CSRF defence: state-changing API calls must come from our own origin. Combined with SameSite=Lax

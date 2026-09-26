@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config.js';
 import { openDatabase } from './db/client.js';
+import { applyPendingRestore } from './services/backup.js';
 import { buildApp, createContext } from './app.js';
 import { checkBinary } from './services/probe.js';
 import { createLogger } from './logger.js';
@@ -19,8 +20,11 @@ async function main(): Promise<void> {
   });
 
   log.info(`Velyx ${APP_VERSION} starting`);
+  // A restore staged from the admin page or CLI is applied before anything opens the database.
+  const restored = applyPendingRestore(config.dbPath, config.dataDir, config.backupDir);
   const db = openDatabase(config.dbPath, { backupDir: config.backupDir });
   const ctx = createContext(config, db);
+  if (restored) ctx.audit.record('database.restored', { actorName: restored.requestedBy, target: restored.source, detail: restored.safetyCopy ? `previous database kept as ${restored.safetyCopy.split('/').pop()}` : null });
 
   const ffprobe = await checkBinary(config.ffprobePath);
   if (!ffprobe) log.warn(`FFprobe not found at "${config.ffprobePath}" — media analysis will fail`);
@@ -40,6 +44,10 @@ async function main(): Promise<void> {
     });
   }
   ctx.watcher.sync(ctx.settings.get().watchFolders);
+  ctx.backups.start();
+  ctx.disk.start();
+  // A backup missed while Velyx was off runs shortly after start, not in the middle of it.
+  setTimeout(() => ctx.backups.tick(), 2 * 60 * 1000).unref();
   const purgeTimer = setInterval(() => ctx.sessions.purgeExpired(), 6 * 60 * 60 * 1000);
   purgeTimer.unref();
 
@@ -50,6 +58,8 @@ async function main(): Promise<void> {
     log.info(`Received ${signal}, shutting down`);
     ctx.scans.stop();
     ctx.watcher.stop();
+    ctx.backups.stop();
+    ctx.disk.stop();
     (ctx.playback.get('remux') as RemuxEngine | undefined)?.stopAll();
     clearInterval(purgeTimer);
     try {

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Check, Play } from 'lucide-react';
+import { Check, Play, X } from 'lucide-react';
 import type { Card, ContinueItem } from '../lib/types';
 import { formatClock, progressFraction } from '../lib/format';
 import { Artwork } from './Artwork';
@@ -36,7 +36,7 @@ export function PosterCard({ item, className = '' }: { item: Card; className?: s
  * Continue Watching card. Clicking the card opens the movie or show page; the round play button
  * resumes playback directly.
  */
-export function ContinueCard({ item }: { item: ContinueItem }) {
+export function ContinueCard({ item, onDismiss }: { item: ContinueItem; onDismiss?: (item: ContinueItem) => void }) {
   const playHref = item.type === 'movie' ? `/play/movie/${item.id}` : `/play/episode/${item.id}`;
   const detailsHref = item.type === 'movie' ? `/movies/${item.id}` : `/shows/${item.showId}`;
   const fraction = progressFraction(item.progress);
@@ -65,6 +65,17 @@ export function ContinueCard({ item }: { item: ContinueItem }) {
       >
         <Play className="ml-0.5 size-4 fill-current" />
       </Link>
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={() => onDismiss(item)}
+          aria-label={`Remove ${item.title} from Continue Watching`}
+          title="Remove from Continue Watching"
+          className="absolute top-2 right-2 grid size-8 place-items-center rounded-full bg-black/60 text-ink/80 opacity-0 backdrop-blur transition group-hover:opacity-100 hover:bg-black/80 hover:text-ink focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+        >
+          <X className="size-4" />
+        </button>
+      )}
     </div>
   );
 }

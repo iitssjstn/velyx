@@ -2,19 +2,20 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
-import { count, desc, eq, gt, ne, or, sql } from 'drizzle-orm';
+import { count, eq, gt, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireAdmin } from '../app.js';
-import { episodes, libraries, mediaFiles, movies, seasons, sessions, shows, users } from '../db/schema.js';
+import { episodes, libraries, mediaFiles, movies, seasons, shows, users } from '../db/schema.js';
 import { hashPassword, validatePassword, validateUsername } from '../auth/password.js';
 import { validateLibraryPath } from '../services/paths.js';
 import { checkBinary } from '../services/probe.js';
 import { recentLogs } from '../logger.js';
+import { compatibilityReport } from '../services/compatibility-report.js';
 import { APP_VERSION } from '../version.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
-import { adminCount, publicUser } from './auth.js';
-import { createDatabaseSnapshot } from '../services/backup.js';
+import { adminCount, publicUser, sessionIdParam } from './auth.js';
+import { backupPath, cancelRestore, createDatabaseSnapshot, pendingRestore, stageRestore, verifyBackup } from '../services/backup.js';
 import { createLogger } from '../logger.js';
 import type { RemuxEngine } from '../playback/remux.js';
 
@@ -59,35 +60,36 @@ const settingsBody = z.object({
     .optional(),
   includeAdult: z.boolean().optional(),
   watchFolders: z.boolean().optional(),
+  updateCheck: z.boolean().optional(),
 });
 
 const matchSearch = z.object({ type: z.enum(['movie', 'show']), query: z.string().trim().min(1).max(200), year: z.coerce.number().int().min(1870).max(2100).optional() });
 const matchApply = z.object({ type: z.enum(['movie', 'show']), id: z.number().int().positive(), tmdbId: z.number().int().positive() });
 
-function dirSize(dir: string): number {
-  let total = 0;
-  const stack = [dir];
-  while (stack.length) {
-    const d = stack.pop()!;
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(d, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const e of entries) {
-      const p = path.join(d, e.name);
-      if (e.isDirectory()) stack.push(p);
-      else {
-        try {
-          total += fs.statSync(p).size;
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-  }
-  return total;
+/** CPU usage between two calls (system-wide and for the Velyx process), from cheap counters. */
+function cpuSampler() {
+  let prev = { times: os.cpus().map((c) => c.times), proc: process.cpuUsage(), at: process.hrtime.bigint() };
+  return () => {
+    const times = os.cpus().map((c) => c.times);
+    const proc = process.cpuUsage();
+    const at = process.hrtime.bigint();
+    let idle = 0;
+    let total = 0;
+    times.forEach((t, i) => {
+      const p = prev.times[i];
+      if (!p) return;
+      const sum = (x: typeof t) => x.user + x.nice + x.sys + x.idle + x.irq;
+      total += sum(t) - sum(p);
+      idle += t.idle - p.idle;
+    });
+    const elapsedUs = Number(at - prev.at) / 1000;
+    const procUs = proc.user - prev.proc.user + (proc.system - prev.proc.system);
+    prev = { times, proc, at };
+    return {
+      system: total > 0 ? Math.round((1 - idle / total) * 1000) / 10 : null,
+      velyx: elapsedUs > 0 ? Math.round((procUs / elapsedUs / Math.max(1, times.length)) * 1000) / 10 : null,
+    };
+  };
 }
 
 function diskInfo(p: string): { total: number; free: number } | null {
@@ -102,6 +104,7 @@ function diskInfo(p: string): { total: number; free: number } | null {
 export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   const db = ctx.db;
   let ffmpegVersion: string | null | undefined;
+  const sampleCpu = cpuSampler();
 
   // ------------------------------------------------------------------ dashboard
   app.get('/api/admin/dashboard', { preHandler: requireAdmin }, async () => {
@@ -135,6 +138,12 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       cpus: os.cpus().length,
       ffprobe: ffmpegVersion,
       activeStreams: (ctx.playback.get('remux') as RemuxEngine | undefined)?.activeStreams ?? 0,
+      cpu: sampleCpu(),
+      streams: ctx.streams.active(),
+      disk: ctx.storage.dataDisk(),
+      backups: { latest: ctx.backups.list()[0] ?? null, nextDue: ctx.backups.nextDue() },
+      probeQueue: { active: ctx.probe.active, waiting: ctx.probe.waiting },
+      update: ctx.updates.info(),
       tmdb: { configured: ctx.tmdb.configured, source: ctx.settings.tmdbKeySource() },
       counts: {
         movies: db.select({ n: count() }).from(movies).get()!.n,
@@ -150,7 +159,8 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       storage: {
         mediaBytes,
         databaseBytes: dbSize,
-        cacheBytes: dirSize(ctx.config.cacheDir),
+        // Folder sizes come from the storage report, computed at most every 10 minutes.
+        cacheBytes: ((r) => r.velyx.artwork + r.velyx.subtitles)(await ctx.storage.get()),
         dataDisk: diskInfo(ctx.config.dataDir),
         libraries: libs.map((l) => ({ id: l.id, name: l.name, path: l.path, disk: diskInfo(l.path) })),
       },
@@ -161,6 +171,24 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
   });
 
   app.get('/api/admin/logs', { preHandler: requireAdmin }, async () => recentLogs().reverse());
+
+  // ------------------------------------------------------------------ compatibility
+  app.get('/api/admin/compatibility', { preHandler: requireAdmin }, async () => ({ libraries: compatibilityReport(db), analysis: ctx.analyzer.status() }));
+
+  app.post('/api/admin/compatibility/analyze', { preHandler: requireAdmin }, async () => {
+    ctx.analyzer.start();
+    return { analysis: ctx.analyzer.status() };
+  });
+
+  // ------------------------------------------------------------------ storage
+  app.get<{ Querystring: { refresh?: string } }>('/api/admin/storage', { preHandler: requireAdmin }, async (request) => ctx.storage.get(request.query.refresh === '1'));
+
+  app.post('/api/admin/storage/cleanup', { preHandler: requireAdmin }, async (request) => {
+    const { target } = z.object({ target: z.enum(['artwork', 'subtitles']) }).parse(request.body);
+    const result = await ctx.storage.cleanup(target);
+    ctx.audit.record('cache.cleared', { actor: request.user, ip: request.ip, target: target === 'artwork' ? 'Artwork cache' : 'Subtitle cache', detail: `${result.files} unused file(s)` });
+    return { ...result, report: await ctx.storage.get(true) };
+  });
 
   // ------------------------------------------------------------------ libraries
   const libraryView = (l: typeof libraries.$inferSelect) => {
@@ -196,6 +224,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (clash) throw new HttpError(409, `This folder overlaps with the library "${clash.name}".`);
     const row = db.insert(libraries).values({ name: body.name, type: body.type, path: check.resolved! }).returning().get();
     log.info(`Library "${row.name}" added (${row.path})`);
+    ctx.audit.record('library.created', { actor: request.user, ip: request.ip, target: row.name, detail: `${row.type} at ${row.path}` });
     ctx.scans.enqueue(row.id);
     ctx.watcher.sync(ctx.settings.get().watchFolders);
     return libraryView(row);
@@ -224,6 +253,12 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       pathChanged = true;
     }
     const row = db.update(libraries).set(patch).where(eq(libraries.id, id)).returning().get();
+    ctx.audit.record('library.updated', {
+      actor: request.user,
+      ip: request.ip,
+      target: row.name,
+      detail: [patch.name && patch.name !== lib.name ? `renamed from "${lib.name}"` : null, pathChanged ? `folder ${lib.path} → ${row.path}` : null].filter(Boolean).join('; ') || null,
+    });
     if (pathChanged) {
       // Files under the old path disappear during the next scan; files under the new one are added.
       ctx.scans.enqueue(id);
@@ -235,8 +270,10 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
   app.delete<{ Params: { id: string } }>('/api/libraries/:id', { preHandler: requireAdmin }, async (request) => {
     const id = parseId(request.params.id);
     if (ctx.scans.state().running?.libraryId === id) throw new HttpError(409, 'This library is being scanned. Try again when the scan finishes.');
-    const res = db.delete(libraries).where(eq(libraries.id, id)).run();
-    if (res.changes === 0) throw notFound('Library');
+    const lib = db.select().from(libraries).where(eq(libraries.id, id)).get();
+    if (!lib) throw notFound('Library');
+    db.delete(libraries).where(eq(libraries.id, id)).run();
+    ctx.audit.record('library.deleted', { actor: request.user, ip: request.ip, target: lib.name, detail: lib.path });
     log.info(`Library ${id} removed (media files on disk were not touched)`);
     ctx.watcher.sync(ctx.settings.get().watchFolders);
     return { ok: true };
@@ -248,6 +285,8 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const refresh = Boolean((request.body as { refreshMetadata?: boolean } | undefined)?.refreshMetadata);
     if (refresh && !ctx.tmdb.configured) throw new HttpError(400, 'Add a TMDB API key in Admin → Metadata to refresh metadata.');
     ctx.scans.enqueue(id, refresh);
+    const name = db.select({ name: libraries.name }).from(libraries).where(eq(libraries.id, id)).get()?.name;
+    ctx.audit.record('library.scan', { actor: request.user, ip: request.ip, target: name, detail: refresh ? 'with metadata refresh' : null });
     return { queued: true };
   });
 
@@ -257,6 +296,18 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
   });
 
   app.get('/api/libraries/scan-status', { preHandler: requireAdmin }, async () => ctx.scans.state());
+
+  app.post('/api/libraries/scans/pause', { preHandler: requireAdmin }, async (request) => {
+    ctx.scans.pause('manual');
+    ctx.audit.record('scans.paused', { actor: request.user, ip: request.ip });
+    return ctx.scans.state();
+  });
+
+  app.post('/api/libraries/scans/resume', { preHandler: requireAdmin }, async (request) => {
+    ctx.scans.resume('manual');
+    ctx.audit.record('scans.resumed', { actor: request.user, ip: request.ip });
+    return ctx.scans.state();
+  });
 
   app.get<{ Params: { id: string } }>('/api/libraries/:id/issues', { preHandler: requireAdmin }, async (request) => {
     const id = parseId(request.params.id);
@@ -292,6 +343,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       .get();
     if (body.libraryIds) ctx.access.setGrants(row.id, body.libraryIds);
     log.info(`User "${row.username}" created by ${request.user!.username}`);
+    ctx.audit.record('user.created', { actor: request.user, ip: request.ip, target: row.username, detail: `role ${row.role}` });
     return userView(row);
   });
 
@@ -317,6 +369,14 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const row = db.update(users).set(patch).where(eq(users.id, id)).returning().get();
     if (body.libraryIds !== undefined) ctx.access.setGrants(id, body.libraryIds);
     if (body.disabled || body.password !== undefined) ctx.sessions.destroyAllForUser(id, id === request.user!.id ? request.sessionToken : undefined);
+    const changes = [
+      body.role && body.role !== target.role ? `role ${target.role} → ${body.role}` : null,
+      body.disabled !== undefined && body.disabled !== target.disabled ? (body.disabled ? 'disabled' : 'enabled') : null,
+      body.displayName !== undefined && (body.displayName || null) !== target.displayName ? 'display name changed' : null,
+      body.libraryIds !== undefined ? (body.libraryIds === null ? 'library access: all' : `library access: ${body.libraryIds.length} libraries`) : null,
+    ].filter(Boolean);
+    if (changes.length) ctx.audit.record('user.updated', { actor: request.user, ip: request.ip, target: target.username, detail: changes.join('; ') });
+    if (body.password !== undefined) ctx.audit.record('user.password_reset', { actor: request.user, ip: request.ip, target: target.username });
     return userView(row);
   });
 
@@ -329,17 +389,47 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     db.delete(users).where(eq(users.id, id)).run();
     for (const ext of ['png', 'jpg', 'webp']) fs.rmSync(path.join(ctx.config.avatarDir, `${id}.${ext}`), { force: true });
     log.info(`User "${target.username}" deleted by ${request.user!.username}`);
+    ctx.audit.record('user.deleted', { actor: request.user, ip: request.ip, target: target.username });
     return { ok: true };
   });
 
+  const userOr404 = (idParam: string) => {
+    const u = db.select().from(users).where(eq(users.id, parseId(idParam))).get();
+    if (!u) throw notFound('User');
+    return u;
+  };
+
   app.get<{ Params: { id: string } }>('/api/users/:id/sessions', { preHandler: requireAdmin }, async (request) => {
-    const id = parseId(request.params.id);
-    return db
-      .select({ createdAt: sessions.createdAt, lastSeenAt: sessions.lastSeenAt, userAgent: sessions.userAgent })
-      .from(sessions)
-      .where(eq(sessions.userId, id))
-      .orderBy(desc(sessions.lastSeenAt))
-      .all();
+    const u = userOr404(request.params.id);
+    return ctx.sessions.list(u.id, u.id === request.user!.id ? request.sessionToken : undefined);
+  });
+
+  app.delete<{ Params: { id: string; sid: string } }>('/api/users/:id/sessions/:sid', { preHandler: requireAdmin }, async (request) => {
+    const u = userOr404(request.params.id);
+    if (!ctx.sessions.revoke(u.id, sessionIdParam.parse(request.params.sid))) throw notFound('Session');
+    ctx.audit.record('session.revoked', { actor: request.user, ip: request.ip, target: u.username });
+    return { ok: true };
+  });
+
+  /** Signs the user out everywhere (for your own account: everywhere except this browser). */
+  app.delete<{ Params: { id: string } }>('/api/users/:id/sessions', { preHandler: requireAdmin }, async (request) => {
+    const u = userOr404(request.params.id);
+    const n = ctx.sessions.destroyAllForUser(u.id, u.id === request.user!.id ? request.sessionToken : undefined);
+    ctx.audit.record('session.revoked_all', { actor: request.user, ip: request.ip, target: u.username, detail: `${n} session(s)` });
+    return { ok: true, revoked: n };
+  });
+
+  // ------------------------------------------------------------------ audit log
+  const auditQuery = z.object({
+    page: z.coerce.number().int().min(1).max(10000).default(1),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+    action: z.string().regex(/^[a-z_.]{1,40}$/).optional(),
+    user: z.coerce.number().int().positive().optional(),
+  });
+
+  app.get('/api/admin/audit', { preHandler: requireAdmin }, async (request) => {
+    const q = auditQuery.parse(request.query);
+    return ctx.audit.list({ page: q.page, limit: q.limit, action: q.action, actorId: q.user });
   });
 
   // ------------------------------------------------------------------ settings
@@ -352,6 +442,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       tmdbLanguage: ctx.settings.tmdbLanguage(),
       includeAdult: s.includeAdult,
       watchFolders: s.watchFolders,
+      updateCheck: s.updateCheck,
       tmdb: {
         configured: key.length > 0,
         source: ctx.settings.tmdbKeySource(),
@@ -385,6 +476,11 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       else ctx.settings.update({ tmdbApiKey });
     }
     if (rest.watchFolders !== undefined) ctx.watcher.sync(rest.watchFolders);
+    // Names of what changed only — never the values of keys.
+    const tmdbChanges = [tmdbApiKey !== undefined ? (tmdbApiKey === '' ? 'API key removed' : 'API key changed') : null, rest.tmdbLanguage !== undefined ? `language ${rest.tmdbLanguage || 'default'}` : null, rest.includeAdult !== undefined ? `adult titles ${rest.includeAdult ? 'on' : 'off'}` : null].filter(Boolean);
+    if (tmdbChanges.length) ctx.audit.record('tmdb.updated', { actor: request.user, ip: request.ip, detail: tmdbChanges.join('; ') });
+    const serverChanges = (['serverName', 'serverUrl', 'watchFolders', 'updateCheck'] as const).filter((k) => rest[k] !== undefined);
+    if (serverChanges.length) ctx.audit.record('settings.updated', { actor: request.user, ip: request.ip, detail: serverChanges.join(', ') });
     if (!wasConfigured && ctx.tmdb.configured) {
       log.info('TMDB configured — fetching metadata for existing libraries');
       ctx.scans.enqueueAll(false);
@@ -441,10 +537,14 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (body.type === 'movie') {
       if (!db.select({ id: movies.id }).from(movies).where(eq(movies.id, body.id)).get()) throw notFound('Movie');
       const id = await ctx.metadata.applyMovie(body.id, body.tmdbId, 'manual', 1);
+      const title = db.select({ title: movies.title }).from(movies).where(eq(movies.id, id)).get()?.title;
+      ctx.audit.record('metadata.matched', { actor: request.user, ip: request.ip, target: title, detail: `movie → TMDB ${body.tmdbId}` });
       return { type: 'movie', id };
     }
     if (!db.select({ id: shows.id }).from(shows).where(eq(shows.id, body.id)).get()) throw notFound('Show');
     await ctx.metadata.applyShow(body.id, body.tmdbId, 'manual', 1);
+    const title = db.select({ title: shows.title }).from(shows).where(eq(shows.id, body.id)).get()?.title;
+    ctx.audit.record('metadata.matched', { actor: request.user, ip: request.ip, target: title, detail: `show → TMDB ${body.tmdbId}` });
     return { type: 'show', id: body.id };
   });
 
@@ -453,12 +553,14 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (!ctx.tmdb.configured) throw new HttpError(400, 'Add a TMDB API key in Admin → Metadata first.');
     const result = request.params.type === 'movie' ? await ctx.metadata.matchMovie(id, true) : await ctx.metadata.matchShow(id, true);
     if (result === 'failed') throw new HttpError(502, 'TMDB could not be reached. Cached metadata is unchanged.');
+    ctx.audit.record('metadata.refreshed', { actor: request.user, ip: request.ip, target: `${request.params.type} ${id}` });
     return { result };
   });
 
   // ------------------------------------------------------------------ backup
-  app.get('/api/admin/backup', { preHandler: requireAdmin }, async (_request, reply) => {
+  app.get('/api/admin/backup', { preHandler: requireAdmin }, async (request, reply) => {
     const file = createDatabaseSnapshot(ctx.db, ctx.config.backupDir);
+    ctx.audit.record('backup.downloaded', { actor: request.user, ip: request.ip });
     const stream = fs.createReadStream(file);
     stream.on('close', () => fs.rm(file, { force: true }, () => undefined));
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -467,5 +569,80 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       .header('Content-Disposition', `attachment; filename="velyx-${stamp}.db"`)
       .header('Cache-Control', 'no-store')
       .send(stream);
+  });
+
+  // ---- stored backups
+  const backupSettingsBody = z.object({
+    schedule: z.enum(['daily', 'weekly', 'off']).optional(),
+    hour: z.number().int().min(0).max(23).optional(),
+    keepDaily: z.number().int().min(1).max(60).optional(),
+    keepWeekly: z.number().int().min(0).max(52).optional(),
+    keepMonthly: z.number().int().min(0).max(36).optional(),
+  });
+  const backupView = () => {
+    const s = ctx.settings.get();
+    return {
+      backups: ctx.backups.list(),
+      schedule: { schedule: s.backupSchedule, hour: s.backupHour, keepDaily: s.backupKeepDaily, keepWeekly: s.backupKeepWeekly, keepMonthly: s.backupKeepMonthly },
+      nextDue: ctx.backups.nextDue(),
+      pendingRestore: pendingRestore(ctx.config.dataDir),
+      folder: ctx.config.backupDir,
+    };
+  };
+  const namedBackup = (name: string) => {
+    const file = backupPath(ctx.config.backupDir, name);
+    if (!file) throw notFound('Backup');
+    return file;
+  };
+
+  app.get('/api/admin/backups', { preHandler: requireAdmin }, async () => backupView());
+
+  app.post('/api/admin/backups', { preHandler: requireAdmin }, async (request) => {
+    const created = ctx.backups.create('manual');
+    ctx.audit.record('backup.created', { actor: request.user, ip: request.ip, target: created.name });
+    return created;
+  });
+
+  app.put('/api/admin/backups/settings', { preHandler: requireAdmin }, async (request) => {
+    const b = backupSettingsBody.parse(request.body);
+    ctx.settings.update({ backupSchedule: b.schedule, backupHour: b.hour, backupKeepDaily: b.keepDaily, backupKeepWeekly: b.keepWeekly, backupKeepMonthly: b.keepMonthly });
+    ctx.backups.rotate();
+    ctx.audit.record('settings.updated', { actor: request.user, ip: request.ip, detail: 'backup schedule' });
+    return backupView();
+  });
+
+  app.post<{ Params: { name: string } }>('/api/admin/backups/:name/verify', { preHandler: requireAdmin }, async (request) => verifyBackup(namedBackup(request.params.name)));
+
+  app.get<{ Params: { name: string } }>('/api/admin/backups/:name/download', { preHandler: requireAdmin }, async (request, reply) => {
+    const file = namedBackup(request.params.name);
+    ctx.audit.record('backup.downloaded', { actor: request.user, ip: request.ip, target: request.params.name });
+    return reply
+      .type(file.endsWith('.tar.gz') ? 'application/gzip' : 'application/vnd.sqlite3')
+      .header('Content-Disposition', `attachment; filename="${request.params.name}"`)
+      .header('Cache-Control', 'no-store')
+      .send(fs.createReadStream(file));
+  });
+
+  app.delete<{ Params: { name: string } }>('/api/admin/backups/:name', { preHandler: requireAdmin }, async (request) => {
+    fs.rmSync(namedBackup(request.params.name), { force: true });
+    ctx.audit.record('backup.deleted', { actor: request.user, ip: request.ip, target: request.params.name });
+    return backupView();
+  });
+
+  /** Stages a restore; it is applied (after a safety copy) when Velyx restarts. */
+  app.post<{ Params: { name: string } }>('/api/admin/backups/:name/restore', { preHandler: requireAdmin }, async (request) => {
+    // Explicit confirmation guards against accidental restores.
+    z.object({ confirm: z.literal(true) }).parse(request.body);
+    try {
+      stageRestore(namedBackup(request.params.name), ctx.config.dataDir, request.user!.username);
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+    return backupView();
+  });
+
+  app.delete('/api/admin/backups/restore/pending', { preHandler: requireAdmin }, async () => {
+    cancelRestore(ctx.config.dataDir);
+    return backupView();
   });
 }

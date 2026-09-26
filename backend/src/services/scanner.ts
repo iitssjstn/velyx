@@ -26,11 +26,15 @@ export interface ScanProgress {
   phase: 'discovering' | 'analyzing' | 'cleaning' | 'metadata' | 'done';
   processed: number;
   total: number;
+  /** Path (relative to the library) of the file being analysed. */
+  currentFile?: string | null;
 }
 
 export interface ScanOptions {
   refreshMetadata?: boolean;
   onProgress?: (p: ScanProgress) => void;
+  /** Awaited between files; resolves when the scan may continue (used to pause scans). */
+  checkpoint?: () => Promise<void>;
 }
 
 export interface ScanSummary {
@@ -120,7 +124,7 @@ export class LibraryScanner {
     private readonly db: DB,
     private readonly probe: Prober,
     private readonly metadata: MetadataService,
-    private readonly probeConcurrency = 2,
+    private readonly probeConcurrency = 1,
   ) {}
 
   async scan(libraryId: number, opts: ScanOptions = {}): Promise<ScanSummary> {
@@ -157,6 +161,8 @@ export class LibraryScanner {
 
     await mapLimit(candidates, this.probeConcurrency, async (file) => {
       seen.add(file);
+      await opts.checkpoint?.();
+      report({ phase: 'analyzing', processed, total: candidates.length, currentFile: path.relative(lib.path, file) });
       try {
         const st = await fsp.stat(file);
         const prev = existing.get(file);
@@ -185,6 +191,8 @@ export class LibraryScanner {
             bitrate: info?.bitrate ?? null,
             videoCodec: info?.videoCodec ?? null,
             videoProfile: info?.videoProfile ?? null,
+            videoBitDepth: info?.videoBitDepth ?? null,
+            videoRange: info?.videoRange ?? null,
             width: info?.width ?? null,
             height: info?.height ?? null,
             fps: info?.fps ?? null,
@@ -233,7 +241,7 @@ export class LibraryScanner {
         log.error(`Failed to process ${file}`, err);
       }
       processed++;
-      if (processed % 10 === 0 || processed === candidates.length) report({ phase: 'analyzing', processed, total: candidates.length });
+      report({ phase: 'analyzing', processed, total: candidates.length, currentFile: null });
     });
 
     // ---- removals

@@ -146,7 +146,7 @@ export function LibrariesPanel() {
     queryKey: ['libraries'],
     queryFn: () => api.get<{ libraries: Library[]; mediaRoots: string[] }>('/api/libraries'),
     // Poll while something is scanning so progress stays live.
-    refetchInterval: (query) => (query.state.data?.libraries.some((l) => l.scanning || l.queued) ? 1500 : false),
+    refetchInterval: (query) => (query.state.data?.libraries.some((l) => l.scanning || l.queued) ? 5000 : false),
   });
   // Light poll of the queue so scans started elsewhere (schedule, other admins) show up.
   useQuery({

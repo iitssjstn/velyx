@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Layers, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Layers, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Card, CollectionDetail, CollectionSummary } from '../lib/types';
+import type { Card, CollectionDetail, CollectionSummary, SmartCollection } from '../lib/types';
 import { Artwork } from '../components/Artwork';
 import { Button } from '../components/Button';
 import { PosterCard } from '../components/Cards';
@@ -57,6 +57,64 @@ export function CollectionForm({ initial, onDone }: { initial?: CollectionSummar
   );
 }
 
+/** Link to the Browse page with a smart collection's filters. */
+export function smartHref(c: Pick<SmartCollection, 'kind' | 'query'>): string {
+  const qs = new URLSearchParams(c.query).toString();
+  return `/${c.kind}${qs ? `?${qs}` : ''}`;
+}
+
+/** Saved filters, evaluated for the viewer; they open the Movies/TV Shows page with those filters. */
+function SmartCollections({ isAdmin }: { isAdmin: boolean }) {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['collections', 'smart'], queryFn: () => api.get<SmartCollection[]>('/api/collections/smart') });
+  const del = useMutation({
+    mutationFn: (id: number) => api.del(`/api/collections/${id}`),
+    onSuccess: () => {
+      toast.success('Smart collection deleted.');
+      void qc.invalidateQueries({ queryKey: ['collections', 'smart'] });
+    },
+    onError: (err) => toast.error(err),
+  });
+  if (!q.data?.length) return null;
+  return (
+    <section className="mt-8">
+      <h2 className="flex items-center gap-2 font-display text-xl font-semibold">
+        <Sparkles className="size-5 text-accent" /> Smart collections
+      </h2>
+      <p className="mt-1 text-sm text-muted">Always up to date, and personal: they follow your library access and what you have watched.</p>
+      <div className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]">
+        {q.data.map((c) => (
+          <div key={c.key} className="relative">
+            <Link to={smartHref(c)} className="group block focus-visible:outline-none">
+              <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:ring-accent/60 group-focus-visible:ring-2 group-focus-visible:ring-accent">
+                <Artwork path={c.posterPath} title={c.name} />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-xs text-ink backdrop-blur">
+                  <Sparkles className="size-3" /> {c.count.toLocaleString()}
+                </span>
+              </div>
+              <p className="mt-2 truncate text-sm font-medium text-ink/90 group-hover:text-ink">{c.name}</p>
+              <p className="text-xs text-faint">{c.kind === 'movies' ? 'Movies' : 'TV shows'}</p>
+            </Link>
+            {isAdmin && c.custom && c.id !== null && (
+              <button
+                type="button"
+                onClick={() => del.mutate(c.id!)}
+                className="absolute top-2 right-2 grid size-7 place-items-center rounded-full bg-black/70 text-ink backdrop-blur hover:bg-danger hover:text-bg"
+                aria-label={`Delete smart collection ${c.name}`}
+                title="Delete"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      {isAdmin && <p className="mt-4 text-xs text-faint">To make your own, set filters on the Movies or TV Shows page and choose “Save as smart collection”.</p>}
+    </section>
+  );
+}
+
 export function CollectionsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -73,6 +131,8 @@ export function CollectionsPage() {
           </Button>
         )}
       </div>
+      <SmartCollections isAdmin={isAdmin} />
+      {q.data && q.data.length > 0 && <h2 className="mt-10 font-display text-xl font-semibold">Collections</h2>}
       {q.isLoading ? (
         <PageLoader />
       ) : q.error ? (
@@ -83,7 +143,7 @@ export function CollectionsPage() {
           {isAdmin && ' You can also make your own collections.'}
         </EmptyState>
       ) : (
-        <div className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]">
+        <div className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]">
           {q.data.map((c) => (
             <Link key={c.id} to={`/collections/${c.id}`} className="group block focus-visible:outline-none">
               <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:ring-accent/60 group-focus-visible:ring-2 group-focus-visible:ring-accent">

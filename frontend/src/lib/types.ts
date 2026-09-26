@@ -68,6 +68,18 @@ export interface CollectionSummary extends CollectionRef {
   itemCount: number;
 }
 
+export interface SmartCollection {
+  key: string;
+  id: number | null;
+  name: string;
+  kind: 'movies' | 'shows';
+  query: Record<string, string>;
+  custom: boolean;
+  count: number;
+  posterPath: string | null;
+  backdropPath: string | null;
+}
+
 export interface CollectionDetail extends CollectionSummary {
   items: Card[];
 }
@@ -147,6 +159,8 @@ export interface MediaFileInfo {
   bitrate: number | null;
   videoCodec: string | null;
   videoProfile: string | null;
+  videoBitDepth: number | null;
+  videoRange: string | null;
   width: number | null;
   height: number | null;
   fps: number | null;
@@ -298,10 +312,71 @@ export interface PlaybackDecision {
   audioIndex: number | null;
   note: string | null;
   durationSec: number | null;
+  mode: PlaybackMode;
+}
+
+export type PlaybackMode = 'direct' | 'remux' | 'unsupported';
+
+/** Why and how a file plays (or does not) on this device; see backend playback/compatibility.ts. */
+export interface PlaybackAnalysis {
+  mode: PlaybackMode;
+  browser: string | null;
+  video: { codec: string | null; label: string; width: number | null; height: number | null; bitDepth: number | null; range: string | null; action: 'direct' | 'copy' | 'unsupported' };
+  audio: { codec: string | null; label: string; channels: number | null; action: 'direct' | 'copy' | 'convert' | 'none'; target: string | null };
+  container: { name: string | null; action: 'direct' | 'remux' };
+  problems: string[];
+  warnings: string[];
+  transcodeRequired: boolean;
+  serverTranscoding: false;
+  serverLoad: 'none' | 'low';
+}
+
+export interface SessionInfo {
+  id: string;
+  createdAt: number;
+  lastSeenAt: number;
+  expiresAt: number;
+  userAgent: string | null;
+  device: string;
+  ip: string | null;
+  current: boolean;
+}
+
+export interface AuditEntry {
+  id: number;
+  at: number;
+  actorId: number | null;
+  actorName: string | null;
+  action: string;
+  target: string | null;
+  detail: string | null;
+  ip: string | null;
+}
+
+export interface BackupFile {
+  name: string;
+  kind: 'auto' | 'manual' | 'archive' | 'pre-migration' | 'pre-restore';
+  size: number;
+  createdAt: number;
+}
+
+export interface BackupOverview {
+  backups: BackupFile[];
+  schedule: { schedule: 'daily' | 'weekly' | 'off'; hour: number; keepDaily: number; keepWeekly: number; keepMonthly: number };
+  nextDue: number | null;
+  pendingRestore: { source: string; requestedBy: string; requestedAt: number } | null;
+  folder: string;
+}
+
+export interface BackupVerification {
+  ok: boolean;
+  errors: string[];
+  info: { size: number; migrations: number | null; users: number | null; movies: number | null; shows: number | null } | null;
 }
 
 export interface PlaybackInfo {
   decision: PlaybackDecision;
+  analysis: PlaybackAnalysis;
   file: MediaFileInfo;
   subtitles: SubtitleOption[];
 }
@@ -328,11 +403,60 @@ export interface ScanProgress {
   phase: 'discovering' | 'analyzing' | 'cleaning' | 'metadata' | 'done';
   processed: number;
   total: number;
+  currentFile?: string | null;
 }
 
 export interface ScanState {
+  status: 'scanning' | 'queued' | 'paused' | 'failed' | 'idle';
   running: { libraryId: number; progress: ScanProgress; startedAt: number } | null;
   queued: { libraryId: number; refreshMetadata: boolean }[];
+  paused: { reason: 'manual' | 'low-disk'; since: number } | null;
+  lastSuccess: { libraryId: number; at: number; durationMs: number | null } | null;
+  lastFailure: { libraryId: number; at: number; message: string | null } | null;
+}
+
+export type DiskLevel = 'ok' | 'low' | 'critical';
+
+export interface DiskInfo {
+  total: number;
+  free: number;
+  used: number;
+  level: DiskLevel;
+}
+
+export interface ActiveStream {
+  id: string;
+  userId: number;
+  username: string;
+  mediaFileId: number;
+  movieId: number | null;
+  episodeId: number | null;
+  title: string;
+  subtitle: string | null;
+  mode: 'direct' | 'remux';
+  width: number | null;
+  height: number | null;
+  bitrate: number | null;
+  device: string | null;
+  startedAt: number;
+  lastSeenAt: number;
+  positionSec: number | null;
+  durationSec: number | null;
+}
+
+export interface CacheInfo {
+  bytes: number;
+  files: number;
+  unusedBytes: number;
+  unusedFiles: number;
+}
+
+export interface StorageReport {
+  disk: DiskInfo | null;
+  velyx: { database: number; artwork: number; subtitles: number; avatars: number; backups: number; total: number };
+  cache: { artwork: CacheInfo; subtitles: CacheInfo };
+  thresholds: { lowBytes: number; criticalBytes: number };
+  computedAt: number;
 }
 
 export interface Library {
@@ -373,6 +497,12 @@ export interface Dashboard {
   cpus: number;
   ffprobe: string | null;
   activeStreams: number;
+  cpu: { system: number | null; velyx: number | null };
+  streams: ActiveStream[];
+  disk: DiskInfo | null;
+  backups: { latest: BackupFile | null; nextDue: number | null };
+  probeQueue: { active: number; waiting: number };
+  update: { current: string; latest: string | null; available: boolean; url: string | null; checkedAt: number | null };
   tmdb: { configured: boolean; source: 'environment' | 'settings' | 'none' };
   counts: { movies: number; shows: number; seasons: number; episodes: number; files: number; users: number; needsReview: number };
   storage: {
@@ -393,6 +523,7 @@ export interface ServerSettings {
   tmdbLanguage: string;
   includeAdult: boolean;
   watchFolders: boolean;
+  updateCheck: boolean;
   tmdb: { configured: boolean; source: 'environment' | 'settings' | 'none'; hint: string | null };
   version: string;
   mediaRoots: string[];

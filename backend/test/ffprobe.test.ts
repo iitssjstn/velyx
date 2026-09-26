@@ -177,3 +177,52 @@ describe.skipIf(!available)('remux streaming (real FFmpeg)', () => {
     expect((await env.app.inject({ url: `${subs[0].url}?offset=-1`, headers: { cookie: admin } })).statusCode).toBe(400);
   });
 });
+
+/** 10-bit HDR detection and the on-demand analysis for files scanned before 0.4.0. */
+describe.skipIf(!available)('real FFprobe: bit depth and HDR', () => {
+  let env: TestEnv;
+  let admin: string;
+
+  beforeAll(async () => {
+    env = await createTestEnv({ prober: createFfprobe('ffprobe') });
+    admin = await setupAdmin(env.app);
+    const dir = path.join(env.mediaDir, 'movies');
+    fs.mkdirSync(dir, { recursive: true });
+    execFileSync('ffmpeg', [
+      '-v', 'error',
+      '-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=25:duration=1',
+      '-c:v', 'libx265', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p10le', '-x265-params', 'log-level=error',
+      '-color_primaries', 'bt2020', '-color_trc', 'smpte2084', '-colorspace', 'bt2020nc',
+      path.join(dir, 'Hdr Film (2021).mkv'),
+    ]);
+    await addLibrary(env, admin, 'movies', 'movies');
+  }, 60000);
+
+  afterAll(async () => {
+    await env?.cleanup();
+  });
+
+  it('stores 10-bit HDR10 and explains why a browser without HEVC cannot play it', async () => {
+    const [movie] = (await env.app.inject({ url: '/api/movies', headers: { cookie: admin } })).json().items;
+    const f = (await env.app.inject({ url: `/api/movies/${movie.id}`, headers: { cookie: admin } })).json().files[0];
+    expect(f).toMatchObject({ videoCodec: 'hevc', videoBitDepth: 10, videoRange: 'HDR10' });
+    const res = await env.app.inject({
+      method: 'POST',
+      url: `/api/media/${f.id}/playback`,
+      headers: { cookie: admin, 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0' },
+      payload: { containers: ['mp4', 'webm', 'mkv'], videoCodecs: ['h264', 'vp9', 'av1'], audioCodecs: ['aac', 'opus'] },
+    });
+    expect(res.json().decision.mode).toBe('unsupported');
+    expect(res.json().analysis).toMatchObject({ mode: 'unsupported', browser: 'Firefox', transcodeRequired: true, video: { label: 'HEVC / H.265', bitDepth: 10, range: 'HDR10' } });
+  });
+
+  it('analyses files from older versions once, on first playback', async () => {
+    const [movie] = (await env.app.inject({ url: '/api/movies', headers: { cookie: admin } })).json().items;
+    const fileId = (await env.app.inject({ url: `/api/movies/${movie.id}`, headers: { cookie: admin } })).json().files[0].id;
+    env.ctx.db.$client.prepare('UPDATE media_files SET video_bit_depth = NULL, video_range = NULL').run();
+    const res = await env.app.inject({ method: 'POST', url: `/api/media/${fileId}/playback`, headers: { cookie: admin }, payload: { videoCodecs: ['h264', 'hevc'], tenBitCodecs: ['hevc'] } });
+    expect(res.json().analysis.video).toMatchObject({ bitDepth: 10, range: 'HDR10' });
+    const row = env.ctx.db.$client.prepare('SELECT video_bit_depth AS d, video_range AS r FROM media_files').get();
+    expect(row).toEqual({ d: 10, r: 'HDR10' });
+  });
+});
