@@ -4,7 +4,7 @@
 
 Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.4.2 — **Library health**: one admin page that shows how your media will play (Direct Play, remux, device-dependent, unsupported), which formats you have (HEVC, AV1, 10-bit, HDR, Dolby Vision, DTS/TrueHD, PGS/VobSub) and what needs attention (missing metadata or artwork, scan errors, duplicates) — with the affected files and the reason for each, built from data Velyx already has. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
+> Version 0.4.3 — **Playback diagnostics**: the player shows per stream (video, audio, container) whether this device plays it (✓), Velyx converts it (⚠) or it cannot play here (✕), in plain language and without claiming more than it knows. **Settings → Playback → Current device** names your device and lists what it plays. Also in 0.4.x: Library health, card details on hover and many stability fixes. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
 
 ---
 
@@ -238,7 +238,9 @@ Velyx picks the lightest way to play each file:
 
 The decision uses the browser's own report of what it can decode (including 10-bit and HDR support) and the file's FFprobe data (codec, bit depth, HDR10/HLG/Dolby Vision). Files scanned before 0.4 are analysed once, the first time they are played — or all at once from **Admin → Library health**.
 
-In the player, a small badge shows the mode (*Direct Play*, or *Remux • Audio converted to AAC*); click it to see exactly what happens to video, audio and container, and that no video transcoding takes place. Admin → Dashboard lists active streams with user, title, mode, resolution, bitrate and duration.
+In the player, a small badge shows the mode (*Direct Play*, or *Remux • Audio converted to AAC*). Click it for the diagnosis: video, audio and container each get ✓ (plays), ⚠ (converted or repackaged), ✕ (this device cannot play it) or ? (cannot be confirmed), with a plain sentence such as *No server-side conversion required* or *The video does not need transcoding. Velyx will remux the media for compatibility.* When Velyx is not certain — for example a device that does not report its formats — it says so instead of claiming the file will fail. Admin → Dashboard lists active streams with user, title, mode, resolution, bitrate and duration.
+
+**Current device** (Settings → Playback) names the device (for example *Chrome on Windows* or *Safari on iPhone*) and lists what it plays: H.264, HEVC, AV1, VP9, 10-bit HEVC, the common audio formats, MP4/MKV and whether the screen reports HDR — marked as plays, converted by Velyx, not supported, or depends. The list comes from the browser's own report; the device name is only used to explain it, and for clients that report nothing Velyx falls back to what that kind of browser usually plays (never a large device database).
 
 | | Chrome / Edge | Firefox | Safari |
 | --- | --- | --- | --- |

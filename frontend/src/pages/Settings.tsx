@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react';
+import { Check, CircleHelp, Repeat, X } from 'lucide-react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { LanguagePreferences, SubtitleMode } from '../lib/player';
@@ -7,8 +8,7 @@ import { displayName, useAuth } from '../lib/auth';
 import { setPrefs, usePrefs } from '../lib/prefs';
 import { subtitleLineStyle } from '../lib/subtitles';
 import { detectCapabilities } from '../lib/codecs';
-import { codecName } from '../lib/format';
-import type { User } from '../lib/types';
+import type { DeviceFormat, DeviceReport, User } from '../lib/types';
 import { Avatar } from '../components/Avatar';
 import { Button } from '../components/Button';
 import { toast } from '../components/Toast';
@@ -262,7 +262,6 @@ export function LanguageSettings() {
 
 function PlaybackSettings() {
   const prefs = usePrefs();
-  const caps = detectCapabilities();
   return (
     <div className="space-y-6">
       <LanguageSettings />
@@ -315,26 +314,72 @@ function PlaybackSettings() {
           />
         </div>
       </Section>
-      <Section title="This browser" description="Velyx plays files directly whenever possible. These formats are supported here:">
-        <dl className="grid gap-3 text-sm sm:grid-cols-3">
-          <div>
-            <dt className="text-faint">Containers</dt>
-            <dd>{caps.containers.map((c) => c.toUpperCase()).join(', ') || '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-faint">Video</dt>
-            <dd>{caps.videoCodecs.map(codecName).join(', ') || '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-faint">Audio</dt>
-            <dd>{caps.audioCodecs.map(codecName).join(', ') || '—'}</dd>
-          </div>
-        </dl>
-        <p className="mt-4 text-sm text-muted">
-          When only the audio or the container is not supported (for example Dolby Digital, DTS or MKV in Safari), Velyx converts the audio on the fly and keeps the original video. Video formats that are not listed would need the video to be converted (transcoded), which Velyx does not do to keep the server light.
-        </p>
-      </Section>
+      <CurrentDevice />
     </div>
+  );
+}
+
+const SUPPORT: Record<DeviceFormat['support'], { icon: typeof Check; label: string; className: string }> = {
+  yes: { icon: Check, label: 'Plays', className: 'text-ok' },
+  converted: { icon: Repeat, label: 'Converted by Velyx', className: 'text-accent' },
+  depends: { icon: CircleHelp, label: 'Depends', className: 'text-muted' },
+  no: { icon: X, label: 'Not supported', className: 'text-danger' },
+};
+
+const KINDS: Array<{ kind: DeviceFormat['kind']; title: string }> = [
+  { kind: 'video', title: 'Video' },
+  { kind: 'audio', title: 'Audio' },
+  { kind: 'container', title: 'Containers' },
+  { kind: 'display', title: 'Screen' },
+];
+
+/** What this device plays, from the formats the browser reports, named like "Chrome on Windows". */
+export function CurrentDevice() {
+  const q = useQuery({
+    queryKey: ['playback-device'],
+    queryFn: () => api.post<DeviceReport>('/api/playback/device', detectCapabilities()),
+    staleTime: Infinity,
+  });
+  return (
+    <Section title="Current device" description="What this browser plays. Velyx plays files directly whenever it can; audio and containers it cannot play are converted on the fly, but video is never transcoded.">
+      {q.isLoading ? (
+        <p className="text-sm text-muted">Checking this browser…</p>
+      ) : q.error || !q.data ? (
+        <p className="text-sm text-danger">{errorMessage(q.error)}</p>
+      ) : (
+        <>
+          <p className="font-display text-base font-semibold">{q.data.device}</p>
+          {q.data.confidence !== 'reported' && <p className="mt-1 text-sm text-amber">This browser did not report its formats, so these are estimates.</p>}
+          <div className="mt-4 grid gap-6 sm:grid-cols-2">
+            {KINDS.map(({ kind, title }) => (
+              <div key={kind}>
+                <h3 className="text-xs font-medium tracking-wide text-faint uppercase">{title}</h3>
+                <ul className="mt-2 space-y-2">
+                  {q.data.formats
+                    .filter((f) => f.kind === kind)
+                    .map((f) => {
+                      const s = SUPPORT[f.support];
+                      const Icon = s.icon;
+                      return (
+                        <li key={f.key} className="flex items-start gap-3 text-sm">
+                          <Icon className={`mt-0.5 size-4 shrink-0 ${s.className}`} strokeWidth={2.5} role="img" aria-label={s.label} />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+                              <span>{f.label}</span>
+                              <span className={`text-xs ${s.className}`}>{s.label}</span>
+                            </span>
+                            {f.note && <span className="block text-xs text-muted">{f.note}</span>}
+                          </span>
+                        </li>
+                      );
+                    })}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Section>
   );
 }
 

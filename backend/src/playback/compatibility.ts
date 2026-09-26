@@ -1,4 +1,5 @@
 import type { ClientCapabilities, MediaFileRow, PlaybackDecision } from './engine.js';
+import { clientProfile } from './client-profile.js';
 
 /**
  * One place that knows what a browser can decode. The playback engines use it to make their
@@ -126,7 +127,21 @@ export interface PlaybackAnalysis {
   serverTranscoding: false;
   /** Rough server load for this stream. */
   serverLoad: 'none' | 'low';
+  /** "Chrome on Windows"; null when the device cannot be recognised. */
+  device: string | null;
+  /**
+   * How sure the verdict is: the device reported its formats, Velyx used the defaults for this
+   * kind of browser, or it assumed a typical browser.
+   */
+  confidence: 'reported' | 'profile' | 'assumed';
+  /** Per stream: can this device handle it, and what happens to it. */
+  components: Record<'video' | 'audio' | 'container', { status: ComponentStatus; note: string }>;
+  /** A few plain sentences that explain the decision. */
+  summary: string[];
 }
+
+/** ok = fine, warn = converted or repackaged, fail = cannot play here, unknown = cannot be confirmed. */
+export type ComponentStatus = 'ok' | 'warn' | 'fail' | 'unknown';
 
 function hdrWarning(range: string | null, caps: ClientCapabilities): string | null {
   if (!range || range === 'SDR') return null;
@@ -144,9 +159,11 @@ export function analyzePlayback(
   caps: ClientCapabilities,
   decision: Pick<PlaybackDecision, 'engine' | 'compatible' | 'audioIndex' | 'note' | 'streamUrl'>,
   userAgent?: string,
+  confidence: PlaybackAnalysis['confidence'] = reported(caps) ? 'reported' : 'assumed',
 ): PlaybackAnalysis {
   const video = videoSupport(file, caps);
-  const isReported = reported(caps);
+  const isReported = confidence !== 'assumed';
+  const profile = clientProfile(userAgent);
   const track = (file.audioTracks ?? []).find((t) => t.index === decision.audioIndex) ?? null;
   const audioCodec = track?.codec ?? file.audioCodec;
   const problems: string[] = [];
@@ -177,6 +194,48 @@ export function analyzePlayback(
     warnings.push(`${imageSubs.length} image-based subtitle track${imageSubs.length === 1 ? '' : 's'} (${names}) cannot be shown; text subtitles work.`);
   }
   if (!isReported && mode !== 'unsupported') warnings.push('This device did not report which formats it supports, so Velyx assumed a typical browser.');
+  if (confidence === 'profile') warnings.push(`This device did not report which formats it supports, so Velyx used what ${profile.name} usually plays.`);
+
+  // ---- per-stream status and a plain-language summary
+  const audioSupported = !audioCodec || (caps.audioCodecs ?? REFERENCE_CAPS.audioCodecs).includes(audioCodec);
+  const containerSupported = !file.container || (caps.containers ?? REFERENCE_CAPS.containers).includes(file.container);
+  const target = audioAction === 'convert' ? `AAC ${channels}` : null;
+  const components: PlaybackAnalysis['components'] = {
+    video:
+      mode === 'unsupported' && video.ok !== true
+        ? { status: video.ok === 'unknown' ? 'unknown' : 'fail', note: problems[0] ?? video.problem ?? 'This device cannot decode this video.' }
+        : mode === 'unsupported'
+          ? { status: 'fail', note: problems[0] ?? 'This device cannot decode this video.' }
+          : video.ok === 'unknown'
+            ? { status: 'unknown', note: video.problem ?? 'Velyx cannot confirm that this device decodes it.' }
+            : { status: 'ok', note: mode === 'remux' ? 'Copied without re-encoding' : 'Plays as-is' },
+    audio:
+      audioAction === 'none'
+        ? { status: 'ok', note: 'No audio track' }
+        : audioAction === 'convert'
+          ? { status: 'warn', note: `Converted to ${target}${audioSupported ? ' (for your audio settings or track choice)' : ''}` }
+          : mode === 'unsupported'
+            ? audioSupported
+              ? { status: 'ok', note: 'Supported' }
+              : audioCodec === 'aac'
+                ? { status: 'fail', note: 'This browser cannot play AAC audio' }
+                : { status: 'warn', note: 'Would be converted to AAC' }
+            : { status: 'ok', note: audioAction === 'copy' ? 'Copied as-is' : 'Plays as-is' },
+    container: containerSupported
+      ? { status: 'ok', note: mode === 'remux' ? 'Supported; streamed as MP4 while remuxing' : 'Supported' }
+      : { status: 'warn', note: mode === 'unsupported' ? 'Would be repackaged as MP4' : 'Repackaged as MP4' },
+  };
+  const summary: string[] = [];
+  if (mode === 'direct') summary.push('No server-side conversion required.');
+  else if (mode === 'remux') {
+    summary.push('The video does not need transcoding.');
+    summary.push(audioAction === 'convert' ? `Velyx remuxes the file and converts the audio to ${target}, which uses little CPU.` : 'Velyx will remux the media for compatibility, which uses little CPU.');
+  } else {
+    summary.push(components.video.status === 'unknown' ? 'This device may not be able to play this video format.' : 'Your current browser/device cannot play this video format.');
+    summary.push('Server transcoding: No. Velyx does not convert video.');
+  }
+  if (mode !== 'unsupported' && components.video.status === 'unknown') summary.push('Velyx cannot confirm that this device decodes the video. If it does not start, try another browser or device.');
+  if (confidence !== 'reported') summary.push('This is an estimate: the device did not report which formats it supports.');
 
   return {
     mode,
@@ -203,6 +262,10 @@ export function analyzePlayback(
     transcodeRequired: mode === 'unsupported',
     serverTranscoding: false,
     serverLoad: mode === 'remux' ? 'low' : 'none',
+    device: profile.family === 'unknown' && !profile.browser ? null : profile.name,
+    confidence,
+    components,
+    summary,
   };
 }
 

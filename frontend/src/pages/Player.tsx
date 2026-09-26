@@ -647,8 +647,13 @@ export default function PlayerPage() {
       {showUnavailable && info && (
         <PlaybackUnavailable
           analysis={
-            decodeFailed && !info.analysis.problems.length
-              ? { ...info.analysis, problems: ['The browser stopped with a decoding error. It could not decode this file after all.'] }
+            decodeFailed && info.analysis.mode !== 'unsupported'
+              ? {
+                  ...info.analysis,
+                  mode: 'unsupported',
+                  components: { ...info.analysis.components, video: { status: 'fail', note: 'The browser stopped with a decoding error: it could not decode this file after all.' } },
+                  summary: ['Your current browser/device could not play this file.', 'Server transcoding: No. Velyx does not convert video.'],
+                }
               : info.analysis
           }
           onBack={exit}

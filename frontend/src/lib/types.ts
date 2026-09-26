@@ -333,6 +333,29 @@ export interface PlaybackAnalysis {
   transcodeRequired: boolean;
   serverTranscoding: false;
   serverLoad: 'none' | 'low';
+  /** "Chrome on Windows"; null when unknown. */
+  device: string | null;
+  /** reported = the device listed its formats; profile/assumed = Velyx estimated them. */
+  confidence: 'reported' | 'profile' | 'assumed';
+  components: Record<'video' | 'audio' | 'container', { status: ComponentStatus; note: string }>;
+  summary: string[];
+}
+
+export type ComponentStatus = 'ok' | 'warn' | 'fail' | 'unknown';
+
+export interface DeviceFormat {
+  key: string;
+  kind: 'video' | 'audio' | 'container' | 'display';
+  label: string;
+  support: 'yes' | 'no' | 'converted' | 'depends';
+  note: string | null;
+}
+
+export interface DeviceReport {
+  device: string;
+  family: string;
+  confidence: 'reported' | 'profile' | 'assumed';
+  formats: DeviceFormat[];
 }
 
 export interface SessionInfo {
