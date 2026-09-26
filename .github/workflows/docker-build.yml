@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # push the version tag (see "Tag the release" below)
   packages: write
 
 # A newer push cancels a build that is still running, so an older commit can never overwrite :latest.
@@ -20,6 +20,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # On main, a version in package.json without a matching v<version> tag is a new release:
+      # its image also gets the version tags, and the git tag is created once the image is pushed.
+      - name: Detect new release
+        id: release
+        if: github.ref == 'refs/heads/main'
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "minor=${version%.*}" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+            echo "New release v$version"
+          fi
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -41,6 +57,8 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ steps.release.outputs.version }},enable=${{ steps.release.outputs.new == 'true' }}
+            type=raw,value=${{ steps.release.outputs.minor }},enable=${{ steps.release.outputs.new == 'true' }}
             type=sha,format=short
 
       - name: Build and push
@@ -53,3 +71,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Tags pushed with GITHUB_TOKEN do not start this workflow again, so the image is built only once.
+      - name: Tag the release
+        if: steps.release.outputs.new == 'true'
+        run: |
+          git tag "v${{ steps.release.outputs.version }}"
+          git push origin "v${{ steps.release.outputs.version }}"
