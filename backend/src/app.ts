@@ -21,6 +21,8 @@ import { EmbeddedSubtitleExtractor } from './services/subtitles.js';
 import { LibraryAccess } from './services/access.js';
 import { AuditLog } from './services/audit.js';
 import { BackupScheduler } from './services/backup-scheduler.js';
+import { DiskMonitor, StorageService } from './services/storage.js';
+import { StreamTracker } from './services/streams.js';
 import { PlaybackRegistry } from './playback/engine.js';
 import { DirectPlayEngine } from './playback/direct-play.js';
 import { RemuxEngine } from './playback/remux.js';
@@ -53,6 +55,9 @@ export interface AppContext {
   access: LibraryAccess;
   audit: AuditLog;
   backups: BackupScheduler;
+  storage: StorageService;
+  disk: DiskMonitor;
+  streams: StreamTracker;
   /** FFprobe behind the shared concurrency limit. */
   probe: Prober & { readonly active: number; readonly waiting: number };
   startedAt: number;
@@ -86,7 +91,11 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   playback.register(new DirectPlayEngine());
   playback.register(new RemuxEngine(config.ffmpegPath));
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit: new AuditLog(db), backups: new BackupScheduler(db, config.backupDir, settings), probe, startedAt: Date.now() };
+  const storage = new StorageService(db, config);
+  // Critically low disk space pauses scans (which write artwork and rows); they resume on their own.
+  const disk = new DiskMonitor(storage, (level) => (level === 'critical' ? scans.pause('low-disk') : scans.resume('low-disk')));
+  const backups = new BackupScheduler(db, config.backupDir, settings, () => (storage.dataDisk()?.level === 'critical' ? 'disk space is critically low' : null));
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit: new AuditLog(db), backups, storage, disk, streams: new StreamTracker(db), probe, startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

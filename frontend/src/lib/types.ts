@@ -391,11 +391,60 @@ export interface ScanProgress {
   phase: 'discovering' | 'analyzing' | 'cleaning' | 'metadata' | 'done';
   processed: number;
   total: number;
+  currentFile?: string | null;
 }
 
 export interface ScanState {
+  status: 'scanning' | 'queued' | 'paused' | 'failed' | 'idle';
   running: { libraryId: number; progress: ScanProgress; startedAt: number } | null;
   queued: { libraryId: number; refreshMetadata: boolean }[];
+  paused: { reason: 'manual' | 'low-disk'; since: number } | null;
+  lastSuccess: { libraryId: number; at: number; durationMs: number | null } | null;
+  lastFailure: { libraryId: number; at: number; message: string | null } | null;
+}
+
+export type DiskLevel = 'ok' | 'low' | 'critical';
+
+export interface DiskInfo {
+  total: number;
+  free: number;
+  used: number;
+  level: DiskLevel;
+}
+
+export interface ActiveStream {
+  id: string;
+  userId: number;
+  username: string;
+  mediaFileId: number;
+  movieId: number | null;
+  episodeId: number | null;
+  title: string;
+  subtitle: string | null;
+  mode: 'direct' | 'remux';
+  width: number | null;
+  height: number | null;
+  bitrate: number | null;
+  device: string | null;
+  startedAt: number;
+  lastSeenAt: number;
+  positionSec: number | null;
+  durationSec: number | null;
+}
+
+export interface CacheInfo {
+  bytes: number;
+  files: number;
+  unusedBytes: number;
+  unusedFiles: number;
+}
+
+export interface StorageReport {
+  disk: DiskInfo | null;
+  velyx: { database: number; artwork: number; subtitles: number; avatars: number; backups: number; total: number };
+  cache: { artwork: CacheInfo; subtitles: CacheInfo };
+  thresholds: { lowBytes: number; criticalBytes: number };
+  computedAt: number;
 }
 
 export interface Library {
@@ -436,6 +485,11 @@ export interface Dashboard {
   cpus: number;
   ffprobe: string | null;
   activeStreams: number;
+  cpu: { system: number | null; velyx: number | null };
+  streams: ActiveStream[];
+  disk: DiskInfo | null;
+  backups: { latest: BackupFile | null; nextDue: number | null };
+  probeQueue: { active: number; waiting: number };
   tmdb: { configured: boolean; source: 'environment' | 'settings' | 'none' };
   counts: { movies: number; shows: number; seasons: number; episodes: number; files: number; users: number; needsReview: number };
   storage: {

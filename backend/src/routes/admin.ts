@@ -64,30 +64,30 @@ const settingsBody = z.object({
 const matchSearch = z.object({ type: z.enum(['movie', 'show']), query: z.string().trim().min(1).max(200), year: z.coerce.number().int().min(1870).max(2100).optional() });
 const matchApply = z.object({ type: z.enum(['movie', 'show']), id: z.number().int().positive(), tmdbId: z.number().int().positive() });
 
-function dirSize(dir: string): number {
-  let total = 0;
-  const stack = [dir];
-  while (stack.length) {
-    const d = stack.pop()!;
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(d, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const e of entries) {
-      const p = path.join(d, e.name);
-      if (e.isDirectory()) stack.push(p);
-      else {
-        try {
-          total += fs.statSync(p).size;
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-  }
-  return total;
+/** CPU usage between two calls (system-wide and for the Velyx process), from cheap counters. */
+function cpuSampler() {
+  let prev = { times: os.cpus().map((c) => c.times), proc: process.cpuUsage(), at: process.hrtime.bigint() };
+  return () => {
+    const times = os.cpus().map((c) => c.times);
+    const proc = process.cpuUsage();
+    const at = process.hrtime.bigint();
+    let idle = 0;
+    let total = 0;
+    times.forEach((t, i) => {
+      const p = prev.times[i];
+      if (!p) return;
+      const sum = (x: typeof t) => x.user + x.nice + x.sys + x.idle + x.irq;
+      total += sum(t) - sum(p);
+      idle += t.idle - p.idle;
+    });
+    const elapsedUs = Number(at - prev.at) / 1000;
+    const procUs = proc.user - prev.proc.user + (proc.system - prev.proc.system);
+    prev = { times, proc, at };
+    return {
+      system: total > 0 ? Math.round((1 - idle / total) * 1000) / 10 : null,
+      velyx: elapsedUs > 0 ? Math.round((procUs / elapsedUs / Math.max(1, times.length)) * 1000) / 10 : null,
+    };
+  };
 }
 
 function diskInfo(p: string): { total: number; free: number } | null {
@@ -102,6 +102,7 @@ function diskInfo(p: string): { total: number; free: number } | null {
 export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   const db = ctx.db;
   let ffmpegVersion: string | null | undefined;
+  const sampleCpu = cpuSampler();
 
   // ------------------------------------------------------------------ dashboard
   app.get('/api/admin/dashboard', { preHandler: requireAdmin }, async () => {
@@ -135,6 +136,11 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       cpus: os.cpus().length,
       ffprobe: ffmpegVersion,
       activeStreams: (ctx.playback.get('remux') as RemuxEngine | undefined)?.activeStreams ?? 0,
+      cpu: sampleCpu(),
+      streams: ctx.streams.active(),
+      disk: ctx.storage.dataDisk(),
+      backups: { latest: ctx.backups.list()[0] ?? null, nextDue: ctx.backups.nextDue() },
+      probeQueue: { active: ctx.probe.active, waiting: ctx.probe.waiting },
       tmdb: { configured: ctx.tmdb.configured, source: ctx.settings.tmdbKeySource() },
       counts: {
         movies: db.select({ n: count() }).from(movies).get()!.n,
@@ -150,7 +156,8 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       storage: {
         mediaBytes,
         databaseBytes: dbSize,
-        cacheBytes: dirSize(ctx.config.cacheDir),
+        // Folder sizes come from the storage report, computed at most every 10 minutes.
+        cacheBytes: ((r) => r.velyx.artwork + r.velyx.subtitles)(await ctx.storage.get()),
         dataDisk: diskInfo(ctx.config.dataDir),
         libraries: libs.map((l) => ({ id: l.id, name: l.name, path: l.path, disk: diskInfo(l.path) })),
       },
@@ -161,6 +168,16 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
   });
 
   app.get('/api/admin/logs', { preHandler: requireAdmin }, async () => recentLogs().reverse());
+
+  // ------------------------------------------------------------------ storage
+  app.get<{ Querystring: { refresh?: string } }>('/api/admin/storage', { preHandler: requireAdmin }, async (request) => ctx.storage.get(request.query.refresh === '1'));
+
+  app.post('/api/admin/storage/cleanup', { preHandler: requireAdmin }, async (request) => {
+    const { target } = z.object({ target: z.enum(['artwork', 'subtitles']) }).parse(request.body);
+    const result = await ctx.storage.cleanup(target);
+    ctx.audit.record('cache.cleared', { actor: request.user, ip: request.ip, target: target === 'artwork' ? 'Artwork cache' : 'Subtitle cache', detail: `${result.files} unused file(s)` });
+    return { ...result, report: await ctx.storage.get(true) };
+  });
 
   // ------------------------------------------------------------------ libraries
   const libraryView = (l: typeof libraries.$inferSelect) => {

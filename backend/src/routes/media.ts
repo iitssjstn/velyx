@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
-import type { SessionUser } from '../auth/sessions.js';
+import { describeUserAgent, type SessionUser } from '../auth/sessions.js';
 import { requireUser } from '../app.js';
 import { libraries, mediaFiles, subtitles } from '../db/schema.js';
 import { resolveMediaPath } from '../services/paths.js';
@@ -95,6 +95,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     preHandler: requireUser,
     handler: async (request, reply) => {
       const { file, abs } = loadFile(request.params.id, request.user!);
+      if (request.method === 'GET') ctx.streams.touch(request.user!, file.id, 'direct', describeUserAgent(request.headers['user-agent']));
       const engine = ctx.playback.get('direct')!;
       return engine.serve(request, reply, file, abs);
     },
@@ -135,6 +136,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   // Live remux: video copied, audio converted when needed. Seeking = request again with ?start=.
   app.get<{ Params: { id: string } }>('/api/media/:id/remux', { preHandler: requireUser }, async (request, reply) => {
     const { file, abs } = loadFile(request.params.id, request.user!);
+    ctx.streams.touch(request.user!, file.id, 'remux', describeUserAgent(request.headers['user-agent']));
     return ctx.playback.get('remux')!.serve(request, reply, file, abs);
   });
 
