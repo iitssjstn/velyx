@@ -19,6 +19,9 @@ describe('series helpers', () => {
   it('plays or resumes straight from the list', () => {
     expect(episodePlayHref(ep)).toBe('/play/episode/7?t=0');
     expect(episodePlayHref({ ...ep, progress: { positionSec: 1934, durationSec: 2844, completed: false } })).toBe('/play/episode/7?t=1934');
+    // A watched episode being watched again resumes too; a finished one starts over.
+    expect(episodePlayHref({ ...ep, progress: { positionSec: 1200, durationSec: 2844, completed: true } })).toBe('/play/episode/7?t=1200');
+    expect(episodePlayHref({ ...ep, progress: { positionSec: 0, durationSec: 2844, completed: true } })).toBe('/play/episode/7?t=0');
   });
 
   it('picks the main button: resume, play next, play, or watch again', () => {
@@ -33,5 +36,7 @@ describe('series helpers', () => {
       startOverHref: '/play/episode/9?t=0',
       position: '32:14 / 48:21',
     });
+    // Watching a watched episode again: resume it.
+    expect(seriesContinue({ upNext: { ...up, progress: { positionSec: 1934, durationSec: 2901, completed: true } }, watchedCount: 10, episodeCount: 10 })?.label).toBe('Resume S02E04');
   });
 });

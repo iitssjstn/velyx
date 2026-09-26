@@ -48,10 +48,12 @@ export function saveProgress(
   const existing = db.select().from(watchProgress).where(where).get();
   const reached = durationSec > 0 && positionSec / durationSec >= COMPLETION_THRESHOLD;
   const completed = reached || (existing?.completed ?? false);
-  const justCompleted = reached && !existing?.completed;
+  // Finished for the first time, or finished again after watching it once more from an earlier point.
+  const justCompleted = reached && (!existing?.completed || existing.positionSec > 0);
   if (justCompleted && target.movieId) removeFromWatchlist(ctx, userId, { movieId: target.movieId });
-  // Once finished, the resume point resets so the next play starts at the beginning.
-  const position = justCompleted ? 0 : positionSec;
+  // Once finished, the resume point resets so the next play starts at the beginning. A watched item
+  // played again keeps its own resume point (it stays watched) until that play is finished too.
+  const position = reached ? 0 : positionSec;
   if (existing) {
     return db
       .update(watchProgress)

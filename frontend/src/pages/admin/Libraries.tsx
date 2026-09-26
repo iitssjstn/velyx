@@ -220,7 +220,7 @@ export function LibrariesPanel() {
           <p>{t('libraries.intro')}</p>
           {status.data && <p className="mt-0.5 text-xs text-faint">{t('libraries.scheduled', { schedule: scheduleLabel(status.data.schedule) })}</p>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {libraries.length > 0 && (
             <Button variant="secondary" icon={<ScanSearch className="size-4" />} onClick={() => action.mutate({ url: '/api/libraries/scan-all' })}>
               {t('libraries.scanAll')}

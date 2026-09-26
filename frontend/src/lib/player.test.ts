@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { pickSubtitle, playHref, preferredAudioIndex, startPosition, withParam } from './player';
+import { pickSubtitle, playHref, preferredAudioIndex, resumePoint, startPosition, subtitleName, withParam } from './player';
+import { setLanguage } from '../i18n';
 import { detectCapabilities } from './codecs';
 import { normalizeLanguage, sameLanguage } from './prefs';
 import type { SubtitleOption } from './types';
@@ -20,11 +21,20 @@ describe('startPosition', () => {
     expect(startPosition('0', { positionSec: 600, durationSec: 6000, completed: false })).toBe(0);
     expect(startPosition('120', null)).toBe(120);
   });
-  it('resumes unfinished items only', () => {
+  it('resumes unfinished plays only', () => {
     expect(startPosition(null, { positionSec: 600, durationSec: 6000, completed: false })).toBe(600);
-    expect(startPosition(null, { positionSec: 600, durationSec: 6000, completed: true })).toBe(0);
+    // A finished play starts at the beginning (the server resets the position when it is finished).
+    expect(startPosition(null, { positionSec: 0, durationSec: 6000, completed: true })).toBe(0);
     expect(startPosition(null, { positionSec: 10, durationSec: 6000, completed: false })).toBe(0);
     expect(startPosition(null, { positionSec: 5990, durationSec: 6000, completed: false })).toBe(0);
+  });
+  it('resumes a watched item that is being watched again', () => {
+    expect(startPosition(null, { positionSec: 600, durationSec: 6000, completed: true })).toBe(600);
+    // Positions at the end, as saved by older versions after a finished play, start over.
+    expect(startPosition(null, { positionSec: 5500, durationSec: 6000, completed: true })).toBe(0);
+    expect(resumePoint({ positionSec: 5400, durationSec: 6000 })).toBeNull();
+    expect(resumePoint({ positionSec: 5399, durationSec: 6000 })).toBe(5399);
+    expect(resumePoint(null)).toBeNull();
   });
 });
 
@@ -111,5 +121,24 @@ describe('playHref', () => {
     expect(playHref('movie', 5, 0)).toBe('/play/movie/5');
     expect(playHref('episode', 12, 600.7)).toBe('/play/episode/12?t=600');
     expect(playHref('movie', 5, 30, 9)).toBe('/play/movie/5?t=30&file=9');
+  });
+});
+
+describe('subtitleName', () => {
+  it('tells subtitles in the same language apart by their title', async () => {
+    expect(subtitleName({ language: 'eng', languageName: 'English', title: null })).toBe('English');
+    expect(subtitleName({ language: 'eng', languageName: 'English', title: 'English' })).toBe('English');
+    expect(subtitleName({ language: 'eng', languageName: 'English', title: 'SDH' })).toBe('English · SDH');
+    expect(subtitleName({ language: 'eng', languageName: 'English', title: 'Commentary' })).toBe('English · Commentary');
+    expect(subtitleName({ language: null, title: 'Signs & Songs' })).toBe('Signs & Songs');
+    expect(subtitleName({ language: null, title: null })).toBe('Unknown language');
+    await setLanguage('nl');
+    try {
+      // The language in the interface language; a title that only repeats it is left out.
+      expect(subtitleName({ language: 'eng', languageName: 'English', title: 'English' })).toBe('Engels');
+      expect(subtitleName({ language: 'eng', languageName: 'English', title: 'SDH' })).toBe('Engels · SDH');
+    } finally {
+      await setLanguage('en');
+    }
   });
 });

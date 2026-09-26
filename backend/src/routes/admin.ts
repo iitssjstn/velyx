@@ -284,6 +284,8 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       patch.path = check.resolved!;
       pathChanged = true;
     }
+    // Nothing changed (same name, same folder): nothing to save or record.
+    if (!Object.keys(patch).length || (patch.name === lib.name && !pathChanged)) return libraryView(lib);
     const row = db.update(libraries).set(patch).where(eq(libraries.id, id)).returning().get();
     ctx.audit.record('library.updated', {
       actor: request.user,
@@ -370,7 +372,8 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (uErr) throw new HttpError(400, uErr);
     const pErr = validatePassword(body.password);
     if (pErr) throw new HttpError(400, pErr);
-    if (db.select({ id: users.id }).from(users).where(eq(users.username, body.username)).get()) throw new HttpError(409, 'That username is taken.');
+    // Names differing only in case would be confusing at sign-in (which ignores case).
+    if (db.select({ id: users.id }).from(users).where(sql`lower(${users.username}) = lower(${body.username})`).get()) throw new HttpError(409, 'That username is taken.');
     const row = db
       .insert(users)
       .values({ username: body.username, displayName: body.displayName || null, role: body.role, passwordHash: await hashPassword(body.password) })

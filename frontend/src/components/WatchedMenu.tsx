@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckCheck, Eye, EyeOff } from 'lucide-react';
 import { useT } from '../i18n';
+import { useKeepOnScreen } from '../lib/hooks';
 
 /**
  * Round "watched" button for a whole series: opens a menu with "Mark as watched" and
@@ -10,6 +11,7 @@ export function WatchedMenu({ watchedCount, total, onMark }: { watchedCount: num
   const [open, setOpen] = useState(false);
   const { t } = useT();
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useKeepOnScreen<HTMLDivElement>(open);
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
@@ -31,7 +33,7 @@ export function WatchedMenu({ watchedCount, total, onMark }: { watchedCount: num
         {all ? <CheckCheck className="size-5" /> : <Eye className="size-5" />}
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 z-20 mt-2 w-60 overflow-hidden rounded-xl border border-line bg-raised py-1 shadow-2xl sm:right-auto sm:left-0">
+        <div ref={menuRef} role="menu" className="absolute left-0 z-20 mt-2 w-60 overflow-hidden rounded-xl border border-line bg-raised py-1 shadow-2xl">
           <button type="button" role="menuitem" className={item} disabled={all} onClick={() => (setOpen(false), onMark(true))}>
             <CheckCheck className="size-4 text-muted" /> {t('library.markSeriesWatched')}
           </button>

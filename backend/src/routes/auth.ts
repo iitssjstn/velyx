@@ -1,12 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { and, count, eq } from 'drizzle-orm';
+import { and, count, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireUser } from '../app.js';
 import { users } from '../db/schema.js';
-import { SESSION_COOKIE, describeUserAgent } from '../auth/sessions.js';
+import { SESSION_COOKIE, describeUserAgent, sessionCookieOptions } from '../auth/sessions.js';
 import { ProgressiveLimiter } from '../auth/rate-limit.js';
 
 /** Public session ids are 20 hex characters. */
@@ -43,20 +43,23 @@ export function adminCount(ctx: AppContext): number {
     .get()!.n;
 }
 
+/**
+ * The account for a sign-in name. Names are matched without regard to case ("Justin" signs in as
+ * "justin": phone keyboards often capitalise the first letter), unless two accounts differ only by case.
+ */
+export function findUserByName(ctx: AppContext, username: string) {
+  const exact = ctx.db.select().from(users).where(eq(users.username, username)).get();
+  if (exact) return exact;
+  const matches = ctx.db.select().from(users).where(sql`lower(${users.username}) = lower(${username})`).limit(2).all();
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
 export function setupRequired(ctx: AppContext): boolean {
   return ctx.db.select({ n: count() }).from(users).where(eq(users.role, 'admin')).get()!.n === 0;
 }
 
 function setSessionCookie(ctx: AppContext, request: FastifyRequest, reply: FastifyReply, token: string): void {
-  const secure = ctx.config.cookieSecure === 'auto' ? request.protocol === 'https' : ctx.config.cookieSecure;
-  reply.setCookie(SESSION_COOKIE, token, {
-    path: '/',
-    httpOnly: true,
-    sameSite: 'lax',
-    secure,
-    signed: true,
-    maxAge: Math.floor(ctx.sessions.ttlMs / 1000),
-  });
+  reply.setCookie(SESSION_COOKIE, token, sessionCookieOptions(ctx.config.cookieSecure, request.protocol, ctx.sessions.ttlMs));
 }
 
 const loginBody = z.object({ username: z.string().trim().min(1).max(64), password: z.string().min(1).max(256) });
@@ -161,7 +164,7 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
       reply.header('Retry-After', String(Math.ceil(wait / 1000)));
       throw new HttpError(429, 'Too many failed sign-in attempts. Try again in {wait}.', { wait: (lang) => waitMessage(wait, lang) });
     }
-    const user = ctx.db.select().from(users).where(eq(users.username, body.username)).get();
+    const user = findUserByName(ctx, body.username);
     const ok = user ? await verifyPassword(user.passwordHash, body.password) : await dummyVerify(body.password);
     if (!user || !ok) {
       limiter.fail(keys);

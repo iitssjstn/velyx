@@ -1,6 +1,6 @@
 import { t, type MessageKey } from '../i18n';
 import { episodeCode, formatClock } from './format';
-import { playHref } from './player';
+import { playHref, resumePoint } from './player';
 import type { EpisodeSummary, ShowDetail } from './types';
 
 /** "S02E04 · The Beginning" (just the code when the episode has no title). */
@@ -18,8 +18,8 @@ export function episodeState(ep: Pick<EpisodeSummary, 'progress'>): { kind: 'wat
 
 /** Play or resume an episode straight from the list, without a question in between. */
 export function episodePlayHref(ep: Pick<EpisodeSummary, 'id' | 'progress'>): string {
-  const state = episodeState(ep);
-  return state.kind === 'progress' ? playHref('episode', ep.id, ep.progress!.positionSec) : `/play/episode/${ep.id}?t=0`;
+  const at = resumePoint(ep.progress);
+  return at !== null ? playHref('episode', ep.id, at) : `/play/episode/${ep.id}?t=0`;
 }
 
 export interface ContinueAction {
@@ -37,7 +37,7 @@ export function seriesContinue(show: Pick<ShowDetail, 'upNext' | 'watchedCount' 
   if (!up) return null;
   const code = episodeCode(up.seasonNumber, up.episodeNumber);
   const p = up.progress;
-  if (p && !p.completed && p.positionSec >= 30) {
+  if (p && resumePoint(p) !== null) {
     const total = p.durationSec || up.durationSec || 0;
     return { label: t('series.resumeCode', { code }), href: playHref('episode', up.id, p.positionSec), startOverHref: `/play/episode/${up.id}?t=0`, position: total ? `${formatClock(p.positionSec)} / ${formatClock(total)}` : null };
   }

@@ -232,6 +232,31 @@ export class Catalog {
     );
   }
 
+  /**
+   * The first episode after `episodeId` that `userId` has not finished yet. Watching an earlier
+   * episode again ("rewatched episode 2 of 6") therefore continues after the ones already seen.
+   */
+  nextUnwatchedEpisode(userId: number, episodeId: number) {
+    const ep = this.db.select().from(episodes).where(eq(episodes.id, episodeId)).get();
+    if (!ep) return null;
+    const finished = sql`EXISTS (SELECT 1 FROM watch_progress wp WHERE wp.user_id = ${userId} AND wp.episode_id = ${episodes.id} AND wp.completed = 1)`;
+    return (
+      this.db
+        .select()
+        .from(episodes)
+        .where(
+          and(
+            eq(episodes.showId, ep.showId),
+            sql`(${episodes.seasonNumber} > ${ep.seasonNumber} OR (${episodes.seasonNumber} = ${ep.seasonNumber} AND ${episodes.episodeNumber} > ${ep.episodeNumber}))`,
+            sql`NOT ${finished}`,
+          ),
+        )
+        .orderBy(episodes.seasonNumber, episodes.episodeNumber)
+        .limit(1)
+        .get() ?? null
+    );
+  }
+
   previousEpisode(episodeId: number) {
     const ep = this.db.select().from(episodes).where(eq(episodes.id, episodeId)).get();
     if (!ep) return null;

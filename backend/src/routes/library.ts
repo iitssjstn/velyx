@@ -30,6 +30,7 @@ import { similarItems } from '../services/recommendations.js';
 import { listQuery, movieListWhere, movieRuntime, showListWhere } from '../services/list-filters.js';
 import { visibleCollections } from '../services/collections.js';
 import { assertEpisode, assertMovie, assertShow, canSee, scopeCondition } from '../services/access.js';
+import { COMPLETION_THRESHOLD } from './user-data.js';
 
 type FileRow = typeof mediaFiles.$inferSelect;
 
@@ -116,7 +117,14 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     const inProgress = db
       .select()
       .from(watchProgress)
-      .where(and(eq(watchProgress.userId, userId), eq(watchProgress.completed, false), sql`${watchProgress.positionSec} >= 30`))
+      .where(
+        and(
+          eq(watchProgress.userId, userId),
+          sql`${watchProgress.positionSec} >= 30`,
+          // Watched items played again appear too; a finished play never does.
+          sql`(${watchProgress.durationSec} = 0 OR ${watchProgress.positionSec} < ${watchProgress.durationSec} * ${COMPLETION_THRESHOLD})`,
+        ),
+      )
       .orderBy(desc(watchProgress.updatedAt))
       .limit(40)
       .all();
@@ -175,8 +183,8 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     // "Next up": the episode after the latest finished one, for shows not already listed.
     const nexts = latestCompletedPerShow
       .filter((c) => !showsInProgress.has(c.showId))
-      .map((c) => ({ c, next: catalog.nextEpisode(c.episodeId) }))
-      .filter((x): x is { c: (typeof latestCompletedPerShow)[number]; next: NonNullable<ReturnType<typeof catalog.nextEpisode>> } => Boolean(x.next));
+      .map((c) => ({ c, next: catalog.nextUnwatchedEpisode(userId, c.episodeId) }))
+      .filter((x): x is { c: (typeof latestCompletedPerShow)[number]; next: NonNullable<ReturnType<typeof catalog.nextUnwatchedEpisode>> } => Boolean(x.next));
     const nextRows = loadEpisodes(nexts.map((x) => x.next.id));
     const nextProgress = new Map(
       nexts.length
@@ -483,7 +491,8 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     const ordered = regular.length ? regular : eps;
     let upNext = ordered.find((e) => {
       const p = progress.get(e.id);
-      return p && !p.completed && p.positionSec >= 30;
+      // Started (or, when already watched, being watched again) and not finished.
+      return p && p.positionSec >= 30 && (!p.completed || p.durationSec === 0 || p.positionSec < p.durationSec * COMPLETION_THRESHOLD);
     });
     if (!upNext) {
       let lastWatchedIdx = -1;

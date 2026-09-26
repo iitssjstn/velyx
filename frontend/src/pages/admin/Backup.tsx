@@ -152,7 +152,7 @@ export function BackupPage() {
             <h2 className="font-display text-lg font-semibold">{t('backup.stored')}</h2>
             <p className="mt-1 text-sm text-muted">{t('backup.storedIn', { folder: d.folder })}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <a href="/api/admin/backup" download className="inline-flex h-10 items-center gap-2 rounded-lg bg-raised px-4 text-ink hover:bg-line">
               <Download className="size-4" /> {t('backup.downloadCurrent')}
             </a>
