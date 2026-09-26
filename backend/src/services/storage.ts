@@ -29,7 +29,7 @@ export interface CacheInfo {
 
 export interface StorageReport {
   disk: DiskInfo | null;
-  velyx: { database: number; artwork: number; subtitles: number; avatars: number; backups: number; total: number };
+  velyx: { database: number; artwork: number; subtitles: number; fetchedSubtitles: number; avatars: number; backups: number; total: number };
   cache: { artwork: CacheInfo; subtitles: CacheInfo };
   thresholds: { lowBytes: number; criticalBytes: number };
   computedAt: number;
@@ -159,15 +159,16 @@ export class StorageService {
         return s;
       }
     }, 0);
-    const [artwork, subtitles, avatars, backups] = await Promise.all([
+    const [artwork, subtitles, fetchedSubtitles, avatars, backups] = await Promise.all([
       this.scanCache('artwork'),
       this.scanCache('subtitles'),
+      dirSize(this.config.onlineSubtitleDir),
       dirSize(this.config.avatarDir),
       dirSize(this.config.backupDir),
     ]);
     return {
       disk: this.dataDisk(),
-      velyx: { database: dbSize, artwork: artwork.bytes, subtitles: subtitles.bytes, avatars, backups, total: dbSize + artwork.bytes + subtitles.bytes + avatars + backups },
+      velyx: { database: dbSize, artwork: artwork.bytes, subtitles: subtitles.bytes, fetchedSubtitles, avatars, backups, total: dbSize + artwork.bytes + subtitles.bytes + fetchedSubtitles + avatars + backups },
       cache: { artwork, subtitles },
       thresholds: { lowBytes: this.lowBytes, criticalBytes: this.criticalBytes },
       computedAt: Date.now(),

@@ -151,6 +151,7 @@ function StorageCard({ dashboard }: { dashboard: Dashboard }) {
     [t('dashboard.database'), r?.velyx.database],
     [t('dashboard.artworkCache'), r?.velyx.artwork],
     [t('dashboard.subtitleCache'), r?.velyx.subtitles],
+    [t('dashboard.fetchedSubtitles'), r?.velyx.fetchedSubtitles],
     [t('dashboard.avatars'), r?.velyx.avatars],
     [t('dashboard.backups'), r?.velyx.backups],
   ];

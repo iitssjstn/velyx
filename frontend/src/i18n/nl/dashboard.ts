@@ -100,4 +100,5 @@ export const dashboard: Messages['dashboard'] = {
     one: '{count} bestand',
     other: '{count} bestanden',
   },
+  fetchedSubtitles: 'Opgehaalde ondertitels',
 };

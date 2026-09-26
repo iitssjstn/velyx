@@ -598,7 +598,7 @@ export interface CacheInfo {
 
 export interface StorageReport {
   disk: DiskInfo | null;
-  velyx: { database: number; artwork: number; subtitles: number; avatars: number; backups: number; total: number };
+  velyx: { database: number; artwork: number; subtitles: number; fetchedSubtitles: number; avatars: number; backups: number; total: number };
   cache: { artwork: CacheInfo; subtitles: CacheInfo };
   thresholds: { lowBytes: number; criticalBytes: number };
   computedAt: number;
