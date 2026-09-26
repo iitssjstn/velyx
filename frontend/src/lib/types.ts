@@ -326,7 +326,7 @@ export interface EpisodeDetail {
   stillPath: string | null;
   files: MediaFileInfo[];
   progress: Progress | null;
-  next: { id: number; seasonNumber: number; episodeNumber: number; title: string | null; stillPath: string | null } | null;
+  next: { id: number; seasonNumber: number; episodeNumber: number; title: string | null; stillPath: string | null; overview: string | null; runtime: number | null; durationSec: number | null } | null;
   previous: { id: number; seasonNumber: number; episodeNumber: number; title: string | null } | null;
   replacements: Replacement[];
   /** Detected (or manually set) intro and credits; null when unknown. */

@@ -171,3 +171,10 @@ export function upNextStart(segments: EpisodeSegments | null | undefined, fileId
   if (usable && segments.credits && !segments.postCredits && segments.credits.end >= duration - 5) return Math.min(fallback, segments.credits.start);
   return fallback;
 }
+
+/** Whether the end credits (with nothing after them) are playing: the "Next episode" card then offers *Watch credits*. */
+export function creditsPlaying(segments: EpisodeSegments | null | undefined, fileId: number | null | undefined, time: number): boolean {
+  if (!segments?.credits || (segments.fileId !== null && fileId != null && segments.fileId !== fileId)) return false;
+  if (segments.postCredits && segments.postCredits.start >= segments.credits.end - 1) return false;
+  return time >= segments.credits.start && time < segments.credits.end;
+}

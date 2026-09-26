@@ -27,11 +27,12 @@ import { api, ApiError, errorMessage } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
 import { getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
-import { initialSubtitle, isTyping, preferredAudioIndex, skipAt, startPosition, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type SkipAction } from '../lib/player';
+import { creditsPlaying, initialSubtitle, isTyping, preferredAudioIndex, skipAt, startPosition, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type SkipAction } from '../lib/player';
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo } from '../lib/types';
 import { Spinner } from '../components/States';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { PlaybackBadge, PlaybackUnavailable } from '../components/PlaybackDetails';
+import { UpNext } from '../components/UpNext';
 
 const SAVE_INTERVAL_MS = 10_000;
 const HIDE_CONTROLS_MS = 3000;
@@ -909,36 +910,20 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         </div>
       )}
 
-      {/* Auto-next overlay */}
+      {/* Next episode: at the credits (or the last seconds), with Watch credits and a filling Next episode button. */}
       {showUpNext && next && (
-        <div className="absolute right-4 bottom-28 z-20 sm:right-8 sm:bottom-40 w-72 overflow-hidden rounded-2xl border border-line bg-surface/95 shadow-2xl backdrop-blur sm:w-80" role="dialog" aria-label="Next episode">
-          {next.stillPath && <img src={imageUrl(next.stillPath, 'w300') ?? ''} alt="" className="aspect-video w-full object-cover" />}
-          <div className="p-4">
-            <p className="text-xs text-muted">Next episode · {episodeCode(next.seasonNumber, next.episodeNumber)}</p>
-            <p className="truncate font-medium">{next.title ?? `Episode ${next.episodeNumber}`}</p>
-            {countdown !== null && <p className="mt-1 text-sm text-ink/80">Playing in {countdown} {countdown === 1 ? 'second' : 'seconds'}</p>}
-            <div className="mt-3 flex gap-2">
-              <button type="button" onClick={goNext} className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-ink font-semibold text-bg">
-                <Play className="size-4 fill-current" /> Play now
-              </button>
-              {!ended && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCountdown(null);
-                    setUpNextDismissed(true);
-                  }}
-                  className="h-9 rounded-lg bg-raised px-3 text-sm"
-                >
-                  Cancel
-                </button>
-              )}
-              {ended && countdown !== null && (
-                <button type="button" onClick={() => setCountdown(null)} className="h-9 rounded-lg bg-raised px-3 text-sm">Cancel</button>
-              )}
-            </div>
-          </div>
-        </div>
+        <UpNext
+          next={next}
+          countdown={countdown}
+          countdownTotal={prefs.autoplayCountdown}
+          credits={creditsPlaying(item.data?.segments, file?.id, time)}
+          ended={ended}
+          onPlay={goNext}
+          onStay={() => {
+            setCountdown(null);
+            if (!ended) setUpNextDismissed(true);
+          }}
+        />
       )}
       {!mini && ended && !next && !error && (
         <div className="absolute inset-0 z-10 grid place-items-center bg-black/60">
