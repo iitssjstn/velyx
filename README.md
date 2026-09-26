@@ -351,7 +351,7 @@ Optional, and off until an administrator switches it on in **Admin → Server �
 ## Monitoring and storage
 
 - **Dashboard:** CPU (system and Velyx), memory, scanner status with pause/resume, active streams, last and next backup, and update notices. It refreshes every 10 seconds while something is happening and every 30 seconds otherwise.
-- **Storage:** total, used and free space on the data volume, and what Velyx itself uses (database, artwork cache, subtitle cache, avatars, backups). Folder sizes are recalculated at most every 10 minutes to keep disk I/O low.
+- **Storage:** total, used and free space on the data volume, and what Velyx itself uses (database, artwork cache, subtitle cache, subtitles fetched online, avatars, backups). Folder sizes are recalculated at most every 10 minutes to keep disk I/O low.
 - **Low disk space:** below `LOW_DISK_GB` the dashboard warns; below `CRITICAL_DISK_GB` scans and scheduled backups pause automatically and resume when space is available again. Velyx never deletes media.
 - **Cache clean-up:** remove artwork and extracted subtitles that nothing in the library uses any more (e.g. after deleting media). Artwork that is still needed is kept, and media files are never touched.
 - **Update notices:** Velyx checks the project's version tags on GitHub at most once a day, only when an administrator opens the dashboard, and sends nothing about your server. Switch it off in Admin → Server.

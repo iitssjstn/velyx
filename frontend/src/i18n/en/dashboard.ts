@@ -99,4 +99,5 @@ export const dashboard = {
     one: '{count} file',
     other: '{count} files',
   },
+  fetchedSubtitles: 'Fetched subtitles',
 };

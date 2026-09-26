@@ -66,12 +66,16 @@ describe('storage report and cache cleanup', () => {
     touch(path.join(subs, `${file.id}-3-5000.vtt`), 'WEBVTT');
     touch(path.join(subs, `${file.id}-3-4000.vtt`), 'WEBVTT old');
     touch(path.join(subs, '999-1-1.vtt'), 'WEBVTT orphan');
+    // Subtitles fetched from OpenSubtitles live in the data folder and count as Velyx's own too.
+    touch(path.join(env.ctx.config.onlineSubtitleDir, `${file.id}-21.vtt`), 'x'.repeat(40));
 
     const res = await env.app.inject({ url: '/api/admin/storage?refresh=1', headers: { cookie: admin } });
     const r = res.json();
     expect(r.cache.artwork).toMatchObject({ files: 3, bytes: 500, unusedFiles: 1, unusedBytes: 300 });
     expect(r.cache.subtitles).toMatchObject({ files: 3, unusedFiles: 2 });
     expect(r.velyx.database).toBeGreaterThan(0);
+    expect(r.velyx.fetchedSubtitles).toBe(40);
+    expect(r.velyx.total).toBe(r.velyx.database + r.velyx.artwork + r.velyx.subtitles + r.velyx.fetchedSubtitles + r.velyx.avatars + r.velyx.backups);
     expect(r.disk.total).toBeGreaterThan(0);
 
     const cleaned = (await env.app.inject({ method: 'POST', url: '/api/admin/storage/cleanup', headers: { cookie: admin }, payload: { target: 'artwork' } })).json();
