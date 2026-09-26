@@ -6,6 +6,7 @@ import { Logo } from './Logo';
 import { Avatar } from './Avatar';
 import { useT, type MessageKey } from '../i18n';
 import { QuickSearch } from './QuickSearch';
+import { AppBackButton, InstallApp } from './InstallApp';
 
 const NAV: Array<{ to: string; label: MessageKey; icon: typeof House; end?: boolean }> = [
   { to: '/', label: 'nav.home', icon: House, end: true },
@@ -122,19 +123,26 @@ export function Layout() {
     <div className="min-h-dvh lg:pl-60">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line/60 bg-bg/95 px-3 py-5 lg:flex">
-        <div className="px-3 pb-6">
-          <Logo />
+        <div className="flex items-center gap-1 pb-6">
+          <AppBackButton className="-ml-1" />
+          <div className="px-3">
+            <Logo />
+          </div>
         </div>
         <SearchButton onOpen={() => setSearching(true)} />
         <NavItems />
         <div className="mt-auto">
+          <InstallApp />
           <UserBox />
         </div>
       </aside>
 
       {/* Mobile top bar */}
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line/50 bg-bg/90 px-4 backdrop-blur lg:hidden">
-        <Logo size="sm" />
+        <div className="flex items-center gap-1">
+          <AppBackButton className="-ml-3" />
+          <Logo size="sm" />
+        </div>
         <div className="flex items-center gap-1">
           <button type="button" onClick={() => setSearching(true)} className="grid size-10 place-items-center rounded-full text-muted" aria-label={t('nav.searchVelyx')}>
             <Search className="size-5" />
@@ -157,6 +165,7 @@ export function Layout() {
             </div>
             <NavItems onNavigate={() => setOpen(false)} />
             <div className="mt-auto">
+              <InstallApp onDone={() => setOpen(false)} />
               <UserBox />
             </div>
           </div>

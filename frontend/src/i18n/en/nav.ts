@@ -13,4 +13,6 @@ export const nav = {
   openMenu: 'Open menu',
   closeMenu: 'Close menu',
   menu: 'Menu',
+  back: 'Back',
+  installApp: 'Install app',
 };

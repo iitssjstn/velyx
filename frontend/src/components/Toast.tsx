@@ -36,7 +36,7 @@ export function Toaster() {
     };
   }, []);
   return (
-    <div className="pointer-events-none fixed right-4 bottom-4 z-[100] flex max-w-sm flex-col gap-2" aria-live="polite">
+    <div className="pointer-events-none fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[100] flex max-w-sm flex-col gap-2" aria-live="polite">
       {list.map((t) => (
         <div key={t.id} className="pointer-events-auto flex items-start gap-3 rounded-xl border border-line bg-raised px-4 py-3 text-sm shadow-2xl">
           {t.kind === 'success' ? <CircleCheck className="mt-0.5 size-4 shrink-0 text-ok" /> : <CircleAlert className="mt-0.5 size-4 shrink-0 text-danger" />}
