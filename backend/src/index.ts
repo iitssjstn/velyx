@@ -57,7 +57,12 @@ async function main(): Promise<void> {
   ctx.disk.start();
   // A backup missed while Velyx was off runs shortly after start, not in the middle of it.
   setTimeout(() => ctx.backups.tick(), 2 * 60 * 1000).unref();
-  const purgeTimer = setInterval(() => ctx.sessions.purgeExpired(), 6 * 60 * 60 * 1000);
+  ctx.streams.start();
+  ctx.streams.purgeHistory();
+  const purgeTimer = setInterval(() => {
+    ctx.sessions.purgeExpired();
+    ctx.streams.purgeHistory();
+  }, 6 * 60 * 60 * 1000);
   purgeTimer.unref();
 
   let shuttingDown = false;
@@ -67,6 +72,7 @@ async function main(): Promise<void> {
     log.info(`Received ${signal}, shutting down`);
     ctx.scans.stop();
     ctx.segments.stop();
+    ctx.streams.stop();
     ctx.watcher.stop();
     ctx.backups.stop();
     ctx.disk.stop();

@@ -145,12 +145,18 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return { device: profile.name, family: profile.family, confidence, formats: deviceSupport(reportedCaps, profile) };
   });
 
+  /** What a remux request does with the audio, for the activity log (null = passed through). */
+  function remuxAudioLabel(q: Record<string, string | undefined>): string | null {
+    if (q.audio === 'none' || q.copy === '1') return null;
+    return `AAC ${q.ch === '6' ? '5.1' : 'stereo'}${q.voice === '1' ? ' · voices boosted' : ''}${q.level === '1' ? ' · volume levelled' : ''}`;
+  }
+
   // Live remux: video copied, audio converted when needed. Seeking = request again with ?start=.
   app.get<{ Params: { id: string } }>('/api/media/:id/remux', { preHandler: requireUser }, async (request, reply) => {
     const { file, abs } = loadFile(request.params.id, request.user!);
     // A HEAD request only asks whether the stream exists: never start FFmpeg for it.
     if (request.method === 'HEAD') return reply.code(200).header('Content-Type', 'video/mp4').header('Accept-Ranges', 'none').send();
-    ctx.streams.touch(request.user!, file.id, 'remux', describeUserAgent(request.headers['user-agent']));
+    ctx.streams.touch(request.user!, file.id, 'remux', describeUserAgent(request.headers['user-agent']), remuxAudioLabel(request.query as Record<string, string | undefined>));
     return ctx.playback.get('remux')!.serve(request, reply, file, abs);
   });
 

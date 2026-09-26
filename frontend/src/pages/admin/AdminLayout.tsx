@@ -9,9 +9,11 @@ import { BackupPage } from './Backup';
 import { AuditPage } from './Audit';
 import { HealthPage } from './Health';
 import { SegmentsPage } from './Segments';
+import { ActivityPage } from './Activity';
 
 const TABS = [
   { to: 'dashboard', label: 'Dashboard' },
+  { to: 'activity', label: 'Activity' },
   { to: 'libraries', label: 'Libraries' },
   { to: 'users', label: 'Users' },
   { to: 'metadata', label: 'Metadata' },
@@ -41,6 +43,7 @@ export default function AdminLayout() {
       <Routes>
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="activity" element={<ActivityPage />} />
         <Route path="libraries" element={<LibrariesPanel />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="metadata" element={<MetadataPage />} />

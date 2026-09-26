@@ -481,6 +481,7 @@ export interface DiskInfo {
 
 export interface ActiveStream {
   id: string;
+  sessionId: number;
   userId: number;
   username: string;
   mediaFileId: number;
@@ -489,6 +490,12 @@ export interface ActiveStream {
   title: string;
   subtitle: string | null;
   mode: 'direct' | 'remux';
+  /** What the remux does with the audio, e.g. "AAC 5.1"; null = passed through. */
+  audioConversion: string | null;
+  container: string | null;
+  videoCodec: string | null;
+  audioCodec: string | null;
+  showId: number | null;
   width: number | null;
   height: number | null;
   bitrate: number | null;
@@ -497,6 +504,47 @@ export interface ActiveStream {
   lastSeenAt: number;
   positionSec: number | null;
   durationSec: number | null;
+  watchedSec: number;
+}
+
+/** One viewing in the activity log. */
+export interface HistoryEntry {
+  id: number;
+  userId: number | null;
+  username: string;
+  kind: 'movie' | 'episode';
+  movieId: number | null;
+  episodeId: number | null;
+  showId: number | null;
+  title: string;
+  subtitle: string | null;
+  mode: 'direct' | 'remux';
+  audioConversion: string | null;
+  container: string | null;
+  videoCodec: string | null;
+  audioCodec: string | null;
+  width: number | null;
+  height: number | null;
+  bitrate: number | null;
+  device: string | null;
+  startedAt: number;
+  endedAt: number | null;
+  watchedSec: number;
+  positionSec: number | null;
+  durationSec: number | null;
+}
+
+export interface ActivityStats {
+  days: number;
+  from: number;
+  totals: { plays: number; watchSec: number; movies: number; episodes: number; users: number };
+  modes: { direct: { plays: number; watchSec: number }; remux: { plays: number; watchSec: number }; audioConverted: number };
+  granularity: 'day' | 'week' | 'month';
+  timeline: { period: string; watchSec: number; plays: number }[];
+  topMovies: { id: number; title: string; subtitle: string | null; plays: number; watchSec: number }[];
+  topShows: { id: number; title: string; plays: number; watchSec: number }[];
+  topUsers: { userId: number | null; username: string; plays: number; watchSec: number }[];
+  clients: { device: string; plays: number; watchSec: number }[];
 }
 
 export interface CacheInfo {

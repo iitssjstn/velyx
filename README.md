@@ -23,6 +23,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - [Subtitles and audio tracks](#subtitles-and-audio-tracks)
 - [Users and roles](#users-and-roles)
 - [Monitoring and storage](#monitoring-and-storage)
+- [Activity and statistics](#activity-and-statistics)
 - [Library health](#library-health)
 - [Intros and credits](#intros-and-credits)
 - [Running behind a reverse proxy](#running-behind-a-reverse-proxy)
@@ -62,7 +63,8 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Per-user library access** — choose which libraries each user can see (for example a kids-only library).
 - **Collections** — movie series from TMDB (such as “The Matrix Collection”) are grouped automatically once you have two or more of their movies; administrators can also make their own collections of movies and shows. **Smart collections** (Recently Added, Unwatched, 4K, HDR, Short Movies, decades, …) are saved filters, evaluated per viewer, and admins can save their own.
 - **Multiple users** with administrator and user roles, device/session management and an audit log.
-- **Admin panel** — dashboard with CPU, memory, disk, scanner status, active streams and backups; libraries with live scan progress; Library health; intros & credits; users and sessions; metadata review; server settings; logs; audit log; backups.
+- **Activity and statistics** — who is watching what right now (with exactly how it is sent: Direct Play or Remux, codecs, resolution, bitrate, device), a full activity log, watch time per day, week or month, most watched movies and shows, and a watch history for every user.
+- **Admin panel** — dashboard with CPU, memory, disk, scanner status, active streams and backups; activity and statistics; libraries with live scan progress; Library health; intros & credits; users and sessions; metadata review; server settings; logs; audit log; backups.
 - **Backups** — scheduled database backups with daily/weekly/monthly rotation, verification, and restore from the admin page or the command line.
 - **Storage monitoring** — warnings when the data volume runs low; scans pause automatically when it is critical; unused cache can be cleared.
 - **Responsive UI** for desktop, tablet and phone. On desktop, hovering a poster (or focusing it with the keyboard) shows its year, runtime or number of seasons, rating and genres — from data the page already has, without extra requests.
@@ -337,6 +339,16 @@ Velyx finds intros and credits itself, without an online service or fixed timest
 - **Post-credits scenes:** sound after the recurring credits music is treated as a scene and is never skipped; silence after the credits counts as part of them.
 - **Admin → Intros & credits** shows the progress (analysed, found, waiting, errors), the results per show, season and episode, and the errors. Administrators can correct the times of an episode (a manual correction always wins over automatic detection), remove a correction, and analyse an episode, season, show or everything again.
 - Detection can be switched off in **Admin → Server**. It needs at least two episodes of a season that share the same intro or credits; a season with a single episode gets no skip buttons.
+
+## Activity and statistics
+
+**Admin → Activity** shows what happens on your server, from what Velyx records while people watch — no extra requests, no external service:
+
+- **Now playing:** every active stream with the user, device, title, position, how long it has been playing, and exactly how it is sent: *Direct Play* or *Remux*, video codec, resolution, bitrate, container and what happens to the audio (for example *E-AC3 → AAC 5.1*). The same list is on the dashboard. The page refreshes every 10 seconds only while someone is watching.
+- **Statistics** for the last 7 days, 30 days, 90 days or 12 months: watch time, plays, movies and episodes watched, active users, watch time per day, week or month, how things played (Direct Play, Remux, audio converted), most watched movies and shows, and the users and devices that watched most.
+- **History:** every viewing with user, title, start time, time watched, how far it got, device, mode, resolution and bitrate — filter by user and by movies or episodes.
+
+Every user sees their own history under **Settings → History**. A viewing counts as a play after one minute; pausing and skipping ahead do not add watch time. Viewings stay readable after a user or a title is removed. History older than two years is removed automatically.
 
 ## Running behind a reverse proxy
 

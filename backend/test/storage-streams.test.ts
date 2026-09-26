@@ -96,8 +96,8 @@ describe('active streams', () => {
     const file = env.ctx.db.insert(mediaFiles).values({ libraryId: libId, movieId: movie.id, path: '/media/m/i.mkv', size: 1, mtimeMs: 1, width: 1920, height: 1080, bitrate: 4_200_000, durationSec: 10140 }).returning().get();
     const t = new StreamTracker(env.ctx.db);
     const start = 1_000_000;
-    t.touch({ id: 1, username: 'justin' }, file.id, 'direct', 'Firefox on Linux', start);
-    t.touch({ id: 1, username: 'justin' }, file.id, 'direct', 'Firefox on Linux', start + 5000);
+    t.touch({ id: 1, username: 'justin' }, file.id, 'direct', 'Firefox on Linux', null, start);
+    t.touch({ id: 1, username: 'justin' }, file.id, 'direct', 'Firefox on Linux', null, start + 5000);
     t.progress(1, { movieId: movie.id }, 2592, start + 50_000);
     const [s] = t.active(start + 100_000);
     expect(s).toMatchObject({ username: 'justin', title: 'Interstellar', subtitle: '2014', mode: 'direct', width: 1920, bitrate: 4_200_000, positionSec: 2592, startedAt: start, device: 'Firefox on Linux' });
@@ -112,7 +112,7 @@ describe('active streams', () => {
     });
     const t = new StreamTracker(env.ctx.db);
     // One stream every two minutes for 100 minutes: only the latest can still be active.
-    ids.forEach((id, i) => t.touch({ id: 1, username: 'u' }, id, 'direct', null, i * 120_000));
+    ids.forEach((id, i) => t.touch({ id: 1, username: 'u' }, id, 'direct', null, null, i * 120_000));
     expect(t.size).toBe(1);
   });
 

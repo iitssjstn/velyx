@@ -1,18 +1,19 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Check, CircleHelp, Repeat, X } from 'lucide-react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { LanguagePreferences, SkipMode, SubtitleMode } from '../lib/player';
 import { api, errorMessage } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
 import { setPrefs, usePrefs } from '../lib/prefs';
 import { subtitleLineStyle } from '../lib/subtitles';
 import { detectCapabilities } from '../lib/codecs';
-import type { DeviceFormat, DeviceReport, User } from '../lib/types';
+import type { DeviceFormat, DeviceReport, HistoryEntry, User } from '../lib/types';
 import { Avatar } from '../components/Avatar';
 import { Button } from '../components/Button';
 import { toast } from '../components/Toast';
 import { SessionList } from '../components/SessionList';
+import { HistoryRow } from '../components/ActiveStreams';
 import { ServerSettingsPanel } from './admin/ServerSettings';
 import { LibrariesPanel } from './admin/Libraries';
 
@@ -444,12 +445,50 @@ function ServerInfoPanel() {
   );
 }
 
+const HISTORY_PAGE = 30;
+
+/** What you watched, when, for how long and how it played. Only your own viewings. Exported for tests. */
+export function WatchHistory() {
+  const [page, setPage] = useState(1);
+  const q = useQuery({
+    queryKey: ['account-history', page],
+    queryFn: () => api.get<{ total: number; items: HistoryEntry[] }>(`/api/account/history?page=${page}&limit=${HISTORY_PAGE}`),
+    placeholderData: keepPreviousData,
+  });
+  const pages = Math.max(1, Math.ceil((q.data?.total ?? 0) / HISTORY_PAGE));
+  return (
+    <Section title="Watch history" description="Everything you watched on this server, newest first. Only you and administrators can see it.">
+      {q.isLoading ? (
+        <p className="text-sm text-muted">Loading…</p>
+      ) : q.error || !q.data ? (
+        <p className="text-sm text-danger">{errorMessage(q.error)}</p>
+      ) : q.data.items.length === 0 ? (
+        <p className="text-sm text-muted">Nothing watched yet.</p>
+      ) : (
+        <ul className="-mx-4 divide-y divide-line/50">
+          {q.data.items.map((h) => (
+            <HistoryRow key={h.id} h={h} showUser={false} />
+          ))}
+        </ul>
+      )}
+      {pages > 1 && (
+        <div className="mt-4 flex items-center justify-end gap-2 text-sm">
+          <span className="mr-2 text-muted">Page {page} of {pages}</span>
+          <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
+          <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</Button>
+        </div>
+      )}
+    </Section>
+  );
+}
+
 export function SettingsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const tabs = [
     { to: 'account', label: 'Account' },
     { to: 'playback', label: 'Playback' },
+    { to: 'history', label: 'History' },
     { to: 'server', label: isAdmin ? 'Server & metadata' : 'Server' },
     ...(isAdmin ? [{ to: 'libraries', label: 'Libraries' }] : []),
   ];
@@ -472,6 +511,7 @@ export function SettingsPage() {
         <Route index element={<Navigate to="/settings/account" replace />} />
         <Route path="account" element={<AccountSettings />} />
         <Route path="playback" element={<PlaybackSettings />} />
+        <Route path="history" element={<WatchHistory />} />
         <Route path="server" element={isAdmin ? <ServerSettingsPanel /> : <ServerInfoPanel />} />
         {isAdmin && <Route path="libraries" element={<LibrariesPanel />} />}
         <Route path="*" element={<Navigate to="/settings/account" replace />} />

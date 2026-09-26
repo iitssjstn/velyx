@@ -1,0 +1,36 @@
+CREATE TABLE `playback_sessions` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`user_id` integer,
+	`username` text NOT NULL,
+	`kind` text NOT NULL,
+	`movie_id` integer,
+	`episode_id` integer,
+	`show_id` integer,
+	`media_file_id` integer,
+	`title` text NOT NULL,
+	`subtitle` text,
+	`mode` text NOT NULL,
+	`audio_conversion` text,
+	`container` text,
+	`video_codec` text,
+	`audio_codec` text,
+	`width` integer,
+	`height` integer,
+	`bitrate` integer,
+	`device` text,
+	`started_at` integer NOT NULL,
+	`last_seen_at` integer NOT NULL,
+	`ended_at` integer,
+	`watched_sec` integer DEFAULT 0 NOT NULL,
+	`start_position_sec` integer,
+	`position_sec` integer,
+	`duration_sec` integer,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`movie_id`) REFERENCES `movies`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`episode_id`) REFERENCES `episodes`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`show_id`) REFERENCES `shows`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`media_file_id`) REFERENCES `media_files`(`id`) ON UPDATE no action ON DELETE set null
+);
+--> statement-breakpoint
+CREATE INDEX `playback_sessions_started_idx` ON `playback_sessions` (`started_at`);--> statement-breakpoint
+CREATE INDEX `playback_sessions_user_idx` ON `playback_sessions` (`user_id`,`started_at`);
