@@ -14,7 +14,7 @@ import { recentLogs } from '../logger.js';
 import { APP_VERSION } from '../version.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
 import { adminCount, publicUser, sessionIdParam } from './auth.js';
-import { createDatabaseSnapshot } from '../services/backup.js';
+import { backupPath, cancelRestore, createDatabaseSnapshot, pendingRestore, stageRestore, verifyBackup } from '../services/backup.js';
 import { createLogger } from '../logger.js';
 import type { RemuxEngine } from '../playback/remux.js';
 
@@ -540,5 +540,80 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       .header('Content-Disposition', `attachment; filename="velyx-${stamp}.db"`)
       .header('Cache-Control', 'no-store')
       .send(stream);
+  });
+
+  // ---- stored backups
+  const backupSettingsBody = z.object({
+    schedule: z.enum(['daily', 'weekly', 'off']).optional(),
+    hour: z.number().int().min(0).max(23).optional(),
+    keepDaily: z.number().int().min(1).max(60).optional(),
+    keepWeekly: z.number().int().min(0).max(52).optional(),
+    keepMonthly: z.number().int().min(0).max(36).optional(),
+  });
+  const backupView = () => {
+    const s = ctx.settings.get();
+    return {
+      backups: ctx.backups.list(),
+      schedule: { schedule: s.backupSchedule, hour: s.backupHour, keepDaily: s.backupKeepDaily, keepWeekly: s.backupKeepWeekly, keepMonthly: s.backupKeepMonthly },
+      nextDue: ctx.backups.nextDue(),
+      pendingRestore: pendingRestore(ctx.config.dataDir),
+      folder: ctx.config.backupDir,
+    };
+  };
+  const namedBackup = (name: string) => {
+    const file = backupPath(ctx.config.backupDir, name);
+    if (!file) throw notFound('Backup');
+    return file;
+  };
+
+  app.get('/api/admin/backups', { preHandler: requireAdmin }, async () => backupView());
+
+  app.post('/api/admin/backups', { preHandler: requireAdmin }, async (request) => {
+    const created = ctx.backups.create('manual');
+    ctx.audit.record('backup.created', { actor: request.user, ip: request.ip, target: created.name });
+    return created;
+  });
+
+  app.put('/api/admin/backups/settings', { preHandler: requireAdmin }, async (request) => {
+    const b = backupSettingsBody.parse(request.body);
+    ctx.settings.update({ backupSchedule: b.schedule, backupHour: b.hour, backupKeepDaily: b.keepDaily, backupKeepWeekly: b.keepWeekly, backupKeepMonthly: b.keepMonthly });
+    ctx.backups.rotate();
+    ctx.audit.record('settings.updated', { actor: request.user, ip: request.ip, detail: 'backup schedule' });
+    return backupView();
+  });
+
+  app.post<{ Params: { name: string } }>('/api/admin/backups/:name/verify', { preHandler: requireAdmin }, async (request) => verifyBackup(namedBackup(request.params.name)));
+
+  app.get<{ Params: { name: string } }>('/api/admin/backups/:name/download', { preHandler: requireAdmin }, async (request, reply) => {
+    const file = namedBackup(request.params.name);
+    ctx.audit.record('backup.downloaded', { actor: request.user, ip: request.ip, target: request.params.name });
+    return reply
+      .type(file.endsWith('.tar.gz') ? 'application/gzip' : 'application/vnd.sqlite3')
+      .header('Content-Disposition', `attachment; filename="${request.params.name}"`)
+      .header('Cache-Control', 'no-store')
+      .send(fs.createReadStream(file));
+  });
+
+  app.delete<{ Params: { name: string } }>('/api/admin/backups/:name', { preHandler: requireAdmin }, async (request) => {
+    fs.rmSync(namedBackup(request.params.name), { force: true });
+    ctx.audit.record('backup.deleted', { actor: request.user, ip: request.ip, target: request.params.name });
+    return backupView();
+  });
+
+  /** Stages a restore; it is applied (after a safety copy) when Velyx restarts. */
+  app.post<{ Params: { name: string } }>('/api/admin/backups/:name/restore', { preHandler: requireAdmin }, async (request) => {
+    // Explicit confirmation guards against accidental restores.
+    z.object({ confirm: z.literal(true) }).parse(request.body);
+    try {
+      stageRestore(namedBackup(request.params.name), ctx.config.dataDir, request.user!.username);
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+    return backupView();
+  });
+
+  app.delete('/api/admin/backups/restore/pending', { preHandler: requireAdmin }, async () => {
+    cancelRestore(ctx.config.dataDir);
+    return backupView();
   });
 }

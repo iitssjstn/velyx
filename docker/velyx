@@ -1,5 +1,5 @@
 #!/bin/sh
-# Velyx maintenance CLI: velyx backup | reset-password <user> <password> | scan [--refresh-metadata]
+# Velyx maintenance CLI: velyx backup [list|verify] | restore <backup> | reset-password <user> <password> | scan
 # Runs as the same user as the server so files in the data volume keep the right owner.
 set -eu
 if [ "$(id -u)" = "0" ]; then

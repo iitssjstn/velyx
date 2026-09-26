@@ -341,6 +341,27 @@ export interface AuditEntry {
   ip: string | null;
 }
 
+export interface BackupFile {
+  name: string;
+  kind: 'auto' | 'manual' | 'archive' | 'pre-migration' | 'pre-restore';
+  size: number;
+  createdAt: number;
+}
+
+export interface BackupOverview {
+  backups: BackupFile[];
+  schedule: { schedule: 'daily' | 'weekly' | 'off'; hour: number; keepDaily: number; keepWeekly: number; keepMonthly: number };
+  nextDue: number | null;
+  pendingRestore: { source: string; requestedBy: string; requestedAt: number } | null;
+  folder: string;
+}
+
+export interface BackupVerification {
+  ok: boolean;
+  errors: string[];
+  info: { size: number; migrations: number | null; users: number | null; movies: number | null; shows: number | null } | null;
+}
+
 export interface PlaybackInfo {
   decision: PlaybackDecision;
   analysis: PlaybackAnalysis;
