@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { LanguagePreferences, SubtitleMode } from '../lib/player';
 import { api, errorMessage } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
 import { setPrefs, usePrefs } from '../lib/prefs';
@@ -189,11 +190,82 @@ function AccountSettings() {
   );
 }
 
+const SUBTITLE_MODES: [SubtitleMode, string, string][] = [
+  ['remember', 'Remember my last choice', 'Uses the subtitle language you last picked in the player (on this browser).'],
+  ['always', 'Always', 'Shows subtitles in your language, or the fallback language when yours is missing.'],
+  ['foreign', 'When the audio is in another language', 'Hides subtitles when the audio already is in your language (forced subtitles still show).'],
+  ['forced', 'Forced only', 'Only translations of foreign-language parts.'],
+  ['off', 'Off', 'Never turns subtitles on by itself.'],
+];
+
+/** Account-wide language preferences, used on every device. Exported for tests. */
+export function LanguageSettings() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['account-prefs'], queryFn: () => api.get<LanguagePreferences>('/api/account/preferences') });
+  const save = useMutation({
+    mutationFn: (patch: Partial<LanguagePreferences>) => api.put<LanguagePreferences>('/api/account/preferences', patch),
+    onSuccess: (d) => {
+      qc.setQueryData(['account-prefs'], d);
+      toast.success('Language preferences saved.');
+    },
+    onError: (err) => toast.error(err),
+  });
+  const p = q.data;
+  const langSelect = (id: string, value: string, onChange: (v: string) => void, emptyLabel: string, disabled = false) => (
+    <select id={id} className="input w-48" value={value} disabled={disabled || !p} onChange={(e) => onChange(e.target.value)}>
+      {LANGUAGES.map(([code, label]) => (
+        <option key={code} value={code}>{code === '' ? emptyLabel : label}</option>
+      ))}
+      {value && !LANGUAGES.some(([code]) => code === value) && <option value={value}>{value.toUpperCase()}</option>}
+    </select>
+  );
+  const needsLanguage = p && (p.subtitleMode === 'always' || p.subtitleMode === 'foreign');
+  return (
+    <Section title="Languages" description="Saved to your account, so every device you use starts with the right audio and subtitles. You can always switch tracks in the player.">
+      <div className="divide-y divide-line/50">
+        <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+          <label htmlFor="pref-audio">
+            Preferred audio language
+            <span className="block text-sm text-muted">Falls back to the file's original audio when it is not available.</span>
+          </label>
+          {langSelect('pref-audio', p?.audioLanguage ?? '', (v) => save.mutate({ audioLanguage: v }), 'Original')}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+          <label htmlFor="pref-sub-mode">
+            Show subtitles
+            <span className="block text-sm text-muted">{SUBTITLE_MODES.find(([m]) => m === (p?.subtitleMode ?? 'remember'))?.[2]}</span>
+          </label>
+          <select id="pref-sub-mode" className="input w-64" value={p?.subtitleMode ?? 'remember'} disabled={!p} onChange={(e) => save.mutate({ subtitleMode: e.target.value as SubtitleMode })}>
+            {SUBTITLE_MODES.map(([m, label]) => (
+              <option key={m} value={m}>{label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+          <label htmlFor="pref-sub">
+            Subtitle language
+            {needsLanguage && !p?.subtitleLanguage && <span className="block text-sm text-amber">Choose a language for this setting to work.</span>}
+          </label>
+          {langSelect('pref-sub', p?.subtitleLanguage ?? '', (v) => save.mutate({ subtitleLanguage: v }), 'None', p?.subtitleMode === 'off' || p?.subtitleMode === 'remember')}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+          <label htmlFor="pref-sub-fallback">
+            Fallback subtitle language
+            <span className="block text-sm text-muted">Used when a file has no subtitles in your language.</span>
+          </label>
+          {langSelect('pref-sub-fallback', p?.subtitleFallback ?? '', (v) => save.mutate({ subtitleFallback: v }), 'None', !needsLanguage)}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 function PlaybackSettings() {
   const prefs = usePrefs();
   const caps = detectCapabilities();
   return (
     <div className="space-y-6">
+      <LanguageSettings />
       <Section title="Playback" description="These preferences are stored in this browser.">
         <div className="divide-y divide-line/50">
           <Toggle label="Autoplay next episode" hint="Starts the next episode after a countdown." checked={prefs.autoplayNext} onChange={(v) => setPrefs({ autoplayNext: v })} />
@@ -202,29 +274,6 @@ function PlaybackSettings() {
             <select className="input w-28" value={prefs.autoplayCountdown} onChange={(e) => setPrefs({ autoplayCountdown: Number(e.target.value) })} disabled={!prefs.autoplayNext}>
               {[5, 10, 15, 20, 30].map((s) => (
                 <option key={s} value={s}>{s} s</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center justify-between gap-6 py-3">
-            <span>
-              Subtitles
-              <span className="block text-sm text-muted">Remembered automatically when you pick subtitles in the player.</span>
-            </span>
-            <select className="input w-48" value={prefs.subtitleLanguage} onChange={(e) => setPrefs({ subtitleLanguage: e.target.value, subtitleForced: false, subtitleLabel: '' })}>
-              {LANGUAGES.map(([code, label]) => (
-                <option key={code} value={code}>{label}</option>
-              ))}
-              {prefs.subtitleLanguage && !LANGUAGES.some(([code]) => code === prefs.subtitleLanguage) && <option value={prefs.subtitleLanguage}>{prefs.subtitleLanguage.toUpperCase()}</option>}
-            </select>
-          </div>
-          <div className="flex items-center justify-between gap-6 py-3">
-            <span>
-              Preferred audio language
-              <span className="block text-sm text-muted">Only browsers that support audio track switching (e.g. Safari) apply this.</span>
-            </span>
-            <select className="input w-48" value={prefs.audioLanguage} onChange={(e) => setPrefs({ audioLanguage: e.target.value })}>
-              {LANGUAGES.map(([code, label]) => (
-                <option key={code} value={code}>{code === '' ? 'File default' : label}</option>
               ))}
             </select>
           </div>

@@ -61,7 +61,8 @@ describe('per-user library access', () => {
     expect(list.total).toBe(1);
     expect(list.items[0].id).toBe(kidsMovieId);
     expect((await get('/api/shows', c)).total).toBe(0);
-    expect((await get('/api/search?q=e', c)).movies.map((m: { id: number }) => m.id)).toEqual([kidsMovieId]);
+    expect((await get('/api/search?q=frozen', c)).movies.map((m: { id: number }) => m.id)).toEqual([kidsMovieId]);
+    expect((await get('/api/search?q=heat', c)).movies).toHaveLength(0);
     expect((await get('/api/search?q=Severance', c)).shows).toHaveLength(0);
     const home = await get('/api/home', c);
     expect(home.counts).toEqual({ movies: 1, shows: 0, libraries: 1 });

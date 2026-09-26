@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { and, asc, count, desc, eq, inArray, like, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireUser } from '../app.js';
@@ -22,6 +22,7 @@ import {
 import { Catalog } from '../services/catalog.js';
 import { notFound, parseId } from '../http-error.js';
 import { languageName } from '../services/parser.js';
+import { SEARCH_KIND, ftsQuery } from '../services/search.js';
 import { visibleCollections } from '../services/collections.js';
 import { assertEpisode, assertMovie, assertShow, canSee, scopeCondition } from '../services/access.js';
 
@@ -49,11 +50,11 @@ const RESOLUTION_SQL: Record<string, SQL> = {
   sd: sql`mf.width < 1200 AND mf.height < 700`,
 };
 
+type FileRow = typeof mediaFiles.$inferSelect;
+
 function escapeLike(q: string): string {
   return q.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
-
-type FileRow = typeof mediaFiles.$inferSelect;
 
 export function fileInfo(f: FileRow, externalSubs: Array<typeof subtitles.$inferSelect> = []) {
   return {
@@ -609,35 +610,62 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
   });
 
   // ------------------------------------------------------------------ search
+  // Full-text search (SQLite FTS5, see migration 0008): prefix matching per word, ranked by bm25
+  // with the title weighted above alternative titles. One index lookup instead of LIKE scans.
+  const ftsMatch = db.$client.prepare<[string], { rowid: number; rank: number }>(
+    'SELECT rowid, bm25(search_index, 10.0, 1.0) AS rank FROM search_index WHERE search_index MATCH ? ORDER BY rank LIMIT 400',
+  );
+
   app.get<{ Querystring: { q?: string } }>('/api/search', { preHandler: requireUser }, async (request) => {
     const q = (request.query.q ?? '').trim().slice(0, 100);
     const userId = request.user!.id;
-    if (!q) return { query: q, movies: [], shows: [], episodes: [] };
+    const fts = ftsQuery(q);
+    if (!q || !fts) return { query: q, movies: [], shows: [], episodes: [] };
     const scope = scopeOf(request);
-    const pattern = `%${escapeLike(q)}%`;
-    const likeEsc = (col: Parameters<typeof like>[0]) => sql`${col} LIKE ${pattern} ESCAPE '\\'`;
-    const movieRows = db
-      .select()
-      .from(movies)
-      .where(and(or(likeEsc(movies.title), likeEsc(movies.originalTitle), likeEsc(movies.parsedTitle)), scopeCondition(scope, movies.libraryId)))
-      .orderBy(sql`CASE WHEN ${movies.title} LIKE ${escapeLike(q) + '%'} ESCAPE '\\' THEN 0 ELSE 1 END`, asc(movies.sortTitle))
-      .limit(30)
-      .all();
-    const showRows = db
-      .select()
-      .from(shows)
-      .where(and(or(likeEsc(shows.title), likeEsc(shows.originalTitle), likeEsc(shows.parsedTitle)), scopeCondition(scope, shows.libraryId)))
-      .orderBy(sql`CASE WHEN ${shows.title} LIKE ${escapeLike(q) + '%'} ESCAPE '\\' THEN 0 ELSE 1 END`, asc(shows.sortTitle))
-      .limit(30)
-      .all();
-    const epRows = db
-      .select({ e: episodes, showTitle: shows.title, showBackdrop: shows.backdropPath })
-      .from(episodes)
-      .innerJoin(shows, eq(shows.id, episodes.showId))
-      .where(and(likeEsc(episodes.title), scopeCondition(scope, shows.libraryId)))
-      .orderBy(asc(shows.sortTitle), asc(episodes.seasonNumber), asc(episodes.episodeNumber))
-      .limit(30)
-      .all();
+
+    const rank = new Map<string, number>();
+    const ids: Record<'movie' | 'show' | 'episode', number[]> = { movie: [], show: [], episode: [] };
+    const matches = ftsMatch.all(fts);
+    // Nothing starts with these words: fall back to a substring match on titles ("stellar" →
+    // Interstellar). Only for 3+ characters, and only then, so typing stays cheap.
+    if (!matches.length && q.length >= 3) {
+      const pattern = `%${escapeLike(q)}%`;
+      const likeTitle = (col: SQLWrapper) => sql`${col} LIKE ${pattern} ESCAPE '\\'`;
+      for (const r of db.select({ id: movies.id }).from(movies).where(or(likeTitle(movies.title), likeTitle(movies.originalTitle))).limit(60).all()) matches.push({ rowid: r.id * 4 + SEARCH_KIND.movie, rank: 0 });
+      for (const r of db.select({ id: shows.id }).from(shows).where(or(likeTitle(shows.title), likeTitle(shows.originalTitle))).limit(60).all()) matches.push({ rowid: r.id * 4 + SEARCH_KIND.show, rank: 0 });
+      for (const r of db.select({ id: episodes.id }).from(episodes).where(likeTitle(episodes.title)).limit(60).all()) matches.push({ rowid: r.id * 4 + SEARCH_KIND.episode, rank: 0 });
+    }
+    for (const m of matches) {
+      const kind = m.rowid % 4 === SEARCH_KIND.movie ? 'movie' : m.rowid % 4 === SEARCH_KIND.show ? 'show' : 'episode';
+      const id = Math.floor(m.rowid / 4);
+      ids[kind].push(id);
+      rank.set(`${kind}:${id}`, m.rank);
+    }
+    // Titles that start with the query come first, then bm25 relevance.
+    const plain = (t: string) => t.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const lower = plain(q);
+    const byRank = (kind: string) => (a: { id: number; title: string | null }, b: { id: number; title: string | null }) => {
+      const pa = plain(a.title ?? '').startsWith(lower) ? 0 : 1;
+      const pb = plain(b.title ?? '').startsWith(lower) ? 0 : 1;
+      return pa - pb || rank.get(`${kind}:${a.id}`)! - rank.get(`${kind}:${b.id}`)!;
+    };
+
+    const movieRows = ids.movie.length
+      ? db.select().from(movies).where(and(inArray(movies.id, ids.movie), scopeCondition(scope, movies.libraryId))).all().sort(byRank('movie')).slice(0, 30)
+      : [];
+    const showRows = ids.show.length
+      ? db.select().from(shows).where(and(inArray(shows.id, ids.show), scopeCondition(scope, shows.libraryId))).all().sort(byRank('show')).slice(0, 30)
+      : [];
+    const epRows = ids.episode.length
+      ? db
+          .select({ e: episodes, showTitle: shows.title, showBackdrop: shows.backdropPath })
+          .from(episodes)
+          .innerJoin(shows, eq(shows.id, episodes.showId))
+          .where(and(inArray(episodes.id, ids.episode), scopeCondition(scope, shows.libraryId)))
+          .all()
+          .sort((a, b) => byRank('episode')({ id: a.e.id, title: a.e.title }, { id: b.e.id, title: b.e.title }))
+          .slice(0, 30)
+      : [];
     const epProgress = catalog.episodeProgress(userId, epRows.map((r) => r.e.id));
     return {
       query: q,

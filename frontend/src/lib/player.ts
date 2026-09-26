@@ -65,3 +65,41 @@ export function preferredAudioIndex(
   if (def && sameLanguage(def.language, preferredLanguage)) return undefined;
   return tracks.find((t) => sameLanguage(t.language, preferredLanguage))?.index;
 }
+
+export type SubtitleMode = 'remember' | 'always' | 'foreign' | 'forced' | 'off';
+
+/** Playback language preferences stored with the account (see /api/account/preferences). */
+export interface LanguagePreferences {
+  audioLanguage: string;
+  subtitleLanguage: string;
+  subtitleFallback: string;
+  subtitleMode: SubtitleMode;
+}
+
+/**
+ * The subtitle to enable when playback starts, from the account's preferences:
+ * - remember: the viewer's last choice in this browser (pickSubtitle);
+ * - always: a full subtitle in the preferred language, else the fallback language;
+ * - foreign: like always, but when the audio already is in the preferred language only a forced
+ *   track (translations of foreign-language parts) is shown;
+ * - forced: only forced tracks, in the preferred language or the audio's language;
+ * - off: none.
+ * Manual changes in the player always take precedence for that session.
+ */
+export function initialSubtitle(options: SubtitleOption[], prefs: LanguagePreferences, remembered: SubtitleChoice, audioLanguage: string | null): string | null {
+  const lang = (code: string, forced: boolean) => (code ? options.find((o) => sameLanguage(o.language, code) && o.forced === forced)?.key : undefined);
+  const full = (code: string) => lang(code, false) ?? (code ? options.find((o) => sameLanguage(o.language, code))?.key : undefined);
+  switch (prefs.subtitleMode) {
+    case 'off':
+      return null;
+    case 'forced':
+      return lang(prefs.subtitleLanguage, true) ?? lang(audioLanguage ?? '', true) ?? options.find((o) => o.forced && o.isDefault)?.key ?? null;
+    case 'foreign':
+      if (prefs.subtitleLanguage && sameLanguage(audioLanguage, prefs.subtitleLanguage)) return lang(prefs.subtitleLanguage, true) ?? null;
+      return full(prefs.subtitleLanguage) ?? full(prefs.subtitleFallback) ?? null;
+    case 'always':
+      return full(prefs.subtitleLanguage) ?? full(prefs.subtitleFallback) ?? null;
+    default:
+      return pickSubtitle(options, remembered);
+  }
+}

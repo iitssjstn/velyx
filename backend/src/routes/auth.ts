@@ -72,6 +72,17 @@ const passwordBody = z.object({
   signOutOthers: z.boolean().default(true),
 });
 const avatarBody = z.object({ dataUrl: z.string().max(3 * 1024 * 1024) });
+const language = z.string().trim().toLowerCase().regex(/^([a-z]{2,3})?$/, 'Use a language code like en or nl');
+const preferencesBody = z.object({
+  audioLanguage: language.optional(),
+  subtitleLanguage: language.optional(),
+  subtitleFallback: language.optional(),
+  subtitleMode: z.enum(['remember', 'always', 'foreign', 'forced', 'off']).optional(),
+});
+
+function preferencesView(u: typeof users.$inferSelect) {
+  return { audioLanguage: u.prefAudioLanguage, subtitleLanguage: u.prefSubtitleLanguage, subtitleFallback: u.prefSubtitleFallback, subtitleMode: u.prefSubtitleMode };
+}
 
 const AVATAR_TYPES: Record<string, { ext: string; magic: (b: Buffer) => boolean }> = {
   'image/png': { ext: 'png', magic: (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) },
@@ -199,6 +210,29 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     const ended = body.signOutOthers ? ctx.sessions.destroyAllForUser(user.id, request.sessionToken) : 0;
     ctx.audit.record('account.password_changed', { actor: user, ip: request.ip, detail: body.signOutOthers ? `signed out ${ended} other session(s)` : 'other sessions kept' });
     return { ok: true, signedOut: ended };
+  });
+
+  // ---- playback language preferences (per account, used on every device)
+  app.get('/api/account/preferences', { preHandler: requireUser }, async (request) => {
+    const u = ctx.db.select().from(users).where(eq(users.id, request.user!.id)).get()!;
+    return preferencesView(u);
+  });
+
+  app.put('/api/account/preferences', { preHandler: requireUser }, async (request) => {
+    const b = preferencesBody.parse(request.body);
+    const row = ctx.db
+      .update(users)
+      .set({
+        ...(b.audioLanguage !== undefined ? { prefAudioLanguage: b.audioLanguage } : {}),
+        ...(b.subtitleLanguage !== undefined ? { prefSubtitleLanguage: b.subtitleLanguage } : {}),
+        ...(b.subtitleFallback !== undefined ? { prefSubtitleFallback: b.subtitleFallback } : {}),
+        ...(b.subtitleMode !== undefined ? { prefSubtitleMode: b.subtitleMode } : {}),
+        updatedAt: Date.now(),
+      })
+      .where(eq(users.id, request.user!.id))
+      .returning()
+      .get();
+    return preferencesView(row);
   });
 
   // ---- own sessions

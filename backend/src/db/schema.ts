@@ -21,6 +21,12 @@ export const users = sqliteTable('users', {
   avatarFile: text('avatar_file'),
   /** When false, the user only sees the libraries listed in user_libraries. Admins always see everything. */
   allLibraries: integer('all_libraries', { mode: 'boolean' }).notNull().default(true),
+  /** Playback language preferences (ISO 639-1 codes; '' = no preference). */
+  prefAudioLanguage: text('pref_audio_language').notNull().default(''),
+  prefSubtitleLanguage: text('pref_subtitle_language').notNull().default(''),
+  prefSubtitleFallback: text('pref_subtitle_fallback').notNull().default(''),
+  /** remember = reuse the last choice; always; foreign = only when the audio is in another language; forced; off. */
+  prefSubtitleMode: text('pref_subtitle_mode', { enum: ['remember', 'always', 'foreign', 'forced', 'off'] }).notNull().default('remember'),
   createdAt: integer('created_at').notNull().default(now),
   updatedAt: integer('updated_at').notNull().default(now),
   lastLoginAt: integer('last_login_at'),

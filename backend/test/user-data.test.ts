@@ -128,11 +128,19 @@ describe('search and browsing', () => {
     expect(s.shows[0].title).toBe('Breaking Bad');
   });
 
-  it('treats LIKE wildcards literally', async () => {
-    const r = await get('/api/search?q=%25');
-    expect(r.movies.map((m: { title: string }) => m.title)).toEqual(['100% Wolf']);
-    const u = await get('/api/search?q=_');
-    expect(u.movies).toHaveLength(0);
+  it('treats search syntax and wildcards literally', async () => {
+    expect((await get('/api/search?q=100%25')).movies.map((m: { title: string }) => m.title)).toEqual(['100% Wolf']);
+    for (const q of ['%25', '_', '%22', '*', 'NOT', 'wolf%22 OR %22a', '%25%25%25']) {
+      const res = await env.app.inject({ url: `/api/search?q=${q}`, headers: { cookie: admin } });
+      expect(res.statusCode, q).toBe(200);
+      expect(res.json().movies.length, q).toBeLessThan(2);
+    }
+  });
+
+  it('matches words by prefix and falls back to substrings', async () => {
+    expect((await get('/api/search?q=inter')).movies.map((m: { title: string }) => m.title)).toEqual(['Interstellar']);
+    expect((await get('/api/search?q=stellar')).movies.map((m: { title: string }) => m.title)).toEqual(['Interstellar']);
+    expect((await get('/api/search?q=bad')).shows.map((s: { title: string }) => s.title)).toEqual(['Breaking Bad']);
   });
 
   it('paginates and sorts', async () => {

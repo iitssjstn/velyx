@@ -23,7 +23,7 @@ import { api, errorMessage } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
 import { getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
-import { isTyping, pickSubtitle, preferredAudioIndex, startPosition, withParam } from '../lib/player';
+import { initialSubtitle, isTyping, preferredAudioIndex, startPosition, withParam, type LanguagePreferences } from '../lib/player';
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo } from '../lib/types';
 import { Spinner } from '../components/States';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
@@ -101,14 +101,19 @@ export default function PlayerPage() {
   const prefs = usePrefs();
 
   const item = useQuery({ queryKey: ['play-item', kind, id], queryFn: () => loadItem(kind, id), gcTime: 0, staleTime: Infinity });
+  // Account-wide language preferences; this browser's older local preferences fill any gaps.
+  const accountPrefs = useQuery({ queryKey: ['account-prefs'], queryFn: () => api.get<LanguagePreferences>('/api/account/preferences'), staleTime: 5 * 60_000 });
+  const langPrefs = useRef<LanguagePreferences>({ audioLanguage: '', subtitleLanguage: '', subtitleFallback: '', subtitleMode: 'remember' });
+  if (accountPrefs.data) langPrefs.current = accountPrefs.data;
+  const prefsReady = !accountPrefs.isLoading;
   const fileParam = Number(params.get('file'));
   const file = item.data?.files.find((f) => f.id === fileParam) ?? item.data?.files[0];
 
   // Audio track to ask the server for. null = not decided yet, undefined = the file's default.
   const [audioChoice, setAudioChoice] = useState<number | undefined | null>(null);
   useEffect(() => {
-    if (file && audioChoice === null) setAudioChoice(preferredAudioIndex(file.audioTracks, getPrefs().audioLanguage, NATIVE_AUDIO_SWITCHING));
-  }, [file, audioChoice]);
+    if (file && audioChoice === null && prefsReady) setAudioChoice(preferredAudioIndex(file.audioTracks, langPrefs.current.audioLanguage || getPrefs().audioLanguage, NATIVE_AUDIO_SWITCHING));
+  }, [file, audioChoice, prefsReady]);
 
   const audioPrefs = { audioChannels: prefs.audioOutput, boostVoices: prefs.boostVoices, levelVolume: prefs.levelVolume };
   const playback = useQuery({
@@ -397,11 +402,12 @@ export default function PlayerPage() {
     if (!startedRef.current) {
       startedRef.current = true;
       const p = getPrefs();
-      selectSubtitle(pickSubtitle(subs, { language: p.subtitleLanguage, forced: p.subtitleForced, label: p.subtitleLabel }));
+      const playingAudio = file?.audioTracks.find((t) => t.index === info?.decision.audioIndex)?.language ?? null;
+      selectSubtitle(initialSubtitle(subs, langPrefs.current, { language: p.subtitleLanguage, forced: p.subtitleForced, label: p.subtitleLabel }, playingAudio));
       // Preferred audio language in browsers that switch tracks natively (direct play only).
       const list = (v as unknown as { audioTracks?: AudioTrackList }).audioTracks;
       if (!live && list && list.length > 0) {
-        const pref = getPrefs().audioLanguage;
+        const pref = langPrefs.current.audioLanguage || getPrefs().audioLanguage;
         const tracks = Array.from({ length: list.length }, (_, i) => list[i]!);
         const match = pref ? tracks.find((t) => sameLanguage(t.language, pref)) : undefined;
         if (match) for (const t of tracks) t.enabled = t === match;
