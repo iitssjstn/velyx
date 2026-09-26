@@ -7,6 +7,7 @@ import { toast } from './Toast';
 import { FixMatchModal } from './FixMatchModal';
 import { CollectionPicker } from './CollectionPicker';
 import { useT } from '../i18n';
+import { useKeepOnScreen } from '../lib/hooks';
 
 /** Admin-only actions for a movie or show: collections, fix match and refresh metadata. */
 export function AdminItemMenu({
@@ -30,6 +31,7 @@ export function AdminItemMenu({
   const [fix, setFix] = useState(false);
   const [picking, setPicking] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useKeepOnScreen<HTMLDivElement>(open);
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
@@ -56,7 +58,7 @@ export function AdminItemMenu({
         {refresh.isPending ? <RefreshCw className="size-5 animate-spin" /> : <MoreHorizontal className="size-5" />}
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-line bg-raised py-1 shadow-2xl sm:right-auto sm:left-0">
+        <div ref={menuRef} className="absolute left-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-line bg-raised py-1 shadow-2xl">
           <button type="button" className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-line" onClick={() => { setOpen(false); setPicking(true); }}>
             <Layers className="size-4 text-muted" /> {t('adminItem.addToCollection')}
           </button>

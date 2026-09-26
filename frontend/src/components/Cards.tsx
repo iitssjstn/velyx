@@ -8,6 +8,7 @@ import { formatRuntime, progressFraction } from '../lib/format';
 import { Artwork } from './Artwork';
 import { ProgressBar } from './ProgressBar';
 import { t, useT } from '../i18n';
+import { useKeepOnScreen } from '../lib/hooks';
 
 export function PosterCard({ item, className = '' }: { item: Card; className?: string }) {
   const { t } = useT();
@@ -91,6 +92,7 @@ export function ContinueCard({ item, onDismiss, onMarkWatched }: { item: Continu
   const [menuOpen, setMenuOpen] = useState(false);
   const { t } = useT();
   const menuRef = useRef<HTMLDivElement>(null);
+  const popupRef = useKeepOnScreen<HTMLDivElement>(menuOpen);
   const detailsHref = item.type === 'movie' ? `/movies/${item.id}` : `/shows/${item.showId}`;
   const started = isStarted(item);
   const detail = continueDetail(item);
@@ -149,7 +151,7 @@ export function ContinueCard({ item, onDismiss, onMarkWatched }: { item: Continu
               <MoreHorizontal className="size-4" />
             </button>
             {menuOpen && (
-              <div role="menu" className="absolute right-0 bottom-10 z-20 w-52 overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-2xl">
+              <div ref={popupRef} role="menu" className="absolute right-0 bottom-10 z-20 w-52 overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-2xl">
                 {started && (
                   <Link role="menuitem" to={startOverHref(item)} className={menuItem}>
                     <RotateCcw className="size-4 text-muted" /> {t('player.startOver')}
