@@ -1,10 +1,10 @@
 {
   "name": "velyx",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "private": true,
   "type": "module",
   "description": "Velyx — Your media. Your server. A lightweight, Docker-first self-hosted media server.",
-  "license": "MIT",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "workspaces": [
     "backend",
     "frontend"
