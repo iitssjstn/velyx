@@ -113,7 +113,8 @@ describe('per-user library access', () => {
       expect([403, 404, 400], url).toContain(await status(url, c));
     }
     expect([403, 404, 400]).toContain(await status(`/api/media/${file.id}/subtitles/online`, c, 'POST', { fileId: 1 }));
-    expect(await status('/api/home/continue/dismiss', c, 'POST', { movieId: adultMovieId })).not.toBe(200);
+    expect(await status('/api/home/continue/dismiss', c, 'POST', { type: 'movie', id: adultMovieId })).toBe(404);
+    expect(await status('/api/home/continue/dismiss', c, 'POST', { type: 'episode', id: episodeId })).toBe(404);
     expect(await status('/api/progress', c, 'POST', { episodeId, positionSec: 10, durationSec: 100 })).toBe(404);
   });
 
