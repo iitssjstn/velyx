@@ -15,6 +15,13 @@
       "when": 1790384082227,
       "tag": "0001_library_access_watchlist",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790384652532,
+      "tag": "0002_collections",
+      "breakpoints": true
     }
   ]
 }

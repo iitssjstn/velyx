@@ -6,7 +6,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatClock, formatDate, formatRuntime, progressFraction, resolutionLabel } from '../lib/format';
 import type { MovieDetail } from '../lib/types';
-import { DetailHero, MetaList } from '../components/DetailHero';
+import { CollectionLinks, DetailHero, MetaList } from '../components/DetailHero';
 import { FavoriteButton, WatchlistButton } from '../components/FavoriteButton';
 import { AdminItemMenu } from '../components/AdminItemMenu';
 import { CastRow } from '../components/People';
@@ -73,6 +73,7 @@ export function MoviePage() {
             ))}
           </div>
         )}
+        <CollectionLinks collections={m.collections} />
         <div className="mt-6 flex flex-wrap items-center gap-3">
           {file ? (
             <>
@@ -101,7 +102,7 @@ export function MoviePage() {
             {m.progress?.completed ? <Check className="size-5" /> : <Eye className="size-5" />}
           </button>
           {user?.role === 'admin' && (
-            <AdminItemMenu type="movie" id={m.id} query={m.match.parsedTitle} year={m.match.parsedYear} onMatched={(newId) => newId !== m.id && navigate(`/movies/${newId}`, { replace: true })} />
+            <AdminItemMenu type="movie" id={m.id} collections={m.collections} query={m.match.parsedTitle} year={m.match.parsedYear} onMatched={(newId) => newId !== m.id && navigate(`/movies/${newId}`, { replace: true })} />
           )}
         </div>
         {resume && <ProgressBar value={progressFraction(resume)} className="mt-4 max-w-sm" />}

@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { Layers } from 'lucide-react';
+import type { CollectionRef } from '../lib/types';
 import { imageUrl } from '../lib/format';
 import { Artwork } from './Artwork';
 
@@ -38,5 +41,24 @@ export function MetaList({ items }: { items: Array<ReactNode | null | undefined 
         <li key={i}>{item}</li>
       ))}
     </ul>
+  );
+}
+
+/** "Part of …" links to the collections an item belongs to. */
+export function CollectionLinks({ collections }: { collections: CollectionRef[] }) {
+  if (!collections.length) return null;
+  return (
+    <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+      <Layers className="size-4" aria-hidden />
+      Part of
+      {collections.map((c, i) => (
+        <span key={c.id}>
+          <Link to={`/collections/${c.id}`} className="text-ink/90 underline decoration-line underline-offset-4 hover:decoration-accent">
+            {c.name}
+          </Link>
+          {i < collections.length - 1 && ','}
+        </span>
+      ))}
+    </p>
   );
 }

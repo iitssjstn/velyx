@@ -55,6 +55,23 @@ export interface ShowCard {
 
 export type Card = MovieCard | ShowCard;
 
+export interface CollectionRef {
+  id: number;
+  name: string;
+  kind: 'auto' | 'manual';
+}
+
+export interface CollectionSummary extends CollectionRef {
+  overview: string | null;
+  posterPath: string | null;
+  backdropPath: string | null;
+  itemCount: number;
+}
+
+export interface CollectionDetail extends CollectionSummary {
+  items: Card[];
+}
+
 export interface ContinueItem {
   type: 'movie' | 'episode';
   id: number;
@@ -174,6 +191,7 @@ export interface MovieDetail {
   progress: Progress | null;
   favorite: boolean;
   watchlist: boolean;
+  collections: CollectionRef[];
 }
 
 export interface SeasonSummary {
@@ -212,6 +230,7 @@ export interface ShowDetail {
   upNext: { id: number; seasonNumber: number; episodeNumber: number; title: string | null; progress: Progress | null } | null;
   favorite: boolean;
   watchlist: boolean;
+  collections: CollectionRef[];
 }
 
 export interface EpisodeSummary {

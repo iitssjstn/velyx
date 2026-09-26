@@ -6,7 +6,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { episodeCode, formatDate, formatRuntime, progressFraction, resolutionLabel } from '../lib/format';
 import type { EpisodeSummary, SeasonDetail, ShowDetail } from '../lib/types';
-import { DetailHero, MetaList } from '../components/DetailHero';
+import { CollectionLinks, DetailHero, MetaList } from '../components/DetailHero';
 import { FavoriteButton, WatchlistButton } from '../components/FavoriteButton';
 import { AdminItemMenu } from '../components/AdminItemMenu';
 import { CastRow } from '../components/People';
@@ -125,6 +125,7 @@ export function ShowPage() {
             ))}
           </div>
         )}
+        <CollectionLinks collections={s.collections} />
         <div className="mt-6 flex flex-wrap items-center gap-3">
           {up && (
             <Link to={`/play/episode/${up.id}`} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 font-semibold text-bg hover:bg-white">
@@ -143,7 +144,7 @@ export function ShowPage() {
           >
             {allWatched ? <CheckCheck className="size-5" /> : <Eye className="size-5" />}
           </button>
-          {user?.role === 'admin' && <AdminItemMenu type="show" id={s.id} query={s.match.parsedTitle} year={s.match.parsedYear} />}
+          {user?.role === 'admin' && <AdminItemMenu type="show" id={s.id} collections={s.collections} query={s.match.parsedTitle} year={s.match.parsedYear} />}
         </div>
       </DetailHero>
 

@@ -34,6 +34,11 @@ async function main(): Promise<void> {
   if (!config.frontendDir) log.warn('Frontend build not found — only the API is served');
 
   ctx.scans.startSchedule(config.scanIntervalMinutes);
+  if (ctx.tmdb.configured && !ctx.settings.get().collectionsBackfilled) {
+    void ctx.metadata.backfillCollections().then((done) => {
+      if (done) ctx.settings.update({ collectionsBackfilled: true });
+    });
+  }
   ctx.watcher.sync(ctx.settings.get().watchFolders);
   const purgeTimer = setInterval(() => ctx.sessions.purgeExpired(), 6 * 60 * 60 * 1000);
   purgeTimer.unref();

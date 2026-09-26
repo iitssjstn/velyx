@@ -12,6 +12,8 @@ export interface ServerSettings {
   includeAdult: boolean;
   /** Watch library folders and scan automatically when files change. */
   watchFolders: boolean;
+  /** Internal: TMDB collections were looked up once for movies matched before collections existed. */
+  collectionsBackfilled: boolean;
 }
 
 const DEFAULTS: ServerSettings = {
@@ -21,6 +23,7 @@ const DEFAULTS: ServerSettings = {
   tmdbLanguage: '',
   includeAdult: false,
   watchFolders: true,
+  collectionsBackfilled: false,
 };
 
 export class SettingsService {

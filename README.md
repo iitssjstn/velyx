@@ -4,7 +4,7 @@
 
 Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.3.2 — Per-user library access and a watchlist, on top of Direct Play, Plex-style audio conversion (surround, voice boost, volume levelling), customisable subtitles and automatic library updates. Full video transcoding is on the roadmap.
+> Version 0.3.3 — Collections, per-user library access and a watchlist, on top of Direct Play, Plex-style audio conversion (surround, voice boost, volume levelling), customisable subtitles and automatic library updates. Full video transcoding is on the roadmap.
 
 ---
 
@@ -51,6 +51,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Per-user watch progress** — Continue Watching, "next up" episodes, watched markers (an item counts as watched at 90 %), mark seasons/shows as watched.
 - **Watchlist, favorites, search, filters and sorting** across movies, shows and episodes. Watched movies leave the watchlist automatically.
 - **Per-user library access** — choose which libraries each user can see (for example a kids-only library).
+- **Collections** — movie series from TMDB (such as “The Matrix Collection”) are grouped automatically once you have two or more of their movies; administrators can also make their own collections of movies and shows.
 - **Multiple users** with administrator and user roles.
 - **Admin panel** — dashboard (counts, storage, server status, duplicates), libraries with live scan progress and scan issues, users, metadata review, server settings, logs and database backup.
 - **Responsive UI** for desktop, tablet and phone.
@@ -99,7 +100,7 @@ Deployment settings are environment variables that `docker-compose.yml` reads fr
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `VELYX_IMAGE` | `ghcr.io/iitssjstn/velyx:latest` | Image to pull (compose only). Pin a version with e.g. `:0.3.2`. |
+| `VELYX_IMAGE` | `ghcr.io/iitssjstn/velyx:latest` | Image to pull (compose only). Pin a version with e.g. `:0.3.3`. |
 | `VELYX_PORT` | `3000` | Host port for the web interface (compose only). |
 | `DATA_PATH` | `./data` | Host folder for the database, artwork cache, avatars and backups (compose only). |
 | `MOVIES_PATH` / `TV_PATH` | — | Host folders with your media, mounted read-only at `/media/movies` and `/media/tv` (compose only). |
@@ -361,9 +362,9 @@ The backend suite covers authentication, authorization, CSRF, the scanner (incre
 ## CI and the Docker image (GHCR)
 
 - `.github/workflows/ci.yml` runs on every push and pull request: install, lint, typecheck, tests (with FFmpeg), build, then builds the Docker image and checks `/health`.
-- `.github/workflows/docker-build.yml` publishes `ghcr.io/<owner>/velyx` for `linux/amd64` and `linux/arm64` on pushes to `main` (`latest`) and on version tags (`v0.3.2` → `0.3.2`, `0.3`). It authenticates with the built-in `GITHUB_TOKEN` — no extra secrets needed.
+- `.github/workflows/docker-build.yml` publishes `ghcr.io/<owner>/velyx` for `linux/amd64` and `linux/arm64` on pushes to `main` (`latest`) and on version tags (`v0.3.3` → `0.3.3`, `0.3`). It authenticates with the built-in `GITHUB_TOKEN` — no extra secrets needed.
 
-After the first publish, make the package public under **GitHub → Packages → velyx → Package settings** if you want to pull it without logging in. To release a version: bump `version` in `package.json` and `backend/package.json`, then `git tag v0.3.2 && git push --tags`.
+After the first publish, make the package public under **GitHub → Packages → velyx → Package settings** if you want to pull it without logging in. To release a version: bump `version` in `package.json` and `backend/package.json`, then `git tag v0.3.3 && git push --tags`.
 
 ## Architecture
 
@@ -410,7 +411,6 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 
 - Full video transcoding with hardware acceleration (NVENC, Quick Sync, VAAPI/AMF) and HLS output.
 - Burn-in or OCR for image-based subtitles.
-- Collections.
 - Trickplay thumbnails on the seek bar, intro/credits detection.
 - Apps for TV and mobile, Chromecast support.
 

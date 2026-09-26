@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bookmark, Film, Heart, House, LogOut, Menu, Search, Settings, ShieldCheck, Tv, X } from 'lucide-react';
+import { Bookmark, Film, Heart, Layers, House, LogOut, Menu, Search, Settings, ShieldCheck, Tv, X } from 'lucide-react';
 import { displayName, useAuth } from '../lib/auth';
 import { Logo } from './Logo';
 import { Avatar } from './Avatar';
@@ -9,6 +9,7 @@ const NAV = [
   { to: '/', label: 'Home', icon: House, end: true },
   { to: '/movies', label: 'Movies', icon: Film },
   { to: '/shows', label: 'TV Shows', icon: Tv },
+  { to: '/collections', label: 'Collections', icon: Layers },
   { to: '/watchlist', label: 'Watchlist', icon: Bookmark },
   { to: '/favorites', label: 'Favorites', icon: Heart },
   { to: '/search', label: 'Search', icon: Search },

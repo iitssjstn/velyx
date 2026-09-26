@@ -376,3 +376,40 @@ export const watchlist = sqliteTable(
     uniqueIndex('watchlist_user_show_idx').on(t.userId, t.showId),
   ],
 );
+
+export const collections = sqliteTable(
+  'collections',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    /** 'auto' collections come from TMDB (e.g. "The Matrix Collection"); 'manual' ones are made by an admin. */
+    kind: text('kind', { enum: ['auto', 'manual'] }).notNull(),
+    tmdbId: integer('tmdb_id').unique(),
+    name: text('name').notNull(),
+    sortTitle: text('sort_title').notNull(),
+    overview: text('overview'),
+    posterPath: text('poster_path'),
+    backdropPath: text('backdrop_path'),
+    createdAt: integer('created_at').notNull().default(now),
+    updatedAt: integer('updated_at').notNull().default(now),
+  },
+  (t) => [index('collections_sort_idx').on(t.sortTitle)],
+);
+
+export const collectionItems = sqliteTable(
+  'collection_items',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    collectionId: integer('collection_id')
+      .notNull()
+      .references(() => collections.id, { onDelete: 'cascade' }),
+    movieId: integer('movie_id').references(() => movies.id, { onDelete: 'cascade' }),
+    showId: integer('show_id').references(() => shows.id, { onDelete: 'cascade' }),
+    addedAt: integer('added_at').notNull().default(now),
+  },
+  (t) => [
+    uniqueIndex('collection_items_movie_idx').on(t.collectionId, t.movieId),
+    uniqueIndex('collection_items_show_idx').on(t.collectionId, t.showId),
+    index('collection_items_movie_lookup_idx').on(t.movieId),
+    index('collection_items_show_lookup_idx').on(t.showId),
+  ],
+);
