@@ -270,8 +270,8 @@ export const nl: Record<string, string> = {
   'Only the person who fetched this subtitle or an administrator can remove it.': 'Alleen wie deze ondertiteling heeft opgehaald of een beheerder kan hem verwijderen.',
   'OpenSubtitles could not be reached. Try again later.': 'OpenSubtitles is niet bereikbaar. Probeer het later opnieuw.',
   'OpenSubtitles did not accept the API key or account. An administrator can check them in Admin → Server.': 'OpenSubtitles accepteert de API-sleutel of het account niet. Een beheerder kan ze controleren via Beheer → Server.',
-  'OpenSubtitles did not accept this API key or account.': 'OpenSubtitles accepteert deze API-sleutel of dit account niet.',
-  'OpenSubtitles did not accept this API key.': 'OpenSubtitles accepteert deze API-sleutel niet.',
+  'OpenSubtitles did not accept this API key ({reason}).': 'OpenSubtitles accepteert deze API-sleutel niet ({reason}).',
+  'OpenSubtitles did not accept this username or password ({reason}).': 'OpenSubtitles accepteert deze gebruikersnaam of dit wachtwoord niet ({reason}).',
   'Search for subtitles for this file first.': 'Zoek eerst naar ondertitels voor dit bestand.',
   'Searching subtitles online failed.': 'Online ondertitels zoeken is mislukt.',
   'Searching subtitles online is not set up. An administrator can add an OpenSubtitles API key in Admin → Server.': 'Online ondertitels zoeken is niet ingesteld. Een beheerder kan een OpenSubtitles API-sleutel toevoegen via Beheer → Server.',
@@ -280,4 +280,5 @@ export const nl: Record<string, string> = {
   'This subtitle file could not be read.': 'Dit ondertitelbestand kon niet worden gelezen.',
   'This subtitle file is too large.': 'Dit ondertitelbestand is te groot.',
   'Too many searches at once. Wait a moment and try again.': 'Te veel zoekopdrachten tegelijk. Wacht even en probeer het opnieuw.',
+  'OpenSubtitles did not answer as expected ({reason}). Something between this server and OpenSubtitles, such as a firewall or proxy, may be blocking it.': 'OpenSubtitles gaf niet het verwachte antwoord ({reason}). Iets tussen deze server en OpenSubtitles, zoals een firewall of proxy, blokkeert het mogelijk.',
 };

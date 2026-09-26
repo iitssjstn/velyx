@@ -65,6 +65,8 @@ function providerError(err: unknown, lang: Language): HttpError {
         : new HttpError(429, 'The daily download limit at OpenSubtitles has been reached. Try again tomorrow.');
     case 'unreachable':
       return new HttpError(502, 'OpenSubtitles could not be reached. Try again later.');
+    case 'blocked':
+      return new HttpError(502, 'OpenSubtitles did not answer as expected ({reason}). Something between this server and OpenSubtitles, such as a firewall or proxy, may be blocking it.', { reason: err.message });
     default:
       return new HttpError(502, 'Searching subtitles online failed.');
   }
@@ -162,7 +164,10 @@ export async function onlineSubtitleRoutes(app: FastifyInstance, ctx: AppContext
     try {
       await client.verify(next);
     } catch (err) {
-      if (err instanceof OpenSubtitlesError && err.kind === 'auth') throw new HttpError(400, next.username ? 'OpenSubtitles did not accept this API key or account.' : 'OpenSubtitles did not accept this API key.');
+      if (err instanceof OpenSubtitlesError && err.kind === 'bad-key') throw new HttpError(400, 'OpenSubtitles did not accept this API key ({reason}).', { reason: err.message });
+      if (err instanceof OpenSubtitlesError && err.kind === 'bad-account') {
+        throw new HttpError(400, 'OpenSubtitles did not accept this username or password ({reason}).', { reason: err.message });
+      }
       throw providerError(err, requestLanguage(request));
     }
     ctx.settings.update({ openSubtitlesApiKey: next.apiKey, openSubtitlesUsername: next.username, openSubtitlesPassword: next.password });

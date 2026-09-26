@@ -19,7 +19,7 @@ export function isOnlineSubtitleLanguage(v: string): v is OnlineSubtitleLanguage
   return (ONLINE_SUBTITLE_LANGUAGES as readonly string[]).includes(v);
 }
 
-export type OpenSubtitlesErrorKind = 'not-configured' | 'auth' | 'quota' | 'unreachable' | 'failed';
+export type OpenSubtitlesErrorKind = 'not-configured' | 'auth' | 'bad-key' | 'bad-account' | 'quota' | 'blocked' | 'unreachable' | 'failed';
 
 export class OpenSubtitlesError extends Error {
   constructor(
@@ -165,9 +165,22 @@ export class OpenSubtitlesClient {
     } catch (err) {
       throw new OpenSubtitlesError(`OpenSubtitles could not be reached: ${(err as Error).message}`, 'unreachable');
     }
-    const body = (await res.json().catch(() => ({}))) as T & { message?: string; errors?: string[]; reset_time_utc?: string };
+    const text = await res.text().catch(() => '');
+    let body: (T & { message?: string; errors?: string[]; reset_time_utc?: string }) | null;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = null;
+    }
+    const where = new URL(url).pathname;
+    if (!body || typeof body !== 'object') {
+      // A web page instead of an API answer: a firewall or proxy between this server and the API.
+      log.warn(`OpenSubtitles answered ${res.status} to ${where} with something that is not an API answer: ${text.slice(0, 200).replace(/\s+/g, ' ')}`);
+      throw new OpenSubtitlesError(`HTTP ${res.status}, no API answer`, 'blocked', res.status);
+    }
     if (res.ok) return body;
-    const message = body.message ?? body.errors?.join(', ') ?? `OpenSubtitles returned ${res.status}`;
+    const message = `${res.status}: ${body.message ?? body.errors?.join(', ') ?? 'no reason given'}`;
+    log.warn(`OpenSubtitles answered ${where} with ${message}`);
     if (res.status === 401 || res.status === 403) throw new OpenSubtitlesError(message, 'auth', res.status);
     if (res.status === 406 || res.status === 429) throw new OpenSubtitlesError(message, 'quota', res.status, body.reset_time_utc ?? null);
     throw new OpenSubtitlesError(message, 'failed', res.status);
@@ -197,13 +210,28 @@ export class OpenSubtitlesClient {
   }
 
   /** Checks a key (and account) before it is saved. */
+  /**
+   * Checks a key, then the account (when one is given), before they are saved. A rejection says
+   * which of the two was refused, with the provider's own reason.
+   */
   async verify(creds: OpenSubtitlesCredentials): Promise<void> {
     this.token = null;
-    if (creds.username && creds.password) {
-      await this.session(creds);
-      return;
+    try {
+      await this.call(`${API_BASE}/infos/formats`, { method: 'GET', headers: this.headers(creds.apiKey) });
+    } catch (err) {
+      if (err instanceof OpenSubtitlesError && err.kind === 'auth') throw new OpenSubtitlesError(err.message, 'bad-key', err.status);
+      throw err;
     }
-    await this.call(`${API_BASE}/infos/formats`, { method: 'GET', headers: this.headers(creds.apiKey) });
+    if (!creds.username || !creds.password) return;
+    try {
+      await this.session(creds);
+    } catch (err) {
+      // A refused sign-in is about the account: the key itself just passed.
+      if (err instanceof OpenSubtitlesError && (err.kind === 'auth' || (err.kind === 'failed' && err.status !== null && err.status < 500))) {
+        throw new OpenSubtitlesError(err.message, 'bad-account', err.status);
+      }
+      throw err;
+    }
   }
 
   async search(q: SubtitleQuery): Promise<OnlineSubtitle[]> {
