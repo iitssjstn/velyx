@@ -24,6 +24,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - [Users and roles](#users-and-roles)
 - [Monitoring and storage](#monitoring-and-storage)
 - [Library health](#library-health)
+- [Intros and credits](#intros-and-credits)
 - [Running behind a reverse proxy](#running-behind-a-reverse-proxy)
 - [Updating](#updating)
 - [Backup and restore](#backup-and-restore)
@@ -48,6 +49,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Incremental scanning** — only new or changed files (path, size, modification time) are analysed with FFprobe. Removed files disappear, and a library whose drive is not mounted is never wiped.
 - **Custom video player** — resume, seeking, subtitles (external `.srt`/`.vtt` and embedded text tracks), subtitle size, playback speed, audio track switching in every browser, auto-play next episode with countdown, fullscreen and keyboard shortcuts.
 - **Automatic audio conversion** — files with audio the browser cannot decode (EAC3, AC3, DTS, TrueHD) play anyway: the video is passed through untouched and only the audio is converted to AAC on the fly (stereo or 5.1 surround). Light enough for low-end CPUs.
+- **Skip intros and credits** — Velyx recognises the recurring intro and credits of TV episodes by their sound, per season and on your own server. A *Skip intro* / *Skip credits* button appears while they play (or they are skipped automatically, if you prefer); a scene after the credits is never skipped.
 - **Audio options like Plex** — *Boost voices* (clearer dialogue) and *Level volume* (night mode), switchable from the player.
 - **Subtitles your way** — size, colour, background, outline/shadow, position and timing (sync) adjustable from the player; subtitles always stay above the controls.
 - **Automatic library updates** — library folders are watched; new movies and episodes (e.g. from Radarr/Sonarr) appear about 30 seconds after they land.
@@ -60,7 +62,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Per-user library access** — choose which libraries each user can see (for example a kids-only library).
 - **Collections** — movie series from TMDB (such as “The Matrix Collection”) are grouped automatically once you have two or more of their movies; administrators can also make their own collections of movies and shows. **Smart collections** (Recently Added, Unwatched, 4K, HDR, Short Movies, decades, …) are saved filters, evaluated per viewer, and admins can save their own.
 - **Multiple users** with administrator and user roles, device/session management and an audit log.
-- **Admin panel** — dashboard with CPU, memory, disk, scanner status, active streams and backups; libraries with live scan progress; Library health; users and sessions; metadata review; server settings; logs; audit log; backups.
+- **Admin panel** — dashboard with CPU, memory, disk, scanner status, active streams and backups; libraries with live scan progress; Library health; intros & credits; users and sessions; metadata review; server settings; logs; audit log; backups.
 - **Backups** — scheduled database backups with daily/weekly/monthly rotation, verification, and restore from the admin page or the command line.
 - **Storage monitoring** — warnings when the data volume runs low; scans pause automatically when it is critical; unused cache can be cleared.
 - **Responsive UI** for desktop, tablet and phone. On desktop, hovering a poster (or focusing it with the keyboard) shows its year, runtime or number of seasons, rating and genres — from data the page already has, without extra requests.
@@ -263,9 +265,10 @@ In the player, a small badge shows the mode (*Direct Play*, or *Remux • Audio 
 - **Controls:** play/pause, back and forward 10 seconds, volume and time on the left; next episode, subtitles, audio, playback settings (speed, autoplay, keyboard shortcuts), minimize and full screen on the right. Click the video to pause, double-click for full screen.
 - **Mini-player:** *Minimize* (or `I`) shrinks the video to a small floating player so you can keep browsing Velyx; on phones it becomes a compact bar along the bottom. It is the same video, not a new stream: position, audio track and subtitles stay exactly as they were, and a converted (remux) stream keeps running without restarting FFmpeg. Click it to return to the full player, or close it to stop. Starting another movie or episode replaces it.
 - **Resume:** opening a partly watched item from an episode list or search asks *Resume from 34:12* or *Start over*; the Resume buttons on detail pages and Continue Watching go straight to the saved position.
-- **Next episode:** in the last seconds of an episode a small card shows the next one, with a countdown when *Autoplay next episode* is on. *Cancel* keeps watching to the end.
+- **Skip intro / credits:** while a detected intro or credits play, a *Skip intro* or *Skip credits* button appears in the bottom-right corner (clear of subtitles; also `S` on the keyboard). Skipping credits goes to a scene after the credits when there is one, otherwise the episode ends. With *Skip automatically* a short *Intro skipped · Undo* notice appears instead. Set this per account in **Settings → Playback → Intros & credits** (*Show a skip button* is the default, *Skip automatically* or *Never*).
+- **Next episode:** a small card shows the next episode when the credits begin (or in the last seconds, when the credits are unknown or a scene follows them), with a countdown when *Autoplay next episode* is on. *Cancel* keeps watching to the end.
 - **Status:** a small label in the top-right corner reads *✓ Direct Play*, *↻ Remux* or *↻ Remux · Audio → AAC*; click it for the details (codecs, container, resolution, bit depth, HDR, subtitle formats, and that no video transcoding takes place).
-- **Keyboard:** Space/K play or pause · ←/→ (J/L) 10 seconds · ↑/↓ volume · M mute · F full screen · I minimize · C subtitles · N next episode · 0–9 jump · ? shortcuts · Esc close menu / leave.
+- **Keyboard:** Space/K play or pause · ←/→ (J/L) 10 seconds · ↑/↓ volume · M mute · F full screen · I minimize · C subtitles · S skip intro/credits · N next episode · 0–9 jump · ? shortcuts · Esc close menu / leave.
 
 ### Audio options
 
@@ -281,7 +284,7 @@ Boost voices and Level volume always convert the audio, just like in Plex.
 
 **Settings → Playback** also shows what the current browser supports.
 
-**Keyboard shortcuts in the player:** `Space`/`K` play/pause, `←`/`→` or `J`/`L` seek 10 s, `↑`/`↓` volume, `M` mute, `F` fullscreen, `C` cycle subtitles, `N` next episode, `0`–`9` jump to 0–90 %, `Esc` back.
+**Keyboard shortcuts in the player:** `Space`/`K` play/pause, `←`/`→` or `J`/`L` seek 10 s, `↑`/`↓` volume, `M` mute, `F` fullscreen, `C` cycle subtitles, `S` skip intro/credits, `N` next episode, `0`–`9` jump to 0–90 %, `Esc` back.
 
 ## Subtitles and audio tracks
 
@@ -324,6 +327,16 @@ Boost voices and Level volume always convert the audio, just like in Plex.
 | Library | Missing metadata, missing artwork, scan errors, not fully analysed, possible duplicates |
 
 Click a category to see the affected movies and episodes, each with its format (for example `HEVC · 2160p · 10-bit · HDR10 · E-AC3 5.1 · MKV`), its path inside the library and, where possible, a plain explanation — why a file cannot play, what a remux converts, which versions of a movie exist. The playback verdicts assume a typical current browser; the player still decides per device.
+
+## Intros and credits
+
+Velyx finds intros and credits itself, without an online service or fixed timestamps. The audio of the first and last minutes of every episode is turned into a compact fingerprint, and parts that recur in several episodes of the same season are recognised as the intro (near the start) or the credits (near the end) — so every season can have its own intro, and a cold open before the intro is no problem.
+
+- **Background job:** detection runs after library scans and a few minutes after start-up, one season at a time and at the lowest CPU priority. It only decodes audio (never video), waits while anyone is watching or a scan runs, and never delays playback. Each episode is analysed once; it is analysed again only when its file changes, when the detection improves in a newer Velyx version, or when a weak result can be improved because episodes were added to its season.
+- **Confidence:** *High* (several episodes agree), *Medium* (one clear match) or *Low*. Only high and medium results get a skip button; low results are shown to administrators and looked at again when the season grows.
+- **Post-credits scenes:** sound after the recurring credits music is treated as a scene and is never skipped; silence after the credits counts as part of them.
+- **Admin → Intros & credits** shows the progress (analysed, found, waiting, errors), the results per show, season and episode, and the errors. Administrators can correct the times of an episode (a manual correction always wins over automatic detection), remove a correction, and analyse an episode, season, show or everything again.
+- Detection can be switched off in **Admin → Server**. It needs at least two episodes of a season that share the same intro or credits; a season with a single episode gets no skip buttons.
 
 ## Running behind a reverse proxy
 
@@ -509,13 +522,14 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 - HDR is passed through as-is; on screens without HDR, colours can look washed out (the player warns about it).
 - Image-based subtitles (PGS/VobSub) are not shown; Velyx does not convert them (no OCR).
 - While audio is converted, seeking outside the already loaded part restarts the stream (about a second).
+- Intro and credits detection needs at least two episodes of a season with the same intro or credits. Movies are not analysed.
 - Music, photos and live TV are out of scope for this version.
 
 ## Roadmap
 
 - Full video transcoding with hardware acceleration (NVENC, Quick Sync, VAAPI/AMF) and HLS output.
 - Burn-in or OCR for image-based subtitles.
-- Trickplay thumbnails on the seek bar, intro/credits detection.
+- Trickplay thumbnails on the seek bar.
 - Apps for TV and mobile, Chromecast support.
 
 ## License

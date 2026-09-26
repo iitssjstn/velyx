@@ -78,10 +78,12 @@ const preferencesBody = z.object({
   subtitleLanguage: language.optional(),
   subtitleFallback: language.optional(),
   subtitleMode: z.enum(['remember', 'always', 'foreign', 'forced', 'off']).optional(),
+  skipIntro: z.enum(['never', 'ask', 'always']).optional(),
+  skipCredits: z.enum(['never', 'ask', 'always']).optional(),
 });
 
 function preferencesView(u: typeof users.$inferSelect) {
-  return { audioLanguage: u.prefAudioLanguage, subtitleLanguage: u.prefSubtitleLanguage, subtitleFallback: u.prefSubtitleFallback, subtitleMode: u.prefSubtitleMode };
+  return { audioLanguage: u.prefAudioLanguage, subtitleLanguage: u.prefSubtitleLanguage, subtitleFallback: u.prefSubtitleFallback, subtitleMode: u.prefSubtitleMode, skipIntro: u.prefSkipIntro, skipCredits: u.prefSkipCredits };
 }
 
 const AVATAR_TYPES: Record<string, { ext: string; magic: (b: Buffer) => boolean }> = {
@@ -227,6 +229,8 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
         ...(b.subtitleLanguage !== undefined ? { prefSubtitleLanguage: b.subtitleLanguage } : {}),
         ...(b.subtitleFallback !== undefined ? { prefSubtitleFallback: b.subtitleFallback } : {}),
         ...(b.subtitleMode !== undefined ? { prefSubtitleMode: b.subtitleMode } : {}),
+        ...(b.skipIntro !== undefined ? { prefSkipIntro: b.skipIntro } : {}),
+        ...(b.skipCredits !== undefined ? { prefSkipCredits: b.skipCredits } : {}),
         updatedAt: Date.now(),
       })
       .where(eq(users.id, request.user!.id))

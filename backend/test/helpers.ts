@@ -7,6 +7,7 @@ import { openDatabase } from '../src/db/client.js';
 import { buildApp, createContext, type AppContext } from '../src/app.js';
 import type { ProbeResult, Prober } from '../src/services/probe.js';
 import type { FetchLike } from '../src/services/tmdb.js';
+import type { AudioReader } from '../src/services/segments/detector.js';
 import { setLogLevel } from '../src/logger.js';
 
 setLogLevel('error');
@@ -46,6 +47,9 @@ export interface TestEnvOptions {
   prober?: Prober;
   watchDebounceMs?: number;
   scanYieldMs?: number;
+  /** Synthetic audio for intro/credits detection; without it detection is off in tests. */
+  audioReader?: AudioReader;
+  segmentRetryMs?: number;
 }
 
 export async function createTestEnv(opts: TestEnvOptions = {}): Promise<TestEnv> {
@@ -67,9 +71,10 @@ export async function createTestEnv(opts: TestEnvOptions = {}): Promise<TestEnv>
   const noNetwork: FetchLike = async () => {
     throw new Error('network disabled in tests');
   };
-  const ctx = createContext(config, db, { prober, fetchImpl: opts.fetchImpl ?? noNetwork, tmdbMinIntervalMs: 0, watchDebounceMs: opts.watchDebounceMs, scanYieldMs: opts.scanYieldMs });
+  const ctx = createContext(config, db, { prober, fetchImpl: opts.fetchImpl ?? noNetwork, tmdbMinIntervalMs: 0, watchDebounceMs: opts.watchDebounceMs, scanYieldMs: opts.scanYieldMs, audioReader: opts.audioReader, segmentRetryMs: opts.segmentRetryMs });
   // Folder watching is opt-in per test (see watcher.test.ts) so other suites stay deterministic.
-  ctx.settings.update({ watchFolders: false });
+  // So is intro/credits detection (it needs real or synthetic audio).
+  ctx.settings.update({ watchFolders: false, segmentDetection: Boolean(opts.audioReader) });
   const app = await buildApp(ctx);
   return {
     app,
@@ -80,6 +85,7 @@ export async function createTestEnv(opts: TestEnvOptions = {}): Promise<TestEnv>
     cleanup: async () => {
       ctx.watcher.stop();
       ctx.scans.stop();
+      ctx.segments.stop();
       await app.close();
       db.$client.close();
       fs.rmSync(dir, { recursive: true, force: true });

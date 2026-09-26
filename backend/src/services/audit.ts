@@ -34,7 +34,10 @@ export type AuditAction =
   | 'database.restored'
   | 'cache.cleared'
   | 'collection.created'
-  | 'collection.deleted';
+  | 'collection.deleted'
+  | 'segments.edited'
+  | 'segments.reset'
+  | 'segments.analyze';
 
 export interface AuditActor {
   id: number;

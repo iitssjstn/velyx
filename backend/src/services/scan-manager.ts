@@ -20,6 +20,8 @@ export interface ScanHooks {
   deferWhilePlaying?: () => boolean;
   /** Pause between files while someone is watching, so an old disk serves the stream first. */
   yieldMs?: number;
+  /** Every queued scan has finished (follow-up work such as intro detection starts here). */
+  onIdle?: () => void;
 }
 
 /** How long a scheduled scan waits for playback to end before it runs anyway. */
@@ -107,6 +109,11 @@ export class ScanManager {
     if (!this.stopped && this.hooks.playbackActive?.()) await new Promise((resolve) => setTimeout(resolve, this.hooks.yieldMs ?? 250));
   };
 
+  /** A scan is running or waiting to run. */
+  get active(): boolean {
+    return this.running !== null || this.queue.length > 0;
+  }
+
   isBusy(libraryId: number): boolean {
     return this.running?.libraryId === libraryId || this.queue.some((j) => j.libraryId === libraryId);
   }
@@ -189,6 +196,7 @@ export class ScanManager {
     if (this.running || this.stopped || this.paused) return;
     const job = this.queue.shift();
     if (!job) {
+      this.hooks.onIdle?.();
       const waiters = this.idleWaiters.splice(0);
       waiters.forEach((w) => w());
       return;

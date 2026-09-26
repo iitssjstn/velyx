@@ -50,6 +50,8 @@ async function main(): Promise<void> {
       if (done) ctx.settings.update({ collectionsBackfilled: true });
     });
   }
+  // Episodes added while Velyx was off (or never analysed) get their intros/credits found later on.
+  setTimeout(() => ctx.segments.enqueuePending(), 3 * 60 * 1000).unref();
   ctx.watcher.sync(ctx.settings.get().watchFolders);
   ctx.backups.start();
   ctx.disk.start();
@@ -64,6 +66,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     log.info(`Received ${signal}, shutting down`);
     ctx.scans.stop();
+    ctx.segments.stop();
     ctx.watcher.stop();
     ctx.backups.stop();
     ctx.disk.stop();
