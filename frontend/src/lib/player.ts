@@ -65,14 +65,3 @@ export function preferredAudioIndex(
   if (def && sameLanguage(def.language, preferredLanguage)) return undefined;
   return tracks.find((t) => sameLanguage(t.language, preferredLanguage))?.index;
 }
-
-/**
- * Where a seek should go for live (restart) streams: within what is already buffered the browser
- * can seek locally; anything else needs a new stream from the server.
- */
-/** `bufferedEnd` is measured in stream time (seconds since `offset`). */
-export function seekPlan(target: number, offset: number, bufferedEnd: number): { local: number } | { restart: true } {
-  const local = target - offset;
-  if (local >= 0 && local <= bufferedEnd - 0.3) return { local };
-  return { restart: true };
-}

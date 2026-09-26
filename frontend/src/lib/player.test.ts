@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickSubtitle, preferredAudioIndex, seekPlan, startPosition, withParam } from './player';
+import { pickSubtitle, preferredAudioIndex, startPosition, withParam } from './player';
 import { detectCapabilities } from './codecs';
 import { normalizeLanguage, sameLanguage } from './prefs';
 import type { SubtitleOption } from './types';
@@ -76,12 +76,6 @@ describe('live stream helpers', () => {
     expect(preferredAudioIndex(tracks, 'de', false)).toBeUndefined();
   });
 
-  it('seeks locally inside the buffer and restarts the stream elsewhere', () => {
-    // bufferedEnd is in stream time (the stream starts at offset 120)
-    expect(seekPlan(130, 120, 30)).toEqual({ local: 10 });
-    expect(seekPlan(110, 120, 30)).toEqual({ restart: true });
-    expect(seekPlan(200, 120, 30)).toEqual({ restart: true });
-  });
 });
 
 describe('remembered subtitle choice', () => {

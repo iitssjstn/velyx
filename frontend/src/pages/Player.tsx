@@ -23,7 +23,7 @@ import { api, errorMessage } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
 import { getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
-import { isTyping, pickSubtitle, preferredAudioIndex, seekPlan, startPosition, withParam } from '../lib/player';
+import { isTyping, pickSubtitle, preferredAudioIndex, startPosition, withParam } from '../lib/player';
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo } from '../lib/types';
 import { Spinner } from '../components/States';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
@@ -224,18 +224,13 @@ export default function PlayerPage() {
       if (!v) return;
       const max = Math.max(0, (totalDuration || v.duration || 0) - 0.5);
       const t = Math.max(0, Math.min(max, target));
-      if (!live) {
-        v.currentTime = t;
-        return;
-      }
-      const end = v.buffered.length ? v.buffered.end(v.buffered.length - 1) : 0;
-      const plan = seekPlan(t, offset, end);
-      if ('local' in plan) {
-        clearTimeout(restartTimer.current);
-        v.currentTime = plan.local;
-      } else restartAt(t);
+      // Live (converted) streams are not seekable for the browser (seekable = [0, 0]): setting
+      // currentTime makes it silently reload the stream from its start. Every seek therefore asks the
+      // server for a new stream that begins at the keyframe before `t`.
+      if (live) restartAt(t);
+      else v.currentTime = t;
     },
-    [live, offset, totalDuration, restartAt],
+    [live, totalDuration, restartAt],
   );
 
   // ---------------------------------------------------------------- controls visibility
@@ -386,9 +381,11 @@ export default function PlayerPage() {
     v.playbackRate = speed;
     const pending = pendingSeekRef.current;
     pendingSeekRef.current = null;
-    if (pending !== null) {
+    // Direct play: jump to the resume/seek position. Live streams already begin at the keyframe
+    // just before it; seeking inside them would make the browser reload the stream from its start.
+    if (pending !== null && !live) {
       const local = pending - offset;
-      if (local > 0.05 && (live || local < v.duration - 1)) v.currentTime = local;
+      if (local > 0.05 && local < v.duration - 1) v.currentTime = local;
     }
     if (!startedRef.current) {
       startedRef.current = true;
