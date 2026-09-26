@@ -58,6 +58,12 @@ export function StorageWarning({ disk }: { disk: DiskInfo | null }) {
   );
 }
 
+/** "4 s", "2m 10s" style duration for scans (formatDuration rounds to minutes). */
+export function scanDuration(ms: number): string {
+  const s = Math.max(1, Math.round(ms / 1000));
+  return s < 60 ? `${s} s` : formatDuration(s);
+}
+
 const STATUS_STYLE: Record<ScanState['status'], string> = {
   scanning: 'bg-accent/15 text-accent',
   queued: 'bg-accent/10 text-accent',
@@ -98,7 +104,7 @@ function ScannerCard({ scan, probe, libraryName }: { scan: ScanState; probe: Das
         <dt className="text-faint">Last successful</dt>
         <dd>
           {scan.lastSuccess
-            ? `${formatRelative(scan.lastSuccess.at)} · ${libraryName(scan.lastSuccess.libraryId)}${scan.lastSuccess.durationMs !== null ? ` · took ${formatDuration(Math.max(1, Math.round(scan.lastSuccess.durationMs / 1000)))}` : ''}`
+            ? `${formatRelative(scan.lastSuccess.at)} · ${libraryName(scan.lastSuccess.libraryId)}${scan.lastSuccess.durationMs !== null ? ` · took ${scanDuration(scan.lastSuccess.durationMs)}` : ''}`
             : 'Never'}
         </dd>
         <dt className="text-faint">Last failed</dt>
@@ -282,7 +288,7 @@ export function DashboardPage() {
             <dd>
               <Link to="/admin/backup" className="hover:text-accent">
                 {d.backups.latest ? formatRelative(d.backups.latest.createdAt) : 'None yet'}
-                {d.backups.nextDue ? ` · next ${new Date(d.backups.nextDue).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}
+                {d.backups.nextDue ? (d.backups.nextDue <= Date.now() + 60_000 ? ' · next one due now' : ` · next ${new Date(d.backups.nextDue).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`) : ''}
               </Link>
             </dd>
             <dt className="text-faint">Runtime</dt>

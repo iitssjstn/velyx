@@ -137,9 +137,7 @@ export function PlaybackUnavailable({
           </ul>
         </div>
         <p className="mt-4 text-sm text-muted">
-          {a.transcodeRequired
-            ? 'Playing this file here would need the video to be converted (transcoded). Velyx does not transcode video, to keep the server light — '
-            : ''}
+          {a.transcodeRequired ? 'Playing this file here would need the video to be converted (transcoded). Velyx does not transcode video, to keep the server light. ' : ''}
           Try a browser or device that supports this format{a.video.codec === 'hevc' ? ', such as Safari, or Edge/Chrome on a PC with HEVC hardware decoding' : ''}.
         </p>
         {a.warnings.length > 0 && (
