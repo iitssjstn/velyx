@@ -4,7 +4,7 @@
 
 Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.4.0 — Playback compatibility explained per file and device, fast browsing and search for large libraries, session management and an audit log, scheduled and verified backups, storage monitoring and a much more informative admin dashboard. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
+> Version 0.4.1 — A stability release: playback never waits for a library scan, playback problems offer *Try again* and say plainly whether a file is missing or cannot be decoded, files that arrive during a scan are picked up right away, and library cards show year, runtime or seasons, rating and genres on hover. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
 
 ---
 
@@ -62,7 +62,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Admin panel** — dashboard with CPU, memory, disk, scanner status, active streams and backups; libraries with live scan progress; a compatibility overview per library; users and sessions; metadata review; server settings; logs; audit log; backups.
 - **Backups** — scheduled database backups with daily/weekly/monthly rotation, verification, and restore from the admin page or the command line.
 - **Storage monitoring** — warnings when the data volume runs low; scans pause automatically when it is critical; unused cache can be cleared.
-- **Responsive UI** for desktop, tablet and phone.
+- **Responsive UI** for desktop, tablet and phone. On desktop, hovering a poster (or focusing it with the keyboard) shows its year, runtime or number of seasons, rating and genres — from data the page already has, without extra requests.
 - **Docker-first** — one container, SQLite database, migrations run automatically, health check included.
 
 ## Screenshots
@@ -268,7 +268,7 @@ Boost voices and Level volume always convert the audio, just like in Plex.
 
 - External `.srt` (UTF-8, UTF-16 and Windows-1252 are detected) and `.vtt` files are converted to WebVTT on the fly.
 - Embedded text subtitles (SRT, ASS/SSA, MP4 text) are extracted with FFmpeg once and cached.
-- Image-based subtitles (PGS, VobSub) need transcoding and are not supported yet.
+- Image-based subtitles (PGS, VobSub) cannot be shown in the browser without converting them, which Velyx does not do. Use text subtitles (SRT, ASS, WebVTT) instead.
 - Velyx draws subtitles itself, so they look the same in every browser and move above the player controls when those are shown.
 - Adjust **size, colour (white/yellow), background (none/dimmed/solid), edge (shadow/outline), position** and **sync** (±0.5 s steps) from the subtitle menu in the player, or set defaults with a live preview in **Settings → Playback**.
 - **Language preferences** (Settings → Playback → Languages) are saved to your account and used on every device: preferred audio language (falls back to the original audio), subtitle language with a fallback language, and when to show subtitles — *Always*, *When the audio is in another language*, *Forced only*, *Off*, or *Remember my last choice* (the default, which reuses what you picked last in that browser).
@@ -461,6 +461,9 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 | "Storage critically low" and scans paused | Free up space on the data volume (or clear unused cache on the dashboard); scans resume by themselves. Adjust `LOW_DISK_GB`/`CRITICAL_DISK_GB` if the defaults do not suit your disk. |
 | "Too many failed sign-in attempts" | Wait the time shown (at most 15 minutes). Behind a proxy, set `TRUST_PROXY` to the number of proxies so one user's mistakes do not block everyone behind the same proxy address. |
 | Velyx does not start after an update | Read `docker compose logs velyx`. A failed migration leaves the database unchanged; go back to the previous image, or restore `data/backups/pre-migration-*.db`. |
+| "Playback problem: the connection to the server was interrupted" | Press *Try again*: playback continues where it stopped. If it keeps happening, check the network or reverse-proxy timeouts. |
+| "Media file is no longer available" | The file was moved, renamed or its drive is not mounted. Rescan the library once the file is back. |
+| The server feels slow | Admin → Logs lists API requests that took longer than 2 seconds (`Slow request: …`). `LOG_LEVEL=debug` logs every API request with its duration. |
 | Playback starts slowly after seeking | Normal while audio is converted: the stream restarts at the nearest keyframe. |
 | Audio out of sync in one specific file | If it also happens with Direct Play, the file itself is out of sync. While audio is converted Velyx keeps it aligned automatically. |
 | Subtitles out of sync | Use Sync in the subtitle menu (+ shows them later, − earlier). |
@@ -473,7 +476,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 
 - **Velyx does not transcode video.** A video format the device cannot decode (e.g. HEVC in Firefox, 10-bit H.264 in any browser) will not play; the player explains why. Unsupported audio and containers are handled by a light remux.
 - HDR is passed through as-is; on screens without HDR, colours can look washed out (the player warns about it).
-- Image-based subtitles (PGS/VobSub) are not supported yet.
+- Image-based subtitles (PGS/VobSub) are not shown; Velyx does not convert them (no OCR).
 - While audio is converted, seeking outside the already loaded part restarts the stream (about a second).
 - Music, photos and live TV are out of scope for this version.
 

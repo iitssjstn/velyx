@@ -51,7 +51,7 @@ function CardDetails({ item, withProgress }: { item: Card; withProgress: boolean
   return (
     <div
       aria-hidden="true"
-      className={`pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/45 to-transparent px-3 pt-10 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none ${withProgress ? 'pb-5' : 'pb-3'}`}
+      className={`pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black from-30% via-black/80 via-55% to-black/10 px-3 pt-10 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none ${withProgress ? 'pb-5' : 'pb-3'}`}
     >
       <div className="translate-y-1 transition-transform duration-200 group-hover:translate-y-0 group-focus-visible:translate-y-0 motion-reduce:transition-none">
         <p className="line-clamp-2 font-display text-sm leading-tight font-semibold text-ink">{item.title}</p>

@@ -468,13 +468,18 @@ export default function PlayerPage() {
     const reasons = info?.decision.reasons ?? [];
     setBuffering(false);
     if (code === 4 || code === 3) {
-      // Browsers report a failed HTTP request (file removed, drive unmounted) as "format not
-      // supported" too. Ask the server before blaming the format.
-      const gone = await api.get(`/api/media/${file?.id}/available`).then(
-        () => null,
-        (err: unknown) => (err instanceof ApiError && err.status === 404 ? errorMessage(err) : null),
-      );
-      if (gone) setError(gone);
+      // Browsers also report a failed HTTP request (connection lost, file removed, drive unmounted)
+      // as "format not supported". Rule those out before blaming the format.
+      const reachable = streamSrc ? await fetch(streamSrc, { method: 'HEAD', credentials: 'same-origin' }).then(() => true, () => false) : true;
+      const gone = reachable
+        ? await api.get(`/api/media/${file?.id}/available`).then(
+            () => null,
+            (err: unknown) => (err instanceof ApiError && err.status === 404 ? errorMessage(err) : null),
+          )
+        : null;
+      // A stream that already played was understood by the browser: a later "not supported" is a transfer problem.
+      if (!reachable || (code === 4 && startedRef.current && !gone)) setError('The connection to the server was interrupted.');
+      else if (gone) setError(gone);
       else if (info?.analysis) setDecodeFailed(true);
       else setError(reasons.length ? `Your browser cannot play this file: ${reasons.join('; ')}.` : 'Your browser cannot decode this file. Try Chrome or Edge, which handle the most formats.');
     } else if (code === 2) {
