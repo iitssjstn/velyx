@@ -280,4 +280,5 @@ export const nl: Record<string, string> = {
   'This subtitle file could not be read.': 'Dit ondertitelbestand kon niet worden gelezen.',
   'This subtitle file is too large.': 'Dit ondertitelbestand is te groot.',
   'Too many searches at once. Wait a moment and try again.': 'Te veel zoekopdrachten tegelijk. Wacht even en probeer het opnieuw.',
+  'OpenSubtitles did not answer as expected ({reason}). Something between this server and OpenSubtitles, such as a firewall or proxy, may be blocking it.': 'OpenSubtitles gaf niet het verwachte antwoord ({reason}). Iets tussen deze server en OpenSubtitles, zoals een firewall of proxy, blokkeert het mogelijk.',
 };

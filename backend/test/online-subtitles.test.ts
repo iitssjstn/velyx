@@ -18,7 +18,7 @@ interface Call {
 /** A stand-in for api.opensubtitles.com. */
 function fakeOpenSubtitles() {
   const calls: Call[] = [];
-  const state = { validKey: 'good-key', quota: false, downloadBody: SRT, results: [] as unknown[] };
+  const state = { validKey: 'good-key', quota: false, blocked: false, downloadBody: SRT, results: [] as unknown[] };
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   const fetchImpl = async (input: string, init: RequestInit = {}) => {
     const url = new URL(input);
@@ -26,6 +26,7 @@ function fakeOpenSubtitles() {
     calls.push({ url, method: init.method ?? 'GET', headers, body: init.body ? JSON.parse(String(init.body)) : null });
     if (url.hostname === 'dl.opensubtitles.test') return new Response(state.downloadBody, { status: 200 });
     if (url.hostname !== 'api.opensubtitles.com') throw new Error('network disabled in tests');
+    if (state.blocked) return new Response('<html><body>Access denied</body></html>', { status: 403, headers: { 'content-type': 'text/html' } });
     if (headers['api-key'] !== state.validKey) return json(401, { message: 'Invalid API key' });
     const p = url.pathname.replace('/api/v1', '');
     if (p === '/infos/formats') return json(200, { data: { output_formats: ['srt'] } });
@@ -115,7 +116,7 @@ describe('setting up OpenSubtitles', () => {
     const bad = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'wrong-key' });
     expect(bad.statusCode).toBe(400);
     // With the provider's own reason, so it is clear what is wrong.
-    expect(bad.json().error).toBe('OpenSubtitles did not accept this API key (Invalid API key).');
+    expect(bad.json().error).toBe('OpenSubtitles did not accept this API key (401: Invalid API key).');
     const ok = await configure();
     expect(ok.statusCode).toBe(200);
     expect(ok.json()).toMatchObject({ configured: true, hint: '••••-key', username: null, hasPassword: false });
@@ -131,7 +132,7 @@ describe('setting up OpenSubtitles', () => {
     const wrong = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna', password: 'nope' });
     expect(wrong.statusCode).toBe(400);
     // The key is fine: the message is about the account.
-    expect(wrong.json().error).toBe('OpenSubtitles did not accept this username or password (Invalid username/password).');
+    expect(wrong.json().error).toBe('OpenSubtitles did not accept this username or password (401: Invalid username/password).');
     // A wrong key with an account is reported as a wrong key.
     expect((await req('PUT', '/api/admin/online-subtitles', { apiKey: 'wrong-key', username: 'anna', password: 'secret' })).json().error).toMatch(/^OpenSubtitles did not accept this API key/);
     // Nothing was saved.
@@ -139,6 +140,13 @@ describe('setting up OpenSubtitles', () => {
     const res = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna', password: 'secret' });
     expect(res.json()).toMatchObject({ configured: true, username: 'anna', hasPassword: true });
     expect(JSON.stringify(res.json())).not.toContain('secret');
+  });
+
+  it('says so when something in between blocks OpenSubtitles, instead of blaming the key', async () => {
+    os_.state.blocked = true;
+    const res = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna', password: 'secret' });
+    expect(res.statusCode).toBe(502);
+    expect(res.json().error).toBe('OpenSubtitles did not answer as expected (HTTP 403, no API answer). Something between this server and OpenSubtitles, such as a firewall or proxy, may be blocking it.');
   });
 
   it('can be turned off again', async () => {

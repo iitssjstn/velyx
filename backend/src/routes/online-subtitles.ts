@@ -65,6 +65,8 @@ function providerError(err: unknown, lang: Language): HttpError {
         : new HttpError(429, 'The daily download limit at OpenSubtitles has been reached. Try again tomorrow.');
     case 'unreachable':
       return new HttpError(502, 'OpenSubtitles could not be reached. Try again later.');
+    case 'blocked':
+      return new HttpError(502, 'OpenSubtitles did not answer as expected ({reason}). Something between this server and OpenSubtitles, such as a firewall or proxy, may be blocking it.', { reason: err.message });
     default:
       return new HttpError(502, 'Searching subtitles online failed.');
   }

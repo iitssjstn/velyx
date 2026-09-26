@@ -19,7 +19,7 @@ export function isOnlineSubtitleLanguage(v: string): v is OnlineSubtitleLanguage
   return (ONLINE_SUBTITLE_LANGUAGES as readonly string[]).includes(v);
 }
 
-export type OpenSubtitlesErrorKind = 'not-configured' | 'auth' | 'bad-key' | 'bad-account' | 'quota' | 'unreachable' | 'failed';
+export type OpenSubtitlesErrorKind = 'not-configured' | 'auth' | 'bad-key' | 'bad-account' | 'quota' | 'blocked' | 'unreachable' | 'failed';
 
 export class OpenSubtitlesError extends Error {
   constructor(
@@ -165,10 +165,22 @@ export class OpenSubtitlesClient {
     } catch (err) {
       throw new OpenSubtitlesError(`OpenSubtitles could not be reached: ${(err as Error).message}`, 'unreachable');
     }
-    const body = (await res.json().catch(() => ({}))) as T & { message?: string; errors?: string[]; reset_time_utc?: string };
+    const text = await res.text().catch(() => '');
+    let body: (T & { message?: string; errors?: string[]; reset_time_utc?: string }) | null;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = null;
+    }
+    const where = new URL(url).pathname;
+    if (!body || typeof body !== 'object') {
+      // A web page instead of an API answer: a firewall or proxy between this server and the API.
+      log.warn(`OpenSubtitles answered ${res.status} to ${where} with something that is not an API answer: ${text.slice(0, 200).replace(/\s+/g, ' ')}`);
+      throw new OpenSubtitlesError(`HTTP ${res.status}, no API answer`, 'blocked', res.status);
+    }
     if (res.ok) return body;
-    const message = body.message ?? body.errors?.join(', ') ?? `OpenSubtitles returned ${res.status}`;
-    log.warn(`OpenSubtitles answered ${res.status} to ${new URL(url).pathname}: ${message}`);
+    const message = `${res.status}: ${body.message ?? body.errors?.join(', ') ?? 'no reason given'}`;
+    log.warn(`OpenSubtitles answered ${where} with ${message}`);
     if (res.status === 401 || res.status === 403) throw new OpenSubtitlesError(message, 'auth', res.status);
     if (res.status === 406 || res.status === 429) throw new OpenSubtitlesError(message, 'quota', res.status, body.reset_time_utc ?? null);
     throw new OpenSubtitlesError(message, 'failed', res.status);
