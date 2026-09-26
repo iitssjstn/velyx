@@ -84,4 +84,5 @@ export const player: Messages['player'] = {
   noMediaFile: 'Er is geen mediabestand voor dit item.',
   cannotPlayItem: 'Dit item kan niet worden afgespeeld',
   noMediaFileRescan: 'Er is geen mediabestand voor dit item. Scan de bibliotheek opnieuw.',
+  playName: '{name} afspelen',
 };
