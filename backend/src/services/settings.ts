@@ -3,6 +3,28 @@ import type { DB } from '../db/client.js';
 import { settings } from '../db/schema.js';
 import type { AppConfig } from '../config.js';
 
+/** Which files the library clean-up suggests. Rules only suggest: nothing is deleted without review. */
+export interface CleanupRules {
+  /** Added more than `days` ago and never started by anyone. */
+  unwatched: { enabled: boolean; days: number };
+  /** Watched before, but nobody has played it for `days`. */
+  stale: { enabled: boolean; days: number };
+  /** Files larger than `gb` gigabytes. */
+  large: { enabled: boolean; gb: number };
+  /** Lower-quality extra versions of a movie or episode. */
+  duplicates: { enabled: boolean };
+  /** Unidentified titles and unreadable files. */
+  missingInfo: { enabled: boolean };
+}
+
+export const DEFAULT_CLEANUP_RULES: CleanupRules = {
+  unwatched: { enabled: true, days: 365 },
+  stale: { enabled: false, days: 730 },
+  large: { enabled: true, gb: 50 },
+  duplicates: { enabled: true },
+  missingInfo: { enabled: true },
+};
+
 export interface ServerSettings {
   serverName: string;
   serverUrl: string;
@@ -31,6 +53,9 @@ export interface ServerSettings {
   deferScansWhilePlaying: boolean;
   /** Look for intros and credits in the background (audio only, never while someone watches). */
   segmentDetection: boolean;
+  cleanupRules: CleanupRules;
+  /** Library clean-up may delete files (off by default; the library must also be mounted writable). */
+  cleanupDeletion: boolean;
 }
 
 const DEFAULTS: ServerSettings = {
@@ -51,6 +76,8 @@ const DEFAULTS: ServerSettings = {
   scanOnStartup: false,
   deferScansWhilePlaying: true,
   segmentDetection: true,
+  cleanupRules: DEFAULT_CLEANUP_RULES,
+  cleanupDeletion: false,
 };
 
 export class SettingsService {

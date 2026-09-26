@@ -37,7 +37,10 @@ export type AuditAction =
   | 'collection.deleted'
   | 'segments.edited'
   | 'segments.reset'
-  | 'segments.analyze';
+  | 'segments.analyze'
+  | 'cleanup.settings'
+  | 'cleanup.kept'
+  | 'cleanup.deleted';
 
 export interface AuditActor {
   id: number;
