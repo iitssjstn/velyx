@@ -112,7 +112,7 @@ export async function segmentRoutes(app: FastifyInstance, ctx: AppContext): Prom
     const file = db.select({ id: mediaFiles.id, size: mediaFiles.size, duration: mediaFiles.durationSec }).from(mediaFiles).where(eq(mediaFiles.episodeId, id)).orderBy(desc(mediaFiles.height), mediaFiles.id).get();
     const duration = file?.duration ?? null;
     for (const [name, s] of Object.entries(body)) {
-      if (s && duration && s.end > duration + 1) throw new HttpError(400, `The ${name === 'postCredits' ? 'post-credits scene' : name} ends after the episode (${Math.round(duration)} s).`);
+      if (s && duration && s.end > duration + 1) throw new HttpError(400, name === 'intro' ? 'The intro ends after the episode ({seconds} s).' : name === 'credits' ? 'The credits end after the episode ({seconds} s).' : 'The post-credits scene ends after the episode ({seconds} s).', { seconds: Math.round(duration) });
     }
     if (body.intro && body.credits && body.intro.end > body.credits.start) throw new HttpError(400, 'The intro must end before the credits start.');
     if (body.credits && body.postCredits && body.postCredits.start < body.credits.end) throw new HttpError(400, 'The post-credits scene must start after the credits.');

@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { and, eq, gt, lt } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
 import { sessions, users } from '../db/schema.js';
+import { DEFAULT_LANGUAGE, isLanguage, type Language } from '../i18n/index.js';
 
 export const SESSION_COOKIE = 'velyx_session';
 
@@ -11,6 +12,7 @@ export interface SessionUser {
   displayName: string | null;
   role: 'admin' | 'user';
   avatarFile: string | null;
+  language: Language;
 }
 
 function hashToken(token: string): string {
@@ -132,6 +134,7 @@ export class SessionService {
         displayName: users.displayName,
         role: users.role,
         avatarFile: users.avatarFile,
+        language: users.language,
         disabled: users.disabled,
       })
       .from(sessions)
@@ -146,7 +149,7 @@ export class SessionService {
         .where(eq(sessions.id, id))
         .run();
     }
-    return { id: row.id, username: row.username, displayName: row.displayName, role: row.role, avatarFile: row.avatarFile };
+    return { id: row.id, username: row.username, displayName: row.displayName, role: row.role, avatarFile: row.avatarFile, language: isLanguage(row.language) ? row.language : DEFAULT_LANGUAGE };
   }
 
   destroy(token: string | undefined): void {

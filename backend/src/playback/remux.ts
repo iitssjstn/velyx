@@ -2,6 +2,7 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createLogger } from '../logger.js';
 import { COPYABLE_VIDEO, videoSupport } from './compatibility.js';
+import { requestLanguage, tr } from '../i18n/index.js';
 import { defaultAudioIndex, wantsAudioProcessing, type ClientCapabilities, type MediaFileRow, type PlaybackDecision, type PlaybackEngine, type PlaybackOptions } from './engine.js';
 
 const log = createLogger('remux');
@@ -148,11 +149,16 @@ export class RemuxEngine implements PlaybackEngine {
     const plan = planRemux(file, caps, options);
     if (!plan) return null;
     const track = (file.audioTracks ?? []).find((t) => t.index === plan.audioIndex);
-    const extras = [plan.boostVoices ? 'voices boosted' : null, plan.levelVolume ? 'volume levelled' : null].filter(Boolean).join(', ');
+    const lang = options.lang ?? 'en';
+    const extras = [plan.boostVoices ? tr(lang, 'voices boosted') : null, plan.levelVolume ? tr(lang, 'volume levelled') : null].filter(Boolean).join(', ');
+    const target = `AAC ${plan.channels === 6 ? '5.1' : tr(lang, 'stereo')}`;
+    const codec = track?.codec ? track.codec.toUpperCase() : tr(lang, 'Audio');
     const note =
       plan.audioIndex === null || plan.copyAudio
         ? null
-        : `${(track?.codec ?? 'Audio').toUpperCase()} audio is converted to AAC ${plan.channels === 6 ? '5.1' : 'stereo'}${extras ? ` (${extras})` : ''}.`;
+        : extras
+          ? tr(lang, '{codec} audio is converted to {target} ({extras}).', { codec, target, extras })
+          : tr(lang, '{codec} audio is converted to {target}.', { codec, target });
     const query =
       plan.audioIndex === null
         ? '?audio=none'
@@ -197,16 +203,16 @@ export class RemuxEngine implements PlaybackEngine {
     if (q.audio === 'none' || tracks.length === 0) audioIndex = null;
     else if (q.audio !== undefined) {
       const n = Number(q.audio);
-      if (!Number.isInteger(n) || !tracks.some((t) => t.index === n)) return reply.code(400).send({ error: 'Unknown audio track.' });
+      if (!Number.isInteger(n) || !tracks.some((t) => t.index === n)) return reply.code(400).send({ error: tr(requestLanguage(request), 'Unknown audio track.') });
       audioIndex = n;
     } else audioIndex = defaultAudioIndex(file);
     const start = q.start !== undefined ? Number(q.start) : 0;
-    if (!Number.isFinite(start) || start < 0 || (file.durationSec && start > file.durationSec)) return reply.code(400).send({ error: 'Invalid start position.' });
+    if (!Number.isFinite(start) || start < 0 || (file.durationSec && start > file.durationSec)) return reply.code(400).send({ error: tr(requestLanguage(request), 'Invalid start position.') });
 
     // copy=1 comes from our own decision (the browser decodes this codec); it is only honoured for MP4-safe codecs.
     const track = tracks.find((t) => t.index === audioIndex);
     const codec = track?.codec ?? null;
-    if (q.ch !== undefined && q.ch !== '2' && q.ch !== '6') return reply.code(400).send({ error: 'Invalid channel count.' });
+    if (q.ch !== undefined && q.ch !== '2' && q.ch !== '6') return reply.code(400).send({ error: tr(requestLanguage(request), 'Invalid channel count.') });
     const plan: RemuxPlan = {
       audioIndex,
       copyAudio: q.copy === '1' && Boolean(codec && COPYABLE_AUDIO.has(codec)),

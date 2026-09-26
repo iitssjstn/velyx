@@ -4,6 +4,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
 import { cleanupDecisions, episodes, libraries, mediaFiles, movies, shows, watchProgress } from '../db/schema.js';
 import { resolveMediaPath } from './paths.js';
+import { tr, type Language } from '../i18n/index.js';
 import { DEFAULT_CLEANUP_RULES, type CleanupRules } from './settings.js';
 
 export type CleanupRule = keyof CleanupRules;
@@ -46,18 +47,18 @@ export function effectiveRules(stored: Partial<CleanupRules> | undefined): Clean
   return out;
 }
 
-const resolution = (h: number | null) => (!h ? 'unknown resolution' : h >= 2000 ? '4K' : h >= 1000 ? '1080p' : h >= 700 ? '720p' : `${h}p`);
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const ago = (ms: number) => {
+const resolution = (h: number | null, lang: Language) => (!h ? tr(lang, 'unknown resolution') : h >= 2000 ? '4K' : h >= 1000 ? '1080p' : h >= 700 ? '720p' : `${h}p`);
+const ago = (ms: number, lang: Language) => {
   const days = Math.floor(ms / DAY);
-  return days >= 60 ? `${Math.round(days / 30)} months` : plural(days, 'day');
+  if (days >= 60) return tr(lang, '{n} months', { n: Math.round(days / 30) });
+  return days === 1 ? tr(lang, '1 day') : tr(lang, '{n} days', { n: days });
 };
 
 /**
  * Suggests files to remove, from data Velyx already has (no file is read). Rules only produce
  * suggestions; files an administrator chose to keep are left out until they change.
  */
-export function cleanupCandidates(db: DB, rules: CleanupRules, now = Date.now()): { candidates: CleanupCandidate[]; kept: number } {
+export function cleanupCandidates(db: DB, rules: CleanupRules, now = Date.now(), lang: Language = 'en'): { candidates: CleanupCandidate[]; kept: number } {
   const files = db
     .select({
       f: mediaFiles,
@@ -113,16 +114,16 @@ export function cleanupCandidates(db: DB, rules: CleanupRules, now = Date.now())
     const key = f.movieId ? `m${f.movieId}` : `e${f.episodeId}`;
     const w = watch.get(key) ?? { started: false, watchedBy: 0, last: null };
     const reasons: CleanupCandidate['reasons'] = [];
-    if (rules.unwatched.enabled && !w.started && now - f.addedAt > rules.unwatched.days * DAY) reasons.push({ rule: 'unwatched', text: `Never watched, added ${ago(now - f.addedAt)} ago` });
-    if (rules.stale.enabled && w.started && w.last !== null && now - w.last > rules.stale.days * DAY) reasons.push({ rule: 'stale', text: `Not played for ${ago(now - w.last)}` });
-    if (rules.large.enabled && f.size > rules.large.gb * GB) reasons.push({ rule: 'large', text: `Larger than ${rules.large.gb} GB` });
+    if (rules.unwatched.enabled && !w.started && now - f.addedAt > rules.unwatched.days * DAY) reasons.push({ rule: 'unwatched', text: tr(lang, 'Never watched, added {time} ago', { time: ago(now - f.addedAt, lang) }) });
+    if (rules.stale.enabled && w.started && w.last !== null && now - w.last > rules.stale.days * DAY) reasons.push({ rule: 'stale', text: tr(lang, 'Not played for {time}', { time: ago(now - w.last, lang) }) });
+    if (rules.large.enabled && f.size > rules.large.gb * GB) reasons.push({ rule: 'large', text: tr(lang, 'Larger than {n} GB', { n: rules.large.gb }) });
     if (rules.duplicates.enabled && (versions.get(key) ?? 0) > 1 && best.get(key)!.id !== f.id) {
       const b = best.get(key)!;
-      reasons.push({ rule: 'duplicates', text: `Another version exists: ${resolution(b.height)}, ${path.basename(b.path)}` });
+      reasons.push({ rule: 'duplicates', text: tr(lang, 'Another version exists: {version}', { version: `${resolution(b.height, lang)}, ${path.basename(b.path)}` }) });
     }
     if (rules.missingInfo.enabled) {
-      if (f.probeError) reasons.push({ rule: 'missingInfo', text: `The file could not be read: ${f.probeError}` });
-      else if ((f.movieId ? r.movieMatch : r.showMatch) === 'unmatched') reasons.push({ rule: 'missingInfo', text: 'Not identified: no metadata found' });
+      if (f.probeError) reasons.push({ rule: 'missingInfo', text: tr(lang, 'The file could not be read: {error}', { error: f.probeError }) });
+      else if ((f.movieId ? r.movieMatch : r.showMatch) === 'unmatched') reasons.push({ rule: 'missingInfo', text: tr(lang, 'Not identified: no metadata found') });
     }
     if (!reasons.length) continue;
     if (kept.get(f.id) === f.size) {
@@ -210,11 +211,11 @@ export interface DeleteResult {
  * folder, only regular files, and only when the folder is writable. Callers check the setting and
  * the explicit confirmation first. Returns a result per file; nothing else is touched.
  */
-export function deleteFiles(db: DB, fileIds: number[], candidates: Set<number>): DeleteResult[] {
+export function deleteFiles(db: DB, fileIds: number[], candidates: Set<number>, lang: Language = 'en'): DeleteResult[] {
   const results: DeleteResult[] = [];
   for (const id of [...new Set(fileIds)]) {
     const row = db.select({ f: mediaFiles, root: libraries.path }).from(mediaFiles).innerJoin(libraries, eq(libraries.id, mediaFiles.libraryId)).where(eq(mediaFiles.id, id)).get();
-    const fail = (error: string) => results.push({ fileId: id, libraryId: row?.f.libraryId ?? null, path: row?.f.path ?? null, size: row?.f.size ?? 0, ok: false, error });
+    const fail = (error: string, params?: Record<string, string>) => results.push({ fileId: id, libraryId: row?.f.libraryId ?? null, path: row?.f.path ?? null, size: row?.f.size ?? 0, ok: false, error: tr(lang, error, params) });
     if (!row) {
       fail('This file is no longer in the library.');
       continue;
@@ -242,7 +243,7 @@ export function deleteFiles(db: DB, fileIds: number[], candidates: Set<number>):
       fs.unlinkSync(abs);
       results.push({ fileId: id, libraryId: row.f.libraryId, path: row.f.path, size: row.f.size, ok: true, error: null });
     } catch (err) {
-      fail(`Could not delete the file: ${(err as NodeJS.ErrnoException).code ?? (err as Error).message}`);
+      fail('Could not delete the file: {reason}', { reason: (err as NodeJS.ErrnoException).code ?? (err as Error).message });
     }
   }
   return results;

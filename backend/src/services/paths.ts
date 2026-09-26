@@ -17,7 +17,9 @@ export function realpathOrNull(p: string): string | null {
 
 export interface LibraryPathCheck {
   ok: boolean;
+  /** English message (translated when answered); `params` fill its placeholders. */
   error?: string;
+  params?: Record<string, string>;
   resolved?: string;
 }
 
@@ -31,11 +33,11 @@ export function validateLibraryPath(input: string, mediaRoots: string[]): Librar
   if (!path.isAbsolute(input)) return { ok: false, error: 'Use an absolute path inside the container, e.g. /media/movies.' };
   const normalized = path.resolve(input);
   const real = realpathOrNull(normalized);
-  if (!real) return { ok: false, error: `Folder ${normalized} does not exist inside the container. Check your volume mounts.` };
-  if (!fs.statSync(real).isDirectory()) return { ok: false, error: `${normalized} is not a folder.` };
+  if (!real) return { ok: false, error: 'Folder {path} does not exist inside the container. Check your volume mounts.', params: { path: normalized } };
+  if (!fs.statSync(real).isDirectory()) return { ok: false, error: '{path} is not a folder.', params: { path: normalized } };
   const roots = mediaRoots.map((r) => realpathOrNull(r) ?? path.resolve(r));
   if (!roots.some((root) => isInside(root, real))) {
-    return { ok: false, error: `Libraries must be inside ${mediaRoots.join(', ')} (MEDIA_ROOTS).` };
+    return { ok: false, error: 'Libraries must be inside {roots} (MEDIA_ROOTS).', params: { roots: mediaRoots.join(', ') } };
   }
   return { ok: true, resolved: normalized };
 }

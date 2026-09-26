@@ -31,6 +31,8 @@ export const users = sqliteTable('users', {
   /** Skipping detected intros / credits: never offer, offer a button (ask), or skip automatically. */
   prefSkipIntro: text('pref_skip_intro', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
   prefSkipCredits: text('pref_skip_credits', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
+  /** Interface language (en, nl, …); independent of the audio/subtitle languages above. */
+  language: text('language').notNull().default('en'),
   createdAt: integer('created_at').notNull().default(now),
   updatedAt: integer('updated_at').notNull().default(now),
   lastLoginAt: integer('last_login_at'),

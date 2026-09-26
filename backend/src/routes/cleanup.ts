@@ -4,6 +4,7 @@ import type { AppContext } from '../app.js';
 import { requireAdmin } from '../app.js';
 import { libraries } from '../db/schema.js';
 import { HttpError, parseId } from '../http-error.js';
+import { requestLanguage, tr } from '../i18n/index.js';
 import { CLEANUP_RULES, cleanupCandidates, deleteFiles, effectiveRules, keepFiles, keptFiles, libraryWritable, summarize, unkeepFile } from '../services/cleanup.js';
 
 const listQuery = z.object({
@@ -35,7 +36,7 @@ export async function cleanupRoutes(app: FastifyInstance, ctx: AppContext): Prom
   app.get('/api/admin/cleanup', { preHandler: requireAdmin }, async (request) => {
     const q = listQuery.parse(request.query);
     const r = rules();
-    const { candidates, kept } = cleanupCandidates(db, r);
+    const { candidates, kept } = cleanupCandidates(db, r, Date.now(), requestLanguage(request));
     const scoped = q.libraryId ? candidates.filter((c) => c.libraryId === q.libraryId) : candidates;
     const filtered = q.rule ? scoped.filter((c) => c.reasons.some((x) => x.rule === q.rule)) : scoped;
     return {
@@ -77,7 +78,8 @@ export async function cleanupRoutes(app: FastifyInstance, ctx: AppContext): Prom
     // Never pull a file away from under someone who is watching it.
     const playing = new Set(ctx.streams.active().map((s) => s.mediaFileId));
     const allowed = fileIds.filter((id) => !playing.has(id));
-    const results = [...deleteFiles(db, allowed, candidates), ...fileIds.filter((id) => playing.has(id)).map((id) => ({ fileId: id, libraryId: null, path: null, size: 0, ok: false, error: 'Someone is watching this file right now.' }))];
+    const lang = requestLanguage(request);
+    const results = [...deleteFiles(db, allowed, candidates, lang), ...fileIds.filter((id) => playing.has(id)).map((id) => ({ fileId: id, libraryId: null, path: null, size: 0, ok: false, error: tr(lang, 'Someone is watching this file right now.') }))];
     const deleted = results.filter((x) => x.ok);
     for (const r of deleted) ctx.audit.record('cleanup.deleted', { actor: request.user, ip: request.ip, target: r.path, detail: `${(r.size / 1024 ** 3).toFixed(2)} GB` });
     // A normal scan then removes the deleted files from the library (and keeps their watch history aside).

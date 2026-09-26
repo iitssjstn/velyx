@@ -9,8 +9,8 @@ export const PASSWORD_MAX_LENGTH = 256;
 
 export function validatePassword(password: string): string | null {
   if (typeof password !== 'string') return 'Password is required.';
-  if (password.length < PASSWORD_MIN_LENGTH) return `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`;
-  if (password.length > PASSWORD_MAX_LENGTH) return `Password must be at most ${PASSWORD_MAX_LENGTH} characters.`;
+  if (password.length < PASSWORD_MIN_LENGTH) return 'Password must be at least 8 characters.';
+  if (password.length > PASSWORD_MAX_LENGTH) return 'Password must be at most 256 characters.';
   if (password.trim().length === 0) return 'Password cannot be only whitespace.';
   return null;
 }
