@@ -6,7 +6,6 @@ media
 .github
 .env
 .env.*
-!.env.example
 *.log
 coverage
 **/*.db

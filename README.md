@@ -397,6 +397,8 @@ npm run dev --workspace frontend
 
 Production build: `npm run build && npm start` (the backend serves the built UI from `frontend/dist`).
 
+To build and run the Docker image from your checkout instead of pulling it: `docker compose -f docker-compose.build.yml up -d --build`.
+
 Project layout:
 
 ```
