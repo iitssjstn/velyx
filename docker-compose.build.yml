@@ -1,5 +1,5 @@
-# Builds Velyx from source (development/testing). For normal use, docker-compose.yml pulls the
-# ready-made image from GHCR instead.
+# Builds Velyx from this repository instead of pulling the published image (development/testing).
+# For normal use, see the compose file in the README.
 # Usage: docker compose -f docker-compose.build.yml up -d --build
 services:
   velyx:

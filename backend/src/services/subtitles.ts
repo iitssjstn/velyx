@@ -78,7 +78,9 @@ export class EmbeddedSubtitleExtractor {
       let err = '';
       const timer = setTimeout(() => child.kill('SIGKILL'), 10 * 60 * 1000);
       child.stdout.on('data', (c: Buffer) => chunks.push(c));
-      child.stderr.on('data', (c: Buffer) => (err += c.toString()));
+      child.stderr.on('data', (c: Buffer) => {
+        if (err.length < 4000) err += c.toString();
+      });
       child.on('error', (e) => {
         clearTimeout(timer);
         reject(e);
@@ -92,7 +94,10 @@ export class EmbeddedSubtitleExtractor {
         }
         const vtt = Buffer.concat(chunks).toString('utf8');
         try {
-          await fsp.writeFile(target, vtt);
+          // Write then rename, so an interrupted write never leaves a truncated subtitle in the cache.
+          const tmp = `${target}.${process.pid}.tmp`;
+          await fsp.writeFile(tmp, vtt);
+          await fsp.rename(tmp, target);
         } catch (e) {
           log.warn('Could not cache extracted subtitle', e);
         }

@@ -4,7 +4,7 @@
 
 Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.4.0 — Playback compatibility explained per file and device, fast browsing and search for large libraries, session management and an audit log, scheduled and verified backups, storage monitoring and a much more informative admin dashboard. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
+> Version 0.4.1 — A stability release: playback never waits for a library scan, playback problems offer *Try again* and say plainly whether a file is missing or cannot be decoded, files that arrive during a scan are picked up right away, and library cards show year, runtime or seasons, rating and genres on hover. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
 
 ---
 
@@ -62,7 +62,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Admin panel** — dashboard with CPU, memory, disk, scanner status, active streams and backups; libraries with live scan progress; a compatibility overview per library; users and sessions; metadata review; server settings; logs; audit log; backups.
 - **Backups** — scheduled database backups with daily/weekly/monthly rotation, verification, and restore from the admin page or the command line.
 - **Storage monitoring** — warnings when the data volume runs low; scans pause automatically when it is critical; unused cache can be cleared.
-- **Responsive UI** for desktop, tablet and phone.
+- **Responsive UI** for desktop, tablet and phone. On desktop, hovering a poster (or focusing it with the keyboard) shows its year, runtime or number of seasons, rating and genres — from data the page already has, without extra requests.
 - **Docker-first** — one container, SQLite database, migrations run automatically, health check included.
 
 ## Screenshots
@@ -82,44 +82,43 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 
 ## Quick start (Docker)
 
-The Docker image is built by GitHub Actions and published to GHCR, so the server only pulls it — nothing is compiled on the VPS.
+Create a folder on your server with this `docker-compose.yml`. Change the two media paths on the left of the `:` to where your movies and series are; everything else can stay as it is.
 
-**1. Publish the image (once).** Push this repository to GitHub (for example `iitssjstn/velyx`). The workflow *Docker image* (`.github/workflows/docker-build.yml`) builds `ghcr.io/iitssjstn/velyx:latest` automatically on every push to `main`. Follow it under the repository's **Actions** tab.
+```yaml
+services:
+  velyx:
+    image: ghcr.io/iitssjstn/velyx:latest   # or pin a version, e.g. :0.4.0
+    container_name: velyx
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      TZ: Europe/Amsterdam
+      # Run as the user/group that owns your media files (check with: id your-user)
+      PUID: "1000"
+      PGID: "1000"
+    volumes:
+      # Database, artwork cache, avatars and backups — back this folder up.
+      - ./data:/data
+      # Your media, read-only: Velyx never changes or deletes your files.
+      - /srv/media/movies:/media/movies:ro
+      - /srv/media/tv:/media/tv:ro
+```
 
-Then make the image pullable:
-- **Public:** GitHub → your profile → **Packages** → `velyx` → **Package settings** → *Change visibility* → Public. No login needed on the server.
-- **Private:** keep it private and log in once on the server with a personal access token (classic) that has the `read:packages` scope:
-  ```bash
-  echo <TOKEN> | docker login ghcr.io -u iitssjstn --password-stdin
-  ```
-
-**2. Run it on your server.**
+Then start it:
 
 ```bash
-mkdir -p ~/velyx && cd ~/velyx
-curl -o docker-compose.yml https://raw.githubusercontent.com/iitssjstn/velyx/main/docker-compose.yml
-curl -o .env https://raw.githubusercontent.com/iitssjstn/velyx/main/.env.example
-nano .env                      # set MOVIES_PATH, TV_PATH, PUID and PGID
-docker compose pull
 docker compose up -d
 ```
 
-(For a private repository, copy `docker-compose.yml` and `.env.example` to the server manually instead of using `curl`.)
-
-**3.** Open `http://<your-server>:3000`, create your administrator account and add the TMDB key in **Admin → Server**. No API keys or secrets go into `docker-compose.yml` or `.env`.
-
-To build from source instead (development), use `docker compose -f docker-compose.build.yml up -d --build`. For every available option, see the [annotated compose example](#annotated-compose-example).
+Open `http://<your-server>:3000`, create your administrator account and, optionally, add a TMDB key in **Admin → Server**. No API keys or passwords go into the compose file. Every other option is listed under [Configuration](#configuration).
 
 ## Configuration
 
-Deployment settings are environment variables that `docker-compose.yml` reads from `.env`. None of them are secrets: API keys and server details are managed in the web interface (see [TMDB metadata](#tmdb-metadata)), and the cookie-signing secret is generated automatically in the data volume.
+All settings below are optional environment variables for the `environment:` section of your compose file. None of them are secrets: API keys and server details are managed in the web interface (see [TMDB metadata](#tmdb-metadata)), and the cookie-signing secret is generated automatically in the data volume.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `VELYX_IMAGE` | `ghcr.io/iitssjstn/velyx:latest` | Image to pull (compose only). Pin a version with e.g. `:0.4.0`. |
-| `VELYX_PORT` | `3000` | Host port for the web interface (compose only). |
-| `DATA_PATH` | `./data` | Host folder for the database, artwork cache, avatars and backups (compose only). |
-| `MOVIES_PATH` / `TV_PATH` | — | Host folders with your media, mounted read-only at `/media/movies` and `/media/tv` (compose only). |
 | `PUID` / `PGID` | `1000` | User and group Velyx runs as. Use the owner of your media files (`id youruser`). |
 | `TZ` | `Europe/Amsterdam` | Time zone for logs. |
 | `TRUST_PROXY` | `false` | Behind a reverse proxy: the number of proxies in front of Velyx (`1` for Nginx Proxy Manager, `2` for Cloudflare + NPM) — or `true` to trust any. A number (or a list of proxy addresses/CIDRs) stops clients from faking their address, which matters for sign-in throttling and the audit log. |
@@ -134,8 +133,6 @@ Deployment settings are environment variables that `docker-compose.yml` reads fr
 | `PORT` / `HOST` | `3000` / `0.0.0.0` | Listening address inside the container. |
 | `FFPROBE_PATH` / `FFMPEG_PATH` | `ffprobe` / `ffmpeg` | Binaries (bundled in the image). |
 
-Never commit your `.env`; the repository's `.gitignore` already excludes it.
-
 ### Advanced: optional overrides
 
 These are **not needed** and deliberately not in the compose file. They exist for automated setups; values set in the web interface take priority.
@@ -149,50 +146,20 @@ These are **not needed** and deliberately not in the compose file. They exist fo
 | `VELYX_UPDATE_REPO` | GitHub repository (`owner/name`) whose version tags announce updates (default `iitssjstn/velyx`; empty disables the check). |
 
 
-### Annotated compose example
-
-`docker-compose.yml` reads its values from `.env`. If you prefer to write everything in the compose file itself, this is the same setup with every option spelled out — copy what you need:
+### Example with optional settings
 
 ```yaml
-services:
-  velyx:
-    # Published by GitHub Actions. Pin a version (e.g. :0.4.0) to update on your own schedule.
-    image: ghcr.io/iitssjstn/velyx:latest
-    # Or build from this repository instead of pulling:
-    # build: .
-    container_name: velyx
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
     environment:
       TZ: Europe/Amsterdam
-      # Run as the user/group that owns your media files (check with: id your-user)
       PUID: "1000"
       PGID: "1000"
-      # Behind Nginx Proxy Manager, Caddy or Traefik: set to "true" so HTTPS and client IPs are detected.
-      TRUST_PROXY: "false"
-      # auto = Secure cookies when the request arrives over HTTPS
-      COOKIE_SECURE: auto
-      # Minutes between automatic incremental scans (0 = off). Folder watching also picks up
-      # new files within seconds; it can be switched off in Admin → Server.
+      # Behind a reverse proxy: the number of proxies in front of Velyx.
+      TRUST_PROXY: "1"
+      # Minutes between automatic scans (0 = off); folder watching picks up new files sooner.
       SCAN_INTERVAL_MINUTES: "360"
-      SESSION_TTL_DAYS: "30"
+      # FFprobe processes at once; keep 1 on dual-core machines.
+      SCAN_CONCURRENCY: "1"
       LOG_LEVEL: info
-      # Optional — normally set in the web interface instead:
-      # TMDB_API_KEY: ""            # Admin → Server (a key saved there wins)
-      # TMDB_LANGUAGE: nl-NL
-      # SERVER_URL: https://velyx.example.com
-      # SESSION_SECRET: ""          # generated automatically in /data/.session-secret when empty
-    volumes:
-      # Database, artwork cache, avatars and backups — back this folder up.
-      - ./data:/data
-      # Media, always read-only: Velyx never changes or deletes your files.
-      # Everything must live under /media inside the container (see MEDIA_ROOTS).
-      - /srv/media/movies:/media/movies:ro
-      - /srv/media/tv:/media/tv:ro
-      # More drives:
-      # - /mnt/disk2/films:/media/films-2:ro
-    # The image has a built-in health check (GET /health); `docker ps` shows "healthy".
 ```
 
 ### Extra drives
@@ -301,7 +268,7 @@ Boost voices and Level volume always convert the audio, just like in Plex.
 
 - External `.srt` (UTF-8, UTF-16 and Windows-1252 are detected) and `.vtt` files are converted to WebVTT on the fly.
 - Embedded text subtitles (SRT, ASS/SSA, MP4 text) are extracted with FFmpeg once and cached.
-- Image-based subtitles (PGS, VobSub) need transcoding and are not supported yet.
+- Image-based subtitles (PGS, VobSub) cannot be shown in the browser without converting them, which Velyx does not do. Use text subtitles (SRT, ASS, WebVTT) instead.
 - Velyx draws subtitles itself, so they look the same in every browser and move above the player controls when those are shown.
 - Adjust **size, colour (white/yellow), background (none/dimmed/solid), edge (shadow/outline), position** and **sync** (±0.5 s steps) from the subtitle menu in the player, or set defaults with a live preview in **Settings → Playback**.
 - **Language preferences** (Settings → Playback → Languages) are saved to your account and used on every device: preferred audio language (falls back to the original audio), subtitle language with a fallback language, and when to show subtitles — *Always*, *When the audio is in another language*, *Forced only*, *Off*, or *Remember my last choice* (the default, which reuses what you picked last in that browser).
@@ -351,7 +318,7 @@ location / {
 
 ## Updating
 
-Push changes to `main` (or tag a release), wait for the *Docker image* workflow to finish, then on the server:
+To update to the latest version, run in the folder with your `docker-compose.yml`:
 
 ```bash
 docker compose pull
@@ -366,7 +333,7 @@ Database migrations run automatically on start-up:
 
 ## Backup and restore
 
-Everything Velyx stores lives in the data folder (`DATA_PATH`):
+Everything Velyx stores lives in the data folder (`./data`, mounted at `/data`):
 
 | Path | Contents |
 | --- | --- |
@@ -430,6 +397,8 @@ npm run dev --workspace frontend
 
 Production build: `npm run build && npm start` (the backend serves the built UI from `frontend/dist`).
 
+To build and run the Docker image from your checkout instead of pulling it: `docker compose -f docker-compose.build.yml up -d --build`.
+
 Project layout:
 
 ```
@@ -482,7 +451,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 
 | Problem | Solution |
 | --- | --- |
-| "Folder … does not exist inside the container" | The volume is not mounted. Check `MOVIES_PATH`/`TV_PATH` and use the container path (`/media/movies`). |
+| "Folder … does not exist inside the container" | The volume is not mounted. Check the media paths under `volumes:` and use the container path (`/media/movies`) when adding the library. |
 | "Libraries must be inside /media" | Mount the folder under `/media` or extend `MEDIA_ROOTS`. |
 | Library stays empty / permission errors in the logs | `PUID`/`PGID` cannot read the files. Use the ids of the media owner (`id youruser`). |
 | No posters | Add a TMDB key in Admin → Server; check Admin → Logs for TMDB errors. |
@@ -492,6 +461,9 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 | "Storage critically low" and scans paused | Free up space on the data volume (or clear unused cache on the dashboard); scans resume by themselves. Adjust `LOW_DISK_GB`/`CRITICAL_DISK_GB` if the defaults do not suit your disk. |
 | "Too many failed sign-in attempts" | Wait the time shown (at most 15 minutes). Behind a proxy, set `TRUST_PROXY` to the number of proxies so one user's mistakes do not block everyone behind the same proxy address. |
 | Velyx does not start after an update | Read `docker compose logs velyx`. A failed migration leaves the database unchanged; go back to the previous image, or restore `data/backups/pre-migration-*.db`. |
+| "Playback problem: the connection to the server was interrupted" | Press *Try again*: playback continues where it stopped. If it keeps happening, check the network or reverse-proxy timeouts. |
+| "Media file is no longer available" | The file was moved, renamed or its drive is not mounted. Rescan the library once the file is back. |
+| The server feels slow | Admin → Logs lists API requests that took longer than 2 seconds (`Slow request: …`). `LOG_LEVEL=debug` logs every API request with its duration. |
 | Playback starts slowly after seeking | Normal while audio is converted: the stream restarts at the nearest keyframe. |
 | Audio out of sync in one specific file | If it also happens with Direct Play, the file itself is out of sync. While audio is converted Velyx keeps it aligned automatically. |
 | Subtitles out of sync | Use Sync in the subtitle menu (+ shows them later, − earlier). |
@@ -504,7 +476,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 
 - **Velyx does not transcode video.** A video format the device cannot decode (e.g. HEVC in Firefox, 10-bit H.264 in any browser) will not play; the player explains why. Unsupported audio and containers are handled by a light remux.
 - HDR is passed through as-is; on screens without HDR, colours can look washed out (the player warns about it).
-- Image-based subtitles (PGS/VobSub) are not supported yet.
+- Image-based subtitles (PGS/VobSub) are not shown; Velyx does not convert them (no OCR).
 - While audio is converted, seeking outside the already loaded part restarts the stream (about a second).
 - Music, photos and live TV are out of scope for this version.
 

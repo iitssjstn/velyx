@@ -108,7 +108,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   async function ensureVideoDetails(file: typeof mediaFiles.$inferSelect, abs: string) {
     if (file.videoBitDepth !== null || file.probeError || !file.videoCodec) return file;
     try {
-      const info = await ctx.probe(abs);
+      const info = await ctx.probe.urgent(abs);
       return db
         .update(mediaFiles)
         .set({ videoBitDepth: info.videoBitDepth, videoRange: info.videoRange })
@@ -136,6 +136,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   // Live remux: video copied, audio converted when needed. Seeking = request again with ?start=.
   app.get<{ Params: { id: string } }>('/api/media/:id/remux', { preHandler: requireUser }, async (request, reply) => {
     const { file, abs } = loadFile(request.params.id, request.user!);
+    // A HEAD request only asks whether the stream exists: never start FFmpeg for it.
+    if (request.method === 'HEAD') return reply.code(200).header('Content-Type', 'video/mp4').header('Accept-Ranges', 'none').send();
     ctx.streams.touch(request.user!, file.id, 'remux', describeUserAgent(request.headers['user-agent']));
     return ctx.playback.get('remux')!.serve(request, reply, file, abs);
   });
@@ -151,6 +153,17 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const target = file.durationSec ? Math.min(t, Math.max(0, file.durationSec - 1)) : t;
     const engine = ctx.playback.get('remux') as RemuxEngine;
     return { start: await engine.seekLanding(abs, target), seek: target };
+  });
+
+  /** Whether the file can still be read, so the player can tell "file gone" apart from "cannot decode". */
+  app.get<{ Params: { id: string } }>('/api/media/:id/available', { preHandler: requireUser }, async (request) => {
+    const { abs } = loadFile(request.params.id, request.user!);
+    try {
+      await fs.promises.access(abs, fs.constants.R_OK);
+    } catch {
+      throw new HttpError(404, 'Media file is no longer available. Try rescanning the library.');
+    }
+    return { available: true };
   });
 
   app.get<{ Params: { id: string } }>('/api/media/:id/subtitles', { preHandler: requireUser }, async (request) => {
@@ -179,7 +192,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const index = Number(request.params.index);
     const track = (file.subtitleTracks ?? []).find((t) => t.index === index);
     if (!Number.isInteger(index) || !track) throw notFound('Subtitle track');
-    if (!track.textBased) throw new HttpError(415, 'Image-based subtitles (PGS/VobSub) need transcoding, which arrives in a future version.');
+    if (!track.textBased) throw new HttpError(415, 'Image-based subtitles (PGS/VobSub) cannot be shown in the browser without converting them, which Velyx does not do. Use a text subtitle (SRT/ASS) instead.');
     const vtt = shiftVtt(await ctx.subtitleExtractor.extract(file.id, file.mtimeMs, abs, index), offsetParam(request.query));
     return reply.type('text/vtt; charset=utf-8').header('Cache-Control', 'private, max-age=3600').send(vtt);
   });

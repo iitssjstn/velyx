@@ -29,6 +29,24 @@ describe('FFprobe queue', () => {
     expect(limited.waiting).toBe(0);
   });
 
+  it('lets playback probes skip ahead of queued scan work', async () => {
+    const order: string[] = [];
+    const slow: Prober = async (f) => {
+      order.push(f);
+      await wait(5);
+      return fakeProbe();
+    };
+    const limited = limitProber(slow, 1);
+    const background = Array.from({ length: 5 }, (_, i) => limited(`/scan${i}.mkv`));
+    await wait(1);
+    const play = limited.urgent('/play.mkv');
+    await Promise.all([...background, play]);
+    // The first scan probe was already running; the playback probe goes next.
+    expect(order.slice(0, 2)).toEqual(['/scan0.mkv', '/play.mkv']);
+    expect(order).toHaveLength(6);
+    expect(limited.waiting).toBe(0);
+  });
+
   it('defaults to one probe at a time and only probes changed files', async () => {
     let running = 0;
     let peak = 0;
@@ -118,6 +136,31 @@ describe('scan status', () => {
     expect(state.status).toBe('idle');
     expect(state.lastSuccess).toMatchObject({ libraryId: libId });
     expect(state.lastSuccess!.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('picks up files added while a scan is already analysing', async () => {
+    let release: (() => void) | null = null;
+    env = await createTestEnv({
+      prober: async () => {
+        await new Promise<void>((r) => (release = r));
+        return fakeProbe();
+      },
+    });
+    const admin = await setupAdmin(env.app);
+    const dir = path.join(env.mediaDir, 'movies');
+    touch(path.join(dir, 'A (2001).mkv'));
+    const res = await env.app.inject({ method: 'POST', url: '/api/libraries', headers: { cookie: admin }, payload: { name: 'm', type: 'movies', path: dir } });
+    await wait(50);
+    expect(env.ctx.scans.state().running?.progress.phase).toBe('analyzing');
+    // Radarr drops a new file in; the watcher asks for a scan while the first one is busy.
+    touch(path.join(dir, 'B (2002).mkv'));
+    expect(env.ctx.scans.enqueue(res.json().id)).toBe(true);
+    expect(env.ctx.scans.enqueue(res.json().id)).toBe(false); // already queued once
+    const drain = setInterval(() => release?.(), 5);
+    await env.ctx.scans.whenIdle();
+    clearInterval(drain);
+    const list = (await env.app.inject({ url: '/api/movies', headers: { cookie: admin } })).json();
+    expect(list.items.map((m: { title: string }) => m.title).sort()).toEqual(['A', 'B']);
   });
 
   it('reports failed scans', async () => {

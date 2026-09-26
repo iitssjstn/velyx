@@ -171,3 +171,28 @@ describe('language preferences', () => {
     expect((await send('PUT', '/api/account/preferences', { audioLanguage: 'dutch!' }, viewer.cookie)).statusCode).toBe(400);
   });
 });
+
+describe('card details for the grid hover', () => {
+  it('includes up to two genres and the season count, and orders recently watched across types', async () => {
+    const db = env.ctx.db;
+    const { add } = seed();
+    const heat = add('Heat', 1995, { runtime: 170, rating: 8.3 });
+    const [crime, drama, thriller] = ['Crime', 'Drama', 'Thriller'].map((name) => db.insert(genres).values({ name }).returning().get().id);
+    for (const g of [thriller, crime, drama]) db.insert(movieGenres).values({ movieId: heat, genreId: g }).run();
+
+    for (const f of ['Show S01E01.mkv', 'Show S01E02.mkv', 'Show S02E01.mkv', 'Show S00E01.mkv']) touch(path.join(env.mediaDir, 'tv', 'Show', f));
+    await addLibrary(env, admin, 'shows', 'tv');
+    const show = (await get('/api/shows')).items[0];
+    expect(show).toMatchObject({ title: 'Show', seasonCount: 2, episodeCount: 4, genres: [] });
+    const movie = (await get('/api/movies')).items.find((m: { id: number }) => m.id === heat);
+    expect(movie).toMatchObject({ runtime: 170, rating: 8.3, genres: ['Crime', 'Drama'] });
+
+    // Watch the movie, then an episode: the show is the most recent.
+    await send('POST', '/api/progress', { movieId: heat, positionSec: 99, durationSec: 100 });
+    const episode = (await get(`/api/shows/${show.id}`)).upNext;
+    await new Promise((r) => setTimeout(r, 5));
+    await send('POST', '/api/progress', { episodeId: episode.id, positionSec: 99, durationSec: 100 });
+    const home = await get('/api/home');
+    expect(home.recentlyWatched.map((c: { type: string }) => c.type)).toEqual(['show', 'movie']);
+  });
+});
