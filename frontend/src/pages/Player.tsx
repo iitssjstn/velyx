@@ -164,6 +164,7 @@ export default function PlayerPage() {
   const [stream, setStream] = useState<{ base: string; offset: number; seek: number } | null>(null);
   const startedRef = useRef(false);
   const lastSaveRef = useRef(0);
+  const lastTickRef = useRef(-1);
   const pendingSeekRef = useRef<number | null>(null);
   const resumeAtRef = useRef<number | null>(null);
   const playAfterLoadRef = useRef(true);
@@ -436,6 +437,10 @@ export default function PlayerPage() {
     const v = videoRef.current;
     if (!v || !item.data) return;
     const t = offset + v.currentTime;
+    // The picture is moving, so nothing is loading. Some browsers (notably with live remux
+    // streams) fire "waiting" but never a matching "playing", which left the spinner up.
+    if (!v.paused && v.currentTime !== lastTickRef.current) setBuffering(false);
+    lastTickRef.current = v.currentTime;
     setTime(t);
     if (v.buffered.length) setBuffered(offset + v.buffered.end(v.buffered.length - 1));
     const now = Date.now();
