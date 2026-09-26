@@ -11,6 +11,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 ## Contents
 
 - [Features](#features)
+- [Screenshots](#screenshots)
 - [Requirements](#requirements)
 - [Quick start (Docker)](#quick-start-docker)
 - [Configuration](#configuration)
@@ -57,6 +58,10 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Responsive UI** for desktop, tablet and phone.
 - **Docker-first** — one container, SQLite database, migrations run automatically, health check included.
 
+## Screenshots
+
+_Screenshots of the home page, a movie page, the player and the admin dashboard will be added here. To add your own, put PNG files in `docs/screenshots/` and link them in this section._
+
 ## Requirements
 
 - Docker with Docker Compose (v2).
@@ -92,7 +97,7 @@ docker compose up -d
 
 **3.** Open `http://<your-server>:3000`, create your administrator account and add the TMDB key in **Admin → Server**. No API keys or secrets go into `docker-compose.yml` or `.env`.
 
-To build from source instead (development), use `docker compose -f docker-compose.build.yml up -d --build`.
+To build from source instead (development), use `docker compose -f docker-compose.build.yml up -d --build`. For every available option, see the [annotated compose example](#annotated-compose-example).
 
 ## Configuration
 
@@ -129,6 +134,52 @@ These are **not needed** and deliberately not in the compose file. They exist fo
 | `SERVER_URL` | Public address shown to admins (normally set in Admin → Server). |
 | `SESSION_SECRET` | Fixed cookie-signing secret. When unset, one is generated once and stored in `data/.session-secret`. |
 
+
+### Annotated compose example
+
+`docker-compose.yml` reads its values from `.env`. If you prefer to write everything in the compose file itself, this is the same setup with every option spelled out — copy what you need:
+
+```yaml
+services:
+  velyx:
+    # Published by GitHub Actions. Pin a version (e.g. :0.3.3) to update on your own schedule.
+    image: ghcr.io/iitssjstn/velyx:latest
+    # Or build from this repository instead of pulling:
+    # build: .
+    container_name: velyx
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      TZ: Europe/Amsterdam
+      # Run as the user/group that owns your media files (check with: id your-user)
+      PUID: "1000"
+      PGID: "1000"
+      # Behind Nginx Proxy Manager, Caddy or Traefik: set to "true" so HTTPS and client IPs are detected.
+      TRUST_PROXY: "false"
+      # auto = Secure cookies when the request arrives over HTTPS
+      COOKIE_SECURE: auto
+      # Minutes between automatic incremental scans (0 = off). Folder watching also picks up
+      # new files within seconds; it can be switched off in Admin → Server.
+      SCAN_INTERVAL_MINUTES: "360"
+      SESSION_TTL_DAYS: "30"
+      LOG_LEVEL: info
+      # Optional — normally set in the web interface instead:
+      # TMDB_API_KEY: ""            # Admin → Server (a key saved there wins)
+      # TMDB_LANGUAGE: nl-NL
+      # SERVER_URL: https://velyx.example.com
+      # SESSION_SECRET: ""          # generated automatically in /data/.session-secret when empty
+    volumes:
+      # Database, artwork cache, avatars and backups — back this folder up.
+      - ./data:/data
+      # Media, always read-only: Velyx never changes or deletes your files.
+      # Everything must live under /media inside the container (see MEDIA_ROOTS).
+      - /srv/media/movies:/media/movies:ro
+      - /srv/media/tv:/media/tv:ro
+      # More drives:
+      # - /mnt/disk2/films:/media/films-2:ro
+    # The image has a built-in health check (GET /health); `docker ps` shows "healthy".
+```
 
 ### Extra drives
 
@@ -170,7 +221,7 @@ Samples, trailers, extras and system folders (`@eaDir`, `#recycle`, …) are ign
 
 ## First-run setup
 
-The first visit opens a setup wizard where you create the administrator account and name the server. The wizard can only run once — as soon as an administrator exists it is closed. Next, add your libraries: **Admin → Libraries → Add library**, choose Movies or TV Shows and enter the folder inside the container (for example `/media/movies`). The first scan starts immediately.
+The first visit opens a setup wizard where you create the administrator account, name the server and — optionally — enter your TMDB API key (it is checked with TMDB before it is saved; you can also add it later). The wizard can only run once — as soon as an administrator exists it is closed. Next, add your libraries: **Admin → Libraries → Add library**, choose Movies or TV Shows and enter the folder inside the container (for example `/media/movies`). The first scan starts immediately.
 
 ## TMDB metadata
 
