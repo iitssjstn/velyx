@@ -12,6 +12,7 @@ import { validateLibraryPath } from '../services/paths.js';
 import { checkBinary } from '../services/probe.js';
 import { recentLogs } from '../logger.js';
 import { compatibilityReport } from '../services/compatibility-report.js';
+import { isHealthKey, LibraryHealth } from '../services/library-health.js';
 import { APP_VERSION } from '../version.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
 import { adminCount, publicUser, sessionIdParam } from './auth.js';
@@ -178,6 +179,31 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
   app.post('/api/admin/compatibility/analyze', { preHandler: requireAdmin }, async () => {
     ctx.analyzer.start();
     return { analysis: ctx.analyzer.status() };
+  });
+
+  // ------------------------------------------------------------------ library health
+  const health = new LibraryHealth(db, () => ctx.metadata.enabled);
+  const healthQuery = z.object({
+    libraryId: z.coerce.number().int().positive().optional(),
+    page: z.coerce.number().int().min(1).max(100_000).default(1),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+  });
+  const assertLibrary = (id: number | undefined) => {
+    if (id !== undefined && !db.select({ id: libraries.id }).from(libraries).where(eq(libraries.id, id)).get()) throw notFound('Library');
+  };
+
+  app.get('/api/admin/health', { preHandler: requireAdmin }, async (request) => {
+    const { libraryId } = healthQuery.parse(request.query);
+    assertLibrary(libraryId);
+    return { ...health.summary(libraryId), analysis: ctx.analyzer.status() };
+  });
+
+  app.get<{ Params: { key: string } }>('/api/admin/health/:key', { preHandler: requireAdmin }, async (request) => {
+    const { key } = request.params;
+    if (!isHealthKey(key)) throw notFound('Category');
+    const q = healthQuery.parse(request.query);
+    assertLibrary(q.libraryId);
+    return health.items(key, q);
   });
 
   // ------------------------------------------------------------------ storage

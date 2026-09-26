@@ -4,7 +4,7 @@
 
 Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.4.1 — A stability release: playback never waits for a library scan, playback problems offer *Try again* and say plainly whether a file is missing or cannot be decoded, files that arrive during a scan are picked up right away, and library cards show year, runtime or seasons, rating and genres on hover. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
+> Version 0.4.2 — **Library health**: one admin page that shows how your media will play (Direct Play, remux, device-dependent, unsupported), which formats you have (HEVC, AV1, 10-bit, HDR, Dolby Vision, DTS/TrueHD, PGS/VobSub) and what needs attention (missing metadata or artwork, scan errors, duplicates) — with the affected files and the reason for each, built from data Velyx already has. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
 
 ---
 
@@ -23,6 +23,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - [Subtitles and audio tracks](#subtitles-and-audio-tracks)
 - [Users and roles](#users-and-roles)
 - [Monitoring and storage](#monitoring-and-storage)
+- [Library health](#library-health)
 - [Running behind a reverse proxy](#running-behind-a-reverse-proxy)
 - [Updating](#updating)
 - [Backup and restore](#backup-and-restore)
@@ -59,7 +60,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Per-user library access** — choose which libraries each user can see (for example a kids-only library).
 - **Collections** — movie series from TMDB (such as “The Matrix Collection”) are grouped automatically once you have two or more of their movies; administrators can also make their own collections of movies and shows. **Smart collections** (Recently Added, Unwatched, 4K, HDR, Short Movies, decades, …) are saved filters, evaluated per viewer, and admins can save their own.
 - **Multiple users** with administrator and user roles, device/session management and an audit log.
-- **Admin panel** — dashboard with CPU, memory, disk, scanner status, active streams and backups; libraries with live scan progress; a compatibility overview per library; users and sessions; metadata review; server settings; logs; audit log; backups.
+- **Admin panel** — dashboard with CPU, memory, disk, scanner status, active streams and backups; libraries with live scan progress; Library health; users and sessions; metadata review; server settings; logs; audit log; backups.
 - **Backups** — scheduled database backups with daily/weekly/monthly rotation, verification, and restore from the admin page or the command line.
 - **Storage monitoring** — warnings when the data volume runs low; scans pause automatically when it is critical; unused cache can be cleared.
 - **Responsive UI** for desktop, tablet and phone. On desktop, hovering a poster (or focusing it with the keyboard) shows its year, runtime or number of seasons, rating and genres — from data the page already has, without extra requests.
@@ -235,7 +236,7 @@ Velyx picks the lightest way to play each file:
 2. **Audio conversion (remux)** — when the browser supports the *video* but not the audio or the container, FFmpeg copies the video stream unchanged and converts only the selected audio track to AAC (stereo, or 5.1 when *Surround* is chosen and the source has it), streamed as fragmented MP4. The same route is used when *Boost voices* or *Level volume* is switched on. Typical cases: Dolby Digital (AC3), Dolby Digital Plus (EAC3), DTS and TrueHD audio in Chrome/Edge/Firefox, and MKV files in Safari. The video is never re-encoded, so this costs little CPU. Seeking restarts the stream at the nearest keyframe (a short load of about a second); picture and sound always start at that same keyframe, and gaps in the source audio are filled so the sound cannot drift ahead of the picture. The player's badge shows *Remux • Audio converted to AAC*.
 3. **Not supported on this device** — when the browser cannot decode the video itself (for example HEVC in Firefox, or 10-bit H.264), the file would need video transcoding, which Velyx deliberately does not do on low-end hardware. The player shows *Playback unavailable* with the video format, the browser and the reason, and offers *Try anyway* (browsers sometimes under-report what they can play).
 
-The decision uses the browser's own report of what it can decode (including 10-bit and HDR support) and the file's FFprobe data (codec, bit depth, HDR10/HLG/Dolby Vision). Files scanned before 0.4 are analysed once, the first time they are played — or all at once from **Admin → Compatibility**, which also shows per library how many files direct play, need a remux, depend on the browser, or cannot play without transcoding, and the most common reasons (HEVC, AV1, 10-bit, HDR, DTS/TrueHD, PGS, AVI…).
+The decision uses the browser's own report of what it can decode (including 10-bit and HDR support) and the file's FFprobe data (codec, bit depth, HDR10/HLG/Dolby Vision). Files scanned before 0.4 are analysed once, the first time they are played — or all at once from **Admin → Library health**.
 
 In the player, a small badge shows the mode (*Direct Play*, or *Remux • Audio converted to AAC*); click it to see exactly what happens to video, audio and container, and that no video transcoding takes place. Admin → Dashboard lists active streams with user, title, mode, resolution, bitrate and duration.
 
@@ -293,6 +294,18 @@ Boost voices and Level volume always convert the audio, just like in Plex.
 - **Low disk space:** below `LOW_DISK_GB` the dashboard warns; below `CRITICAL_DISK_GB` scans and scheduled backups pause automatically and resume when space is available again. Velyx never deletes media.
 - **Cache clean-up:** remove artwork and extracted subtitles that nothing in the library uses any more (e.g. after deleting media). Artwork that is still needed is kept, and media files are never touched.
 - **Update notices:** Velyx checks the project's version tags on GitHub at most once a day, only when an administrator opens the dashboard, and sends nothing about your server. Switch it off in Admin → Server.
+
+## Library health
+
+**Admin → Library health** shows what is in your libraries and what needs attention, for all libraries or one at a time. It is built from what the scanner and FFprobe already stored: opening the page never rescans or reads a media file.
+
+| Group | Categories |
+| --- | --- |
+| Playback | Direct Play, Remux required, Depends on device (HEVC), Unsupported |
+| Formats | HEVC, AV1, 10-bit video, HDR, Dolby Vision, converted audio (DTS, TrueHD, AC3, …), PGS and VobSub subtitles |
+| Library | Missing metadata, missing artwork, scan errors, not fully analysed, possible duplicates |
+
+Click a category to see the affected movies and episodes, each with its format (for example `HEVC · 2160p · 10-bit · HDR10 · E-AC3 5.1 · MKV`), its path inside the library and, where possible, a plain explanation — why a file cannot play, what a remux converts, which versions of a movie exist. The playback verdicts assume a typical current browser; the player still decides per device.
 
 ## Running behind a reverse proxy
 
@@ -457,7 +470,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 | No posters | Add a TMDB key in Admin → Server; check Admin → Logs for TMDB errors. |
 | Wrong movie or show | Use Fix match on the item, or rename the file with the correct year. |
 | Episodes missing | See Admin → Libraries → Scan issues; names need `S01E02` or `1x02`. |
-| Video does not play | The player explains why. Usually the browser cannot decode the video (HEVC in Firefox, 10-bit H.264 anywhere). Try Safari or Chrome/Edge with hardware HEVC support; Admin → Compatibility shows which files are affected. Audio problems are converted automatically. |
+| Video does not play | The player explains why. Usually the browser cannot decode the video (HEVC in Firefox, 10-bit H.264 anywhere). Try Safari or Chrome/Edge with hardware HEVC support; Admin → Library health lists the affected files and why. Audio problems are converted automatically. |
 | "Storage critically low" and scans paused | Free up space on the data volume (or clear unused cache on the dashboard); scans resume by themselves. Adjust `LOW_DISK_GB`/`CRITICAL_DISK_GB` if the defaults do not suit your disk. |
 | "Too many failed sign-in attempts" | Wait the time shown (at most 15 minutes). Behind a proxy, set `TRUST_PROXY` to the number of proxies so one user's mistakes do not block everyone behind the same proxy address. |
 | Velyx does not start after an update | Read `docker compose logs velyx`. A failed migration leaves the database unchanged; go back to the previous image, or restore `data/backups/pre-migration-*.db`. |
