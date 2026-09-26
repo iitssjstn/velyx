@@ -49,6 +49,9 @@ export function InstallApp({ onDone }: { onDone?: () => void }) {
 
 /** Pages reachable from the menu; everything else gets a Back button when there is no browser bar. */
 const TOP_LEVEL = ['/', '/movies', '/shows', '/collections', '/watchlist', '/favorites', '/search'];
+/** Sections from the menu whose pages are tabs of that section. */
+const TOP_LEVEL_SECTIONS = ['/settings', '/admin'];
+const isTopLevel = (path: string) => TOP_LEVEL.includes(path) || TOP_LEVEL_SECTIONS.some((s) => path === s || path.startsWith(`${s}/`));
 
 /**
  * A Back button for the installed app, which has no browser bar with one (an iPhone has no back
@@ -58,7 +61,7 @@ export function AppBackButton({ className = '' }: { className?: string }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useT();
-  if (!isStandalone() || location.key === 'default' || TOP_LEVEL.includes(location.pathname)) return null;
+  if (!isStandalone() || location.key === 'default' || isTopLevel(location.pathname)) return null;
   return (
     <button type="button" onClick={() => navigate(-1)} className={`grid size-10 place-items-center rounded-full text-muted hover:text-ink ${className}`} aria-label={t('nav.back')} title={t('nav.back')}>
       <ArrowLeft className="size-5" />

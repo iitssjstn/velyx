@@ -42,6 +42,10 @@ describe('installing Velyx as an app', () => {
     expect(sw.statusCode).toBe(200);
     expect(sw.headers['content-type']).toMatch(/javascript/);
     expect(sw.headers['cache-control']).toBe('no-cache');
+    // Registered with the version in the address, so every update installs it again.
+    const versioned = await get('/sw.js?v=0.8.0');
+    expect(versioned.statusCode).toBe(200);
+    expect(versioned.body).toBe(sw.body);
     // The offline page and its script are allowed by the content security policy (no inline script).
     const offline = await get('/offline.html');
     expect(offline.statusCode).toBe(200);

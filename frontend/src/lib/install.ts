@@ -29,10 +29,19 @@ export function initInstall(): void {
   });
 }
 
+/**
+ * The service worker's address. It carries the Velyx version: the worker itself hardly ever
+ * changes, and a browser only installs a worker again (and with it a fresh offline page) when its
+ * address or content changes.
+ */
+export function serviceWorkerUrl(version: string = import.meta.env.VITE_APP_VERSION ?? 'dev'): string {
+  return `/sw.js?v=${encodeURIComponent(version)}`;
+}
+
 /** Registers the service worker (production builds only; it only provides the offline page). */
 export function registerServiceWorker(): void {
   if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
-  window.addEventListener('load', () => void navigator.serviceWorker.register('/sw.js').catch(() => undefined));
+  window.addEventListener('load', () => void navigator.serviceWorker.register(serviceWorkerUrl()).catch(() => undefined));
 }
 
 /** Velyx runs as an installed app (its own window, no browser bar). */

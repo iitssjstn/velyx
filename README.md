@@ -305,7 +305,7 @@ Boost voices and Level volume always convert the audio.
 Velyx can be installed from the browser, so it opens from its own icon like an app, full screen without the address bar. Nothing is downloaded from an app store: the app is your own Velyx server, and it updates itself whenever you update the server.
 
 - **Android (Chrome, Edge, Samsung Internet) and computers (Chrome, Edge):** choose **Install app** in the Velyx menu (or the install icon in the browser's address bar).
-- **iPhone and iPad:** open Velyx in Safari, tap the Share button and choose **Add to Home Screen**. **Install app** in the menu shows these steps.
+- **iPhone and iPad:** open Velyx in Safari (or another browser), tap the Share button and choose **Add to Home Screen**. **Install app** in the menu shows these steps.
 
 Good to know:
 
