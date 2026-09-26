@@ -90,4 +90,10 @@ describe('series page', () => {
     expect((await env.app.inject({ url: `/api/shows/${other.id}`, headers: { cookie: anna.cookie } })).statusCode).toBe(404);
     expect((await env.app.inject({ url: `/api/shows/${other.id}/seasons/1`, headers: { cookie: anna.cookie } })).statusCode).toBe(404);
   });
+
+  it('tells the player enough about the next episode for its card', async () => {
+    const e = await get(`/api/episodes/${ep(1, 2)}`);
+    expect(e.next).toEqual({ id: ep(2, 1), seasonNumber: 2, episodeNumber: 1, title: null, stillPath: null, overview: null, runtime: null, durationSec: 3600 });
+    expect((await get(`/api/episodes/${ep(2, 3)}`)).next).toBeNull();
+  });
 });

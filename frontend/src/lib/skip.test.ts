@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { skipAt, upNextStart, type EpisodeSegments } from './player';
+import { creditsPlaying, skipAt, upNextStart, type EpisodeSegments } from './player';
 import { parseClock } from './format';
 
 const seg: EpisodeSegments = { fileId: 7, intro: { start: 60, end: 95 }, credits: { start: 1300, end: 1380 }, postCredits: null, manual: false };
@@ -35,6 +35,20 @@ describe('upNextStart', () => {
     expect(upNextStart(null, 7, 1380, 10)).toBe(1368);
     expect(upNextStart(seg, 8, 1380, 10)).toBe(1368);
     expect(upNextStart(seg, 7, 0, 10)).toBeNull();
+  });
+});
+
+describe('creditsPlaying', () => {
+  it('is true only while end credits with nothing after them play', () => {
+    expect(creditsPlaying(seg, 7, 1299)).toBe(false);
+    expect(creditsPlaying(seg, 7, 1300)).toBe(true);
+    expect(creditsPlaying(seg, 7, 1379)).toBe(true);
+    expect(creditsPlaying(seg, 7, 1380)).toBe(false);
+    // A scene after the credits: the card waits for the real end.
+    expect(creditsPlaying({ ...seg, credits: { start: 1300, end: 1350 }, postCredits: { start: 1350, end: 1380 } }, 7, 1320)).toBe(false);
+    // Credits found for another file, or not at all.
+    expect(creditsPlaying(seg, 8, 1320)).toBe(false);
+    expect(creditsPlaying(null, 7, 1320)).toBe(false);
   });
 });
 

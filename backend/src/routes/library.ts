@@ -619,7 +619,19 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       stillPath: row.e.stillPath,
       files: files.map((f) => fileInfo(f, subs.filter((s) => s.mediaFileId === f.id))),
       progress: catalog.episodeProgress(userId, [id]).get(id) ?? null,
-      next: next ? { id: next.id, seasonNumber: next.seasonNumber, episodeNumber: next.episodeNumber, title: next.title, stillPath: next.stillPath } : null,
+      // With enough to show on the "Next episode" card: what it is about and how long it is.
+      next: next
+        ? {
+            id: next.id,
+            seasonNumber: next.seasonNumber,
+            episodeNumber: next.episodeNumber,
+            title: next.title,
+            stillPath: next.stillPath,
+            overview: next.overview,
+            runtime: next.runtime,
+            durationSec: db.select({ d: mediaFiles.durationSec }).from(mediaFiles).where(eq(mediaFiles.episodeId, next.id)).orderBy(desc(mediaFiles.height)).limit(1).get()?.d ?? null,
+          }
+        : null,
       previous: prev ? { id: prev.id, seasonNumber: prev.seasonNumber, episodeNumber: prev.episodeNumber, title: prev.title } : null,
       replacements: replacements.history({ episodeId: id }),
       // Detected (or manually set) intro and credits, for the skip buttons.
