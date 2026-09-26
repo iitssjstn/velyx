@@ -1,4 +1,4 @@
-import type { ClientCapabilities, MediaFileRow, PlaybackDecision, PlaybackOptions } from './engine.js';
+import type { ClientCapabilities, MediaFileRow, PlaybackDecision } from './engine.js';
 
 /**
  * One place that knows what a browser can decode. The playback engines use it to make their
