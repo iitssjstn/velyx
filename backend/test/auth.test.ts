@@ -12,7 +12,7 @@ afterEach(async () => {
 describe('first-run setup', () => {
   it('reports that setup is required until an admin exists', async () => {
     const before = await env.app.inject({ url: '/api/server/info' });
-    expect(before.json()).toMatchObject({ product: 'Velyx', version: '0.5.6', setupRequired: true });
+    expect(before.json()).toMatchObject({ product: 'Velyx', version: '0.5.7', setupRequired: true });
     await setupAdmin(env.app);
     const after = await env.app.inject({ url: '/api/server/info' });
     expect(after.json().setupRequired).toBe(false);

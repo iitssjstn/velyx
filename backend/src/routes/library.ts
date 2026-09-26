@@ -25,7 +25,7 @@ import { Catalog } from '../services/catalog.js';
 import { playbackSegments } from '../services/segments/store.js';
 import { notFound, parseId } from '../http-error.js';
 import { languageName } from '../services/parser.js';
-import { SEARCH_KIND, ftsQuery } from '../services/search.js';
+import { SEARCH_KIND, ftsQuery, parseEpisodeCode } from '../services/search.js';
 import { similarItems } from '../services/recommendations.js';
 import { listQuery, movieListWhere, movieRuntime, showListWhere } from '../services/list-filters.js';
 import { visibleCollections } from '../services/collections.js';
@@ -637,17 +637,20 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
   app.get<{ Querystring: { q?: string } }>('/api/search', { preHandler: requireUser }, async (request) => {
     const q = (request.query.q ?? '').trim().slice(0, 100);
     const userId = request.user!.id;
-    const fts = ftsQuery(q);
-    if (!q || !fts) return { query: q, movies: [], shows: [], episodes: [] };
+    // "reacher s02e04": the code picks the episode, the rest is searched as usual.
+    const code = parseEpisodeCode(q);
+    const text = code ? code.rest : q;
+    const fts = ftsQuery(text);
+    if (!q || (!fts && !code)) return { query: q, movies: [], shows: [], episodes: [] };
     const scope = scopeOf(request);
 
     const rank = new Map<string, number>();
     const ids: Record<'movie' | 'show' | 'episode', number[]> = { movie: [], show: [], episode: [] };
-    const matches = ftsMatch.all(fts);
+    const matches = fts ? ftsMatch.all(fts) : [];
     // Nothing starts with these words: fall back to a substring match on titles ("stellar" →
     // Interstellar). Only for 3+ characters, and only then, so typing stays cheap.
-    if (!matches.length && q.length >= 3) {
-      const pattern = `%${escapeLike(q)}%`;
+    if (fts && !matches.length && text.length >= 3) {
+      const pattern = `%${escapeLike(text)}%`;
       const likeTitle = (col: SQLWrapper) => sql`${col} LIKE ${pattern} ESCAPE '\\'`;
       for (const r of db.select({ id: movies.id }).from(movies).where(or(likeTitle(movies.title), likeTitle(movies.originalTitle))).limit(60).all()) matches.push({ rowid: r.id * 4 + SEARCH_KIND.movie, rank: 0 });
       for (const r of db.select({ id: shows.id }).from(shows).where(or(likeTitle(shows.title), likeTitle(shows.originalTitle))).limit(60).all()) matches.push({ rowid: r.id * 4 + SEARCH_KIND.show, rank: 0 });
@@ -661,7 +664,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     }
     // Titles that start with the query come first, then bm25 relevance.
     const plain = (t: string) => t.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-    const lower = plain(q);
+    const lower = plain(text);
     const byRank = (kind: string) => (a: { id: number; title: string | null }, b: { id: number; title: string | null }) => {
       const pa = plain(a.title ?? '').startsWith(lower) ? 0 : 1;
       const pb = plain(b.title ?? '').startsWith(lower) ? 0 : 1;
@@ -684,6 +687,28 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
           .sort((a, b) => byRank('episode')({ id: a.e.id, title: a.e.title }, { id: b.e.id, title: b.e.title }))
           .slice(0, 30)
       : [];
+    // Episodes named by their code come first: in the shows the rest of the query found, or in
+    // any show when only a code was typed.
+    if (code && (!fts || ids.show.length)) {
+      const codeRows = db
+        .select({ e: episodes, showTitle: shows.title, showBackdrop: shows.backdropPath })
+        .from(episodes)
+        .innerJoin(shows, eq(shows.id, episodes.showId))
+        .where(
+          and(
+            eq(episodes.seasonNumber, code.season),
+            code.episode !== null ? eq(episodes.episodeNumber, code.episode) : undefined,
+            fts ? inArray(episodes.showId, ids.show) : undefined,
+            scopeCondition(scope, shows.libraryId),
+          ),
+        )
+        .orderBy(asc(shows.sortTitle), asc(episodes.episodeNumber))
+        .limit(30)
+        .all();
+      const seen = new Set(codeRows.map((r) => r.e.id));
+      epRows.splice(0, epRows.length, ...codeRows, ...epRows.filter((r) => !seen.has(r.e.id)));
+      epRows.splice(30);
+    }
     const epProgress = catalog.episodeProgress(userId, epRows.map((r) => r.e.id));
     return {
       query: q,

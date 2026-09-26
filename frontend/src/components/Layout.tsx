@@ -4,6 +4,7 @@ import { Bookmark, Film, Heart, Layers, House, LogOut, Menu, Search, Settings, S
 import { displayName, useAuth } from '../lib/auth';
 import { Logo } from './Logo';
 import { Avatar } from './Avatar';
+import { QuickSearch } from './QuickSearch';
 
 const NAV = [
   { to: '/', label: 'Home', icon: House, end: true },
@@ -12,7 +13,6 @@ const NAV = [
   { to: '/collections', label: 'Collections', icon: Layers },
   { to: '/watchlist', label: 'Watchlist', icon: Bookmark },
   { to: '/favorites', label: 'Favorites', icon: Heart },
-  { to: '/search', label: 'Search', icon: Search },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -72,33 +72,55 @@ function UserBox() {
   );
 }
 
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+
+function SearchButton({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="mb-4 flex w-full items-center gap-3 rounded-lg border border-line/70 bg-surface/60 px-3 py-2 text-left text-sm text-muted transition hover:border-line hover:text-ink"
+      aria-label="Search Velyx"
+    >
+      <Search className="size-4" />
+      <span className="flex-1">Search…</span>
+      <kbd className="rounded bg-raised px-1.5 py-0.5 font-mono text-[0.7rem] text-faint">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
+    </button>
+  );
+}
+
 export function Layout() {
   const [open, setOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
 
   useEffect(() => setOpen(false), [location.pathname]);
 
-  // "/" jumps to search from anywhere (except while typing).
+  // Ctrl/⌘+K opens search from anywhere; "/" too, except while typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !(t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)))) {
+      const typing = Boolean(t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)));
+      if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey) && !e.altKey) {
         e.preventDefault();
-        navigate('/search');
+        setSearching((s) => !s);
+      } else if (e.key === '/' && !e.ctrlKey && !e.metaKey && !typing) {
+        e.preventDefault();
+        setSearching(true);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [navigate]);
+  }, []);
 
   return (
     <div className="min-h-dvh lg:pl-60">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line/60 bg-bg/95 px-3 py-5 lg:flex">
-        <div className="px-3 pb-7">
+        <div className="px-3 pb-6">
           <Logo />
         </div>
+        <SearchButton onOpen={() => setSearching(true)} />
         <NavItems />
         <div className="mt-auto">
           <UserBox />
@@ -109,9 +131,9 @@ export function Layout() {
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line/50 bg-bg/90 px-4 backdrop-blur lg:hidden">
         <Logo size="sm" />
         <div className="flex items-center gap-1">
-          <NavLink to="/search" className="grid size-10 place-items-center rounded-full text-muted" aria-label="Search">
+          <button type="button" onClick={() => setSearching(true)} className="grid size-10 place-items-center rounded-full text-muted" aria-label="Search Velyx">
             <Search className="size-5" />
-          </NavLink>
+          </button>
           <button type="button" className="grid size-10 place-items-center rounded-full text-muted" onClick={() => setOpen(true)} aria-label="Open menu">
             <Menu className="size-5" />
           </button>
@@ -135,6 +157,8 @@ export function Layout() {
           </div>
         </div>
       )}
+
+      {searching && <QuickSearch onClose={() => setSearching(false)} />}
 
       <main id="main" className="pb-16">
         <Outlet />
