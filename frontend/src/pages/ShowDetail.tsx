@@ -7,7 +7,7 @@ import { useAuth } from '../lib/auth';
 import { episodeCode, formatDate, formatRuntime, progressFraction, resolutionLabel } from '../lib/format';
 import type { EpisodeSummary, SeasonDetail, ShowDetail } from '../lib/types';
 import { DetailHero, MetaList } from '../components/DetailHero';
-import { FavoriteButton } from '../components/FavoriteButton';
+import { FavoriteButton, WatchlistButton } from '../components/FavoriteButton';
 import { AdminItemMenu } from '../components/AdminItemMenu';
 import { CastRow } from '../components/People';
 import { Artwork } from '../components/Artwork';
@@ -82,6 +82,7 @@ export function ShowPage() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['show', id] });
       void qc.invalidateQueries({ queryKey: ['home'] });
+      void qc.invalidateQueries({ queryKey: ['watchlist'] });
       void qc.invalidateQueries({ queryKey: ['shows'] });
     },
     onError: (err) => toast.error(err),
@@ -131,6 +132,7 @@ export function ShowPage() {
               {resuming ? 'Resume' : s.watchedCount > 0 ? 'Play next' : 'Play'} {episodeCode(up.seasonNumber, up.episodeNumber)}
             </Link>
           )}
+          <WatchlistButton key={String(s.watchlist)} type="show" id={s.id} initial={s.watchlist} />
           <FavoriteButton type="show" id={s.id} initial={s.favorite} />
           <button
             type="button"

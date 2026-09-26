@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
+import type { SessionUser } from '../auth/sessions.js';
 import { requireUser } from '../app.js';
 import { libraries, mediaFiles, subtitles } from '../db/schema.js';
 import { resolveMediaPath } from '../services/paths.js';
@@ -12,6 +13,7 @@ import { isValidImageRequest } from '../services/images.js';
 import { languageName } from '../services/parser.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
 import { fileInfo } from './library.js';
+import { canSee } from '../services/access.js';
 
 const capsBody = z
   .object({
@@ -38,7 +40,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   const db = ctx.db;
 
   /** Looks up a media file and verifies it still lives inside its library folder. */
-  function loadFile(idParam: string) {
+  function loadFile(idParam: string, user: SessionUser) {
     const id = parseId(idParam);
     const row = db
       .select({ f: mediaFiles, root: libraries.path })
@@ -46,7 +48,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       .innerJoin(libraries, eq(libraries.id, mediaFiles.libraryId))
       .where(eq(mediaFiles.id, id))
       .get();
-    if (!row) throw notFound('Media file');
+    // Files in libraries the user may not see answer exactly like missing ones.
+    if (!row || !canSee(ctx.access.scope(user), row.f.libraryId)) throw notFound('Media file');
     const abs = resolveMediaPath(row.root, row.f.path);
     if (!abs) throw new HttpError(404, 'Media file is no longer available. Try rescanning the library.');
     return { file: row.f, abs };
@@ -85,14 +88,14 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     url: '/api/media/:id/stream',
     preHandler: requireUser,
     handler: async (request, reply) => {
-      const { file, abs } = loadFile(request.params.id);
+      const { file, abs } = loadFile(request.params.id, request.user!);
       const engine = ctx.playback.get('direct')!;
       return engine.serve(request, reply, file, abs);
     },
   });
 
   app.post<{ Params: { id: string } }>('/api/media/:id/playback', { preHandler: requireUser }, async (request) => {
-    const { file } = loadFile(request.params.id);
+    const { file } = loadFile(request.params.id, request.user!);
     const { audioIndex, audioChannels, boostVoices, levelVolume, ...caps } = capsBody.parse(request.body ?? {});
     if (audioIndex !== undefined && !(file.audioTracks ?? []).some((t) => t.index === audioIndex)) throw new HttpError(400, 'Unknown audio track.');
     const decision = ctx.playback.decide(file, caps, { audioIndex, audioChannels, boostVoices, levelVolume });
@@ -103,7 +106,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   // Live remux: video copied, audio converted when needed. Seeking = request again with ?start=.
   app.get<{ Params: { id: string } }>('/api/media/:id/remux', { preHandler: requireUser }, async (request, reply) => {
-    const { file, abs } = loadFile(request.params.id);
+    const { file, abs } = loadFile(request.params.id, request.user!);
     return ctx.playback.get('remux')!.serve(request, reply, file, abs);
   });
 
@@ -112,7 +115,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
    * and treats `start` as stream time 0, so the clock and subtitles line up with the picture.
    */
   app.get<{ Params: { id: string }; Querystring: { t?: string } }>('/api/media/:id/keyframe', { preHandler: requireUser }, async (request) => {
-    const { file, abs } = loadFile(request.params.id);
+    const { file, abs } = loadFile(request.params.id, request.user!);
     const t = Number(request.query.t ?? 0);
     if (!Number.isFinite(t) || t < 0) throw new HttpError(400, 'Invalid time.');
     const target = file.durationSec ? Math.min(t, Math.max(0, file.durationSec - 1)) : t;
@@ -121,7 +124,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   });
 
   app.get<{ Params: { id: string } }>('/api/media/:id/subtitles', { preHandler: requireUser }, async (request) => {
-    const { file } = loadFile(request.params.id);
+    const { file } = loadFile(request.params.id, request.user!);
     return subtitleList(file);
   });
 
@@ -134,7 +137,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       .innerJoin(libraries, eq(libraries.id, mediaFiles.libraryId))
       .where(eq(subtitles.id, id))
       .get();
-    if (!row) throw notFound('Subtitle');
+    if (!row || !canSee(ctx.access.scope(request.user!), row.f.libraryId)) throw notFound('Subtitle');
     const abs = resolveMediaPath(row.root, row.s.path);
     if (!abs || !fs.existsSync(abs)) throw notFound('Subtitle');
     const vtt = shiftVtt(await readSubtitleAsVtt(abs, row.s.format), offsetParam(request.query));
@@ -142,7 +145,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   });
 
   app.get<{ Params: { id: string; index: string } }>('/api/media/:id/subtitles/:index.vtt', { preHandler: requireUser }, async (request, reply) => {
-    const { file, abs } = loadFile(request.params.id);
+    const { file, abs } = loadFile(request.params.id, request.user!);
     const index = Number(request.params.index);
     const track = (file.subtitleTracks ?? []).find((t) => t.index === index);
     if (!Number.isInteger(index) || !track) throw notFound('Subtitle track');

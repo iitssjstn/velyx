@@ -93,7 +93,7 @@ export function HomePage() {
             ? d.counts.libraries === 0
               ? 'Point Velyx at your movie and TV folders to fill this page.'
               : 'Velyx did not find any videos yet. A scan may still be running — check the Libraries page.'
-            : 'An administrator needs to add a media library before there is anything to watch.'}
+            : 'An administrator needs to add a media library, or give you access to one, before there is anything to watch.'}
         </EmptyState>
       ) : (
         <>
@@ -108,6 +108,13 @@ export function HomePage() {
           {d.recentlyAdded.length > 0 && (
             <Shelf title="Recently Added">
               {d.recentlyAdded.map((c) => (
+                <PosterCard key={`${c.type}-${c.id}`} item={c} className="w-36 shrink-0 snap-start sm:w-40" />
+              ))}
+            </Shelf>
+          )}
+          {d.watchlist.length > 0 && (
+            <Shelf title="Your Watchlist" moreHref="/watchlist">
+              {d.watchlist.map((c) => (
                 <PosterCard key={`${c.type}-${c.id}`} item={c} className="w-36 shrink-0 snap-start sm:w-40" />
               ))}
             </Shelf>

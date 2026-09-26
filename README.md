@@ -2,7 +2,7 @@
 
 **Your media. Your server.**
 
-Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, favorites and a custom video player. It is built to run comfortably on modest home-server hardware.
+Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
 > Version 0.3.1 — Direct Play, Plex-style audio conversion (surround, voice boost, volume levelling), customisable subtitles and automatic library updates. Full video transcoding is on the roadmap.
 
@@ -49,7 +49,8 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Subtitles your way** — size, colour, background, outline/shadow, position and timing (sync) adjustable from the player; subtitles always stay above the controls.
 - **Automatic library updates** — library folders are watched; new movies and episodes (e.g. from Radarr/Sonarr) appear about 30 seconds after they land.
 - **Per-user watch progress** — Continue Watching, "next up" episodes, watched markers (an item counts as watched at 90 %), mark seasons/shows as watched.
-- **Favorites, search, filters and sorting** across movies, shows and episodes.
+- **Watchlist, favorites, search, filters and sorting** across movies, shows and episodes. Watched movies leave the watchlist automatically.
+- **Per-user library access** — choose which libraries each user can see (for example a kids-only library).
 - **Multiple users** with administrator and user roles.
 - **Admin panel** — dashboard (counts, storage, server status, duplicates), libraries with live scan progress and scan issues, users, metadata review, server settings, logs and database backup.
 - **Responsive UI** for desktop, tablet and phone.
@@ -237,7 +238,8 @@ Boost voices and Level volume always convert the audio, just like in Plex.
 ## Users and roles
 
 - **Administrators** manage libraries, users, metadata and server settings.
-- **Users** can browse and watch; each user has their own progress, favorites and profile.
+- **Users** can browse and watch; each user has their own progress, watchlist, favorites and profile.
+- **Library access**: by default a user sees every library, including ones added later. In Admin → Users you can limit a user to specific libraries. Everything outside those libraries is hidden: browsing, search, Home, detail pages and the streams themselves. Administrators always see everything.
 - Velyx always keeps at least one active administrator: you cannot demote, disable or delete the last one, or remove your own admin access.
 - Changing or resetting a password signs that user out on other devices.
 
@@ -280,7 +282,7 @@ Everything Velyx stores lives in the data folder (`DATA_PATH`):
 
 | Path | Contents |
 | --- | --- |
-| `velyx.db` | Database: users, libraries, metadata, progress, favorites, settings |
+| `velyx.db` | Database: users, libraries, metadata, progress, watchlists, favorites, settings |
 | `cache/` | Artwork and extracted subtitles (can be rebuilt) |
 | `avatars/` | Profile pictures |
 | `backups/` | Backups created by Velyx |
@@ -354,7 +356,7 @@ npm run typecheck
 npm test
 ```
 
-The backend suite covers authentication, authorization, CSRF, the scanner (incremental, removals, unmounted drives, subtitles), TMDB matching with a mocked API (including offline behaviour), progress, favorites, search, range requests and path security. When `ffprobe` and `ffmpeg` are installed, an extra suite analyses a generated video and extracts its embedded subtitles. The frontend suite covers formatting, player logic, codec detection and components.
+The backend suite covers authentication, authorization, CSRF, the scanner (incremental, removals, unmounted drives, subtitles), TMDB matching with a mocked API (including offline behaviour), progress, favorites, watchlists, per-user library access, search, range requests and path security. When `ffprobe` and `ffmpeg` are installed, an extra suite analyses a generated video and extracts its embedded subtitles. The frontend suite covers formatting, player logic, codec detection and components.
 
 ## CI and the Docker image (GHCR)
 
@@ -408,7 +410,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 
 - Full video transcoding with hardware acceleration (NVENC, Quick Sync, VAAPI/AMF) and HLS output.
 - Burn-in or OCR for image-based subtitles.
-- Collections, watchlists and per-user library access.
+- Collections.
 - Trickplay thumbnails on the seek bar, intro/credits detection.
 - Apps for TV and mobile, Chromecast support.
 

@@ -19,6 +19,8 @@ export const users = sqliteTable('users', {
   role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
   disabled: integer('disabled', { mode: 'boolean' }).notNull().default(false),
   avatarFile: text('avatar_file'),
+  /** When false, the user only sees the libraries listed in user_libraries. Admins always see everything. */
+  allLibraries: integer('all_libraries', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('created_at').notNull().default(now),
   updatedAt: integer('updated_at').notNull().default(now),
   lastLoginAt: integer('last_login_at'),
@@ -54,6 +56,19 @@ export const libraries = sqliteTable('libraries', {
   lastScanStatus: text('last_scan_status'),
   lastScanMessage: text('last_scan_message'),
 });
+
+export const userLibraries = sqliteTable(
+  'user_libraries',
+  {
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    libraryId: integer('library_id')
+      .notNull()
+      .references(() => libraries.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.libraryId] }), index('user_libraries_library_idx').on(t.libraryId)],
+);
 
 export const movies = sqliteTable(
   'movies',
@@ -342,5 +357,22 @@ export const favorites = sqliteTable(
   (t) => [
     uniqueIndex('favorites_user_movie_idx').on(t.userId, t.movieId),
     uniqueIndex('favorites_user_show_idx').on(t.userId, t.showId),
+  ],
+);
+
+export const watchlist = sqliteTable(
+  'watchlist',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    movieId: integer('movie_id').references(() => movies.id, { onDelete: 'cascade' }),
+    showId: integer('show_id').references(() => shows.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at').notNull().default(now),
+  },
+  (t) => [
+    uniqueIndex('watchlist_user_movie_idx').on(t.userId, t.movieId),
+    uniqueIndex('watchlist_user_show_idx').on(t.userId, t.showId),
   ],
 );

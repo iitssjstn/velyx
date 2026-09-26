@@ -1,38 +1,56 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Heart } from 'lucide-react';
+import { Bookmark, Heart } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { toast } from './Toast';
 
-export function FavoriteButton({ type, id, initial, className = '' }: { type: 'movie' | 'show'; id: number; initial: boolean; className?: string }) {
+interface SaveButtonProps {
+  type: 'movie' | 'show';
+  id: number;
+  initial: boolean;
+  className?: string;
+}
+
+/** Round toggle that adds an item to, or removes it from, one of the user's saved lists. */
+function SaveToggle({ list, type, id, initial, className = '' }: SaveButtonProps & { list: 'favorites' | 'watchlist' }) {
   const qc = useQueryClient();
-  const [fav, setFav] = useState(initial);
+  const [on, setOn] = useState(initial);
   const m = useMutation({
     mutationFn: (next: boolean) =>
-      next ? api.post('/api/favorites', type === 'movie' ? { movieId: id } : { showId: id }) : api.del(`/api/favorites/${type}/${id}`),
-    onMutate: (next) => setFav(next),
+      next ? api.post(`/api/${list}`, type === 'movie' ? { movieId: id } : { showId: id }) : api.del(`/api/${list}/${type}/${id}`),
+    onMutate: (next) => setOn(next),
     onError: (err, next) => {
-      setFav(!next);
+      setOn(!next);
       toast.error(err);
     },
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: ['favorites'] });
+      void qc.invalidateQueries({ queryKey: [list] });
       void qc.invalidateQueries({ queryKey: ['home'] });
       void qc.invalidateQueries({ queryKey: [type, id] });
     },
   });
+  const Icon = list === 'favorites' ? Heart : Bookmark;
+  const label = list === 'favorites' ? (on ? 'Remove from favorites' : 'Add to favorites') : on ? 'Remove from watchlist' : 'Add to watchlist';
   return (
     <button
       type="button"
-      onClick={() => m.mutate(!fav)}
-      aria-pressed={fav}
-      aria-label={fav ? 'Remove from favorites' : 'Add to favorites'}
-      title={fav ? 'Remove from favorites' : 'Add to favorites'}
+      onClick={() => m.mutate(!on)}
+      aria-pressed={on}
+      aria-label={label}
+      title={label}
       className={`grid size-12 place-items-center rounded-full border transition-colors ${
-        fav ? 'border-accent/50 bg-accent/15 text-accent' : 'border-line bg-surface/70 text-muted hover:text-ink'
+        on ? 'border-accent/50 bg-accent/15 text-accent' : 'border-line bg-surface/70 text-muted hover:text-ink'
       } ${className}`}
     >
-      <Heart className={`size-5 ${fav ? 'fill-current' : ''}`} />
+      <Icon className={`size-5 ${on ? 'fill-current' : ''}`} />
     </button>
   );
+}
+
+export function FavoriteButton(props: SaveButtonProps) {
+  return <SaveToggle list="favorites" {...props} />;
+}
+
+export function WatchlistButton(props: SaveButtonProps) {
+  return <SaveToggle list="watchlist" {...props} />;
 }

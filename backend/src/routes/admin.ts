@@ -32,12 +32,15 @@ const userCreate = z.object({
   password: z.string(),
   displayName: z.string().trim().max(64).optional(),
   role: z.enum(['admin', 'user']).default('user'),
+  /** null (or omitted) = every library, including ones added later. */
+  libraryIds: z.array(z.number().int().positive()).max(1000).nullable().optional(),
 });
 const userUpdate = z.object({
   displayName: z.string().trim().max(64).nullable().optional(),
   role: z.enum(['admin', 'user']).optional(),
   disabled: z.boolean().optional(),
   password: z.string().optional(),
+  libraryIds: z.array(z.number().int().positive()).max(1000).nullable().optional(),
 });
 
 const settingsBody = z.object({
@@ -270,6 +273,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     disabled: u.disabled,
     createdAt: u.createdAt,
     lastLoginAt: u.lastLoginAt,
+    libraryIds: ctx.access.grantedIds(u.id),
   });
 
   app.get('/api/users', { preHandler: requireAdmin }, async () => db.select().from(users).orderBy(users.username).all().map(userView));
@@ -286,6 +290,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       .values({ username: body.username, displayName: body.displayName || null, role: body.role, passwordHash: await hashPassword(body.password) })
       .returning()
       .get();
+    if (body.libraryIds) ctx.access.setGrants(row.id, body.libraryIds);
     log.info(`User "${row.username}" created by ${request.user!.username}`);
     return userView(row);
   });
@@ -310,6 +315,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       patch.passwordHash = await hashPassword(body.password);
     }
     const row = db.update(users).set(patch).where(eq(users.id, id)).returning().get();
+    if (body.libraryIds !== undefined) ctx.access.setGrants(id, body.libraryIds);
     if (body.disabled || body.password !== undefined) ctx.sessions.destroyAllForUser(id, id === request.user!.id ? request.sessionToken : undefined);
     return userView(row);
   });

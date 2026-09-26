@@ -7,7 +7,7 @@ import { useAuth } from '../lib/auth';
 import { formatClock, formatDate, formatRuntime, progressFraction, resolutionLabel } from '../lib/format';
 import type { MovieDetail } from '../lib/types';
 import { DetailHero, MetaList } from '../components/DetailHero';
-import { FavoriteButton } from '../components/FavoriteButton';
+import { FavoriteButton, WatchlistButton } from '../components/FavoriteButton';
 import { AdminItemMenu } from '../components/AdminItemMenu';
 import { CastRow } from '../components/People';
 import { MediaInfo } from '../components/MediaInfo';
@@ -27,6 +27,7 @@ export function MoviePage() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['movie', id] });
       void qc.invalidateQueries({ queryKey: ['home'] });
+      void qc.invalidateQueries({ queryKey: ['watchlist'] });
       void qc.invalidateQueries({ queryKey: ['movies'] });
     },
     onError: (err) => toast.error(err),
@@ -88,6 +89,7 @@ export function MoviePage() {
           ) : (
             <p className="text-sm text-danger">No playable file — rescan the library.</p>
           )}
+          <WatchlistButton key={String(m.watchlist)} type="movie" id={m.id} initial={m.watchlist} />
           <FavoriteButton type="movie" id={m.id} initial={m.favorite} />
           <button
             type="button"
