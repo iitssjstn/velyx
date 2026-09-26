@@ -82,39 +82,43 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 
 ## Quick start (Docker)
 
-The Docker image is built by GitHub Actions and published to GHCR, so the server only pulls it — nothing is compiled on the VPS.
+Create a folder on your server with this `docker-compose.yml`. Change the two media paths on the left of the `:` to where your movies and series are; everything else can stay as it is.
 
-**1. Publish the image (once).** Push this repository to GitHub (for example `iitssjstn/velyx`). The workflow *Docker image* (`.github/workflows/docker-build.yml`) builds `ghcr.io/iitssjstn/velyx:latest` automatically on every push to `main`. Follow it under the repository's **Actions** tab.
+```yaml
+services:
+  velyx:
+    image: ghcr.io/iitssjstn/velyx:latest   # or pin a version, e.g. :0.4.0
+    container_name: velyx
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      TZ: Europe/Amsterdam
+      # Run as the user/group that owns your media files (check with: id your-user)
+      PUID: "1000"
+      PGID: "1000"
+    volumes:
+      # Database, artwork cache, avatars and backups — back this folder up.
+      - ./data:/data
+      # Your media, read-only: Velyx never changes or deletes your files.
+      - /srv/media/movies:/media/movies:ro
+      - /srv/media/tv:/media/tv:ro
+```
 
-Then make the image pullable: GitHub → your profile → **Packages** → `velyx` → **Package settings** → *Change visibility* → Public. No login is needed on the server.
-
-**2. Run it on your server.**
+Then start it:
 
 ```bash
-mkdir -p ~/velyx && cd ~/velyx
-curl -o docker-compose.yml https://raw.githubusercontent.com/iitssjstn/velyx/main/docker-compose.yml
-curl -o .env https://raw.githubusercontent.com/iitssjstn/velyx/main/.env.example
-nano .env                      # set MOVIES_PATH, TV_PATH, PUID and PGID
-docker compose pull
 docker compose up -d
 ```
 
-(For a private repository, copy `docker-compose.yml` and `.env.example` to the server manually instead of using `curl`.)
-
-**3.** Open `http://<your-server>:3000`, create your administrator account and add the TMDB key in **Admin → Server**. No API keys or secrets go into `docker-compose.yml` or `.env`.
-
-To build from source instead (development), use `docker compose -f docker-compose.build.yml up -d --build`. For every available option, see the [annotated compose example](#annotated-compose-example).
+Open `http://<your-server>:3000`, create your administrator account and, optionally, add a TMDB key in **Admin → Server**. No API keys or passwords go into the compose file. Every other option is listed under [Configuration](#configuration).
 
 ## Configuration
 
-Deployment settings are environment variables that `docker-compose.yml` reads from `.env`. None of them are secrets: API keys and server details are managed in the web interface (see [TMDB metadata](#tmdb-metadata)), and the cookie-signing secret is generated automatically in the data volume.
+All settings below are optional environment variables for the `environment:` section of your compose file. None of them are secrets: API keys and server details are managed in the web interface (see [TMDB metadata](#tmdb-metadata)), and the cookie-signing secret is generated automatically in the data volume.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `VELYX_IMAGE` | `ghcr.io/iitssjstn/velyx:latest` | Image to pull (compose only). Pin a version with e.g. `:0.4.0`. |
-| `VELYX_PORT` | `3000` | Host port for the web interface (compose only). |
-| `DATA_PATH` | `./data` | Host folder for the database, artwork cache, avatars and backups (compose only). |
-| `MOVIES_PATH` / `TV_PATH` | — | Host folders with your media, mounted read-only at `/media/movies` and `/media/tv` (compose only). |
 | `PUID` / `PGID` | `1000` | User and group Velyx runs as. Use the owner of your media files (`id youruser`). |
 | `TZ` | `Europe/Amsterdam` | Time zone for logs. |
 | `TRUST_PROXY` | `false` | Behind a reverse proxy: the number of proxies in front of Velyx (`1` for Nginx Proxy Manager, `2` for Cloudflare + NPM) — or `true` to trust any. A number (or a list of proxy addresses/CIDRs) stops clients from faking their address, which matters for sign-in throttling and the audit log. |
@@ -129,8 +133,6 @@ Deployment settings are environment variables that `docker-compose.yml` reads fr
 | `PORT` / `HOST` | `3000` / `0.0.0.0` | Listening address inside the container. |
 | `FFPROBE_PATH` / `FFMPEG_PATH` | `ffprobe` / `ffmpeg` | Binaries (bundled in the image). |
 
-Never commit your `.env`; the repository's `.gitignore` already excludes it.
-
 ### Advanced: optional overrides
 
 These are **not needed** and deliberately not in the compose file. They exist for automated setups; values set in the web interface take priority.
@@ -144,50 +146,20 @@ These are **not needed** and deliberately not in the compose file. They exist fo
 | `VELYX_UPDATE_REPO` | GitHub repository (`owner/name`) whose version tags announce updates (default `iitssjstn/velyx`; empty disables the check). |
 
 
-### Annotated compose example
-
-`docker-compose.yml` reads its values from `.env`. If you prefer to write everything in the compose file itself, this is the same setup with every option spelled out — copy what you need:
+### Example with optional settings
 
 ```yaml
-services:
-  velyx:
-    # Published by GitHub Actions. Pin a version (e.g. :0.4.0) to update on your own schedule.
-    image: ghcr.io/iitssjstn/velyx:latest
-    # Or build from this repository instead of pulling:
-    # build: .
-    container_name: velyx
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
     environment:
       TZ: Europe/Amsterdam
-      # Run as the user/group that owns your media files (check with: id your-user)
       PUID: "1000"
       PGID: "1000"
-      # Behind Nginx Proxy Manager, Caddy or Traefik: set to "true" so HTTPS and client IPs are detected.
-      TRUST_PROXY: "false"
-      # auto = Secure cookies when the request arrives over HTTPS
-      COOKIE_SECURE: auto
-      # Minutes between automatic incremental scans (0 = off). Folder watching also picks up
-      # new files within seconds; it can be switched off in Admin → Server.
+      # Behind a reverse proxy: the number of proxies in front of Velyx.
+      TRUST_PROXY: "1"
+      # Minutes between automatic scans (0 = off); folder watching picks up new files sooner.
       SCAN_INTERVAL_MINUTES: "360"
-      SESSION_TTL_DAYS: "30"
+      # FFprobe processes at once; keep 1 on dual-core machines.
+      SCAN_CONCURRENCY: "1"
       LOG_LEVEL: info
-      # Optional — normally set in the web interface instead:
-      # TMDB_API_KEY: ""            # Admin → Server (a key saved there wins)
-      # TMDB_LANGUAGE: nl-NL
-      # SERVER_URL: https://velyx.example.com
-      # SESSION_SECRET: ""          # generated automatically in /data/.session-secret when empty
-    volumes:
-      # Database, artwork cache, avatars and backups — back this folder up.
-      - ./data:/data
-      # Media, always read-only: Velyx never changes or deletes your files.
-      # Everything must live under /media inside the container (see MEDIA_ROOTS).
-      - /srv/media/movies:/media/movies:ro
-      - /srv/media/tv:/media/tv:ro
-      # More drives:
-      # - /mnt/disk2/films:/media/films-2:ro
-    # The image has a built-in health check (GET /health); `docker ps` shows "healthy".
 ```
 
 ### Extra drives
@@ -346,7 +318,7 @@ location / {
 
 ## Updating
 
-Push changes to `main` (or tag a release), wait for the *Docker image* workflow to finish, then on the server:
+To update to the latest version, run in the folder with your `docker-compose.yml`:
 
 ```bash
 docker compose pull
@@ -361,7 +333,7 @@ Database migrations run automatically on start-up:
 
 ## Backup and restore
 
-Everything Velyx stores lives in the data folder (`DATA_PATH`):
+Everything Velyx stores lives in the data folder (`./data`, mounted at `/data`):
 
 | Path | Contents |
 | --- | --- |
@@ -477,7 +449,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 
 | Problem | Solution |
 | --- | --- |
-| "Folder … does not exist inside the container" | The volume is not mounted. Check `MOVIES_PATH`/`TV_PATH` and use the container path (`/media/movies`). |
+| "Folder … does not exist inside the container" | The volume is not mounted. Check the media paths under `volumes:` and use the container path (`/media/movies`) when adding the library. |
 | "Libraries must be inside /media" | Mount the folder under `/media` or extend `MEDIA_ROOTS`. |
 | Library stays empty / permission errors in the logs | `PUID`/`PGID` cannot read the files. Use the ids of the media owner (`id youruser`). |
 | No posters | Add a TMDB key in Admin → Server; check Admin → Logs for TMDB errors. |
