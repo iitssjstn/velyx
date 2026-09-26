@@ -10,6 +10,8 @@ import type { DB } from './db/client.js';
 import { SESSION_COOKIE, SessionService, sessionCookieOptions, type SessionUser } from './auth/sessions.js';
 import { SettingsService } from './services/settings.js';
 import { TmdbClient, type FetchLike } from './services/tmdb.js';
+import { OpenSubtitlesClient } from './services/opensubtitles.js';
+import { APP_VERSION } from './version.js';
 import { ImageCache } from './services/images.js';
 import { MetadataService } from './services/metadata.js';
 import { LibraryScanner } from './services/scanner.js';
@@ -72,6 +74,8 @@ export interface AppContext {
   probe: LimitedProber;
   /** Background intro and credits detection. */
   segments: SegmentDetector;
+  /** Subtitle search and download (OpenSubtitles.com), when an API key is set. */
+  openSubtitles: OpenSubtitlesClient;
   startedAt: number;
 }
 
@@ -132,7 +136,15 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   // Critically low disk space pauses scans (which write artwork and rows); they resume on their own.
   const disk = new DiskMonitor(storage, (level) => (level === 'critical' ? scans.pause('low-disk') : scans.resume('low-disk')));
   const backups = new BackupScheduler(db, config.backupDir, settings, () => (storage.dataDisk()?.level === 'critical' ? 'disk space is critically low' : null));
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit: new AuditLog(db), backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateRepo, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, startedAt: Date.now() };
+  const openSubtitles = new OpenSubtitlesClient({
+    getCredentials: () => {
+      const s = settings.get();
+      return { apiKey: s.openSubtitlesApiKey, username: s.openSubtitlesUsername, password: s.openSubtitlesPassword };
+    },
+    fetchImpl: opts.fetchImpl,
+    userAgent: `Velyx v${APP_VERSION}`,
+  });
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit: new AuditLog(db), backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateRepo, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

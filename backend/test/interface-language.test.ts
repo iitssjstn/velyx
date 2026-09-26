@@ -115,8 +115,10 @@ describe('interface language', () => {
       fs.cpSync(migrationsFolder(), old, { recursive: true });
       const journalFile = path.join(old, 'meta', '_journal.json');
       const journal = JSON.parse(fs.readFileSync(journalFile, 'utf8'));
-      const last = journal.entries.pop();
-      expect(last.tag).toBe('0016_interface_language');
+      // Later migrations go too (they did not exist in 0.5.8 either).
+      const at = journal.entries.findIndex((e: { tag: string }) => e.tag === '0016_interface_language');
+      expect(at).toBeGreaterThan(0);
+      journal.entries.splice(at);
       fs.writeFileSync(journalFile, JSON.stringify(journal));
       const file = path.join(dir, 'velyx.db');
       const before = openDatabase(file, { migrationsFolder: old });

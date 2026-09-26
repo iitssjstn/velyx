@@ -40,7 +40,10 @@ export type AuditAction =
   | 'segments.analyze'
   | 'cleanup.settings'
   | 'cleanup.kept'
-  | 'cleanup.deleted';
+  | 'cleanup.deleted'
+  | 'subtitles.settings'
+  | 'subtitles.downloaded'
+  | 'subtitles.removed';
 
 export interface AuditActor {
   id: number;

@@ -44,6 +44,9 @@ const AUDIT_ACTIONS: Record<string, MessageKey> = {
   'segments.analyze': 'audit.actions.segmentsAnalyze',
   'segments.edited': 'audit.actions.segmentsEdited',
   'segments.reset': 'audit.actions.segmentsReset',
+  'subtitles.settings': 'audit.actions.subtitlesSettings',
+  'subtitles.downloaded': 'audit.actions.subtitlesDownloaded',
+  'subtitles.removed': 'audit.actions.subtitlesRemoved',
 };
 
 export function auditLabel(action: string): string {
@@ -56,6 +59,7 @@ const DETAILS: Record<string, MessageKey> = {
   'unknown user': 'audit.details.unknownUser',
   'account disabled': 'audit.details.accountDisabled',
   'other sessions kept': 'audit.details.otherSessionsKept',
+  'OpenSubtitles turned off': 'audit.details.openSubtitlesOff',
 };
 
 const GROUPS: Array<{ value: string; label: MessageKey }> = [
@@ -68,6 +72,7 @@ const GROUPS: Array<{ value: string; label: MessageKey }> = [
   { value: 'settings.updated', label: 'audit.groups.serverSettings' },
   { value: 'tmdb.updated', label: 'audit.groups.tmdb' },
   { value: 'backup.', label: 'audit.groups.backups' },
+  { value: 'subtitles.', label: 'audit.groups.subtitles' },
 ];
 
 const PAGE = 50;

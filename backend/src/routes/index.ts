@@ -9,6 +9,7 @@ import { collectionRoutes } from './collections.js';
 import { segmentRoutes } from './segments.js';
 import { activityRoutes } from './activity.js';
 import { cleanupRoutes } from './cleanup.js';
+import { onlineSubtitleRoutes } from './online-subtitles.js';
 
 export async function registerRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   await authRoutes(app, ctx);
@@ -20,4 +21,5 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext): Pro
   await segmentRoutes(app, ctx);
   await activityRoutes(app, ctx);
   await cleanupRoutes(app, ctx);
+  await onlineSubtitleRoutes(app, ctx);
 }

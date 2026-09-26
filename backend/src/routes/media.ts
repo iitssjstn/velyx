@@ -5,7 +5,8 @@ import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { describeUserAgent, type SessionUser } from '../auth/sessions.js';
 import { requireUser } from '../app.js';
-import { libraries, mediaFiles, subtitles } from '../db/schema.js';
+import { libraries, mediaFiles, onlineSubtitles, subtitles } from '../db/schema.js';
+import { onlineSubtitleOption } from './online-subtitles.js';
 import { resolveMediaPath } from '../services/paths.js';
 import { readSubtitleAsVtt, shiftVtt } from '../services/subtitles.js';
 import type { RemuxEngine } from '../playback/remux.js';
@@ -63,8 +64,9 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return { file: row.f, abs };
   }
 
-  function subtitleList(file: typeof mediaFiles.$inferSelect) {
+  function subtitleList(file: typeof mediaFiles.$inferSelect, user: SessionUser) {
     const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, file.id)).all();
+    const online = db.select().from(onlineSubtitles).where(eq(onlineSubtitles.mediaFileId, file.id)).all();
     return [
       ...external.map((s) => ({
         key: `ext-${s.id}`,
@@ -91,6 +93,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
           isDefault: t.isDefault,
           url: `/api/media/${file.id}/subtitles/${t.index}.vtt`,
         })),
+      // Fetched from OpenSubtitles by someone before.
+      ...online.map((row) => onlineSubtitleOption(row, user)),
     ];
   }
 
@@ -144,7 +148,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (!decision) throw new HttpError(415, 'This file cannot be played.');
     const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, file.id)).all();
     const analysis = analyzePlayback(file, caps, decision, ua, confidence, lang);
-    return { decision: { ...decision, mode: analysis.mode }, analysis, file: fileInfo(file, external), subtitles: subtitleList(file) };
+    return { decision: { ...decision, mode: analysis.mode }, analysis, file: fileInfo(file, external), subtitles: subtitleList(file, request.user!), onlineSubtitles: ctx.openSubtitles.configured };
   });
 
   /** The current device: its name and what it plays, from the formats the browser reports. */
@@ -197,7 +201,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   app.get<{ Params: { id: string } }>('/api/media/:id/subtitles', { preHandler: requireUser }, async (request) => {
     const { file } = loadFile(request.params.id, request.user!);
-    return subtitleList(file);
+    return subtitleList(file, request.user!);
   });
 
   app.get<{ Params: { id: string } }>('/api/subtitles/:id.vtt', { preHandler: requireUser }, async (request, reply) => {
