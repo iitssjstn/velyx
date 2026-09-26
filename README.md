@@ -4,7 +4,7 @@
 
 Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.4.5 — **Upgrades keep your history**: when a file is replaced by a better release, watch progress, favorites, watchlist and collections stay, even if the new file arrives later under another name, and the movie page shows what changed (1080p WEB → 2160p Blu-ray). Also in 0.4.x: scanning that waits for playback, playback diagnostics per device, Library health, card details on hover and many stability fixes. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
+> Version 0.4.6 — Fixes the loading spinner that could stay on screen while a movie or episode was already playing. 0.4.5: **Upgrades keep your history**: when a file is replaced by a better release, watch progress, favorites, watchlist and collections stay, even if the new file arrives later under another name, and the movie page shows what changed (1080p WEB → 2160p Blu-ray). Also in 0.4.x: scanning that waits for playback, playback diagnostics per device, Library health, card details on hover and many stability fixes. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
 
 ---
 
