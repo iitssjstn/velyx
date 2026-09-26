@@ -183,6 +183,25 @@ export interface MatchInfo {
   parsedYear: number | null;
 }
 
+/** A file as it was before it was replaced. */
+export interface FileSnapshot {
+  name: string;
+  size: number;
+  width: number | null;
+  height: number | null;
+  videoCodec: string | null;
+  videoRange: string | null;
+  audioCodec: string | null;
+  audioChannels: number | null;
+  source: string | null;
+}
+
+export interface Replacement {
+  previous: FileSnapshot;
+  current: FileSnapshot;
+  at: number;
+}
+
 export interface MovieDetail {
   id: number;
   type: 'movie';
@@ -210,6 +229,8 @@ export interface MovieDetail {
   favorite: boolean;
   watchlist: boolean;
   collections: CollectionRef[];
+  /** Earlier files (upgrades), newest first. */
+  replacements: Replacement[];
 }
 
 export interface SeasonSummary {
@@ -294,6 +315,7 @@ export interface EpisodeDetail {
   progress: Progress | null;
   next: { id: number; seasonNumber: number; episodeNumber: number; title: string | null; stillPath: string | null } | null;
   previous: { id: number; seasonNumber: number; episodeNumber: number; title: string | null } | null;
+  replacements: Replacement[];
 }
 
 export interface SubtitleOption {

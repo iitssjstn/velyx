@@ -1,5 +1,5 @@
-import type { MediaFileInfo } from '../lib/types';
-import { channelLabel, codecName, formatBitrate, formatBytes, formatClock, resolutionLabel } from '../lib/format';
+import type { MediaFileInfo, Replacement } from '../lib/types';
+import { channelLabel, codecName, formatBitrate, formatBytes, formatClock, formatRelative, resolutionLabel, snapshotLabel } from '../lib/format';
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   if (children === null || children === undefined || children === '') return null;
@@ -12,11 +12,11 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 /** Technical details of a media file as reported by FFprobe. */
-export function MediaInfo({ file }: { file: MediaFileInfo }) {
+export function MediaInfo({ file, replacements = [] }: { file: MediaFileInfo; replacements?: Replacement[] }) {
   const res = resolutionLabel(file.width, file.height);
   const subs = [
     ...file.externalSubtitles.map((s) => `${s.label}${s.forced ? ' (forced)' : ''} — ${s.format.toUpperCase()}`),
-    ...file.embeddedSubtitles.map((s) => `${s.languageName ?? s.title ?? 'Unknown'} — ${codecName(s.codec)}${s.textBased ? '' : ' (image, not supported yet)'}`),
+    ...file.embeddedSubtitles.map((s) => `${s.languageName ?? s.title ?? 'Unknown'} — ${codecName(s.codec)}${s.textBased ? '' : ' (image-based, not shown)'}`),
   ];
   return (
     <dl className="divide-y divide-line/50">
@@ -42,6 +42,16 @@ export function MediaInfo({ file }: { file: MediaFileInfo }) {
       <Row label="Bitrate">{formatBitrate(file.bitrate)}</Row>
       <Row label="Container">{file.container?.toUpperCase()}</Row>
       <Row label="Size">{formatBytes(file.size)}</Row>
+      {replacements.length > 0 && (
+        <Row label="Replaced">
+          {replacements.map((r) => (
+            <span key={r.at} className="block" title={`${r.previous.name} → ${r.current.name}`}>
+              <span className="text-muted">{formatRelative(r.at)}:</span> {snapshotLabel(r.previous)} → {snapshotLabel(r.current)}
+            </span>
+          ))}
+          <span className="mt-1 block text-xs text-faint">Watch history was kept.</span>
+        </Row>
+      )}
     </dl>
   );
 }

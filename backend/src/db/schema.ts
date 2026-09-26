@@ -473,3 +473,71 @@ export const continueDismissals = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.kind, t.itemId] })],
 );
+
+/** A file as it was when it was replaced or disappeared: enough to say "1080p · H.264 · WEB · 4.2 GB". */
+export interface FileSnapshot {
+  name: string;
+  size: number;
+  width: number | null;
+  height: number | null;
+  videoCodec: string | null;
+  videoRange: string | null;
+  audioCodec: string | null;
+  audioChannels: number | null;
+  /** Release source from the file name, e.g. "Blu-ray", "WEB", "HDTV". */
+  source: string | null;
+}
+
+/** What users had for an item whose files disappeared, restored when the item comes back. */
+export interface RetiredUserData {
+  progress: Array<{ userId: number; positionSec: number; durationSec: number; completed: boolean; playCount: number; updatedAt: number }>;
+  favorites: Array<{ userId: number; createdAt: number }>;
+  watchlist: Array<{ userId: number; createdAt: number }>;
+  collections: Array<{ collectionId: number; addedAt: number }>;
+  dismissals: Array<{ userId: number; at: number }>;
+}
+
+/**
+ * Movies, shows and episodes whose last file disappeared (removed, renamed beyond recognition, or
+ * replaced by a release that arrived later). Their user data is kept here for a while so it comes
+ * back when the same title reappears — for example when Radarr or Sonarr swaps in a better release.
+ */
+export const retiredItems = sqliteTable(
+  'retired_items',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    kind: text('kind', { enum: ['movie', 'show', 'episode'] }).notNull(),
+    libraryId: integer('library_id')
+      .notNull()
+      .references(() => libraries.id, { onDelete: 'cascade' }),
+    /** Movie or show group key (for episodes: the show's). */
+    groupKey: text('group_key').notNull(),
+    /** Movie or show TMDB id (for episodes: the show's). */
+    tmdbId: integer('tmdb_id'),
+    seasonNumber: integer('season_number'),
+    episodeNumber: integer('episode_number'),
+    title: text('title').notNull(),
+    lastFile: text('last_file', { mode: 'json' }).$type<FileSnapshot>(),
+    userData: text('user_data', { mode: 'json' }).$type<RetiredUserData>().notNull(),
+    retiredAt: integer('retired_at').notNull().default(now),
+  },
+  (t) => [
+    index('retired_group_idx').on(t.libraryId, t.kind, t.groupKey),
+    index('retired_tmdb_idx').on(t.libraryId, t.kind, t.tmdbId),
+    index('retired_at_idx').on(t.retiredAt),
+  ],
+);
+
+/** A movie's or episode's file was replaced by another one (usually an upgrade). */
+export const mediaReplacements = sqliteTable(
+  'media_replacements',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    movieId: integer('movie_id').references(() => movies.id, { onDelete: 'cascade' }),
+    episodeId: integer('episode_id').references(() => episodes.id, { onDelete: 'cascade' }),
+    previous: text('previous', { mode: 'json' }).$type<FileSnapshot>().notNull(),
+    current: text('current', { mode: 'json' }).$type<FileSnapshot>().notNull(),
+    at: integer('at').notNull().default(now),
+  },
+  (t) => [index('replacements_movie_idx').on(t.movieId), index('replacements_episode_idx').on(t.episodeId), index('replacements_at_idx').on(t.at)],
+);

@@ -2,6 +2,7 @@ import { and, eq, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
 import { episodes, libraries, mediaFiles, movies, shows } from '../db/schema.js';
 import { codecLabel, COPYABLE_VIDEO, libraryVerdict, REFERENCE_CAPS, videoSupport } from '../playback/compatibility.js';
+import { ReplacementTracker, snapshotLabel } from './replacements.js';
 
 /**
  * Library Health: what is in the library and what needs attention, computed from what the scanner
@@ -25,7 +26,8 @@ export type HealthKey =
   | 'missing-artwork'
   | 'scan-errors'
   | 'not-analyzed'
-  | 'duplicates';
+  | 'duplicates'
+  | 'replaced';
 
 export interface HealthCategory {
   key: HealthKey;
@@ -54,7 +56,10 @@ export const HEALTH_CATEGORIES: HealthCategory[] = [
   { key: 'scan-errors', label: 'Scan errors', group: 'library', unit: 'files', description: 'FFprobe could not read these files. They may be damaged or still being copied.' },
   { key: 'not-analyzed', label: 'Not fully analysed', group: 'library', unit: 'files', description: 'Scanned before Velyx recorded bit depth and HDR. They are analysed when first played.' },
   { key: 'duplicates', label: 'Possible duplicates', group: 'library', unit: 'items', description: 'Movies or episodes with more than one file, or two movies matched to the same TMDB entry.' },
+  { key: 'replaced', label: 'Recently replaced', group: 'library', unit: 'items', description: 'Files swapped for another release in the last 30 days (usually upgrades). Watch history was kept.' },
 ];
+
+const REPLACED_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 const KEYS = new Set(HEALTH_CATEGORIES.map((c) => c.key));
 export function isHealthKey(key: string): key is HealthKey {
@@ -206,10 +211,14 @@ export interface HealthSummary {
 type TitleInfo = { kind: 'movie' | 'episode'; id: number; title: string; subtitle: string | null; href: string };
 
 export class LibraryHealth {
+  private readonly replacements: ReplacementTracker;
+
   constructor(
     private readonly db: DB,
     private readonly tmdbConfigured: () => boolean,
-  ) {}
+  ) {
+    this.replacements = new ReplacementTracker(db);
+  }
 
   private files(libraryId?: number): FileRow[] {
     return this.db
@@ -256,6 +265,7 @@ export class LibraryHealth {
     const d = this.duplicates(libraryId);
     const tmdbDupes = new Set(d.sameTmdb.flat().filter((id) => !d.movieIds.includes(id)));
     counts.set('duplicates', d.movieIds.length + d.episodeIds.length + tmdbDupes.size);
+    counts.set('replaced', this.replacements.recent(Date.now() - REPLACED_WINDOW_MS, libraryId).length);
     return {
       categories: HEALTH_CATEGORIES.map((c) => ({ ...c, count: counts.get(c.key) ?? 0 })),
       files: files.length,
@@ -269,6 +279,7 @@ export class LibraryHealth {
     let all: HealthItem[];
     if (key === 'missing-metadata' || key === 'missing-artwork') all = this.metadataItems(key, opts.libraryId, libs);
     else if (key === 'duplicates') all = this.duplicateItems(opts.libraryId, libs);
+    else if (key === 'replaced') all = this.replacedItems(opts.libraryId, libs);
     else {
       const matching = this.files(opts.libraryId).filter((f) => fileCategories(f).includes(key));
       const titles = this.titles(matching);
@@ -320,6 +331,28 @@ export class LibraryHealth {
       }
     }
     return map;
+  }
+
+  private replacedItems(libraryId: number | undefined, libs: Map<number, { name: string }>): HealthItem[] {
+    const rows = this.replacements.recent(Date.now() - REPLACED_WINDOW_MS, libraryId);
+    const fake = rows.map((r, i) => ({ id: -1 - i, movieId: r.movieId, episodeId: r.episodeId }) as FileRow);
+    const titles = this.titles(fake);
+    const libOf = (r: (typeof rows)[number]) => {
+      const lib = r.movieId
+        ? this.db.select({ l: movies.libraryId }).from(movies).where(eq(movies.id, r.movieId)).get()?.l
+        : this.db.select({ l: shows.libraryId }).from(episodes).innerJoin(shows, eq(shows.id, episodes.showId)).where(eq(episodes.id, r.episodeId!)).get()?.l;
+      return lib ? (libs.get(lib)?.name ?? '') : '';
+    };
+    return rows.flatMap((r, i) => {
+      const t = titles.get(fake[i].id);
+      if (!t) return [];
+      return [{
+        ...t,
+        library: libOf(r),
+        file: null,
+        reasons: [`Previous: ${snapshotLabel(r.previous)} — ${r.previous.name}`, `Current: ${snapshotLabel(r.current)} — ${r.current.name}`, `Replaced ${new Date(r.at).toISOString().slice(0, 10)}`],
+      }];
+    });
   }
 
   private metadataItems(key: 'missing-metadata' | 'missing-artwork', libraryId: number | undefined, libs: Map<number, { name: string }>): HealthItem[] {

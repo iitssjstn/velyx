@@ -89,6 +89,7 @@ describe('library health', () => {
       'scan-errors': 1,
       'not-analyzed': 1,
       duplicates: 3, // Two Versions, Heat, Heat Directors Cut
+      replaced: 0,
     });
     expect(health.files).toBe(14);
     expect(health.tmdbConfigured).toBe(false);
