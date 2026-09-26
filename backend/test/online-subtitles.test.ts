@@ -114,7 +114,8 @@ describe('setting up OpenSubtitles', () => {
   it('checks the key before saving it and never shows it again', async () => {
     const bad = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'wrong-key' });
     expect(bad.statusCode).toBe(400);
-    expect(bad.json().error).toBe('OpenSubtitles did not accept this API key.');
+    // With the provider's own reason, so it is clear what is wrong.
+    expect(bad.json().error).toBe('OpenSubtitles did not accept this API key (Invalid API key).');
     const ok = await configure();
     expect(ok.statusCode).toBe(200);
     expect(ok.json()).toMatchObject({ configured: true, hint: '••••-key', username: null, hasPassword: false });
@@ -127,7 +128,14 @@ describe('setting up OpenSubtitles', () => {
 
   it('accepts an optional account, checked by signing in', async () => {
     expect((await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna' })).statusCode).toBe(400);
-    expect((await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna', password: 'nope' })).statusCode).toBe(400);
+    const wrong = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna', password: 'nope' });
+    expect(wrong.statusCode).toBe(400);
+    // The key is fine: the message is about the account.
+    expect(wrong.json().error).toBe('OpenSubtitles did not accept this username or password (Invalid username/password).');
+    // A wrong key with an account is reported as a wrong key.
+    expect((await req('PUT', '/api/admin/online-subtitles', { apiKey: 'wrong-key', username: 'anna', password: 'secret' })).json().error).toMatch(/^OpenSubtitles did not accept this API key/);
+    // Nothing was saved.
+    expect(await get('/api/admin/online-subtitles')).toMatchObject({ configured: false });
     const res = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna', password: 'secret' });
     expect(res.json()).toMatchObject({ configured: true, username: 'anna', hasPassword: true });
     expect(JSON.stringify(res.json())).not.toContain('secret');

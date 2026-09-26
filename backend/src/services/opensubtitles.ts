@@ -19,7 +19,7 @@ export function isOnlineSubtitleLanguage(v: string): v is OnlineSubtitleLanguage
   return (ONLINE_SUBTITLE_LANGUAGES as readonly string[]).includes(v);
 }
 
-export type OpenSubtitlesErrorKind = 'not-configured' | 'auth' | 'quota' | 'unreachable' | 'failed';
+export type OpenSubtitlesErrorKind = 'not-configured' | 'auth' | 'bad-key' | 'bad-account' | 'quota' | 'unreachable' | 'failed';
 
 export class OpenSubtitlesError extends Error {
   constructor(
@@ -168,6 +168,7 @@ export class OpenSubtitlesClient {
     const body = (await res.json().catch(() => ({}))) as T & { message?: string; errors?: string[]; reset_time_utc?: string };
     if (res.ok) return body;
     const message = body.message ?? body.errors?.join(', ') ?? `OpenSubtitles returned ${res.status}`;
+    log.warn(`OpenSubtitles answered ${res.status} to ${new URL(url).pathname}: ${message}`);
     if (res.status === 401 || res.status === 403) throw new OpenSubtitlesError(message, 'auth', res.status);
     if (res.status === 406 || res.status === 429) throw new OpenSubtitlesError(message, 'quota', res.status, body.reset_time_utc ?? null);
     throw new OpenSubtitlesError(message, 'failed', res.status);
@@ -197,13 +198,28 @@ export class OpenSubtitlesClient {
   }
 
   /** Checks a key (and account) before it is saved. */
+  /**
+   * Checks a key, then the account (when one is given), before they are saved. A rejection says
+   * which of the two was refused, with the provider's own reason.
+   */
   async verify(creds: OpenSubtitlesCredentials): Promise<void> {
     this.token = null;
-    if (creds.username && creds.password) {
-      await this.session(creds);
-      return;
+    try {
+      await this.call(`${API_BASE}/infos/formats`, { method: 'GET', headers: this.headers(creds.apiKey) });
+    } catch (err) {
+      if (err instanceof OpenSubtitlesError && err.kind === 'auth') throw new OpenSubtitlesError(err.message, 'bad-key', err.status);
+      throw err;
     }
-    await this.call(`${API_BASE}/infos/formats`, { method: 'GET', headers: this.headers(creds.apiKey) });
+    if (!creds.username || !creds.password) return;
+    try {
+      await this.session(creds);
+    } catch (err) {
+      // A refused sign-in is about the account: the key itself just passed.
+      if (err instanceof OpenSubtitlesError && (err.kind === 'auth' || (err.kind === 'failed' && err.status !== null && err.status < 500))) {
+        throw new OpenSubtitlesError(err.message, 'bad-account', err.status);
+      }
+      throw err;
+    }
   }
 
   async search(q: SubtitleQuery): Promise<OnlineSubtitle[]> {

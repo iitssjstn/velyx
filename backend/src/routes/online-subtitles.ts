@@ -162,7 +162,10 @@ export async function onlineSubtitleRoutes(app: FastifyInstance, ctx: AppContext
     try {
       await client.verify(next);
     } catch (err) {
-      if (err instanceof OpenSubtitlesError && err.kind === 'auth') throw new HttpError(400, next.username ? 'OpenSubtitles did not accept this API key or account.' : 'OpenSubtitles did not accept this API key.');
+      if (err instanceof OpenSubtitlesError && err.kind === 'bad-key') throw new HttpError(400, 'OpenSubtitles did not accept this API key ({reason}).', { reason: err.message });
+      if (err instanceof OpenSubtitlesError && err.kind === 'bad-account') {
+        throw new HttpError(400, 'OpenSubtitles did not accept this username or password ({reason}).', { reason: err.message });
+      }
       throw providerError(err, requestLanguage(request));
     }
     ctx.settings.update({ openSubtitlesApiKey: next.apiKey, openSubtitlesUsername: next.username, openSubtitlesPassword: next.password });
