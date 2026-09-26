@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Info, TriangleAlert } from 'lucide-react';
+import { Check, CircleHelp, Info, TriangleAlert, X } from 'lucide-react';
 import { channelLabel, resolutionLabel } from '../lib/format';
-import type { PlaybackAnalysis } from '../lib/types';
+import type { ComponentStatus, PlaybackAnalysis } from '../lib/types';
 
 /** Short label for the player: "Direct Play", "Remux • Audio converted to AAC", … */
 export function modeLabel(a: PlaybackAnalysis): string {
@@ -17,41 +17,75 @@ function videoLine(a: PlaybackAnalysis): string {
     .join(' • ');
 }
 
-const VIDEO_ACTION: Record<PlaybackAnalysis['video']['action'], string> = {
-  direct: 'played as-is',
-  copy: 'copied without re-encoding',
-  unsupported: 'cannot be decoded here',
-};
-
 function audioLine(a: PlaybackAnalysis): string {
-  const au = a.audio;
-  if (au.action === 'none') return 'No audio';
-  const source = [au.label, channelLabel(au.channels)].filter(Boolean).join(' ');
-  if (au.action === 'convert') return `${source} → ${au.target}`;
-  return `${source} — ${au.action === 'copy' ? 'copied' : 'played as-is'}`;
+  if (a.audio.action === 'none' && !a.audio.codec) return 'None';
+  return [a.audio.label, channelLabel(a.audio.channels)].filter(Boolean).join(' ');
 }
 
-/** Key/value overview of how a file is delivered, for the player's info panel. */
-export function PlaybackSummary({ analysis: a }: { analysis: PlaybackAnalysis }) {
-  const rows: Array<[string, string]> = [
-    ['Mode', a.mode === 'direct' ? 'Direct Play' : a.mode === 'remux' ? 'Remux' : 'Not supported'],
-    ['Video', `${videoLine(a)} — ${VIDEO_ACTION[a.video.action]}`],
-    ['Audio', audioLine(a)],
-    ['Container', `${(a.container.name ?? 'unknown').toUpperCase()}${a.container.action === 'remux' ? ' → fragmented MP4' : ''}`],
-    ['Server transcoding', 'No'],
+const STATUS: Record<ComponentStatus, { icon: typeof Check; className: string; label: string }> = {
+  ok: { icon: Check, className: 'text-ok', label: 'Supported' },
+  warn: { icon: TriangleAlert, className: 'text-amber', label: 'Converted' },
+  fail: { icon: X, className: 'text-danger', label: 'Not supported' },
+  unknown: { icon: CircleHelp, className: 'text-muted', label: 'Not certain' },
+};
+
+function StatusIcon({ status }: { status: ComponentStatus }) {
+  const { icon: Icon, className, label } = STATUS[status];
+  return <Icon className={`size-4 shrink-0 ${className}`} strokeWidth={2.5} role="img" aria-label={label} />;
+}
+
+/** Video / Audio / Container, each with what it is, whether this device handles it and what happens to it. */
+export function StreamRows({ analysis: a }: { analysis: PlaybackAnalysis }) {
+  const rows: Array<[string, string, PlaybackAnalysis['components']['video']]> = [
+    ['Video', videoLine(a), a.components.video],
+    ['Audio', audioLine(a), a.components.audio],
+    ['Container', (a.container.name ?? 'unknown').toUpperCase(), a.components.container],
   ];
-  if (a.browser) rows.push(['Browser', a.browser]);
+  return (
+    <dl className="grid grid-cols-[auto_1fr_auto] items-start gap-x-4 gap-y-2.5 text-sm">
+      {rows.map(([name, value, c]) => (
+        <div key={name} className="contents">
+          <dt className="text-faint">{name}</dt>
+          <dd className="min-w-0">
+            <span className="block text-ink/90">{value}</span>
+            <span className="block text-xs text-muted">{c.note}</span>
+          </dd>
+          <dd className="pt-0.5">
+            <StatusIcon status={c.status} />
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+const MODE_TITLE: Record<PlaybackAnalysis['mode'], string> = { direct: 'Direct Play', remux: 'Remux', unsupported: 'Playback unavailable' };
+
+/** Overview of how a file is delivered, for the player's info panel. */
+export function PlaybackSummary({ analysis: a }: { analysis: PlaybackAnalysis }) {
   return (
     <div>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
-        {rows.map(([k, v]) => (
-          <div key={k} className="contents">
-            <dt className="text-faint">{k}</dt>
-            <dd className="text-ink/90">{v}</dd>
-          </div>
+      <p className="mb-3 font-display text-base font-semibold">{MODE_TITLE[a.mode]}</p>
+      <StreamRows analysis={a} />
+      <div className="mt-3 space-y-1 text-sm text-ink/85">
+        {a.summary.map((s) => (
+          <p key={s}>{s}</p>
         ))}
+      </div>
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs text-muted">
+        {a.mode !== 'unsupported' && (
+          <>
+            <dt>Server transcoding</dt>
+            <dd>No</dd>
+          </>
+        )}
+        {(a.device ?? a.browser) && (
+          <>
+            <dt>Device</dt>
+            <dd>{a.device ?? a.browser}</dd>
+          </>
+        )}
       </dl>
-      {a.mode === 'remux' && <p className="mt-3 text-xs text-muted">Remuxing only repackages the file{a.audio.action === 'convert' ? ' and converts the audio' : ''}; it uses little CPU on the server.</p>}
       {a.warnings.length > 0 && (
         <ul className="mt-3 space-y-1 text-xs text-amber/90">
           {a.warnings.map((w) => (
@@ -85,8 +119,7 @@ export function PlaybackBadge({ analysis }: { analysis: PlaybackAnalysis }) {
         <span className="truncate">{modeLabel(analysis)}</span>
       </button>
       {open && (
-        <div role="dialog" aria-label="Playback details" className="absolute right-0 z-30 mt-2 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-line bg-surface/95 p-4 shadow-2xl backdrop-blur">
-          <p className="mb-3 font-display text-base font-semibold">Playback</p>
+        <div role="dialog" aria-label="Playback details" className="absolute right-0 z-30 mt-2 max-h-[70vh] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-line bg-surface/95 p-4 shadow-2xl backdrop-blur">
           <PlaybackSummary analysis={analysis} />
         </div>
       )}
@@ -116,28 +149,23 @@ export function PlaybackUnavailable({
           <TriangleAlert className="size-6 shrink-0 text-amber" />
           <h2 className="font-display text-2xl font-semibold">Playback unavailable</h2>
         </div>
-        <dl className="mt-5 grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-sm">
-          <dt className="text-faint">Video</dt>
-          <dd>{videoLine(a)}</dd>
-          <dt className="text-faint">Audio</dt>
-          <dd>{a.audio.action === 'none' ? 'None' : [a.audio.label, channelLabel(a.audio.channels)].filter(Boolean).join(' ')}</dd>
-          {a.browser && (
-            <>
-              <dt className="text-faint">Browser</dt>
-              <dd>{a.browser}</dd>
-            </>
-          )}
-        </dl>
-        <div className="mt-5 rounded-xl bg-raised/60 px-4 py-3 text-sm">
-          <p className="font-medium">Problem</p>
-          <ul className="mt-1 space-y-1 text-ink/85">
-            {a.problems.map((p) => (
+        <div className="mt-5">
+          <StreamRows analysis={a} />
+        </div>
+        <div className="mt-5 space-y-1 rounded-xl bg-raised/60 px-4 py-3 text-sm">
+          {a.summary.map((s) => (
+            <p key={s} className="text-ink/90">{s}</p>
+          ))}
+        </div>
+        {a.problems.some((p) => p !== a.components.video.note) && (
+          <ul className="mt-3 space-y-1 text-sm text-ink/80">
+            {a.problems.filter((p) => p !== a.components.video.note).map((p) => (
               <li key={p}>{p}</li>
             ))}
           </ul>
-        </div>
+        )}
         <p className="mt-4 text-sm text-muted">
-          {a.transcodeRequired ? 'Playing this file here would need the video to be converted (transcoded). Velyx does not transcode video, to keep the server light. ' : ''}
+          {a.device ? `Current device: ${a.device}. ` : ''}
           Try a browser or device that supports this format{a.video.codec === 'hevc' ? ', such as Safari, or Edge/Chrome on a PC with HEVC hardware decoding' : ''}.
         </p>
         {a.warnings.length > 0 && (

@@ -15,11 +15,12 @@ import { HttpError, notFound, parseId } from '../http-error.js';
 import { fileInfo } from './library.js';
 import { canSee } from '../services/access.js';
 import { analyzePlayback } from '../playback/compatibility.js';
+import { clientProfile, deviceSupport, effectiveCapabilities } from '../playback/client-profile.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('playback');
 
-const capsBody = z
+export const capsBody = z
   .object({
     containers: z.array(z.string().max(20)).max(30).optional(),
     videoCodecs: z.array(z.string().max(20)).max(30).optional(),
@@ -124,13 +125,24 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   app.post<{ Params: { id: string } }>('/api/media/:id/playback', { preHandler: requireUser }, async (request) => {
     const loaded = loadFile(request.params.id, request.user!);
     const file = await ensureVideoDetails(loaded.file, loaded.abs);
-    const { audioIndex, audioChannels, boostVoices, levelVolume, ...caps } = capsBody.parse(request.body ?? {});
+    const { audioIndex, audioChannels, boostVoices, levelVolume, ...reportedCaps } = capsBody.parse(request.body ?? {});
     if (audioIndex !== undefined && !(file.audioTracks ?? []).some((t) => t.index === audioIndex)) throw new HttpError(400, 'Unknown audio track.');
+    // Clients that do not report their formats are judged by what their kind of browser usually plays.
+    const ua = request.headers['user-agent'];
+    const { caps, confidence } = effectiveCapabilities(reportedCaps, clientProfile(ua));
     const decision = ctx.playback.decide(file, caps, { audioIndex, audioChannels, boostVoices, levelVolume });
     if (!decision) throw new HttpError(415, 'This file cannot be played.');
     const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, file.id)).all();
-    const analysis = analyzePlayback(file, caps, decision, request.headers['user-agent']);
+    const analysis = analyzePlayback(file, caps, decision, ua, confidence);
     return { decision: { ...decision, mode: analysis.mode }, analysis, file: fileInfo(file, external), subtitles: subtitleList(file) };
+  });
+
+  /** The current device: its name and what it plays, from the formats the browser reports. */
+  app.post('/api/playback/device', { preHandler: requireUser }, async (request) => {
+    const { audioIndex: _a, audioChannels: _c, boostVoices: _b, levelVolume: _l, ...reportedCaps } = capsBody.parse(request.body ?? {});
+    const profile = clientProfile(request.headers['user-agent']);
+    const { confidence } = effectiveCapabilities(reportedCaps, profile);
+    return { device: profile.name, family: profile.family, confidence, formats: deviceSupport(reportedCaps, profile) };
   });
 
   // Live remux: video copied, audio converted when needed. Seeking = request again with ?start=.
