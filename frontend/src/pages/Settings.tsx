@@ -516,7 +516,7 @@ export function SettingsPage() {
     <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-8">
       <h1 className="font-display text-3xl font-semibold tracking-tight">{t('nav.settings')}</h1>
       <p className="mt-1 text-muted">{t('settings.signedInAs', { name: displayName(user) })}</p>
-      <nav className="no-scrollbar mt-6 mb-8 flex gap-1 overflow-x-auto border-b border-line/60" aria-label={t('settings.sections')}>
+      <nav className="no-scrollbar mt-6 mb-8 flex gap-1 overflow-x-auto border-b border-line/60 sm:flex-wrap sm:overflow-visible" aria-label={t('settings.sections')}>
         {tabs.map((tab) => (
           <NavLink
             key={tab.to}

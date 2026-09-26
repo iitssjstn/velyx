@@ -2,13 +2,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
-import { count, eq, gt, ne, or, sql } from 'drizzle-orm';
+import { count, eq, gt, inArray, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireAdmin } from '../app.js';
 import { episodes, libraries, mediaFiles, movies, seasons, shows, users } from '../db/schema.js';
 import { hashPassword, validatePassword, validateUsername } from '../auth/password.js';
 import { validateLibraryPath } from '../services/paths.js';
+import { ReplacementTracker } from '../services/replacements.js';
 import { checkBinary } from '../services/probe.js';
 import { recentLogs } from '../logger.js';
 import { compatibilityReport } from '../services/compatibility-report.js';
@@ -306,7 +307,20 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (ctx.scans.state().running?.libraryId === id) throw new HttpError(409, 'This library is being scanned. Try again when the scan finishes.');
     const lib = db.select().from(libraries).where(eq(libraries.id, id)).get();
     if (!lib) throw notFound('Library');
-    db.delete(libraries).where(eq(libraries.id, id)).run();
+    // Keep what users had for its titles (90 days): they come back when the same movies and shows
+    // are scanned in another library, or in this one added again.
+    const tracker = new ReplacementTracker(db);
+    const kept = db.transaction(() => {
+      const movieIds = db.select({ id: movies.id }).from(movies).where(eq(movies.libraryId, id)).all().map((m) => m.id);
+      const showIds = db.select({ id: shows.id }).from(shows).where(eq(shows.libraryId, id)).all().map((s) => s.id);
+      const episodeIds = showIds.length ? db.select({ id: episodes.id }).from(episodes).where(inArray(episodes.showId, showIds)).all().map((e) => e.id) : [];
+      tracker.retireMovies(movieIds, new Map());
+      tracker.retireEpisodes(episodeIds, new Map());
+      tracker.retireShows(showIds);
+      db.delete(libraries).where(eq(libraries.id, id)).run();
+      return movieIds.length + showIds.length;
+    });
+    if (kept) log.info(`Kept the watch history of ${kept} title(s) from "${lib.name}" in case they come back`);
     ctx.audit.record('library.deleted', { actor: request.user, ip: request.ip, target: lib.name, detail: lib.path });
     log.info(`Library ${id} removed (media files on disk were not touched)`);
     ctx.watcher.sync(ctx.settings.get().watchFolders);

@@ -66,5 +66,5 @@ export const libraries = {
   edit: 'Edit library',
   removeTitle: 'Remove library?',
   remove: 'Remove library',
-  removeText: '“{name}” and its watch history will be removed from Velyx. The files on disk are not deleted.',
+  removeText: '“{name}” will be removed from Velyx. The files on disk are not deleted. Watch history, favorites and lists are kept for 90 days: they come back when the same movies and shows are added again, in this or another library.',
 };

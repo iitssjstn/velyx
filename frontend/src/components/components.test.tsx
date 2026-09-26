@@ -1,5 +1,5 @@
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { cardFacts, ContinueCard, PosterCard } from './Cards';
@@ -139,5 +139,19 @@ describe('ContinueCard', () => {
     expect(screen.getByText('2021')).toBeTruthy();
     expect((screen.getByRole('link', { name: 'Dune, 2021: details' }) as HTMLAnchorElement).getAttribute('href')).toBe('/movies/3');
     expect(screen.getByText('1:00:00 / 2:36:00')).toBeTruthy();
+  });
+});
+
+describe('cast row', () => {
+  it('has scroll buttons, like the other rows', async () => {
+    const { CastRow } = await import('./People');
+    const cast = Array.from({ length: 15 }, (_, i) => ({ id: i + 1, name: `Actor ${i + 1}`, profilePath: null, role: `Role ${i + 1}` }));
+    render(<CastRow cast={cast} />);
+    const scrollBy = vi.fn();
+    const row = screen.getByText('Actor 1').closest('.overflow-x-auto') as HTMLElement;
+    row.scrollBy = scrollBy;
+    await userEvent.click(screen.getByRole('button', { name: 'Scroll Cast right' }));
+    expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
+    expect(screen.getByRole('button', { name: 'Scroll Cast left' })).toBeTruthy();
   });
 });
