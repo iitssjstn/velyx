@@ -55,7 +55,7 @@ describe('clean-up suggestions', () => {
     // Largest first; the reasons say why.
     expect(path.basename(candidates[0].path)).toBe('Dune.2021.mkv');
     const heat = candidates.find((c) => c.path.endsWith('720p.mkv'))!;
-    expect(heat.reasons[0].text).toBe('Another version exists: 4K, Heat.1995.2160p.mkv');
+    expect(heat.reasons[0].text).toBe('Another version exists: H.264 · 2160p · AAC 5.1 · MKV, 100 B, Heat.1995.2160p.mkv');
     const alien = candidates.find((c) => c.path.endsWith('Alien.1979.mkv'))!;
     expect(alien).toMatchObject({ title: 'Alien', started: false, watchedBy: 0, lastWatchedAt: null, href: `/movies/${alien.href!.split('/').pop()}` });
     expect(alien.reasons[0].text).toBe('Never watched, added 13 months ago');

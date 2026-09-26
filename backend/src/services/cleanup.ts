@@ -6,6 +6,7 @@ import { cleanupDecisions, episodes, libraries, mediaFiles, movies, shows, watch
 import { resolveMediaPath } from './paths.js';
 import { tr, type Language } from '../i18n/index.js';
 import { DEFAULT_CLEANUP_RULES, type CleanupRules } from './settings.js';
+import { formatSummary } from './library-health.js';
 
 export type CleanupRule = keyof CleanupRules;
 export const CLEANUP_RULES: CleanupRule[] = ['unwatched', 'stale', 'large', 'duplicates', 'missingInfo'];
@@ -27,7 +28,30 @@ export interface CleanupCandidate {
   watchedBy: number;
   started: boolean;
   lastWatchedAt: number | null;
+  /** "HEVC · 2160p · 10-bit · HDR10 · E-AC3 5.1 · MKV" */
+  format: string;
+  /** For possible duplicates: every version of the title, the one Velyx would keep first. */
+  versions: { fileId: number; name: string; format: string; size: number; keep: boolean }[] | null;
   reasons: { rule: CleanupRule; text: string }[];
+}
+
+/** HDR and Dolby Vision count as better than SDR at the same resolution. */
+const rangeRank = (r: string | null) => (r === 'DV' ? 2 : r === 'HDR10' || r === 'HLG' ? 1 : 0);
+const heightBucket = (h: number | null) => (!h ? 0 : h >= 2000 ? 4 : h >= 1000 ? 3 : h >= 700 ? 2 : 1);
+
+/**
+ * Which of two versions is better to keep: higher resolution, then HDR, then the larger file (a
+ * higher bitrate at the same resolution). Only a suggestion; the administrator decides.
+ */
+export function betterVersion<T extends { height: number | null; videoRange: string | null; size: number; probeError: string | null }>(a: T, b: T): T {
+  if (Boolean(a.probeError) !== Boolean(b.probeError)) return a.probeError ? b : a;
+  return (
+    heightBucket(b.height) - heightBucket(a.height) ||
+    rangeRank(b.videoRange) - rangeRank(a.videoRange) ||
+    b.size - a.size
+  ) > 0
+    ? b
+    : a;
 }
 
 export interface CleanupSummary {
@@ -38,6 +62,18 @@ export interface CleanupSummary {
 }
 
 const DAY = 86_400_000;
+
+/** "8.2 GB": sizes inside reasons (the page formats sizes itself everywhere else). */
+function formatBytesPlain(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = bytes;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
+}
 const GB = 1024 ** 3;
 
 /** Stored rules with defaults filled in (settings from older versions may lack a rule). */
@@ -66,6 +102,7 @@ export function cleanupCandidates(db: DB, rules: CleanupRules, now = Date.now(),
       movieTitle: movies.title,
       movieYear: movies.year,
       movieMatch: movies.matchStatus,
+      movieTmdb: movies.tmdbId,
       showId: shows.id,
       showTitle: shows.title,
       showMatch: shows.matchStatus,
@@ -96,14 +133,16 @@ export function cleanupCandidates(db: DB, rules: CleanupRules, now = Date.now(),
     watch.set(w.movieId ? `m${w.movieId}` : `e${w.episodeId}`, { started: w.started === 1, watchedBy: w.watchedBy, last: w.last });
   }
 
-  // The version playback picks first (highest resolution, then largest) is never the duplicate.
+  // Versions of one title: files of one movie or episode, and movies that are the same TMDB entry
+  // (for example once in a normal and once in a 4K library). The best version is never the duplicate.
+  const groupOf = (r: (typeof files)[number]) => (r.f.movieId ? (r.movieTmdb ? `t${r.movieTmdb}` : `m${r.f.movieId}`) : `e${r.f.episodeId}`);
   const best = new Map<string, (typeof files)[number]['f']>();
-  const versions = new Map<string, number>();
-  for (const { f } of files) {
-    const key = f.movieId ? `m${f.movieId}` : `e${f.episodeId}`;
-    versions.set(key, (versions.get(key) ?? 0) + 1);
-    const b = best.get(key);
-    if (!b || (f.height ?? 0) > (b.height ?? 0) || ((f.height ?? 0) === (b.height ?? 0) && f.size > b.size)) best.set(key, f);
+  const members = new Map<string, Array<(typeof files)[number]['f']>>();
+  for (const r of files) {
+    const g = groupOf(r);
+    members.set(g, [...(members.get(g) ?? []), r.f]);
+    const b = best.get(g);
+    best.set(g, b ? betterVersion(b, r.f) : r.f);
   }
 
   const kept = new Map(db.select().from(cleanupDecisions).all().map((d) => [d.mediaFileId, d.size]));
@@ -117,9 +156,12 @@ export function cleanupCandidates(db: DB, rules: CleanupRules, now = Date.now(),
     if (rules.unwatched.enabled && !w.started && now - f.addedAt > rules.unwatched.days * DAY) reasons.push({ rule: 'unwatched', text: tr(lang, 'Never watched, added {time} ago', { time: ago(now - f.addedAt, lang) }) });
     if (rules.stale.enabled && w.started && w.last !== null && now - w.last > rules.stale.days * DAY) reasons.push({ rule: 'stale', text: tr(lang, 'Not played for {time}', { time: ago(now - w.last, lang) }) });
     if (rules.large.enabled && f.size > rules.large.gb * GB) reasons.push({ rule: 'large', text: tr(lang, 'Larger than {n} GB', { n: rules.large.gb }) });
-    if (rules.duplicates.enabled && (versions.get(key) ?? 0) > 1 && best.get(key)!.id !== f.id) {
-      const b = best.get(key)!;
-      reasons.push({ rule: 'duplicates', text: tr(lang, 'Another version exists: {version}', { version: `${resolution(b.height, lang)}, ${path.basename(b.path)}` }) });
+    const group = groupOf(r);
+    const siblings = members.get(group) ?? [];
+    const isDuplicate = rules.duplicates.enabled && siblings.length > 1 && best.get(group)!.id !== f.id;
+    if (isDuplicate) {
+      const b = best.get(group)!;
+      reasons.push({ rule: 'duplicates', text: tr(lang, 'Another version exists: {version}', { version: `${formatSummary(b) || resolution(b.height, lang)}, ${formatBytesPlain(b.size)}, ${path.basename(b.path)}` }) });
     }
     if (rules.missingInfo.enabled) {
       if (f.probeError) reasons.push({ rule: 'missingInfo', text: tr(lang, 'The file could not be read: {error}', { error: f.probeError }) });
@@ -146,6 +188,12 @@ export function cleanupCandidates(db: DB, rules: CleanupRules, now = Date.now(),
       watchedBy: w.watchedBy,
       started: w.started,
       lastWatchedAt: w.last,
+      format: formatSummary(f),
+      versions: isDuplicate
+        ? [...siblings]
+            .sort((a, b) => (betterVersion(a, b) === a ? -1 : 1))
+            .map((v) => ({ fileId: v.id, name: path.basename(v.path), format: formatSummary(v), size: v.size, keep: v.id === best.get(group)!.id }))
+        : null,
       reasons,
     });
   }

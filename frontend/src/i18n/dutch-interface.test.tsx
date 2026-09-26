@@ -209,3 +209,35 @@ describe('library health totals', () => {
     expect(totals.textContent).toBe('Films412Series38Afleveringen2.183Bestanden2.595Totale grootte3,4 TB');
   });
 });
+
+describe('clean-up: versions of a title', () => {
+  it('lists every version side by side, with the best one marked', async () => {
+    await setLanguage('nl');
+    const rules = { unwatched: { enabled: true, days: 365 }, stale: { enabled: false, days: 730 }, large: { enabled: true, gb: 50 }, duplicates: { enabled: true }, missingInfo: { enabled: true } };
+    const empty = { files: 0, bytes: 0 };
+    const list: CleanupList = {
+      summary: { rules, counts: { unwatched: empty, stale: empty, large: empty, duplicates: { files: 1, bytes: 8.2 * 1024 ** 3 }, missingInfo: empty }, total: { files: 1, bytes: 8.2 * 1024 ** 3 }, kept: 0 },
+      deletion: { enabled: false, libraries: [{ id: 1, name: 'Films', path: '/media/films', writable: false }] },
+      total: 1,
+      bytes: 8.2 * 1024 ** 3,
+      items: [
+        {
+          fileId: 2, libraryId: 1, library: 'Films', kind: 'movie', title: 'Heat', subtitle: '1995', href: '/movies/1', path: '/media/films/Heat/Heat.WEB.mkv', size: 8.2 * 1024 ** 3, width: 1920, height: 1080, addedAt: Date.now(), watchedBy: 0, started: false, lastWatchedAt: null,
+          format: 'H.264 · 1080p · AAC 5.1 · MKV',
+          versions: [
+            { fileId: 1, name: 'Heat.Remux.mkv', format: 'H.264 · 1080p · DTS-HD MA 5.1 · MKV', size: 24.8 * 1024 ** 3, keep: true },
+            { fileId: 2, name: 'Heat.WEB.mkv', format: 'H.264 · 1080p · AAC 5.1 · MKV', size: 8.2 * 1024 ** 3, keep: false },
+          ],
+          reasons: [{ rule: 'duplicates', text: 'Er is een andere versie' }],
+        },
+      ],
+    };
+    stubFetch(() => list);
+    const { container } = mount(<CleanupPage />, '/admin/cleanup');
+    expect(await screen.findByText('Versies van deze titel')).toBeTruthy();
+    const versions = screen.getByText('Versies van deze titel').parentElement!.textContent!;
+    expect(versions).toContain('Heat.Remux.mkvH.264 · 1080p · DTS-HD MA 5.1 · MKV24,8 GBbeste versie');
+    expect(versions).toContain('Heat.WEB.mkvH.264 · 1080p · AAC 5.1 · MKV8,2 GBdit bestand');
+    expectNoEnglish(container);
+  });
+});

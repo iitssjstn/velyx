@@ -75,4 +75,7 @@ export const cleanup: Messages['cleanup'] = {
   fileN: 'Bestand {n}',
   allowTitle: 'Bestanden verwijderen toestaan?',
   allowText: 'Beheerders kunnen dan voorgestelde bestanden van de schijf verwijderen nadat ze die hebben nagekeken. Elke verwijdering moet nog steeds worden bevestigd en wordt vastgelegd in het auditlogboek. De bibliotheekmappen moeten beschrijfbaar zijn gekoppeld (zonder :ro).',
+  versions: 'Versies van deze titel',
+  bestVersion: 'beste versie',
+  thisFile: 'dit bestand',
 };

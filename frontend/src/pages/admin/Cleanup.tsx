@@ -36,6 +36,10 @@ export interface CleanupCandidate {
   watchedBy: number;
   started: boolean;
   lastWatchedAt: number | null;
+  /** "HEVC · 2160p · 10-bit · HDR10 · E-AC3 5.1 · MKV" */
+  format?: string;
+  /** Possible duplicates: every version of the title, the one to keep first. */
+  versions?: { fileId: number; name: string; format: string; size: number; keep: boolean }[] | null;
   reasons: { rule: CleanupRule; text: string }[];
 }
 
@@ -345,9 +349,25 @@ export function CleanupPage() {
                     <span className="ml-auto font-display font-semibold tabular-nums">{formatBytes(c.size)}</span>
                   </div>
                   <p className="text-xs text-muted">
-                    {[resolutionLabel(c.width, c.height), watchStatus(c), t('cleanup.added', { when: formatRelative(c.addedAt) }), c.library].filter(Boolean).join(' · ')}
+                    {[c.format || resolutionLabel(c.width, c.height), watchStatus(c), t('cleanup.added', { when: formatRelative(c.addedAt) }), c.library].filter(Boolean).join(' · ')}
                   </p>
                   <p className="mt-0.5 text-xs break-all text-faint">{c.path}</p>
+                  {c.versions && c.versions.length > 1 && (
+                    <div className="mt-2 rounded-lg border border-line/70 bg-bg/40 px-3 py-2">
+                      <p className="text-xs text-faint">{t('cleanup.versions')}</p>
+                      <ul className="mt-1 space-y-1 text-xs">
+                        {c.versions.map((v) => (
+                          <li key={v.fileId} className={`flex flex-wrap items-baseline gap-x-2 ${v.fileId === c.fileId ? 'text-ink' : 'text-muted'}`}>
+                            <span className="min-w-0 break-all font-medium">{v.name}</span>
+                            <span>{v.format}</span>
+                            <span className="tabular-nums">{formatBytes(v.size)}</span>
+                            {v.keep && <span className="rounded-full bg-ok/15 px-1.5 text-ok">{t('cleanup.bestVersion')}</span>}
+                            {v.fileId === c.fileId && <span className="rounded-full bg-raised px-1.5">{t('cleanup.thisFile')}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <ul className="mt-1 flex flex-wrap gap-1.5">
                     {c.reasons.map((r) => (
                       <li key={r.rule + r.text} className="rounded-full bg-raised px-2 py-0.5 text-xs text-ink/85">{r.text}</li>

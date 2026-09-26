@@ -74,4 +74,7 @@ export const cleanup = {
   fileN: 'File {n}',
   allowTitle: 'Allow deleting files?',
   allowText: 'Administrators can then delete suggested files from disk after reviewing them. Each deletion still needs a confirmation and is recorded in the audit log. The library folders must be mounted writable (without :ro).',
+  versions: 'Versions of this title',
+  bestVersion: 'best version',
+  thisFile: 'this file',
 };
