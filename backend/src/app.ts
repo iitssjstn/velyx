@@ -26,6 +26,7 @@ import { StreamTracker } from './services/streams.js';
 import { DetailAnalyzer } from './services/compatibility-report.js';
 import { UpdateChecker } from './services/updates.js';
 import { ffmpegAudioReader, SegmentDetector, type AudioReader } from './services/segments/detector.js';
+import { ffmpegFrameReader, ffprobeChapterReader, type ChapterReader, type FrameReader } from './services/segments/readers.js';
 import { PlaybackRegistry } from './playback/engine.js';
 import { DirectPlayEngine } from './playback/direct-play.js';
 import { RemuxEngine } from './playback/remux.js';
@@ -83,6 +84,9 @@ export interface BuildOptions {
   scanYieldMs?: number;
   /** Audio source for intro/credits detection (tests pass synthetic audio). */
   audioReader?: AudioReader;
+  /** Video frames and chapters for intro/credits detection; null turns the source off (tests). */
+  frameReader?: FrameReader | null;
+  chapterReader?: ChapterReader | null;
   /** How often waiting intro/credits detection looks again (default 30 s). */
   segmentRetryMs?: number;
 }
@@ -112,7 +116,11 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const segments: SegmentDetector = new SegmentDetector(db, opts.audioReader ?? ffmpegAudioReader(config.ffmpegPath), {
     enabled: () => settings.get().segmentDetection,
     busy: () => (streams.active().length > 0 ? 'playback' : scans.active ? 'scan' : null),
+    video: () => settings.get().segmentVideo,
     retryMs: opts.segmentRetryMs,
+  }, {
+    frames: opts.frameReader === null ? undefined : (opts.frameReader ?? ffmpegFrameReader(config.ffmpegPath)),
+    chapters: opts.chapterReader === null ? undefined : (opts.chapterReader ?? ffprobeChapterReader(config.ffprobePath)),
   });
   const watcher = new LibraryWatcher(db, scans, opts.watchDebounceMs);
   const playback = new PlaybackRegistry();

@@ -22,6 +22,7 @@ import { createContext } from './app.js';
 import { episodes, shows } from './db/schema.js';
 import { ffmpegAudioReader, SegmentDetector } from './services/segments/detector.js';
 import { formatDiagnosis } from './services/segments/diagnose.js';
+import { ffmpegFrameReader, ffprobeChapterReader } from './services/segments/readers.js';
 import { setLogLevel } from './logger.js';
 
 const HELP = `Velyx maintenance commands:
@@ -33,7 +34,8 @@ const HELP = `Velyx maintenance commands:
   reset-password <username> <new-password>
   scan [--refresh-metadata]
   intros                     list TV shows (for the next command)
-  intros <show> [season]     explain intro/credits detection for one season (reads audio, stores nothing)`;
+  intros <show> [season]     explain intro/credits detection for one season (stores nothing;
+                             --no-video skips the picture analysis)`;
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -42,7 +44,8 @@ function formatSize(bytes: number): string {
 }
 
 async function run(): Promise<number> {
-  const [cmd, ...args] = process.argv.slice(2);
+  const [cmd, ...rest] = process.argv.slice(2);
+  let args = rest;
   const config = loadConfig();
   if (cmd !== 'scan') setLogLevel('warn');
   const resolve = (arg: string) => backupPath(config.backupDir, arg) ?? (fs.existsSync(arg) ? path.resolve(arg) : null);
@@ -125,6 +128,8 @@ async function run(): Promise<number> {
       return 0;
     }
     case 'intros': {
+      const flags = args.filter((a) => a.startsWith('--'));
+      args = args.filter((a) => !a.startsWith('--'));
       const db = openDatabase(config.dbPath, { backupDir: config.backupDir });
       const all = db.select({ id: shows.id, title: shows.title }).from(shows).orderBy(shows.sortTitle).all();
       if (!args[0]) {
@@ -143,8 +148,8 @@ async function run(): Promise<number> {
         console.error(`${show.title} has seasons: ${seasons.join(', ') || 'none'}`);
         return 1;
       }
-      console.error(`Reading the audio of ${show.title} season ${season}… (nothing is stored)`);
-      const detector = new SegmentDetector(db, ffmpegAudioReader(config.ffmpegPath), { enabled: () => true, busy: () => null });
+      console.error(`Analysing ${show.title} season ${season} (audio, chapters${flags.includes('--no-video') ? '' : ' and picture'})… nothing is stored`);
+      const detector = new SegmentDetector(db, ffmpegAudioReader(config.ffmpegPath), { enabled: () => true, busy: () => null, video: () => !flags.includes('--no-video') }, { frames: ffmpegFrameReader(config.ffmpegPath), chapters: ffprobeChapterReader(config.ffprobePath) });
       console.log(formatDiagnosis(show.title, season, await detector.diagnose(show.id, season)));
       return 0;
     }

@@ -23,12 +23,12 @@ type Row = typeof episodeSegments.$inferSelect;
 
 function segmentView(row: Row | undefined) {
   if (!row) return null;
-  const part = (start: number | null, end: number | null, confidence: Row['introConfidence']) => (start !== null && end !== null ? { start, end, confidence } : null);
+  const part = (start: number | null, end: number | null, confidence: Row['introConfidence'], source: Row['introSource'] = null) => (start !== null && end !== null ? { start, end, confidence, source } : null);
   return {
     status: row.status,
     error: row.error,
-    intro: part(row.introStart, row.introEnd, row.introConfidence),
-    credits: part(row.creditsStart, row.creditsEnd, row.creditsConfidence),
+    intro: part(row.introStart, row.introEnd, row.introConfidence, row.introSource),
+    credits: part(row.creditsStart, row.creditsEnd, row.creditsConfidence, row.creditsSource),
     postCredits: part(row.postCreditsStart, row.postCreditsEnd, null),
     method: row.method,
     manual: row.manual,

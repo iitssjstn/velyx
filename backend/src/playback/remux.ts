@@ -29,8 +29,8 @@ export function outputChannels(sourceChannels: number | null | undefined, mode: 
 }
 
 /**
- * FFmpeg audio filter chain for the requested processing, similar to Plex's "Boost voices" and
- * volume levelling. Every chain first normalises the channel layout, so it works for 5.1, 5.1(side),
+ * FFmpeg audio filter chain for the requested processing ("Boost voices" and
+ * volume levelling). Every chain first normalises the channel layout, so it works for 5.1, 5.1(side),
  * 7.1 and stereo sources alike.
  */
 export function audioFilters(plan: RemuxPlan): string {

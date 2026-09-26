@@ -52,6 +52,8 @@ export function saveManualSegments(db: DB, episodeId: number, file: { id: number
     creditsStart: s.credits?.start ?? null,
     creditsEnd: s.credits?.end ?? null,
     creditsConfidence: s.credits ? ('high' as const) : null,
+    introSource: s.intro ? ('manual' as const) : null,
+    creditsSource: s.credits ? ('manual' as const) : null,
     postCreditsStart: s.postCredits?.start ?? null,
     postCreditsEnd: s.postCredits?.end ?? null,
     status: 'analyzed' as const,

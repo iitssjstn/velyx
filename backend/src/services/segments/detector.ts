@@ -7,6 +7,9 @@ import { createLogger } from '../../logger.js';
 import { fingerprint, longestCommonSegment, SAMPLE_RATE, type Fingerprint } from './fingerprint.js';
 import { DETECTION_VERSION, detectSeason, headWindow, tailWindow, type Detection, type EpisodeAudio } from './detect.js';
 import { diagnoseSeason, type SeasonDiagnosis } from './diagnose.js';
+import { chapterSegments } from './chapters.js';
+import { findCredits, refineStart } from './visual.js';
+import type { ChapterReader, FrameReader } from './readers.js';
 
 const log = createLogger('segments');
 
@@ -49,6 +52,8 @@ export function ffmpegAudioReader(ffmpegPath: string): AudioReader {
 export interface DetectorHooks {
   /** Detection is switched on in the server settings. */
   enabled: () => boolean;
+  /** Also look at the picture for end credits (decodes keyframes of the last minutes). */
+  video?: () => boolean;
   /** Someone is watching or a scan runs: detection waits (it never competes with either). */
   busy: () => 'playback' | 'scan' | null;
   /** How often a waiting job looks again (default 30 s). */
@@ -105,6 +110,7 @@ export class SegmentDetector {
     private readonly db: DB,
     private readonly readAudio: AudioReader,
     private readonly hooks: DetectorHooks,
+    private readonly readers: { frames?: FrameReader; chapters?: ChapterReader } = {},
   ) {}
 
   /** Every episode file of a TV library, with the file playback picks first (highest resolution). */
@@ -423,7 +429,30 @@ export class SegmentDetector {
     if (!(await this.gate())) throw new Error('Stopped');
     const tailPcm = await this.readAudio(f.path, tail.start, tail.end - tail.start);
     if (headPcm.length < SAMPLE_RATE * 5 || tailPcm.length < SAMPLE_RATE * 5) throw new Error('The file has no readable audio');
-    return { id: f.episodeId, duration: f.duration, head: fingerprint(headPcm), tail: fingerprint(tailPcm), tailStart: tail.start };
+    const chapters = this.readers.chapters ? chapterSegments(await this.readers.chapters(f.path).catch(() => []), f.duration) : null;
+    const visual = await this.readVisualCredits(f, tail.start);
+    return { id: f.episodeId, duration: f.duration, head: fingerprint(headPcm), tail: fingerprint(tailPcm), tailStart: tail.start, chapters, visual };
+  }
+
+  /**
+   * Credits in the picture: keyframes of the closing minutes first (cheap), then every half second
+   * around the start that was found, to place it precisely. Problems with the video (an unusual
+   * codec, no video track) only mean this source is not used.
+   */
+  private async readVisualCredits(f: EpisodeFile, from: number) {
+    if (!this.readers.frames || !(this.hooks.video?.() ?? true)) return null;
+    try {
+      if (!(await this.gate())) return null;
+      const frames = await this.readers.frames(f.path, from, f.duration - from, 'keyframes');
+      const found = findCredits(frames, f.duration);
+      if (!found) return null;
+      if (!(await this.gate())) return found;
+      const around = await this.readers.frames(f.path, Math.max(0, found.start - 20), 25, 'dense');
+      return { ...found, start: refineStart(around, found.start) };
+    } catch (err) {
+      log.debug(`Could not analyse the picture of ${f.path}: ${(err as Error).message}`);
+      return null;
+    }
   }
 
   private store(f: EpisodeFile, d: Detection | null, error: string | null, now: number): void {
@@ -437,11 +466,13 @@ export class SegmentDetector {
       creditsStart: d?.credits?.start ?? null,
       creditsEnd: d?.credits?.end ?? null,
       creditsConfidence: d?.credits?.confidence ?? null,
+      introSource: d?.intro?.source ?? null,
+      creditsSource: d?.credits?.source ?? null,
       postCreditsStart: d?.postCredits?.start ?? null,
       postCreditsEnd: d?.postCredits?.end ?? null,
       status: error ? ('error' as const) : ('analyzed' as const),
       error,
-      method: 'audio-fingerprint' as const,
+      method: 'automatic' as const,
       version: DETECTION_VERSION,
       manual: false,
       detectedAt: now,
@@ -473,7 +504,7 @@ export class SegmentDetector {
         const span = kind === 'intro' ? d.intro : d.credits;
         const frames = kind === 'intro' ? d.introFrames : d.creditsFrames;
         const a = byId.get(id);
-        if (!span || span.confidence !== 'high' || !frames || !a) continue;
+        if (!span || span.confidence !== 'high' || span.source !== 'audio' || !frames || !a) continue;
         const words = (kind === 'intro' ? a.head : a.tail).words.slice(frames[0], frames[1]);
         const fp = { words };
         const minFrames = Math.round(words.length * 0.8);

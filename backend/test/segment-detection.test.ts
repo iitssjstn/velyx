@@ -141,7 +141,7 @@ describe('diagnosis', () => {
     expect(e1.pairs).toHaveLength(1);
     expect(e1.pairs[0].peer).toBe(2);
     expect(Math.abs(e1.pairs[0].intro[0]!.start - 40)).toBeLessThan(1.5);
-    expect(e1.result?.intro).toMatch(/^(39\.\d|40(\.\d)?)–7[45](\.\d)? \(medium\)$/);
+    expect(e1.result?.intro).toMatch(/^(39\.\d|40(\.\d)?)–7[45](\.\d)? \(medium, audio\)$/);
     expect(d.episodes[2]).toMatchObject({ error: 'Invalid data found', pairs: [], result: null });
     const text = formatDiagnosis('Show', 1, d);
     expect(text).toContain('E01 S01E01.mkv');

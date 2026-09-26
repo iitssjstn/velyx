@@ -30,7 +30,11 @@ interface Part {
   start: number;
   end: number;
   confidence: Confidence | null;
+  /** Where it was found: chapter markers, the picture, recurring audio or by hand. */
+  source?: 'chapters' | 'video' | 'audio' | 'manual' | null;
 }
+
+const SOURCE_LABEL = { chapters: 'chapters', video: 'picture', audio: 'audio', manual: 'by hand' } as const;
 
 interface EpisodeSegmentsView {
   status: 'analyzed' | 'error';
@@ -71,6 +75,7 @@ function PartLabel({ part, empty = '—' }: { part: Part | null; empty?: string 
     <span className={part.confidence === 'low' ? 'text-faint line-through decoration-faint/60' : ''} title={part.confidence ? `Confidence: ${CONFIDENCE_LABEL[part.confidence]}` : undefined}>
       <span className="tabular-nums">{formatClock(part.start)}–{formatClock(part.end)}</span>
       {part.confidence && part.confidence !== 'high' && <span className={`ml-1.5 text-xs ${part.confidence === 'low' ? 'text-amber no-underline' : 'text-muted'}`}>{part.confidence}</span>}
+      {part.source && part.source !== 'manual' && <span className="ml-1.5 text-xs text-faint">{SOURCE_LABEL[part.source]}</span>}
     </span>
   );
 }
@@ -264,7 +269,7 @@ export function SegmentsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <p className="max-w-2xl text-sm text-muted">
-          Velyx finds intros and credits by comparing the sound of episodes in the same season — on this server, without any online service. It reads only the first and last minutes of each episode, one at a time, and never while someone is watching or a scan runs. Only high and medium confidence results get a skip button.
+          Velyx finds intros by comparing the sound of episodes in the same season, and end credits by recognising text on a dark background in the picture (or recurring credits music). Chapters named Intro or Credits are used when a file has them. Everything runs on this server, one episode at a time, and never while someone is watching or a scan runs. Only high and medium confidence results get a skip button.
         </p>
         <Button variant="secondary" size="sm" icon={<RotateCcw className="size-4" />} disabled={!status.enabled} onClick={() => setConfirmAll(true)}>Analyse everything again</Button>
       </div>

@@ -8,6 +8,7 @@ import { buildApp, createContext, type AppContext } from '../src/app.js';
 import type { ProbeResult, Prober } from '../src/services/probe.js';
 import type { FetchLike } from '../src/services/tmdb.js';
 import type { AudioReader } from '../src/services/segments/detector.js';
+import type { ChapterReader, FrameReader } from '../src/services/segments/readers.js';
 import { setLogLevel } from '../src/logger.js';
 
 setLogLevel('error');
@@ -50,6 +51,8 @@ export interface TestEnvOptions {
   /** Synthetic audio for intro/credits detection; without it detection is off in tests. */
   audioReader?: AudioReader;
   segmentRetryMs?: number;
+  frameReader?: FrameReader;
+  chapterReader?: ChapterReader;
 }
 
 export async function createTestEnv(opts: TestEnvOptions = {}): Promise<TestEnv> {
@@ -71,7 +74,7 @@ export async function createTestEnv(opts: TestEnvOptions = {}): Promise<TestEnv>
   const noNetwork: FetchLike = async () => {
     throw new Error('network disabled in tests');
   };
-  const ctx = createContext(config, db, { prober, fetchImpl: opts.fetchImpl ?? noNetwork, tmdbMinIntervalMs: 0, watchDebounceMs: opts.watchDebounceMs, scanYieldMs: opts.scanYieldMs, audioReader: opts.audioReader, segmentRetryMs: opts.segmentRetryMs });
+  const ctx = createContext(config, db, { prober, fetchImpl: opts.fetchImpl ?? noNetwork, tmdbMinIntervalMs: 0, watchDebounceMs: opts.watchDebounceMs, scanYieldMs: opts.scanYieldMs, audioReader: opts.audioReader, segmentRetryMs: opts.segmentRetryMs, frameReader: opts.frameReader ?? null, chapterReader: opts.chapterReader ?? null });
   // Folder watching is opt-in per test (see watcher.test.ts) so other suites stay deterministic.
   // So is intro/credits detection (it needs real or synthetic audio).
   ctx.settings.update({ watchFolders: false, segmentDetection: Boolean(opts.audioReader) });
