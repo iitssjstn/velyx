@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -84,8 +85,12 @@ describe('verification', () => {
     const snap = env.ctx.backups.create('manual');
     const r = verifyBackup(path.join(env.ctx.config.backupDir, snap.name));
     expect(r).toMatchObject({ ok: true, errors: [], info: { users: 1 } });
+    fs.writeFileSync(path.join(env.ctx.config.onlineSubtitleDir, '4-21.vtt'), 'WEBVTT\n');
     const archive = createFullBackup(env.ctx.db, env.ctx.config.dataDir, env.ctx.config.backupDir);
     expect(verifyBackup(archive)).toMatchObject({ ok: true, info: { users: 1 } });
+    // Subtitles fetched online cannot be rebuilt (downloads are limited), so the archive keeps them.
+    const listing = spawnSync('tar', ['-tzf', archive]).stdout.toString().split('\n');
+    expect(listing).toContain('subtitles/4-21.vtt');
   });
 
   it('rejects corrupt, foreign and newer databases', () => {

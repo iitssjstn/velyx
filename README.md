@@ -456,7 +456,7 @@ Everything Velyx stores lives in the data folder (`./data`, mounted at `/data`):
 
 - **Scheduled backups** (Admin → Backup): a consistent copy of the database every day (or week) after a chosen hour, kept with rotation — by default the newest of each of the last 7 days, 4 weeks and 3 months. Only scheduled backups are rotated; manual backups and archives stay until you delete them. Backups stay in `data/backups/`; nothing is uploaded anywhere.
 - **Manual backup:** *Back up now* on the Backup page, or *Download current* for a copy on your computer.
-- **Full archive:** `docker compose exec velyx velyx backup` writes `data/backups/velyx-backup-<date>.tar.gz` with the database, avatars, artwork cache and cookie secret.
+- **Full archive:** `docker compose exec velyx velyx backup` writes `data/backups/velyx-backup-<date>.tar.gz` with the database, avatars, subtitles fetched online, artwork cache and cookie secret.
 - **Verify:** every backup can be verified from the Backup page or with `velyx backup verify` — the file must exist, open as SQLite, pass `PRAGMA integrity_check`, contain Velyx's tables, and not come from a newer Velyx version.
 - **Restore:** choose *Restore* on the Backup page (or `velyx restore <backup>`), then restart Velyx (`docker compose restart velyx`). The backup is verified again, the current database is saved as `pre-restore-<time>.db`, and the swap happens at start-up — never under a running server. `velyx restore --cancel` cancels a staged restore.
 
