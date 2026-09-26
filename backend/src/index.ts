@@ -37,7 +37,14 @@ async function main(): Promise<void> {
   log.info(`Velyx started on http://${config.host}:${config.port}`);
   if (!config.frontendDir) log.warn('Frontend build not found — only the API is served');
 
-  ctx.scans.startSchedule(config.scanIntervalMinutes);
+  ctx.scans.configureSchedule(ctx.settings.scanIntervalMinutes());
+  if (ctx.settings.get().scanOnStartup) {
+    // After start-up has settled, look for files added while Velyx was off.
+    setTimeout(() => {
+      log.info('Scanning libraries for changes made while Velyx was off');
+      ctx.scans.enqueueAll(false);
+    }, 60 * 1000).unref();
+  }
   if (ctx.tmdb.configured && !ctx.settings.get().collectionsBackfilled) {
     void ctx.metadata.backfillCollections().then((done) => {
       if (done) ctx.settings.update({ collectionsBackfilled: true });

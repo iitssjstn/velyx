@@ -9,7 +9,22 @@ const log = createLogger('scan-queue');
 export interface ScanJob {
   libraryId: number;
   refreshMetadata: boolean;
+  /** Probe every file again instead of only new and changed ones. */
+  full: boolean;
 }
+
+export interface ScanHooks {
+  /** Someone is watching right now. */
+  playbackActive?: () => boolean;
+  /** Scheduled scans wait (up to a limit) until nobody is watching. */
+  deferWhilePlaying?: () => boolean;
+  /** Pause between files while someone is watching, so an old disk serves the stream first. */
+  yieldMs?: number;
+}
+
+/** How long a scheduled scan waits for playback to end before it runs anyway. */
+const MAX_DEFER_MS = 6 * 60 * 60 * 1000;
+const DEFER_RETRY_MS = 5 * 60 * 1000;
 
 export type ScannerStatus = 'scanning' | 'queued' | 'paused' | 'failed' | 'idle';
 
@@ -21,6 +36,8 @@ export interface ScanState {
   paused: { reason: 'manual' | 'low-disk'; since: number } | null;
   lastSuccess: { libraryId: number; at: number; durationMs: number | null } | null;
   lastFailure: { libraryId: number; at: number; message: string | null } | null;
+  /** Automatic scans: interval (0 = off), when the next one is due, and whether it waits for playback to end. */
+  schedule: { intervalMinutes: number; nextAt: number | null; waitingForPlayback: boolean };
 }
 
 /**
@@ -34,10 +51,12 @@ export class ScanManager {
   private resumeWaiters: Array<() => void> = [];
   private paused: ScanState['paused'] = null;
   private stopped = false;
+  private schedule: { intervalMinutes: number; nextAt: number | null; waitingSince: number | null } = { intervalMinutes: 0, nextAt: null, waitingSince: null };
 
   constructor(
     private readonly db: DB,
     private readonly scanner: LibraryScanner,
+    private readonly hooks: ScanHooks = {},
   ) {}
 
   state(): ScanState {
@@ -57,6 +76,7 @@ export class ScanManager {
       paused: this.paused ? { ...this.paused } : null,
       lastSuccess: success ? { libraryId: success.id, at: success.lastSuccessAt!, durationMs: success.durationMs } : null,
       lastFailure: failure ? { libraryId: failure.id, at: failure.lastFailureAt!, message: failure.status === 'error' ? failure.message : null } : null,
+      schedule: { intervalMinutes: this.schedule.intervalMinutes, nextAt: this.schedule.nextAt, waitingForPlayback: this.schedule.waitingSince !== null },
     };
   }
 
@@ -81,28 +101,74 @@ export class ScanManager {
     return this.paused !== null;
   }
 
-  private checkpoint = (): Promise<void> => (this.paused && !this.stopped ? new Promise((resolve) => this.resumeWaiters.push(resolve)) : Promise.resolve());
+  /** Awaited by the scanner between files: holds while paused, and gives way to playback. */
+  private checkpoint = async (): Promise<void> => {
+    if (this.paused && !this.stopped) await new Promise<void>((resolve) => this.resumeWaiters.push(resolve));
+    if (!this.stopped && this.hooks.playbackActive?.()) await new Promise((resolve) => setTimeout(resolve, this.hooks.yieldMs ?? 250));
+  };
 
   isBusy(libraryId: number): boolean {
     return this.running?.libraryId === libraryId || this.queue.some((j) => j.libraryId === libraryId);
   }
 
-  enqueue(libraryId: number, refreshMetadata = false): boolean {
+  enqueue(libraryId: number, refreshMetadata = false, full = false): boolean {
     const queued = this.queue.find((j) => j.libraryId === libraryId);
     if (queued) {
       queued.refreshMetadata ||= refreshMetadata;
+      queued.full ||= full;
       return false;
     }
     // A scan that is still listing folders will see the change itself. One that is past that point
     // would miss it, so a follow-up scan is queued (cheap: unchanged files are not probed again).
-    if (this.running?.libraryId === libraryId && !refreshMetadata && this.running.progress.phase === 'discovering') return false;
-    this.queue.push({ libraryId, refreshMetadata });
+    if (this.running?.libraryId === libraryId && !refreshMetadata && !full && this.running.progress.phase === 'discovering') return false;
+    this.queue.push({ libraryId, refreshMetadata, full });
     void this.pump();
     return true;
   }
 
-  enqueueAll(refreshMetadata = false): void {
-    for (const lib of this.db.select({ id: libraries.id }).from(libraries).all()) this.enqueue(lib.id, refreshMetadata);
+  enqueueAll(refreshMetadata = false, full = false): void {
+    for (const lib of this.db.select({ id: libraries.id }).from(libraries).all()) this.enqueue(lib.id, refreshMetadata, full);
+  }
+
+  /**
+   * Automatic scans every `minutes` (0 = off). Each looks for new and changed files only. When
+   * scheduled scans should not disturb playback, a due scan waits while someone is watching,
+   * checking every few minutes, and runs anyway after a few hours.
+   */
+  configureSchedule(minutes: number, now = Date.now()): void {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.schedule = { intervalMinutes: Math.max(0, minutes), nextAt: null, waitingSince: null };
+    if (minutes <= 0) {
+      log.info('Scheduled library scans are off');
+      return;
+    }
+    this.scheduleAt(now + minutes * 60_000);
+    log.info(`Scheduled library scans every ${minutes >= 60 && minutes % 60 === 0 ? `${minutes / 60} h` : `${minutes} minutes`}`);
+  }
+
+  private scheduleAt(at: number): void {
+    if (this.stopped) return;
+    this.schedule.nextAt = at;
+    this.timer = setTimeout(() => this.runSchedule(), Math.max(0, at - Date.now()));
+    this.timer.unref();
+  }
+
+  /** A scheduled scan is due (public for tests). */
+  runSchedule(now = Date.now()): void {
+    const { intervalMinutes } = this.schedule;
+    if (intervalMinutes <= 0 || this.stopped) return;
+    const wait = Boolean(this.hooks.deferWhilePlaying?.() && this.hooks.playbackActive?.());
+    const waited = this.schedule.waitingSince === null ? 0 : now - this.schedule.waitingSince;
+    if (wait && waited < Math.min(MAX_DEFER_MS, intervalMinutes * 60_000)) {
+      if (this.schedule.waitingSince === null) log.info('Scheduled scan waits until nobody is watching');
+      this.schedule.waitingSince ??= now;
+      this.scheduleAt(now + DEFER_RETRY_MS);
+      return;
+    }
+    this.schedule.waitingSince = null;
+    this.enqueueAll(false);
+    this.scheduleAt(now + intervalMinutes * 60_000);
   }
 
   /** Resolves when the queue is empty (used by tests and the CLI). */
@@ -111,19 +177,10 @@ export class ScanManager {
     return new Promise((resolve) => this.idleWaiters.push(resolve));
   }
 
-  startSchedule(intervalMinutes: number): void {
-    if (intervalMinutes <= 0) {
-      log.info('Periodic library scans disabled (SCAN_INTERVAL_MINUTES=0)');
-      return;
-    }
-    this.timer = setInterval(() => this.enqueueAll(false), intervalMinutes * 60 * 1000);
-    this.timer.unref();
-    log.info(`Incremental library scans every ${intervalMinutes} minutes`);
-  }
-
   stop(): void {
     this.stopped = true;
-    if (this.timer) clearInterval(this.timer);
+    if (this.timer) clearTimeout(this.timer);
+    this.schedule.nextAt = null;
     this.queue = [];
     this.resumeWaiters.splice(0).forEach((w) => w());
   }
@@ -141,6 +198,7 @@ export class ScanManager {
     try {
       const summary: ScanSummary = await this.scanner.scan(job.libraryId, {
         refreshMetadata: job.refreshMetadata,
+        full: job.full,
         checkpoint: this.checkpoint,
         onProgress: (p) => {
           if (this.running) this.running.progress = p;

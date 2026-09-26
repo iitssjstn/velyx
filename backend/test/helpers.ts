@@ -45,6 +45,7 @@ export interface TestEnvOptions {
   tmdbKey?: string;
   prober?: Prober;
   watchDebounceMs?: number;
+  scanYieldMs?: number;
 }
 
 export async function createTestEnv(opts: TestEnvOptions = {}): Promise<TestEnv> {
@@ -66,7 +67,7 @@ export async function createTestEnv(opts: TestEnvOptions = {}): Promise<TestEnv>
   const noNetwork: FetchLike = async () => {
     throw new Error('network disabled in tests');
   };
-  const ctx = createContext(config, db, { prober, fetchImpl: opts.fetchImpl ?? noNetwork, tmdbMinIntervalMs: 0, watchDebounceMs: opts.watchDebounceMs });
+  const ctx = createContext(config, db, { prober, fetchImpl: opts.fetchImpl ?? noNetwork, tmdbMinIntervalMs: 0, watchDebounceMs: opts.watchDebounceMs, scanYieldMs: opts.scanYieldMs });
   // Folder watching is opt-in per test (see watcher.test.ts) so other suites stay deterministic.
   ctx.settings.update({ watchFolders: false });
   const app = await buildApp(ctx);

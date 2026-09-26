@@ -3,7 +3,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { limitProber } from '../src/services/probe-queue.js';
 import type { Prober } from '../src/services/probe.js';
-import { addLibrary, createTestEnv, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
+import { libraries, mediaFiles, movies } from '../src/db/schema.js';
+import { addLibrary, createTestEnv, createUser, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
 
 let env: TestEnv;
 afterEach(async () => {
@@ -182,5 +183,103 @@ describe('scan status', () => {
     const login = await env.app.inject({ method: 'POST', url: '/api/auth/login', payload: { username: 'viewer', password: 'viewer-password' } });
     const cookie = `velyx_session=${login.cookies.find((c) => c.name === 'velyx_session')!.value}`;
     expect((await env.app.inject({ method: 'POST', url: '/api/libraries/scans/pause', headers: { cookie } })).statusCode).toBe(403);
+  });
+});
+
+describe('scheduled and full scans', () => {
+  const watching = (e: TestEnv) => {
+    const lib = e.ctx.db.insert(libraries).values({ name: 'x', type: 'movies', path: '/media/x' }).returning().get().id;
+    const m = e.ctx.db.insert(movies).values({ libraryId: lib, groupKey: 'g', title: 'Playing', sortTitle: 'playing', parsedTitle: 'p' }).returning().get();
+    const f = e.ctx.db.insert(mediaFiles).values({ libraryId: lib, movieId: m.id, path: '/media/x/p.mkv', size: 1, mtimeMs: 1 }).returning().get();
+    e.ctx.streams.touch({ id: 1, username: 'viewer' }, f.id, 'direct', null);
+  };
+
+  it('runs on the configured interval and waits for playback to end, but not forever', async () => {
+    env = await createTestEnv();
+    const started: number[] = [];
+    const enqueueAll = env.ctx.scans.enqueueAll.bind(env.ctx.scans);
+    env.ctx.scans.enqueueAll = (...args) => {
+      started.push(Date.now());
+      enqueueAll(...args);
+    };
+    const t0 = Date.now();
+    env.ctx.scans.configureSchedule(60, t0);
+    expect(env.ctx.scans.state().schedule).toMatchObject({ intervalMinutes: 60, nextAt: t0 + 3_600_000, waitingForPlayback: false });
+
+    // Nobody watching: the scan starts and the next one is planned.
+    env.ctx.scans.runSchedule(t0 + 3_600_000);
+    expect(started).toHaveLength(1);
+    expect(env.ctx.scans.state().schedule.nextAt).toBe(t0 + 7_200_000);
+
+    // Someone is watching: wait, checking again in five minutes…
+    watching(env);
+    env.ctx.scans.runSchedule(t0 + 7_200_000);
+    expect(started).toHaveLength(1);
+    expect(env.ctx.scans.state().schedule).toMatchObject({ waitingForPlayback: true, nextAt: t0 + 7_200_000 + 300_000 });
+    // …but at most one interval (here 60 minutes), then it runs anyway.
+    env.ctx.scans.runSchedule(t0 + 7_200_000 + 3_600_000);
+    expect(started).toHaveLength(2);
+    expect(env.ctx.scans.state().schedule.waitingForPlayback).toBe(false);
+
+    // With waiting switched off, it runs during playback.
+    env.ctx.settings.update({ deferScansWhilePlaying: false });
+    env.ctx.scans.runSchedule(t0 + 20_000_000);
+    expect(started).toHaveLength(3);
+
+    env.ctx.scans.configureSchedule(0);
+    expect(env.ctx.scans.state().schedule).toMatchObject({ intervalMinutes: 0, nextAt: null });
+    await env.ctx.scans.whenIdle();
+  });
+
+  it('gives way to playback between files', async () => {
+    env = await createTestEnv({ scanYieldMs: 40 });
+    const admin = await setupAdmin(env.app);
+    for (let i = 0; i < 4; i++) touch(path.join(env.mediaDir, 'movies', `Film ${i} (200${i}).mkv`));
+    watching(env);
+    const t = Date.now();
+    await addLibrary(env, admin, 'movies', 'movies');
+    // Four files, each preceded by a 40 ms pause while someone is watching.
+    expect(Date.now() - t).toBeGreaterThanOrEqual(150);
+  });
+
+  it('re-analyses every file on a full rescan only', async () => {
+    env = await createTestEnv();
+    const admin = await setupAdmin(env.app);
+    for (let i = 0; i < 3; i++) touch(path.join(env.mediaDir, 'movies', `Film ${i} (200${i}).mkv`));
+    const lib = await addLibrary(env, admin, 'movies', 'movies');
+    const probes = () => env.probeCalls.length;
+    expect(probes()).toBe(3);
+    await env.app.inject({ method: 'POST', url: `/api/libraries/${lib.id}/scan`, headers: { cookie: admin }, payload: {} });
+    await env.ctx.scans.whenIdle();
+    expect(probes()).toBe(3);
+    const res = await env.app.inject({ method: 'POST', url: `/api/libraries/${lib.id}/scan`, headers: { cookie: admin }, payload: { full: true } });
+    expect(res.statusCode).toBe(200);
+    await env.ctx.scans.whenIdle();
+    expect(probes()).toBe(6);
+    expect((await env.app.inject({ method: 'POST', url: `/api/libraries/${lib.id}/scan`, headers: { cookie: admin }, payload: { full: 'yes' } })).statusCode).toBe(400);
+    await env.app.inject({ method: 'POST', url: '/api/libraries/scan-all', headers: { cookie: admin }, payload: { full: true } });
+    await env.ctx.scans.whenIdle();
+    expect(probes()).toBe(9);
+  });
+
+  it('lets admins set the interval, start-up scan and playback behaviour', async () => {
+    env = await createTestEnv();
+    const admin = await setupAdmin(env.app);
+    const put = (payload: object, cookie = admin) => env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie }, payload });
+    let s = (await env.app.inject({ url: '/api/admin/settings', headers: { cookie: admin } })).json();
+    expect(s).toMatchObject({ scanIntervalMinutes: 360, scanIntervalSource: 'environment', scanOnStartup: false, deferScansWhilePlaying: true });
+    s = (await put({ scanIntervalMinutes: 60, scanOnStartup: true, deferScansWhilePlaying: false })).json();
+    expect(s).toMatchObject({ scanIntervalMinutes: 60, scanIntervalSource: 'settings', scanOnStartup: true, deferScansWhilePlaying: false });
+    expect(env.ctx.scans.state().schedule.intervalMinutes).toBe(60);
+    expect((await put({ scanIntervalMinutes: 0 })).json()).toMatchObject({ scanIntervalMinutes: 0 });
+    expect(env.ctx.scans.state().schedule).toMatchObject({ intervalMinutes: 0, nextAt: null });
+    // Back to the environment's value.
+    s = (await put({ scanIntervalMinutes: null })).json();
+    expect(s).toMatchObject({ scanIntervalMinutes: 360, scanIntervalSource: 'environment' });
+    expect((await put({ scanIntervalMinutes: -5 })).statusCode).toBe(400);
+    expect((await put({ scanIntervalMinutes: 1.5 })).statusCode).toBe(400);
+    const viewer = await createUser(env.app, admin, 'viewer');
+    expect((await put({ scanIntervalMinutes: 30 }, viewer.cookie)).statusCode).toBe(403);
+    env.ctx.scans.configureSchedule(0);
   });
 });

@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { CircleAlert, Film, FolderPlus, Pencil, RefreshCw, ScanSearch, Trash2, Tv } from 'lucide-react';
+import { CircleAlert, FileSearch, Film, FolderPlus, Pencil, RefreshCw, ScanSearch, Trash2, Tv } from 'lucide-react';
 import { api } from '../../lib/api';
-import { formatRelative } from '../../lib/format';
+import { formatRelative, scheduleLabel } from '../../lib/format';
 import type { Library, ScanState } from '../../lib/types';
 import { Button, IconButton } from '../../components/Button';
 import { ConfirmModal, Modal } from '../../components/Modal';
@@ -149,7 +149,7 @@ export function LibrariesPanel() {
     refetchInterval: (query) => (query.state.data?.libraries.some((l) => l.scanning || l.queued) ? 5000 : false),
   });
   // Light poll of the queue so scans started elsewhere (schedule, other admins) show up.
-  useQuery({
+  const status = useQuery({
     queryKey: ['scan-status'],
     queryFn: async () => {
       const s = await api.get<ScanState>('/api/libraries/scan-status');
@@ -192,7 +192,10 @@ export function LibrariesPanel() {
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted">Media folders Velyx watches. Files are only read, never modified.</p>
+        <div className="text-sm text-muted">
+          <p>Media folders Velyx watches. Files are only read, never modified.</p>
+          {status.data && <p className="mt-0.5 text-xs text-faint">Scheduled scans: {scheduleLabel(status.data.schedule)}</p>}
+        </div>
         <div className="flex gap-2">
           {libraries.length > 0 && (
             <Button variant="secondary" icon={<ScanSearch className="size-4" />} onClick={() => action.mutate({ url: '/api/libraries/scan-all' })}>
@@ -234,6 +237,9 @@ export function LibrariesPanel() {
                     </IconButton>
                     <IconButton label="Refresh all metadata" disabled={Boolean(l.scanning) || l.queued} onClick={() => action.mutate({ url: `/api/libraries/${l.id}/scan`, body: { refreshMetadata: true } })}>
                       <RefreshCw className="size-4" />
+                    </IconButton>
+                    <IconButton label="Re-analyse every file (slower)" disabled={Boolean(l.scanning) || l.queued} onClick={() => action.mutate({ url: `/api/libraries/${l.id}/scan`, body: { full: true } })}>
+                      <FileSearch className="size-4" />
                     </IconButton>
                     <IconButton label="Scan issues" onClick={() => setIssues(l)}>
                       <CircleAlert className="size-4" />

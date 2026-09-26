@@ -76,6 +76,8 @@ export interface BuildOptions {
   tmdbMinIntervalMs?: number;
   /** Quiet period before a folder change triggers a scan (default 30 s). */
   watchDebounceMs?: number;
+  /** Pause between scanned files while someone is watching (default 250 ms). */
+  scanYieldMs?: number;
 }
 
 export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}): AppContext {
@@ -92,7 +94,12 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const metadata = new MetadataService(db, tmdb, images);
   const probe = limitProber(opts.prober ?? createFfprobe(config.ffprobePath), config.scanConcurrency);
   const scanner = new LibraryScanner(db, probe, metadata, config.scanConcurrency);
-  const scans = new ScanManager(db, scanner);
+  const streams = new StreamTracker(db);
+  const scans = new ScanManager(db, scanner, {
+    playbackActive: () => streams.active().length > 0,
+    deferWhilePlaying: () => settings.get().deferScansWhilePlaying,
+    yieldMs: opts.scanYieldMs,
+  });
   const watcher = new LibraryWatcher(db, scans, opts.watchDebounceMs);
   const playback = new PlaybackRegistry();
   playback.register(new DirectPlayEngine());
@@ -102,7 +109,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   // Critically low disk space pauses scans (which write artwork and rows); they resume on their own.
   const disk = new DiskMonitor(storage, (level) => (level === 'critical' ? scans.pause('low-disk') : scans.resume('low-disk')));
   const backups = new BackupScheduler(db, config.backupDir, settings, () => (storage.dataDisk()?.level === 'critical' ? 'disk space is critically low' : null));
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit: new AuditLog(db), backups, storage, disk, streams: new StreamTracker(db), analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateRepo, () => settings.get().updateCheck, opts.fetchImpl), probe, startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit: new AuditLog(db), backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateRepo, () => settings.get().updateCheck, opts.fetchImpl), probe, startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

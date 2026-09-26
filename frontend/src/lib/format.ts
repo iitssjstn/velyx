@@ -145,3 +145,27 @@ export function progressFraction(p: { positionSec: number; durationSec: number }
   if (!p || !p.durationSec) return 0;
   return Math.min(1, Math.max(0, p.positionSec / p.durationSec));
 }
+
+/** "in 3 h", "in 25 min", "in 2 days", or "now" for a moment in the future. */
+export function formatIn(ts: number, now = Date.now()): string {
+  const min = Math.round((ts - now) / 60_000);
+  if (min <= 0) return 'now';
+  if (min < 60) return `in ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 48) return `in ${h} h`;
+  return `in ${Math.round(h / 24)} days`;
+}
+
+/** Plain description of the automatic scan schedule. */
+export function scheduleLabel(s: { intervalMinutes: number; nextAt: number | null; waitingForPlayback: boolean }, now = Date.now()): string {
+  if (s.intervalMinutes <= 0 || !s.nextAt) return 'Off';
+  if (s.waitingForPlayback) return 'Waiting until nobody is watching';
+  return `Next ${formatIn(s.nextAt, now)} (${intervalLabel(s.intervalMinutes).toLowerCase()})`;
+}
+
+export function intervalLabel(minutes: number): string {
+  if (minutes <= 0) return 'Off';
+  if (minutes % 1440 === 0) return minutes === 1440 ? 'Every day' : `Every ${minutes / 1440} days`;
+  if (minutes % 60 === 0) return minutes === 60 ? 'Every hour' : `Every ${minutes / 60} hours`;
+  return `Every ${minutes} minutes`;
+}

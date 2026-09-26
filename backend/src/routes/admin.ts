@@ -61,6 +61,9 @@ const settingsBody = z.object({
     .optional(),
   includeAdult: z.boolean().optional(),
   watchFolders: z.boolean().optional(),
+  scanIntervalMinutes: z.number().int().min(0).max(10080).nullable().optional(),
+  scanOnStartup: z.boolean().optional(),
+  deferScansWhilePlaying: z.boolean().optional(),
   updateCheck: z.boolean().optional(),
 });
 
@@ -305,19 +308,22 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return { ok: true };
   });
 
-  app.post<{ Params: { id: string }; Body: { refreshMetadata?: boolean } }>('/api/libraries/:id/scan', { preHandler: requireAdmin }, async (request) => {
+  const scanBody = z.object({ refreshMetadata: z.boolean().optional(), full: z.boolean().optional() }).default({});
+
+  app.post<{ Params: { id: string } }>('/api/libraries/:id/scan', { preHandler: requireAdmin }, async (request) => {
     const id = parseId(request.params.id);
     if (!db.select({ id: libraries.id }).from(libraries).where(eq(libraries.id, id)).get()) throw notFound('Library');
-    const refresh = Boolean((request.body as { refreshMetadata?: boolean } | undefined)?.refreshMetadata);
+    const { refreshMetadata: refresh = false, full = false } = scanBody.parse(request.body ?? {});
     if (refresh && !ctx.tmdb.configured) throw new HttpError(400, 'Add a TMDB API key in Admin → Metadata to refresh metadata.');
-    ctx.scans.enqueue(id, refresh);
+    ctx.scans.enqueue(id, refresh, full);
     const name = db.select({ name: libraries.name }).from(libraries).where(eq(libraries.id, id)).get()?.name;
-    ctx.audit.record('library.scan', { actor: request.user, ip: request.ip, target: name, detail: refresh ? 'with metadata refresh' : null });
+    ctx.audit.record('library.scan', { actor: request.user, ip: request.ip, target: name, detail: [refresh ? 'with metadata refresh' : null, full ? 're-analysing every file' : null].filter(Boolean).join(', ') || null });
     return { queued: true };
   });
 
-  app.post('/api/libraries/scan-all', { preHandler: requireAdmin }, async () => {
-    ctx.scans.enqueueAll(false);
+  app.post('/api/libraries/scan-all', { preHandler: requireAdmin }, async (request) => {
+    const { full = false } = scanBody.parse(request.body ?? {});
+    ctx.scans.enqueueAll(false, full);
     return { queued: true };
   });
 
@@ -477,7 +483,11 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       },
       version: APP_VERSION,
       mediaRoots: ctx.config.mediaRoots,
-      scanIntervalMinutes: ctx.config.scanIntervalMinutes,
+      scanIntervalMinutes: ctx.settings.scanIntervalMinutes(),
+      scanIntervalSource: s.scanIntervalMinutes === null ? 'environment' : 'settings',
+      scanIntervalDefault: ctx.config.scanIntervalMinutes,
+      scanOnStartup: s.scanOnStartup,
+      deferScansWhilePlaying: s.deferScansWhilePlaying,
     };
   };
 
@@ -502,10 +512,11 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       else ctx.settings.update({ tmdbApiKey });
     }
     if (rest.watchFolders !== undefined) ctx.watcher.sync(rest.watchFolders);
+    if (rest.scanIntervalMinutes !== undefined) ctx.scans.configureSchedule(ctx.settings.scanIntervalMinutes());
     // Names of what changed only — never the values of keys.
     const tmdbChanges = [tmdbApiKey !== undefined ? (tmdbApiKey === '' ? 'API key removed' : 'API key changed') : null, rest.tmdbLanguage !== undefined ? `language ${rest.tmdbLanguage || 'default'}` : null, rest.includeAdult !== undefined ? `adult titles ${rest.includeAdult ? 'on' : 'off'}` : null].filter(Boolean);
     if (tmdbChanges.length) ctx.audit.record('tmdb.updated', { actor: request.user, ip: request.ip, detail: tmdbChanges.join('; ') });
-    const serverChanges = (['serverName', 'serverUrl', 'watchFolders', 'updateCheck'] as const).filter((k) => rest[k] !== undefined);
+    const serverChanges = (['serverName', 'serverUrl', 'watchFolders', 'updateCheck', 'scanIntervalMinutes', 'scanOnStartup', 'deferScansWhilePlaying'] as const).filter((k) => rest[k] !== undefined);
     if (serverChanges.length) ctx.audit.record('settings.updated', { actor: request.user, ip: request.ip, detail: serverChanges.join(', ') });
     if (!wasConfigured && ctx.tmdb.configured) {
       log.info('TMDB configured — fetching metadata for existing libraries');

@@ -32,6 +32,8 @@ export interface ScanProgress {
 
 export interface ScanOptions {
   refreshMetadata?: boolean;
+  /** Probe every file again, not only new and changed ones (e.g. after an FFprobe update). */
+  full?: boolean;
   onProgress?: (p: ScanProgress) => void;
   /** Awaited between files; resolves when the scan may continue (used to pause scans). */
   checkpoint?: () => Promise<void>;
@@ -134,7 +136,7 @@ export class LibraryScanner {
     const report = (p: ScanProgress) => opts.onProgress?.(p);
     const summary: ScanSummary = { found: 0, added: 0, updated: 0, unchanged: 0, removed: 0, failed: 0, unparsed: 0, metadataMatched: 0, metadataUnmatched: 0, durationMs: 0 };
 
-    log.info(`Library scan started: ${lib.name} (${lib.path})`);
+    log.info(`Library scan started: ${lib.name} (${lib.path})${opts.full ? ' — re-analysing every file' : ''}`);
     report({ phase: 'discovering', processed: 0, total: 0 });
 
     let rootStat: fs.Stats;
@@ -166,7 +168,7 @@ export class LibraryScanner {
       try {
         const st = await fsp.stat(file);
         const prev = existing.get(file);
-        const unchanged = prev && prev.size === st.size && Math.floor(prev.mtimeMs) === Math.floor(st.mtimeMs) && !prev.probeError;
+        const unchanged = !opts.full && prev && prev.size === st.size && Math.floor(prev.mtimeMs) === Math.floor(st.mtimeMs) && !prev.probeError;
         let fileId: number;
         if (unchanged && prev) {
           fileId = prev.id;

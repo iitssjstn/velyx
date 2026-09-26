@@ -23,6 +23,12 @@ export interface ServerSettings {
   backupKeepMonthly: number;
   /** Look for new Velyx versions (GitHub tags) at most once a day. */
   updateCheck: boolean;
+  /** Minutes between scheduled scans (0 = off); null = SCAN_INTERVAL_MINUTES from the environment. */
+  scanIntervalMinutes: number | null;
+  /** Look for new and changed files shortly after Velyx starts. */
+  scanOnStartup: boolean;
+  /** Scheduled scans wait while someone is watching (up to a few hours). */
+  deferScansWhilePlaying: boolean;
 }
 
 const DEFAULTS: ServerSettings = {
@@ -39,6 +45,9 @@ const DEFAULTS: ServerSettings = {
   backupKeepWeekly: 4,
   backupKeepMonthly: 3,
   updateCheck: true,
+  scanIntervalMinutes: null,
+  scanOnStartup: false,
+  deferScansWhilePlaying: true,
 };
 
 export class SettingsService {
@@ -106,6 +115,11 @@ export class SettingsService {
 
   serverName(): string {
     return this.load().serverName || 'Velyx';
+  }
+
+  /** Effective minutes between scheduled scans: the admin setting, else the environment. */
+  scanIntervalMinutes(): number {
+    return this.load().scanIntervalMinutes ?? this.config.scanIntervalMinutes;
   }
 
   serverUrl(): string {

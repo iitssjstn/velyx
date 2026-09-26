@@ -4,7 +4,7 @@
 
 Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.4.3 — **Playback diagnostics**: the player shows per stream (video, audio, container) whether this device plays it (✓), Velyx converts it (⚠) or it cannot play here (✕), in plain language and without claiming more than it knows. **Settings → Playback → Current device** names your device and lists what it plays. Also in 0.4.x: Library health, card details on hover and many stability fixes. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
+> Version 0.4.4 — **Scanning that stays out of the way**: choose the scan schedule in Admin → Server, optionally scan on start-up, and let scheduled scans wait while someone is watching; *Re-analyse every file* for when you need it. Also in 0.4.x: playback diagnostics per device, Library health, card details on hover and many stability fixes. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
 
 ---
 
@@ -125,7 +125,7 @@ All settings below are optional environment variables for the `environment:` sec
 | `TRUST_PROXY` | `false` | Behind a reverse proxy: the number of proxies in front of Velyx (`1` for Nginx Proxy Manager, `2` for Cloudflare + NPM) — or `true` to trust any. A number (or a list of proxy addresses/CIDRs) stops clients from faking their address, which matters for sign-in throttling and the audit log. |
 | `COOKIE_SECURE` | `auto` | `auto` marks cookies Secure when the request is HTTPS; `true`/`false` to force. |
 | `SESSION_TTL_DAYS` | `30` | Sessions expire after this many days without use. |
-| `SCAN_INTERVAL_MINUTES` | `360` | Automatic incremental scan interval; `0` disables it. |
+| `SCAN_INTERVAL_MINUTES` | `360` | Default interval for scheduled scans; `0` disables them. A schedule chosen in Admin → Server takes priority. |
 | `SCAN_CONCURRENCY` | `1` | FFprobe processes at once (1–4), for scans and on-demand analysis. Keep 1 on dual-core machines. |
 | `LOW_DISK_GB` / `CRITICAL_DISK_GB` | `10` / `2` | Free space on the data volume below which admins are warned, and below which scans and scheduled backups pause. |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. |
@@ -222,8 +222,11 @@ Without a key Velyx still works: titles come from the file names and a typograph
 - FFprobe runs through one queue: by default **one process at a time** (`SCAN_CONCURRENCY`), so an old dual-core CPU stays responsive while scanning.
 - Incremental: a file is only analysed again when its size or modification time changes, so rescans of large libraries are quick.
 - Scanning can be **paused and resumed** from the dashboard; a running scan stops after the file it is on. Velyx also pauses scans by itself when the data volume is critically low and resumes when there is room again.
-- **Automatic updates:** Velyx watches the library folders. After a change it waits until the folder has been quiet for 30 seconds (so files that are still copying are not read half-way), then runs an incremental scan. Libraries show *Auto-updating* in Admin → Libraries; switch it off in Admin → Server. Partial downloads (`.part`, `.!qb`) are ignored.
-- Scheduled scans run every `SCAN_INTERVAL_MINUTES` as a fallback; you can also scan a single library or all libraries manually.
+- **Automatic updates:** Velyx watches the library folders. After a change it waits until the folder has been quiet for 30 seconds (so files that are still copying are not read half-way), then runs an incremental scan. Libraries show *Auto-updating* in Admin → Libraries; switch it off in Admin → Server → Scanning. Partial downloads (`.part`, `.!qb`) are ignored.
+- **Scheduled scans** (Admin → Server → Scanning) run every hour, 3, 6 or 12 hours, daily, or not at all; the default comes from `SCAN_INTERVAL_MINUTES` (6 hours). The dashboard and Admin → Libraries show when the next one is due.
+- **Playback first:** by default a scheduled scan that falls due while someone is watching waits until playback ends (checking every 5 minutes, and running anyway after at most 6 hours or one interval). Any scan that is running pauses briefly between files while someone watches, so an old disk serves the stream first.
+- **Scan on start-up** (off by default) looks for files added while Velyx was off, one minute after it starts.
+- **Manual scans** per library or for all libraries look for new and changed files only. *Re-analyse every file* (in Admin → Libraries) probes every file again, for example after replacing files with the same size and date; it is slower and runs one file at a time like any scan.
 - Very large libraries can hit the Linux limit on watched folders. Velyx then shows *Auto-update unavailable* and keeps using scheduled scans; raise the limit on the host with `sudo sysctl fs.inotify.max_user_watches=524288` (add it to `/etc/sysctl.conf` to keep it).
 - **Scan issues** lists files FFprobe could not read and episodes without a recognisable number.
 - Removing a library only removes it from Velyx — your files are never modified (media is mounted read-only).
