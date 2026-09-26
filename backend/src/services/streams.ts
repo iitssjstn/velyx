@@ -47,6 +47,8 @@ export class StreamTracker {
     }
     const f = this.db.select().from(mediaFiles).where(eq(mediaFiles.id, fileId)).get();
     if (!f) return null;
+    // Forget finished streams here too, so the map stays small when nobody opens the dashboard.
+    this.prune(now);
     let title = 'Unknown';
     let subtitle: string | null = null;
     if (f.movieId) {
@@ -99,8 +101,17 @@ export class StreamTracker {
     }
   }
 
-  active(now = Date.now()): ActiveStream[] {
+  private prune(now: number): void {
     for (const [k, s] of this.streams) if (now - s.lastSeenAt >= ACTIVE_MS) this.streams.delete(k);
+  }
+
+  /** Number of streams held in memory (active or not yet pruned). */
+  get size(): number {
+    return this.streams.size;
+  }
+
+  active(now = Date.now()): ActiveStream[] {
+    this.prune(now);
     return [...this.streams.values()].sort((a, b) => a.startedAt - b.startedAt);
   }
 }

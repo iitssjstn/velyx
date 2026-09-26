@@ -16,7 +16,7 @@ import { LibraryScanner } from './services/scanner.js';
 import { ScanManager } from './services/scan-manager.js';
 import { LibraryWatcher } from './services/watcher.js';
 import { createFfprobe, type Prober } from './services/probe.js';
-import { limitProber } from './services/probe-queue.js';
+import { limitProber, type LimitedProber } from './services/probe-queue.js';
 import { EmbeddedSubtitleExtractor } from './services/subtitles.js';
 import { LibraryAccess } from './services/access.js';
 import { AuditLog } from './services/audit.js';
@@ -33,6 +33,9 @@ import { HttpError } from './http-error.js';
 import { registerRoutes } from './routes/index.js';
 
 const log = createLogger('http');
+const SLOW_REQUEST_MS = 2000;
+/** Responses that last as long as a transfer or a job (streams, backups): never "slow". */
+const LONG_RUNNING = /^\/api\/(media\/\d+\/(stream|remux)|admin\/backups(\/.*)?)$/;
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -63,7 +66,7 @@ export interface AppContext {
   analyzer: DetailAnalyzer;
   updates: UpdateChecker;
   /** FFprobe behind the shared concurrency limit. */
-  probe: Prober & { readonly active: number; readonly waiting: number };
+  probe: LimitedProber;
   startedAt: number;
 }
 
@@ -182,6 +185,17 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     }
     const ct = request.headers['content-type'];
     if (ct && !ct.startsWith('application/json')) return reply.code(415).send({ error: 'Requests must be JSON.' });
+  });
+
+  // Slow API calls are worth knowing about on old hardware. Streams and downloads last as long as
+  // the transfer, so they are left out. At LOG_LEVEL=debug every API call is logged.
+  app.addHook('onResponse', async (request, reply) => {
+    if (!request.url.startsWith('/api/')) return;
+    const ms = reply.elapsedTime;
+    const path = request.url.split('?')[0];
+    const line = `${request.method} ${path} ${reply.statusCode} ${ms.toFixed(0)}ms`;
+    if (ms >= SLOW_REQUEST_MS && !LONG_RUNNING.test(path)) log.warn(`Slow request: ${line}`);
+    else log.debug(line);
   });
 
   app.setErrorHandler((error, request, reply) => {

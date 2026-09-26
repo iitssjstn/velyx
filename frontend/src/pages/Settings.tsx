@@ -331,7 +331,7 @@ function PlaybackSettings() {
           </div>
         </dl>
         <p className="mt-4 text-sm text-muted">
-          When only the audio or the container is not supported (for example Dolby Digital, DTS or MKV in Safari), Velyx converts the audio on the fly and keeps the original video. Video formats that are not listed would need full transcoding, which is planned for a future version.
+          When only the audio or the container is not supported (for example Dolby Digital, DTS or MKV in Safari), Velyx converts the audio on the fly and keeps the original video. Video formats that are not listed would need the video to be converted (transcoded), which Velyx does not do to keep the server light.
         </p>
       </Section>
     </div>

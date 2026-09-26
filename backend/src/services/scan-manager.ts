@@ -93,7 +93,9 @@ export class ScanManager {
       queued.refreshMetadata ||= refreshMetadata;
       return false;
     }
-    if (this.running?.libraryId === libraryId && !refreshMetadata) return false;
+    // A scan that is still listing folders will see the change itself. One that is past that point
+    // would miss it, so a follow-up scan is queued (cheap: unchanged files are not probed again).
+    if (this.running?.libraryId === libraryId && !refreshMetadata && this.running.progress.phase === 'discovering') return false;
     this.queue.push({ libraryId, refreshMetadata });
     void this.pump();
     return true;

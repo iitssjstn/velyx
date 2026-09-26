@@ -104,6 +104,18 @@ describe('active streams', () => {
     expect(t.active(start + 200_000)).toHaveLength(0);
   });
 
+  it('forgets finished streams without anyone opening the dashboard', () => {
+    const libId = env.ctx.db.insert(libraries).values({ name: 'm', type: 'movies', path: '/media/m' }).returning().get().id;
+    const ids = Array.from({ length: 50 }, (_, i) => {
+      const movie = env.ctx.db.insert(movies).values({ libraryId: libId, groupKey: `g${i}`, title: `M${i}`, sortTitle: `m${i}`, parsedTitle: 'm' }).returning().get();
+      return env.ctx.db.insert(mediaFiles).values({ libraryId: libId, movieId: movie.id, path: `/media/m/${i}.mkv`, size: 1, mtimeMs: 1 }).returning().get().id;
+    });
+    const t = new StreamTracker(env.ctx.db);
+    // One stream every two minutes for 100 minutes: only the latest can still be active.
+    ids.forEach((id, i) => t.touch({ id: 1, username: 'u' }, id, 'direct', null, i * 120_000));
+    expect(t.size).toBe(1);
+  });
+
   it('shows streams on the dashboard with CPU usage', async () => {
     touch(path.join(env.mediaDir, 'movies', 'Heat (1995).mkv'), 'x'.repeat(2048));
     await addLibrary(env, admin, 'movies', 'movies');
@@ -115,5 +127,23 @@ describe('active streams', () => {
     expect(d.streams[0]).toMatchObject({ username: 'admin', title: 'Heat', mode: 'direct', device: 'Chrome on Windows' });
     expect(d.cpu).toHaveProperty('system');
     expect(d.disk.level).toMatch(/ok|low|critical/);
+  });
+});
+
+describe('stream availability', () => {
+  it('tells a missing file apart from one that cannot be decoded, and HEAD never starts a remux', async () => {
+    const file = path.join(env.mediaDir, 'movies', 'Heat (1995).mkv');
+    touch(file, 'x'.repeat(2048));
+    await addLibrary(env, admin, 'movies', 'movies');
+    const movie = (await env.app.inject({ url: '/api/movies', headers: { cookie: admin } })).json().items[0];
+    const fileId = (await env.app.inject({ url: `/api/movies/${movie.id}`, headers: { cookie: admin } })).json().files[0].id;
+    expect((await env.app.inject({ url: `/api/media/${fileId}/available`, headers: { cookie: admin } })).json()).toEqual({ available: true });
+    const head = await env.app.inject({ method: 'HEAD', url: `/api/media/${fileId}/remux`, headers: { cookie: admin } });
+    expect(head.statusCode).toBe(200);
+    expect(env.ctx.playback.get('remux')).toMatchObject({ activeStreams: 0 });
+    fs.rmSync(file);
+    const gone = await env.app.inject({ url: `/api/media/${fileId}/available`, headers: { cookie: admin } });
+    expect(gone.statusCode).toBe(404);
+    expect(gone.json().error).toMatch(/no longer available/);
   });
 });

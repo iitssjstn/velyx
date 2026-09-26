@@ -162,16 +162,8 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     }
     for (const c of latestCompletedPerShow) {
       if (showsInProgress.has(c.showId)) continue;
-      // The most recently completed episode of this show:
-      const last = db
-        .select({ id: episodes.id })
-        .from(watchProgress)
-        .innerJoin(episodes, eq(episodes.id, watchProgress.episodeId))
-        .where(and(eq(watchProgress.userId, userId), eq(watchProgress.completed, true), eq(episodes.showId, c.showId)))
-        .orderBy(desc(watchProgress.updatedAt))
-        .limit(1)
-        .get();
-      const next = last ? catalog.nextEpisode(last.id) : null;
+      // SQLite takes the bare episode id from the row holding max(updatedAt): the most recently completed episode.
+      const next = catalog.nextEpisode(c.episodeId);
       if (!next) continue;
       const existing = db
         .select()
@@ -218,34 +210,29 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
 
     // Recently watched: completed items, newest first, one card per show.
     const watchedRows = db
-      .select()
+      .select({ movieId: watchProgress.movieId, showId: episodes.showId })
       .from(watchProgress)
+      .leftJoin(episodes, eq(episodes.id, watchProgress.episodeId))
       .where(and(eq(watchProgress.userId, userId), eq(watchProgress.completed, true)))
       .orderBy(desc(watchProgress.updatedAt))
       .limit(60)
       .all();
     const watchedMovieIds: number[] = [];
     const watchedShowIds: number[] = [];
+    // Newest first across movies and shows together.
+    const watchedOrder = new Map<string, number>();
     for (const w of watchedRows) {
-      if (w.movieId && !watchedMovieIds.includes(w.movieId)) watchedMovieIds.push(w.movieId);
-      if (w.episodeId) {
-        const ep = db.select({ showId: episodes.showId }).from(episodes).where(eq(episodes.id, w.episodeId)).get();
-        if (ep && !watchedShowIds.includes(ep.showId)) watchedShowIds.push(ep.showId);
-      }
+      const key = w.movieId ? `movie:${w.movieId}` : w.showId ? `show:${w.showId}` : null;
+      if (!key || watchedOrder.has(key)) continue;
+      watchedOrder.set(key, watchedOrder.size);
+      if (w.movieId) watchedMovieIds.push(w.movieId);
+      else if (w.showId) watchedShowIds.push(w.showId);
     }
-    const order = new Map<string, number>();
-    watchedRows.forEach((w, i) => {
-      if (w.movieId && !order.has(`m${w.movieId}`)) order.set(`m${w.movieId}`, i);
-    });
     const recentlyWatched = [
       ...catalog.movieCards(userId, watchedMovieIds.length ? db.select().from(movies).where(and(inArray(movies.id, watchedMovieIds), movieVis)).all() : []),
       ...catalog.showCards(userId, watchedShowIds.length ? db.select().from(shows).where(and(inArray(shows.id, watchedShowIds), showVis)).all() : []),
     ]
-      .sort((a, b) => {
-        const ka = a.type === 'movie' ? watchedMovieIds.indexOf(a.id) : watchedShowIds.indexOf(a.id);
-        const kb = b.type === 'movie' ? watchedMovieIds.indexOf(b.id) : watchedShowIds.indexOf(b.id);
-        return ka - kb;
-      })
+      .sort((a, b) => watchedOrder.get(`${a.type}:${a.id}`)! - watchedOrder.get(`${b.type}:${b.id}`)!)
       .slice(0, 20);
 
     const movieRow = db.select().from(movies).where(movieVis).orderBy(desc(movies.releaseDate), desc(movies.year)).limit(20).all();

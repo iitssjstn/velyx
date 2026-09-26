@@ -19,7 +19,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { api, errorMessage } from '../lib/api';
+import { api, ApiError, errorMessage } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
 import { getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
@@ -31,6 +31,7 @@ import { PlaybackBadge, PlaybackUnavailable } from '../components/PlaybackDetail
 
 const SAVE_INTERVAL_MS = 10_000;
 const HIDE_CONTROLS_MS = 3000;
+const STALL_HINT_MS = 20_000;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 /** Only Safari exposes HTMLMediaElement.audioTracks by default; elsewhere the server switches tracks. */
 const NATIVE_AUDIO_SWITCHING = typeof HTMLMediaElement !== 'undefined' && 'audioTracks' in HTMLMediaElement.prototype;
@@ -150,6 +151,10 @@ export default function PlayerPage() {
   const [tryAnyway, setTryAnyway] = useState(false);
   // The browser reported a decoding error while playing.
   const [decodeFailed, setDecodeFailed] = useState(false);
+  // Bumped by "Try again" to load the same stream URL into a fresh video element.
+  const [reloadKey, setReloadKey] = useState(0);
+  // Buffering for a long time without progress: offer a retry instead of an endless spinner.
+  const [stalled, setStalled] = useState(false);
   const [ended, setEnded] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [audioTracks, setAudioTracks] = useState<BrowserAudioTrack[]>([]);
@@ -457,21 +462,50 @@ export default function PlayerPage() {
     if (next && getPrefs().autoplayNext) setCountdown(getPrefs().autoplayCountdown);
   };
 
-  const onError = () => {
+  const onError = async () => {
     const v = videoRef.current;
     const code = v?.error?.code;
     const reasons = info?.decision.reasons ?? [];
-    if ((code === 4 || code === 3) && info?.analysis) {
-      setDecodeFailed(true);
-    } else if (code === 4 || code === 3) {
-      setError(reasons.length ? `Your browser cannot play this file: ${reasons.join('; ')}.` : 'Your browser cannot decode this file. Try Chrome or Edge, which handle the most formats.');
+    setBuffering(false);
+    if (code === 4 || code === 3) {
+      // Browsers report a failed HTTP request (file removed, drive unmounted) as "format not
+      // supported" too. Ask the server before blaming the format.
+      const gone = await api.get(`/api/media/${file?.id}/available`).then(
+        () => null,
+        (err: unknown) => (err instanceof ApiError && err.status === 404 ? errorMessage(err) : null),
+      );
+      if (gone) setError(gone);
+      else if (info?.analysis) setDecodeFailed(true);
+      else setError(reasons.length ? `Your browser cannot play this file: ${reasons.join('; ')}.` : 'Your browser cannot decode this file. Try Chrome or Edge, which handle the most formats.');
     } else if (code === 2) {
       setError('The connection to the server was interrupted.');
     } else {
       setError('Playback failed. The file may be unavailable — try rescanning the library.');
     }
-    setBuffering(false);
   };
+
+  /** Loads the stream again from where playback stopped (after a network error or a stall). */
+  const retry = useCallback(() => {
+    const at = time;
+    setError(null);
+    setStalled(false);
+    setBuffering(true);
+    playAfterLoadRef.current = true;
+    if (live) restartAt(at);
+    else {
+      pendingSeekRef.current = at > 0 ? at : null;
+      setReloadKey((k) => k + 1);
+    }
+  }, [time, live, restartAt]);
+
+  useEffect(() => {
+    if (!buffering || error || ended) {
+      setStalled(false);
+      return;
+    }
+    const t = setTimeout(() => setStalled(true), STALL_HINT_MS);
+    return () => clearTimeout(t);
+  }, [buffering, error, ended, streamSrc]);
 
   // ---------------------------------------------------------------- auto-next countdown
   useEffect(() => {
@@ -620,7 +654,7 @@ export default function PlayerPage() {
 
       {info && streamSrc && !blocked && (
         <video
-          key={streamSrc}
+          key={`${streamSrc}#${reloadKey}`}
           ref={videoRef}
           src={streamSrc}
           className="h-full w-full"
@@ -663,7 +697,17 @@ export default function PlayerPage() {
 
       {(buffering || !streamSrc) && !error && !showUnavailable && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <Spinner className="size-10" />
+          <div className="flex flex-col items-center gap-4">
+            <Spinner className="size-10" />
+            {stalled && streamSrc && (
+              <div className="pointer-events-auto flex flex-col items-center gap-3 rounded-xl bg-black/70 px-5 py-4 text-center text-sm backdrop-blur" role="status">
+                <p className="text-ink/85">This is taking longer than usual. The connection or the server may be slow.</p>
+                <button type="button" onClick={retry} className="flex h-9 items-center gap-2 rounded-lg bg-raised px-4">
+                  <RotateCcw className="size-4" /> Try again
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -675,8 +719,13 @@ export default function PlayerPage() {
             <p className="mt-2 text-muted">{error}</p>
             <div className="mt-6 flex justify-center gap-3">
               <button type="button" onClick={exit} className="h-10 rounded-lg bg-raised px-4">Go back</button>
+              {!/no longer available/i.test(error) && (
+                <button type="button" onClick={retry} className="flex h-10 items-center gap-2 rounded-lg bg-accent px-4 font-semibold text-accent-ink">
+                  <RotateCcw className="size-4" /> Try again
+                </button>
+              )}
               {next && (
-                <button type="button" onClick={goNext} className="h-10 rounded-lg bg-accent px-4 font-semibold text-accent-ink">Next episode</button>
+                <button type="button" onClick={goNext} className="h-10 rounded-lg bg-raised px-4">Next episode</button>
               )}
             </div>
           </div>

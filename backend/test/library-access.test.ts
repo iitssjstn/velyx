@@ -75,6 +75,7 @@ describe('per-user library access', () => {
     expect(await status(`/api/episodes/${episodeId}`, c)).toBe(404);
     const adultFile = (await get(`/api/movies/${adultMovieId}`)).files[0].id;
     expect(await status(`/api/media/${adultFile}/stream`, c)).toBe(404);
+    expect(await status(`/api/media/${adultFile}/available`, c)).toBe(404);
     expect(await status(`/api/media/${adultFile}/playback`, c, 'POST', {})).toBe(404);
     expect(await status('/api/progress', c, 'POST', { movieId: adultMovieId, positionSec: 10, durationSec: 100 })).toBe(404);
     expect(await status('/api/favorites', c, 'POST', { movieId: adultMovieId })).toBe(404);

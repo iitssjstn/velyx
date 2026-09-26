@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
-import { episodes, favorites, mediaFiles, movies, shows, watchlist, watchProgress } from '../db/schema.js';
+import { episodes, favorites, genres, mediaFiles, movieGenres, movies, showGenres, shows, watchlist, watchProgress } from '../db/schema.js';
 import { scopeCondition, type LibraryScope } from './access.js';
 
 export interface ProgressInfo {
@@ -20,6 +20,8 @@ export interface MovieCard {
   rating: number | null;
   runtime: number | null;
   overview: string | null;
+  /** Up to two genres, for the card's hover details. */
+  genres: string[];
   addedAt: number;
   progress: ProgressInfo | null;
   favorite: boolean;
@@ -34,7 +36,10 @@ export interface ShowCard {
   backdropPath: string | null;
   rating: number | null;
   overview: string | null;
+  genres: string[];
   addedAt: number;
+  /** Regular seasons with at least one episode in the library (specials not counted). */
+  seasonCount: number;
   episodeCount: number;
   watchedCount: number;
   favorite: boolean;
@@ -77,6 +82,28 @@ export class Catalog {
     return map;
   }
 
+  /** The first `limit` genres (alphabetical) per movie or show, in one query for a whole page of cards. */
+  cardGenres(kind: 'movie' | 'show', ids: number[], limit = 2): Map<number, string[]> {
+    const map = new Map<number, string[]>();
+    if (!ids.length) return map;
+    const link = kind === 'movie' ? { table: movieGenres, id: movieGenres.movieId, genre: movieGenres.genreId } : { table: showGenres, id: showGenres.showId, genre: showGenres.genreId };
+    for (let i = 0; i < ids.length; i += 500) {
+      const rows = this.db
+        .select({ id: link.id, name: genres.name })
+        .from(link.table)
+        .innerJoin(genres, eq(genres.id, link.genre))
+        .where(inArray(link.id, ids.slice(i, i + 500)))
+        .orderBy(genres.name)
+        .all();
+      for (const r of rows) {
+        const list = map.get(r.id) ?? [];
+        if (list.length < limit) list.push(r.name);
+        map.set(r.id, list);
+      }
+    }
+    return map;
+  }
+
   favoriteIds(userId: number): { movies: Set<number>; shows: Set<number> } {
     const rows = this.db.select().from(favorites).where(eq(favorites.userId, userId)).all();
     return {
@@ -87,6 +114,7 @@ export class Catalog {
 
   movieCards(userId: number, rows: MovieRow[]): MovieCard[] {
     const progress = this.movieProgress(userId, rows.map((r) => r.id));
+    const genreMap = this.cardGenres('movie', rows.map((r) => r.id));
     const favs = this.favoriteIds(userId);
     return rows.map((m) => ({
       type: 'movie',
@@ -98,6 +126,7 @@ export class Catalog {
       rating: m.rating,
       runtime: m.runtime,
       overview: m.overview,
+      genres: genreMap.get(m.id) ?? [],
       addedAt: m.addedAt,
       progress: progress.get(m.id) ?? null,
       favorite: favs.movies.has(m.id),
@@ -108,7 +137,11 @@ export class Catalog {
     if (!rows.length) return [];
     const ids = rows.map((r) => r.id);
     const counts = this.db
-      .select({ showId: episodes.showId, total: sql<number>`count(*)` })
+      .select({
+        showId: episodes.showId,
+        total: sql<number>`count(*)`,
+        seasons: sql<number>`count(distinct case when ${episodes.seasonNumber} > 0 then ${episodes.seasonNumber} end)`,
+      })
       .from(episodes)
       .where(inArray(episodes.showId, ids))
       .groupBy(episodes.showId)
@@ -121,6 +154,8 @@ export class Catalog {
       .groupBy(episodes.showId)
       .all();
     const countMap = new Map(counts.map((c) => [c.showId, Number(c.total)]));
+    const seasonMap = new Map(counts.map((c) => [c.showId, Number(c.seasons)]));
+    const genreMap = this.cardGenres('show', ids);
     const watchedMap = new Map(watched.map((c) => [c.showId, Number(c.total)]));
     const favs = this.favoriteIds(userId);
     return rows.map((s) => ({
@@ -132,7 +167,9 @@ export class Catalog {
       backdropPath: s.backdropPath,
       rating: s.rating,
       overview: s.overview,
+      genres: genreMap.get(s.id) ?? [],
       addedAt: s.lastEpisodeAddedAt,
+      seasonCount: seasonMap.get(s.id) ?? 0,
       episodeCount: countMap.get(s.id) ?? 0,
       watchedCount: watchedMap.get(s.id) ?? 0,
       favorite: favs.shows.has(s.id),
@@ -155,7 +192,8 @@ export class Catalog {
       userId,
       showIds.length ? this.db.select().from(shows).where(and(inArray(shows.id, showIds), scopeCondition(scope, shows.libraryId))).all() : [],
     );
-    const order = (c: MovieCard | ShowCard) => rows.findIndex((r) => (c.type === 'movie' ? r.movieId === c.id : r.showId === c.id));
+    const position = new Map(rows.map((r, i) => [r.movieId ? `movie:${r.movieId}` : `show:${r.showId}`, i]));
+    const order = (c: MovieCard | ShowCard) => position.get(`${c.type}:${c.id}`) ?? 0;
     return [...movieCards, ...showCards].sort((a, b) => order(a) - order(b));
   }
 

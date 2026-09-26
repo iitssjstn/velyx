@@ -33,6 +33,8 @@ export interface MovieCard {
   rating: number | null;
   runtime: number | null;
   overview: string | null;
+  /** Up to two genres. */
+  genres: string[];
   addedAt: number;
   progress: Progress | null;
   favorite: boolean;
@@ -47,7 +49,9 @@ export interface ShowCard {
   backdropPath: string | null;
   rating: number | null;
   overview: string | null;
+  genres: string[];
   addedAt: number;
+  seasonCount: number;
   episodeCount: number;
   watchedCount: number;
   favorite: boolean;
