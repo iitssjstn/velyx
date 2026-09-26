@@ -1,3 +1,4 @@
+import { playHref } from '../lib/player';
 import { Link } from 'react-router-dom';
 import { Check, Play, Star, X } from 'lucide-react';
 import type { Card, ContinueItem } from '../lib/types';
@@ -73,7 +74,7 @@ function CardDetails({ item, withProgress }: { item: Card; withProgress: boolean
  * resumes playback directly.
  */
 export function ContinueCard({ item, onDismiss }: { item: ContinueItem; onDismiss?: (item: ContinueItem) => void }) {
-  const playHref = item.type === 'movie' ? `/play/movie/${item.id}` : `/play/episode/${item.id}`;
+  const playLink = playHref(item.type, item.id, item.progress?.positionSec);
   const detailsHref = item.type === 'movie' ? `/movies/${item.id}` : `/shows/${item.showId}`;
   const fraction = progressFraction(item.progress);
   const remaining = item.progress ? item.progress.durationSec - item.progress.positionSec : 0;
@@ -94,7 +95,7 @@ export function ContinueCard({ item, onDismiss }: { item: ContinueItem; onDismis
         </p>
       </Link>
       <Link
-        to={playHref}
+        to={playLink}
         aria-label={`Resume ${item.title}`}
         title="Resume"
         className="absolute right-3 bottom-[4.1rem] grid size-10 place-items-center rounded-full bg-ink/90 text-bg shadow-lg transition hover:scale-110 hover:bg-white focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"

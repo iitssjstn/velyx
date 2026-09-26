@@ -111,3 +111,10 @@ input[type='range'].seek::-moz-range-track {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Room for the mini-player bar on phones (see PlayerHost). */
+@media (max-width: 639px) {
+  .has-mini-player body {
+    padding-bottom: 5rem;
+  }
+}

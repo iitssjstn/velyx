@@ -4,7 +4,7 @@
 
 Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.4.7 — Velyx is now licensed under the PolyForm Noncommercial License 1.0.0 (see [License](#license)). 0.4.6: Fixes the loading spinner that could stay on screen while a movie or episode was already playing. 0.4.5: **Upgrades keep your history**: when a file is replaced by a better release, watch progress, favorites, watchlist and collections stay, even if the new file arrives later under another name, and the movie page shows what changed (1080p WEB → 2160p Blu-ray). Also in 0.4.x: scanning that waits for playback, playback diagnostics per device, Library health, card details on hover and many stability fixes. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
+> Version 0.5.0 — **A better player**: keep watching in a mini-player while you browse (same stream, nothing restarts), clearer controls with a playback-settings menu and keyboard-shortcut help, *Resume or start over* when it matters, and a *Next episode* card with countdown near the end. Velyx is licensed under the PolyForm Noncommercial License 1.0.0 (see [License](#license)). Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
 
 ---
 
@@ -257,6 +257,15 @@ In the player, a small badge shows the mode (*Direct Play*, or *Remux • Audio 
 | AAC / MP3 / Opus audio | ✅ direct | ✅ direct | ✅ direct (AAC/MP3) |
 | AC3 / EAC3 / DTS / TrueHD audio | ✅ converted | ✅ converted | ✅ (converted where needed) |
 | MKV container | ✅ direct | ✅ direct | ✅ converted |
+
+### The player
+
+- **Controls:** play/pause, back and forward 10 seconds, volume and time on the left; next episode, subtitles, audio, playback settings (speed, autoplay, keyboard shortcuts), minimize and full screen on the right. Click the video to pause, double-click for full screen.
+- **Mini-player:** *Minimize* (or `I`) shrinks the video to a small floating player so you can keep browsing Velyx; on phones it becomes a compact bar along the bottom. It is the same video, not a new stream: position, audio track and subtitles stay exactly as they were, and a converted (remux) stream keeps running without restarting FFmpeg. Click it to return to the full player, or close it to stop. Starting another movie or episode replaces it.
+- **Resume:** opening a partly watched item from an episode list or search asks *Resume from 34:12* or *Start over*; the Resume buttons on detail pages and Continue Watching go straight to the saved position.
+- **Next episode:** in the last seconds of an episode a small card shows the next one, with a countdown when *Autoplay next episode* is on. *Cancel* keeps watching to the end.
+- **Status:** a small label in the top-right corner reads *✓ Direct Play*, *↻ Remux* or *↻ Remux · Audio → AAC*; click it for the details (codecs, container, resolution, bit depth, HDR, subtitle formats, and that no video transcoding takes place).
+- **Keyboard:** Space/K play or pause · ←/→ (J/L) 10 seconds · ↑/↓ volume · M mute · F full screen · I minimize · C subtitles · N next episode · 0–9 jump · ? shortcuts · Esc close menu / leave.
 
 ### Audio options
 

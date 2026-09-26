@@ -13,6 +13,18 @@ export function startPosition(tParam: string | null, progress: { positionSec: nu
   return progress.positionSec;
 }
 
+/**
+ * Link to play an item. With a saved position the link resumes there directly (?t=), so the
+ * player does not ask "Resume or start over?" after the viewer already chose Resume.
+ */
+export function playHref(kind: 'movie' | 'episode', id: number, resumeAt?: number | null, fileId?: number | null): string {
+  const q = new URLSearchParams();
+  if (resumeAt && resumeAt > 0) q.set('t', String(Math.floor(resumeAt)));
+  if (fileId) q.set('file', String(fileId));
+  const qs = q.toString();
+  return `/play/${kind}/${id}${qs ? `?${qs}` : ''}`;
+}
+
 export interface SubtitleChoice {
   language: string;
   forced?: boolean;

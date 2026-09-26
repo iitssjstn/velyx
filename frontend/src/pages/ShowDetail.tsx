@@ -1,3 +1,4 @@
+import { playHref } from '../lib/player';
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -129,7 +130,7 @@ export function ShowPage() {
         <CollectionLinks collections={s.collections} />
         <div className="mt-6 flex flex-wrap items-center gap-3">
           {up && (
-            <Link to={`/play/episode/${up.id}`} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 font-semibold text-bg hover:bg-white">
+            <Link to={playHref('episode', up.id, resuming ? up.progress?.positionSec : null)} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 font-semibold text-bg hover:bg-white">
               <Play className="size-5 fill-current" />
               {resuming ? 'Resume' : s.watchedCount > 0 ? 'Play next' : 'Play'} {episodeCode(up.seasonNumber, up.episodeNumber)}
             </Link>

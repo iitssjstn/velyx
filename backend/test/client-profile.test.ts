@@ -100,6 +100,9 @@ describe('playback diagnostics', () => {
       container: { status: 'ok', note: 'Supported' },
     });
     expect(a.summary).toEqual(['No server-side conversion required.']);
+    expect(a.subtitles).toEqual({ text: [], image: [] });
+    const withSubs = analyze(file({ container: 'mp4', subtitleTracks: [{ index: 2, codec: 'subrip', textBased: true }, { index: 3, codec: 'hdmv_pgs_subtitle', textBased: false }] as MediaFileRow['subtitleTracks'] }), CHROME, UA.chromeWin);
+    expect(withSubs.subtitles).toEqual({ text: ['SRT'], image: ['PGS'] });
     expect(a.device).toBe('Chrome on Windows');
   });
 
