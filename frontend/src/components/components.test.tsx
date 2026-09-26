@@ -155,3 +155,35 @@ describe('cast row', () => {
     expect(screen.getByRole('button', { name: 'Scroll Cast left' })).toBeTruthy();
   });
 });
+
+describe('dialogs', () => {
+  it('keep keyboard focus inside while open', async () => {
+    const { Modal } = await import('./Modal');
+    render(
+      <>
+        <button type="button">Behind</button>
+        <Modal title="Edit" open onClose={() => undefined}>
+          <input aria-label="Name" />
+          <button type="button">Save</button>
+        </Modal>
+      </>,
+    );
+    // The first field has focus when the dialog opens.
+    expect(document.activeElement).toBe(screen.getByLabelText('Name'));
+    await userEvent.tab();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Save' }));
+    // From the last control Tab goes round to the first, never to the page behind.
+    await userEvent.tab();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
+    await userEvent.tab({ shift: true });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Save' }));
+  });
+});
+
+describe('loading placeholders', () => {
+  it('show the shape of the page and say that it is loading', async () => {
+    const { DetailSkeleton, ShelfSkeleton } = await import('./States');
+    render(<><DetailSkeleton /><ShelfSkeleton rows={2} /></>);
+    expect(screen.getAllByRole('status', { name: 'Loading' })).toHaveLength(2);
+  });
+});

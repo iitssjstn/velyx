@@ -22,6 +22,56 @@ export function FullscreenLoader() {
   );
 }
 
+/** A grey placeholder block that gently pulses while content loads. */
+function Bone({ className = '' }: { className?: string }) {
+  return <div className={`animate-pulse rounded-lg bg-raised/70 ${className}`} />;
+}
+
+/** The shape of a detail page (backdrop, poster, title, buttons) while it loads. */
+export function DetailSkeleton() {
+  const { t } = useT();
+  return (
+    <div role="status" aria-label={t('common.loading')} className="px-4 pt-6 sm:px-8">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-end">
+        <Bone className="aspect-[2/3] w-36 shrink-0 rounded-[var(--radius-card)] sm:w-48" />
+        <div className="flex-1 space-y-3">
+          <Bone className="h-9 w-2/3 max-w-md" />
+          <Bone className="h-4 w-1/2 max-w-xs" />
+          <div className="flex gap-3 pt-3">
+            <Bone className="h-12 w-40 rounded-full" />
+            <Bone className="size-12 rounded-full" />
+            <Bone className="size-12 rounded-full" />
+          </div>
+        </div>
+      </div>
+      <div className="mt-10 max-w-2xl space-y-2">
+        <Bone className="h-4 w-full" />
+        <Bone className="h-4 w-11/12" />
+        <Bone className="h-4 w-3/4" />
+      </div>
+    </div>
+  );
+}
+
+/** Rows of poster placeholders, for Home and the library grids while they load. */
+export function ShelfSkeleton({ rows = 2 }: { rows?: number }) {
+  const { t } = useT();
+  return (
+    <div role="status" aria-label={t('common.loading')} className="space-y-10 px-4 pt-6 sm:px-8">
+      {Array.from({ length: rows }, (_, r) => (
+        <div key={r}>
+          <Bone className="mb-3 h-6 w-48" />
+          <div className="flex gap-4 overflow-hidden">
+            {Array.from({ length: 8 }, (_, i) => (
+              <Bone key={i} className="aspect-[2/3] w-[136px] shrink-0 rounded-[var(--radius-card)] sm:w-40" />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function PageLoader() {
   return (
     <div className="grid min-h-[50vh] place-items-center">

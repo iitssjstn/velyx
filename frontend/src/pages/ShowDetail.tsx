@@ -15,7 +15,7 @@ import { CastRow } from '../components/People';
 import { MoreLikeThis } from '../components/MoreLikeThis';
 import { Artwork } from '../components/Artwork';
 import { ProgressBar } from '../components/ProgressBar';
-import { ErrorState, PageLoader, Spinner } from '../components/States';
+import { DetailSkeleton, ErrorState, Spinner } from '../components/States';
 import { toast } from '../components/Toast';
 import { useT } from '../i18n';
 
@@ -108,7 +108,7 @@ export function ShowPage() {
     onError: (err) => toast.error(err),
   });
 
-  if (q.isLoading) return <PageLoader />;
+  if (q.isLoading) return <DetailSkeleton />;
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const s = q.data;
   const currentSeason = seasons.find((x) => x.seasonNumber === current);
