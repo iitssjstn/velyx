@@ -291,6 +291,32 @@ export const subtitles = sqliteTable(
   ],
 );
 
+/**
+ * Subtitles downloaded from OpenSubtitles for one media file. The files live in Velyx's data folder
+ * (never next to the media); anyone who can see the file can use them once one person fetched them.
+ */
+export const onlineSubtitles = sqliteTable(
+  'online_subtitles',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    mediaFileId: integer('media_file_id')
+      .notNull()
+      .references(() => mediaFiles.id, { onDelete: 'cascade' }),
+    provider: text('provider', { enum: ['opensubtitles'] }).notNull().default('opensubtitles'),
+    providerFileId: integer('provider_file_id').notNull(),
+    /** Lower-case language code as the provider names it ("en", "nl", "pt-br"). */
+    language: text('language').notNull(),
+    release: text('release'),
+    hearingImpaired: integer('hearing_impaired', { mode: 'boolean' }).notNull().default(false),
+    forced: integer('forced', { mode: 'boolean' }).notNull().default(false),
+    /** File name inside the online subtitles folder. */
+    fileName: text('file_name').notNull(),
+    createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: integer('created_at').notNull().default(now),
+  },
+  (t) => [index('online_subtitles_media_idx').on(t.mediaFileId), uniqueIndex('online_subtitles_file_idx').on(t.mediaFileId, t.provider, t.providerFileId)],
+);
+
 export const genres = sqliteTable('genres', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull().unique(),

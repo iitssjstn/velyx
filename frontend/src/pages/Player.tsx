@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -28,12 +28,15 @@ import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
 import { getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
 import { creditsPlaying, initialSubtitle, isTyping, preferredAudioIndex, skipAt, startPosition, subtitleName, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type SkipAction } from '../lib/player';
-import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo } from '../lib/types';
+import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo, SubtitleOption } from '../lib/types';
+import { defaultOnlineLanguage } from '../lib/online-subtitles';
+import { OnlineSubtitles } from '../components/OnlineSubtitles';
+import { toast } from '../components/Toast';
 import { Spinner } from '../components/States';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { PlaybackBadge, PlaybackUnavailable } from '../components/PlaybackDetails';
 import { UpNext } from '../components/UpNext';
-import { intlLocale, languageLabel, t, useT, type MessageKey } from '../i18n';
+import { currentLanguage, intlLocale, languageLabel, t, useT, type MessageKey } from '../i18n';
 
 const SAVE_INTERVAL_MS = 10_000;
 const HIDE_CONTROLS_MS = 3000;
@@ -157,8 +160,9 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   }, [file, audioChoice, prefsReady]);
 
   const audioPrefs = { audioChannels: prefs.audioOutput, boostVoices: prefs.boostVoices, levelVolume: prefs.levelVolume };
+  const playbackKey = ['playback', file?.id, audioChoice, audioPrefs.audioChannels, audioPrefs.boostVoices, audioPrefs.levelVolume];
   const playback = useQuery({
-    queryKey: ['playback', file?.id, audioChoice, audioPrefs.audioChannels, audioPrefs.boostVoices, audioPrefs.levelVolume],
+    queryKey: playbackKey,
     enabled: Boolean(file) && audioChoice !== null,
     gcTime: 0,
     staleTime: Infinity,
@@ -375,6 +379,38 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     },
     [selectSubtitle, subs],
   );
+
+  // A subtitle fetched online joins the file's subtitles and is selected once its track exists.
+  const pendingSubtitle = useRef<string | null>(null);
+  const addSubtitle = useCallback(
+    (option: SubtitleOption) => {
+      qc.setQueryData<PlaybackInfo>(playbackKey, (old) => (old && !old.subtitles.some((s) => s.key === option.key) ? { ...old, subtitles: [...old.subtitles, option] } : old));
+      pendingSubtitle.current = option.key;
+      if (subs.some((s) => s.key === option.key)) {
+        pendingSubtitle.current = null;
+        chooseSubtitle(option.key);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [qc, subs, chooseSubtitle, ...playbackKey],
+  );
+  useEffect(() => {
+    const key = pendingSubtitle.current;
+    if (key && subs.some((s) => s.key === key)) {
+      pendingSubtitle.current = null;
+      chooseSubtitle(key);
+    }
+  }, [subs, chooseSubtitle]);
+  const removeSubtitle = useMutation({
+    mutationFn: (option: SubtitleOption) => api.del(`/api/online-subtitles/${option.url.match(/(\d+)\.vtt$/)?.[1]}`),
+    onSuccess: (_r, option) => {
+      if (subKeyRef.current === option.key) chooseSubtitle(null);
+      qc.setQueryData<PlaybackInfo>(playbackKey, (old) => (old ? { ...old, subtitles: old.subtitles.filter((s) => s.key !== option.key) } : old));
+      void qc.invalidateQueries({ queryKey: ['online-subtitles', file?.id] });
+      toast.success(t('onlineSubs.removed'));
+    },
+    onError: (err) => toast.error(err),
+  });
 
   /** Changes an audio setting and reloads the stream at the current position when needed. */
   const changeAudioPrefs = useCallback(
@@ -1100,13 +1136,30 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
                     <p className="px-4 pt-1 pb-2 text-xs text-faint">{t('playback.subtitles')}</p>
                     <MenuItem active={subKey === null} onClick={() => chooseSubtitle(null)}>{t('player.off')}</MenuItem>
                     {subs.map((s) => (
-                      <MenuItem key={s.key} active={subKey === s.key} onClick={() => chooseSubtitle(s.key)}>
-                        {subtitleName(s)}
-                        {s.forced && ` (${t('media.forced').toLowerCase()})`}
-                        <span className="ml-2 text-xs text-faint">{s.kind === 'embedded' ? t('player.embedded') : t('player.file')}</span>
-                      </MenuItem>
+                      <div key={s.key} className="flex items-center">
+                        <div className="min-w-0 flex-1">
+                          <MenuItem active={subKey === s.key} onClick={() => chooseSubtitle(s.key)}>
+                            {subtitleName(s)}
+                            {s.forced && ` (${t('media.forced').toLowerCase()})`}
+                            <span className="ml-2 text-xs text-faint">{s.kind === 'embedded' ? t('player.embedded') : s.kind === 'online' ? t('onlineSubs.tag') : t('player.file')}</span>
+                          </MenuItem>
+                        </div>
+                        {s.kind === 'online' && s.removable && (
+                          <button type="button" onClick={() => removeSubtitle.mutate(s)} className="mr-2 grid size-8 shrink-0 place-items-center rounded-full text-faint hover:bg-raised hover:text-ink" aria-label={t('onlineSubs.remove', { name: subtitleName(s) })} title={t('onlineSubs.remove', { name: subtitleName(s) })}>
+                            <X className="size-4" />
+                          </button>
+                        )}
+                      </div>
                     ))}
                     {subs.length === 0 && <p className="px-4 py-2 text-sm text-muted">{t('player.noSubtitles')}</p>}
+                    {info?.onlineSubtitles && file && (
+                      <OnlineSubtitles
+                        fileId={file.id}
+                        defaultLanguage={defaultOnlineLanguage(langPrefs.current.subtitleLanguage, langPrefs.current.subtitleFallback, getPrefs().subtitleLanguage, currentLanguage())}
+                        activeKey={subKey}
+                        onChosen={addSubtitle}
+                      />
+                    )}
                     {(file?.embeddedSubtitles.some((s) => !s.textBased) ?? false) && (
                       <p className="px-4 pt-2 text-xs text-faint">{t('player.imageSubtitles')}</p>
                     )}

@@ -190,6 +190,82 @@ export function ServerSettingsPanel() {
         </form>
         {s.tmdb.source === 'environment' && <p className="text-xs text-faint">{t('server.keyPriority')}</p>}
       </section>
+
+      <OnlineSubtitlesSettings />
     </div>
+  );
+}
+
+interface OnlineSubtitleSettings {
+  configured: boolean;
+  hint: string | null;
+  username: string | null;
+  hasPassword: boolean;
+}
+
+/** OpenSubtitles.com: key and optional account. Write-only: the API never returns the key or password. */
+export function OnlineSubtitlesSettings() {
+  const qc = useQueryClient();
+  const { t } = useT();
+  const q = useQuery({ queryKey: ['admin', 'online-subtitles'], queryFn: () => api.get<OnlineSubtitleSettings>('/api/admin/online-subtitles') });
+  const [form, setForm] = useState({ apiKey: '', username: '', password: '' });
+  useEffect(() => {
+    if (q.data) setForm({ apiKey: '', username: q.data.username ?? '', password: '' });
+  }, [q.data]);
+  const save = useMutation({
+    mutationFn: (body: Record<string, string>) => api.put<OnlineSubtitleSettings>('/api/admin/online-subtitles', body),
+    onSuccess: (data, body) => {
+      qc.setQueryData(['admin', 'online-subtitles'], data);
+      toast.success(body.apiKey === '' ? t('server.subtitles.turnedOff') : t('server.subtitles.saved'));
+    },
+    onError: (err) => toast.error(err),
+  });
+  if (!q.data) return null;
+  const d = q.data;
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const body: Record<string, string> = {};
+    if (form.apiKey.trim()) body.apiKey = form.apiKey.trim();
+    if (form.username.trim() !== (d.username ?? '')) body.username = form.username.trim();
+    if (form.password) body.password = form.password;
+    if (!d.configured && !body.apiKey) return;
+    save.mutate(body);
+  };
+  return (
+    <section className="panel space-y-4 p-5 sm:p-6" aria-labelledby="online-subs-title">
+      <div>
+        <h2 id="online-subs-title" className="font-display text-lg font-semibold">{t('server.subtitles.title')}</h2>
+        <p className="mt-1 text-sm text-muted">{t('server.subtitles.text')}</p>
+        <p className="mt-1 text-xs text-faint">{t('server.subtitles.getKey')}</p>
+      </div>
+      <p className="text-sm">
+        {t('server.status')}{' '}
+        {d.configured ? (
+          <span className="text-ok">{d.username ? t('server.subtitles.onAccount', { hint: d.hint ?? '', name: d.username }) : t('server.subtitles.on', { hint: d.hint ?? '' })}</span>
+        ) : (
+          <span className="text-amber">{t('server.subtitles.off')}</span>
+        )}
+      </p>
+      <form onSubmit={submit} className="space-y-4">
+        <div>
+          <label className="label" htmlFor="os-key">{t('server.subtitles.apiKey')}</label>
+          <input id="os-key" className="input font-mono text-sm" type="password" autoComplete="off" spellCheck={false} maxLength={200} placeholder={d.configured ? t('server.newKey') : t('server.keyPlaceholder')} value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
+        </div>
+        <fieldset className="space-y-3">
+          <legend className="label">{t('server.subtitles.account')}</legend>
+          <p className="-mt-1 text-xs text-faint">{t('server.subtitles.accountHint')}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input className="input" aria-label={t('server.subtitles.username')} placeholder={t('server.subtitles.username')} autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={100} value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+            <input className="input" type="password" aria-label={t('server.subtitles.password')} placeholder={d.hasPassword ? t('server.subtitles.passwordKept') : t('server.subtitles.password')} autoComplete="new-password" maxLength={200} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          </div>
+        </fieldset>
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" loading={save.isPending && save.variables?.apiKey !== ''} disabled={!d.configured && !form.apiKey.trim()}>{t('server.verifySave')}</Button>
+          {d.configured && (
+            <Button variant="ghost" onClick={() => save.mutate({ apiKey: '' })}>{t('server.subtitles.turnOff')}</Button>
+          )}
+        </div>
+      </form>
+    </section>
   );
 }

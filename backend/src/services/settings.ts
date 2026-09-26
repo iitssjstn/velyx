@@ -58,6 +58,11 @@ export interface ServerSettings {
   cleanupRules: CleanupRules;
   /** Library clean-up may delete files (off by default; the library must also be mounted writable). */
   cleanupDeletion: boolean;
+  /** OpenSubtitles.com API key; empty = searching subtitles online is off. */
+  openSubtitlesApiKey: string;
+  /** Optional OpenSubtitles account (more downloads per day than without one). */
+  openSubtitlesUsername: string;
+  openSubtitlesPassword: string;
 }
 
 const DEFAULTS: ServerSettings = {
@@ -81,6 +86,9 @@ const DEFAULTS: ServerSettings = {
   segmentVideo: true,
   cleanupRules: DEFAULT_CLEANUP_RULES,
   cleanupDeletion: false,
+  openSubtitlesApiKey: '',
+  openSubtitlesUsername: '',
+  openSubtitlesPassword: '',
 };
 
 export class SettingsService {

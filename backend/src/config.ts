@@ -11,6 +11,8 @@ export interface AppConfig {
   cacheDir: string;
   imageCacheDir: string;
   subtitleCacheDir: string;
+  /** Subtitles fetched from OpenSubtitles (kept: not a cache). */
+  onlineSubtitleDir: string;
   avatarDir: string;
   backupDir: string;
   /** Absolute directories inside which libraries may be created. */
@@ -85,7 +87,7 @@ function resolveSessionSecret(dataDir: string, fromEnv: string | undefined): str
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Partial<AppConfig> = {}): AppConfig {
   const dataDir = path.resolve(overrides.dataDir ?? env.DATA_DIR ?? path.join(process.cwd(), 'data'));
   const cacheDir = path.join(dataDir, 'cache');
-  for (const dir of [dataDir, cacheDir, path.join(cacheDir, 'images'), path.join(cacheDir, 'subtitles'), path.join(dataDir, 'avatars'), path.join(dataDir, 'backups')]) {
+  for (const dir of [dataDir, cacheDir, path.join(cacheDir, 'images'), path.join(cacheDir, 'subtitles'), path.join(dataDir, 'avatars'), path.join(dataDir, 'backups'), path.join(dataDir, 'subtitles')]) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
@@ -103,6 +105,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     cacheDir,
     imageCacheDir: path.join(cacheDir, 'images'),
     subtitleCacheDir: path.join(cacheDir, 'subtitles'),
+    onlineSubtitleDir: path.join(dataDir, 'subtitles'),
     avatarDir: path.join(dataDir, 'avatars'),
     backupDir: path.join(dataDir, 'backups'),
     mediaRoots: (env.MEDIA_ROOTS ?? '/media')

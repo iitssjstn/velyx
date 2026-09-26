@@ -1,0 +1,20 @@
+export const onlineSubs = {
+  heading: 'Search online',
+  language: 'Language',
+  searching: 'Searching…',
+  none: 'No subtitles found in this language.',
+  matches: 'Made for this file',
+  hearingImpaired: 'SDH',
+  machine: 'Machine translation',
+  downloads: {
+    one: '{count} download',
+    other: '{count} downloads',
+  },
+  fetching: 'Fetching {name}…',
+  added: 'Subtitle added',
+  remove: 'Remove {name}',
+  removed: 'Subtitle removed',
+  tag: 'Online',
+  source: 'From OpenSubtitles.com',
+  results: 'Subtitles found online',
+};

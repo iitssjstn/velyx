@@ -337,7 +337,7 @@ export interface EpisodeDetail {
 
 export interface SubtitleOption {
   key: string;
-  kind: 'external' | 'embedded';
+  kind: 'external' | 'embedded' | 'online';
   label: string;
   language: string | null;
   /** The language's English name, as the server knows it. */
@@ -347,6 +347,23 @@ export interface SubtitleOption {
   forced: boolean;
   isDefault: boolean;
   url: string;
+  /** Fetched online: whether this viewer may remove it again. */
+  removable?: boolean;
+}
+
+/** A subtitle found at OpenSubtitles for one media file. */
+export interface OnlineSubtitleResult {
+  fileId: number;
+  language: string;
+  release: string;
+  hearingImpaired: boolean;
+  forced: boolean;
+  downloads: number;
+  hashMatch: boolean;
+  machineTranslated: boolean;
+  trusted: boolean;
+  /** Already fetched: the subtitle as the player offers it. */
+  fetched: SubtitleOption | null;
 }
 
 export interface PlaybackDecision {
@@ -451,6 +468,8 @@ export interface PlaybackInfo {
   analysis: PlaybackAnalysis;
   file: MediaFileInfo;
   subtitles: SubtitleOption[];
+  /** Subtitles can be searched online (an administrator set up OpenSubtitles). */
+  onlineSubtitles?: boolean;
 }
 
 export interface SearchResults {

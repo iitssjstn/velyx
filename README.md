@@ -54,6 +54,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Skip intros and credits** — Velyx recognises the intro of TV episodes by its recurring sound (per season), and the end credits by the text in the picture — also when the credits music changes every episode — all on your own server. Chapters named Intro or Credits are used when a file has them. A *Skip intro* / *Skip credits* button appears while they play (or they are skipped automatically, if you prefer); a scene after the credits is never skipped.
 - **Audio options** — *Boost voices* (clearer dialogue) and *Level volume* (night mode), switchable from the player.
 - **Subtitles your way** — size, colour, background, outline/shadow, position and timing (sync) adjustable from the player; subtitles always stay above the controls.
+- **Subtitles from OpenSubtitles.com (optional)** — with an OpenSubtitles API key set by an administrator, the subtitle menu in the player searches online by itself, in your subtitle language, as soon as you open it. Pick another language from the list, choose a subtitle (the ones made for exactly your file come first) and it plays straight away. Off until a key is added.
 - **Automatic library updates** — library folders are watched; new movies and episodes (e.g. from Radarr/Sonarr) appear about 30 seconds after they land.
 - **Playback compatibility, explained** — before playing, Velyx checks the file against what the device can decode (codec, 10-bit, HDR) and picks Direct Play or a light remux. When a file cannot play, the player says why (e.g. "This browser cannot decode HEVC video") instead of just failing. A subtle badge shows *Direct Play* or *Remux • Audio converted to AAC*, with details on click.
 - **Continue Watching** — at the top of Home, per user: movies and episodes you started (with season, episode and *32:14 / 48:21*) and the next episode of series you are following. One entry per series, finished plays never appear; a movie or episode you already watched and play again shows up with its own resume point (it stays watched). After watching an earlier episode again, the series continues with the first episode you have not seen. **Resume** goes straight to where you stopped; the ⋯ menu has **Start over**, **Mark as watched** (a series moves on to its next episode) and **Remove** (hidden until you watch it again; your progress is kept).
@@ -307,6 +308,15 @@ Boost voices and Level volume always convert the audio.
 - You can always switch subtitles and audio in the player; that does not change your saved preferences (except in *Remember my last choice* mode).
 - Audio tracks can be switched from the player in every browser: Safari switches natively, other browsers get a stream with the chosen track (converted when needed).
 
+### Subtitles from OpenSubtitles.com
+
+Optional, and off until an administrator switches it on in **Admin → Server → Subtitles online** with an API key from [opensubtitles.com](https://www.opensubtitles.com) (create a free account, then add an *API consumer*). An OpenSubtitles account can be added too: without one only a few downloads per day are allowed, with one you get more. The key and password are checked before they are saved and are never shown again; like the TMDB key they are stored in the Velyx database (and so in its backups).
+
+- **In the player:** open the subtitle menu. Under *Search online* Velyx searches right away, in your subtitle language (Settings → Playback → Languages; otherwise the interface language); pick another language from the list if you like (this browser remembers it). The subtitles made for exactly your file (by its OpenSubtitles file hash) come first, then the most downloaded ones; machine translations and SDH subtitles are marked. Choose one and it is fetched, converted and shown at once.
+- **Kept for everyone:** a fetched subtitle stays with the file and appears in the subtitle menu of everyone who can watch it (marked *Online*), without downloading it again. The person who fetched it and administrators can remove it again (×).
+- **Your media is never changed:** fetched subtitles are stored in Velyx's data folder (`subtitles/`), not next to your videos.
+- **What is sent:** only when you open the subtitle menu (or pick another language) Velyx asks OpenSubtitles for subtitles: the file hash and the movie or episode (TMDB/IMDb id, or title and year). Results are reused for a few hours. Every fetch is written to the audit log.
+
 ## Users and roles
 
 - **Administrators** manage libraries, users, metadata and server settings.
@@ -436,6 +446,7 @@ Everything Velyx stores lives in the data folder (`./data`, mounted at `/data`):
 | --- | --- |
 | `velyx.db` | Database: users, libraries, metadata, progress, watchlists, favorites, settings |
 | `cache/` | Artwork and extracted subtitles (can be rebuilt) |
+| `subtitles/` | Subtitles fetched from OpenSubtitles |
 | `avatars/` | Profile pictures |
 | `backups/` | Backups created by Velyx |
 | `.session-secret` | Generated cookie secret (when `SESSION_SECRET` is not set) |
