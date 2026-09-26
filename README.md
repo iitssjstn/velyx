@@ -11,6 +11,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 ## Contents
 
 - [Features](#features)
+- [Screenshots](#screenshots)
 - [Requirements](#requirements)
 - [Quick start (Docker)](#quick-start-docker)
 - [Configuration](#configuration)
@@ -57,6 +58,10 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Responsive UI** for desktop, tablet and phone.
 - **Docker-first** — one container, SQLite database, migrations run automatically, health check included.
 
+## Screenshots
+
+_Screenshots of the home page, a movie page, the player and the admin dashboard will be added here. To add your own, put PNG files in `docs/screenshots/` and link them in this section._
+
 ## Requirements
 
 - Docker with Docker Compose (v2).
@@ -92,7 +97,7 @@ docker compose up -d
 
 **3.** Open `http://<your-server>:3000`, create your administrator account and add the TMDB key in **Admin → Server**. No API keys or secrets go into `docker-compose.yml` or `.env`.
 
-To build from source instead (development), use `docker compose -f docker-compose.build.yml up -d --build`.
+To build from source instead (development), use `docker compose -f docker-compose.build.yml up -d --build`. `docker-compose.example.yml` is a fully annotated version with every option (extra drives, reverse proxy, optional overrides) to copy from.
 
 ## Configuration
 
@@ -170,7 +175,7 @@ Samples, trailers, extras and system folders (`@eaDir`, `#recycle`, …) are ign
 
 ## First-run setup
 
-The first visit opens a setup wizard where you create the administrator account and name the server. The wizard can only run once — as soon as an administrator exists it is closed. Next, add your libraries: **Admin → Libraries → Add library**, choose Movies or TV Shows and enter the folder inside the container (for example `/media/movies`). The first scan starts immediately.
+The first visit opens a setup wizard where you create the administrator account, name the server and — optionally — enter your TMDB API key (it is checked with TMDB before it is saved; you can also add it later). The wizard can only run once — as soon as an administrator exists it is closed. Next, add your libraries: **Admin → Libraries → Add library**, choose Movies or TV Shows and enter the folder inside the container (for example `/media/movies`). The first scan starts immediately.
 
 ## TMDB metadata
 
