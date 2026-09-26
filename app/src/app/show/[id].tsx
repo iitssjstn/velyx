@@ -1,0 +1,86 @@
+import { useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import { Artwork } from '../../components/media';
+import { ErrorState, Loading, ProgressLine, styles } from '../../components/ui';
+import { episodeCode, formatRuntime, progressFraction } from '../../lib/format';
+import { useSession } from '../../lib/session';
+import { colors, radius } from '../../lib/theme';
+import type { SeasonDetail, ShowDetail } from '../../lib/types';
+
+export default function Show() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { api, t, serverUrl } = useSession();
+  const q = useQuery({ queryKey: [serverUrl, 'show', id], queryFn: () => api.get<ShowDetail>(`/api/shows/${id}`) });
+  const [picked, setPicked] = useState<number | null>(null);
+  const s = q.data;
+  // The season you are in opens first (specials last), like on the website.
+  const seasons = s ? [...s.seasons].sort((a, b) => (a.seasonNumber === 0 ? 1 : b.seasonNumber === 0 ? -1 : a.seasonNumber - b.seasonNumber)) : [];
+  const current = picked ?? s?.upNext?.seasonNumber ?? seasons[0]?.seasonNumber ?? null;
+  const season = useQuery({
+    queryKey: [serverUrl, 'show', id, 'season', current],
+    enabled: current !== null,
+    queryFn: () => api.get<SeasonDetail>(`/api/shows/${id}/seasons/${current}`),
+  });
+  if (q.isLoading) return <Loading />;
+  if (q.error || !s) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
+  const regular = s.seasons.filter((x) => x.seasonNumber > 0).length || s.seasons.length;
+  const facts = [s.year, s.network, regular === 1 ? t('show.season') : t('show.seasons', { n: regular }), t('show.episodes', { n: s.episodeCount })].filter(Boolean).join(' · ');
+  return (
+    <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+      <Stack.Screen options={{ title: s.title }} />
+      <Artwork path={s.backdropPath} size="w1280" style={{ width: '100%', aspectRatio: 16 / 9 }} />
+      <View style={{ padding: 16, gap: 14 }}>
+        <View style={{ flexDirection: 'row', gap: 14 }}>
+          <Artwork path={s.posterPath} size="w342" label={s.title} style={{ width: 96, height: 144, borderRadius: radius.md, marginTop: -64 }} />
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={styles.title} accessibilityRole="header">{s.title}</Text>
+            <Text style={styles.muted}>{facts}</Text>
+            {s.watchedCount > 0 && <Text style={styles.muted}>{t('show.watched', { watched: s.watchedCount, total: s.episodeCount })}</Text>}
+          </View>
+        </View>
+        {s.upNext && <Text style={styles.body}>{t('show.continue', { code: episodeCode(s.upNext.seasonNumber, s.upNext.episodeNumber) })}</Text>}
+        {s.overview ? <Text style={styles.body}>{s.overview}</Text> : null}
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }} accessibilityRole="tablist">
+        {seasons.map((x) => (
+          <Pressable
+            key={x.id}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: x.seasonNumber === current }}
+            onPress={() => setPicked(x.seasonNumber)}
+            style={{ paddingHorizontal: 14, height: 36, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: x.seasonNumber === current ? colors.accent : colors.raised }}
+          >
+            <Text style={{ color: x.seasonNumber === current ? colors.accentInk : colors.ink, fontWeight: '600' }}>{x.name}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      <View style={{ padding: 16, gap: 16 }}>
+        {season.isLoading && <Loading />}
+        {season.data?.episodes.map((e) => (
+          <View key={e.id} style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ width: 140 }}>
+              <Artwork path={e.stillPath} size="w500" label={episodeCode(e.seasonNumber, e.episodeNumber)} style={{ width: 140, height: 79, borderRadius: radius.sm }} />
+              {e.progress && !e.progress.completed ? (
+                <View style={{ marginTop: 3 }}>
+                  <ProgressLine fraction={progressFraction(e.progress)} />
+                </View>
+              ) : null}
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={2}>
+                {episodeCode(e.seasonNumber, e.episodeNumber)}
+                {e.title ? ` · ${e.title}` : ''}
+              </Text>
+              <Text style={styles.muted}>
+                {[formatRuntime(e.runtime ?? (e.durationSec ? Math.round(e.durationSec / 60) : null)), e.progress?.completed ? '✓' : null].filter(Boolean).join(' · ')}
+              </Text>
+              {e.overview ? <Text style={styles.muted} numberOfLines={2}>{e.overview}</Text> : null}
+            </View>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}

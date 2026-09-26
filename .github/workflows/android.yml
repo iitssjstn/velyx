@@ -1,0 +1,107 @@
+name: Android app
+
+# Builds the Velyx app as an installable APK: on pull requests that touch the app (download it
+# from the run's artifacts), and after every release build on main, where the APK is attached to
+# the GitHub release of that version.
+on:
+  pull_request:
+    paths: ['app/**', '.github/workflows/android.yml']
+  workflow_run:
+    workflows: ['Docker image']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # attach the APK to the release
+
+concurrency:
+  group: android-${{ github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Check the app and server versions match
+        run: |
+          app=$(node -p "require('./package.json').version")
+          config=$(node -p "require('./app.json').expo.version")
+          server=$(node -p "require('../package.json').version")
+          code=$(node -p "require('./app.json').expo.android.versionCode")
+          expected=$(node -p "const [a,b,c]='$app'.split('.').map(Number); a*10000+b*100+c")
+          echo "app $app, app.json $config, server $server, versionCode $code"
+          test "$app" = "$config" && test "$app" = "$server" && test "$code" = "$expected"
+
+      - name: Generate the Android project
+        run: npx expo prebuild --platform android --no-install
+        env:
+          CI: 1
+
+      - name: Build the APK
+        working-directory: app/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Name the APK
+        id: apk
+        run: |
+          version=$(node -p "require('./package.json').version")
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release.apk "out/velyx-$version.apk"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "file=app/out/velyx-$version.apk" >> "$GITHUB_OUTPUT"
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: velyx-${{ steps.apk.outputs.version }}-apk
+          path: ${{ steps.apk.outputs.file }}
+          retention-days: 30
+
+      # After a release build on main: attach the APK to the release of this exact commit.
+      - name: Attach to the release
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.apk.outputs.version }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          tag="v$VERSION"
+          if ! git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then git fetch --tags --quiet; fi
+          if [ "$(git rev-list -n 1 "$tag" 2>/dev/null)" != "$SHA" ]; then
+            echo "$tag does not point at this commit; nothing to attach."
+            exit 0
+          fi
+          gh release view "$tag" > /dev/null 2>&1 || gh release create "$tag" --verify-tag --title "Velyx $VERSION" --notes "Velyx $VERSION. The Android app is attached as velyx-$VERSION.apk (install it on an Android phone or tablet; see the README)."
+          gh release upload "$tag" "out/velyx-$VERSION.apk" --clobber
