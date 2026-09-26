@@ -29,7 +29,7 @@ describe('parseCueText', () => {
 
 describe('subtitle layout', () => {
   it('moves above the controls while they are visible', () => {
-    expect(subtitleBottom(true, 0)).toBe('calc(7.5rem + 0%)');
+    expect(subtitleBottom(true, 0)).toBe('calc(var(--player-controls, 7.5rem) + 0%)');
     expect(subtitleBottom(false, 10)).toBe('calc(5% + 10%)');
     expect(subtitleBottom(false, 99)).toBe('calc(5% + 20%)');
   });

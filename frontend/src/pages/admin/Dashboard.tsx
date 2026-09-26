@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { HardDrive, Pause, Play, RefreshCw, TriangleAlert } from 'lucide-react';
 import { api } from '../../lib/api';
-import { formatBytes, formatClock, formatDuration, formatRelative, resolutionLabel, scheduleLabel } from '../../lib/format';
-import type { ActiveStream, Dashboard, DiskInfo, ScanState, StorageReport } from '../../lib/types';
+import { formatBytes, formatDuration, formatRelative, scheduleLabel } from '../../lib/format';
+import type { Dashboard, DiskInfo, ScanState, StorageReport } from '../../lib/types';
 import { Button } from '../../components/Button';
 import { ErrorState, PageLoader } from '../../components/States';
+import { StreamRow } from '../../components/ActiveStreams';
 import { toast } from '../../components/Toast';
 
 function Stat({ label, value, href }: { label: string; value: number | string; href?: string }) {
@@ -122,31 +123,6 @@ function ScannerCard({ scan, probe, libraryName }: { scan: ScanState; probe: Das
         </Button>
       </div>
     </section>
-  );
-}
-
-function StreamRow({ s }: { s: ActiveStream }) {
-  const watching = Math.max(0, Math.floor((Date.now() - s.startedAt) / 1000));
-  return (
-    <li className="grid gap-1 py-3 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium">
-          {s.title}
-          {s.subtitle && <span className="font-normal text-muted"> · {s.subtitle}</span>}
-        </p>
-        <p className="truncate text-xs text-faint">
-          {s.username}
-          {s.device && ` · ${s.device}`}
-          {s.positionSec !== null && s.durationSec ? ` · at ${formatClock(s.positionSec)} of ${formatClock(s.durationSec)}` : ''}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2 text-xs sm:justify-end">
-        <span className={`rounded-full px-2 py-0.5 ${s.mode === 'direct' ? 'bg-ok/15 text-ok' : 'bg-accent/15 text-accent'}`}>{s.mode === 'direct' ? 'Direct Play' : 'Remux'}</span>
-        {resolutionLabel(s.width, s.height) && <span className="text-muted">{resolutionLabel(s.width, s.height)}</span>}
-        {s.bitrate && <span className="text-muted tabular-nums">{(s.bitrate / 1_000_000).toFixed(1)} Mbps</span>}
-        <span className="text-muted tabular-nums" title="Watching for">{formatClock(watching)}</span>
-      </div>
-    </li>
   );
 }
 
@@ -314,7 +290,9 @@ export function DashboardPage() {
               ))}
             </ul>
           )}
-          <p className="mt-3 text-xs text-faint">Direct Play sends files as they are. Remux repackages the file and converts audio when needed; Velyx never transcodes video.</p>
+          <p className="mt-3 text-xs text-faint">
+            Direct Play sends files as they are. Remux repackages the file and converts audio when needed; Velyx never transcodes video. History and statistics: <Link to="/admin/activity" className="underline underline-offset-4 hover:text-ink">Activity</Link>.
+          </p>
         </section>
 
         <StorageCard dashboard={d} />

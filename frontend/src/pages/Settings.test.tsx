@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { CurrentDevice, LanguageSettings, SkipSettings } from './Settings';
+import { CurrentDevice, LanguageSettings, SkipSettings, WatchHistory } from './Settings';
+import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ user: { id: 1, role: 'user' } }), displayName: () => 'x' }));
 afterEach(() => vi.unstubAllGlobals());
@@ -64,6 +65,25 @@ describe('SkipSettings', () => {
     await userEvent.selectOptions(intro, 'always');
     await userEvent.selectOptions(screen.getByLabelText(/Skip credits/), 'never');
     expect(puts).toEqual([{ skipIntro: 'always' }, { skipCredits: 'never' }]);
+  });
+});
+
+describe('WatchHistory', () => {
+  it('lists your own viewings without your name on every row', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify({ total: 1, items: [{ id: 1, userId: 1, username: 'me', kind: 'movie', movieId: 3, episodeId: null, showId: null, title: 'Dune', subtitle: '2021', mode: 'remux', audioConversion: 'AAC stereo', container: 'mkv', videoCodec: 'hevc', audioCodec: 'dts', width: 3840, height: 2160, bitrate: null, device: 'Firefox on Linux', startedAt: Date.now() - 86_400_000, endedAt: Date.now() - 80_000_000, watchedSec: 5400, positionSec: 5400, durationSec: 9000 }] }), { status: 200 });
+    }));
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter><WatchHistory /></MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole('link', { name: 'Dune' })).toBeTruthy();
+    expect(screen.getByText(/^Firefox on Linux · HEVC · 4K/)).toBeTruthy();
+    expect(screen.getByText('Remux · Audio → AAC stereo')).toBeTruthy();
+    expect(urls[0]).toBe('/api/account/history?page=1&limit=30');
   });
 });
 

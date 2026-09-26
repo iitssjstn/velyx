@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { limitProber } from '../src/services/probe-queue.js';
 import type { Prober } from '../src/services/probe.js';
-import { libraries, mediaFiles, movies } from '../src/db/schema.js';
+import { libraries, mediaFiles, movies, users } from '../src/db/schema.js';
 import { addLibrary, createTestEnv, createUser, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
 
 let env: TestEnv;
@@ -191,7 +191,8 @@ describe('scheduled and full scans', () => {
     const lib = e.ctx.db.insert(libraries).values({ name: 'x', type: 'movies', path: '/media/x' }).returning().get().id;
     const m = e.ctx.db.insert(movies).values({ libraryId: lib, groupKey: 'g', title: 'Playing', sortTitle: 'playing', parsedTitle: 'p' }).returning().get();
     const f = e.ctx.db.insert(mediaFiles).values({ libraryId: lib, movieId: m.id, path: '/media/x/p.mkv', size: 1, mtimeMs: 1 }).returning().get();
-    e.ctx.streams.touch({ id: 1, username: 'viewer' }, f.id, 'direct', null);
+    const u = e.ctx.db.insert(users).values({ username: 'viewer', passwordHash: 'x' }).returning().get();
+    e.ctx.streams.touch({ id: u.id, username: 'viewer' }, f.id, 'direct', null);
   };
 
   it('runs on the configured interval and waits for playback to end, but not forever', async () => {

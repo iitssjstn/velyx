@@ -114,7 +114,7 @@ describe('intro and credits detection service', () => {
     const h = await setup(['S01E01.mkv', 'S01E02.mkv'], { enabled: false });
     const file = h.env.ctx.db.select().from(mediaFiles).get()!;
     // A stream that stops counting as active after half a second.
-    h.env.ctx.streams.touch({ id: 1, username: 'viewer' }, file.id, 'direct', null, Date.now() - 59_500);
+    h.env.ctx.streams.touch({ id: 1, username: 'viewer' }, file.id, 'direct', null, null, Date.now() - 59_500);
     h.env.ctx.settings.update({ segmentDetection: true });
     h.env.ctx.segments.enqueuePending();
     await new Promise((r) => setTimeout(r, 100));

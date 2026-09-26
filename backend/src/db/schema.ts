@@ -593,3 +593,43 @@ export const segmentReferences = sqliteTable(
   },
   (t) => [index('segment_refs_season_idx').on(t.showId, t.seasonNumber, t.kind)],
 );
+
+/**
+ * One row per viewing (a stream from start to stop): the activity log and statistics. Titles and
+ * file details are copied in, so history stays readable after media or users are removed.
+ */
+export const playbackSessions = sqliteTable(
+  'playback_sessions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+    username: text('username').notNull(),
+    kind: text('kind', { enum: ['movie', 'episode'] }).notNull(),
+    movieId: integer('movie_id').references(() => movies.id, { onDelete: 'set null' }),
+    episodeId: integer('episode_id').references(() => episodes.id, { onDelete: 'set null' }),
+    showId: integer('show_id').references(() => shows.id, { onDelete: 'set null' }),
+    mediaFileId: integer('media_file_id').references(() => mediaFiles.id, { onDelete: 'set null' }),
+    title: text('title').notNull(),
+    subtitle: text('subtitle'),
+    mode: text('mode', { enum: ['direct', 'remux'] }).notNull(),
+    /** What the remux did with the audio, e.g. "AAC 5.1"; null = passed through. */
+    audioConversion: text('audio_conversion'),
+    container: text('container'),
+    videoCodec: text('video_codec'),
+    audioCodec: text('audio_codec'),
+    width: integer('width'),
+    height: integer('height'),
+    bitrate: integer('bitrate'),
+    device: text('device'),
+    startedAt: integer('started_at').notNull(),
+    /** Last sign of life; the session ended here when `endedAt` is set. */
+    lastSeenAt: integer('last_seen_at').notNull(),
+    endedAt: integer('ended_at'),
+    /** Seconds actually played (pauses and seeking do not count). */
+    watchedSec: integer('watched_sec').notNull().default(0),
+    startPositionSec: integer('start_position_sec'),
+    positionSec: integer('position_sec'),
+    durationSec: integer('duration_sec'),
+  },
+  (t) => [index('playback_sessions_started_idx').on(t.startedAt), index('playback_sessions_user_idx').on(t.userId, t.startedAt)],
+);
