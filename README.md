@@ -4,7 +4,7 @@
 
 Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.4.6 — Fixes the loading spinner that could stay on screen while a movie or episode was already playing. 0.4.5: **Upgrades keep your history**: when a file is replaced by a better release, watch progress, favorites, watchlist and collections stay, even if the new file arrives later under another name, and the movie page shows what changed (1080p WEB → 2160p Blu-ray). Also in 0.4.x: scanning that waits for playback, playback diagnostics per device, Library health, card details on hover and many stability fixes. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
+> Version 0.4.7 — Velyx is now licensed under the PolyForm Noncommercial License 1.0.0 (see [License](#license)). 0.4.6: Fixes the loading spinner that could stay on screen while a movie or episode was already playing. 0.4.5: **Upgrades keep your history**: when a file is replaced by a better release, watch progress, favorites, watchlist and collections stay, even if the new file arrives later under another name, and the movie page shows what changed (1080p WEB → 2160p Blu-ray). Also in 0.4.x: scanning that waits for playback, playback diagnostics per device, Library health, card details on hover and many stability fixes. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
 
 ---
 
@@ -511,4 +511,9 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 
 ## License
 
-[MIT](LICENSE)
+Velyx is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+- **Allowed:** using Velyx for yourself, your household and friends, studying and changing the code, and sharing it (with the license and its `Required Notice` line), all for noncommercial purposes. Charities, schools and other noncommercial organisations may use it too.
+- **Not allowed without written permission:** selling Velyx, offering it as a paid service, or any other commercial use.
+
+For commercial use, contact the author through the GitHub repository. Versions up to 0.4.6 were published under the MIT license; this license applies from 0.4.7 on.
