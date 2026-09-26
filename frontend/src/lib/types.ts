@@ -502,6 +502,7 @@ export interface Dashboard {
   disk: DiskInfo | null;
   backups: { latest: BackupFile | null; nextDue: number | null };
   probeQueue: { active: number; waiting: number };
+  update: { current: string; latest: string | null; available: boolean; url: string | null; checkedAt: number | null };
   tmdb: { configured: boolean; source: 'environment' | 'settings' | 'none' };
   counts: { movies: number; shows: number; seasons: number; episodes: number; files: number; users: number; needsReview: number };
   storage: {
@@ -522,6 +523,7 @@ export interface ServerSettings {
   tmdbLanguage: string;
   includeAdult: boolean;
   watchFolders: boolean;
+  updateCheck: boolean;
   tmdb: { configured: boolean; source: 'environment' | 'settings' | 'none'; hint: string | null };
   version: string;
   mediaRoots: string[];

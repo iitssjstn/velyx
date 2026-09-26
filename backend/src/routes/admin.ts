@@ -11,6 +11,7 @@ import { hashPassword, validatePassword, validateUsername } from '../auth/passwo
 import { validateLibraryPath } from '../services/paths.js';
 import { checkBinary } from '../services/probe.js';
 import { recentLogs } from '../logger.js';
+import { compatibilityReport } from '../services/compatibility-report.js';
 import { APP_VERSION } from '../version.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
 import { adminCount, publicUser, sessionIdParam } from './auth.js';
@@ -59,6 +60,7 @@ const settingsBody = z.object({
     .optional(),
   includeAdult: z.boolean().optional(),
   watchFolders: z.boolean().optional(),
+  updateCheck: z.boolean().optional(),
 });
 
 const matchSearch = z.object({ type: z.enum(['movie', 'show']), query: z.string().trim().min(1).max(200), year: z.coerce.number().int().min(1870).max(2100).optional() });
@@ -141,6 +143,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       disk: ctx.storage.dataDisk(),
       backups: { latest: ctx.backups.list()[0] ?? null, nextDue: ctx.backups.nextDue() },
       probeQueue: { active: ctx.probe.active, waiting: ctx.probe.waiting },
+      update: ctx.updates.info(),
       tmdb: { configured: ctx.tmdb.configured, source: ctx.settings.tmdbKeySource() },
       counts: {
         movies: db.select({ n: count() }).from(movies).get()!.n,
@@ -168,6 +171,14 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
   });
 
   app.get('/api/admin/logs', { preHandler: requireAdmin }, async () => recentLogs().reverse());
+
+  // ------------------------------------------------------------------ compatibility
+  app.get('/api/admin/compatibility', { preHandler: requireAdmin }, async () => ({ libraries: compatibilityReport(db), analysis: ctx.analyzer.status() }));
+
+  app.post('/api/admin/compatibility/analyze', { preHandler: requireAdmin }, async () => {
+    ctx.analyzer.start();
+    return { analysis: ctx.analyzer.status() };
+  });
 
   // ------------------------------------------------------------------ storage
   app.get<{ Querystring: { refresh?: string } }>('/api/admin/storage', { preHandler: requireAdmin }, async (request) => ctx.storage.get(request.query.refresh === '1'));
@@ -431,6 +442,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       tmdbLanguage: ctx.settings.tmdbLanguage(),
       includeAdult: s.includeAdult,
       watchFolders: s.watchFolders,
+      updateCheck: s.updateCheck,
       tmdb: {
         configured: key.length > 0,
         source: ctx.settings.tmdbKeySource(),
@@ -467,7 +479,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     // Names of what changed only — never the values of keys.
     const tmdbChanges = [tmdbApiKey !== undefined ? (tmdbApiKey === '' ? 'API key removed' : 'API key changed') : null, rest.tmdbLanguage !== undefined ? `language ${rest.tmdbLanguage || 'default'}` : null, rest.includeAdult !== undefined ? `adult titles ${rest.includeAdult ? 'on' : 'off'}` : null].filter(Boolean);
     if (tmdbChanges.length) ctx.audit.record('tmdb.updated', { actor: request.user, ip: request.ip, detail: tmdbChanges.join('; ') });
-    const serverChanges = (['serverName', 'serverUrl', 'watchFolders'] as const).filter((k) => rest[k] !== undefined);
+    const serverChanges = (['serverName', 'serverUrl', 'watchFolders', 'updateCheck'] as const).filter((k) => rest[k] !== undefined);
     if (serverChanges.length) ctx.audit.record('settings.updated', { actor: request.user, ip: request.ip, detail: serverChanges.join(', ') });
     if (!wasConfigured && ctx.tmdb.configured) {
       log.info('TMDB configured — fetching metadata for existing libraries');

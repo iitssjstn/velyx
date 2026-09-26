@@ -23,6 +23,8 @@ import { AuditLog } from './services/audit.js';
 import { BackupScheduler } from './services/backup-scheduler.js';
 import { DiskMonitor, StorageService } from './services/storage.js';
 import { StreamTracker } from './services/streams.js';
+import { DetailAnalyzer } from './services/compatibility-report.js';
+import { UpdateChecker } from './services/updates.js';
 import { PlaybackRegistry } from './playback/engine.js';
 import { DirectPlayEngine } from './playback/direct-play.js';
 import { RemuxEngine } from './playback/remux.js';
@@ -58,6 +60,8 @@ export interface AppContext {
   storage: StorageService;
   disk: DiskMonitor;
   streams: StreamTracker;
+  analyzer: DetailAnalyzer;
+  updates: UpdateChecker;
   /** FFprobe behind the shared concurrency limit. */
   probe: Prober & { readonly active: number; readonly waiting: number };
   startedAt: number;
@@ -95,7 +99,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   // Critically low disk space pauses scans (which write artwork and rows); they resume on their own.
   const disk = new DiskMonitor(storage, (level) => (level === 'critical' ? scans.pause('low-disk') : scans.resume('low-disk')));
   const backups = new BackupScheduler(db, config.backupDir, settings, () => (storage.dataDisk()?.level === 'critical' ? 'disk space is critically low' : null));
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit: new AuditLog(db), backups, storage, disk, streams: new StreamTracker(db), probe, startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit: new AuditLog(db), backups, storage, disk, streams: new StreamTracker(db), analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateRepo, () => settings.get().updateCheck, opts.fetchImpl), probe, startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

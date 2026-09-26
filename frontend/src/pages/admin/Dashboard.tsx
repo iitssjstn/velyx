@@ -240,6 +240,12 @@ export function DashboardPage() {
   return (
     <div className="space-y-8">
       <StorageWarning disk={d.disk} />
+      {d.update.available && d.update.url && (
+        <a href={d.update.url} target="_blank" rel="noreferrer" className="flex flex-wrap items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-5 py-3 text-sm hover:bg-accent/15">
+          <strong>Velyx {d.update.latest} is available</strong>
+          <span className="text-ink/80">You have {d.update.current}. See what's new, then update with docker compose pull &amp;&amp; docker compose up -d.</span>
+        </a>
+      )}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat label="Movies" value={d.counts.movies} href="/movies" />
         <Stat label="TV shows" value={d.counts.shows} href="/shows" />

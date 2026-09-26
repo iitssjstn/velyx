@@ -28,6 +28,8 @@ export interface AppConfig {
   scanIntervalMinutes: number;
   /** FFprobe processes allowed at once (scanner + on-demand analysis). 1–4, default 1. */
   scanConcurrency: number;
+  /** GitHub repository ("owner/name") whose tags announce new versions; empty disables the check. */
+  updateRepo: string;
   /** Free space (GB) on the data volume below which admins are warned. */
   lowDiskGb: number;
   /** Free space (GB) below which scans and scheduled backups pause. */
@@ -116,6 +118,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
     scanIntervalMinutes: int(env.SCAN_INTERVAL_MINUTES, 360),
     scanConcurrency: Math.min(4, Math.max(1, int(env.SCAN_CONCURRENCY, 1))),
+    updateRepo: /^[\w.-]+\/[\w.-]+$/.test(env.VELYX_UPDATE_REPO ?? 'iitssjstn/velyx') ? (env.VELYX_UPDATE_REPO ?? 'iitssjstn/velyx') : '',
     lowDiskGb: Math.max(0, num(env.LOW_DISK_GB, 10)),
     criticalDiskGb: Math.max(0, num(env.CRITICAL_DISK_GB, 2)),
     ffprobePath: env.FFPROBE_PATH || 'ffprobe',

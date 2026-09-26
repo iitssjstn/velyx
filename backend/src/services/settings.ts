@@ -21,6 +21,8 @@ export interface ServerSettings {
   backupKeepDaily: number;
   backupKeepWeekly: number;
   backupKeepMonthly: number;
+  /** Look for new Velyx versions (GitHub tags) at most once a day. */
+  updateCheck: boolean;
 }
 
 const DEFAULTS: ServerSettings = {
@@ -36,6 +38,7 @@ const DEFAULTS: ServerSettings = {
   backupKeepDaily: 7,
   backupKeepWeekly: 4,
   backupKeepMonthly: 3,
+  updateCheck: true,
 };
 
 export class SettingsService {

@@ -12,11 +12,11 @@ export function ServerSettingsPanel() {
   const qc = useQueryClient();
   const { refetchServer } = useAuth();
   const q = useQuery({ queryKey: ['admin', 'settings'], queryFn: () => api.get<ServerSettings>('/api/admin/settings') });
-  const [form, setForm] = useState({ serverName: '', serverUrl: '', tmdbLanguage: '', includeAdult: false, watchFolders: true });
+  const [form, setForm] = useState({ serverName: '', serverUrl: '', tmdbLanguage: '', includeAdult: false, watchFolders: true, updateCheck: true });
   const [key, setKey] = useState('');
 
   useEffect(() => {
-    if (q.data) setForm({ serverName: q.data.serverName, serverUrl: q.data.serverUrl, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult, watchFolders: q.data.watchFolders });
+    if (q.data) setForm({ serverName: q.data.serverName, serverUrl: q.data.serverUrl, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult, watchFolders: q.data.watchFolders, updateCheck: q.data.updateCheck });
   }, [q.data]);
 
   const save = useMutation({
@@ -69,6 +69,13 @@ export function ServerSettingsPanel() {
             <span>
               Update libraries automatically when files change
               <span className="block text-xs text-faint">New movies and episodes (for example from Radarr or Sonarr) appear about 30 seconds after they are added. Scheduled scans keep running as a fallback.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3 text-sm sm:col-span-2">
+            <input type="checkbox" className="mt-0.5 size-4 accent-[var(--color-accent)]" checked={form.updateCheck} onChange={(e) => setForm({ ...form, updateCheck: e.target.checked })} />
+            <span>
+              Tell me when a new Velyx version is available
+              <span className="block text-xs text-faint">Checks the project's version tags on GitHub at most once a day, when an administrator opens the dashboard. Nothing about this server is sent.</span>
             </span>
           </label>
         </div>
