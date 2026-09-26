@@ -319,6 +319,28 @@ export interface PlaybackAnalysis {
   serverLoad: 'none' | 'low';
 }
 
+export interface SessionInfo {
+  id: string;
+  createdAt: number;
+  lastSeenAt: number;
+  expiresAt: number;
+  userAgent: string | null;
+  device: string;
+  ip: string | null;
+  current: boolean;
+}
+
+export interface AuditEntry {
+  id: number;
+  at: number;
+  actorId: number | null;
+  actorName: string | null;
+  action: string;
+  target: string | null;
+  detail: string | null;
+  ip: string | null;
+}
+
 export interface PlaybackInfo {
   decision: PlaybackDecision;
   analysis: PlaybackAnalysis;

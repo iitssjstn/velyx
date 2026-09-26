@@ -11,6 +11,7 @@ import type { User } from '../lib/types';
 import { Avatar } from '../components/Avatar';
 import { Button } from '../components/Button';
 import { toast } from '../components/Toast';
+import { SessionList } from '../components/SessionList';
 import { ServerSettingsPanel } from './admin/ServerSettings';
 import { LibrariesPanel } from './admin/Libraries';
 
@@ -64,7 +65,7 @@ function AccountSettings() {
   const { user, setUser } = useAuth();
   const qc = useQueryClient();
   const [name, setName] = useState(user?.displayName ?? '');
-  const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
+  const [pw, setPw] = useState({ current: '', next: '', confirm: '', signOutOthers: true });
   const [busy, setBusy] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   if (!user) return null;
@@ -88,9 +89,10 @@ function AccountSettings() {
     if (pw.next !== pw.confirm) return toast.error('The new passwords do not match.');
     setBusy('password');
     try {
-      await api.post('/api/account/password', { currentPassword: pw.current, newPassword: pw.next });
-      setPw({ current: '', next: '', confirm: '' });
-      toast.success('Password changed. Other devices were signed out.');
+      const res = await api.post<{ signedOut: number }>('/api/account/password', { currentPassword: pw.current, newPassword: pw.next, signOutOthers: pw.signOutOthers });
+      setPw({ current: '', next: '', confirm: '', signOutOthers: true });
+      toast.success(res.signedOut ? `Password changed. ${res.signedOut} other ${res.signedOut === 1 ? 'device was' : 'devices were'} signed out.` : 'Password changed.');
+      void qc.invalidateQueries({ queryKey: ['sessions', 'me'] });
     } catch (err) {
       toast.error(err);
     } finally {
@@ -157,7 +159,7 @@ function AccountSettings() {
           </div>
         </form>
       </Section>
-      <Section title="Password" description="Changing your password signs you out on all other devices.">
+      <Section title="Password">
         <form onSubmit={changePassword} className="grid gap-4 sm:max-w-md">
           <div>
             <label className="label" htmlFor="cur">Current password</label>
@@ -171,10 +173,17 @@ function AccountSettings() {
             <label className="label" htmlFor="conf">Confirm new password</label>
             <input id="conf" type="password" className="input" autoComplete="new-password" required value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} />
           </div>
+          <label className="flex items-center gap-3 text-sm">
+            <input type="checkbox" className="size-4 accent-[var(--color-accent)]" checked={pw.signOutOthers} onChange={(e) => setPw({ ...pw, signOutOthers: e.target.checked })} />
+            Sign out all other devices
+          </label>
           <div>
             <Button type="submit" loading={busy === 'password'}>Change password</Button>
           </div>
         </form>
+      </Section>
+      <Section title="Devices" description="Browsers and devices that are signed in to your account. Revoke any you do not recognise.">
+        <SessionList />
       </Section>
     </div>
   );

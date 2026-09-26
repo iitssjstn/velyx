@@ -2,18 +2,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
-import { count, desc, eq, gt, ne, or, sql } from 'drizzle-orm';
+import { count, eq, gt, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireAdmin } from '../app.js';
-import { episodes, libraries, mediaFiles, movies, seasons, sessions, shows, users } from '../db/schema.js';
+import { episodes, libraries, mediaFiles, movies, seasons, shows, users } from '../db/schema.js';
 import { hashPassword, validatePassword, validateUsername } from '../auth/password.js';
 import { validateLibraryPath } from '../services/paths.js';
 import { checkBinary } from '../services/probe.js';
 import { recentLogs } from '../logger.js';
 import { APP_VERSION } from '../version.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
-import { adminCount, publicUser } from './auth.js';
+import { adminCount, publicUser, sessionIdParam } from './auth.js';
 import { createDatabaseSnapshot } from '../services/backup.js';
 import { createLogger } from '../logger.js';
 import type { RemuxEngine } from '../playback/remux.js';
@@ -196,6 +196,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (clash) throw new HttpError(409, `This folder overlaps with the library "${clash.name}".`);
     const row = db.insert(libraries).values({ name: body.name, type: body.type, path: check.resolved! }).returning().get();
     log.info(`Library "${row.name}" added (${row.path})`);
+    ctx.audit.record('library.created', { actor: request.user, ip: request.ip, target: row.name, detail: `${row.type} at ${row.path}` });
     ctx.scans.enqueue(row.id);
     ctx.watcher.sync(ctx.settings.get().watchFolders);
     return libraryView(row);
@@ -224,6 +225,12 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       pathChanged = true;
     }
     const row = db.update(libraries).set(patch).where(eq(libraries.id, id)).returning().get();
+    ctx.audit.record('library.updated', {
+      actor: request.user,
+      ip: request.ip,
+      target: row.name,
+      detail: [patch.name && patch.name !== lib.name ? `renamed from "${lib.name}"` : null, pathChanged ? `folder ${lib.path} → ${row.path}` : null].filter(Boolean).join('; ') || null,
+    });
     if (pathChanged) {
       // Files under the old path disappear during the next scan; files under the new one are added.
       ctx.scans.enqueue(id);
@@ -235,8 +242,10 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
   app.delete<{ Params: { id: string } }>('/api/libraries/:id', { preHandler: requireAdmin }, async (request) => {
     const id = parseId(request.params.id);
     if (ctx.scans.state().running?.libraryId === id) throw new HttpError(409, 'This library is being scanned. Try again when the scan finishes.');
-    const res = db.delete(libraries).where(eq(libraries.id, id)).run();
-    if (res.changes === 0) throw notFound('Library');
+    const lib = db.select().from(libraries).where(eq(libraries.id, id)).get();
+    if (!lib) throw notFound('Library');
+    db.delete(libraries).where(eq(libraries.id, id)).run();
+    ctx.audit.record('library.deleted', { actor: request.user, ip: request.ip, target: lib.name, detail: lib.path });
     log.info(`Library ${id} removed (media files on disk were not touched)`);
     ctx.watcher.sync(ctx.settings.get().watchFolders);
     return { ok: true };
@@ -248,6 +257,8 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const refresh = Boolean((request.body as { refreshMetadata?: boolean } | undefined)?.refreshMetadata);
     if (refresh && !ctx.tmdb.configured) throw new HttpError(400, 'Add a TMDB API key in Admin → Metadata to refresh metadata.');
     ctx.scans.enqueue(id, refresh);
+    const name = db.select({ name: libraries.name }).from(libraries).where(eq(libraries.id, id)).get()?.name;
+    ctx.audit.record('library.scan', { actor: request.user, ip: request.ip, target: name, detail: refresh ? 'with metadata refresh' : null });
     return { queued: true };
   });
 
@@ -258,13 +269,15 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   app.get('/api/libraries/scan-status', { preHandler: requireAdmin }, async () => ctx.scans.state());
 
-  app.post('/api/libraries/scans/pause', { preHandler: requireAdmin }, async () => {
+  app.post('/api/libraries/scans/pause', { preHandler: requireAdmin }, async (request) => {
     ctx.scans.pause('manual');
+    ctx.audit.record('scans.paused', { actor: request.user, ip: request.ip });
     return ctx.scans.state();
   });
 
-  app.post('/api/libraries/scans/resume', { preHandler: requireAdmin }, async () => {
+  app.post('/api/libraries/scans/resume', { preHandler: requireAdmin }, async (request) => {
     ctx.scans.resume('manual');
+    ctx.audit.record('scans.resumed', { actor: request.user, ip: request.ip });
     return ctx.scans.state();
   });
 
@@ -302,6 +315,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       .get();
     if (body.libraryIds) ctx.access.setGrants(row.id, body.libraryIds);
     log.info(`User "${row.username}" created by ${request.user!.username}`);
+    ctx.audit.record('user.created', { actor: request.user, ip: request.ip, target: row.username, detail: `role ${row.role}` });
     return userView(row);
   });
 
@@ -327,6 +341,14 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const row = db.update(users).set(patch).where(eq(users.id, id)).returning().get();
     if (body.libraryIds !== undefined) ctx.access.setGrants(id, body.libraryIds);
     if (body.disabled || body.password !== undefined) ctx.sessions.destroyAllForUser(id, id === request.user!.id ? request.sessionToken : undefined);
+    const changes = [
+      body.role && body.role !== target.role ? `role ${target.role} → ${body.role}` : null,
+      body.disabled !== undefined && body.disabled !== target.disabled ? (body.disabled ? 'disabled' : 'enabled') : null,
+      body.displayName !== undefined && (body.displayName || null) !== target.displayName ? 'display name changed' : null,
+      body.libraryIds !== undefined ? (body.libraryIds === null ? 'library access: all' : `library access: ${body.libraryIds.length} libraries`) : null,
+    ].filter(Boolean);
+    if (changes.length) ctx.audit.record('user.updated', { actor: request.user, ip: request.ip, target: target.username, detail: changes.join('; ') });
+    if (body.password !== undefined) ctx.audit.record('user.password_reset', { actor: request.user, ip: request.ip, target: target.username });
     return userView(row);
   });
 
@@ -339,17 +361,47 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     db.delete(users).where(eq(users.id, id)).run();
     for (const ext of ['png', 'jpg', 'webp']) fs.rmSync(path.join(ctx.config.avatarDir, `${id}.${ext}`), { force: true });
     log.info(`User "${target.username}" deleted by ${request.user!.username}`);
+    ctx.audit.record('user.deleted', { actor: request.user, ip: request.ip, target: target.username });
     return { ok: true };
   });
 
+  const userOr404 = (idParam: string) => {
+    const u = db.select().from(users).where(eq(users.id, parseId(idParam))).get();
+    if (!u) throw notFound('User');
+    return u;
+  };
+
   app.get<{ Params: { id: string } }>('/api/users/:id/sessions', { preHandler: requireAdmin }, async (request) => {
-    const id = parseId(request.params.id);
-    return db
-      .select({ createdAt: sessions.createdAt, lastSeenAt: sessions.lastSeenAt, userAgent: sessions.userAgent })
-      .from(sessions)
-      .where(eq(sessions.userId, id))
-      .orderBy(desc(sessions.lastSeenAt))
-      .all();
+    const u = userOr404(request.params.id);
+    return ctx.sessions.list(u.id, u.id === request.user!.id ? request.sessionToken : undefined);
+  });
+
+  app.delete<{ Params: { id: string; sid: string } }>('/api/users/:id/sessions/:sid', { preHandler: requireAdmin }, async (request) => {
+    const u = userOr404(request.params.id);
+    if (!ctx.sessions.revoke(u.id, sessionIdParam.parse(request.params.sid))) throw notFound('Session');
+    ctx.audit.record('session.revoked', { actor: request.user, ip: request.ip, target: u.username });
+    return { ok: true };
+  });
+
+  /** Signs the user out everywhere (for your own account: everywhere except this browser). */
+  app.delete<{ Params: { id: string } }>('/api/users/:id/sessions', { preHandler: requireAdmin }, async (request) => {
+    const u = userOr404(request.params.id);
+    const n = ctx.sessions.destroyAllForUser(u.id, u.id === request.user!.id ? request.sessionToken : undefined);
+    ctx.audit.record('session.revoked_all', { actor: request.user, ip: request.ip, target: u.username, detail: `${n} session(s)` });
+    return { ok: true, revoked: n };
+  });
+
+  // ------------------------------------------------------------------ audit log
+  const auditQuery = z.object({
+    page: z.coerce.number().int().min(1).max(10000).default(1),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+    action: z.string().regex(/^[a-z_.]{1,40}$/).optional(),
+    user: z.coerce.number().int().positive().optional(),
+  });
+
+  app.get('/api/admin/audit', { preHandler: requireAdmin }, async (request) => {
+    const q = auditQuery.parse(request.query);
+    return ctx.audit.list({ page: q.page, limit: q.limit, action: q.action, actorId: q.user });
   });
 
   // ------------------------------------------------------------------ settings
@@ -395,6 +447,11 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       else ctx.settings.update({ tmdbApiKey });
     }
     if (rest.watchFolders !== undefined) ctx.watcher.sync(rest.watchFolders);
+    // Names of what changed only — never the values of keys.
+    const tmdbChanges = [tmdbApiKey !== undefined ? (tmdbApiKey === '' ? 'API key removed' : 'API key changed') : null, rest.tmdbLanguage !== undefined ? `language ${rest.tmdbLanguage || 'default'}` : null, rest.includeAdult !== undefined ? `adult titles ${rest.includeAdult ? 'on' : 'off'}` : null].filter(Boolean);
+    if (tmdbChanges.length) ctx.audit.record('tmdb.updated', { actor: request.user, ip: request.ip, detail: tmdbChanges.join('; ') });
+    const serverChanges = (['serverName', 'serverUrl', 'watchFolders'] as const).filter((k) => rest[k] !== undefined);
+    if (serverChanges.length) ctx.audit.record('settings.updated', { actor: request.user, ip: request.ip, detail: serverChanges.join(', ') });
     if (!wasConfigured && ctx.tmdb.configured) {
       log.info('TMDB configured — fetching metadata for existing libraries');
       ctx.scans.enqueueAll(false);
@@ -451,10 +508,14 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (body.type === 'movie') {
       if (!db.select({ id: movies.id }).from(movies).where(eq(movies.id, body.id)).get()) throw notFound('Movie');
       const id = await ctx.metadata.applyMovie(body.id, body.tmdbId, 'manual', 1);
+      const title = db.select({ title: movies.title }).from(movies).where(eq(movies.id, id)).get()?.title;
+      ctx.audit.record('metadata.matched', { actor: request.user, ip: request.ip, target: title, detail: `movie → TMDB ${body.tmdbId}` });
       return { type: 'movie', id };
     }
     if (!db.select({ id: shows.id }).from(shows).where(eq(shows.id, body.id)).get()) throw notFound('Show');
     await ctx.metadata.applyShow(body.id, body.tmdbId, 'manual', 1);
+    const title = db.select({ title: shows.title }).from(shows).where(eq(shows.id, body.id)).get()?.title;
+    ctx.audit.record('metadata.matched', { actor: request.user, ip: request.ip, target: title, detail: `show → TMDB ${body.tmdbId}` });
     return { type: 'show', id: body.id };
   });
 
@@ -463,12 +524,14 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (!ctx.tmdb.configured) throw new HttpError(400, 'Add a TMDB API key in Admin → Metadata first.');
     const result = request.params.type === 'movie' ? await ctx.metadata.matchMovie(id, true) : await ctx.metadata.matchShow(id, true);
     if (result === 'failed') throw new HttpError(502, 'TMDB could not be reached. Cached metadata is unchanged.');
+    ctx.audit.record('metadata.refreshed', { actor: request.user, ip: request.ip, target: `${request.params.type} ${id}` });
     return { result };
   });
 
   // ------------------------------------------------------------------ backup
-  app.get('/api/admin/backup', { preHandler: requireAdmin }, async (_request, reply) => {
+  app.get('/api/admin/backup', { preHandler: requireAdmin }, async (request, reply) => {
     const file = createDatabaseSnapshot(ctx.db, ctx.config.backupDir);
+    ctx.audit.record('backup.downloaded', { actor: request.user, ip: request.ip });
     const stream = fs.createReadStream(file);
     stream.on('close', () => fs.rm(file, { force: true }, () => undefined));
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);

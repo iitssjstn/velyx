@@ -84,6 +84,7 @@ export async function collectionRoutes(app: FastifyInstance, ctx: AppContext): P
       .values({ kind: 'manual', name: body.name, sortTitle: sortTitle(body.name), overview: body.overview || null })
       .returning()
       .get();
+    ctx.audit.record('collection.created', { actor: request.user, ip: request.ip, target: row.name });
     return { id: row.id, kind: row.kind, name: row.name, overview: row.overview, posterPath: null, backdropPath: null, itemCount: 0 };
   });
 
@@ -103,6 +104,7 @@ export async function collectionRoutes(app: FastifyInstance, ctx: AppContext): P
   app.delete<{ Params: { id: string } }>('/api/collections/:id', { preHandler: requireAdmin }, async (request) => {
     const row = manualCollection(request.params.id);
     db.delete(collections).where(eq(collections.id, row.id)).run();
+    ctx.audit.record('collection.deleted', { actor: request.user, ip: request.ip, target: row.name });
     return { ok: true };
   });
 

@@ -37,6 +37,8 @@ export const sessions = sqliteTable(
     expiresAt: integer('expires_at').notNull(),
     lastSeenAt: integer('last_seen_at').notNull().default(now),
     userAgent: text('user_agent'),
+    /** Client address when the session was created / last refreshed (as seen through trusted proxies). */
+    ip: text('ip'),
   },
   (t) => [index('sessions_user_idx').on(t.userId), index('sessions_expires_idx').on(t.expiresAt)],
 );
@@ -422,4 +424,23 @@ export const collectionItems = sqliteTable(
     index('collection_items_movie_lookup_idx').on(t.movieId),
     index('collection_items_show_lookup_idx').on(t.showId),
   ],
+);
+
+/** Security-relevant and administrative actions. Never contains passwords, keys or session tokens. */
+export const auditLog = sqliteTable(
+  'audit_log',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    at: integer('at').notNull().default(now),
+    /** Who did it; null for anonymous actions such as a failed sign-in, or when the user was deleted. */
+    actorId: integer('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    /** Username at the time (kept when the user is later deleted). */
+    actorName: text('actor_name'),
+    action: text('action').notNull(),
+    /** Human-readable subject, e.g. a library or user name. */
+    target: text('target'),
+    detail: text('detail'),
+    ip: text('ip'),
+  },
+  (t) => [index('audit_at_idx').on(t.at), index('audit_action_idx').on(t.action, t.at)],
 );

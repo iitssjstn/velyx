@@ -6,6 +6,7 @@ import { MetadataPage } from './Metadata';
 import { ServerSettingsPanel } from './ServerSettings';
 import { LogsPage } from './Logs';
 import { BackupPage } from './Backup';
+import { AuditPage } from './Audit';
 
 const TABS = [
   { to: 'dashboard', label: 'Dashboard' },
@@ -14,6 +15,7 @@ const TABS = [
   { to: 'metadata', label: 'Metadata' },
   { to: 'server', label: 'Server' },
   { to: 'logs', label: 'Logs' },
+  { to: 'audit', label: 'Audit log' },
   { to: 'backup', label: 'Backup' },
 ];
 
@@ -40,6 +42,7 @@ export default function AdminLayout() {
         <Route path="metadata" element={<MetadataPage />} />
         <Route path="server" element={<ServerSettingsPanel />} />
         <Route path="logs" element={<LogsPage />} />
+        <Route path="audit" element={<AuditPage />} />
         <Route path="backup" element={<BackupPage />} />
         <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
       </Routes>

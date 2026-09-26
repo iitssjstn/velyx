@@ -20,7 +20,11 @@ export interface AppConfig {
   sessionSecret: string;
   sessionTtlDays: number;
   cookieSecure: 'auto' | boolean;
-  trustProxy: boolean;
+  /**
+   * Which proxies may set X-Forwarded-For: false (none), true (any), a hop count, or a list of
+   * addresses/CIDRs. A hop count or list stops clients from spoofing their address.
+   */
+  trustProxy: boolean | number | string[];
   scanIntervalMinutes: number;
   /** FFprobe processes allowed at once (scanner + on-demand analysis). 1–4, default 1. */
   scanConcurrency: number;
@@ -33,6 +37,15 @@ export interface AppConfig {
 function bool(v: string | undefined, fallback: boolean): boolean {
   if (v === undefined || v === '') return fallback;
   return ['1', 'true', 'yes', 'on'].includes(v.toLowerCase());
+}
+
+/** TRUST_PROXY: true/false, a number of proxy hops (e.g. 2 for Cloudflare + Nginx), or a list of addresses/CIDRs. */
+export function parseTrustProxy(v: string | undefined): boolean | number | string[] {
+  const s = (v ?? '').trim();
+  if (s === '' || ['false', 'no', 'off', '0'].includes(s.toLowerCase())) return false;
+  if (['true', 'yes', 'on'].includes(s.toLowerCase())) return true;
+  if (/^\d+$/.test(s)) return Number(s);
+  return s.split(',').map((p) => p.trim()).filter(Boolean);
 }
 
 function int(v: string | undefined, fallback: number): number {
@@ -91,7 +104,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     sessionSecret: '',
     sessionTtlDays: int(env.SESSION_TTL_DAYS, 30),
     cookieSecure: cookieSecureRaw === 'auto' ? 'auto' : bool(cookieSecureRaw, false),
-    trustProxy: bool(env.TRUST_PROXY, false),
+    trustProxy: parseTrustProxy(env.TRUST_PROXY),
     scanIntervalMinutes: int(env.SCAN_INTERVAL_MINUTES, 360),
     scanConcurrency: Math.min(4, Math.max(1, int(env.SCAN_CONCURRENCY, 1))),
     ffprobePath: env.FFPROBE_PATH || 'ffprobe',

@@ -19,6 +19,7 @@ import { createFfprobe, type Prober } from './services/probe.js';
 import { limitProber } from './services/probe-queue.js';
 import { EmbeddedSubtitleExtractor } from './services/subtitles.js';
 import { LibraryAccess } from './services/access.js';
+import { AuditLog } from './services/audit.js';
 import { PlaybackRegistry } from './playback/engine.js';
 import { DirectPlayEngine } from './playback/direct-play.js';
 import { RemuxEngine } from './playback/remux.js';
@@ -49,6 +50,7 @@ export interface AppContext {
   playback: PlaybackRegistry;
   subtitleExtractor: EmbeddedSubtitleExtractor;
   access: LibraryAccess;
+  audit: AuditLog;
   /** FFprobe behind the shared concurrency limit. */
   probe: Prober & { readonly active: number; readonly waiting: number };
   startedAt: number;
@@ -82,7 +84,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   playback.register(new DirectPlayEngine());
   playback.register(new RemuxEngine(config.ffmpegPath));
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), probe, startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit: new AuditLog(db), probe, startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {
@@ -108,7 +110,8 @@ export function requireAdmin(request: FastifyRequest, reply: FastifyReply, done:
 export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   const app = Fastify({
     logger: false,
-    trustProxy: ctx.config.trustProxy,
+    // A hop count trusts exactly that many proxies in front of Velyx (e.g. 2 for Cloudflare + Nginx).
+    trustProxy: typeof ctx.config.trustProxy === 'number' ? ((_addr: string, hop: number) => hop < (ctx.config.trustProxy as number)) : ctx.config.trustProxy,
     bodyLimit: 4 * 1024 * 1024,
   });
 
@@ -144,7 +147,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     const unsigned = request.unsignCookie(raw);
     if (!unsigned.valid || !unsigned.value) return;
     request.sessionToken = unsigned.value;
-    request.user = ctx.sessions.resolve(unsigned.value);
+    request.user = ctx.sessions.resolve(unsigned.value, request.ip);
   });
 
   // CSRF defence: state-changing API calls must come from our own origin. Combined with SameSite=Lax

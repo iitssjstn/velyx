@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Trash2, UserPlus } from 'lucide-react';
+import { MonitorSmartphone, Pencil, Trash2, UserPlus } from 'lucide-react';
 import { api } from '../../lib/api';
 import { displayName, useAuth } from '../../lib/auth';
 import { formatRelative } from '../../lib/format';
@@ -10,6 +10,7 @@ import { Button, IconButton } from '../../components/Button';
 import { ConfirmModal, Modal } from '../../components/Modal';
 import { ErrorState, PageLoader } from '../../components/States';
 import { toast } from '../../components/Toast';
+import { SessionList } from '../../components/SessionList';
 
 function UserForm({ user, isSelf, onDone }: { user?: AdminUser; isSelf: boolean; onDone: () => void }) {
   const qc = useQueryClient();
@@ -151,6 +152,7 @@ export function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [deleting, setDeleting] = useState<AdminUser | null>(null);
+  const [sessionsOf, setSessionsOf] = useState<AdminUser | null>(null);
   const q = useQuery({ queryKey: ['users'], queryFn: () => api.get<AdminUser[]>('/api/users') });
   const del = useMutation({
     mutationFn: (id: number) => api.del(`/api/users/${id}`),
@@ -193,6 +195,9 @@ export function UsersPage() {
             <span className={`hidden rounded-full px-2.5 py-0.5 text-xs sm:inline ${u.role === 'admin' ? 'bg-accent/15 text-accent' : 'bg-raised text-muted'}`}>{u.role === 'admin' ? 'Admin' : 'User'}</span>
             {u.disabled && <span className="rounded-full bg-danger/15 px-2.5 py-0.5 text-xs text-danger">Disabled</span>}
             <div className="flex">
+              <IconButton label={`Sessions of ${displayName(u)}`} onClick={() => setSessionsOf(u)}>
+                <MonitorSmartphone className="size-4" />
+              </IconButton>
               <IconButton label="Edit user" onClick={() => setEditing(u)}>
                 <Pencil className="size-4" />
               </IconButton>
@@ -210,6 +215,9 @@ export function UsersPage() {
       </Modal>
       <Modal title="Edit user" open={Boolean(editing)} onClose={() => setEditing(null)}>
         {editing && <UserForm user={editing} isSelf={editing.id === me?.id} onDone={() => setEditing(null)} />}
+      </Modal>
+      <Modal title={sessionsOf ? `Sessions — ${displayName(sessionsOf)}` : 'Sessions'} open={Boolean(sessionsOf)} onClose={() => setSessionsOf(null)}>
+        {sessionsOf && <SessionList userId={sessionsOf.id} />}
       </Modal>
       <ConfirmModal
         open={Boolean(deleting)}
