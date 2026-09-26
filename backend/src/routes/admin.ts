@@ -258,6 +258,16 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   app.get('/api/libraries/scan-status', { preHandler: requireAdmin }, async () => ctx.scans.state());
 
+  app.post('/api/libraries/scans/pause', { preHandler: requireAdmin }, async () => {
+    ctx.scans.pause('manual');
+    return ctx.scans.state();
+  });
+
+  app.post('/api/libraries/scans/resume', { preHandler: requireAdmin }, async () => {
+    ctx.scans.resume('manual');
+    return ctx.scans.state();
+  });
+
   app.get<{ Params: { id: string } }>('/api/libraries/:id/issues', { preHandler: requireAdmin }, async (request) => {
     const id = parseId(request.params.id);
     if (!db.select({ id: libraries.id }).from(libraries).where(eq(libraries.id, id)).get()) throw notFound('Library');

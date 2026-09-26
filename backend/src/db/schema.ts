@@ -55,6 +55,9 @@ export const libraries = sqliteTable('libraries', {
   lastScanAt: integer('last_scan_at'),
   lastScanStatus: text('last_scan_status'),
   lastScanMessage: text('last_scan_message'),
+  lastScanDurationMs: integer('last_scan_duration_ms'),
+  lastSuccessAt: integer('last_success_at'),
+  lastFailureAt: integer('last_failure_at'),
 });
 
 export const userLibraries = sqliteTable(

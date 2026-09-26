@@ -29,6 +29,13 @@
       "when": 1790387556212,
       "tag": "0003_playback_details",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790387928087,
+      "tag": "0004_scan_history",
+      "breakpoints": true
     }
   ]
 }
