@@ -1,0 +1,16 @@
+export const nav = {
+  main: 'Main',
+  home: 'Home',
+  movies: 'Movies',
+  tvShows: 'TV Shows',
+  collections: 'Collections',
+  watchlist: 'Watchlist',
+  favorites: 'Favorites',
+  settings: 'Settings',
+  admin: 'Admin',
+  searchVelyx: 'Search Velyx',
+  searchPlaceholder: 'Search…',
+  openMenu: 'Open menu',
+  closeMenu: 'Close menu',
+  menu: 'Menu',
+};

@@ -8,6 +8,7 @@ import { Button } from './Button';
 import { Artwork } from './Artwork';
 import { ErrorState, Spinner } from './States';
 import { toast } from './Toast';
+import { useT } from '../i18n';
 
 /** Lets an administrator pick the correct TMDB entry for a movie or show. */
 export function FixMatchModal({
@@ -28,6 +29,7 @@ export function FixMatchModal({
   onMatched?: (newId: number) => void;
 }) {
   const qc = useQueryClient();
+  const { t } = useT();
   const [query, setQuery] = useState(initialQuery);
   const [year, setYear] = useState(initialYear ? String(initialYear) : '');
   const [submitted, setSubmitted] = useState({ query: initialQuery, year: initialYear ? String(initialYear) : '' });
@@ -41,7 +43,7 @@ export function FixMatchModal({
   const apply = useMutation({
     mutationFn: (tmdbId: number) => api.post<{ id: number }>('/api/admin/match', { type, id, tmdbId }),
     onSuccess: (res) => {
-      toast.success('Match updated.');
+      toast.success(t('fixMatch.updated'));
       void qc.invalidateQueries();
       onClose();
       onMatched?.(res.id);
@@ -55,11 +57,11 @@ export function FixMatchModal({
   };
 
   return (
-    <Modal title="Fix match" open={open} onClose={onClose} wide>
+    <Modal title={t('adminItem.fixMatch')} open={open} onClose={onClose} wide>
       <form onSubmit={search} className="flex flex-wrap gap-2">
-        <input className="input min-w-0 flex-1" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={type === 'movie' ? 'Movie title' : 'Show title'} aria-label="Title" />
-        <input className="input w-24" value={year} onChange={(e) => setYear(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="Year" aria-label="Year" inputMode="numeric" />
-        <Button type="submit" icon={<Search className="size-4" />}>Search</Button>
+        <input className="input min-w-0 flex-1" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={type === 'movie' ? t('fixMatch.movieTitle') : t('fixMatch.showTitle')} aria-label={t('fixMatch.title')} />
+        <input className="input w-24" value={year} onChange={(e) => setYear(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder={t('fixMatch.year')} aria-label={t('fixMatch.year')} inputMode="numeric" />
+        <Button type="submit" icon={<Search className="size-4" />}>{t('common.search')}</Button>
       </form>
       <div className="mt-5 min-h-40">
         {results.isFetching ? (
@@ -67,7 +69,7 @@ export function FixMatchModal({
         ) : results.error ? (
           <ErrorState error={results.error} />
         ) : results.data && results.data.length === 0 ? (
-          <p className="py-10 text-center text-muted">No results on TMDB. Try a different title or remove the year.</p>
+          <p className="py-10 text-center text-muted">{t('fixMatch.noResults')}</p>
         ) : (
           <ul className="space-y-2">
             {results.data?.map((c) => (
@@ -90,7 +92,7 @@ export function FixMatchModal({
                   </div>
                   <span
                     className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${c.confidence >= 0.8 ? 'bg-ok/15 text-ok' : c.confidence >= 0.6 ? 'bg-amber/15 text-amber' : 'bg-raised text-muted'}`}
-                    title="Match confidence"
+                    title={t('fixMatch.confidence')}
                   >
                     {Math.round(c.confidence * 100)}%
                   </span>

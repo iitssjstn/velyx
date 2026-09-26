@@ -1,6 +1,7 @@
 import { Play } from 'lucide-react';
 import type { EpisodeDetail } from '../lib/types';
 import { episodeCode, formatRuntime, imageUrl } from '../lib/format';
+import { useT } from '../i18n';
 
 type Next = NonNullable<EpisodeDetail['next']>;
 
@@ -28,15 +29,16 @@ export function UpNext({
   /** Stay: dismiss the card (before the end) or stop the countdown (after it). */
   onStay: () => void;
 }) {
-  const title = next.title ?? `Episode ${next.episodeNumber}`;
+  const { t } = useT();
+  const title = next.title ?? t('series.episode', { n: next.episodeNumber });
   const length = formatRuntime(next.runtime ?? (next.durationSec ? Math.round(next.durationSec / 60) : null));
   const still = imageUrl(next.stillPath, 'w300');
   const filled = countdown === null ? 0 : Math.min(100, Math.max(0, ((countdownTotal - countdown) / Math.max(1, countdownTotal)) * 100));
-  const stayLabel = ended ? (countdown !== null ? 'Cancel' : null) : credits ? 'Watch credits' : 'Cancel';
+  const stayLabel = ended ? (countdown !== null ? t('common.cancel') : null) : credits ? t('player.watchCredits') : t('common.cancel');
   return (
     <div
       role="dialog"
-      aria-label="Next episode"
+      aria-label={t('player.nextEpisode')}
       onClick={(e) => e.stopPropagation()}
       className="absolute inset-x-4 bottom-28 z-20 sm:inset-x-auto sm:right-8 sm:bottom-40 sm:w-[30rem]"
     >
@@ -44,7 +46,7 @@ export function UpNext({
         <div className="aspect-video w-28 shrink-0 overflow-hidden rounded-lg bg-raised sm:w-40">{still && <img src={still} alt="" className="h-full w-full object-cover" />}</div>
         <div className="min-w-0 flex-1">
           <p className="text-xs text-white/60">
-            Next episode · {episodeCode(next.seasonNumber, next.episodeNumber)}
+            {t('player.nextEpisode')} · {episodeCode(next.seasonNumber, next.episodeNumber)}
             {length && ` · ${length}`}
           </p>
           <p className="truncate font-semibold sm:text-lg">{title}</p>
@@ -60,12 +62,12 @@ export function UpNext({
         <button
           type="button"
           onClick={onPlay}
-          aria-label={countdown !== null ? `Next episode, starts in ${countdown} ${countdown === 1 ? 'second' : 'seconds'}` : 'Next episode'}
+          aria-label={countdown !== null ? t('player.nextStartsIn', { count: countdown }) : t('player.nextEpisode')}
           className={`relative h-12 flex-1 overflow-hidden rounded-md font-semibold text-black transition sm:text-lg shadow-lg ${countdown !== null ? 'bg-[#b3b3b3]' : 'bg-white hover:bg-[#e6e6e6]'}`}
         >
           {countdown !== null && <span aria-hidden data-testid="countdown-fill" className="absolute inset-y-0 left-0 bg-white transition-[width] duration-1000 ease-linear" style={{ width: `${filled}%` }} />}
           <span className="relative flex items-center justify-center gap-2">
-            <Play className="size-5 fill-current" /> Next episode
+            <Play className="size-5 fill-current" /> {t('player.nextEpisode')}
           </span>
         </button>
       </div>

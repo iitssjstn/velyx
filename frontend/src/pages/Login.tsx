@@ -3,6 +3,7 @@ import { api, errorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { User } from '../lib/types';
 import { Button } from '../components/Button';
+import { useT } from '../i18n';
 import { AuthShell } from './AuthShell';
 
 export function LoginPage() {
@@ -11,6 +12,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { t, tRich } = useT();
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -27,15 +29,15 @@ export function LoginPage() {
 
   return (
     <AuthShell>
-      <h1 className="font-display text-3xl font-semibold tracking-tight">Sign in</h1>
-      <p className="mt-2 text-muted">to {server?.name && server.name !== 'Velyx' ? server.name : 'your Velyx server'}</p>
+      <h1 className="font-display text-3xl font-semibold tracking-tight">{t('auth.signIn')}</h1>
+      <p className="mt-2 text-muted">{server?.name && server.name !== 'Velyx' ? t('auth.toServer', { name: server.name }) : t('auth.toYourServer')}</p>
       <form onSubmit={submit} className="mt-8 space-y-4">
         <div>
-          <label className="label" htmlFor="username">Username</label>
+          <label className="label" htmlFor="username">{t('auth.username')}</label>
           <input id="username" className="input" autoComplete="username" required autoFocus value={username} onChange={(e) => setUsername(e.target.value)} />
         </div>
         <div>
-          <label className="label" htmlFor="password">Password</label>
+          <label className="label" htmlFor="password">{t('auth.password')}</label>
           <input id="password" type="password" className="input" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
         {error && (
@@ -44,10 +46,10 @@ export function LoginPage() {
           </p>
         )}
         <Button type="submit" size="lg" className="w-full" loading={busy}>
-          Sign in
+          {t('auth.signIn')}
         </Button>
       </form>
-      <p className="mt-8 text-xs text-faint">Forgot your password? An administrator can reset it, or run <code className="text-muted">velyx reset-password</code> on the server.</p>
+      <p className="mt-8 text-xs text-faint">{tRich('auth.forgotPassword', { command: <code className="text-muted">velyx reset-password</code> })}</p>
     </AuthShell>
   );
 }

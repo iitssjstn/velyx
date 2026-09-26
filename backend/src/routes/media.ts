@@ -15,7 +15,8 @@ import { HttpError, notFound, parseId } from '../http-error.js';
 import { fileInfo } from './library.js';
 import { canSee } from '../services/access.js';
 import { analyzePlayback } from '../playback/compatibility.js';
-import { clientProfile, deviceSupport, effectiveCapabilities } from '../playback/client-profile.js';
+import { clientProfile, deviceSupport, effectiveCapabilities, profileName } from '../playback/client-profile.js';
+import { requestLanguage } from '../i18n/index.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('playback');
@@ -133,10 +134,11 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     // Clients that do not report their formats are judged by what their kind of browser usually plays.
     const ua = request.headers['user-agent'];
     const { caps, confidence } = effectiveCapabilities(reportedCaps, clientProfile(ua));
-    const decision = ctx.playback.decide(file, caps, { audioIndex, audioChannels, boostVoices, levelVolume });
+    const lang = requestLanguage(request);
+    const decision = ctx.playback.decide(file, caps, { audioIndex, audioChannels, boostVoices, levelVolume, lang });
     if (!decision) throw new HttpError(415, 'This file cannot be played.');
     const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, file.id)).all();
-    const analysis = analyzePlayback(file, caps, decision, ua, confidence);
+    const analysis = analyzePlayback(file, caps, decision, ua, confidence, lang);
     return { decision: { ...decision, mode: analysis.mode }, analysis, file: fileInfo(file, external), subtitles: subtitleList(file) };
   });
 
@@ -145,7 +147,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const { audioIndex: _a, audioChannels: _c, boostVoices: _b, levelVolume: _l, ...reportedCaps } = capsBody.parse(request.body ?? {});
     const profile = clientProfile(request.headers['user-agent']);
     const { confidence } = effectiveCapabilities(reportedCaps, profile);
-    return { device: profile.name, family: profile.family, confidence, formats: deviceSupport(reportedCaps, profile) };
+    const lang = requestLanguage(request);
+    return { device: profileName(profile, lang), family: profile.family, confidence, formats: deviceSupport(reportedCaps, profile, lang) };
   });
 
   /** What a remux request does with the audio, for the activity log (null = passed through). */

@@ -2,6 +2,7 @@ import { and, eq, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
 import { episodes, libraries, mediaFiles, movies, shows } from '../db/schema.js';
 import { codecLabel, COPYABLE_VIDEO, libraryVerdict, REFERENCE_CAPS, videoSupport } from '../playback/compatibility.js';
+import { tr, type Language } from '../i18n/index.js';
 import { ReplacementTracker, snapshotLabel } from './replacements.js';
 
 /**
@@ -144,46 +145,48 @@ export function formatSummary(f: FileRow): string {
 }
 
 /** Plain-language explanation of why a file is in a playback category. */
-export function playbackReasons(f: FileRow): string[] {
+export function playbackReasons(f: FileRow, lang: Language = 'en'): string[] {
+  const T = (m: string, p?: Record<string, string | number>) => tr(lang, m, p);
   const verdict = playbackVerdict(f);
-  if (verdict === 'direct') return ['Plays as-is: nothing is converted.'];
-  if (verdict === 'browser-dependent') return ['HEVC video plays only where the device can decode it (Safari; Chrome or Edge with hardware support).'];
+  if (verdict === 'direct') return [T('Plays as-is: nothing is converted.')];
+  if (verdict === 'browser-dependent') return [T('HEVC video plays only where the device can decode it (Safari; Chrome or Edge with hardware support).')];
   if (verdict === 'unsupported') {
-    if (!f.videoCodec) return ['No video stream was found in this file.'];
-    const support = videoSupport(f, {});
-    if (support.ok === false && support.problem) return [support.problem, 'Velyx does not transcode video.'];
-    if (!COPYABLE_VIDEO.has(f.videoCodec) && !REFERENCE_CAPS.videoCodecs.includes(f.videoCodec)) return [`${codecLabel(f.videoCodec)} video cannot be decoded by web browsers.`, 'Velyx does not transcode video.'];
-    return [support.problem ?? 'Browsers cannot decode this video.', 'Velyx does not transcode video.'];
+    if (!f.videoCodec) return [T('No video stream was found in this file.')];
+    const support = videoSupport(f, {}, lang);
+    if (support.ok === false && support.problem) return [support.problem, T('Velyx does not transcode video.')];
+    if (!COPYABLE_VIDEO.has(f.videoCodec) && !REFERENCE_CAPS.videoCodecs.includes(f.videoCodec)) return [T('{codec} video cannot be decoded by web browsers.', { codec: codecLabel(f.videoCodec, lang) }), T('Velyx does not transcode video.')];
+    return [support.problem ?? T('Browsers cannot decode this video.'), T('Velyx does not transcode video.')];
   }
   if (verdict === 'remux') {
     const reasons: string[] = [];
-    if (f.audioCodec && !REFERENCE_CAPS.audioCodecs.includes(f.audioCodec)) reasons.push(`${codecLabel(f.audioCodec)} audio is converted to AAC.`);
-    if (f.container && !REFERENCE_CAPS.containers.includes(f.container)) reasons.push(`The ${f.container.toUpperCase()} container is repackaged as MP4.`);
-    reasons.push('The video is copied without re-encoding.');
+    if (f.audioCodec && !REFERENCE_CAPS.audioCodecs.includes(f.audioCodec)) reasons.push(T('{codec} audio is converted to AAC.', { codec: codecLabel(f.audioCodec, lang) }));
+    if (f.container && !REFERENCE_CAPS.containers.includes(f.container)) reasons.push(T('The {container} container is repackaged as MP4.', { container: f.container.toUpperCase() }));
+    reasons.push(T('The video is copied without re-encoding.'));
     return reasons;
   }
   return [];
 }
 
-function reasonsFor(key: HealthKey, f: FileRow): string[] {
+function reasonsFor(key: HealthKey, f: FileRow, lang: Language): string[] {
+  const T = (m: string, p?: Record<string, string | number>) => tr(lang, m, p);
   switch (key) {
     case 'direct':
     case 'remux':
     case 'browser-dependent':
     case 'unsupported':
-      return playbackReasons(f);
+      return playbackReasons(f, lang);
     case 'scan-errors':
-      return [f.probeError ?? 'FFprobe could not read this file.'];
+      return [f.probeError ?? T('FFprobe could not read this file.')];
     case 'not-analyzed':
-      return ['Bit depth and HDR are not known yet.'];
+      return [T('Bit depth and HDR are not known yet.')];
     case '10-bit':
-      return f.videoCodec === 'h264' ? ['10-bit H.264 (Hi10P) does not play in web browsers.'] : [];
+      return f.videoCodec === 'h264' ? [T('10-bit H.264 (Hi10P) does not play in web browsers.')] : [];
     case 'unsupported-audio':
-      return [`${codecLabel(f.audioCodec)} audio is converted to AAC during playback.`];
+      return [T('{codec} audio is converted to AAC during playback.', { codec: codecLabel(f.audioCodec, lang) })];
     case 'pgs':
     case 'vobsub': {
       const n = (f.subtitleTracks ?? []).filter((s) => s.codec === IMAGE_SUBS[key]).length;
-      return [`${n} ${key === 'pgs' ? 'PGS' : 'VobSub'} track${n === 1 ? '' : 's'}; text subtitles still work.`];
+      return [T(n === 1 ? '1 {format} track; text subtitles still work.' : '{n} {format} tracks; text subtitles still work.', { n, format: key === 'pgs' ? 'PGS' : 'VobSub' })];
     }
     default:
       return [];
@@ -252,7 +255,7 @@ export class LibraryHealth {
     return { movieIds, episodeIds, sameTmdb };
   }
 
-  summary(libraryId?: number): HealthSummary {
+  summary(libraryId?: number, lang: Language = 'en'): HealthSummary {
     const counts = new Map<HealthKey, number>();
     const files = this.files(libraryId);
     for (const f of files) for (const k of fileCategories(f)) counts.set(k, (counts.get(k) ?? 0) + 1);
@@ -267,19 +270,19 @@ export class LibraryHealth {
     counts.set('duplicates', d.movieIds.length + d.episodeIds.length + tmdbDupes.size);
     counts.set('replaced', this.replacements.recent(Date.now() - REPLACED_WINDOW_MS, libraryId).length);
     return {
-      categories: HEALTH_CATEGORIES.map((c) => ({ ...c, count: counts.get(c.key) ?? 0 })),
+      categories: HEALTH_CATEGORIES.map((c) => ({ ...c, label: tr(lang, c.label), description: tr(lang, c.description), count: counts.get(c.key) ?? 0 })),
       files: files.length,
       tmdbConfigured: this.tmdbConfigured(),
     };
   }
 
   /** The items in one category, one page at a time, sorted by title. */
-  items(key: HealthKey, opts: { libraryId?: number; page: number; limit: number }): { total: number; items: HealthItem[] } {
+  items(key: HealthKey, opts: { libraryId?: number; page: number; limit: number }, lang: Language = 'en'): { total: number; items: HealthItem[] } {
     const libs = new Map(this.db.select({ id: libraries.id, name: libraries.name, path: libraries.path }).from(libraries).all().map((l) => [l.id, l]));
     let all: HealthItem[];
-    if (key === 'missing-metadata' || key === 'missing-artwork') all = this.metadataItems(key, opts.libraryId, libs);
-    else if (key === 'duplicates') all = this.duplicateItems(opts.libraryId, libs);
-    else if (key === 'replaced') all = this.replacedItems(opts.libraryId, libs);
+    if (key === 'missing-metadata' || key === 'missing-artwork') all = this.metadataItems(key, opts.libraryId, libs, lang);
+    else if (key === 'duplicates') all = this.duplicateItems(opts.libraryId, libs, lang);
+    else if (key === 'replaced') all = this.replacedItems(opts.libraryId, libs, lang);
     else {
       const matching = this.files(opts.libraryId).filter((f) => fileCategories(f).includes(key));
       const titles = this.titles(matching);
@@ -289,12 +292,12 @@ export class LibraryHealth {
         return {
           kind: t?.kind ?? 'movie',
           id: t?.id ?? 0,
-          title: t?.title ?? 'Not linked to a movie or episode',
+          title: t?.title ?? tr(lang, 'Not linked to a movie or episode'),
           subtitle: t?.subtitle ?? null,
           href: t?.href ?? '/admin/libraries',
           library: lib?.name ?? '',
           file: { id: f.id, path: relativePath(lib?.path, f.path), size: f.size, summary: formatSummary(f) },
-          reasons: reasonsFor(key, f),
+          reasons: reasonsFor(key, f, lang),
         };
       });
     }
@@ -333,7 +336,7 @@ export class LibraryHealth {
     return map;
   }
 
-  private replacedItems(libraryId: number | undefined, libs: Map<number, { name: string }>): HealthItem[] {
+  private replacedItems(libraryId: number | undefined, libs: Map<number, { name: string }>, lang: Language): HealthItem[] {
     const rows = this.replacements.recent(Date.now() - REPLACED_WINDOW_MS, libraryId);
     const fake = rows.map((r, i) => ({ id: -1 - i, movieId: r.movieId, episodeId: r.episodeId }) as FileRow);
     const titles = this.titles(fake);
@@ -350,17 +353,18 @@ export class LibraryHealth {
         ...t,
         library: libOf(r),
         file: null,
-        reasons: [`Previous: ${snapshotLabel(r.previous)} — ${r.previous.name}`, `Current: ${snapshotLabel(r.current)} — ${r.current.name}`, `Replaced ${new Date(r.at).toISOString().slice(0, 10)}`],
+        reasons: [tr(lang, 'Previous: {file}', { file: `${snapshotLabel(r.previous)} — ${r.previous.name}` }), tr(lang, 'Current: {file}', { file: `${snapshotLabel(r.current)} — ${r.current.name}` }), tr(lang, 'Replaced {date}', { date: new Date(r.at).toISOString().slice(0, 10) })],
       }];
     });
   }
 
-  private metadataItems(key: 'missing-metadata' | 'missing-artwork', libraryId: number | undefined, libs: Map<number, { name: string }>): HealthItem[] {
+  private metadataItems(key: 'missing-metadata' | 'missing-artwork', libraryId: number | undefined, libs: Map<number, { name: string }>, lang: Language): HealthItem[] {
+    const T = (m: string) => tr(lang, m);
     const reason = (r: { matchStatus: string; overview: string | null }) => {
-      if (key === 'missing-artwork') return ['No poster.'];
-      if (r.matchStatus === 'pending') return [this.tmdbConfigured() ? 'Waiting for metadata: it is looked up at the next scan.' : 'TMDB is not configured, so no metadata is looked up.'];
-      if (r.matchStatus === 'unmatched') return ['Not matched with TMDB. Use Fix match to pick the right title.'];
-      return ['No description.'];
+      if (key === 'missing-artwork') return [T('No poster.')];
+      if (r.matchStatus === 'pending') return [this.tmdbConfigured() ? T('Waiting for metadata: it is looked up at the next scan.') : T('TMDB is not configured, so no metadata is looked up.')];
+      if (r.matchStatus === 'unmatched') return [T('Not matched with TMDB. Use Fix match to pick the right title.')];
+      return [T('No description.')];
     };
     const cols = { id: movies.id, title: movies.title, year: movies.year, libraryId: movies.libraryId, matchStatus: movies.matchStatus, overview: movies.overview };
     const movieRows = this.db.select(cols).from(movies).where(this.metadataWhere(movies, key, libraryId)).all();
@@ -375,7 +379,7 @@ export class LibraryHealth {
     ];
   }
 
-  private duplicateItems(libraryId: number | undefined, libs: Map<number, { name: string; path: string }>): HealthItem[] {
+  private duplicateItems(libraryId: number | undefined, libs: Map<number, { name: string; path: string }>, lang: Language): HealthItem[] {
     const d = this.duplicates(libraryId);
     const items: HealthItem[] = [];
     const versions = (column: typeof mediaFiles.movieId | typeof mediaFiles.episodeId, ids: number[]) => {
@@ -393,11 +397,11 @@ export class LibraryHealth {
       }
       return byOwner;
     };
-    const describe = (files: FileRow[]) => files.map((f) => `${formatSummary(f) || 'Unknown format'} · ${formatSize(f.size)} — ${relativePath(libs.get(f.libraryId)?.path, f.path)}`);
+    const describe = (files: FileRow[]) => files.map((f) => `${formatSummary(f) || tr(lang, 'Unknown format')} · ${formatSize(f.size)} — ${relativePath(libs.get(f.libraryId)?.path, f.path)}`);
     for (const [owner, files] of [...versions(mediaFiles.movieId, d.movieIds), ...versions(mediaFiles.episodeId, d.episodeIds)]) {
       const t = this.titles(files).get(files[0].id);
       if (!t || t.id !== owner) continue;
-      items.push({ ...t, library: libs.get(files[0].libraryId)?.name ?? '', file: null, reasons: [`${files.length} versions:`, ...describe(files)] });
+      items.push({ ...t, library: libs.get(files[0].libraryId)?.name ?? '', file: null, reasons: [tr(lang, '{n} versions:', { n: files.length }), ...describe(files)] });
     }
     const listed = new Set(d.movieIds);
     for (const group of d.sameTmdb) {
@@ -407,7 +411,7 @@ export class LibraryHealth {
         const others = rows.filter((o) => o.id !== r.id).map((o) => `“${o.title}${o.year ? ` (${o.year})` : ''}”`);
         items.push({
           kind: 'movie', id: r.id, title: r.title, subtitle: r.year ? String(r.year) : null, href: `/movies/${r.id}`, library: libs.get(r.libraryId)?.name ?? '', file: null,
-          reasons: [`Matched to the same TMDB movie as ${others.join(', ')}. Usually two copies in different folders, or a wrong match.`],
+          reasons: [tr(lang, 'Matched to the same TMDB movie as {others}. Usually two copies in different folders, or a wrong match.', { others: others.join(', ') })],
         });
       }
     }

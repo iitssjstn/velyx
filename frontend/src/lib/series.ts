@@ -1,3 +1,4 @@
+import { t, type MessageKey } from '../i18n';
 import { episodeCode, formatClock } from './format';
 import { playHref } from './player';
 import type { EpisodeSummary, ShowDetail } from './types';
@@ -38,9 +39,31 @@ export function seriesContinue(show: Pick<ShowDetail, 'upNext' | 'watchedCount' 
   const p = up.progress;
   if (p && !p.completed && p.positionSec >= 30) {
     const total = p.durationSec || up.durationSec || 0;
-    return { label: `Resume ${code}`, href: playHref('episode', up.id, p.positionSec), startOverHref: `/play/episode/${up.id}?t=0`, position: total ? `${formatClock(p.positionSec)} / ${formatClock(total)}` : null };
+    return { label: t('series.resumeCode', { code }), href: playHref('episode', up.id, p.positionSec), startOverHref: `/play/episode/${up.id}?t=0`, position: total ? `${formatClock(p.positionSec)} / ${formatClock(total)}` : null };
   }
   const all = show.episodeCount > 0 && show.watchedCount >= show.episodeCount;
-  const label = all ? `Watch again from ${code}` : show.watchedCount > 0 ? `Play next ${code}` : `Play ${code}`;
+  const label = all ? t('series.watchAgainFrom', { code }) : show.watchedCount > 0 ? t('series.playNextCode', { code }) : t('series.playCode', { code });
   return { label, href: `/play/episode/${up.id}?t=0`, startOverHref: null, position: null };
+}
+
+/** A season's name: generated and TMDB names ("Season 2", "Specials") in the interface language. */
+export function seasonName(s: { seasonNumber: number; name: string }): string {
+  if (s.seasonNumber === 0 && (!s.name || /^specials$/i.test(s.name))) return t('series.specials');
+  if (!s.name || new RegExp(`^season\\s*${s.seasonNumber}$`, 'i').test(s.name)) return t('series.season', { n: s.seasonNumber });
+  return s.name;
+}
+
+const STATUSES: Record<string, MessageKey> = {
+  'Returning Series': 'series.status.returning',
+  Ended: 'series.status.ended',
+  Canceled: 'series.status.canceled',
+  'In Production': 'series.status.inProduction',
+  Planned: 'series.status.planned',
+  Pilot: 'series.status.pilot',
+};
+
+/** A show's status from TMDB ("Returning Series") in the interface language. */
+export function showStatus(status: string | null | undefined): string | null {
+  if (!status) return null;
+  return STATUSES[status] ? t(STATUSES[status]) : status;
 }

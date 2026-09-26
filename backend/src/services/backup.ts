@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import type { DB } from '../db/client.js';
 import { journalEntryCount } from '../db/client.js';
+import { tr, type Language } from '../i18n/index.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('backup');
@@ -157,9 +158,9 @@ function extractArchiveDb(archive: string): { file: string; cleanup: () => void 
  * Checks that a backup can be restored: the file exists, is a readable SQLite database that passes
  * PRAGMA integrity_check, has Velyx's tables, and is not from a newer Velyx than this one.
  */
-export function verifyBackup(file: string): VerifyResult {
+export function verifyBackup(file: string, lang: Language = 'en'): VerifyResult {
   const errors: string[] = [];
-  if (!fs.existsSync(file)) return { ok: false, errors: ['The backup file does not exist.'], info: null };
+  if (!fs.existsSync(file)) return { ok: false, errors: [tr(lang, 'The backup file does not exist.')], info: null };
   const size = fs.statSync(file).size;
   let dbFile = file;
   let cleanup = () => undefined as void;
@@ -177,17 +178,17 @@ export function verifyBackup(file: string): VerifyResult {
     sqlite = new Database(dbFile, { readonly: true, fileMustExist: true });
     const integrity = sqlite.pragma('integrity_check') as { integrity_check: string }[];
     if (integrity.length !== 1 || integrity[0]?.integrity_check !== 'ok') {
-      errors.push(`SQLite integrity check failed: ${integrity.slice(0, 3).map((r) => r.integrity_check).join('; ')}`);
+      errors.push(tr(lang, 'SQLite integrity check failed: {detail}', { detail: integrity.slice(0, 3).map((r) => r.integrity_check).join('; ') }));
     }
     const tables = new Set((sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]).map((r) => r.name));
     const missing = REQUIRED_TABLES.filter((t) => !tables.has(t));
-    if (missing.length) errors.push(`Not a complete Velyx database (missing: ${missing.join(', ')}).`);
+    if (missing.length) errors.push(tr(lang, 'Not a complete Velyx database (missing: {tables}).', { tables: missing.join(', ') }));
     const count = (table: string) => (tables.has(table) ? (sqlite!.prepare(`SELECT count(*) AS n FROM "${table}"`).get() as { n: number }).n : null);
     const migrations = count('__drizzle_migrations');
-    if (migrations !== null && migrations > journalEntryCount()) errors.push('This backup is from a newer version of Velyx. Update Velyx before restoring it.');
+    if (migrations !== null && migrations > journalEntryCount()) errors.push(tr(lang, 'This backup is from a newer version of Velyx. Update Velyx before restoring it.'));
     return { ok: errors.length === 0, errors, info: { size, migrations, users: count('users'), movies: count('movies'), shows: count('shows') } };
   } catch (err) {
-    return { ok: false, errors: [`Not a readable SQLite database: ${(err as Error).message}`], info: { size, migrations: null, users: null, movies: null, shows: null } };
+    return { ok: false, errors: [tr(lang, 'Not a readable SQLite database: {error}', { error: (err as Error).message })], info: { size, migrations: null, users: null, movies: null, shows: null } };
   } finally {
     sqlite?.close();
     cleanup();
@@ -203,9 +204,9 @@ export const PENDING_RESTORE = 'restore-pending.db';
  * could lose writes or mix WAL files, so the swap happens in openDatabase() before anything uses
  * the database, after a safety copy of the current one.
  */
-export function stageRestore(backupFile: string, dataDir: string, requestedBy: string): void {
-  const result = verifyBackup(backupFile);
-  if (!result.ok) throw new Error(`The backup did not pass verification: ${result.errors.join(' ')}`);
+export function stageRestore(backupFile: string, dataDir: string, requestedBy: string, lang: Language = 'en'): void {
+  const result = verifyBackup(backupFile, lang);
+  if (!result.ok) throw new Error(tr(lang, 'The backup did not pass verification: {errors}', { errors: result.errors.join(' ') }));
   const target = path.join(dataDir, PENDING_RESTORE);
   if (backupFile.endsWith('.tar.gz')) {
     const x = extractArchiveDb(backupFile);

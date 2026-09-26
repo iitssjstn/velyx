@@ -2,6 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, type ReactN
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api, onUnauthorized } from './api';
 import type { ServerInfo, User } from './types';
+import { currentLanguage, isLanguage, setLanguage } from '../i18n';
+
+/** Switches the interface to the signed-in user's language (their choice wins over the browser's). */
+async function applyLanguage(user: Pick<User, 'language'>): Promise<void> {
+  if (isLanguage(user.language) && user.language !== currentLanguage()) await setLanguage(user.language).catch(() => undefined);
+}
 
 interface AuthState {
   server: ServerInfo | undefined;
@@ -23,7 +29,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     enabled: server.data !== undefined && !server.data.setupRequired,
     queryFn: async () => {
       try {
-        return (await api.get<{ user: User }>('/api/auth/me')).user;
+        const user = (await api.get<{ user: User }>('/api/auth/me')).user;
+        // Show the app in the user's own language from the first screen (loads it before rendering).
+        await applyLanguage(user);
+        return user;
       } catch (err) {
         if (err instanceof ApiError && err.status === 401) return null;
         throw err;
@@ -36,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setUser = useCallback(
     (user: User | null) => {
       qc.setQueryData(['me'], user);
+      if (user) void applyLanguage(user);
       if (!user) qc.removeQueries({ predicate: (q) => !['me', 'server-info'].includes(q.queryKey[0] as string) });
     },
     [qc],

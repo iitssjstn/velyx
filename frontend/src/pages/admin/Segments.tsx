@@ -8,6 +8,7 @@ import { Button } from '../../components/Button';
 import { ConfirmModal, Modal } from '../../components/Modal';
 import { EmptyState, ErrorState, PageLoader } from '../../components/States';
 import { toast } from '../../components/Toast';
+import { intlLocale, t, useT, type MessageKey } from '../../i18n';
 
 type Confidence = 'high' | 'medium' | 'low';
 
@@ -34,7 +35,7 @@ interface Part {
   source?: 'chapters' | 'video' | 'audio' | 'manual' | null;
 }
 
-const SOURCE_LABEL = { chapters: 'chapters', video: 'picture', audio: 'audio', manual: 'by hand' } as const;
+const SOURCE_LABEL: Record<NonNullable<Part['source']>, MessageKey> = { chapters: 'segments.sources.chapters', video: 'segments.sources.video', audio: 'segments.sources.audio', manual: 'segments.sources.manual' };
 
 interface EpisodeSegmentsView {
   status: 'analyzed' | 'error';
@@ -51,31 +52,43 @@ interface ShowSegments {
   seasons: { seasonNumber: number; episodes: { id: number; episodeNumber: number; title: string | null; duration: number | null; eligible: boolean; segments: EpisodeSegmentsView | null }[] }[];
 }
 
-const CONFIDENCE_LABEL: Record<Confidence, string> = { high: 'High', medium: 'Medium', low: 'Low — not used' };
+const CONFIDENCE_LABEL: Record<Confidence, MessageKey> = { high: 'segments.confidence.high', medium: 'segments.confidence.medium', low: 'segments.confidence.lowNotUsed' };
+
+/** Errors the detector stores as fixed phrases. */
+const ERRORS: Record<string, MessageKey> = {
+  'Not analysed': 'segments.errors.notAnalysed',
+  'The file has no readable audio': 'segments.errors.noAudio',
+  'Could not read the audio': 'segments.errors.readAudio',
+};
+const errorText = (e: string | null) => (e && ERRORS[e] ? t(ERRORS[e]) : e);
 
 function statusLine(s: SegmentStatus): string {
-  if (s.state === 'disabled') return 'Detection is turned off.';
-  if (s.state === 'waiting') return s.waitingFor === 'playback' ? 'Waiting: someone is watching. Detection continues when playback ends.' : 'Waiting for the library scan to finish.';
-  if (s.state === 'running' && s.running) return `Analysing ${s.running.showTitle}, season ${s.running.seasonNumber} (${s.running.done} of ${s.running.total} episodes read)${s.queuedSeasons ? ` · ${s.queuedSeasons} more season${s.queuedSeasons === 1 ? '' : 's'} queued` : ''}.`;
-  return s.counts.pending ? `${s.counts.pending.toLocaleString()} episodes are waiting to be analysed.` : 'Up to date.';
+  if (s.state === 'disabled') return t('segments.status.disabled');
+  if (s.state === 'waiting') return s.waitingFor === 'playback' ? t('segments.status.waitingPlayback') : t('segments.status.waitingScan');
+  if (s.state === 'running' && s.running) {
+    const now = t('segments.status.running', { show: s.running.showTitle, season: s.running.seasonNumber, done: s.running.done, total: s.running.total });
+    return s.queuedSeasons ? `${now} · ${t('segments.status.queued', { count: s.queuedSeasons })}` : now;
+  }
+  return s.counts.pending ? t('segments.status.pending', { count: s.counts.pending }) : t('segments.status.upToDate');
 }
 
 function Stat({ label, value, tone }: { label: string; value: number; tone?: 'amber' }) {
   return (
     <div className="rounded-xl border border-line/70 bg-surface px-4 py-3">
       <p className="text-xs text-muted">{label}</p>
-      <p className={`font-display text-xl font-semibold tabular-nums ${tone === 'amber' && value > 0 ? 'text-amber' : value === 0 ? 'text-faint' : ''}`}>{value.toLocaleString()}</p>
+      <p className={`font-display text-xl font-semibold tabular-nums ${tone === 'amber' && value > 0 ? 'text-amber' : value === 0 ? 'text-faint' : ''}`}>{value.toLocaleString(intlLocale())}</p>
     </div>
   );
 }
 
 function PartLabel({ part, empty = '—' }: { part: Part | null; empty?: string }) {
+  useT();
   if (!part) return <span className="text-faint">{empty}</span>;
   return (
-    <span className={part.confidence === 'low' ? 'text-faint line-through decoration-faint/60' : ''} title={part.confidence ? `Confidence: ${CONFIDENCE_LABEL[part.confidence]}` : undefined}>
+    <span className={part.confidence === 'low' ? 'text-faint line-through decoration-faint/60' : ''} title={part.confidence ? t('segments.confidenceTitle', { level: t(CONFIDENCE_LABEL[part.confidence]) }) : undefined}>
       <span className="tabular-nums">{formatClock(part.start)}–{formatClock(part.end)}</span>
-      {part.confidence && part.confidence !== 'high' && <span className={`ml-1.5 text-xs ${part.confidence === 'low' ? 'text-amber no-underline' : 'text-muted'}`}>{part.confidence}</span>}
-      {part.source && part.source !== 'manual' && <span className="ml-1.5 text-xs text-faint">{SOURCE_LABEL[part.source]}</span>}
+      {part.confidence && part.confidence !== 'high' && <span className={`ml-1.5 text-xs ${part.confidence === 'low' ? 'text-amber no-underline' : 'text-muted'}`}>{t(`segments.confidence.${part.confidence}`)}</span>}
+      {part.source && part.source !== 'manual' && <span className="ml-1.5 text-xs text-faint">{t(SOURCE_LABEL[part.source])}</span>}
     </span>
   );
 }
@@ -83,6 +96,7 @@ function PartLabel({ part, empty = '—' }: { part: Part | null; empty?: string 
 /** Edits the times of one episode; an empty pair means "none". */
 function EditModal({ episode, onClose }: { episode: ShowSegments['seasons'][number]['episodes'][number]; onClose: () => void }) {
   const qc = useQueryClient();
+  const { t } = useT();
   const s = episode.segments;
   const init = (p: Part | null | undefined) => ({ start: p ? formatClock(p.start) : '', end: p ? formatClock(p.end) : '' });
   const [values, setValues] = useState({ intro: init(s?.intro), credits: init(s?.credits), postCredits: init(s?.postCredits) });
@@ -90,7 +104,7 @@ function EditModal({ episode, onClose }: { episode: ShowSegments['seasons'][numb
   const save = useMutation({
     mutationFn: (body: Record<string, { start: number; end: number } | null>) => api.put(`/api/admin/segments/episodes/${episode.id}`, body),
     onSuccess: () => {
-      toast.success('Saved. Automatic detection will not change this episode.');
+      toast.success(t('segments.saved'));
       void qc.invalidateQueries({ queryKey: ['admin', 'segments'] });
       onClose();
     },
@@ -106,8 +120,8 @@ function EditModal({ episode, onClose }: { episode: ShowSegments['seasons'][numb
       }
       const start = parseClock(v.start);
       const end = parseClock(v.end);
-      if (start === null || end === null) return setProblem('Enter times like 1:05 or 0:01:05.');
-      if (end <= start) return setProblem('Each end must be after its start.');
+      if (start === null || end === null) return setProblem(t('segments.enterTimes'));
+      if (end <= start) return setProblem(t('segments.endAfterStart'));
       body[key] = { start, end };
     }
     setProblem(null);
@@ -117,21 +131,21 @@ function EditModal({ episode, onClose }: { episode: ShowSegments['seasons'][numb
     <fieldset className="grid grid-cols-[8rem_1fr_1fr] items-center gap-2">
       <legend className="sr-only">{label}</legend>
       <span className="text-sm">{label}</span>
-      <input aria-label={`${label} start`} className="input" placeholder="start" value={values[key].start} onChange={(e) => setValues({ ...values, [key]: { ...values[key], start: e.target.value } })} />
-      <input aria-label={`${label} end`} className="input" placeholder="end" value={values[key].end} onChange={(e) => setValues({ ...values, [key]: { ...values[key], end: e.target.value } })} />
+      <input aria-label={t('segments.startOf', { label })} className="input" placeholder={t('segments.start')} value={values[key].start} onChange={(e) => setValues({ ...values, [key]: { ...values[key], start: e.target.value } })} />
+      <input aria-label={t('segments.endOf', { label })} className="input" placeholder={t('segments.end')} value={values[key].end} onChange={(e) => setValues({ ...values, [key]: { ...values[key], end: e.target.value } })} />
     </fieldset>
   );
   return (
-    <Modal title={`Episode ${episode.episodeNumber}${episode.title ? ` — ${episode.title}` : ''}`} open onClose={onClose}>
+    <Modal title={`${t('series.episode', { n: episode.episodeNumber })}${episode.title ? ` — ${episode.title}` : ''}`} open onClose={onClose}>
       <div className="space-y-3">
-        <p className="text-sm text-muted">Times as minutes:seconds{episode.duration ? ` (the episode is ${formatClock(episode.duration)} long)` : ''}. Leave both fields empty for “none”. A post-credits scene is never skipped.</p>
-        {row('intro', 'Intro')}
-        {row('credits', 'Credits')}
-        {row('postCredits', 'Post-credits')}
+        <p className="text-sm text-muted">{episode.duration ? t('segments.editHintLength', { length: formatClock(episode.duration) }) : t('segments.editHint')}</p>
+        {row('intro', t('segments.intro'))}
+        {row('credits', t('segments.credits'))}
+        {row('postCredits', t('segments.postCredits'))}
         {problem && <p className="text-sm text-danger">{problem}</p>}
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={submit} loading={save.isPending}>Save</Button>
+          <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button onClick={submit} loading={save.isPending}>{t('common.save')}</Button>
         </div>
       </div>
     </Modal>
@@ -140,13 +154,14 @@ function EditModal({ episode, onClose }: { episode: ShowSegments['seasons'][numb
 
 function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) {
   const qc = useQueryClient();
+  const { t } = useT();
   const q = useQuery({ queryKey: ['admin', 'segments', 'show', showId], queryFn: () => api.get<ShowSegments>(`/api/admin/segments/shows/${showId}`) });
   const [editing, setEditing] = useState<ShowSegments['seasons'][number]['episodes'][number] | null>(null);
   const done = () => void qc.invalidateQueries({ queryKey: ['admin', 'segments'] });
   const analyze = useMutation({
     mutationFn: (body: Record<string, unknown>) => api.post<{ queued: number }>('/api/admin/segments/analyze', body),
     onSuccess: (r) => {
-      toast.success(r.queued ? `${r.queued} episode${r.queued === 1 ? '' : 's'} will be analysed again.` : 'Nothing to analyse (manual corrections are kept).');
+      toast.success(r.queued ? t('segments.queuedAgain', { count: r.queued }) : t('segments.nothingToAnalyse'));
       done();
     },
     onError: (err) => toast.error(err),
@@ -154,7 +169,7 @@ function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) 
   const reset = useMutation({
     mutationFn: (id: number) => api.del(`/api/admin/segments/episodes/${id}`),
     onSuccess: () => {
-      toast.success('Correction removed. The episode is analysed again automatically.');
+      toast.success(t('segments.correctionRemoved'));
       done();
     },
     onError: (err) => toast.error(err),
@@ -165,30 +180,30 @@ function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) 
     <section className="space-y-6" aria-labelledby="segments-show">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <button type="button" onClick={onBack} className="grid size-9 place-items-center rounded-full text-muted hover:bg-raised hover:text-ink" aria-label="All shows">
+          <button type="button" onClick={onBack} className="grid size-9 place-items-center rounded-full text-muted hover:bg-raised hover:text-ink" aria-label={t('segments.allShows')}>
             <ChevronLeft className="size-5" />
           </button>
           <h2 id="segments-show" className="font-display text-xl font-semibold">
             <Link to={`/shows/${showId}`} className="hover:text-accent">{q.data.show.title}</Link>
           </h2>
         </div>
-        <Button variant="secondary" size="sm" icon={<RotateCcw className="size-4" />} onClick={() => analyze.mutate({ scope: 'show', showId })} loading={analyze.isPending}>Analyse show again</Button>
+        <Button variant="secondary" size="sm" icon={<RotateCcw className="size-4" />} onClick={() => analyze.mutate({ scope: 'show', showId })} loading={analyze.isPending}>{t('segments.analyseShow')}</Button>
       </div>
       {q.data.seasons.map((season) => (
         <div key={season.seasonNumber} className="panel p-4 sm:p-5">
           <div className="mb-2 flex items-center justify-between gap-3">
-            <h3 className="font-display text-lg font-semibold">{season.seasonNumber === 0 ? 'Specials' : `Season ${season.seasonNumber}`}</h3>
-            <Button variant="ghost" size="sm" icon={<RotateCcw className="size-4" />} onClick={() => analyze.mutate({ scope: 'season', showId, seasonNumber: season.seasonNumber })}>Analyse season again</Button>
+            <h3 className="font-display text-lg font-semibold">{season.seasonNumber === 0 ? t('series.specials') : t('series.season', { n: season.seasonNumber })}</h3>
+            <Button variant="ghost" size="sm" icon={<RotateCcw className="size-4" />} onClick={() => analyze.mutate({ scope: 'season', showId, seasonNumber: season.seasonNumber })}>{t('segments.analyseSeason')}</Button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[40rem] text-sm">
               <thead className="text-left text-xs text-muted">
                 <tr>
-                  <th className="py-2 pr-3 font-normal">Episode</th>
-                  <th className="py-2 pr-3 font-normal">Intro</th>
-                  <th className="py-2 pr-3 font-normal">Credits</th>
-                  <th className="py-2 pr-3 font-normal">After credits</th>
-                  <th className="py-2 font-normal"><span className="sr-only">Actions</span></th>
+                  <th className="py-2 pr-3 font-normal">{t('segments.episode')}</th>
+                  <th className="py-2 pr-3 font-normal">{t('segments.intro')}</th>
+                  <th className="py-2 pr-3 font-normal">{t('segments.credits')}</th>
+                  <th className="py-2 pr-3 font-normal">{t('segments.afterCredits')}</th>
+                  <th className="py-2 font-normal"><span className="sr-only">{t('segments.actions')}</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line/50">
@@ -198,29 +213,29 @@ function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) 
                     <tr key={e.id}>
                       <td className="py-2 pr-3">
                         <span className="tabular-nums text-muted">E{String(e.episodeNumber).padStart(2, '0')}</span> <span className="ml-1">{e.title ?? ''}</span>
-                        {s?.manual && <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-xs text-accent">manual</span>}
+                        {s?.manual && <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-xs text-accent">{t('segments.manual')}</span>}
                       </td>
                       {!s ? (
-                        <td colSpan={3} className="py-2 pr-3 text-faint">{e.eligible ? 'Not analysed yet' : 'No file of more than a minute to analyse'}</td>
+                        <td colSpan={3} className="py-2 pr-3 text-faint">{e.eligible ? t('segments.notAnalysedYet') : t('segments.noFile')}</td>
                       ) : s.status === 'error' ? (
-                        <td colSpan={3} className="py-2 pr-3 text-danger">{s.error ?? 'Could not be analysed'}</td>
+                        <td colSpan={3} className="py-2 pr-3 text-danger">{errorText(s.error) ?? t('segments.couldNotAnalyse')}</td>
                       ) : (
                         <>
-                          <td className="py-2 pr-3"><PartLabel part={s.intro} empty="none found" /></td>
-                          <td className="py-2 pr-3"><PartLabel part={s.credits} empty="none found" /></td>
+                          <td className="py-2 pr-3"><PartLabel part={s.intro} empty={t('segments.noneFound')} /></td>
+                          <td className="py-2 pr-3"><PartLabel part={s.credits} empty={t('segments.noneFound')} /></td>
                           <td className="py-2 pr-3"><PartLabel part={s.postCredits} /></td>
                         </>
                       )}
                       <td className="py-2 text-right whitespace-nowrap">
-                        <button type="button" className="rounded p-1.5 text-muted hover:bg-raised hover:text-ink" onClick={() => setEditing(e)} aria-label={`Edit episode ${e.episodeNumber}`} title="Edit times">
+                        <button type="button" className="rounded p-1.5 text-muted hover:bg-raised hover:text-ink" onClick={() => setEditing(e)} aria-label={t('segments.editEpisode', { n: e.episodeNumber })} title={t('segments.editTimes')}>
                           <Pencil className="size-4" />
                         </button>
                         {s?.manual ? (
-                          <button type="button" className="rounded p-1.5 text-muted hover:bg-raised hover:text-ink" onClick={() => reset.mutate(e.id)} aria-label={`Remove correction of episode ${e.episodeNumber}`} title="Remove correction (detect automatically)">
+                          <button type="button" className="rounded p-1.5 text-muted hover:bg-raised hover:text-ink" onClick={() => reset.mutate(e.id)} aria-label={t('segments.removeCorrectionOf', { n: e.episodeNumber })} title={t('segments.removeCorrection')}>
                             <Trash2 className="size-4" />
                           </button>
                         ) : (
-                          <button type="button" className="rounded p-1.5 text-muted hover:bg-raised hover:text-ink" onClick={() => analyze.mutate({ scope: 'episode', episodeId: e.id })} aria-label={`Analyse episode ${e.episodeNumber} again`} title="Analyse again">
+                          <button type="button" className="rounded p-1.5 text-muted hover:bg-raised hover:text-ink" onClick={() => analyze.mutate({ scope: 'episode', episodeId: e.id })} aria-label={t('segments.analyseEpisode', { n: e.episodeNumber })} title={t('segments.analyseAgain')}>
                             <RotateCcw className="size-4" />
                           </button>
                         )}
@@ -240,6 +255,7 @@ function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) 
 
 export function SegmentsPage() {
   const qc = useQueryClient();
+  const { t } = useT();
   const [params, setParams] = useSearchParams();
   const showId = Number(params.get('show')) || null;
   const [confirmAll, setConfirmAll] = useState(false);
@@ -252,7 +268,7 @@ export function SegmentsPage() {
   const all = useMutation({
     mutationFn: () => api.post<{ queued: number }>('/api/admin/segments/analyze', { scope: 'all' }),
     onSuccess: (r) => {
-      toast.success(`${r.queued.toLocaleString()} episodes will be analysed again.`);
+      toast.success(t('segments.queuedAgain', { count: r.queued }));
       setConfirmAll(false);
       void qc.invalidateQueries({ queryKey: ['admin', 'segments'] });
     },
@@ -269,42 +285,42 @@ export function SegmentsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <p className="max-w-2xl text-sm text-muted">
-          Velyx finds intros by comparing the sound of episodes in the same season, and end credits by recognising text on a dark background in the picture (or recurring credits music). Chapters named Intro or Credits are used when a file has them. Everything runs on this server, one episode at a time, and never while someone is watching or a scan runs. Only high and medium confidence results get a skip button.
+          {t('segments.intro_text')}
         </p>
-        <Button variant="secondary" size="sm" icon={<RotateCcw className="size-4" />} disabled={!status.enabled} onClick={() => setConfirmAll(true)}>Analyse everything again</Button>
+        <Button variant="secondary" size="sm" icon={<RotateCcw className="size-4" />} disabled={!status.enabled} onClick={() => setConfirmAll(true)}>{t('segments.analyseEverything')}</Button>
       </div>
 
       <div className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-sm ${status.state === 'disabled' ? 'border-amber/30 bg-amber/5' : 'border-line bg-raised/50'}`} role="status">
         <SkipForward className="size-4 shrink-0 text-muted" />
         <p className="flex-1">{statusLine(status)}</p>
-        {status.state === 'disabled' && <Link to="/admin/server" className="text-accent underline-offset-4 hover:underline">Server settings</Link>}
+        {status.state === 'disabled' && <Link to="/admin/server" className="text-accent underline-offset-4 hover:underline">{t('audit.groups.serverSettings')}</Link>}
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Stat label="Episodes" value={c.episodes} />
-        <Stat label="Analysed" value={c.analyzed} />
-        <Stat label="Intros found" value={c.intros} />
-        <Stat label="Credits found" value={c.credits} />
-        <Stat label="Waiting" value={c.pending} />
-        <Stat label="Errors" value={c.errors} tone="amber" />
-        <Stat label="Low confidence" value={c.lowConfidence} />
-        <Stat label="Corrected by hand" value={c.manual} />
+        <Stat label={t('series.episodes')} value={c.episodes} />
+        <Stat label={t('segments.stats.analysed')} value={c.analyzed} />
+        <Stat label={t('segments.stats.intros')} value={c.intros} />
+        <Stat label={t('segments.stats.credits')} value={c.credits} />
+        <Stat label={t('segments.stats.waiting')} value={c.pending} />
+        <Stat label={t('segments.stats.errors')} value={c.errors} tone="amber" />
+        <Stat label={t('segments.stats.lowConfidence')} value={c.lowConfidence} />
+        <Stat label={t('segments.stats.manual')} value={c.manual} />
       </div>
 
       {shows.length === 0 ? (
-        <EmptyState icon={<SkipForward className="size-6" />} title="No TV shows yet">Intros and credits are detected for episodes in TV libraries.</EmptyState>
+        <EmptyState icon={<SkipForward className="size-6" />} title={t('browse.noShows')}>{t('segments.noShowsText')}</EmptyState>
       ) : (
         <section aria-labelledby="segments-shows">
-          <h2 id="segments-shows" className="mb-3 font-display text-lg font-semibold">Shows</h2>
+          <h2 id="segments-shows" className="mb-3 font-display text-lg font-semibold">{t('nav.tvShows')}</h2>
           <div className="panel overflow-x-auto">
             <table className="w-full min-w-[32rem] text-sm">
               <thead className="text-left text-xs text-muted">
                 <tr>
-                  <th className="px-4 py-2 font-normal">Show</th>
-                  <th className="px-3 py-2 text-right font-normal">Episodes</th>
-                  <th className="px-3 py-2 text-right font-normal">Intros</th>
-                  <th className="px-3 py-2 text-right font-normal">Credits</th>
-                  <th className="px-4 py-2 text-right font-normal">Errors</th>
+                  <th className="px-4 py-2 font-normal">{t('metadata.show')}</th>
+                  <th className="px-3 py-2 text-right font-normal">{t('series.episodes')}</th>
+                  <th className="px-3 py-2 text-right font-normal">{t('segments.intros')}</th>
+                  <th className="px-3 py-2 text-right font-normal">{t('segments.credits')}</th>
+                  <th className="px-4 py-2 text-right font-normal">{t('segments.stats.errors')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line/50">
@@ -312,7 +328,7 @@ export function SegmentsPage() {
                   <tr key={s.id} className="hover:bg-raised/40">
                     <td className="px-4 py-2">
                       <button type="button" className="text-left font-medium hover:text-accent" onClick={() => setParams({ show: String(s.id) })}>{s.title}</button>
-                      {s.analyzed + s.errors < s.episodes && <span className="ml-2 text-xs text-faint">{s.episodes - s.analyzed - s.errors} waiting</span>}
+                      {s.analyzed + s.errors < s.episodes && <span className="ml-2 text-xs text-faint">{t('segments.waitingCount', { count: s.episodes - s.analyzed - s.errors })}</span>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">{s.episodes}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{s.intros}</td>
@@ -328,14 +344,14 @@ export function SegmentsPage() {
 
       {errors.length > 0 && (
         <section aria-labelledby="segments-errors">
-          <h2 id="segments-errors" className="mb-3 font-display text-lg font-semibold">Errors</h2>
+          <h2 id="segments-errors" className="mb-3 font-display text-lg font-semibold">{t('segments.stats.errors')}</h2>
           <ul className="panel divide-y divide-line/50 text-sm">
             {errors.map((e) => (
               <li key={e.episodeId} className="flex flex-wrap items-baseline gap-x-3 px-4 py-2.5">
                 <button type="button" className="font-medium hover:text-accent" onClick={() => setParams({ show: String(e.showId) })}>
                   {e.showTitle} · {episodeCode(e.seasonNumber, e.episodeNumber)}
                 </button>
-                <span className="flex-1 break-words text-danger">{e.error}</span>
+                <span className="flex-1 break-words text-danger">{errorText(e.error)}</span>
                 <span className="text-xs text-faint">{formatRelative(e.detectedAt)}</span>
               </li>
             ))}
@@ -345,13 +361,13 @@ export function SegmentsPage() {
 
       <ConfirmModal
         open={confirmAll}
-        title="Analyse every episode again?"
-        confirmLabel="Analyse again"
+        title={t('segments.allTitle')}
+        confirmLabel={t('segments.analyseAgain')}
         onConfirm={() => all.mutate()}
         onClose={() => setConfirmAll(false)}
         loading={all.isPending}
       >
-        All automatic results are redone in the background, one season at a time. Manual corrections are kept. This can take a while on large libraries.
+        {t('segments.allText')}
       </ConfirmModal>
     </div>
   );

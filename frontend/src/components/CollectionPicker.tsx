@@ -7,10 +7,12 @@ import { CollectionForm } from '../pages/Collections';
 import { Modal } from './Modal';
 import { Spinner } from './States';
 import { toast } from './Toast';
+import { useT } from '../i18n';
 
 /** Admin modal: tick the manual collections a movie or show belongs to. */
 export function CollectionPicker({ type, id, current, onClose }: { type: 'movie' | 'show'; id: number; current: CollectionRef[]; onClose: () => void }) {
   const qc = useQueryClient();
+  const { t } = useT();
   const [member, setMember] = useState(() => new Set(current.filter((c) => c.kind === 'manual').map((c) => c.id)));
   const [creating, setCreating] = useState(false);
   const q = useQuery({ queryKey: ['collections'], queryFn: () => api.get<CollectionSummary[]>('/api/collections') });
@@ -44,7 +46,7 @@ export function CollectionPicker({ type, id, current, onClose }: { type: 'movie'
   const manual = q.data?.filter((c) => c.kind === 'manual') ?? [];
 
   return (
-    <Modal title={creating ? 'New collection' : 'Add to collection'} open onClose={onClose}>
+    <Modal title={creating ? t('collections.new') : t('adminItem.addToCollection')} open onClose={onClose}>
       {creating ? (
         <CollectionForm
           onDone={(c) => {
@@ -57,7 +59,7 @@ export function CollectionPicker({ type, id, current, onClose }: { type: 'movie'
           {q.isLoading ? (
             <Spinner className="mx-auto size-6" />
           ) : manual.length === 0 ? (
-            <p className="text-sm text-muted">You have no collections yet.</p>
+            <p className="text-sm text-muted">{t('collections.noneYet')}</p>
           ) : (
             <ul className="divide-y divide-line/60 rounded-xl border border-line">
               {manual.map((c) => {
@@ -81,13 +83,13 @@ export function CollectionPicker({ type, id, current, onClose }: { type: 'movie'
               })}
             </ul>
           )}
-          <p className="text-xs text-faint">Movie series from TMDB, like “The Matrix Collection”, are grouped automatically.</p>
+          <p className="text-xs text-faint">{t('collections.tmdbGrouped')}</p>
           <div className="flex justify-between gap-2">
             <button type="button" onClick={() => setCreating(true)} className="inline-flex h-10 items-center gap-2 rounded-lg px-3 text-muted hover:bg-raised hover:text-ink">
-              <Plus className="size-4" /> New collection
+              <Plus className="size-4" /> {t('collections.new')}
             </button>
             <button type="button" onClick={onClose} className="h-10 rounded-lg bg-accent px-4 font-semibold text-accent-ink">
-              Done
+              {t('common.done')}
             </button>
           </div>
         </div>

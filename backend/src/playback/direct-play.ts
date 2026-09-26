@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { videoSupport } from './compatibility.js';
+import { requestLanguage, tr } from '../i18n/index.js';
 import { defaultAudioIndex, wantsAudioProcessing, type ClientCapabilities, type MediaFileRow, type PlaybackDecision, type PlaybackEngine, type PlaybackOptions } from './engine.js';
 
 const MIME: Record<string, string> = {
@@ -58,39 +59,44 @@ export class DirectPlayEngine implements PlaybackEngine {
   readonly id = 'direct';
 
   decide(file: MediaFileRow, caps: ClientCapabilities, options: PlaybackOptions = {}): PlaybackDecision {
+    const lang = options.lang ?? 'en';
+    const T = (message: string, params?: Record<string, string>) => tr(lang, message, params);
     const reasons: string[] = [];
     const reported = Boolean(caps.videoCodecs?.length || caps.audioCodecs?.length || caps.containers?.length);
     let compatible: boolean | 'unknown' = reported ? true : 'unknown';
-    const check = (value: string | null, list: string[] | undefined, label: string) => {
+    const check = (value: string | null, list: string[] | undefined, kind: 'container' | 'video' | 'audio') => {
       if (!value || !list) return;
       if (!list.includes(value)) {
         compatible = false;
-        reasons.push(`${label} ${value.toUpperCase()} is not supported by this browser`);
+        const message = { container: 'Container {name} is not supported by this browser', video: 'Video codec {name} is not supported by this browser', audio: 'Audio codec {name} is not supported by this browser' }[kind];
+        reasons.push(T(message, { name: value.toUpperCase() }));
+        if (kind === 'video') videoReported = true;
       }
     };
+    let videoReported = false;
     if (reported) {
-      check(file.container, caps.containers, 'Container');
-      check(file.videoCodec, caps.videoCodecs, 'Video codec');
-      check(file.audioCodec, caps.audioCodecs, 'Audio codec');
-      const video = videoSupport(file, caps);
+      check(file.container, caps.containers, 'container');
+      check(file.videoCodec, caps.videoCodecs, 'video');
+      check(file.audioCodec, caps.audioCodecs, 'audio');
+      const video = videoSupport(file, caps, lang);
       // Codec supported but not at this bit depth (e.g. 10-bit H.264).
-      if (video.ok === false && !reasons.some((r) => r.startsWith('Video codec'))) {
+      if (video.ok === false && !videoReported) {
         compatible = false;
         reasons.push(video.problem!);
       }
     } else {
-      if (file.videoCodec && !BROWSER_FRIENDLY_VIDEO.has(file.videoCodec)) reasons.push(`Video codec ${file.videoCodec.toUpperCase()} may not play in browsers`);
-      if (file.audioCodec && !BROWSER_FRIENDLY_AUDIO.has(file.audioCodec)) reasons.push(`Audio codec ${file.audioCodec.toUpperCase()} may not play in browsers`);
+      if (file.videoCodec && !BROWSER_FRIENDLY_VIDEO.has(file.videoCodec)) reasons.push(T('Video codec {name} may not play in browsers', { name: file.videoCodec.toUpperCase() }));
+      if (file.audioCodec && !BROWSER_FRIENDLY_AUDIO.has(file.audioCodec)) reasons.push(T('Audio codec {name} may not play in browsers', { name: file.audioCodec.toUpperCase() }));
     }
     const defaultAudio = defaultAudioIndex(file);
     if (options.audioIndex !== undefined && options.audioIndex !== defaultAudio) {
       // Browsers without the audioTracks API always play the default track.
       compatible = false;
-      reasons.push('Another audio track was selected');
+      reasons.push(T('Another audio track was selected'));
     }
     if (wantsAudioProcessing(options)) {
       compatible = false;
-      reasons.push('Audio enhancements are enabled');
+      reasons.push(T('Audio enhancements are enabled'));
     }
     return {
       engine: this.id,
@@ -109,7 +115,7 @@ export class DirectPlayEngine implements PlaybackEngine {
     try {
       stat = await fs.promises.stat(absolutePath);
     } catch {
-      return reply.code(404).send({ error: 'Media file is no longer available. Try rescanning the library.' });
+      return reply.code(404).send({ error: tr(requestLanguage(request), 'Media file is no longer available. Try rescanning the library.') });
     }
     const size = stat.size;
     const etag = `"${size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;

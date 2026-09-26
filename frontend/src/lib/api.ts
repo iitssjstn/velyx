@@ -1,3 +1,4 @@
+import { currentLanguage, t } from '../i18n';
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -18,7 +19,8 @@ export function onUnauthorized(handler: (() => void) | null): void {
 }
 
 export async function request<T>(method: Method, url: string, body?: unknown, init: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> = { Accept: 'application/json' };
+  // The server answers errors in this language until the user is signed in (then in theirs).
+  const headers: Record<string, string> = { Accept: 'application/json', 'X-Velyx-Language': currentLanguage() };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   let res: Response;
   try {
@@ -30,7 +32,7 @@ export async function request<T>(method: Method, url: string, body?: unknown, in
       ...init,
     });
   } catch {
-    throw new ApiError('Could not reach the Velyx server. Check your connection.', 0);
+    throw new ApiError(t('errors.unreachable'), 0);
   }
   if (res.status === 204) return undefined as T;
   const text = await res.text();
@@ -45,7 +47,7 @@ export async function request<T>(method: Method, url: string, body?: unknown, in
   if (!res.ok) {
     const payload = (data ?? {}) as { error?: string; detail?: { message?: string; stack?: string } };
     if (res.status === 401 && !url.startsWith('/api/auth/login')) unauthorizedHandler?.();
-    throw new ApiError(payload.error || `Request failed (${res.status})`, res.status, payload.detail);
+    throw new ApiError(payload.error || t('errors.requestFailed', { status: res.status }), res.status, payload.detail);
   }
   return data as T;
 }
@@ -60,7 +62,7 @@ export const api = {
 export function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   if (err instanceof Error) return err.message;
-  return 'Something went wrong.';
+  return t('errors.generic');
 }
 
 /** Builds a query string, skipping empty values. */

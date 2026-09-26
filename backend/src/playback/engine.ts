@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { Language } from '../i18n/index.js';
 import type { mediaFiles } from '../db/schema.js';
 
 export type MediaFileRow = typeof mediaFiles.$inferSelect;
@@ -24,6 +25,8 @@ export interface PlaybackOptions {
   boostVoices?: boolean;
   /** Even out loud and quiet scenes (dynamic range compression, "night mode"). */
   levelVolume?: boolean;
+  /** Language for the reasons and notes in the decision. */
+  lang?: Language;
 }
 
 /** True when the listener asked for audio processing that needs the audio to be converted. */

@@ -4,28 +4,30 @@ import { Bookmark, Film, Heart, Layers, House, LogOut, Menu, Search, Settings, S
 import { displayName, useAuth } from '../lib/auth';
 import { Logo } from './Logo';
 import { Avatar } from './Avatar';
+import { useT, type MessageKey } from '../i18n';
 import { QuickSearch } from './QuickSearch';
 
-const NAV = [
-  { to: '/', label: 'Home', icon: House, end: true },
-  { to: '/movies', label: 'Movies', icon: Film },
-  { to: '/shows', label: 'TV Shows', icon: Tv },
-  { to: '/collections', label: 'Collections', icon: Layers },
-  { to: '/watchlist', label: 'Watchlist', icon: Bookmark },
-  { to: '/favorites', label: 'Favorites', icon: Heart },
-  { to: '/settings', label: 'Settings', icon: Settings },
+const NAV: Array<{ to: string; label: MessageKey; icon: typeof House; end?: boolean }> = [
+  { to: '/', label: 'nav.home', icon: House, end: true },
+  { to: '/movies', label: 'nav.movies', icon: Film },
+  { to: '/shows', label: 'nav.tvShows', icon: Tv },
+  { to: '/collections', label: 'nav.collections', icon: Layers },
+  { to: '/watchlist', label: 'nav.watchlist', icon: Bookmark },
+  { to: '/favorites', label: 'nav.favorites', icon: Heart },
+  { to: '/settings', label: 'nav.settings', icon: Settings },
 ];
 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth();
-  const items = user?.role === 'admin' ? [...NAV, { to: '/admin', label: 'Admin', icon: ShieldCheck }] : NAV;
+  const { t } = useT();
+  const items = user?.role === 'admin' ? [...NAV, { to: '/admin', label: 'nav.admin' as const, icon: ShieldCheck }] : NAV;
   return (
-    <nav className="flex flex-col gap-1" aria-label="Main">
-      {items.map(({ to, label, icon: Icon, ...rest }) => (
+    <nav className="flex flex-col gap-1" aria-label={t('nav.main')}>
+      {items.map(({ to, label, icon: Icon, end }) => (
         <NavLink
           key={to}
           to={to}
-          end={'end' in rest ? rest.end : false}
+          end={end ?? false}
           onClick={onNavigate}
           className={({ isActive }) =>
             `group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[0.95rem] transition-colors ${
@@ -36,7 +38,7 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
           {({ isActive }) => (
             <>
               <Icon className={`size-[1.15rem] ${isActive ? 'text-accent' : ''}`} strokeWidth={isActive ? 2.3 : 1.9} />
-              {label}
+              {t(label)}
             </>
           )}
         </NavLink>
@@ -48,13 +50,14 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
 function UserBox() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { t } = useT();
   if (!user) return null;
   return (
     <div className="flex items-center gap-3 rounded-xl p-2">
       <Avatar user={user} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{displayName(user)}</p>
-        <p className="text-xs text-faint capitalize">{user.role}</p>
+        <p className="text-xs text-faint">{user.role === 'admin' ? t('roles.admin') : t('roles.user')}</p>
       </div>
       <button
         type="button"
@@ -63,8 +66,8 @@ function UserBox() {
           navigate('/login');
         }}
         className="grid size-9 place-items-center rounded-lg text-muted hover:bg-raised hover:text-ink"
-        aria-label="Sign out"
-        title="Sign out"
+        aria-label={t('auth.signOut')}
+        title={t('auth.signOut')}
       >
         <LogOut className="size-4" />
       </button>
@@ -75,15 +78,16 @@ function UserBox() {
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 function SearchButton({ onOpen }: { onOpen: () => void }) {
+  const { t } = useT();
   return (
     <button
       type="button"
       onClick={onOpen}
       className="mb-4 flex w-full items-center gap-3 rounded-lg border border-line/70 bg-surface/60 px-3 py-2 text-left text-sm text-muted transition hover:border-line hover:text-ink"
-      aria-label="Search Velyx"
+      aria-label={t('nav.searchVelyx')}
     >
       <Search className="size-4" />
-      <span className="flex-1">Search…</span>
+      <span className="flex-1">{t('nav.searchPlaceholder')}</span>
       <kbd className="rounded bg-raised px-1.5 py-0.5 font-mono text-[0.7rem] text-faint">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
     </button>
   );
@@ -93,6 +97,7 @@ export function Layout() {
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const location = useLocation();
+  const { t } = useT();
 
   useEffect(() => setOpen(false), [location.pathname]);
 
@@ -131,22 +136,22 @@ export function Layout() {
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line/50 bg-bg/90 px-4 backdrop-blur lg:hidden">
         <Logo size="sm" />
         <div className="flex items-center gap-1">
-          <button type="button" onClick={() => setSearching(true)} className="grid size-10 place-items-center rounded-full text-muted" aria-label="Search Velyx">
+          <button type="button" onClick={() => setSearching(true)} className="grid size-10 place-items-center rounded-full text-muted" aria-label={t('nav.searchVelyx')}>
             <Search className="size-5" />
           </button>
-          <button type="button" className="grid size-10 place-items-center rounded-full text-muted" onClick={() => setOpen(true)} aria-label="Open menu">
+          <button type="button" className="grid size-10 place-items-center rounded-full text-muted" onClick={() => setOpen(true)} aria-label={t('nav.openMenu')}>
             <Menu className="size-5" />
           </button>
         </div>
       </header>
 
       {open && (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label={t('nav.menu')}>
           <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
           <div className="absolute inset-y-0 right-0 flex w-72 max-w-[85vw] flex-col bg-surface px-3 py-4 shadow-2xl">
             <div className="flex items-center justify-between px-3 pb-6">
               <Logo size="sm" />
-              <button type="button" className="grid size-10 place-items-center rounded-full text-muted" onClick={() => setOpen(false)} aria-label="Close menu">
+              <button type="button" className="grid size-10 place-items-center rounded-full text-muted" onClick={() => setOpen(false)} aria-label={t('nav.closeMenu')}>
                 <X className="size-5" />
               </button>
             </div>

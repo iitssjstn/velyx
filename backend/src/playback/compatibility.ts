@@ -1,5 +1,6 @@
 import type { ClientCapabilities, MediaFileRow, PlaybackDecision } from './engine.js';
-import { clientProfile } from './client-profile.js';
+import { clientProfile, profileName } from './client-profile.js';
+import { tr, type Language } from '../i18n/index.js';
 
 /**
  * One place that knows what a browser can decode. The playback engines use it to make their
@@ -54,8 +55,8 @@ const CODEC_NAMES: Record<string, string> = {
   mov_text: 'MP4 text',
 };
 
-export function codecLabel(codec: string | null | undefined): string {
-  if (!codec) return 'Unknown';
+export function codecLabel(codec: string | null | undefined, lang: Language = 'en'): string {
+  if (!codec) return tr(lang, 'Unknown');
   return CODEC_NAMES[codec] ?? codec.toUpperCase();
 }
 
@@ -81,21 +82,21 @@ export interface VideoSupport {
 }
 
 /** Whether the client can decode the file's video stream (codec and bit depth). */
-export function videoSupport(file: Pick<MediaFileRow, 'videoCodec' | 'videoBitDepth'>, caps: ClientCapabilities): VideoSupport {
+export function videoSupport(file: Pick<MediaFileRow, 'videoCodec' | 'videoBitDepth'>, caps: ClientCapabilities, lang: Language = 'en'): VideoSupport {
   const codec = file.videoCodec;
   if (!codec) return { ok: 'unknown', problem: null };
   const isReported = Boolean(caps.videoCodecs?.length);
   const codecs = isReported ? caps.videoCodecs! : REFERENCE_CAPS.videoCodecs;
   if (!codecs.includes(codec)) {
-    if (!isReported && codec === 'hevc') return { ok: 'unknown', problem: 'HEVC plays only in browsers with HEVC support (Safari, and Chrome or Edge with hardware decoding).' };
-    return { ok: isReported ? false : 'unknown', problem: `This browser cannot decode ${codecLabel(codec)} video.` };
+    if (!isReported && codec === 'hevc') return { ok: 'unknown', problem: tr(lang, 'HEVC plays only in browsers with HEVC support (Safari, and Chrome or Edge with hardware decoding).') };
+    return { ok: isReported ? false : 'unknown', problem: tr(lang, 'This browser cannot decode {codec} video.', { codec: codecLabel(codec, lang) }) };
   }
   const depth = file.videoBitDepth ?? 8;
   if (depth > 8) {
     // Only trust the 10-bit list when the client sent one (older clients only report codecs).
     const tenBit = caps.tenBitCodecs ?? (isReported ? null : REFERENCE_CAPS.tenBitCodecs);
-    if (codec === 'h264') return { ok: false, problem: `${depth}-bit H.264 (Hi10P) cannot be decoded by web browsers.` };
-    if (tenBit && !tenBit.includes(codec)) return { ok: isReported ? false : 'unknown', problem: `This browser cannot decode ${depth}-bit ${codecLabel(codec)} video.` };
+    if (codec === 'h264') return { ok: false, problem: tr(lang, '{depth}-bit H.264 (Hi10P) cannot be decoded by web browsers.', { depth }) };
+    if (tenBit && !tenBit.includes(codec)) return { ok: isReported ? false : 'unknown', problem: tr(lang, 'This browser cannot decode {depth}-bit {codec} video.', { depth, codec: codecLabel(codec, lang) }) };
   }
   return { ok: true, problem: null };
 }
@@ -150,10 +151,10 @@ export interface PlaybackAnalysis {
 /** ok = fine, warn = converted or repackaged, fail = cannot play here, unknown = cannot be confirmed. */
 export type ComponentStatus = 'ok' | 'warn' | 'fail' | 'unknown';
 
-function hdrWarning(range: string | null, caps: ClientCapabilities): string | null {
+function hdrWarning(range: string | null, caps: ClientCapabilities, lang: Language): string | null {
   if (!range || range === 'SDR') return null;
-  if (range === 'DV') return 'Dolby Vision video: browsers show the HDR10 base layer when present; colours can look off without it.';
-  if (caps.hdr === false) return `${range} video on a screen without HDR: colours may look washed out.`;
+  if (range === 'DV') return tr(lang, 'Dolby Vision video: browsers show the HDR10 base layer when present; colours can look off without it.');
+  if (caps.hdr === false) return tr(lang, '{range} video on a screen without HDR: colours may look washed out.', { range });
   return null;
 }
 
@@ -167,8 +168,10 @@ export function analyzePlayback(
   decision: Pick<PlaybackDecision, 'engine' | 'compatible' | 'audioIndex' | 'note' | 'streamUrl'>,
   userAgent?: string,
   confidence: PlaybackAnalysis['confidence'] = reported(caps) ? 'reported' : 'assumed',
+  lang: Language = 'en',
 ): PlaybackAnalysis {
-  const video = videoSupport(file, caps);
+  const T = (message: string, params?: Record<string, string | number>) => tr(lang, message, params);
+  const video = videoSupport(file, caps, lang);
   const isReported = confidence !== 'assumed';
   const profile = clientProfile(userAgent);
   const track = (file.audioTracks ?? []).find((t) => t.index === decision.audioIndex) ?? null;
@@ -184,24 +187,24 @@ export function analyzePlayback(
 
   if (video.problem) (video.ok === false ? problems : warnings).push(video.problem);
   if (mode === 'unsupported' && !problems.length) {
-    if (file.videoCodec && !COPYABLE_VIDEO.has(file.videoCodec)) problems.push(`${codecLabel(file.videoCodec)} video cannot be played in browsers without transcoding.`);
-    else problems.push('This browser reported that it cannot play this file.');
+    if (file.videoCodec && !COPYABLE_VIDEO.has(file.videoCodec)) problems.push(T('{codec} video cannot be played in browsers without transcoding.', { codec: codecLabel(file.videoCodec, lang) }));
+    else problems.push(T('This browser reported that it cannot play this file.'));
   }
 
   const converting = mode === 'remux' && decision.audioIndex !== null && !decision.streamUrl.includes('copy=1');
-  const channels = /&ch=6/.test(decision.streamUrl) ? '5.1' : 'stereo';
+  const channels = /&ch=6/.test(decision.streamUrl) ? '5.1' : T('stereo');
   const audioAction: PlaybackAnalysis['audio']['action'] =
     decision.audioIndex === null && !audioCodec ? 'none' : mode === 'remux' ? (converting ? 'convert' : 'copy') : 'direct';
 
-  const hdr = hdrWarning(file.videoRange, caps);
+  const hdr = hdrWarning(file.videoRange, caps, lang);
   if (hdr) warnings.push(hdr);
   const imageSubs = (file.subtitleTracks ?? []).filter((s) => !s.textBased);
   if (imageSubs.length) {
-    const names = [...new Set(imageSubs.map((s) => codecLabel(s.codec)))].join('/');
-    warnings.push(`${imageSubs.length} image-based subtitle track${imageSubs.length === 1 ? '' : 's'} (${names}) cannot be shown; text subtitles work.`);
+    const names = [...new Set(imageSubs.map((s) => codecLabel(s.codec, lang)))].join('/');
+    warnings.push(T(imageSubs.length === 1 ? '1 image-based subtitle track ({names}) cannot be shown; text subtitles work.' : '{n} image-based subtitle tracks ({names}) cannot be shown; text subtitles work.', { n: imageSubs.length, names }));
   }
-  if (!isReported && mode !== 'unsupported') warnings.push('This device did not report which formats it supports, so Velyx assumed a typical browser.');
-  if (confidence === 'profile') warnings.push(`This device did not report which formats it supports, so Velyx used what ${profile.name} usually plays.`);
+  if (!isReported && mode !== 'unsupported') warnings.push(T('This device did not report which formats it supports, so Velyx assumed a typical browser.'));
+  if (confidence === 'profile') warnings.push(T('This device did not report which formats it supports, so Velyx used what {device} usually plays.', { device: profileName(profile, lang) }));
 
   // ---- per-stream status and a plain-language summary
   const audioSupported = !audioCodec || (caps.audioCodecs ?? REFERENCE_CAPS.audioCodecs).includes(audioCodec);
@@ -210,46 +213,46 @@ export function analyzePlayback(
   const components: PlaybackAnalysis['components'] = {
     video:
       mode === 'unsupported' && video.ok !== true
-        ? { status: video.ok === 'unknown' ? 'unknown' : 'fail', note: problems[0] ?? video.problem ?? 'This device cannot decode this video.' }
+        ? { status: video.ok === 'unknown' ? 'unknown' : 'fail', note: problems[0] ?? video.problem ?? T('This device cannot decode this video.') }
         : mode === 'unsupported'
-          ? { status: 'fail', note: problems[0] ?? 'This device cannot decode this video.' }
+          ? { status: 'fail', note: problems[0] ?? T('This device cannot decode this video.') }
           : video.ok === 'unknown'
-            ? { status: 'unknown', note: video.problem ?? 'Velyx cannot confirm that this device decodes it.' }
-            : { status: 'ok', note: mode === 'remux' ? 'Copied without re-encoding' : 'Plays as-is' },
+            ? { status: 'unknown', note: video.problem ?? T('Velyx cannot confirm that this device decodes it.') }
+            : { status: 'ok', note: mode === 'remux' ? T('Copied without re-encoding') : T('Plays as-is') },
     audio:
       audioAction === 'none'
-        ? { status: 'ok', note: 'No audio track' }
+        ? { status: 'ok', note: T('No audio track') }
         : audioAction === 'convert'
-          ? { status: 'warn', note: `Converted to ${target}${audioSupported ? ' (for your audio settings or track choice)' : ''}` }
+          ? { status: 'warn', note: audioSupported ? T('Converted to {target} (for your audio settings or track choice)', { target: target! }) : T('Converted to {target}', { target: target! }) }
           : mode === 'unsupported'
             ? audioSupported
-              ? { status: 'ok', note: 'Supported' }
+              ? { status: 'ok', note: T('Supported') }
               : audioCodec === 'aac'
-                ? { status: 'fail', note: 'This browser cannot play AAC audio' }
-                : { status: 'warn', note: 'Would be converted to AAC' }
-            : { status: 'ok', note: audioAction === 'copy' ? 'Copied as-is' : 'Plays as-is' },
+                ? { status: 'fail', note: T('This browser cannot play AAC audio') }
+                : { status: 'warn', note: T('Would be converted to AAC') }
+            : { status: 'ok', note: audioAction === 'copy' ? T('Copied as-is') : T('Plays as-is') },
     container: containerSupported
-      ? { status: 'ok', note: mode === 'remux' ? 'Supported; streamed as MP4 while remuxing' : 'Supported' }
-      : { status: 'warn', note: mode === 'unsupported' ? 'Would be repackaged as MP4' : 'Repackaged as MP4' },
+      ? { status: 'ok', note: mode === 'remux' ? T('Supported; streamed as MP4 while remuxing') : T('Supported') }
+      : { status: 'warn', note: mode === 'unsupported' ? T('Would be repackaged as MP4') : T('Repackaged as MP4') },
   };
   const summary: string[] = [];
-  if (mode === 'direct') summary.push('No server-side conversion required.');
+  if (mode === 'direct') summary.push(T('No server-side conversion required.'));
   else if (mode === 'remux') {
-    summary.push('The video does not need transcoding.');
-    summary.push(audioAction === 'convert' ? `Velyx remuxes the file and converts the audio to ${target}, which uses little CPU.` : 'Velyx will remux the media for compatibility, which uses little CPU.');
+    summary.push(T('The video does not need transcoding.'));
+    summary.push(audioAction === 'convert' ? T('Velyx remuxes the file and converts the audio to {target}, which uses little CPU.', { target: target! }) : T('Velyx will remux the media for compatibility, which uses little CPU.'));
   } else {
-    summary.push(components.video.status === 'unknown' ? 'This device may not be able to play this video format.' : 'Your current browser/device cannot play this video format.');
-    summary.push('Server transcoding: No. Velyx does not convert video.');
+    summary.push(components.video.status === 'unknown' ? T('This device may not be able to play this video format.') : T('Your current browser/device cannot play this video format.'));
+    summary.push(T('Server transcoding: No. Velyx does not convert video.'));
   }
-  if (mode !== 'unsupported' && components.video.status === 'unknown') summary.push('Velyx cannot confirm that this device decodes the video. If it does not start, try another browser or device.');
-  if (confidence !== 'reported') summary.push('This is an estimate: the device did not report which formats it supports.');
+  if (mode !== 'unsupported' && components.video.status === 'unknown') summary.push(T('Velyx cannot confirm that this device decodes the video. If it does not start, try another browser or device.'));
+  if (confidence !== 'reported') summary.push(T('This is an estimate: the device did not report which formats it supports.'));
 
   return {
     mode,
     browser: browserName(userAgent),
     video: {
       codec: file.videoCodec,
-      label: codecLabel(file.videoCodec),
+      label: codecLabel(file.videoCodec, lang),
       width: file.width,
       height: file.height,
       bitDepth: file.videoBitDepth,
@@ -258,10 +261,10 @@ export function analyzePlayback(
     },
     audio: {
       codec: audioCodec,
-      label: codecLabel(audioCodec),
+      label: codecLabel(audioCodec, lang),
       channels: track?.channels ?? file.audioChannels,
       action: audioAction,
-      target: audioAction === 'convert' ? `AAC ${channels}` : null,
+      target,
     },
     container: { name: file.container, action: mode === 'remux' ? 'remux' : 'direct' },
     problems,
@@ -269,7 +272,7 @@ export function analyzePlayback(
     transcodeRequired: mode === 'unsupported',
     serverTranscoding: false,
     serverLoad: mode === 'remux' ? 'low' : 'none',
-    device: profile.family === 'unknown' && !profile.browser ? null : profile.name,
+    device: profile.family === 'unknown' && !profile.browser ? null : profileName(profile, lang),
     confidence,
     components,
     summary,

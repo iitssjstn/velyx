@@ -16,6 +16,7 @@ import { SessionList } from '../components/SessionList';
 import { HistoryRow } from '../components/ActiveStreams';
 import { ServerSettingsPanel } from './admin/ServerSettings';
 import { LibrariesPanel } from './admin/Libraries';
+import { LANGUAGES, languageLabel, setLanguage, useT, type Language, type MessageKey } from '../i18n';
 
 function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
@@ -43,28 +44,48 @@ function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange
   );
 }
 
-const LANGUAGES = [
-  ['', 'Off / file default'],
-  ['en', 'English'],
-  ['nl', 'Dutch'],
-  ['de', 'German'],
-  ['fr', 'French'],
-  ['es', 'Spanish'],
-  ['it', 'Italian'],
-  ['pt', 'Portuguese'],
-  ['sv', 'Swedish'],
-  ['da', 'Danish'],
-  ['no', 'Norwegian'],
-  ['fi', 'Finnish'],
-  ['pl', 'Polish'],
-  ['tr', 'Turkish'],
-  ['ja', 'Japanese'],
-  ['ko', 'Korean'],
-  ['zh', 'Chinese'],
-] as const;
+/** Audio and subtitle languages to choose from (names are shown in the interface language). */
+const MEDIA_LANGUAGES = ['en', 'nl', 'de', 'fr', 'es', 'it', 'pt', 'sv', 'da', 'no', 'fi', 'pl', 'tr', 'ja', 'ko', 'zh'] as const;
+
+/**
+ * The language of Velyx itself, for this account. Separate from the audio and subtitle languages:
+ * changing it never changes a track. Switches at once, without reloading. Exported for tests.
+ */
+export function InterfaceLanguage() {
+  const { setUser } = useAuth();
+  const { t, lang } = useT();
+  const [busy, setBusy] = useState(false);
+  const choose = async (code: Language) => {
+    if (code === lang || busy) return;
+    setBusy(true);
+    try {
+      const res = await api.put<{ user: User }>('/api/account/language', { language: code });
+      await setLanguage(code);
+      setUser(res.user);
+      toast.success(t('settings.language.saved'));
+    } catch (err) {
+      toast.error(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section title={t('settings.language.title')} description={t('settings.language.description')}>
+      <div role="radiogroup" aria-label={t('settings.language.interface')} className="flex flex-wrap gap-3">
+        {LANGUAGES.map((l) => (
+          <label key={l.code} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition ${lang === l.code ? 'border-accent bg-accent/10' : 'border-line hover:border-muted'}`}>
+            <input type="radio" name="interface-language" className="size-4 accent-[var(--color-accent)]" checked={lang === l.code} disabled={busy} onChange={() => void choose(l.code)} />
+            <span lang={l.code}>{l.name}</span>
+          </label>
+        ))}
+      </div>
+    </Section>
+  );
+}
 
 function AccountSettings() {
   const { user, setUser } = useAuth();
+  const { t } = useT();
   const qc = useQueryClient();
   const [name, setName] = useState(user?.displayName ?? '');
   const [pw, setPw] = useState({ current: '', next: '', confirm: '', signOutOthers: true });
@@ -78,7 +99,7 @@ function AccountSettings() {
     try {
       const res = await api.put<{ user: User }>('/api/account/profile', { displayName: name.trim() || null });
       setUser(res.user);
-      toast.success('Profile saved.');
+      toast.success(t('settings.account.profileSaved'));
     } catch (err) {
       toast.error(err);
     } finally {
@@ -88,12 +109,12 @@ function AccountSettings() {
 
   const changePassword = async (e: FormEvent) => {
     e.preventDefault();
-    if (pw.next !== pw.confirm) return toast.error('The new passwords do not match.');
+    if (pw.next !== pw.confirm) return toast.error(t('settings.account.passwordsDoNotMatch'));
     setBusy('password');
     try {
       const res = await api.post<{ signedOut: number }>('/api/account/password', { currentPassword: pw.current, newPassword: pw.next, signOutOthers: pw.signOutOthers });
       setPw({ current: '', next: '', confirm: '', signOutOthers: true });
-      toast.success(res.signedOut ? `Password changed. ${res.signedOut} other ${res.signedOut === 1 ? 'device was' : 'devices were'} signed out.` : 'Password changed.');
+      toast.success(res.signedOut ? t('settings.account.passwordChangedSignedOut', { count: res.signedOut }) : t('settings.account.passwordChanged'));
       void qc.invalidateQueries({ queryKey: ['sessions', 'me'] });
     } catch (err) {
       toast.error(err);
@@ -103,11 +124,11 @@ function AccountSettings() {
   };
 
   const uploadAvatar = async (file: File) => {
-    if (file.size > 2 * 1024 * 1024) return toast.error('Images must be 2 MB or smaller.');
+    if (file.size > 2 * 1024 * 1024) return toast.error(t('settings.account.imageTooLarge'));
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const r = new FileReader();
       r.onload = () => resolve(String(r.result));
-      r.onerror = () => reject(new Error('Could not read the file.'));
+      r.onerror = () => reject(new Error(t('settings.account.readFailed')));
       r.readAsDataURL(file);
     });
     setBusy('avatar');
@@ -132,16 +153,17 @@ function AccountSettings() {
 
   return (
     <div className="space-y-6">
-      <Section title="Profile">
+      <InterfaceLanguage />
+      <Section title={t('settings.account.profile')}>
         <div className="flex items-center gap-4">
           <Avatar user={user} size={64} />
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" size="sm" loading={busy === 'avatar'} onClick={() => fileRef.current?.click()}>
-              Upload picture
+              {t('settings.account.uploadPicture')}
             </Button>
             {user.avatarUrl && (
               <Button variant="ghost" size="sm" onClick={removeAvatar}>
-                Remove
+                {t('common.remove')}
               </Button>
             )}
             <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => e.target.files?.[0] && void uploadAvatar(e.target.files[0])} />
@@ -149,133 +171,126 @@ function AccountSettings() {
         </div>
         <form onSubmit={saveProfile} className="mt-6 grid gap-4 sm:max-w-md">
           <div>
-            <label className="label" htmlFor="uname">Username</label>
+            <label className="label" htmlFor="uname">{t('auth.username')}</label>
             <input id="uname" className="input opacity-70" value={user.username} disabled />
           </div>
           <div>
-            <label className="label" htmlFor="dname">Display name</label>
+            <label className="label" htmlFor="dname">{t('settings.account.displayName')}</label>
             <input id="dname" className="input" value={name} maxLength={64} placeholder={user.username} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
-            <Button type="submit" loading={busy === 'profile'}>Save profile</Button>
+            <Button type="submit" loading={busy === 'profile'}>{t('settings.account.saveProfile')}</Button>
           </div>
         </form>
       </Section>
-      <Section title="Password">
+      <Section title={t('auth.password')}>
         <form onSubmit={changePassword} className="grid gap-4 sm:max-w-md">
           <div>
-            <label className="label" htmlFor="cur">Current password</label>
+            <label className="label" htmlFor="cur">{t('settings.account.currentPassword')}</label>
             <input id="cur" type="password" className="input" autoComplete="current-password" required value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} />
           </div>
           <div>
-            <label className="label" htmlFor="new">New password</label>
+            <label className="label" htmlFor="new">{t('settings.account.newPassword')}</label>
             <input id="new" type="password" className="input" autoComplete="new-password" required minLength={8} value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />
           </div>
           <div>
-            <label className="label" htmlFor="conf">Confirm new password</label>
+            <label className="label" htmlFor="conf">{t('settings.account.confirmNewPassword')}</label>
             <input id="conf" type="password" className="input" autoComplete="new-password" required value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} />
           </div>
           <label className="flex items-center gap-3 text-sm">
             <input type="checkbox" className="size-4 accent-[var(--color-accent)]" checked={pw.signOutOthers} onChange={(e) => setPw({ ...pw, signOutOthers: e.target.checked })} />
-            Sign out all other devices
+            {t('sessions.signOutOthers')}
           </label>
           <div>
-            <Button type="submit" loading={busy === 'password'}>Change password</Button>
+            <Button type="submit" loading={busy === 'password'}>{t('settings.account.changePassword')}</Button>
           </div>
         </form>
       </Section>
-      <Section title="Devices" description="Browsers and devices that are signed in to your account. Revoke any you do not recognise.">
+      <Section title={t('settings.account.devices')} description={t('settings.account.devicesHint')}>
         <SessionList />
       </Section>
     </div>
   );
 }
 
-const SUBTITLE_MODES: [SubtitleMode, string, string][] = [
-  ['remember', 'Remember my last choice', 'Uses the subtitle language you last picked in the player (on this browser).'],
-  ['always', 'Always', 'Shows subtitles in your language, or the fallback language when yours is missing.'],
-  ['foreign', 'When the audio is in another language', 'Hides subtitles when the audio already is in your language (forced subtitles still show).'],
-  ['forced', 'Forced only', 'Only translations of foreign-language parts.'],
-  ['off', 'Off', 'Never turns subtitles on by itself.'],
-];
+const SUBTITLE_MODES: SubtitleMode[] = ['remember', 'always', 'foreign', 'forced', 'off'];
 
 /** Account-wide language preferences, used on every device. Exported for tests. */
 export function LanguageSettings() {
   const qc = useQueryClient();
+  const { t } = useT();
   const q = useQuery({ queryKey: ['account-prefs'], queryFn: () => api.get<LanguagePreferences>('/api/account/preferences') });
   const save = useMutation({
     mutationFn: (patch: Partial<LanguagePreferences>) => api.put<LanguagePreferences>('/api/account/preferences', patch),
     onSuccess: (d) => {
       qc.setQueryData(['account-prefs'], d);
-      toast.success('Language preferences saved.');
+      toast.success(t('settings.languages.saved'));
     },
     onError: (err) => toast.error(err),
   });
   const p = q.data;
   const langSelect = (id: string, value: string, onChange: (v: string) => void, emptyLabel: string, disabled = false) => (
     <select id={id} className="input w-48" value={value} disabled={disabled || !p} onChange={(e) => onChange(e.target.value)}>
-      {LANGUAGES.map(([code, label]) => (
-        <option key={code} value={code}>{code === '' ? emptyLabel : label}</option>
+      <option value="">{emptyLabel}</option>
+      {MEDIA_LANGUAGES.map((code) => (
+        <option key={code} value={code}>{languageLabel(code) ?? code}</option>
       ))}
-      {value && !LANGUAGES.some(([code]) => code === value) && <option value={value}>{value.toUpperCase()}</option>}
+      {value && !(MEDIA_LANGUAGES as readonly string[]).includes(value) && <option value={value}>{languageLabel(value) ?? value.toUpperCase()}</option>}
     </select>
   );
   const needsLanguage = p && (p.subtitleMode === 'always' || p.subtitleMode === 'foreign');
   return (
-    <Section title="Languages" description="Saved to your account, so every device you use starts with the right audio and subtitles. You can always switch tracks in the player.">
+    <Section title={t('settings.languages.title')} description={t('settings.languages.description')}>
       <div className="divide-y divide-line/50">
         <div className="flex flex-wrap items-center justify-between gap-3 py-3">
           <label htmlFor="pref-audio">
-            Preferred audio language
-            <span className="block text-sm text-muted">Falls back to the file's original audio when it is not available.</span>
+            {t('settings.languages.audio')}
+            <span className="block text-sm text-muted">{t('settings.languages.audioHint')}</span>
           </label>
-          {langSelect('pref-audio', p?.audioLanguage ?? '', (v) => save.mutate({ audioLanguage: v }), 'Original')}
+          {langSelect('pref-audio', p?.audioLanguage ?? '', (v) => save.mutate({ audioLanguage: v }), t('settings.languages.original'))}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 py-3">
           <label htmlFor="pref-sub-mode">
-            Show subtitles
-            <span className="block text-sm text-muted">{SUBTITLE_MODES.find(([m]) => m === (p?.subtitleMode ?? 'remember'))?.[2]}</span>
+            {t('settings.languages.showSubtitles')}
+            <span className="block text-sm text-muted">{t(`settings.subtitleModes.${p?.subtitleMode ?? 'remember'}.hint`)}</span>
           </label>
           <select id="pref-sub-mode" className="input w-64" value={p?.subtitleMode ?? 'remember'} disabled={!p} onChange={(e) => save.mutate({ subtitleMode: e.target.value as SubtitleMode })}>
-            {SUBTITLE_MODES.map(([m, label]) => (
-              <option key={m} value={m}>{label}</option>
+            {SUBTITLE_MODES.map((m) => (
+              <option key={m} value={m}>{t(`settings.subtitleModes.${m}.label`)}</option>
             ))}
           </select>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 py-3">
           <label htmlFor="pref-sub">
-            Subtitle language
-            {needsLanguage && !p?.subtitleLanguage && <span className="block text-sm text-amber">Choose a language for this setting to work.</span>}
+            {t('settings.languages.subtitleLanguage')}
+            {needsLanguage && !p?.subtitleLanguage && <span className="block text-sm text-amber">{t('settings.languages.chooseLanguage')}</span>}
           </label>
-          {langSelect('pref-sub', p?.subtitleLanguage ?? '', (v) => save.mutate({ subtitleLanguage: v }), 'None', p?.subtitleMode === 'off' || p?.subtitleMode === 'remember')}
+          {langSelect('pref-sub', p?.subtitleLanguage ?? '', (v) => save.mutate({ subtitleLanguage: v }), t('settings.languages.none'), p?.subtitleMode === 'off' || p?.subtitleMode === 'remember')}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 py-3">
           <label htmlFor="pref-sub-fallback">
-            Fallback subtitle language
-            <span className="block text-sm text-muted">Used when a file has no subtitles in your language.</span>
+            {t('settings.languages.fallback')}
+            <span className="block text-sm text-muted">{t('settings.languages.fallbackHint')}</span>
           </label>
-          {langSelect('pref-sub-fallback', p?.subtitleFallback ?? '', (v) => save.mutate({ subtitleFallback: v }), 'None', !needsLanguage)}
+          {langSelect('pref-sub-fallback', p?.subtitleFallback ?? '', (v) => save.mutate({ subtitleFallback: v }), t('settings.languages.none'), !needsLanguage)}
         </div>
       </div>
     </Section>
   );
 }
 
-const SKIP_MODES: [SkipMode, string][] = [
-  ['ask', 'Show a skip button'],
-  ['always', 'Skip automatically'],
-  ['never', 'Never'],
-];
+const SKIP_MODES: SkipMode[] = ['ask', 'always', 'never'];
 
 /** Skipping detected intros and credits (account-wide). Exported for tests. */
 export function SkipSettings() {
   const qc = useQueryClient();
+  const { t } = useT();
   const q = useQuery({ queryKey: ['account-prefs'], queryFn: () => api.get<LanguagePreferences>('/api/account/preferences') });
   const save = useMutation({
     mutationFn: (patch: Partial<LanguagePreferences>) => api.put<LanguagePreferences>('/api/account/preferences', patch),
     onSuccess: (d) => {
       qc.setQueryData(['account-prefs'], d);
-      toast.success('Skip preferences saved.');
+      toast.success(t('settings.skip.saved'));
     },
     onError: (err) => toast.error(err),
   });
@@ -287,17 +302,17 @@ export function SkipSettings() {
         <span className="block text-sm text-muted">{hint}</span>
       </label>
       <select id={id} className="input w-56" value={value} disabled={!p} onChange={(e) => save.mutate({ [key]: e.target.value as SkipMode })}>
-        {SKIP_MODES.map(([m, l]) => (
-          <option key={m} value={m}>{l}</option>
+        {SKIP_MODES.map((m) => (
+          <option key={m} value={m}>{t(`settings.skip.modes.${m}`)}</option>
         ))}
       </select>
     </div>
   );
   return (
-    <Section title="Intros & credits" description="Velyx recognises intros and end credits of TV episodes by their recurring sound and, for credits, by the text in the picture. Only confident results are used; a scene after the credits is never skipped.">
+    <Section title={t('settings.skip.title')} description={t('settings.skip.description')}>
       <div className="divide-y divide-line/50">
-        {row('pref-skip-intro', 'Skip intros', 'The button appears only while the intro plays.', p?.skipIntro ?? 'ask', 'skipIntro')}
-        {row('pref-skip-credits', 'Skip credits', 'Goes to a scene after the credits when there is one, otherwise to the next episode.', p?.skipCredits ?? 'ask', 'skipCredits')}
+        {row('pref-skip-intro', t('settings.skip.intros'), t('settings.skip.introsHint'), p?.skipIntro ?? 'ask', 'skipIntro')}
+        {row('pref-skip-credits', t('settings.skip.credits'), t('settings.skip.creditsHint'), p?.skipCredits ?? 'ask', 'skipCredits')}
       </div>
     </Section>
   );
@@ -305,56 +320,57 @@ export function SkipSettings() {
 
 function PlaybackSettings() {
   const prefs = usePrefs();
+  const { t } = useT();
   return (
     <div className="space-y-6">
       <LanguageSettings />
       <SkipSettings />
-      <Section title="Playback" description="These preferences are stored in this browser.">
+      <Section title={t('settings.playback.title')} description={t('settings.playback.description')}>
         <div className="divide-y divide-line/50">
-          <Toggle label="Autoplay next episode" hint="Starts the next episode after a countdown." checked={prefs.autoplayNext} onChange={(v) => setPrefs({ autoplayNext: v })} />
+          <Toggle label={t('settings.playback.autoplay')} hint={t('settings.playback.autoplayHint')} checked={prefs.autoplayNext} onChange={(v) => setPrefs({ autoplayNext: v })} />
           <div className="flex items-center justify-between gap-6 py-3">
-            <span>Countdown before the next episode</span>
+            <span>{t('settings.playback.countdown')}</span>
             <select className="input w-28" value={prefs.autoplayCountdown} onChange={(e) => setPrefs({ autoplayCountdown: Number(e.target.value) })} disabled={!prefs.autoplayNext}>
               {[5, 10, 15, 20, 30].map((s) => (
-                <option key={s} value={s}>{s} s</option>
+                <option key={s} value={s}>{t('time.seconds', { n: s })}</option>
               ))}
             </select>
           </div>
           <Toggle
-            label="Warn about files this browser may not play"
+            label={t('settings.playback.warn')}
             checked={prefs.showCompatibilityWarnings}
             onChange={(v) => setPrefs({ showCompatibilityWarnings: v })}
           />
         </div>
       </Section>
-      <Section title="Audio" description="Used when Velyx converts audio (Dolby/DTS in browsers, or when an option below is on). Stored in this browser.">
+      <Section title={t('playback.audio')} description={t('settings.audio.description')}>
         <div className="divide-y divide-line/50">
           <div className="flex items-center justify-between gap-6 py-3">
             <span>
-              Sound
-              <span className="block text-sm text-muted">Surround keeps up to 5.1 channels; stereo mixes down for speakers and headphones.</span>
+              {t('settings.audio.sound')}
+              <span className="block text-sm text-muted">{t('settings.audio.soundHint')}</span>
             </span>
             <select className="input w-48" value={prefs.audioOutput} onChange={(e) => setPrefs({ audioOutput: e.target.value as 'stereo' | 'surround' })}>
-              <option value="stereo">Stereo</option>
-              <option value="surround">Surround 5.1</option>
+              <option value="stereo">{t('media.stereo')}</option>
+              <option value="surround">{t('settings.audio.surround')}</option>
             </select>
           </div>
-          <Toggle label="Boost voices" hint="Makes dialogue clearer. Always converts the audio." checked={prefs.boostVoices} onChange={(v) => setPrefs({ boostVoices: v })} />
-          <Toggle label="Level volume" hint="Evens out loud and quiet scenes (night mode). Always converts the audio." checked={prefs.levelVolume} onChange={(v) => setPrefs({ levelVolume: v })} />
+          <Toggle label={t('settings.audio.boostVoices')} hint={t('settings.audio.boostVoicesHint')} checked={prefs.boostVoices} onChange={(v) => setPrefs({ boostVoices: v })} />
+          <Toggle label={t('settings.audio.levelVolume')} hint={t('settings.audio.levelVolumeHint')} checked={prefs.levelVolume} onChange={(v) => setPrefs({ levelVolume: v })} />
         </div>
       </Section>
-      <Section title="Subtitle appearance" description="Also adjustable from the subtitle menu in the player.">
+      <Section title={t('settings.subtitles.title')} description={t('settings.subtitles.description')}>
         <SubtitlePreview />
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <PrefSelect label="Size" value={prefs.subtitleSize} onChange={(v) => setPrefs({ subtitleSize: v })} options={[['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['xlarge', 'Extra large']]} />
-          <PrefSelect label="Color" value={prefs.subtitleColor} onChange={(v) => setPrefs({ subtitleColor: v })} options={[['white', 'White'], ['yellow', 'Yellow']]} />
-          <PrefSelect label="Background" value={prefs.subtitleBackground} onChange={(v) => setPrefs({ subtitleBackground: v })} options={[['none', 'None'], ['translucent', 'Dimmed box'], ['solid', 'Solid box']]} />
-          <PrefSelect label="Edge" value={prefs.subtitleEdge} onChange={(v) => setPrefs({ subtitleEdge: v })} options={[['shadow', 'Drop shadow'], ['outline', 'Outline'], ['none', 'None']]} />
+          <PrefSelect label={t('subtitleStyle.size')} value={prefs.subtitleSize} onChange={(v) => setPrefs({ subtitleSize: v })} options={[['small', t('subtitleStyle.small')], ['medium', t('subtitleStyle.medium')], ['large', t('subtitleStyle.large')], ['xlarge', t('subtitleStyle.xlarge')]]} />
+          <PrefSelect label={t('subtitleStyle.color')} value={prefs.subtitleColor} onChange={(v) => setPrefs({ subtitleColor: v })} options={[['white', t('subtitleStyle.white')], ['yellow', t('subtitleStyle.yellow')]]} />
+          <PrefSelect label={t('subtitleStyle.background')} value={prefs.subtitleBackground} onChange={(v) => setPrefs({ subtitleBackground: v })} options={[['none', t('subtitleStyle.none')], ['translucent', t('subtitleStyle.dimmed')], ['solid', t('subtitleStyle.solid')]]} />
+          <PrefSelect label={t('subtitleStyle.edge')} value={prefs.subtitleEdge} onChange={(v) => setPrefs({ subtitleEdge: v })} options={[['shadow', t('subtitleStyle.shadow')], ['outline', t('subtitleStyle.outline')], ['none', t('subtitleStyle.none')]]} />
           <PrefSelect
-            label="Position"
+            label={t('subtitleStyle.position')}
             value={String(prefs.subtitlePosition)}
             onChange={(v) => setPrefs({ subtitlePosition: Number(v) })}
-            options={[['0', 'Bottom'], ['5', 'Slightly higher'], ['10', 'Higher'], ['15', 'Much higher'], ['20', 'Highest']]}
+            options={[['0', t('subtitleStyle.bottom')], ['5', t('subtitleStyle.slightlyHigher')], ['10', t('subtitleStyle.higher')], ['15', t('subtitleStyle.muchHigher')], ['20', t('subtitleStyle.highest')]]}
           />
         </div>
       </Section>
@@ -363,41 +379,42 @@ function PlaybackSettings() {
   );
 }
 
-const SUPPORT: Record<DeviceFormat['support'], { icon: typeof Check; label: string; className: string }> = {
-  yes: { icon: Check, label: 'Plays', className: 'text-ok' },
-  converted: { icon: Repeat, label: 'Converted by Velyx', className: 'text-accent' },
-  depends: { icon: CircleHelp, label: 'Depends', className: 'text-muted' },
-  no: { icon: X, label: 'Not supported', className: 'text-danger' },
+const SUPPORT: Record<DeviceFormat['support'], { icon: typeof Check; label: MessageKey; className: string }> = {
+  yes: { icon: Check, label: 'settings.device.plays', className: 'text-ok' },
+  converted: { icon: Repeat, label: 'settings.device.converted', className: 'text-accent' },
+  depends: { icon: CircleHelp, label: 'settings.device.depends', className: 'text-muted' },
+  no: { icon: X, label: 'playback.notSupported', className: 'text-danger' },
 };
 
-const KINDS: Array<{ kind: DeviceFormat['kind']; title: string }> = [
-  { kind: 'video', title: 'Video' },
-  { kind: 'audio', title: 'Audio' },
-  { kind: 'container', title: 'Containers' },
-  { kind: 'display', title: 'Screen' },
+const KINDS: Array<{ kind: DeviceFormat['kind']; title: MessageKey }> = [
+  { kind: 'video', title: 'playback.video' },
+  { kind: 'audio', title: 'playback.audio' },
+  { kind: 'container', title: 'settings.device.containers' },
+  { kind: 'display', title: 'settings.device.screen' },
 ];
 
 /** What this device plays, from the formats the browser reports, named like "Chrome on Windows". */
 export function CurrentDevice() {
+  const { t, lang } = useT();
   const q = useQuery({
-    queryKey: ['playback-device'],
+    queryKey: ['playback-device', lang],
     queryFn: () => api.post<DeviceReport>('/api/playback/device', detectCapabilities()),
     staleTime: Infinity,
   });
   return (
-    <Section title="Current device" description="What this browser plays. Velyx plays files directly whenever it can; audio and containers it cannot play are converted on the fly, but video is never transcoded.">
+    <Section title={t('settings.device.title')} description={t('settings.device.description')}>
       {q.isLoading ? (
-        <p className="text-sm text-muted">Checking this browser…</p>
+        <p className="text-sm text-muted">{t('settings.device.checking')}</p>
       ) : q.error || !q.data ? (
         <p className="text-sm text-danger">{errorMessage(q.error)}</p>
       ) : (
         <>
           <p className="font-display text-base font-semibold">{q.data.device}</p>
-          {q.data.confidence !== 'reported' && <p className="mt-1 text-sm text-amber">This browser did not report its formats, so these are estimates.</p>}
+          {q.data.confidence !== 'reported' && <p className="mt-1 text-sm text-amber">{t('settings.device.estimates')}</p>}
           <div className="mt-4 grid gap-6 sm:grid-cols-2">
             {KINDS.map(({ kind, title }) => (
               <div key={kind}>
-                <h3 className="text-xs font-medium tracking-wide text-faint uppercase">{title}</h3>
+                <h3 className="text-xs font-medium tracking-wide text-faint uppercase">{t(title)}</h3>
                 <ul className="mt-2 space-y-2">
                   {q.data.formats
                     .filter((f) => f.kind === kind)
@@ -406,11 +423,11 @@ export function CurrentDevice() {
                       const Icon = s.icon;
                       return (
                         <li key={f.key} className="flex items-start gap-3 text-sm">
-                          <Icon className={`mt-0.5 size-4 shrink-0 ${s.className}`} strokeWidth={2.5} role="img" aria-label={s.label} />
+                          <Icon className={`mt-0.5 size-4 shrink-0 ${s.className}`} strokeWidth={2.5} role="img" aria-label={t(s.label)} />
                           <span className="min-w-0 flex-1">
                             <span className="flex flex-wrap items-baseline justify-between gap-x-3">
                               <span>{f.label}</span>
-                              <span className={`text-xs ${s.className}`}>{s.label}</span>
+                              <span className={`text-xs ${s.className}`}>{t(s.label)}</span>
                             </span>
                             {f.note && <span className="block text-xs text-muted">{f.note}</span>}
                           </span>
@@ -429,15 +446,16 @@ export function CurrentDevice() {
 
 function ServerInfoPanel() {
   const { server } = useAuth();
+  const { t } = useT();
   return (
-    <Section title="Server">
+    <Section title={t('settings.server.title')}>
       <dl className="grid gap-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-faint">Name</dt>
+          <dt className="text-faint">{t('common.name')}</dt>
           <dd>{server?.name}</dd>
         </div>
         <div>
-          <dt className="text-faint">Version</dt>
+          <dt className="text-faint">{t('settings.server.version')}</dt>
           <dd>Velyx {server?.version}</dd>
         </div>
       </dl>
@@ -449,6 +467,7 @@ const HISTORY_PAGE = 30;
 
 /** What you watched, when, for how long and how it played. Only your own viewings. Exported for tests. */
 export function WatchHistory() {
+  const { t } = useT();
   const [page, setPage] = useState(1);
   const q = useQuery({
     queryKey: ['account-history', page],
@@ -457,13 +476,13 @@ export function WatchHistory() {
   });
   const pages = Math.max(1, Math.ceil((q.data?.total ?? 0) / HISTORY_PAGE));
   return (
-    <Section title="Watch history" description="Everything you watched on this server, newest first. Only you and administrators can see it.">
+    <Section title={t('settings.history.title')} description={t('settings.history.description')}>
       {q.isLoading ? (
-        <p className="text-sm text-muted">Loading…</p>
+        <p className="text-sm text-muted">{t('common.loadingDots')}</p>
       ) : q.error || !q.data ? (
         <p className="text-sm text-danger">{errorMessage(q.error)}</p>
       ) : q.data.items.length === 0 ? (
-        <p className="text-sm text-muted">Nothing watched yet.</p>
+        <p className="text-sm text-muted">{t('settings.history.empty')}</p>
       ) : (
         <ul className="-mx-4 divide-y divide-line/50">
           {q.data.items.map((h) => (
@@ -473,9 +492,9 @@ export function WatchHistory() {
       )}
       {pages > 1 && (
         <div className="mt-4 flex items-center justify-end gap-2 text-sm">
-          <span className="mr-2 text-muted">Page {page} of {pages}</span>
-          <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-          <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</Button>
+          <span className="mr-2 text-muted">{t('common.pageOf', { page, pages })}</span>
+          <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t('common.previous')}</Button>
+          <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>{t('common.next')}</Button>
         </div>
       )}
     </Section>
@@ -484,26 +503,27 @@ export function WatchHistory() {
 
 export function SettingsPage() {
   const { user } = useAuth();
+  const { t } = useT();
   const isAdmin = user?.role === 'admin';
   const tabs = [
-    { to: 'account', label: 'Account' },
-    { to: 'playback', label: 'Playback' },
-    { to: 'history', label: 'History' },
-    { to: 'server', label: isAdmin ? 'Server & metadata' : 'Server' },
-    ...(isAdmin ? [{ to: 'libraries', label: 'Libraries' }] : []),
+    { to: 'account', label: t('settings.tabs.account') },
+    { to: 'playback', label: t('settings.tabs.playback') },
+    { to: 'history', label: t('settings.tabs.history') },
+    { to: 'server', label: isAdmin ? t('settings.tabs.serverMetadata') : t('settings.tabs.server') },
+    ...(isAdmin ? [{ to: 'libraries', label: t('settings.tabs.libraries') }] : []),
   ];
   return (
     <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-8">
-      <h1 className="font-display text-3xl font-semibold tracking-tight">Settings</h1>
-      <p className="mt-1 text-muted">Signed in as {displayName(user)}</p>
-      <nav className="no-scrollbar mt-6 mb-8 flex gap-1 overflow-x-auto border-b border-line/60" aria-label="Settings sections">
-        {tabs.map((t) => (
+      <h1 className="font-display text-3xl font-semibold tracking-tight">{t('nav.settings')}</h1>
+      <p className="mt-1 text-muted">{t('settings.signedInAs', { name: displayName(user) })}</p>
+      <nav className="no-scrollbar mt-6 mb-8 flex gap-1 overflow-x-auto border-b border-line/60" aria-label={t('settings.sections')}>
+        {tabs.map((tab) => (
           <NavLink
-            key={t.to}
-            to={`/settings/${t.to}`}
+            key={tab.to}
+            to={`/settings/${tab.to}`}
             className={({ isActive }) => `-mb-px shrink-0 border-b-2 px-4 py-2.5 text-sm transition ${isActive ? 'border-accent text-ink' : 'border-transparent text-muted hover:text-ink'}`}
           >
-            {t.label}
+            {tab.label}
           </NavLink>
         ))}
       </nav>
@@ -536,14 +556,15 @@ function PrefSelect<T extends string>({ label, value, options, onChange }: { lab
 /** Live preview of the subtitle style on a dark "video" background. */
 function SubtitlePreview() {
   const prefs = usePrefs();
+  const { t } = useT();
   const style = subtitleLineStyle(prefs);
   return (
-    <div className="relative h-40 overflow-hidden rounded-lg bg-[linear-gradient(135deg,#3a3450,#1a1622_60%,#0c0a10)]" aria-label="Subtitle preview">
+    <div className="relative h-40 overflow-hidden rounded-lg bg-[linear-gradient(135deg,#3a3450,#1a1622_60%,#0c0a10)]" aria-label={t('subtitleStyle.preview')}>
       <div className="absolute inset-x-0 flex justify-center px-4 text-center" style={{ bottom: `calc(8% + ${prefs.subtitlePosition}%)`, fontSize: style.fontSize }}>
         <span style={style}>
-          This is how subtitles will look.
+          {t('subtitleStyle.sample')}
           <br />
-          <i>Zo zien ondertitels eruit.</i>
+          <i>{t('subtitleStyle.sampleItalic')}</i>
         </span>
       </div>
     </div>

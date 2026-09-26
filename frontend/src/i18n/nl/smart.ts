@@ -1,0 +1,26 @@
+import type { Messages } from '../index';
+export const smart: Messages['smart'] = {
+  saved: 'Slimme collectie opgeslagen.',
+  explainMovies: 'Elke kijker ziet de films die voor die persoon aan deze filters voldoen, altijd actueel: {summary}.',
+  explainShows: 'Elke kijker ziet de series die voor die persoon aan deze filters voldoen, altijd actueel: {summary}.',
+  namePlaceholder: 'bijv. Actie uit de jaren 90',
+  saveAs: 'Opslaan als slimme collectie',
+  new: 'Nieuwe slimme collectie',
+  deleted: 'Slimme collectie verwijderd.',
+  title: 'Slimme collecties',
+  intro: 'Altijd actueel en persoonlijk: ze volgen je toegang tot bibliotheken en wat je hebt gezien.',
+  deleteName: 'Slimme collectie {name} verwijderen',
+  howTo: 'Stel om er zelf een te maken filters in op de pagina Films of Series en kies “Opslaan als slimme collectie”.',
+  builtIn: {
+    recentlyAdded: 'Recent toegevoegd',
+    unwatched: 'Onbekeken films',
+    topRated: 'Best beoordeeld',
+    movies4k: '4K-films',
+    movies1080p: '1080p-films',
+    hdr: 'HDR',
+    short: 'Korte films',
+    favorites: 'Favorieten',
+    showsInProgress: 'Series waar je mee bezig bent',
+    showsUnwatched: 'Onbekeken series',
+  },
+};

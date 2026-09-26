@@ -6,6 +6,7 @@ import { usePrefs } from '../lib/prefs';
 import type { PlaybackInfo } from '../lib/types';
 import { modeLabel, StreamRows } from './PlaybackDetails';
 import { InfoSection } from './MediaInfo';
+import { useT } from '../i18n';
 
 const MODE_ICON = { direct: Check, remux: RefreshCw, unsupported: TriangleAlert } as const;
 const MODE_CLASS = { direct: 'text-ok', remux: 'text-accent', unsupported: 'text-amber' } as const;
@@ -16,18 +17,19 @@ const MODE_CLASS = { direct: 'text-ok', remux: 'text-accent', unsupported: 'text
  */
 export function DevicePlayback({ fileId }: { fileId: number }) {
   const { audioOutput, boostVoices, levelVolume } = usePrefs();
+  const { t, lang } = useT();
   const q = useQuery({
-    queryKey: ['device-playback', fileId, audioOutput, boostVoices, levelVolume],
+    queryKey: ['device-playback', fileId, audioOutput, boostVoices, levelVolume, lang],
     staleTime: 5 * 60_000,
     retry: false,
     queryFn: () => api.post<PlaybackInfo>(`/api/media/${fileId}/playback`, { ...detectCapabilities(), audioChannels: audioOutput, boostVoices, levelVolume }),
   });
   return (
-    <InfoSection title="Playback on this device" className="sm:col-span-2">
+    <InfoSection title={t('playback.onThisDevice')} className="sm:col-span-2">
       {q.isLoading ? (
-        <p className="text-sm text-muted">Checking…</p>
+        <p className="text-sm text-muted">{t('playback.checking')}</p>
       ) : q.error || !q.data ? (
-        <p className="text-sm text-muted">Could not check playback for this device.</p>
+        <p className="text-sm text-muted">{t('playback.checkFailed')}</p>
       ) : (
         <PlaybackCheck info={q.data} />
       )}
@@ -36,6 +38,7 @@ export function DevicePlayback({ fileId }: { fileId: number }) {
 }
 
 function PlaybackCheck({ info: { analysis: a } }: { info: PlaybackInfo }) {
+  const { t } = useT();
   const Icon = MODE_ICON[a.mode];
   return (
     <div>
@@ -49,7 +52,7 @@ function PlaybackCheck({ info: { analysis: a } }: { info: PlaybackInfo }) {
         ))}
       </div>
       <StreamRows analysis={a} />
-      {(a.device ?? a.browser) && <p className="mt-3 text-xs text-muted">Checked for {a.device ?? a.browser}.</p>}
+      {(a.device ?? a.browser) && <p className="mt-3 text-xs text-muted">{t('playback.checkedFor', { device: a.device ?? a.browser ?? '' })}</p>}
     </div>
   );
 }

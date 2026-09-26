@@ -15,20 +15,22 @@ import { dummyVerify, hashPassword, validatePassword, validateUsername, verifyPa
 import { HttpError } from '../http-error.js';
 import { createLogger } from '../logger.js';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from '../version.js';
+import { DEFAULT_LANGUAGE, isLanguage, languageSchema, requestLanguage, tr, type Language } from '../i18n/index.js';
 
 const log = createLogger('auth');
 
-function waitMessage(ms: number): string {
+function waitMessage(ms: number, lang: Language): string {
   const s = Math.ceil(ms / 1000);
-  return s < 90 ? `${s} seconds` : `${Math.ceil(s / 60)} minutes`;
+  return s < 90 ? tr(lang, '{n} seconds', { n: s }) : tr(lang, '{n} minutes', { n: Math.ceil(s / 60) });
 }
 
-export function publicUser(u: { id: number; username: string; displayName: string | null; role: 'admin' | 'user'; avatarFile: string | null }) {
+export function publicUser(u: { id: number; username: string; displayName: string | null; role: 'admin' | 'user'; avatarFile: string | null; language: string }) {
   return {
     id: u.id,
     username: u.username,
     displayName: u.displayName,
     role: u.role,
+    language: isLanguage(u.language) ? u.language : DEFAULT_LANGUAGE,
     avatarUrl: u.avatarFile ? `/api/avatars/${u.id}?v=${encodeURIComponent(u.avatarFile)}` : null,
   };
 }
@@ -63,6 +65,8 @@ const setupBody = z.object({
   password: z.string(),
   serverName: z.string().trim().max(64).optional(),
   tmdbApiKey: z.string().trim().max(512).optional(),
+  /** The browser's language, as the administrator's first interface language. */
+  language: languageSchema.optional(),
 });
 const profileBody = z.object({ displayName: z.string().trim().max(64).nullable() });
 const passwordBody = z.object({
@@ -133,7 +137,7 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     const user = ctx.db.transaction((tx) => {
       const existing = tx.select({ n: count() }).from(users).where(eq(users.role, 'admin')).get()!.n;
       if (existing > 0) throw new HttpError(409, 'Velyx is already set up.');
-      return tx.insert(users).values({ username: body.username, passwordHash, role: 'admin', lastLoginAt: Date.now() }).returning().get();
+      return tx.insert(users).values({ username: body.username, passwordHash, role: 'admin', language: body.language ?? DEFAULT_LANGUAGE, lastLoginAt: Date.now() }).returning().get();
     });
     ctx.settings.update({
       serverName: body.serverName || 'Velyx',
@@ -155,7 +159,7 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     if (wait > 0) {
       ctx.audit.record('login.blocked', { actorName: body.username, ip });
       reply.header('Retry-After', String(Math.ceil(wait / 1000)));
-      throw new HttpError(429, `Too many failed sign-in attempts. Try again in ${waitMessage(wait)}.`);
+      throw new HttpError(429, 'Too many failed sign-in attempts. Try again in {wait}.', { wait: (lang) => waitMessage(wait, lang) });
     }
     const user = ctx.db.select().from(users).where(eq(users.username, body.username)).get();
     const ok = user ? await verifyPassword(user.passwordHash, body.password) : await dummyVerify(body.password);
@@ -212,6 +216,13 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     const ended = body.signOutOthers ? ctx.sessions.destroyAllForUser(user.id, request.sessionToken) : 0;
     ctx.audit.record('account.password_changed', { actor: user, ip: request.ip, detail: body.signOutOthers ? `signed out ${ended} other session(s)` : 'other sessions kept' });
     return { ok: true, signedOut: ended };
+  });
+
+  // ---- interface language (per account; separate from audio and subtitle languages)
+  app.put('/api/account/language', { preHandler: requireUser }, async (request) => {
+    const { language } = z.object({ language: languageSchema }).parse(request.body);
+    const row = ctx.db.update(users).set({ language, updatedAt: Date.now() }).where(eq(users.id, request.user!.id)).returning().get();
+    return { user: publicUser(row) };
   });
 
   // ---- playback language preferences (per account, used on every device)
@@ -287,9 +298,9 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     const id = Number(request.params.id);
     const row = Number.isInteger(id) ? ctx.db.select({ avatarFile: users.avatarFile }).from(users).where(eq(users.id, id)).get() : undefined;
     const file = row?.avatarFile?.split('#')[0];
-    if (!file || !/^\d+\.(png|jpg|webp)$/.test(file)) return reply.code(404).send({ error: 'No avatar.' });
+    if (!file || !/^\d+\.(png|jpg|webp)$/.test(file)) return reply.code(404).send({ error: tr(requestLanguage(request), 'No avatar.') });
     const full = path.join(ctx.config.avatarDir, file);
-    if (!fs.existsSync(full)) return reply.code(404).send({ error: 'No avatar.' });
+    if (!fs.existsSync(full)) return reply.code(404).send({ error: tr(requestLanguage(request), 'No avatar.') });
     const mime = file.endsWith('.png') ? 'image/png' : file.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
     return reply.type(mime).header('Cache-Control', 'private, max-age=86400').send(fs.createReadStream(full));
   });

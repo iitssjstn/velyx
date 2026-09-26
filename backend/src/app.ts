@@ -32,6 +32,7 @@ import { DirectPlayEngine } from './playback/direct-play.js';
 import { RemuxEngine } from './playback/remux.js';
 import { createLogger } from './logger.js';
 import { HttpError } from './http-error.js';
+import { hasTranslation, requestLanguage, tr } from './i18n/index.js';
 import { registerRoutes } from './routes/index.js';
 
 const log = createLogger('http');
@@ -136,7 +137,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {
   if (!request.user) {
-    reply.code(401).send({ error: 'Sign in to continue.' });
+    reply.code(401).send({ error: tr(requestLanguage(request), 'Sign in to continue.') });
     return;
   }
   done();
@@ -144,11 +145,11 @@ export function requireUser(request: FastifyRequest, reply: FastifyReply, done: 
 
 export function requireAdmin(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {
   if (!request.user) {
-    reply.code(401).send({ error: 'Sign in to continue.' });
+    reply.code(401).send({ error: tr(requestLanguage(request), 'Sign in to continue.') });
     return;
   }
   if (request.user.role !== 'admin') {
-    reply.code(403).send({ error: 'Only administrators can do this.' });
+    reply.code(403).send({ error: tr(requestLanguage(request), 'Only administrators can do this.') });
     return;
   }
   done();
@@ -207,13 +208,13 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
       try {
         host = new URL(origin).host;
       } catch {
-        return reply.code(403).send({ error: 'Invalid request origin.' });
+        return reply.code(403).send({ error: tr(requestLanguage(request), 'Invalid request origin.') });
       }
       const expected = request.headers['x-forwarded-host'] && ctx.config.trustProxy ? String(request.headers['x-forwarded-host']) : request.headers.host;
-      if (host !== expected) return reply.code(403).send({ error: 'Cross-site requests are not allowed.' });
+      if (host !== expected) return reply.code(403).send({ error: tr(requestLanguage(request), 'Cross-site requests are not allowed.') });
     }
     const ct = request.headers['content-type'];
-    if (ct && !ct.startsWith('application/json')) return reply.code(415).send({ error: 'Requests must be JSON.' });
+    if (ct && !ct.startsWith('application/json')) return reply.code(415).send({ error: tr(requestLanguage(request), 'Requests must be JSON.') });
   });
 
   // Slow API calls are worth knowing about on old hardware. Streams and downloads last as long as
@@ -229,15 +230,20 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
 
   app.setErrorHandler((error, request, reply) => {
     const err = error as Error & { statusCode?: number; validation?: unknown };
+    const lang = requestLanguage(request);
     if (err instanceof ZodError) {
       const first = err.issues[0];
-      return reply.code(400).send({ error: first ? `${first.path.join('.') || 'input'}: ${first.message}` : 'Invalid input.' });
+      if (!first) return reply.code(400).send({ error: tr(lang, 'Invalid input.') });
+      const field = first.path.join('.') || 'input';
+      // Messages written for Velyx are translated; library defaults are replaced by a plain one.
+      const message = lang === 'en' || hasTranslation(first.message) ? tr(lang, first.message) : tr(lang, 'This value is not valid.');
+      return reply.code(400).send({ error: `${field}: ${message}` });
     }
-    if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+    if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: tr(lang, err.message, err.params) });
     const status = err.statusCode && err.statusCode >= 400 && err.statusCode < 500 ? err.statusCode : 500;
-    if (status < 500) return reply.code(status).send({ error: err.message || 'Invalid request.' });
+    if (status < 500) return reply.code(status).send({ error: err.message && lang === 'en' ? err.message : tr(lang, 'Invalid request.') });
     log.error(`${request.method} ${request.url} failed`, err);
-    const body: Record<string, unknown> = { error: 'Something went wrong.' };
+    const body: Record<string, unknown> = { error: tr(lang, 'Something went wrong.') };
     if (request.user?.role === 'admin') body.detail = { message: err.message, stack: err.stack };
     return reply.code(500).send(body);
   });
@@ -261,7 +267,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     const indexPath = path.join(frontendDir, 'index.html');
     app.setNotFoundHandler((request, reply) => {
       if (request.url.startsWith('/api/') || request.method !== 'GET') {
-        return reply.code(404).send({ error: 'Not found.' });
+        return reply.code(404).send({ error: tr(requestLanguage(request), 'Not found.') });
       }
       let file: string;
       try {
@@ -275,7 +281,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
       return reply.type('text/html').header('Cache-Control', 'no-cache').send(fs.readFileSync(indexPath, 'utf8'));
     });
   } else {
-    app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: 'Not found.' }));
+    app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: tr(requestLanguage(_request), 'Not found.') }));
   }
 
   return app;

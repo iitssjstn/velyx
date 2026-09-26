@@ -1,7 +1,9 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
+import { useT } from '../i18n';
 
 export function Modal({ title, open, onClose, children, wide = false }: { title: string; open: boolean; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  const { t } = useT();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -22,7 +24,7 @@ export function Modal({ title, open, onClose, children, wide = false }: { title:
       <div ref={ref} className={`relative max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl border border-line bg-surface p-6 shadow-2xl sm:rounded-2xl ${wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'}`}>
         <div className="mb-5 flex items-start justify-between gap-4">
           <h2 className="font-display text-xl font-semibold">{title}</h2>
-          <button type="button" data-close onClick={onClose} className="-mt-1 -mr-2 grid size-9 place-items-center rounded-full text-muted hover:bg-raised hover:text-ink" aria-label="Close">
+          <button type="button" data-close onClick={onClose} className="-mt-1 -mr-2 grid size-9 place-items-center rounded-full text-muted hover:bg-raised hover:text-ink" aria-label={t('common.close')}>
             <X className="size-5" />
           </button>
         </div>
@@ -51,12 +53,13 @@ export function ConfirmModal({
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  const { t } = useT();
   return (
     <Modal title={title} open={open} onClose={onClose}>
       <div className="text-muted">{children}</div>
       <div className="mt-6 flex justify-end gap-2">
         <button type="button" onClick={onClose} className="h-10 rounded-lg px-4 text-muted hover:bg-raised hover:text-ink">
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           type="button"

@@ -9,17 +9,39 @@ import { Button, IconButton } from '../../components/Button';
 import { ConfirmModal, Modal } from '../../components/Modal';
 import { EmptyState, ErrorState, PageLoader, Spinner } from '../../components/States';
 import { toast } from '../../components/Toast';
+import { t, useT, type MessageKey } from '../../i18n';
 
-const PHASES: Record<string, string> = {
-  discovering: 'Looking for files',
-  analyzing: 'Analyzing files',
-  cleaning: 'Cleaning up',
-  metadata: 'Fetching metadata',
-  done: 'Finishing',
+const PHASES: Record<string, MessageKey> = {
+  discovering: 'libraries.phases.discovering',
+  analyzing: 'libraries.phases.analyzing',
+  cleaning: 'libraries.phases.cleaning',
+  metadata: 'libraries.phases.metadata',
+  done: 'libraries.phases.done',
 };
+
+const SUMMARY: Record<string, MessageKey> = {
+  files: 'libraries.summary.files',
+  added: 'libraries.summary.added',
+  removed: 'libraries.summary.removed',
+  'need review': 'libraries.summary.needReview',
+  'not recognized': 'libraries.summary.notRecognized',
+  failed: 'libraries.summary.failed',
+};
+
+/** The stored scan summary ("120 files, 3 added, 0 removed") in the interface language. */
+export function scanSummary(message: string): string {
+  return message
+    .split(', ')
+    .map((part) => {
+      const m = /^(\d+) (.+)$/.exec(part);
+      return m && SUMMARY[m[2]] ? t(SUMMARY[m[2]], { count: Number(m[1]) }) : part;
+    })
+    .join(', ');
+}
 
 function LibraryForm({ initial, mediaRoots, onDone }: { initial?: Library; mediaRoots: string[]; onDone: () => void }) {
   const qc = useQueryClient();
+  const { t, tRich } = useT();
   const [name, setName] = useState(initial?.name ?? '');
   const [type, setType] = useState<'movies' | 'shows'>(initial?.type ?? 'movies');
   const [path, setPath] = useState(initial?.path ?? (mediaRoots[0] ? `${mediaRoots[0].replace(/\/$/, '')}/` : ''));
@@ -29,7 +51,7 @@ function LibraryForm({ initial, mediaRoots, onDone }: { initial?: Library; media
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['libraries'] });
       void qc.invalidateQueries({ queryKey: ['home'] });
-      toast.success(initial ? 'Library updated.' : 'Library added. Scanning started.');
+      toast.success(initial ? t('libraries.updated') : t('libraries.added'));
       onDone();
     },
     onError: (err) => setError(err instanceof Error ? err.message : String(err)),
@@ -42,11 +64,11 @@ function LibraryForm({ initial, mediaRoots, onDone }: { initial?: Library; media
   return (
     <form onSubmit={submit} className="space-y-4">
       {!initial && (
-        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Library type">
+        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t('libraries.type')}>
           {(
             [
-              ['movies', 'Movies', Film],
-              ['shows', 'TV Shows', Tv],
+              ['movies', t('nav.movies'), Film],
+              ['shows', t('nav.tvShows'), Tv],
             ] as const
           ).map(([value, label, Icon]) => (
             <button
@@ -56,7 +78,7 @@ function LibraryForm({ initial, mediaRoots, onDone }: { initial?: Library; media
               aria-checked={type === value}
               onClick={() => {
                 setType(value);
-                if (!name || name === 'Movies' || name === 'TV Shows') setName(label);
+                if (!name || name === t('nav.movies') || name === t('nav.tvShows')) setName(label);
               }}
               className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${type === value ? 'border-accent bg-accent/10' : 'border-line hover:border-muted'}`}
             >
@@ -67,45 +89,46 @@ function LibraryForm({ initial, mediaRoots, onDone }: { initial?: Library; media
         </div>
       )}
       <div>
-        <label className="label" htmlFor="lname">Name</label>
-        <input id="lname" className="input" required maxLength={64} value={name} onChange={(e) => setName(e.target.value)} placeholder={type === 'movies' ? 'Movies' : 'TV Shows'} />
+        <label className="label" htmlFor="lname">{t('common.name')}</label>
+        <input id="lname" className="input" required maxLength={64} value={name} onChange={(e) => setName(e.target.value)} placeholder={type === 'movies' ? t('nav.movies') : t('nav.tvShows')} />
       </div>
       <div>
-        <label className="label" htmlFor="lpath">Folder</label>
+        <label className="label" htmlFor="lpath">{t('libraries.folder')}</label>
         <input id="lpath" className="input font-mono text-sm" required value={path} onChange={(e) => setPath(e.target.value)} placeholder="/media/movies" spellCheck={false} />
         <p className="mt-1.5 text-xs text-faint">
-          The path inside the container. Must be inside {mediaRoots.join(', ')}. With the default docker-compose setup use <code>/media/movies</code> or <code>/media/tv</code>.
+          {tRich('libraries.folderHint', { roots: mediaRoots.join(', '), movies: <code>/media/movies</code>, tv: <code>/media/tv</code> })}
         </p>
       </div>
       {error && <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={onDone}>Cancel</Button>
-        <Button type="submit" loading={m.isPending}>{initial ? 'Save' : 'Add library'}</Button>
+        <Button variant="ghost" onClick={onDone}>{t('common.cancel')}</Button>
+        <Button type="submit" loading={m.isPending}>{initial ? t('common.save') : t('libraries.add')}</Button>
       </div>
     </form>
   );
 }
 
 function IssuesModal({ library, onClose }: { library: Library; onClose: () => void }) {
+  const { t } = useT();
   const q = useQuery({
     queryKey: ['libraries', library.id, 'issues'],
     queryFn: () => api.get<{ unrecognized: { id: number; path: string }[]; failed: { id: number; path: string; error: string | null }[] }>(`/api/libraries/${library.id}/issues`),
   });
   const rel = (p: string) => (p.startsWith(library.path) ? p.slice(library.path.length + 1) : p);
   return (
-    <Modal title={`Scan issues: ${library.name}`} open onClose={onClose} wide>
+    <Modal title={t('libraries.issuesTitle', { name: library.name })} open onClose={onClose} wide>
       {q.isLoading ? (
         <div className="grid h-32 place-items-center"><Spinner className="size-6" /></div>
       ) : q.error ? (
         <ErrorState error={q.error} />
       ) : q.data && q.data.unrecognized.length + q.data.failed.length === 0 ? (
-        <p className="text-muted">No problems found in the last scan.</p>
+        <p className="text-muted">{t('libraries.noProblems')}</p>
       ) : (
         <div className="space-y-6 text-sm">
           {q.data!.failed.length > 0 && (
             <div>
-              <h3 className="font-medium">Could not be analyzed ({q.data!.failed.length})</h3>
-              <p className="text-xs text-faint">FFprobe could not read these files. They may be damaged or still copying.</p>
+              <h3 className="font-medium">{t('libraries.couldNotAnalyze', { count: q.data!.failed.length })}</h3>
+              <p className="text-xs text-faint">{t('libraries.couldNotAnalyzeText')}</p>
               <ul className="mt-2 space-y-2">
                 {q.data!.failed.map((f) => (
                   <li key={f.id} className="rounded-lg bg-bg/60 p-2">
@@ -118,8 +141,8 @@ function IssuesModal({ library, onClose }: { library: Library; onClose: () => vo
           )}
           {q.data!.unrecognized.length > 0 && (
             <div>
-              <h3 className="font-medium">Not recognized ({q.data!.unrecognized.length})</h3>
-              <p className="text-xs text-faint">Velyx could not find a season/episode number. Rename them like “Show Name S01E02.mkv” or “1x02”.</p>
+              <h3 className="font-medium">{t('libraries.notRecognized', { count: q.data!.unrecognized.length })}</h3>
+              <p className="text-xs text-faint">{t('libraries.notRecognizedText')}</p>
               <ul className="mt-2 space-y-1">
                 {q.data!.unrecognized.map((f) => (
                   <li key={f.id} className="font-mono text-xs break-all text-muted">{rel(f.path)}</li>
@@ -135,6 +158,7 @@ function IssuesModal({ library, onClose }: { library: Library; onClose: () => vo
 
 export function LibrariesPanel() {
   const qc = useQueryClient();
+  const { t } = useT();
   const [params, setParams] = useSearchParams();
   const welcome = params.get('welcome') === '1';
   const [adding, setAdding] = useState(false);
@@ -164,7 +188,7 @@ export function LibrariesPanel() {
     mutationFn: ({ url, body }: { url: string; body?: unknown }) => api.post(url, body ?? {}),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['libraries'] });
-      toast.success('Scan queued.');
+      toast.success(t('libraries.scanQueued'));
     },
     onError: (err) => toast.error(err),
   });
@@ -173,7 +197,7 @@ export function LibrariesPanel() {
     onSuccess: () => {
       setDeleting(null);
       void qc.invalidateQueries();
-      toast.success('Library removed. Your files were not touched.');
+      toast.success(t('libraries.removed'));
     },
     onError: (err) => toast.error(err),
   });
@@ -186,29 +210,29 @@ export function LibrariesPanel() {
     <div className="space-y-6">
       {welcome && (
         <div className="rounded-xl border border-accent/30 bg-accent/10 px-5 py-4">
-          <p className="font-medium">Your server is ready.</p>
-          <p className="mt-1 text-sm text-muted">Add your movie and TV folders to start building the library. Scanning runs in the background.</p>
-          <button type="button" className="mt-2 text-sm text-accent" onClick={() => setParams({}, { replace: true })}>Dismiss</button>
+          <p className="font-medium">{t('libraries.ready')}</p>
+          <p className="mt-1 text-sm text-muted">{t('libraries.readyText')}</p>
+          <button type="button" className="mt-2 text-sm text-accent" onClick={() => setParams({}, { replace: true })}>{t('common.dismiss')}</button>
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-muted">
-          <p>Media folders Velyx watches. Files are only read, never modified.</p>
-          {status.data && <p className="mt-0.5 text-xs text-faint">Scheduled scans: {scheduleLabel(status.data.schedule)}</p>}
+          <p>{t('libraries.intro')}</p>
+          {status.data && <p className="mt-0.5 text-xs text-faint">{t('libraries.scheduled', { schedule: scheduleLabel(status.data.schedule) })}</p>}
         </div>
         <div className="flex gap-2">
           {libraries.length > 0 && (
             <Button variant="secondary" icon={<ScanSearch className="size-4" />} onClick={() => action.mutate({ url: '/api/libraries/scan-all' })}>
-              Scan all
+              {t('libraries.scanAll')}
             </Button>
           )}
-          <Button icon={<FolderPlus className="size-4" />} onClick={() => setAdding(true)}>Add library</Button>
+          <Button icon={<FolderPlus className="size-4" />} onClick={() => setAdding(true)}>{t('libraries.add')}</Button>
         </div>
       </div>
 
       {libraries.length === 0 ? (
-        <EmptyState icon={<FolderPlus className="size-6" />} title="No libraries yet" action={<Button onClick={() => setAdding(true)}>Add your first library</Button>}>
-          Create a Movies library for {`${mediaRoots[0] ?? '/media'}/movies`} and a TV Shows library for {`${mediaRoots[0] ?? '/media'}/tv`}.
+        <EmptyState icon={<FolderPlus className="size-6" />} title={t('home.noLibraries')} action={<Button onClick={() => setAdding(true)}>{t('libraries.addFirst')}</Button>}>
+          {t('libraries.emptyText', { movies: `${mediaRoots[0] ?? '/media'}/movies`, tv: `${mediaRoots[0] ?? '/media'}/tv` })}
         </EmptyState>
       ) : (
         <ul className="space-y-3">
@@ -225,29 +249,29 @@ export function LibrariesPanel() {
                     <p className="font-medium">{l.name}</p>
                     <p className="truncate font-mono text-xs text-faint">{l.path}</p>
                     <p className="mt-1.5 text-sm text-muted">
-                      {l.itemCount.toLocaleString()} {l.type === 'movies' ? 'movies' : 'shows'}, {l.fileCount.toLocaleString()} files
-                      {!l.available && <span className="ml-2 text-danger">Folder not available — check the volume mount</span>}
-                      {l.available && l.watching && <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-ok/10 px-2 py-0.5 text-xs text-ok">Auto-updating</span>}
-                      {l.available && l.watchError && <span className="ml-2 text-xs text-amber" title={l.watchError}>Auto-update unavailable: {l.watchError}</span>}
+                      {t(l.type === 'movies' ? 'browse.movieCount' : 'browse.showCount', { count: l.itemCount })}, {t('dashboard.fileCount', { count: l.fileCount })}
+                      {!l.available && <span className="ml-2 text-danger">{t('libraries.unavailable')}</span>}
+                      {l.available && l.watching && <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-ok/10 px-2 py-0.5 text-xs text-ok">{t('libraries.autoUpdating')}</span>}
+                      {l.available && l.watchError && <span className="ml-2 text-xs text-amber" title={l.watchError}>{t('libraries.autoUpdateUnavailable', { error: l.watchError })}</span>}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <IconButton label="Scan for new files" disabled={Boolean(l.scanning) || l.queued} onClick={() => action.mutate({ url: `/api/libraries/${l.id}/scan` })}>
+                    <IconButton label={t('libraries.scanNew')} disabled={Boolean(l.scanning) || l.queued} onClick={() => action.mutate({ url: `/api/libraries/${l.id}/scan` })}>
                       <ScanSearch className="size-4" />
                     </IconButton>
-                    <IconButton label="Refresh all metadata" disabled={Boolean(l.scanning) || l.queued} onClick={() => action.mutate({ url: `/api/libraries/${l.id}/scan`, body: { refreshMetadata: true } })}>
+                    <IconButton label={t('libraries.refreshMetadata')} disabled={Boolean(l.scanning) || l.queued} onClick={() => action.mutate({ url: `/api/libraries/${l.id}/scan`, body: { refreshMetadata: true } })}>
                       <RefreshCw className="size-4" />
                     </IconButton>
-                    <IconButton label="Re-analyse every file (slower)" disabled={Boolean(l.scanning) || l.queued} onClick={() => action.mutate({ url: `/api/libraries/${l.id}/scan`, body: { full: true } })}>
+                    <IconButton label={t('libraries.reanalyse')} disabled={Boolean(l.scanning) || l.queued} onClick={() => action.mutate({ url: `/api/libraries/${l.id}/scan`, body: { full: true } })}>
                       <FileSearch className="size-4" />
                     </IconButton>
-                    <IconButton label="Scan issues" onClick={() => setIssues(l)}>
+                    <IconButton label={t('libraries.scanIssues')} onClick={() => setIssues(l)}>
                       <CircleAlert className="size-4" />
                     </IconButton>
-                    <IconButton label="Edit" onClick={() => setEditing(l)}>
+                    <IconButton label={t('common.edit')} onClick={() => setEditing(l)}>
                       <Pencil className="size-4" />
                     </IconButton>
-                    <IconButton label="Remove" onClick={() => setDeleting(l)} className="hover:!text-danger">
+                    <IconButton label={t('common.remove')} onClick={() => setDeleting(l)} className="hover:!text-danger">
                       <Trash2 className="size-4" />
                     </IconButton>
                   </div>
@@ -257,7 +281,7 @@ export function LibrariesPanel() {
                     <div>
                       <div className="flex items-center justify-between gap-3">
                         <span className="flex items-center gap-2 text-accent">
-                          <Spinner className="size-4" /> {PHASES[l.scanning.phase] ?? 'Scanning'}
+                          <Spinner className="size-4" /> {PHASES[l.scanning.phase] ? t(PHASES[l.scanning.phase]) : t('dashboard.scanStatus.scanning')}
                         </span>
                         {l.scanning.total > 0 && <span className="text-muted tabular-nums">{l.scanning.processed}/{l.scanning.total}</span>}
                       </div>
@@ -266,13 +290,13 @@ export function LibrariesPanel() {
                       </div>
                     </div>
                   ) : l.queued ? (
-                    <span className="text-muted">Waiting for another scan to finish…</span>
+                    <span className="text-muted">{t('libraries.waiting')}</span>
                   ) : l.lastScanStatus === 'error' ? (
-                    <span className="text-danger">Last scan failed {formatRelative(l.lastScanAt)}: {l.lastScanMessage}</span>
+                    <span className="text-danger">{t('libraries.lastFailed', { when: formatRelative(l.lastScanAt), message: l.lastScanMessage ?? '' })}</span>
                   ) : (
                     <span className="text-muted">
-                      Last scanned {formatRelative(l.lastScanAt)}
-                      {l.lastScanMessage && `: ${l.lastScanMessage}`}
+                      {t('libraries.lastScanned', { when: formatRelative(l.lastScanAt) })}
+                      {l.lastScanMessage && `: ${scanSummary(l.lastScanMessage)}`}
                     </span>
                   )}
                 </div>
@@ -282,23 +306,23 @@ export function LibrariesPanel() {
         </ul>
       )}
 
-      <Modal title="Add library" open={adding} onClose={() => setAdding(false)}>
+      <Modal title={t('libraries.add')} open={adding} onClose={() => setAdding(false)}>
         {adding && <LibraryForm mediaRoots={mediaRoots} onDone={() => setAdding(false)} />}
       </Modal>
-      <Modal title="Edit library" open={Boolean(editing)} onClose={() => setEditing(null)}>
+      <Modal title={t('libraries.edit')} open={Boolean(editing)} onClose={() => setEditing(null)}>
         {editing && <LibraryForm initial={editing} mediaRoots={mediaRoots} onDone={() => setEditing(null)} />}
       </Modal>
       {issues && <IssuesModal library={issues} onClose={() => setIssues(null)} />}
       <ConfirmModal
         open={Boolean(deleting)}
-        title="Remove library?"
-        confirmLabel="Remove library"
+        title={t('libraries.removeTitle')}
+        confirmLabel={t('libraries.remove')}
         danger
         loading={del.isPending}
         onClose={() => setDeleting(null)}
         onConfirm={() => deleting && del.mutate(deleting.id)}
       >
-        “{deleting?.name}” and its watch history will be removed from Velyx. The files on disk are not deleted.
+        {t('libraries.removeText', { name: deleting?.name ?? '' })}
       </ConfirmModal>
     </div>
   );

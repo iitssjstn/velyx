@@ -11,34 +11,36 @@ import { HealthPage } from './Health';
 import { SegmentsPage } from './Segments';
 import { ActivityPage } from './Activity';
 import { CleanupPage } from './Cleanup';
+import { useT, type MessageKey } from '../../i18n';
 
-const TABS = [
-  { to: 'dashboard', label: 'Dashboard' },
-  { to: 'activity', label: 'Activity' },
-  { to: 'libraries', label: 'Libraries' },
-  { to: 'users', label: 'Users' },
-  { to: 'metadata', label: 'Metadata' },
-  { to: 'health', label: 'Library health' },
-  { to: 'intros', label: 'Intros & credits' },
-  { to: 'cleanup', label: 'Clean-up' },
-  { to: 'server', label: 'Server' },
-  { to: 'logs', label: 'Logs' },
-  { to: 'audit', label: 'Audit log' },
-  { to: 'backup', label: 'Backup' },
+const TABS: Array<{ to: string; label: MessageKey }> = [
+  { to: 'dashboard', label: 'admin.tabs.dashboard' },
+  { to: 'activity', label: 'admin.tabs.activity' },
+  { to: 'libraries', label: 'admin.tabs.libraries' },
+  { to: 'users', label: 'admin.tabs.users' },
+  { to: 'metadata', label: 'admin.tabs.metadata' },
+  { to: 'health', label: 'admin.tabs.health' },
+  { to: 'intros', label: 'admin.tabs.intros' },
+  { to: 'cleanup', label: 'admin.tabs.cleanup' },
+  { to: 'server', label: 'admin.tabs.server' },
+  { to: 'logs', label: 'admin.tabs.logs' },
+  { to: 'audit', label: 'admin.tabs.audit' },
+  { to: 'backup', label: 'admin.tabs.backup' },
 ];
 
 export default function AdminLayout() {
+  const { t } = useT();
   return (
     <div className="mx-auto max-w-6xl px-4 pt-8 sm:px-8">
-      <h1 className="font-display text-3xl font-semibold tracking-tight">Administration</h1>
-      <nav className="no-scrollbar mt-6 mb-8 flex gap-1 overflow-x-auto border-b border-line/60" aria-label="Admin sections">
-        {TABS.map((t) => (
+      <h1 className="font-display text-3xl font-semibold tracking-tight">{t('admin.title')}</h1>
+      <nav className="no-scrollbar mt-6 mb-8 flex gap-1 overflow-x-auto border-b border-line/60" aria-label={t('admin.sections')}>
+        {TABS.map((tab) => (
           <NavLink
-            key={t.to}
-            to={`/admin/${t.to}`}
+            key={tab.to}
+            to={`/admin/${tab.to}`}
             className={({ isActive }) => `-mb-px shrink-0 border-b-2 px-4 py-2.5 text-sm transition ${isActive ? 'border-accent text-ink' : 'border-transparent text-muted hover:text-ink'}`}
           >
-            {t.label}
+            {t(tab.label)}
           </NavLink>
         ))}
       </nav>

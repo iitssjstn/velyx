@@ -1,4 +1,5 @@
 import type { ClientCapabilities } from './engine.js';
+import { tr, type Language } from '../i18n/index.js';
 
 /**
  * Lightweight client profiles: a name for the device ("Chrome on Windows") and, only for clients
@@ -51,6 +52,13 @@ export function clientProfile(userAgent: string | undefined): ClientProfile {
   else if (browser) family = 'chromium';
   const name = browser && os ? `${browser} on ${os}` : browser ?? (os ? `Browser on ${os}` : 'Unknown device');
   return { family, browser, os, name, mobile };
+}
+
+/** The device name in the user's language ("Chrome op Windows"). */
+export function profileName(p: Pick<ClientProfile, 'browser' | 'os'>, lang: Language): string {
+  if (p.browser && p.os) return tr(lang, '{browser} on {os}', { browser: p.browser, os: p.os });
+  if (p.browser) return p.browser;
+  return p.os ? tr(lang, 'Browser on {os}', { os: p.os }) : tr(lang, 'Unknown device');
 }
 
 type Caps = Required<Pick<ClientCapabilities, 'containers' | 'videoCodecs' | 'audioCodecs' | 'tenBitCodecs'>>;
@@ -119,7 +127,8 @@ const ROWS: Array<{ key: string; kind: DeviceSupportRow['kind']; label: string }
  * What the current device plays, for the "Current device" overview. Answers from the browser's own
  * report are stated plainly; guesses (no report) are marked as "depends".
  */
-export function deviceSupport(reportedCaps: ClientCapabilities, profile: ClientProfile): DeviceSupportRow[] {
+export function deviceSupport(reportedCaps: ClientCapabilities, profile: ClientProfile, lang: Language = 'en'): DeviceSupportRow[] {
+  const T = (message: string) => tr(lang, message);
   const { caps, confidence } = effectiveCapabilities(reportedCaps, profile);
   const guess = confidence !== 'reported';
   const hw = HARDWARE_DEPENDENT[profile.family];
@@ -128,7 +137,7 @@ export function deviceSupport(reportedCaps: ClientCapabilities, profile: ClientP
   const audio = caps.audioCodecs ?? [];
   const containers = caps.containers ?? [];
   return ROWS.map(({ key, kind, label }) => {
-    const row = (support: SupportLevel, note: string | null = null): DeviceSupportRow => ({ key, kind, label, support, note });
+    const row = (support: SupportLevel, note: string | null = null): DeviceSupportRow => ({ key, kind, label: key === 'hdr' ? T(label) : label, support, note: note && T(note) });
     if (kind === 'video') {
       if (key === 'h264-10') return row('no', 'No web browser decodes it; Velyx does not transcode video.');
       const codec = key === 'hevc10' ? 'hevc' : key;

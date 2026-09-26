@@ -12,14 +12,34 @@ import { DetailHero, MetaList } from '../components/DetailHero';
 import { ConfirmModal, Modal } from '../components/Modal';
 import { EmptyState, ErrorState, PageLoader } from '../components/States';
 import { toast } from '../components/Toast';
+import { intlLocale, t, useT, type MessageKey } from '../i18n';
 
 function itemCountLabel(n: number) {
-  return `${n} ${n === 1 ? 'item' : 'items'}`;
+  return t('collections.itemCount', { count: n });
+}
+
+const BUILT_IN: Record<string, MessageKey> = {
+  'recently-added': 'smart.builtIn.recentlyAdded',
+  unwatched: 'smart.builtIn.unwatched',
+  'top-rated': 'smart.builtIn.topRated',
+  '4k': 'smart.builtIn.movies4k',
+  '1080p': 'smart.builtIn.movies1080p',
+  hdr: 'smart.builtIn.hdr',
+  short: 'smart.builtIn.short',
+  favorites: 'smart.builtIn.favorites',
+  'shows-in-progress': 'smart.builtIn.showsInProgress',
+  'shows-unwatched': 'smart.builtIn.showsUnwatched',
+};
+
+/** Built-in smart collections have a name in every language; custom ones keep the name they were given. */
+export function smartName(c: Pick<SmartCollection, 'key' | 'name' | 'custom'>): string {
+  return !c.custom && BUILT_IN[c.key] ? t(BUILT_IN[c.key]) : c.name;
 }
 
 /** Name + description form, used to create and to edit a manual collection. */
 export function CollectionForm({ initial, onDone }: { initial?: CollectionSummary; onDone: (c?: CollectionSummary) => void }) {
   const qc = useQueryClient();
+  const { t } = useT();
   const [name, setName] = useState(initial?.name ?? '');
   const [overview, setOverview] = useState(initial?.overview ?? '');
   const m = useMutation({
@@ -30,7 +50,7 @@ export function CollectionForm({ initial, onDone }: { initial?: CollectionSummar
     onSuccess: (created) => {
       void qc.invalidateQueries({ queryKey: ['collections'] });
       void qc.invalidateQueries({ queryKey: ['collection'] });
-      toast.success(initial ? 'Collection updated.' : 'Collection created.');
+      toast.success(initial ? t('collections.updated') : t('collections.created'));
       onDone(created ?? undefined);
     },
     onError: (err) => toast.error(err),
@@ -42,16 +62,16 @@ export function CollectionForm({ initial, onDone }: { initial?: CollectionSummar
   return (
     <form onSubmit={submit} className="space-y-4">
       <div>
-        <label className="label" htmlFor="c-name">Name</label>
-        <input id="c-name" className="input" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Christmas movies" />
+        <label className="label" htmlFor="c-name">{t('common.name')}</label>
+        <input id="c-name" className="input" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder={t('collections.namePlaceholder')} />
       </div>
       <div>
-        <label className="label" htmlFor="c-overview">Description</label>
+        <label className="label" htmlFor="c-overview">{t('common.description')}</label>
         <textarea id="c-overview" className="input min-h-24 py-2" maxLength={2000} value={overview} onChange={(e) => setOverview(e.target.value)} />
       </div>
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={() => onDone()}>Cancel</Button>
-        <Button type="submit" loading={m.isPending}>{initial ? 'Save' : 'Create collection'}</Button>
+        <Button variant="ghost" onClick={() => onDone()}>{t('common.cancel')}</Button>
+        <Button type="submit" loading={m.isPending}>{initial ? t('common.save') : t('collections.create')}</Button>
       </div>
     </form>
   );
@@ -66,11 +86,12 @@ export function smartHref(c: Pick<SmartCollection, 'kind' | 'query'>): string {
 /** Saved filters, evaluated for the viewer; they open the Movies/TV Shows page with those filters. */
 function SmartCollections({ isAdmin }: { isAdmin: boolean }) {
   const qc = useQueryClient();
+  const { t } = useT();
   const q = useQuery({ queryKey: ['collections', 'smart'], queryFn: () => api.get<SmartCollection[]>('/api/collections/smart') });
   const del = useMutation({
     mutationFn: (id: number) => api.del(`/api/collections/${id}`),
     onSuccess: () => {
-      toast.success('Smart collection deleted.');
+      toast.success(t('smart.deleted'));
       void qc.invalidateQueries({ queryKey: ['collections', 'smart'] });
     },
     onError: (err) => toast.error(err),
@@ -79,30 +100,30 @@ function SmartCollections({ isAdmin }: { isAdmin: boolean }) {
   return (
     <section className="mt-8">
       <h2 className="flex items-center gap-2 font-display text-xl font-semibold">
-        <Sparkles className="size-5 text-accent" /> Smart collections
+        <Sparkles className="size-5 text-accent" /> {t('smart.title')}
       </h2>
-      <p className="mt-1 text-sm text-muted">Always up to date, and personal: they follow your library access and what you have watched.</p>
+      <p className="mt-1 text-sm text-muted">{t('smart.intro')}</p>
       <div className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]">
         {q.data.map((c) => (
           <div key={c.key} className="relative">
             <Link to={smartHref(c)} className="group block focus-visible:outline-none">
               <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:ring-accent/60 group-focus-visible:ring-2 group-focus-visible:ring-accent">
-                <Artwork path={c.posterPath} title={c.name} />
+                <Artwork path={c.posterPath} title={smartName(c)} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                 <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-xs text-ink backdrop-blur">
-                  <Sparkles className="size-3" /> {c.count.toLocaleString()}
+                  <Sparkles className="size-3" /> {c.count.toLocaleString(intlLocale())}
                 </span>
               </div>
-              <p className="mt-2 truncate text-sm font-medium text-ink/90 group-hover:text-ink">{c.name}</p>
-              <p className="text-xs text-faint">{c.kind === 'movies' ? 'Movies' : 'TV shows'}</p>
+              <p className="mt-2 truncate text-sm font-medium text-ink/90 group-hover:text-ink">{smartName(c)}</p>
+              <p className="text-xs text-faint">{c.kind === 'movies' ? t('nav.movies') : t('nav.tvShows')}</p>
             </Link>
             {isAdmin && c.custom && c.id !== null && (
               <button
                 type="button"
                 onClick={() => del.mutate(c.id!)}
                 className="absolute top-2 right-2 grid size-7 place-items-center rounded-full bg-black/70 text-ink backdrop-blur hover:bg-danger hover:text-bg"
-                aria-label={`Delete smart collection ${c.name}`}
-                title="Delete"
+                aria-label={t('smart.deleteName', { name: smartName(c) })}
+                title={t('common.delete')}
               >
                 <Trash2 className="size-3.5" />
               </button>
@@ -110,7 +131,7 @@ function SmartCollections({ isAdmin }: { isAdmin: boolean }) {
           </div>
         ))}
       </div>
-      {isAdmin && <p className="mt-4 text-xs text-faint">To make your own, set filters on the Movies or TV Shows page and choose “Save as smart collection”.</p>}
+      {isAdmin && <p className="mt-4 text-xs text-faint">{t('smart.howTo')}</p>}
     </section>
   );
 }
@@ -118,29 +139,30 @@ function SmartCollections({ isAdmin }: { isAdmin: boolean }) {
 export function CollectionsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { t } = useT();
   const [creating, setCreating] = useState(false);
   const q = useQuery({ queryKey: ['collections'], queryFn: () => api.get<CollectionSummary[]>('/api/collections') });
   const isAdmin = user?.role === 'admin';
   return (
     <div className="px-4 pt-8 sm:px-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Collections</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">{t('nav.collections')}</h1>
         {isAdmin && (
           <Button icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
-            New collection
+            {t('collections.new')}
           </Button>
         )}
       </div>
       <SmartCollections isAdmin={isAdmin} />
-      {q.data && q.data.length > 0 && <h2 className="mt-10 font-display text-xl font-semibold">Collections</h2>}
+      {q.data && q.data.length > 0 && <h2 className="mt-10 font-display text-xl font-semibold">{t('nav.collections')}</h2>}
       {q.isLoading ? (
         <PageLoader />
       ) : q.error ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       ) : !q.data?.length ? (
-        <EmptyState icon={<Layers className="size-6" />} title="No collections yet">
-          Movie series such as “The Matrix Collection” appear here automatically once your library holds two or more of their movies.
-          {isAdmin && ' You can also make your own collections.'}
+        <EmptyState icon={<Layers className="size-6" />} title={t('collections.empty')}>
+          {t('collections.emptyHint')}
+          {isAdmin && ` ${t('collections.emptyHintAdmin')}`}
         </EmptyState>
       ) : (
         <div className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]">
@@ -151,12 +173,12 @@ export function CollectionsPage() {
                 <span className="absolute top-2 right-2 rounded-full bg-black/70 px-2 py-0.5 text-xs font-semibold text-ink backdrop-blur">{c.itemCount}</span>
               </div>
               <p className="mt-2 truncate text-sm font-medium text-ink/90 group-hover:text-ink">{c.name}</p>
-              <p className="text-xs text-faint">{c.kind === 'manual' ? itemCountLabel(c.itemCount) : `${c.itemCount} movies`}</p>
+              <p className="text-xs text-faint">{c.kind === 'manual' ? itemCountLabel(c.itemCount) : t('browse.movieCount', { count: c.itemCount })}</p>
             </Link>
           ))}
         </div>
       )}
-      <Modal title="New collection" open={creating} onClose={() => setCreating(false)}>
+      <Modal title={t('collections.new')} open={creating} onClose={() => setCreating(false)}>
         {creating && <CollectionForm onDone={(c) => {
               setCreating(false);
               if (c) navigate(`/collections/${c.id}`);
@@ -171,6 +193,7 @@ export function CollectionPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { t } = useT();
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const q = useQuery({ queryKey: ['collection', id], queryFn: () => api.get<CollectionDetail>(`/api/collections/${id}`) });
@@ -187,7 +210,7 @@ export function CollectionPage() {
     mutationFn: () => api.del(`/api/collections/${id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['collections'] });
-      toast.success('Collection deleted.');
+      toast.success(t('collections.deleted'));
       navigate('/collections', { replace: true });
     },
     onError: (err) => toast.error(err),
@@ -201,22 +224,22 @@ export function CollectionPage() {
   return (
     <div>
       <DetailHero backdropPath={c.backdropPath} posterPath={c.posterPath} title={c.name}>
-        <p className="text-sm text-muted">{c.kind === 'auto' ? 'Movie collection' : 'Collection'}</p>
+        <p className="text-sm text-muted">{c.kind === 'auto' ? t('collections.movieCollection') : t('collections.collection')}</p>
         <h1 className="mt-1 font-display text-4xl leading-[1.05] font-semibold tracking-tight sm:text-5xl">{c.name}</h1>
         <MetaList items={[itemCountLabel(c.itemCount)]} />
         {c.overview && <p className="mt-4 max-w-2xl text-ink/85">{c.overview}</p>}
         {editable && (
           <div className="mt-6 flex flex-wrap gap-2">
-            <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditing(true)}>Edit</Button>
-            <Button variant="danger" icon={<Trash2 className="size-4" />} onClick={() => setDeleting(true)}>Delete</Button>
+            <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditing(true)}>{t('common.edit')}</Button>
+            <Button variant="danger" icon={<Trash2 className="size-4" />} onClick={() => setDeleting(true)}>{t('common.delete')}</Button>
           </div>
         )}
       </DetailHero>
 
       <div className="px-4 sm:px-8">
         {c.items.length === 0 ? (
-          <EmptyState icon={<Layers className="size-6" />} title="This collection is empty">
-            Open a movie or show and choose “Add to collection” from the ⋯ menu.
+          <EmptyState icon={<Layers className="size-6" />} title={t('collections.itemsEmpty')}>
+            {t('collections.itemsEmptyHint')}
           </EmptyState>
         ) : (
           <div className="mt-10 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]">
@@ -228,8 +251,8 @@ export function CollectionPage() {
                     type="button"
                     onClick={() => remove.mutate(item)}
                     className="absolute top-2 left-2 grid size-7 place-items-center rounded-full bg-black/70 text-ink backdrop-blur hover:bg-danger hover:text-bg"
-                    aria-label={`Remove ${item.title} from this collection`}
-                    title="Remove from collection"
+                    aria-label={t('collections.removeItem', { name: item.title })}
+                    title={t('collections.removeFrom')}
                   >
                     <X className="size-4" />
                   </button>
@@ -240,7 +263,7 @@ export function CollectionPage() {
         )}
       </div>
 
-      <Modal title="Edit collection" open={editing} onClose={() => setEditing(false)}>
+      <Modal title={t('collections.edit')} open={editing} onClose={() => setEditing(false)}>
         {editing && <CollectionForm initial={c} onDone={() => {
               setEditing(false);
               refresh();
@@ -248,14 +271,14 @@ export function CollectionPage() {
       </Modal>
       <ConfirmModal
         open={deleting}
-        title="Delete collection?"
-        confirmLabel="Delete collection"
+        title={t('collections.deleteTitle')}
+        confirmLabel={t('collections.delete')}
         danger
         loading={del.isPending}
         onClose={() => setDeleting(false)}
         onConfirm={() => del.mutate()}
       >
-        “{c.name}” will be removed. The movies and shows in it stay in your library.
+        {t('collections.deleteText', { name: c.name })}
       </ConfirmModal>
     </div>
   );

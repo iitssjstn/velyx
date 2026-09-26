@@ -18,6 +18,7 @@ import { HttpError, notFound, parseId } from '../http-error.js';
 import { adminCount, publicUser, sessionIdParam } from './auth.js';
 import { backupPath, cancelRestore, createDatabaseSnapshot, pendingRestore, stageRestore, verifyBackup } from '../services/backup.js';
 import { createLogger } from '../logger.js';
+import { requestLanguage } from '../i18n/index.js';
 import type { RemuxEngine } from '../playback/remux.js';
 
 const log = createLogger('admin');
@@ -200,7 +201,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
   app.get('/api/admin/health', { preHandler: requireAdmin }, async (request) => {
     const { libraryId } = healthQuery.parse(request.query);
     assertLibrary(libraryId);
-    return { ...health.summary(libraryId), analysis: ctx.analyzer.status() };
+    return { ...health.summary(libraryId, requestLanguage(request)), analysis: ctx.analyzer.status() };
   });
 
   app.get<{ Params: { key: string } }>('/api/admin/health/:key', { preHandler: requireAdmin }, async (request) => {
@@ -208,7 +209,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (!isHealthKey(key)) throw notFound('Category');
     const q = healthQuery.parse(request.query);
     assertLibrary(q.libraryId);
-    return health.items(key, q);
+    return health.items(key, q, requestLanguage(request));
   });
 
   // ------------------------------------------------------------------ storage
@@ -249,10 +250,10 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
   app.post('/api/libraries', { preHandler: requireAdmin }, async (request) => {
     const body = libraryBody.parse(request.body);
     const check = validateLibraryPath(body.path, ctx.config.mediaRoots);
-    if (!check.ok) throw new HttpError(400, check.error!);
+    if (!check.ok) throw new HttpError(400, check.error!, check.params);
     const all = db.select().from(libraries).all();
     const clash = all.find((l) => l.path === check.resolved || check.resolved!.startsWith(l.path + '/') || l.path.startsWith(check.resolved! + '/'));
-    if (clash) throw new HttpError(409, `This folder overlaps with the library "${clash.name}".`);
+    if (clash) throw new HttpError(409, 'This folder overlaps with the library "{name}".', { name: clash.name });
     const row = db.insert(libraries).values({ name: body.name, type: body.type, path: check.resolved! }).returning().get();
     log.info(`Library "${row.name}" added (${row.path})`);
     ctx.audit.record('library.created', { actor: request.user, ip: request.ip, target: row.name, detail: `${row.type} at ${row.path}` });
@@ -271,14 +272,14 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     let pathChanged = false;
     if (body.path && body.path !== lib.path) {
       const check = validateLibraryPath(body.path, ctx.config.mediaRoots);
-      if (!check.ok) throw new HttpError(400, check.error!);
+      if (!check.ok) throw new HttpError(400, check.error!, check.params);
       const clash = db
         .select()
         .from(libraries)
         .where(ne(libraries.id, id))
         .all()
         .find((l) => l.path === check.resolved || check.resolved!.startsWith(l.path + '/') || l.path.startsWith(check.resolved! + '/'));
-      if (clash) throw new HttpError(409, `This folder overlaps with the library "${clash.name}".`);
+      if (clash) throw new HttpError(409, 'This folder overlaps with the library "{name}".', { name: clash.name });
       if (ctx.scans.isBusy(id)) throw new HttpError(409, 'Wait for the current scan to finish before changing the folder.');
       patch.path = check.resolved!;
       pathChanged = true;
@@ -505,7 +506,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       try {
         valid = await ctx.tmdb.validateKey(body.tmdbApiKey);
       } catch (err) {
-        throw new HttpError(502, `Could not reach TMDB to verify the key: ${(err as Error).message}`);
+        throw new HttpError(502, 'Could not reach TMDB to verify the key: {reason}', { reason: (err as Error).message });
       }
       if (!valid) throw new HttpError(400, 'TMDB rejected this API key.');
     }
@@ -654,7 +655,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return backupView();
   });
 
-  app.post<{ Params: { name: string } }>('/api/admin/backups/:name/verify', { preHandler: requireAdmin }, async (request) => verifyBackup(namedBackup(request.params.name)));
+  app.post<{ Params: { name: string } }>('/api/admin/backups/:name/verify', { preHandler: requireAdmin }, async (request) => verifyBackup(namedBackup(request.params.name), requestLanguage(request)));
 
   app.get<{ Params: { name: string } }>('/api/admin/backups/:name/download', { preHandler: requireAdmin }, async (request, reply) => {
     const file = namedBackup(request.params.name);
@@ -677,7 +678,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     // Explicit confirmation guards against accidental restores.
     z.object({ confirm: z.literal(true) }).parse(request.body);
     try {
-      stageRestore(namedBackup(request.params.name), ctx.config.dataDir, request.user!.username);
+      stageRestore(namedBackup(request.params.name), ctx.config.dataDir, request.user!.username, requestLanguage(request));
     } catch (err) {
       throw new HttpError(400, (err as Error).message);
     }

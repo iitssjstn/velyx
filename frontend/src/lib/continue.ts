@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { ContinueItem } from './types';
 import { formatClock } from './format';
 import { playHref } from './player';
@@ -6,8 +7,8 @@ import { playHref } from './player';
 export function continueDetail(c: ContinueItem): string | null {
   if (c.type === 'movie') return c.subtitle;
   if (c.seasonNumber === null || c.episodeNumber === null) return c.subtitle;
-  const se = c.seasonNumber === 0 ? `Special ${c.episodeNumber}` : `Season ${c.seasonNumber} · Episode ${c.episodeNumber}`;
-  return c.upNext ? `Up next · ${se}` : se;
+  const se = c.seasonNumber === 0 ? t('series.special', { n: c.episodeNumber }) : t('series.seasonEpisode', { season: c.seasonNumber, episode: c.episodeNumber });
+  return c.upNext ? t('continueWatching.upNext', { what: se }) : se;
 }
 
 /** "32:14 / 48:21" while in progress, nothing otherwise. */

@@ -7,8 +7,10 @@ import type { Card, ContinueItem } from '../lib/types';
 import { formatRuntime, progressFraction } from '../lib/format';
 import { Artwork } from './Artwork';
 import { ProgressBar } from './ProgressBar';
+import { t, useT } from '../i18n';
 
 export function PosterCard({ item, className = '' }: { item: Card; className?: string }) {
+  const { t } = useT();
   const href = item.type === 'movie' ? `/movies/${item.id}` : `/shows/${item.id}`;
   const watched = item.type === 'movie' ? item.progress?.completed : item.episodeCount > 0 && item.watchedCount >= item.episodeCount;
   const fraction = item.type === 'movie' ? (item.progress && !item.progress.completed ? progressFraction(item.progress) : 0) : 0;
@@ -18,12 +20,12 @@ export function PosterCard({ item, className = '' }: { item: Card; className?: s
       <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:ring-accent/60 group-focus-visible:ring-2 group-focus-visible:ring-accent">
         <Artwork path={item.posterPath} title={item.title} />
         {watched && (
-          <span className="absolute top-2 right-2 z-10 grid size-6 place-items-center rounded-full bg-ok text-bg shadow" title="Watched">
+          <span className="absolute top-2 right-2 z-10 grid size-6 place-items-center rounded-full bg-ok text-bg shadow" title={t('library.watched')}>
             <Check className="size-3.5" strokeWidth={3} />
           </span>
         )}
         {item.type === 'show' && !watched && item.watchedCount > 0 && unwatchedEpisodes > 0 && (
-          <span className="absolute top-2 right-2 z-10 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-ink" title={`${unwatchedEpisodes} unwatched`}>
+          <span className="absolute top-2 right-2 z-10 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-ink" title={t('library.unwatchedCount', { count: unwatchedEpisodes })}>
             {unwatchedEpisodes}
           </span>
         )}
@@ -31,7 +33,7 @@ export function PosterCard({ item, className = '' }: { item: Card; className?: s
         {fraction > 0 && <ProgressBar value={fraction} className="absolute inset-x-2 bottom-2 z-10 w-auto" />}
       </div>
       <p className="mt-2 truncate text-sm font-medium text-ink/90 group-hover:text-ink">{item.title}</p>
-      <p className="text-xs text-faint">{item.year ?? (item.type === 'show' ? `${item.episodeCount} ${item.episodeCount === 1 ? 'episode' : 'episodes'}` : '\u00a0')}</p>
+      <p className="text-xs text-faint">{item.year ?? (item.type === 'show' ? t('series.episodeCount', { count: item.episodeCount }) : '\u00a0')}</p>
     </Link>
   );
 }
@@ -39,7 +41,7 @@ export function PosterCard({ item, className = '' }: { item: Card; className?: s
 /** "2008 • 2h 32m" for movies, "2008 • 5 Seasons" for series. */
 export function cardFacts(item: Card): string {
   const second =
-    item.type === 'movie' ? formatRuntime(item.runtime) : item.seasonCount > 0 ? `${item.seasonCount} ${item.seasonCount === 1 ? 'Season' : 'Seasons'}` : null;
+    item.type === 'movie' ? formatRuntime(item.runtime) : item.seasonCount > 0 ? t('series.seasonCountFact', { count: item.seasonCount }) : null;
   return [item.year, second].filter(Boolean).join(' • ');
 }
 
@@ -50,6 +52,7 @@ export function cardFacts(item: Card): string {
  * to devices that can hover).
  */
 function CardDetails({ item, withProgress }: { item: Card; withProgress: boolean }) {
+  useT();
   const facts = cardFacts(item);
   return (
     <div
@@ -86,6 +89,7 @@ export interface ContinueActions {
  */
 export function ContinueCard({ item, onDismiss, onMarkWatched }: { item: ContinueItem } & ContinueActions) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { t } = useT();
   const menuRef = useRef<HTMLDivElement>(null);
   const detailsHref = item.type === 'movie' ? `/movies/${item.id}` : `/shows/${item.showId}`;
   const started = isStarted(item);
@@ -107,7 +111,7 @@ export function ContinueCard({ item, onDismiss, onMarkWatched }: { item: Continu
   const menuItem = 'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-raised focus-visible:bg-raised focus-visible:outline-none';
   return (
     <div className="group relative w-72 shrink-0 sm:w-80">
-      <Link to={detailsHref} className="block focus-visible:outline-none" aria-label={`${name}: details`}>
+      <Link to={detailsHref} className="block focus-visible:outline-none" aria-label={t('continueWatching.details', { name })}>
         <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition group-hover:ring-accent/60 group-has-[a:focus-visible]:ring-2 group-has-[a:focus-visible]:ring-accent">
           <Artwork path={item.imagePath ?? item.posterPath} size="w780" aspect="wide" title={item.title} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
@@ -126,18 +130,18 @@ export function ContinueCard({ item, onDismiss, onMarkWatched }: { item: Continu
         </Link>
         <Link
           to={started ? resumeHref(item) : playHref(item.type, item.id)}
-          aria-label={`${started ? 'Resume' : 'Play'} ${name}`}
+          aria-label={started ? t('continueWatching.resumeName', { name }) : t('continueWatching.playName', { name })}
           className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-ink px-3 text-xs font-semibold text-bg transition hover:bg-white focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
         >
           <Play className="size-3.5 fill-current" />
-          {started ? 'Resume' : 'Play'}
+          {started ? t('player.resume') : t('player.play')}
         </Link>
         {(onDismiss || onMarkWatched) && (
           <div className="relative" ref={menuRef}>
             <button
               type="button"
               onClick={() => setMenuOpen((o) => !o)}
-              aria-label={`More actions for ${name}`}
+              aria-label={t('continueWatching.moreActions', { name })}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               className="grid size-8 place-items-center rounded-full text-muted transition hover:bg-raised hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
@@ -148,17 +152,17 @@ export function ContinueCard({ item, onDismiss, onMarkWatched }: { item: Continu
               <div role="menu" className="absolute right-0 bottom-10 z-20 w-52 overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-2xl">
                 {started && (
                   <Link role="menuitem" to={startOverHref(item)} className={menuItem}>
-                    <RotateCcw className="size-4 text-muted" /> Start over
+                    <RotateCcw className="size-4 text-muted" /> {t('player.startOver')}
                   </Link>
                 )}
                 {onMarkWatched && (
                   <button role="menuitem" type="button" className={menuItem} onClick={() => { setMenuOpen(false); onMarkWatched(item); }}>
-                    <Check className="size-4 text-muted" /> Mark as watched
+                    <Check className="size-4 text-muted" /> {t('library.markWatched')}
                   </button>
                 )}
                 {onDismiss && (
                   <button role="menuitem" type="button" className={menuItem} onClick={() => { setMenuOpen(false); onDismiss(item); }}>
-                    <X className="size-4 text-muted" /> Remove from Continue Watching
+                    <X className="size-4 text-muted" /> {t('continueWatching.remove')}
                   </button>
                 )}
               </div>

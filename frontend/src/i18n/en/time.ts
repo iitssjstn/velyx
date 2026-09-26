@@ -1,0 +1,15 @@
+export const time = {
+  never: 'never',
+  justNow: 'just now',
+  now: 'now',
+  minutesShort: '{m}m',
+  hoursShort: '{h}h',
+  hoursMinutesShort: '{h}h {m}m',
+  daysHoursShort: '{d}d {h}h',
+  inMinutes: 'in {n} min',
+  inHours: 'in {n} h',
+  inDays: 'in {n} days',
+  seconds: '{n} s',
+  minutes: '{n} min',
+  hoursMinutes: '{h} h {m} min',
+};
