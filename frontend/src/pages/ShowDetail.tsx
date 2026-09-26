@@ -189,7 +189,7 @@ export function ShowPage() {
 
       <section className="mt-12 px-4 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto px-1" role="tablist" aria-label={t('series.seasons')}>
+          <div className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto px-1 sm:flex-wrap sm:overflow-visible" role="tablist" aria-label={t('series.seasons')}>
             {seasons.map((x) => (
               <button
                 key={x.id}

@@ -127,6 +127,13 @@
       "when": 1790436060094,
       "tag": "0017_online_subtitles",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1790442100619,
+      "tag": "0018_retired_items_keep",
+      "breakpoints": true
     }
   ]
 }

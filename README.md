@@ -244,8 +244,9 @@ Without a key Velyx still works: titles come from the file names and a typograph
 - **Replaced and upgraded media:** when Radarr, Sonarr or you swap a file for a better release, Velyx keeps the watch progress, watched status, favorites, watchlist and collection entries:
   - Swapped in one go (the usual upgrade), the movie or episode simply keeps everything and Velyx records the change — the movie page shows *Replaced: 1080p · H.264 · WEB → 2160p · HEVC · HDR10 · Blu-ray*.
   - If the old file disappears first and the new one arrives later — even under a completely different name — Velyx remembers what users had for 90 days and gives it back as soon as the same title (same name and year, or the same TMDB id) or episode (same show, season and number) returns. A drive that was briefly disconnected is recognised the same way.
+  - This also works between libraries: a movie or series moved to another library (for example from *Movies* to *4K Movies* after an upgrade) keeps its history, whichever of the two libraries is scanned first.
   - Admin → Library health lists everything replaced in the last 30 days with the previous and current release. Velyx only reads your files; it never renames, moves or deletes them.
-- Removing a library only removes it from Velyx — your files are never modified (media is mounted read-only).
+- Removing a library only removes it from Velyx — your files are never modified (media is mounted read-only). Its watch history, favorites and lists are kept for 90 days and come back when the same movies and shows are added again, in a new library for the same folder or in another one.
 
 ## Playback and browser support
 

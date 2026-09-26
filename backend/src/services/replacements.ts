@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { and, desc, eq, inArray, isNotNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, lt, ne, or, sql } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
 import {
   collectionItems,
@@ -64,6 +64,9 @@ function hasData(d: RetiredUserData): boolean {
 }
 
 type Target = { movieId: number } | { episodeId: number };
+
+/** A movie, show or episode that is about to be retired: who it is and where it was. */
+export type RetiredRef = { id: number; libraryId: number; groupKey: string; tmdbId: number | null };
 
 /**
  * Keeps watch history and user choices when media is replaced. Two cases:
@@ -188,9 +191,39 @@ export class ReplacementTracker {
     return true;
   }
 
-  /** Whether anything in this library waits to be recognised (skips the lookups on a first scan). */
-  hasRetired(libraryId: number): boolean {
-    return Boolean(this.db.select({ id: retiredItems.id }).from(retiredItems).where(eq(retiredItems.libraryId, libraryId)).limit(1).get());
+  /** Whether anything waits to be recognised (skips the lookups when nothing does). Items can move between libraries. */
+  hasRetired(_libraryId?: number): boolean {
+    return Boolean(this.db.select({ id: retiredItems.id }).from(retiredItems).limit(1).get());
+  }
+
+  /**
+   * After items were retired: when the same title already exists in another library (it moved,
+   * and that library happened to be scanned first), its data goes there right away.
+   */
+  adoptElsewhere(retired: { movies: RetiredRef[]; shows: RetiredRef[]; episodes: Array<RetiredRef & { s: number; e: number }> }): number {
+    let adopted = 0;
+    for (const x of retired.shows) {
+      const identity = x.tmdbId !== null ? or(eq(shows.groupKey, x.groupKey), eq(shows.tmdbId, x.tmdbId)) : eq(shows.groupKey, x.groupKey);
+      const other = this.db.select({ id: shows.id }).from(shows).where(and(identity, ne(shows.libraryId, x.libraryId), ne(shows.id, x.id))).limit(1).get();
+      if (other) this.restoreShow(other.id);
+    }
+    for (const m of retired.movies) {
+      const identity = m.tmdbId !== null ? or(eq(movies.groupKey, m.groupKey), eq(movies.tmdbId, m.tmdbId)) : eq(movies.groupKey, m.groupKey);
+      const other = this.db.select({ id: movies.id }).from(movies).where(and(identity, ne(movies.libraryId, m.libraryId), ne(movies.id, m.id))).orderBy(desc(movies.addedAt)).limit(1).get();
+      if (other && this.restoreMovie(other.id)) adopted++;
+    }
+    for (const e of retired.episodes) {
+      const identity = e.tmdbId !== null ? or(eq(shows.groupKey, e.groupKey), eq(shows.tmdbId, e.tmdbId)) : eq(shows.groupKey, e.groupKey);
+      const other = this.db
+        .select({ id: episodes.id })
+        .from(episodes)
+        .innerJoin(shows, eq(shows.id, episodes.showId))
+        .where(and(identity, ne(shows.libraryId, e.libraryId), ne(episodes.id, e.id), eq(episodes.seasonNumber, e.s), eq(episodes.episodeNumber, e.e)))
+        .limit(1)
+        .get();
+      if (other && this.restoreEpisode(other.id)) adopted++;
+    }
+    return adopted;
   }
 
   /** Forgets retired items after `RETIRED_KEEP_MS`. */
@@ -236,8 +269,9 @@ export class ReplacementTracker {
     return this.db
       .select()
       .from(retiredItems)
-      .where(and(eq(retiredItems.kind, kind), eq(retiredItems.libraryId, libraryId), identity, numbers))
-      .orderBy(desc(retiredItems.retiredAt), desc(retiredItems.id))
+      // Also from another library (a movie moved from "Movies" to "4K Movies"); the same library first.
+      .where(and(eq(retiredItems.kind, kind), identity, numbers))
+      .orderBy(desc(sql`${retiredItems.libraryId} = ${libraryId}`), desc(retiredItems.retiredAt), desc(retiredItems.id))
       .limit(1)
       .get();
   }

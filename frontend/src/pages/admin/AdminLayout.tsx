@@ -33,7 +33,7 @@ export default function AdminLayout() {
   return (
     <div className="mx-auto max-w-6xl px-4 pt-8 sm:px-8">
       <h1 className="font-display text-3xl font-semibold tracking-tight">{t('admin.title')}</h1>
-      <nav className="no-scrollbar mt-6 mb-8 flex gap-1 overflow-x-auto border-b border-line/60" aria-label={t('admin.sections')}>
+      <nav className="no-scrollbar mt-6 mb-8 flex gap-1 overflow-x-auto border-b border-line/60 sm:flex-wrap sm:overflow-visible" aria-label={t('admin.sections')}>
         {TABS.map((tab) => (
           <NavLink
             key={tab.to}

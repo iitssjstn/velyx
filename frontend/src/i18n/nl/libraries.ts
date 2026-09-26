@@ -67,5 +67,5 @@ export const libraries: Messages['libraries'] = {
   edit: 'Bibliotheek bewerken',
   removeTitle: 'Bibliotheek verwijderen?',
   remove: 'Bibliotheek verwijderen',
-  removeText: '“{name}” en de kijkgeschiedenis ervan worden uit Velyx verwijderd. De bestanden op de schijf worden niet verwijderd.',
+  removeText: '“{name}” wordt uit Velyx verwijderd. De bestanden op de schijf worden niet verwijderd. Kijkgeschiedenis, favorieten en lijsten worden 90 dagen bewaard: ze komen terug als dezelfde films en series opnieuw worden toegevoegd, in deze of een andere bibliotheek.',
 };

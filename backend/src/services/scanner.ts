@@ -489,8 +489,23 @@ export class LibraryScanner {
    * aside first, so it comes back if the title reappears (see ReplacementTracker).
    */
   cleanupOrphans(libraryId: number, lastFiles = new Map<string, FileSnapshot>()): void {
+    // What goes, so its data can move to the same title in another library afterwards.
+    const gone: Parameters<ReplacementTracker['adoptElsewhere']>[0] = { movies: [], shows: [], episodes: [] };
+    try {
+      this.removeOrphans(libraryId, lastFiles, gone);
+    } finally {
+      if (gone.movies.length + gone.shows.length + gone.episodes.length) {
+        const adopted = this.replacements.adoptElsewhere(gone);
+        if (adopted) log.info(`Moved the watch history of ${adopted} item(s) to the same title in another library`);
+      }
+    }
+  }
+
+  private removeOrphans(libraryId: number, lastFiles: Map<string, FileSnapshot>, gone: Parameters<ReplacementTracker['adoptElsewhere']>[0]): void {
     const noMovieFiles = notExists(this.db.select({ x: sql`1` }).from(mediaFiles).where(eq(mediaFiles.movieId, movies.id)));
-    const orphanMovies = this.db.select({ id: movies.id }).from(movies).where(and(eq(movies.libraryId, libraryId), noMovieFiles)).all().map((m) => m.id);
+    const orphanMovieRows = this.db.select({ id: movies.id, libraryId: movies.libraryId, groupKey: movies.groupKey, tmdbId: movies.tmdbId }).from(movies).where(and(eq(movies.libraryId, libraryId), noMovieFiles)).all();
+    const orphanMovies = orphanMovieRows.map((m) => m.id);
+    gone.movies.push(...orphanMovieRows);
     if (orphanMovies.length) {
       this.replacements.retireMovies(orphanMovies, lastFiles);
       for (let i = 0; i < orphanMovies.length; i += 500) this.db.delete(movies).where(inArray(movies.id, orphanMovies.slice(i, i + 500))).run();
@@ -501,7 +516,14 @@ export class LibraryScanner {
     const noEpisodeFiles = notExists(this.db.select({ x: sql`1` }).from(mediaFiles).where(eq(mediaFiles.episodeId, episodes.id)));
     for (let i = 0; i < showIds.length; i += 500) {
       const chunk = showIds.slice(i, i + 500);
-      const orphanEpisodes = this.db.select({ id: episodes.id }).from(episodes).where(and(inArray(episodes.showId, chunk), noEpisodeFiles)).all().map((e) => e.id);
+      const orphanEpisodeRows = this.db
+        .select({ id: episodes.id, s: episodes.seasonNumber, e: episodes.episodeNumber, libraryId: shows.libraryId, groupKey: shows.groupKey, tmdbId: shows.tmdbId })
+        .from(episodes)
+        .innerJoin(shows, eq(shows.id, episodes.showId))
+        .where(and(inArray(episodes.showId, chunk), noEpisodeFiles))
+        .all();
+      const orphanEpisodes = orphanEpisodeRows.map((e) => e.id);
+      gone.episodes.push(...orphanEpisodeRows);
       if (orphanEpisodes.length) {
         this.replacements.retireEpisodes(orphanEpisodes, lastFiles);
         for (let j = 0; j < orphanEpisodes.length; j += 500) this.db.delete(episodes).where(inArray(episodes.id, orphanEpisodes.slice(j, j + 500))).run();
@@ -510,12 +532,13 @@ export class LibraryScanner {
         .delete(seasons)
         .where(and(inArray(seasons.showId, chunk), notExists(this.db.select({ x: sql`1` }).from(episodes).where(eq(episodes.seasonId, seasons.id)))))
         .run();
-      const orphanShows = this.db
-        .select({ id: shows.id })
+      const orphanShowRows = this.db
+        .select({ id: shows.id, libraryId: shows.libraryId, groupKey: shows.groupKey, tmdbId: shows.tmdbId })
         .from(shows)
         .where(and(inArray(shows.id, chunk), notExists(this.db.select({ x: sql`1` }).from(episodes).where(eq(episodes.showId, shows.id)))))
-        .all()
-        .map((s) => s.id);
+        .all();
+      const orphanShows = orphanShowRows.map((s) => s.id);
+      gone.shows.push(...orphanShowRows);
       if (orphanShows.length) {
         this.replacements.retireShows(orphanShows);
         this.db.delete(shows).where(inArray(shows.id, orphanShows)).run();

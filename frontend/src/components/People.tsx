@@ -1,18 +1,19 @@
 import type { Person } from '../lib/types';
 import { imageUrl } from '../lib/format';
 import { useT } from '../i18n';
+import { Shelf } from './Shelf';
 
 export function CastRow({ cast }: { cast: Person[] }) {
   const { t } = useT();
   if (!cast.length) return null;
   return (
-    <section className="mt-12">
-      <h2 className="px-4 font-display text-xl font-semibold sm:px-8">{t('library.cast')}</h2>
-      <div className="no-scrollbar mt-4 flex gap-4 overflow-x-auto px-4 pb-2 sm:px-8">
+    // A shelf like the ones on Home: with scroll buttons, since the row has no visible scroll bar.
+    <div className="mt-12">
+      <Shelf title={t('library.cast')}>
         {cast.map((p) => {
           const src = imageUrl(p.profilePath, 'w185');
           return (
-            <div key={`${p.id}-${p.role}`} className="w-28 shrink-0">
+            <div key={`${p.id}-${p.role}`} className="w-28 shrink-0 snap-start">
               {src ? (
                 <img src={src} alt="" loading="lazy" className="aspect-square w-28 rounded-full bg-raised object-cover" />
               ) : (
@@ -29,7 +30,7 @@ export function CastRow({ cast }: { cast: Person[] }) {
             </div>
           );
         })}
-      </div>
-    </section>
+      </Shelf>
+    </div>
   );
 }

@@ -539,9 +539,8 @@ export const retiredItems = sqliteTable(
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
     kind: text('kind', { enum: ['movie', 'show', 'episode'] }).notNull(),
-    libraryId: integer('library_id')
-      .notNull()
-      .references(() => libraries.id, { onDelete: 'cascade' }),
+    /** Where it was; null once that library was removed (its titles can still come back elsewhere). */
+    libraryId: integer('library_id').references(() => libraries.id, { onDelete: 'set null' }),
     /** Movie or show group key (for episodes: the show's). */
     groupKey: text('group_key').notNull(),
     /** Movie or show TMDB id (for episodes: the show's). */
