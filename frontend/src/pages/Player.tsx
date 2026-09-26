@@ -27,7 +27,7 @@ import { api, ApiError, errorMessage } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
 import { getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
-import { initialSubtitle, isTyping, preferredAudioIndex, startPosition, withParam, type LanguagePreferences } from '../lib/player';
+import { initialSubtitle, isTyping, preferredAudioIndex, skipAt, startPosition, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type SkipAction } from '../lib/player';
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo } from '../lib/types';
 import { Spinner } from '../components/States';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
@@ -46,6 +46,7 @@ const SHORTCUTS: Array<[string, string]> = [
   ['F', 'Full screen'],
   ['I', 'Minimize player'],
   ['C', 'Next subtitle'],
+  ['S', 'Skip intro / credits'],
   ['N', 'Next episode'],
   ['0–9', 'Jump to 0–90 %'],
   ['?', 'Show these shortcuts'],
@@ -64,12 +65,13 @@ interface LoadedItem {
   files: MediaFileInfo[];
   progress: MovieDetail['progress'];
   next: EpisodeDetail['next'];
+  segments: EpisodeSegments | null;
 }
 
 async function loadItem(kind: string, id: number): Promise<LoadedItem> {
   if (kind === 'movie') {
     const m = await api.get<MovieDetail>(`/api/movies/${id}`);
-    return { kind: 'movie', id, title: m.title, subtitle: m.year ? String(m.year) : null, backHref: `/movies/${id}`, backdrop: m.backdropPath, files: m.files, progress: m.progress, next: null };
+    return { kind: 'movie', id, title: m.title, subtitle: m.year ? String(m.year) : null, backHref: `/movies/${id}`, backdrop: m.backdropPath, files: m.files, progress: m.progress, next: null, segments: null };
   }
   const e = await api.get<EpisodeDetail>(`/api/episodes/${id}`);
   return {
@@ -82,6 +84,7 @@ async function loadItem(kind: string, id: number): Promise<LoadedItem> {
     files: e.files,
     progress: e.progress,
     next: e.next,
+    segments: e.segments ?? null,
   };
 }
 
@@ -193,6 +196,10 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // The viewer closed the "Up next" card for this episode.
   const [upNextDismissed, setUpNextDismissed] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  // Parts skipped automatically in this playback (each only once, so seeking back replays them),
+  // and the short "Skipped" notice with a way back.
+  const autoSkipped = useRef(new Set<string>());
+  const [skipNotice, setSkipNotice] = useState<{ label: string; back: number } | null>(null);
   const [audioTracks, setAudioTracks] = useState<BrowserAudioTrack[]>([]);
   const [seekHover, setSeekHover] = useState<{ x: number; w: number; t: number } | null>(null);
   // The stream to load: `base` is the decision's URL. Live (restart) streams are requested with
@@ -428,6 +435,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     setUpNextDismissed(false);
     setStartChoice(null);
     setShowHelp(false);
+    autoSkipped.current.clear();
+    setSkipNotice(null);
     setError(null);
     setWarningDismissed(false);
     setTryAnyway(false);
@@ -567,7 +576,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
 
   // ---------------------------------------------------------------- "Up next" near the end
   // Shown in the last seconds of an episode (long enough for the autoplay countdown), not earlier.
-  const upNextAt = next && totalDuration > 0 ? Math.max(0, totalDuration - Math.max(10, prefs.autoplayCountdown + 2)) : null;
+  // With detected credits (and nothing after them) it already appears when the credits begin.
+  const upNextAt = next ? upNextStart(item.data?.segments, file?.id, totalDuration, prefs.autoplayCountdown) : null;
   const nearEnd = upNextAt !== null && time >= upNextAt;
   const showUpNext = Boolean(next) && !mini && !error && (ended || (nearEnd && !upNextDismissed));
   useEffect(() => {
@@ -576,6 +586,32 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     // Seeking back out of the last seconds cancels a running countdown.
     if (!nearEnd) setCountdown(null);
   }, [nearEnd, upNextDismissed, next, ended]);
+
+  // ---------------------------------------------------------------- skip intro / credits
+  const skipModes = { intro: accountPrefs.data?.skipIntro ?? 'ask', credits: accountPrefs.data?.skipCredits ?? 'ask' };
+  const skip = streamSrc && !askResume && !error ? skipAt(item.data?.segments, file?.id, time, skipModes) : null;
+  const doSkip = useCallback(
+    (s: SkipAction, automatic: boolean) => {
+      // Always skipping credits that end the episode: straight on to the next one when autoplay is on.
+      if (automatic && s.kind === 'credits' && s.toNext && next && getPrefs().autoplayNext) {
+        goNext();
+        return;
+      }
+      if (automatic) setSkipNotice({ label: s.kind === 'intro' ? 'Intro skipped' : 'Credits skipped', back: time });
+      seekTo(s.to);
+    },
+    [next, goNext, seekTo, time],
+  );
+  useEffect(() => {
+    if (!skip || skip.mode !== 'always' || autoSkipped.current.has(skip.kind)) return;
+    autoSkipped.current.add(skip.kind);
+    doSkip(skip, true);
+  }, [skip, doSkip]);
+  useEffect(() => {
+    if (!skipNotice) return;
+    const t = setTimeout(() => setSkipNotice(null), 5000);
+    return () => clearTimeout(t);
+  }, [skipNotice]);
 
   // ---------------------------------------------------------------- auto-next countdown
   useEffect(() => {
@@ -674,6 +710,10 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         case 'N':
           if (next) goNext();
           break;
+        case 's':
+        case 'S':
+          if (skip) doSkip(skip, false);
+          break;
         case 'Escape':
           if (showHelp) setShowHelp(false);
           else if (menu) setMenu(null);
@@ -685,7 +725,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [mini, poke, togglePlay, seekBy, seekTo, applyVolume, toggleFullscreen, minimize, chooseSubtitle, goNext, exit, subs, subKey, next, menu, showHelp, volume, muted, totalDuration]);
+  }, [mini, poke, togglePlay, seekBy, seekTo, applyVolume, toggleFullscreen, minimize, chooseSubtitle, goNext, exit, subs, subKey, next, menu, showHelp, volume, muted, totalDuration, skip, doSkip]);
 
 
   // ---------------------------------------------------------------- render
@@ -836,6 +876,36 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             This file may not play in this browser: {info!.decision.reasons.join('; ')}. Velyx will try anyway.
           </p>
           <button type="button" className="text-muted hover:text-ink" onClick={() => setWarningDismissed(true)}>Dismiss</button>
+        </div>
+      )}
+
+      {/* Skip intro / credits: bottom right, clear of centred subtitles; shown while the part plays. */}
+      {!mini && skip && skip.mode === 'ask' && !showUpNext && !showUnavailable && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            doSkip(skip, false);
+          }}
+          className="absolute right-4 bottom-28 z-20 flex h-11 items-center gap-2 rounded-lg border border-white/25 bg-black/70 px-4 font-semibold backdrop-blur transition hover:bg-white hover:text-black sm:right-6"
+        >
+          <SkipForward className="size-4" /> {skip.kind === 'intro' ? 'Skip intro' : 'Skip credits'}
+        </button>
+      )}
+      {!mini && skipNotice && !showUpNext && (
+        <div className="absolute right-4 bottom-28 z-20 flex items-center gap-3 rounded-lg bg-black/70 px-4 py-2.5 text-sm backdrop-blur sm:right-6" role="status">
+          <span>{skipNotice.label}</span>
+          <button
+            type="button"
+            onClick={() => {
+              autoSkipped.current.add('intro').add('credits');
+              seekTo(skipNotice.back);
+              setSkipNotice(null);
+            }}
+            className="font-semibold text-accent hover:underline"
+          >
+            Undo
+          </button>
         </div>
       )}
 

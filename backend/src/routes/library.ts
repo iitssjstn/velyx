@@ -22,6 +22,7 @@ import {
 } from '../db/schema.js';
 import { ReplacementTracker } from '../services/replacements.js';
 import { Catalog } from '../services/catalog.js';
+import { playbackSegments } from '../services/segments/store.js';
 import { notFound, parseId } from '../http-error.js';
 import { languageName } from '../services/parser.js';
 import { SEARCH_KIND, ftsQuery } from '../services/search.js';
@@ -598,6 +599,8 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       next: next ? { id: next.id, seasonNumber: next.seasonNumber, episodeNumber: next.episodeNumber, title: next.title, stillPath: next.stillPath } : null,
       previous: prev ? { id: prev.id, seasonNumber: prev.seasonNumber, episodeNumber: prev.episodeNumber, title: prev.title } : null,
       replacements: replacements.history({ episodeId: id }),
+      // Detected (or manually set) intro and credits, for the skip buttons.
+      segments: playbackSegments(db, id),
     };
   });
 

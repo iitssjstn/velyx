@@ -13,14 +13,14 @@ export function ServerSettingsPanel() {
   const qc = useQueryClient();
   const { refetchServer } = useAuth();
   const q = useQuery({ queryKey: ['admin', 'settings'], queryFn: () => api.get<ServerSettings>('/api/admin/settings') });
-  const [form, setForm] = useState({ serverName: '', serverUrl: '', tmdbLanguage: '', includeAdult: false, watchFolders: true, updateCheck: true, scanOnStartup: false, deferScansWhilePlaying: true });
+  const [form, setForm] = useState({ serverName: '', serverUrl: '', tmdbLanguage: '', includeAdult: false, watchFolders: true, updateCheck: true, scanOnStartup: false, deferScansWhilePlaying: true, segmentDetection: true });
   // '' = use SCAN_INTERVAL_MINUTES from the environment
   const [interval, setScanInterval] = useState('');
   const [key, setKey] = useState('');
 
   useEffect(() => {
     if (!q.data) return;
-    setForm({ serverName: q.data.serverName, serverUrl: q.data.serverUrl, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult, watchFolders: q.data.watchFolders, updateCheck: q.data.updateCheck, scanOnStartup: q.data.scanOnStartup, deferScansWhilePlaying: q.data.deferScansWhilePlaying });
+    setForm({ serverName: q.data.serverName, serverUrl: q.data.serverUrl, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult, watchFolders: q.data.watchFolders, updateCheck: q.data.updateCheck, scanOnStartup: q.data.scanOnStartup, deferScansWhilePlaying: q.data.deferScansWhilePlaying, segmentDetection: q.data.segmentDetection });
     setScanInterval(q.data.scanIntervalSource === 'settings' ? String(q.data.scanIntervalMinutes) : '');
   }, [q.data]);
 
@@ -113,6 +113,13 @@ export function ServerSettingsPanel() {
             <span>
               Hold scheduled scans while someone is watching
               <span className="block text-xs text-faint">The scan starts when playback ends (at most a few hours later). Any scan that is running also slows down while someone watches.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3 text-sm">
+            <input type="checkbox" className="mt-0.5 size-4 accent-[var(--color-accent)]" checked={form.segmentDetection} onChange={(e) => setForm({ ...form, segmentDetection: e.target.checked })} />
+            <span>
+              Detect intros and credits
+              <span className="block text-xs text-faint">Compares the sound at the start and end of episodes in the background (never while someone watches or a scan runs), so viewers can skip them. See Intros &amp; credits.</span>
             </span>
           </label>
         </fieldset>

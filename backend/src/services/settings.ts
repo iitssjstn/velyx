@@ -29,6 +29,8 @@ export interface ServerSettings {
   scanOnStartup: boolean;
   /** Scheduled scans wait while someone is watching (up to a few hours). */
   deferScansWhilePlaying: boolean;
+  /** Look for intros and credits in the background (audio only, never while someone watches). */
+  segmentDetection: boolean;
 }
 
 const DEFAULTS: ServerSettings = {
@@ -48,6 +50,7 @@ const DEFAULTS: ServerSettings = {
   scanIntervalMinutes: null,
   scanOnStartup: false,
   deferScansWhilePlaying: true,
+  segmentDetection: true,
 };
 
 export class SettingsService {

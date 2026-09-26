@@ -14,6 +14,13 @@ export function formatRuntime(minutes: number | null | undefined): string | null
 }
 
 /** 1:02:03 / 37:24 / 0:05 */
+/** Reads "1:23:45", "12:34", "95" or "95.5" as seconds; null when it is not a time. */
+export function parseClock(text: string): number | null {
+  const t = text.trim();
+  if (!/^\d+(\.\d+)?$|^\d+:[0-5]?\d(\.\d+)?$|^\d+:[0-5]?\d:[0-5]?\d(\.\d+)?$/.test(t)) return null;
+  return t.split(':').reduce((acc, part) => acc * 60 + Number(part), 0);
+}
+
 export function formatClock(totalSeconds: number): string {
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) totalSeconds = 0;
   const s = Math.floor(totalSeconds);

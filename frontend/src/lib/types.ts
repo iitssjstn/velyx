@@ -1,3 +1,4 @@
+import type { EpisodeSegments } from './player';
 export type Role = 'admin' | 'user';
 
 export interface User {
@@ -316,6 +317,8 @@ export interface EpisodeDetail {
   next: { id: number; seasonNumber: number; episodeNumber: number; title: string | null; stillPath: string | null } | null;
   previous: { id: number; seasonNumber: number; episodeNumber: number; title: string | null } | null;
   replacements: Replacement[];
+  /** Detected (or manually set) intro and credits; null when unknown. */
+  segments?: EpisodeSegments | null;
 }
 
 export interface SubtitleOption {
@@ -587,6 +590,7 @@ export interface ServerSettings {
   scanIntervalDefault: number;
   scanOnStartup: boolean;
   deferScansWhilePlaying: boolean;
+  segmentDetection: boolean;
 }
 
 export interface ReviewItem {

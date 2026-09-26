@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   sqliteTable,
+  blob,
   text,
   integer,
   real,
@@ -27,6 +28,9 @@ export const users = sqliteTable('users', {
   prefSubtitleFallback: text('pref_subtitle_fallback').notNull().default(''),
   /** remember = reuse the last choice; always; foreign = only when the audio is in another language; forced; off. */
   prefSubtitleMode: text('pref_subtitle_mode', { enum: ['remember', 'always', 'foreign', 'forced', 'off'] }).notNull().default('remember'),
+  /** Skipping detected intros / credits: never offer, offer a button (ask), or skip automatically. */
+  prefSkipIntro: text('pref_skip_intro', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
+  prefSkipCredits: text('pref_skip_credits', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
   createdAt: integer('created_at').notNull().default(now),
   updatedAt: integer('updated_at').notNull().default(now),
   lastLoginAt: integer('last_login_at'),
@@ -540,4 +544,52 @@ export const mediaReplacements = sqliteTable(
     at: integer('at').notNull().default(now),
   },
   (t) => [index('replacements_movie_idx').on(t.movieId), index('replacements_episode_idx').on(t.episodeId), index('replacements_at_idx').on(t.at)],
+);
+
+/**
+ * Detected (or manually set) intro, credits and post-credits parts of an episode. Times are in
+ * seconds from the start of the file. Automatic results carry a confidence and the detector
+ * version, so a better detector can redo them; manual ones are never overwritten.
+ */
+export const episodeSegments = sqliteTable('episode_segments', {
+  episodeId: integer('episode_id')
+    .primaryKey()
+    .references(() => episodes.id, { onDelete: 'cascade' }),
+  /** The file that was analysed; a different file (or size) means analyse again. */
+  mediaFileId: integer('media_file_id').references(() => mediaFiles.id, { onDelete: 'set null' }),
+  fileSize: integer('file_size'),
+  introStart: real('intro_start'),
+  introEnd: real('intro_end'),
+  introConfidence: text('intro_confidence', { enum: ['high', 'medium', 'low'] }),
+  creditsStart: real('credits_start'),
+  creditsEnd: real('credits_end'),
+  creditsConfidence: text('credits_confidence', { enum: ['high', 'medium', 'low'] }),
+  postCreditsStart: real('post_credits_start'),
+  postCreditsEnd: real('post_credits_end'),
+  status: text('status', { enum: ['analyzed', 'error'] }).notNull(),
+  error: text('error'),
+  method: text('method', { enum: ['audio-fingerprint', 'manual'] }).notNull(),
+  version: integer('version').notNull(),
+  manual: integer('manual', { mode: 'boolean' }).notNull().default(false),
+  detectedAt: integer('detected_at').notNull().default(now),
+});
+
+/**
+ * Fingerprints of a season's confirmed intro or credits, so a newly added episode only has to be
+ * compared with these instead of re-reading the whole season. A season can have several versions.
+ */
+export const segmentReferences = sqliteTable(
+  'segment_references',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    showId: integer('show_id')
+      .notNull()
+      .references(() => shows.id, { onDelete: 'cascade' }),
+    seasonNumber: integer('season_number').notNull(),
+    kind: text('kind', { enum: ['intro', 'credits'] }).notNull(),
+    words: blob('words', { mode: 'buffer' }).notNull(),
+    version: integer('version').notNull(),
+    createdAt: integer('created_at').notNull().default(now),
+  },
+  (t) => [index('segment_refs_season_idx').on(t.showId, t.seasonNumber, t.kind)],
 );

@@ -2,7 +2,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { Check, CircleHelp, Repeat, X } from 'lucide-react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { LanguagePreferences, SubtitleMode } from '../lib/player';
+import type { LanguagePreferences, SkipMode, SubtitleMode } from '../lib/player';
 import { api, errorMessage } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
 import { setPrefs, usePrefs } from '../lib/prefs';
@@ -260,11 +260,54 @@ export function LanguageSettings() {
   );
 }
 
+const SKIP_MODES: [SkipMode, string][] = [
+  ['ask', 'Show a skip button'],
+  ['always', 'Skip automatically'],
+  ['never', 'Never'],
+];
+
+/** Skipping detected intros and credits (account-wide). Exported for tests. */
+export function SkipSettings() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['account-prefs'], queryFn: () => api.get<LanguagePreferences>('/api/account/preferences') });
+  const save = useMutation({
+    mutationFn: (patch: Partial<LanguagePreferences>) => api.put<LanguagePreferences>('/api/account/preferences', patch),
+    onSuccess: (d) => {
+      qc.setQueryData(['account-prefs'], d);
+      toast.success('Skip preferences saved.');
+    },
+    onError: (err) => toast.error(err),
+  });
+  const p = q.data;
+  const row = (id: string, label: string, hint: string, value: SkipMode, key: 'skipIntro' | 'skipCredits') => (
+    <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+      <label htmlFor={id}>
+        {label}
+        <span className="block text-sm text-muted">{hint}</span>
+      </label>
+      <select id={id} className="input w-56" value={value} disabled={!p} onChange={(e) => save.mutate({ [key]: e.target.value as SkipMode })}>
+        {SKIP_MODES.map(([m, l]) => (
+          <option key={m} value={m}>{l}</option>
+        ))}
+      </select>
+    </div>
+  );
+  return (
+    <Section title="Intros & credits" description="Velyx recognises intros and credits of TV episodes by their recurring sound. Only confident results are used; a scene after the credits is never skipped.">
+      <div className="divide-y divide-line/50">
+        {row('pref-skip-intro', 'Skip intros', 'The button appears only while the intro plays.', p?.skipIntro ?? 'ask', 'skipIntro')}
+        {row('pref-skip-credits', 'Skip credits', 'Goes to a scene after the credits when there is one, otherwise to the next episode.', p?.skipCredits ?? 'ask', 'skipCredits')}
+      </div>
+    </Section>
+  );
+}
+
 function PlaybackSettings() {
   const prefs = usePrefs();
   return (
     <div className="space-y-6">
       <LanguageSettings />
+      <SkipSettings />
       <Section title="Playback" description="These preferences are stored in this browser.">
         <div className="divide-y divide-line/50">
           <Toggle label="Autoplay next episode" hint="Starts the next episode after a countdown." checked={prefs.autoplayNext} onChange={(v) => setPrefs({ autoplayNext: v })} />

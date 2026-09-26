@@ -163,9 +163,9 @@ describe('Continue Watching and watched controls', () => {
 describe('language preferences', () => {
   it('stores preferences per account and validates them', async () => {
     const viewer = await createUser(env.app, admin, 'viewer');
-    expect(await get('/api/account/preferences', viewer.cookie)).toEqual({ audioLanguage: '', subtitleLanguage: '', subtitleFallback: '', subtitleMode: 'remember' });
+    expect(await get('/api/account/preferences', viewer.cookie)).toEqual({ audioLanguage: '', subtitleLanguage: '', subtitleFallback: '', subtitleMode: 'remember', skipIntro: 'ask', skipCredits: 'ask' });
     const saved = (await send('PUT', '/api/account/preferences', { audioLanguage: 'NL', subtitleLanguage: 'nl', subtitleFallback: 'en', subtitleMode: 'foreign' }, viewer.cookie)).json();
-    expect(saved).toEqual({ audioLanguage: 'nl', subtitleLanguage: 'nl', subtitleFallback: 'en', subtitleMode: 'foreign' });
+    expect(saved).toEqual({ audioLanguage: 'nl', subtitleLanguage: 'nl', subtitleFallback: 'en', subtitleMode: 'foreign', skipIntro: 'ask', skipCredits: 'ask' });
     expect((await get('/api/account/preferences')).subtitleMode).toBe('remember');
     expect((await send('PUT', '/api/account/preferences', { subtitleMode: 'sometimes' }, viewer.cookie)).statusCode).toBe(400);
     expect((await send('PUT', '/api/account/preferences', { audioLanguage: 'dutch!' }, viewer.cookie)).statusCode).toBe(400);

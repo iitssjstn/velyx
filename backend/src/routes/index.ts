@@ -6,6 +6,7 @@ import { userDataRoutes } from './user-data.js';
 import { mediaRoutes } from './media.js';
 import { adminRoutes } from './admin.js';
 import { collectionRoutes } from './collections.js';
+import { segmentRoutes } from './segments.js';
 
 export async function registerRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   await authRoutes(app, ctx);
@@ -14,4 +15,5 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext): Pro
   await mediaRoutes(app, ctx);
   await adminRoutes(app, ctx);
   await collectionRoutes(app, ctx);
+  await segmentRoutes(app, ctx);
 }
