@@ -169,3 +169,10 @@ export function intervalLabel(minutes: number): string {
   if (minutes % 60 === 0) return minutes === 60 ? 'Every hour' : `Every ${minutes / 60} hours`;
   return `Every ${minutes} minutes`;
 }
+
+/** "2160p · HEVC · HDR10 · Blu-ray · 18.2 GB" for a replaced or replacing file. */
+export function snapshotLabel(s: { width: number | null; height: number | null; videoCodec: string | null; videoRange: string | null; source: string | null; size: number }): string {
+  const res = !s.width || !s.height ? null : s.width >= 3200 || s.height >= 2000 ? '2160p' : s.width >= 1800 || s.height >= 1000 ? '1080p' : s.width >= 1200 || s.height >= 700 ? '720p' : `${s.height}p`;
+  const codec = s.videoCodec ? ({ h264: 'H.264', hevc: 'HEVC', av1: 'AV1', vp9: 'VP9', mpeg4: 'MPEG-4' } as Record<string, string>)[s.videoCodec] ?? s.videoCodec.toUpperCase() : null;
+  return [res, codec, s.videoRange && s.videoRange !== 'SDR' ? (s.videoRange === 'DV' ? 'Dolby Vision' : s.videoRange) : null, s.source, formatBytes(s.size)].filter(Boolean).join(' · ');
+}

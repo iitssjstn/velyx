@@ -20,6 +20,7 @@ import {
   watchProgress,
   continueDismissals,
 } from '../db/schema.js';
+import { ReplacementTracker } from '../services/replacements.js';
 import { Catalog } from '../services/catalog.js';
 import { notFound, parseId } from '../http-error.js';
 import { languageName } from '../services/parser.js';
@@ -61,6 +62,7 @@ export function fileInfo(f: FileRow, externalSubs: Array<typeof subtitles.$infer
 
 export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   const catalog = new Catalog(ctx.db);
+  const replacements = new ReplacementTracker(ctx.db);
   const db = ctx.db;
 
   const scopeOf = (request: { user: { id: number; role: 'admin' | 'user' } | null }) => ctx.access.scope(request.user!);
@@ -379,6 +381,8 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       favorite,
       watchlist: inWatchlist(userId, { movieId: id }),
       collections: collectionsOf(request, { movieId: id }),
+      /** Earlier files this movie had (upgrades), newest first. */
+      replacements: replacements.history({ movieId: id }),
     };
   });
 
@@ -593,6 +597,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       progress: catalog.episodeProgress(userId, [id]).get(id) ?? null,
       next: next ? { id: next.id, seasonNumber: next.seasonNumber, episodeNumber: next.episodeNumber, title: next.title, stillPath: next.stillPath } : null,
       previous: prev ? { id: prev.id, seasonNumber: prev.seasonNumber, episodeNumber: prev.episodeNumber, title: prev.title } : null,
+      replacements: replacements.history({ episodeId: id }),
     };
   });
 

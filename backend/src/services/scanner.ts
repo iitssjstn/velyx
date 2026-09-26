@@ -3,7 +3,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { and, eq, inArray, isNull, notExists, or, sql } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
-import { episodes, libraries, mediaFiles, movies, seasons, shows, subtitles } from '../db/schema.js';
+import { episodes, libraries, mediaFiles, movies, seasons, shows, subtitles, type FileSnapshot } from '../db/schema.js';
 import { createLogger } from '../logger.js';
 import type { MetadataService } from './metadata.js';
 import {
@@ -17,6 +17,7 @@ import {
   sortTitle,
 } from './parser.js';
 import type { Prober, ProbeResult } from './probe.js';
+import { ReplacementTracker, snapshot } from './replacements.js';
 
 const log = createLogger('scanner');
 
@@ -127,6 +128,7 @@ export class LibraryScanner {
     private readonly probe: Prober,
     private readonly metadata: MetadataService,
     private readonly probeConcurrency = 1,
+    private readonly replacements = new ReplacementTracker(db),
   ) {}
 
   async scan(libraryId: number, opts: ScanOptions = {}): Promise<ScanSummary> {
@@ -156,7 +158,11 @@ export class LibraryScanner {
     const seen = new Set<string>();
     const newMovieIds = new Set<number>();
     const newShowIds = new Set<number>();
+    const newEpisodeIds = new Set<number>();
     const showSeasonsToRefresh = new Map<number, Set<number>>();
+    // New files per movie/episode ("movie:12"), to recognise a swapped file within this scan.
+    const addedFor = new Map<string, FileSnapshot>();
+    const itemKey = (f: { movieId: number | null; episodeId: number | null }) => (f.movieId ? `movie:${f.movieId}` : f.episodeId ? `episode:${f.episodeId}` : null);
 
     report({ phase: 'analyzing', processed: 0, total: candidates.length });
     let processed = 0;
@@ -209,13 +215,18 @@ export class LibraryScanner {
             this.db.update(mediaFiles).set(values).where(eq(mediaFiles.id, prev.id)).run();
             fileId = prev.id;
             summary.updated++;
+            // Same name, different content (a release replaced in place): remember what it was.
+            if (!prev.probeError && prev.videoCodec && info && prev.size !== st.size) {
+              const target = prev.movieId ? { movieId: prev.movieId } : prev.episodeId ? { episodeId: prev.episodeId } : null;
+              if (target) this.replacements.record(target, snapshot(prev), snapshot({ ...values, path: file }));
+            }
           } else {
             fileId = this.db.insert(mediaFiles).values(values).returning({ id: mediaFiles.id }).get().id;
             summary.added++;
           }
         }
 
-        const current = prev && unchanged ? prev : this.db.select().from(mediaFiles).where(eq(mediaFiles.id, fileId)).get()!;
+        let current = prev && unchanged ? prev : this.db.select().from(mediaFiles).where(eq(mediaFiles.id, fileId)).get()!;
         if (lib.type === 'movies') {
           if (!current.movieId) {
             const { id, created } = this.linkMovie(libraryId, lib.path, file);
@@ -229,6 +240,7 @@ export class LibraryScanner {
             log.warn(`Could not detect season/episode for ${path.relative(lib.path, file)} — expected names like S01E02 or 1x02`);
           } else {
             this.db.update(mediaFiles).set({ episodeId: linked.episodeId }).where(eq(mediaFiles.id, fileId)).run();
+            if (linked.episodeCreated) newEpisodeIds.add(linked.episodeId);
             if (linked.showCreated) newShowIds.add(linked.showId);
             else if (linked.episodeCreated) {
               const set = showSeasonsToRefresh.get(linked.showId) ?? new Set<number>();
@@ -236,6 +248,11 @@ export class LibraryScanner {
               showSeasonsToRefresh.set(linked.showId, set);
             }
           }
+        }
+        if (!prev) {
+          current = this.db.select().from(mediaFiles).where(eq(mediaFiles.id, fileId)).get()!;
+          const key = itemKey(current);
+          if (key) addedFor.set(key, snapshot(current));
         }
         this.syncSubtitles(fileId, file, subtitlesByDir.get(path.dirname(file)) ?? []);
       } catch (err) {
@@ -249,9 +266,19 @@ export class LibraryScanner {
     // ---- removals
     report({ phase: 'cleaning', processed: 0, total: 0 });
     const missing = [...existing.values()].filter((f) => !seen.has(f.path));
+    const lastFiles = new Map<string, FileSnapshot>();
     if (candidates.length === 0 && existing.size > 0) {
       log.warn(`No media found in ${lib.path} but ${existing.size} files are known — skipping removal in case the drive is not mounted`);
     } else if (missing.length > 0) {
+      for (const f of missing) {
+        const key = itemKey(f);
+        if (!key) continue;
+        const gone = snapshot(f);
+        const replacement = addedFor.get(key);
+        // The movie or episode got a new file in this same scan: an upgrade or re-release.
+        if (replacement) this.replacements.record(f.movieId ? { movieId: f.movieId } : { episodeId: f.episodeId! }, gone, replacement);
+        else lastFiles.set(key, gone);
+      }
       const ids = missing.map((f) => f.id);
       for (let i = 0; i < ids.length; i += 500) {
         this.db.delete(mediaFiles).where(inArray(mediaFiles.id, ids.slice(i, i + 500))).run();
@@ -259,7 +286,7 @@ export class LibraryScanner {
       summary.removed = missing.length;
       log.info(`Removed ${missing.length} missing files from ${lib.name}`);
     }
-    this.cleanupOrphans(libraryId);
+    this.cleanupOrphans(libraryId, lastFiles);
 
     // ---- metadata
     if (this.metadata.enabled) {
@@ -304,6 +331,17 @@ export class LibraryScanner {
     } else if (newMovieIds.size + newShowIds.size > 0) {
       log.info('TMDB is not configured — new items use names from their files. Add a TMDB key in Admin → Metadata.');
     }
+
+    // Titles that came back (e.g. a better release that arrived after the old one was removed)
+    // get their watch history, favorites and lists back. After metadata, so TMDB ids can match.
+    let restored = 0;
+    if (this.replacements.hasRetired(libraryId)) {
+      for (const id of newMovieIds) if (this.replacements.restoreMovie(id)) restored++;
+      for (const id of newShowIds) this.replacements.restoreShow(id);
+      for (const id of newEpisodeIds) if (this.replacements.restoreEpisode(id)) restored++;
+    }
+    if (restored) log.info(`Recognised ${restored} returning or replaced item(s) in ${lib.name}`);
+    this.replacements.purge();
 
     summary.durationMs = Date.now() - started;
     report({ phase: 'done', processed: candidates.length, total: candidates.length });
@@ -446,25 +484,42 @@ export class LibraryScanner {
     }
   }
 
-  /** Removes movies/episodes/seasons/shows that no longer have any files. */
-  cleanupOrphans(libraryId: number): void {
+  /**
+   * Removes movies/episodes/seasons/shows that no longer have any files. Their user data is set
+   * aside first, so it comes back if the title reappears (see ReplacementTracker).
+   */
+  cleanupOrphans(libraryId: number, lastFiles = new Map<string, FileSnapshot>()): void {
     const noMovieFiles = notExists(this.db.select({ x: sql`1` }).from(mediaFiles).where(eq(mediaFiles.movieId, movies.id)));
-    this.db.delete(movies).where(and(eq(movies.libraryId, libraryId), noMovieFiles)).run();
+    const orphanMovies = this.db.select({ id: movies.id }).from(movies).where(and(eq(movies.libraryId, libraryId), noMovieFiles)).all().map((m) => m.id);
+    if (orphanMovies.length) {
+      this.replacements.retireMovies(orphanMovies, lastFiles);
+      for (let i = 0; i < orphanMovies.length; i += 500) this.db.delete(movies).where(inArray(movies.id, orphanMovies.slice(i, i + 500))).run();
+    }
 
     const showIds = this.db.select({ id: shows.id }).from(shows).where(eq(shows.libraryId, libraryId)).all().map((s) => s.id);
     if (showIds.length === 0) return;
     const noEpisodeFiles = notExists(this.db.select({ x: sql`1` }).from(mediaFiles).where(eq(mediaFiles.episodeId, episodes.id)));
     for (let i = 0; i < showIds.length; i += 500) {
       const chunk = showIds.slice(i, i + 500);
-      this.db.delete(episodes).where(and(inArray(episodes.showId, chunk), noEpisodeFiles)).run();
+      const orphanEpisodes = this.db.select({ id: episodes.id }).from(episodes).where(and(inArray(episodes.showId, chunk), noEpisodeFiles)).all().map((e) => e.id);
+      if (orphanEpisodes.length) {
+        this.replacements.retireEpisodes(orphanEpisodes, lastFiles);
+        for (let j = 0; j < orphanEpisodes.length; j += 500) this.db.delete(episodes).where(inArray(episodes.id, orphanEpisodes.slice(j, j + 500))).run();
+      }
       this.db
         .delete(seasons)
         .where(and(inArray(seasons.showId, chunk), notExists(this.db.select({ x: sql`1` }).from(episodes).where(eq(episodes.seasonId, seasons.id)))))
         .run();
-      this.db
-        .delete(shows)
+      const orphanShows = this.db
+        .select({ id: shows.id })
+        .from(shows)
         .where(and(inArray(shows.id, chunk), notExists(this.db.select({ x: sql`1` }).from(episodes).where(eq(episodes.showId, shows.id)))))
-        .run();
+        .all()
+        .map((s) => s.id);
+      if (orphanShows.length) {
+        this.replacements.retireShows(orphanShows);
+        this.db.delete(shows).where(inArray(shows.id, orphanShows)).run();
+      }
     }
   }
 

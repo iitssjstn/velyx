@@ -158,7 +158,7 @@ export function MoviePage() {
                 </select>
               )}
             </div>
-            {file && <MediaInfo file={file} />}
+            {file && <MediaInfo file={file} replacements={m.replacements} />}
           </aside>
         )}
       </div>

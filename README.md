@@ -4,7 +4,7 @@
 
 Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.4.4 — **Scanning that stays out of the way**: choose the scan schedule in Admin → Server, optionally scan on start-up, and let scheduled scans wait while someone is watching; *Re-analyse every file* for when you need it. Also in 0.4.x: playback diagnostics per device, Library health, card details on hover and many stability fixes. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
+> Version 0.4.5 — **Upgrades keep your history**: when a file is replaced by a better release, watch progress, favorites, watchlist and collections stay, even if the new file arrives later under another name, and the movie page shows what changed (1080p WEB → 2160p Blu-ray). Also in 0.4.x: scanning that waits for playback, playback diagnostics per device, Library health, card details on hover and many stability fixes. Still built for old hardware: **Velyx does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
 
 ---
 
@@ -229,6 +229,10 @@ Without a key Velyx still works: titles come from the file names and a typograph
 - **Manual scans** per library or for all libraries look for new and changed files only. *Re-analyse every file* (in Admin → Libraries) probes every file again, for example after replacing files with the same size and date; it is slower and runs one file at a time like any scan.
 - Very large libraries can hit the Linux limit on watched folders. Velyx then shows *Auto-update unavailable* and keeps using scheduled scans; raise the limit on the host with `sudo sysctl fs.inotify.max_user_watches=524288` (add it to `/etc/sysctl.conf` to keep it).
 - **Scan issues** lists files FFprobe could not read and episodes without a recognisable number.
+- **Replaced and upgraded media:** when Radarr, Sonarr or you swap a file for a better release, Velyx keeps the watch progress, watched status, favorites, watchlist and collection entries:
+  - Swapped in one go (the usual upgrade), the movie or episode simply keeps everything and Velyx records the change — the movie page shows *Replaced: 1080p · H.264 · WEB → 2160p · HEVC · HDR10 · Blu-ray*.
+  - If the old file disappears first and the new one arrives later — even under a completely different name — Velyx remembers what users had for 90 days and gives it back as soon as the same title (same name and year, or the same TMDB id) or episode (same show, season and number) returns. A drive that was briefly disconnected is recognised the same way.
+  - Admin → Library health lists everything replaced in the last 30 days with the previous and current release. Velyx only reads your files; it never renames, moves or deletes them.
 - Removing a library only removes it from Velyx — your files are never modified (media is mounted read-only).
 
 ## Playback and browser support
