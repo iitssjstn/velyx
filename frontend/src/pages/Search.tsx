@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useDebounced } from '../lib/hooks';
+import { quickItems } from '../lib/search';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search as SearchIcon, X } from 'lucide-react';
 import { api, qs } from '../lib/api';
 import { episodeCode, progressFraction } from '../lib/format';
@@ -10,17 +12,9 @@ import { Artwork } from '../components/Artwork';
 import { ProgressBar } from '../components/ProgressBar';
 import { EmptyState, ErrorState, Spinner } from '../components/States';
 
-function useDebounced<T>(value: T, ms: number): T {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return v;
-}
-
 export function SearchPage() {
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const [text, setText] = useState(params.get('q') ?? '');
   const query = useDebounced(text.trim(), 250);
 
@@ -46,6 +40,16 @@ export function SearchPage() {
           type="search"
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter opens the best match; Escape clears.
+            if (e.key === 'Enter') {
+              const first = quickItems(r)[0];
+              if (first) {
+                e.preventDefault();
+                navigate(first.href);
+              }
+            } else if (e.key === 'Escape') setText('');
+          }}
           placeholder="Search movies, shows and episodes"
           aria-label="Search"
           className="input h-14 rounded-2xl pr-12 pl-12 text-lg [&::-webkit-search-cancel-button]:hidden"
