@@ -317,7 +317,15 @@ Good to know:
 
 ## The Velyx app for Android
 
-Besides installing the website as an app, Velyx has its own Android app (for phones and tablets). It is new: this first version connects to your server, signs in, and shows Home (Continue Watching, recently added, movies and shows), all movies and all TV shows, and the pages of movies and shows with their seasons and episodes. **Playing does not work in the app yet** — until the next version, play in the browser.
+Besides installing the website as an app, Velyx has its own Android app (for phones and tablets). It connects to your server, signs in, and shows Home (Continue Watching, recently added, movies and shows), all movies and all TV shows, and the pages of movies and shows with their seasons and episodes — and it plays them with its own player.
+
+**Playing in the app:**
+
+- **Play** or **Resume from 32:14** on a movie, **Continue with S02E04** on a show, a tap on an episode, or a tap on an item in Continue Watching (which resumes straight away). A watched episode starts over; *From start* starts a movie over.
+- The app tells your server exactly which formats the phone or tablet decodes (read from Android's own list of decoders, including 10-bit and HDR), and Velyx decides as for a browser: the original file plays directly when the device can decode it — often more than a browser can, such as HEVC, 10-bit video, MKV files and Dolby audio on devices with those decoders — otherwise the audio is converted or the file repackaged on the fly. Velyx still never transcodes video; a file the device cannot decode says so.
+- Playback is full screen and in landscape. Tap the picture for the controls: play/pause, 10 seconds back or forward, and a seek bar you can tap or drag.
+- **Audio and subtitles** (the speech-bubble button): switch the audio track — in the original file where possible, without restarting — and choose subtitles (separate subtitle files, text subtitles inside the video, and ones fetched from OpenSubtitles). Subtitles start as set in your account's subtitle preferences. Image-based subtitles (PGS) are not shown in the app yet.
+- Your position is saved on the server while you watch, and when you pause or leave, so you can continue on any device. After an episode, the next one starts after a 10-second countdown (or straight away with the button).
 
 **Installing:** every Velyx release on GitHub (the *Releases* page of this repository) has the app attached as `velyx-<version>.apk`. Open that file on your Android phone or tablet and allow installing apps from your browser when Android asks. A newer APK installs over the old one; you stay signed in. The app is not in the Play Store yet.
 

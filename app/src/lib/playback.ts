@@ -1,0 +1,135 @@
+import type { Api } from './api';
+
+/** What the device's decoders report (see modules/velyx-codecs). */
+export interface Decoders {
+  videoCodecs: string[];
+  tenBitCodecs: string[];
+  audioCodecs: string[];
+  hdr: boolean;
+}
+
+/** What the app tells the server it can play (POST /api/media/:id/playback). */
+export interface PlaybackCaps {
+  containers: string[];
+  videoCodecs: string[];
+  tenBitCodecs: string[];
+  audioCodecs: string[];
+  hdr: boolean;
+  audioTrackSwitching: boolean;
+  imageSubtitles: boolean;
+  audioIndex?: number;
+}
+
+/** Containers the app's player (Media3/ExoPlayer) reads, whatever the device. */
+export const CONTAINERS = ['mp4', 'm4v', 'mov', 'mkv', 'webm', 'ts', 'avi'];
+
+/** Without a decoder report: what every Android device decodes (in software if need be). */
+const FALLBACK: Decoders = { videoCodecs: ['h264', 'vp8', 'vp9'], tenBitCodecs: [], audioCodecs: ['aac', 'mp3', 'opus', 'vorbis', 'flac'], hdr: false };
+
+export function playbackCaps(decoders: Decoders | null, audioIndex?: number): PlaybackCaps {
+  const d = decoders && decoders.videoCodecs.length ? decoders : FALLBACK;
+  return {
+    containers: CONTAINERS,
+    videoCodecs: [...new Set(d.videoCodecs)],
+    tenBitCodecs: [...new Set(d.tenBitCodecs)],
+    audioCodecs: [...new Set(d.audioCodecs)],
+    hdr: d.hdr,
+    audioTrackSwitching: true,
+    // Image-based subtitles (PGS) are not shown by the app yet.
+    imageSubtitles: false,
+    ...(audioIndex !== undefined ? { audioIndex } : {}),
+  };
+}
+
+export interface AudioTrackInfo {
+  index: number;
+  codec: string | null;
+  language: string | null;
+  languageName?: string | null;
+  channels: number | null;
+  title: string | null;
+  isDefault: boolean;
+}
+
+export interface SubtitleOption {
+  key: string;
+  kind: 'external' | 'embedded' | 'online';
+  label: string;
+  language: string | null;
+  languageName: string | null;
+  title: string | null;
+  forced: boolean;
+  isDefault: boolean;
+  url: string;
+}
+
+export interface PlaybackAnswer {
+  decision: {
+    engine: string;
+    mode: 'direct' | 'remux' | 'unsupported';
+    streamUrl: string;
+    compatible: boolean | 'unknown';
+    /** 'range': seek in the file; 'restart': ask for a new stream from the new position. */
+    seek: 'range' | 'restart';
+    audioIndex: number | null;
+    durationSec: number | null;
+  };
+  analysis: { mode: 'direct' | 'remux' | 'unsupported'; problems: string[]; summary: string[] };
+  file: { id: number; durationSec: number | null; audioTracks: AudioTrackInfo[] };
+  subtitles: SubtitleOption[];
+}
+
+/** Where a stream plays from: its address and the file time its time 0 stands for. */
+export interface StreamStart {
+  uri: string;
+  /** Seconds into the file at which this stream begins (0 for direct play). */
+  offset: number;
+}
+
+function withParam(url: string, key: string, value: string): string {
+  return `${url}${url.includes('?') ? '&' : '?'}${key}=${encodeURIComponent(value)}`;
+}
+
+/**
+ * The stream for a position. Direct play reads the file (the player seeks itself); a remux stream
+ * begins at the keyframe before `at`, which the server tells, so positions are offset by it.
+ */
+export async function streamFrom(api: Api, answer: PlaybackAnswer, at: number): Promise<StreamStart> {
+  const base = answer.decision.streamUrl;
+  if (answer.decision.seek !== 'restart' || at <= 0) return { uri: api.url(base), offset: 0 };
+  const r = await api.get<{ start: number; seek: number }>(`/api/media/${answer.file.id}/keyframe?t=${at.toFixed(3)}`);
+  return { uri: api.url(withParam(base, 'start', r.seek.toFixed(3))), offset: r.start };
+}
+
+/** A subtitle's address for a stream that begins `offset` seconds into the file. */
+export function subtitleUrl(api: Api, option: SubtitleOption, offset: number): string {
+  return api.url(offset > 0 ? withParam(option.url, 'offset', offset.toFixed(3)) : option.url);
+}
+
+/**
+ * Which of the player's audio tracks is the file's audio track `index` (ffprobe numbering). The
+ * player lists a file's audio tracks in the same order, so the position among them matches.
+ */
+export function playerAudioPosition(tracks: AudioTrackInfo[], index: number | null): number {
+  if (index === null) return -1;
+  return [...tracks].sort((a, b) => a.index - b.index).findIndex((t) => t.index === index);
+}
+
+/** The subtitle to start with: the account's choice from the server's list, else none. */
+export function pickSubtitle(options: SubtitleOption[], prefs: { subtitleMode?: string; subtitleLanguage?: string | null } | null, audioLanguage: string | null): SubtitleOption | null {
+  if (!prefs || !options.length) return null;
+  const lang = prefs.subtitleLanguage?.toLowerCase().slice(0, 2) ?? null;
+  const matches = (o: SubtitleOption) => Boolean(lang && o.language?.toLowerCase().slice(0, 2) === lang);
+  switch (prefs.subtitleMode) {
+    case 'always':
+      return options.find((o) => matches(o) && !o.forced) ?? options.find(matches) ?? null;
+    case 'foreign':
+      // Only when the audio is in another language than the subtitle language.
+      if (!lang || (audioLanguage && audioLanguage.toLowerCase().slice(0, 2) === lang)) return options.find((o) => o.forced && matches(o)) ?? null;
+      return options.find((o) => matches(o) && !o.forced) ?? null;
+    case 'forced':
+      return options.find((o) => o.forced && matches(o)) ?? options.find((o) => o.forced) ?? null;
+    default:
+      return null;
+  }
+}

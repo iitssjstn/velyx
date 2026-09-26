@@ -42,6 +42,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="movie/[id]" options={{ title: '' }} />
             <Stack.Screen name="show/[id]" options={{ title: '' }} />
+            <Stack.Screen name="play/[kind]/[id]" options={{ headerShown: false, animation: 'fade' }} />
           </Stack>
         </ThemeProvider>
       </SessionProvider>
