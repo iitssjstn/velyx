@@ -24,7 +24,8 @@ export function timestamp(d = new Date()): string {
 
 /**
  * Creates DATA_DIR/backups/velyx-backup-<timestamp>.tar.gz containing a database snapshot,
- * the session secret, avatars and the artwork/subtitle cache. Media files are never included.
+ * the session secret, avatars, subtitles fetched online and the artwork/subtitle cache. Media files
+ * are never included.
  */
 export function createFullBackup(db: DB, dataDir: string, backupDir: string): string {
   fs.mkdirSync(backupDir, { recursive: true });
@@ -33,7 +34,7 @@ export function createFullBackup(db: DB, dataDir: string, backupDir: string): st
     const snapshot = createDatabaseSnapshot(db, staging);
     fs.renameSync(snapshot, path.join(staging, 'velyx.db'));
     const archive = path.join(backupDir, `velyx-backup-${timestamp()}.tar.gz`);
-    const extras = ['.session-secret', 'avatars', 'cache'].filter((p) => fs.existsSync(path.join(dataDir, p)));
+    const extras = ['.session-secret', 'avatars', 'subtitles', 'cache'].filter((p) => fs.existsSync(path.join(dataDir, p)));
     const res = spawnSync('tar', ['-czf', archive, '-C', staging, 'velyx.db', '-C', dataDir, ...extras], { stdio: 'pipe' });
     if (res.status !== 0) throw new Error(`tar failed: ${res.stderr.toString()}`);
     return archive;

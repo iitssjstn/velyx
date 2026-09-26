@@ -5,11 +5,17 @@ import { useT } from '../i18n';
 export function Modal({ title, open, onClose, children, wide = false }: { title: string; open: boolean; onClose: () => void; children: ReactNode; wide?: boolean }) {
   const { t } = useT();
   const ref = useRef<HTMLDivElement>(null);
+  // Callers usually pass a new onClose on every render; the effect below must only run when the
+  // dialog opens or closes, or focus would jump back to the first field while someone types.
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') close.current();
       // Keep keyboard focus inside the dialog: Tab from the last control goes to the first, and back.
       if (e.key === 'Tab' && ref.current) {
         const items = [...ref.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')];
@@ -32,7 +38,7 @@ export function Modal({ title, open, onClose, children, wide = false }: { title:
       window.removeEventListener('keydown', onKey);
       prev?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label={title}>

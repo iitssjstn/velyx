@@ -51,6 +51,35 @@ export function onlineSubtitleOption(row: OnlineRow, user: { id: number; role: '
   };
 }
 
+/**
+ * Deletes fetched subtitle files that no row refers to any more: the rows go with their media file
+ * (removed from the library or replaced), the files would otherwise stay behind for good. Files
+ * younger than a minute are left alone, as one may just have been written for a row about to be saved.
+ */
+export async function pruneOnlineSubtitleFiles(db: AppContext['db'], dir: string, now = Date.now()): Promise<number> {
+  let names: string[];
+  try {
+    names = await fsp.readdir(dir);
+  } catch {
+    return 0;
+  }
+  const kept = new Set(db.select({ fileName: onlineSubtitles.fileName }).from(onlineSubtitles).all().map((r) => r.fileName));
+  let removed = 0;
+  for (const name of names) {
+    if (!name.endsWith('.vtt') || kept.has(name)) continue;
+    const file = path.join(dir, name);
+    try {
+      if (now - (await fsp.stat(file)).mtimeMs < 60_000) continue;
+      await fsp.rm(file, { force: true });
+      removed++;
+    } catch {
+      /* gone already */
+    }
+  }
+  if (removed) log.info(`Removed ${removed} fetched subtitle file(s) whose video is no longer in a library`);
+  return removed;
+}
+
 /** The error a person sees for a provider problem, in their language. */
 function providerError(err: unknown, lang: Language): HttpError {
   if (!(err instanceof OpenSubtitlesError)) return new HttpError(502, 'Searching subtitles online failed.');

@@ -180,6 +180,28 @@ describe('dialogs', () => {
   });
 });
 
+describe('dialogs whose fields live in the page', () => {
+  it('leave focus where the user is typing when the page re-renders', async () => {
+    const { Modal } = await import('./Modal');
+    const { useState } = await import('react');
+    function Form() {
+      const [name, setName] = useState('');
+      const [note, setNote] = useState('');
+      return (
+        <Modal title="Edit" open onClose={() => setName('')}>
+          <input aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+          <input aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} />
+        </Modal>
+      );
+    }
+    render(<Form />);
+    await userEvent.click(screen.getByLabelText('Note'));
+    await userEvent.keyboard('hello');
+    expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe('hello');
+    expect(document.activeElement).toBe(screen.getByLabelText('Note'));
+  });
+});
+
 describe('loading placeholders', () => {
   it('show the shape of the page and say that it is loading', async () => {
     const { DetailSkeleton, ShelfSkeleton } = await import('./States');

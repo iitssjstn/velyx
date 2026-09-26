@@ -20,8 +20,13 @@ import { DetailSkeleton, ErrorState } from '../components/States';
 import { toast } from '../components/Toast';
 import { useT } from '../i18n';
 
+/** Keyed by id, so going straight from one movie to another starts with fresh state. */
 export function MoviePage() {
   const id = Number(useParams().id);
+  return <MovieScreen key={id} id={id} />;
+}
+
+function MovieScreen({ id }: { id: number }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();

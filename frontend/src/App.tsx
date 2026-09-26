@@ -65,8 +65,8 @@ export function App() {
         <Route path="/play/:kind/:id" element={<PlayRoute />} />
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
-          <Route path="/movies" element={<BrowsePage kind="movies" />} />
-          <Route path="/shows" element={<BrowsePage kind="shows" />} />
+          <Route path="/movies" element={<BrowsePage key="movies" kind="movies" />} />
+          <Route path="/shows" element={<BrowsePage key="shows" kind="shows" />} />
           <Route path="/movies/:id" element={<MoviePage />} />
           <Route path="/shows/:id" element={<ShowPage />} />
           <Route path="/collections" element={<CollectionsPage />} />

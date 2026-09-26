@@ -188,8 +188,13 @@ export function CollectionsPage() {
   );
 }
 
+/** Keyed by id, so going straight from one collection to another starts with fresh state. */
 export function CollectionPage() {
   const id = Number(useParams().id);
+  return <CollectionScreen key={id} id={id} />;
+}
+
+function CollectionScreen({ id }: { id: number }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
