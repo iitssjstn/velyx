@@ -47,7 +47,7 @@ const hevcFirefox: PlaybackAnalysis = {
 describe('modeLabel', () => {
   it('describes the playback mode', () => {
     expect(modeLabel(base)).toBe('Direct Play');
-    expect(modeLabel(remux)).toBe('Remux • Audio converted to AAC');
+    expect(modeLabel(remux)).toBe('Remux · Audio → AAC');
     expect(modeLabel({ ...remux, audio: { ...remux.audio, action: 'copy', target: null } })).toBe('Remux');
   });
 });
@@ -55,7 +55,7 @@ describe('modeLabel', () => {
 describe('PlaybackBadge', () => {
   it('opens a details panel with a status per stream', async () => {
     render(<PlaybackBadge analysis={remux} />);
-    await userEvent.click(screen.getByRole('button', { name: /Remux • Audio converted to AAC/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Remux · Audio → AAC/ }));
     const panel = screen.getByRole('dialog', { name: 'Playback details' });
     expect(panel.textContent).toContain('Copied without re-encoding');
     expect(panel.textContent).toContain('DTS 5.1');

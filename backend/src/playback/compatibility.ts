@@ -47,6 +47,11 @@ const CODEC_NAMES: Record<string, string> = {
   pcm_s24le: 'PCM',
   hdmv_pgs_subtitle: 'PGS',
   dvd_subtitle: 'VobSub',
+  subrip: 'SRT',
+  ass: 'ASS',
+  ssa: 'SSA',
+  webvtt: 'WebVTT',
+  mov_text: 'MP4 text',
 };
 
 export function codecLabel(codec: string | null | undefined): string {
@@ -138,6 +143,8 @@ export interface PlaybackAnalysis {
   components: Record<'video' | 'audio' | 'container', { status: ComponentStatus; note: string }>;
   /** A few plain sentences that explain the decision. */
   summary: string[];
+  /** Embedded subtitle formats: text ones can be shown, image ones (PGS/VobSub) cannot. */
+  subtitles: { text: string[]; image: string[] };
 }
 
 /** ok = fine, warn = converted or repackaged, fail = cannot play here, unknown = cannot be confirmed. */
@@ -266,6 +273,10 @@ export function analyzePlayback(
     confidence,
     components,
     summary,
+    subtitles: {
+      text: [...new Set((file.subtitleTracks ?? []).filter((t) => t.textBased).map((t) => codecLabel(t.codec)))],
+      image: [...new Set(imageSubs.map((t) => codecLabel(t.codec)))],
+    },
   };
 }
 

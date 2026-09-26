@@ -361,6 +361,8 @@ export interface PlaybackAnalysis {
   confidence: 'reported' | 'profile' | 'assumed';
   components: Record<'video' | 'audio' | 'container', { status: ComponentStatus; note: string }>;
   summary: string[];
+  /** Embedded subtitle formats: text ones can be shown, image ones (PGS/VobSub) cannot. */
+  subtitles?: { text: string[]; image: string[] };
 }
 
 export type ComponentStatus = 'ok' | 'warn' | 'fail' | 'unknown';

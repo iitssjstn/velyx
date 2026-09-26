@@ -36,7 +36,8 @@ describe('ContinueCard', () => {
         <ContinueCard item={item} onDismiss={onDismiss} />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('link', { name: 'Resume Severance' }).getAttribute('href')).toBe('/play/episode/12');
+    // Resume goes straight to the saved position (no "resume or start over?" prompt).
+    expect(screen.getByRole('link', { name: 'Resume Severance' }).getAttribute('href')).toBe('/play/episode/12?t=600');
     await userEvent.click(screen.getByRole('button', { name: 'Remove Severance from Continue Watching' }));
     expect(onDismiss).toHaveBeenCalledWith(item);
   });

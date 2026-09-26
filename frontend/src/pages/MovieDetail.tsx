@@ -1,3 +1,4 @@
+import { playHref } from '../lib/player';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -78,7 +79,7 @@ export function MoviePage() {
         <div className="mt-6 flex flex-wrap items-center gap-3">
           {file ? (
             <>
-              <Link to={`/play/movie/${m.id}${m.files.length > 1 ? `?file=${file.id}` : ''}`} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 font-semibold text-bg hover:bg-white">
+              <Link to={playHref('movie', m.id, resume?.positionSec, m.files.length > 1 ? file.id : null)} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 font-semibold text-bg hover:bg-white">
                 <Play className="size-5 fill-current" />
                 {resume ? `Resume from ${formatClock(resume.positionSec)}` : 'Play'}
               </Link>

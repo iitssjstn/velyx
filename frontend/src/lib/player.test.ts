@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickSubtitle, preferredAudioIndex, startPosition, withParam } from './player';
+import { pickSubtitle, playHref, preferredAudioIndex, startPosition, withParam } from './player';
 import { detectCapabilities } from './codecs';
 import { normalizeLanguage, sameLanguage } from './prefs';
 import type { SubtitleOption } from './types';
@@ -102,5 +102,14 @@ describe('remembered subtitle choice', () => {
     expect(normalizeLanguage('en-US')).toBe('en');
     expect(normalizeLanguage('hun')).toBe('hun');
     expect(normalizeLanguage(null)).toBe('');
+  });
+});
+
+describe('playHref', () => {
+  it('resumes directly when a position is given', () => {
+    expect(playHref('movie', 5)).toBe('/play/movie/5');
+    expect(playHref('movie', 5, 0)).toBe('/play/movie/5');
+    expect(playHref('episode', 12, 600.7)).toBe('/play/episode/12?t=600');
+    expect(playHref('movie', 5, 30, 9)).toBe('/play/movie/5?t=30&file=9');
   });
 });

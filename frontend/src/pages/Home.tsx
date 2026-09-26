@@ -1,3 +1,4 @@
+import { playHref } from '../lib/player';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Clapperboard, Info, Play } from 'lucide-react';
@@ -19,7 +20,7 @@ function Hero({ data }: { data: HomeData }) {
   const title = cw ? cw.title : featured!.title;
   const backdrop = cw ? cw.imagePath : featured!.backdropPath;
   const overview = cw ? cw.subtitle : featured!.overview;
-  const playHref = cw ? `/play/${cw.type}/${cw.id}` : featured!.type === 'movie' ? `/play/movie/${featured!.id}` : `/shows/${featured!.id}`;
+  const playLink = cw ? playHref(cw.type, cw.id, cw.progress?.positionSec) : featured!.type === 'movie' ? `/play/movie/${featured!.id}` : `/shows/${featured!.id}`;
   const infoHref = cw ? (cw.type === 'movie' ? `/movies/${cw.id}` : `/shows/${cw.showId}`) : featured!.type === 'movie' ? `/movies/${featured!.id}` : `/shows/${featured!.id}`;
   const src = imageUrl(backdrop, 'w1280');
   const fraction = cw ? progressFraction(cw.progress) : 0;
@@ -47,7 +48,7 @@ function Hero({ data }: { data: HomeData }) {
           </div>
         )}
         <div className="mt-6 flex gap-3">
-          <Link to={playHref} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 font-semibold text-bg transition hover:bg-white">
+          <Link to={playLink} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 font-semibold text-bg transition hover:bg-white">
             <Play className="size-5 fill-current" />
             {cw?.progress && fraction > 0 ? 'Resume' : featuredShow ? 'Episodes' : 'Play'}
           </Link>

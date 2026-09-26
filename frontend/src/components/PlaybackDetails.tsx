@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, CircleHelp, Info, TriangleAlert, X } from 'lucide-react';
+import { Check, CircleHelp, RefreshCw, TriangleAlert, X } from 'lucide-react';
 import { channelLabel, resolutionLabel } from '../lib/format';
 import type { ComponentStatus, PlaybackAnalysis } from '../lib/types';
 
-/** Short label for the player: "Direct Play", "Remux • Audio converted to AAC", … */
+/** Short label for the player: "Direct Play", "Remux", "Remux · Audio → AAC". */
 export function modeLabel(a: PlaybackAnalysis): string {
   if (a.mode === 'direct') return 'Direct Play';
   if (a.mode === 'unsupported') return 'Not supported';
-  return a.audio.action === 'convert' ? 'Remux • Audio converted to AAC' : 'Remux';
+  return a.audio.action === 'convert' ? 'Remux · Audio → AAC' : 'Remux';
 }
+
+const MODE_ICON = { direct: Check, remux: RefreshCw, unsupported: TriangleAlert } as const;
 
 function videoLine(a: PlaybackAnalysis): string {
   const v = a.video;
@@ -79,6 +81,14 @@ export function PlaybackSummary({ analysis: a }: { analysis: PlaybackAnalysis })
             <dd>No</dd>
           </>
         )}
+        {a.subtitles && (a.subtitles.text.length > 0 || a.subtitles.image.length > 0) && (
+          <>
+            <dt>Subtitles</dt>
+            <dd>
+              {[a.subtitles.text.length ? `${a.subtitles.text.join(', ')} (shown)` : null, a.subtitles.image.length ? `${a.subtitles.image.join(', ')} (image-based, not shown)` : null].filter(Boolean).join(' · ')}
+            </dd>
+          </>
+        )}
         {(a.device ?? a.browser) && (
           <>
             <dt>Device</dt>
@@ -101,6 +111,7 @@ export function PlaybackSummary({ analysis: a }: { analysis: PlaybackAnalysis })
 export function PlaybackBadge({ analysis }: { analysis: PlaybackAnalysis }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const ModeIcon = MODE_ICON[analysis.mode];
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
@@ -113,9 +124,10 @@ export function PlaybackBadge({ analysis }: { analysis: PlaybackAnalysis }) {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="inline-flex max-w-[60vw] items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs text-ink/80 hover:bg-white/15 hover:text-ink"
+        title="Playback details"
+        className="inline-flex max-w-[60vw] items-center gap-1.5 rounded-full bg-black/30 px-2.5 py-1 text-xs text-ink/70 ring-1 ring-white/10 backdrop-blur hover:bg-black/50 hover:text-ink"
       >
-        <Info className="size-3.5 shrink-0" />
+        <ModeIcon className={`size-3.5 shrink-0 ${analysis.mode === 'unsupported' ? 'text-amber' : ''}`} aria-hidden />
         <span className="truncate">{modeLabel(analysis)}</span>
       </button>
       {open && (

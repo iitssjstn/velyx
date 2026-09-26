@@ -1,23 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
   AudioLines,
   Captions,
   Check,
-  Gauge,
+  Keyboard,
   Maximize,
+  Maximize2,
   Minimize,
+  PictureInPicture2,
   Pause,
   Play,
   RotateCcw,
   RotateCw,
+  Settings2,
   SkipForward,
   TriangleAlert,
   Volume1,
   Volume2,
   VolumeX,
+  X,
 } from 'lucide-react';
 import { api, ApiError, errorMessage } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
@@ -33,6 +37,20 @@ const SAVE_INTERVAL_MS = 10_000;
 const HIDE_CONTROLS_MS = 3000;
 const STALL_HINT_MS = 20_000;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const SHORTCUTS: Array<[string, string]> = [
+  ['Space / K', 'Play / pause'],
+  ['← / J', 'Back 10 seconds'],
+  ['→ / L', 'Forward 10 seconds'],
+  ['↑ / ↓', 'Volume up / down'],
+  ['M', 'Mute'],
+  ['F', 'Full screen'],
+  ['I', 'Minimize player'],
+  ['C', 'Next subtitle'],
+  ['N', 'Next episode'],
+  ['0–9', 'Jump to 0–90 %'],
+  ['?', 'Show these shortcuts'],
+  ['Esc', 'Close menu / leave player'],
+];
 /** Only Safari exposes HTMLMediaElement.audioTracks by default; elsewhere the server switches tracks. */
 const NATIVE_AUDIO_SWITCHING = typeof HTMLMediaElement !== 'undefined' && 'audioTracks' in HTMLMediaElement.prototype;
 
@@ -93,11 +111,26 @@ function saveProgress(item: LoadedItem, position: number, duration: number, keep
   return fetch('/api/progress', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body, keepalive }).catch(() => undefined);
 }
 
-export default function PlayerPage() {
-  const { kind = 'movie', id: idParam } = useParams();
-  const id = Number(idParam);
-  const [params] = useSearchParams();
-  const navigate = useNavigate();
+export interface PlayerProps {
+  kind: 'movie' | 'episode';
+  id: number;
+  /** Query string the item was started with (?t=, ?file=). */
+  search: string;
+  /** Shown as a small floating player while the user browses Velyx. */
+  mini: boolean;
+  onMinimize: (backHref: string | undefined) => void;
+  onRestore: () => void;
+  onClose: (backHref: string | undefined) => void;
+  /** Plays another item in this same player (next episode). */
+  onPlayItem: (kind: 'movie' | 'episode', id: number) => void;
+}
+
+/**
+ * The video player. One instance (and one <video> element) is kept alive by PlayerHost while an
+ * item plays; minimizing only changes the layout, so the stream, position and tracks carry on.
+ */
+export default function Player({ kind, id, search, mini, onMinimize, onRestore, onClose, onPlayItem }: PlayerProps) {
+  const params = useMemo(() => new URLSearchParams(search), [search]);
   const qc = useQueryClient();
   const prefs = usePrefs();
 
@@ -142,7 +175,7 @@ export default function PlayerPage() {
   const [muted, setMuted] = useState(prefs.muted);
   const [fullscreen, setFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [menu, setMenu] = useState<null | 'subs' | 'audio' | 'speed'>(null);
+  const [menu, setMenu] = useState<null | 'subs' | 'audio' | 'settings'>(null);
   const [subKey, setSubKey] = useState<string | null>(null);
   const [speed, setSpeed] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -157,8 +190,11 @@ export default function PlayerPage() {
   const [stalled, setStalled] = useState(false);
   const [ended, setEnded] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  // The viewer closed the "Up next" card for this episode.
+  const [upNextDismissed, setUpNextDismissed] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [audioTracks, setAudioTracks] = useState<BrowserAudioTrack[]>([]);
-  const [seekHover, setSeekHover] = useState<{ x: number; t: number } | null>(null);
+  const [seekHover, setSeekHover] = useState<{ x: number; w: number; t: number } | null>(null);
   // The stream to load: `base` is the decision's URL. Live (restart) streams are requested with
   // &start=`seek` and really begin at `offset` seconds into the file (the keyframe FFmpeg lands on).
   const [stream, setStream] = useState<{ base: string; offset: number; seek: number } | null>(null);
@@ -180,7 +216,12 @@ export default function PlayerPage() {
   const offset = live && current ? current.offset : 0;
   const subs = useMemo(() => info?.subtitles ?? [], [info]);
   const next = item.data?.next ?? null;
-  const start = useMemo(() => startPosition(params.get('t'), item.data?.progress), [params, item.data?.progress]);
+  // Where to start: ?t= when the viewer already chose (Resume / From start buttons), otherwise the
+  // saved position — and then the viewer is asked first (resume or start over).
+  const [startChoice, setStartChoice] = useState<number | null>(null);
+  const suggestedStart = useMemo(() => startPosition(params.get('t'), item.data?.progress), [params, item.data?.progress]);
+  const askResume = params.get('t') === null && suggestedStart > 0 && startChoice === null && !startedRef.current;
+  const start = startChoice ?? suggestedStart;
   const totalDuration = live ? (info?.decision.durationSec ?? file?.durationSec ?? 0) : duration;
   const streamSrc = current ? (live && current.seek > 0 ? withParam(current.base, 'start', current.seek.toFixed(3)) : current.base) : null;
 
@@ -190,7 +231,7 @@ export default function PlayerPage() {
   // ---------------------------------------------------------------- stream (re)initialisation
   // Decide where the stream starts whenever a new playback decision arrives (first load or audio switch).
   useEffect(() => {
-    if (!info) return;
+    if (!info || askResume) return;
     const target = resumeAtRef.current ?? (startedRef.current ? 0 : start);
     resumeAtRef.current = null;
     pendingSeekRef.current = target > 0 ? target : null;
@@ -213,7 +254,7 @@ export default function PlayerPage() {
     };
     // `stream` is read only to detect "unchanged"; re-running on its changes would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [info, start]);
+  }, [info, start, askResume]);
 
   /** Requests a new live stream starting at the keyframe before `target` (debounced while scrubbing). */
   const restartAt = useCallback(
@@ -358,15 +399,19 @@ export default function PlayerPage() {
   const goNext = useCallback(() => {
     if (!next) return;
     setCountdown(null);
-    navigate(`/play/episode/${next.id}`, { replace: true });
-  }, [navigate, next]);
+    onPlayItem('episode', next.id);
+  }, [onPlayItem, next]);
 
   const exit = useCallback(() => {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
-    if (window.history.length > 1) navigate(-1);
-    else if (item.data) navigate(item.data.backHref);
-    else navigate('/');
-  }, [navigate, item.data]);
+    onClose(item.data?.backHref);
+  }, [onClose, item.data]);
+
+  const minimize = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    setMenu(null);
+    onMinimize(item.data?.backHref);
+  }, [onMinimize, item.data]);
 
   // ---------------------------------------------------------------- reset when the item changes (auto-next)
   useEffect(() => {
@@ -380,6 +425,9 @@ export default function PlayerPage() {
     setActiveTrack(null);
     setEnded(false);
     setCountdown(null);
+    setUpNextDismissed(false);
+    setStartChoice(null);
+    setShowHelp(false);
     setError(null);
     setWarningDismissed(false);
     setTryAnyway(false);
@@ -464,7 +512,7 @@ export default function PlayerPage() {
     const v = videoRef.current;
     const total = totalDuration || v?.duration || 0;
     if (v && item.data) void saveProgress(item.data, total, total)?.then(() => qc.invalidateQueries({ queryKey: ['home'] }));
-    if (next && getPrefs().autoplayNext) setCountdown(getPrefs().autoplayCountdown);
+    if (next && getPrefs().autoplayNext && !upNextDismissed) setCountdown((c) => c ?? getPrefs().autoplayCountdown);
   };
 
   const onError = async () => {
@@ -517,6 +565,18 @@ export default function PlayerPage() {
     return () => clearTimeout(t);
   }, [buffering, error, ended, streamSrc]);
 
+  // ---------------------------------------------------------------- "Up next" near the end
+  // Shown in the last seconds of an episode (long enough for the autoplay countdown), not earlier.
+  const upNextAt = next && totalDuration > 0 ? Math.max(0, totalDuration - Math.max(10, prefs.autoplayCountdown + 2)) : null;
+  const nearEnd = upNextAt !== null && time >= upNextAt;
+  const showUpNext = Boolean(next) && !mini && !error && (ended || (nearEnd && !upNextDismissed));
+  useEffect(() => {
+    if (ended) return;
+    if (nearEnd && !upNextDismissed && next && getPrefs().autoplayNext) setCountdown((c) => c ?? getPrefs().autoplayCountdown);
+    // Seeking back out of the last seconds cancels a running countdown.
+    if (!nearEnd) setCountdown(null);
+  }, [nearEnd, upNextDismissed, next, ended]);
+
   // ---------------------------------------------------------------- auto-next countdown
   useEffect(() => {
     if (countdown === null) return;
@@ -556,6 +616,8 @@ export default function PlayerPage() {
 
   // ---------------------------------------------------------------- keyboard
   useEffect(() => {
+    // While minimized the keyboard belongs to the page the user is browsing.
+    if (mini) return;
     const onKey = (e: KeyboardEvent) => {
       if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
       const v = videoRef.current;
@@ -594,6 +656,13 @@ export default function PlayerPage() {
         case 'F':
           toggleFullscreen();
           break;
+        case 'i':
+        case 'I':
+          minimize();
+          break;
+        case '?':
+          setShowHelp((h) => !h);
+          break;
         case 'c':
         case 'C': {
           if (!subs.length) break;
@@ -606,7 +675,8 @@ export default function PlayerPage() {
           if (next) goNext();
           break;
         case 'Escape':
-          if (menu) setMenu(null);
+          if (showHelp) setShowHelp(false);
+          else if (menu) setMenu(null);
           else if (!document.fullscreenElement) exit();
           break;
         default:
@@ -615,20 +685,28 @@ export default function PlayerPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [poke, togglePlay, seekBy, seekTo, applyVolume, toggleFullscreen, chooseSubtitle, goNext, exit, subs, subKey, next, menu, volume, muted, totalDuration]);
+  }, [mini, poke, togglePlay, seekBy, seekTo, applyVolume, toggleFullscreen, minimize, chooseSubtitle, goNext, exit, subs, subKey, next, menu, showHelp, volume, muted, totalDuration]);
 
 
   // ---------------------------------------------------------------- render
   const loadError = item.error ?? playback.error;
   if (loadError || (item.data && !file)) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-black px-6 text-center">
+      <div className={mini ? MINI_CLASSES + ' items-center gap-3 px-3 text-sm sm:flex sm:aspect-auto sm:h-auto sm:p-4' : 'fixed inset-0 z-50 grid place-items-center bg-black px-6 text-center'}>
+        {mini ? (
+          <>
+            <TriangleAlert className="size-5 shrink-0 text-amber" />
+            <p className="min-w-0 flex-1 truncate">{loadError ? errorMessage(loadError) : 'There is no media file for this item.'}</p>
+            <button type="button" onClick={exit} className="grid size-9 place-items-center rounded-full hover:bg-white/10" aria-label="Close player"><X className="size-4" /></button>
+          </>
+        ) : (
         <div>
           <TriangleAlert className="mx-auto size-10 text-amber" />
           <h1 className="mt-4 font-display text-2xl font-semibold">Cannot play this item</h1>
           <p className="mt-2 text-muted">{loadError ? errorMessage(loadError) : 'There is no media file for this item. Try rescanning the library.'}</p>
           <button type="button" onClick={exit} className="mt-6 h-10 rounded-lg bg-raised px-4">Go back</button>
         </div>
+        )}
       </div>
     );
   }
@@ -645,11 +723,13 @@ export default function PlayerPage() {
   return (
     <div
       ref={wrapRef}
-      className={`fixed inset-0 z-50 bg-black text-ink select-none ${showUi ? '' : 'cursor-none'}`}
-      onMouseMove={poke}
-      onTouchStart={poke}
+      className={mini ? `${MINI_CLASSES} select-none` : `fixed inset-0 z-50 bg-black text-ink select-none ${showUi ? '' : 'cursor-none'}`}
+      onMouseMove={mini ? undefined : poke}
+      onTouchStart={mini ? undefined : poke}
+      role={mini ? 'region' : undefined}
+      aria-label={mini ? 'Mini player' : undefined}
     >
-      {showUnavailable && info && (
+      {!mini && showUnavailable && info && (
         <PlaybackUnavailable
           analysis={
             decodeFailed && info.analysis.mode !== 'unsupported'
@@ -672,7 +752,7 @@ export default function PlayerPage() {
           key={`${streamSrc}#${reloadKey}`}
           ref={videoRef}
           src={streamSrc}
-          className="h-full w-full"
+          className={mini ? 'h-full w-28 shrink-0 cursor-pointer bg-black object-cover sm:w-full sm:object-contain' : 'h-full w-full'}
           preload="metadata"
           playsInline
           poster={imageUrl(item.data?.backdrop, 'w1280') ?? undefined}
@@ -696,10 +776,11 @@ export default function PlayerPage() {
           onEnded={onEnded}
           onError={onError}
           onClick={() => {
-            if (menu) setMenu(null);
+            if (mini) onRestore();
+            else if (menu) setMenu(null);
             else togglePlay();
           }}
-          onDoubleClick={toggleFullscreen}
+          onDoubleClick={mini ? undefined : toggleFullscreen}
         >
           {subs.map((s) => (
             // Live streams start at `offset`, so their cues are shifted by the server to match.
@@ -708,9 +789,10 @@ export default function PlayerPage() {
         </video>
       )}
 
-      <SubtitleOverlay video={activeTrack?.video ?? null} track={activeTrack?.track ?? null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />
+      {/* The chosen subtitle stays selected while minimized; it is only not drawn on the small video. */}
+      {!mini && <SubtitleOverlay video={activeTrack?.video ?? null} track={activeTrack?.track ?? null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />}
 
-      {(buffering || !streamSrc) && !error && !showUnavailable && (
+      {!mini && !askResume && (buffering || !streamSrc) && !error && !showUnavailable && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <div className="flex flex-col items-center gap-4">
             <Spinner className="size-10" />
@@ -726,7 +808,7 @@ export default function PlayerPage() {
         </div>
       )}
 
-      {error && (
+      {!mini && error && (
         <div className="absolute inset-0 grid place-items-center bg-black/85 px-6 text-center">
           <div className="max-w-lg">
             <TriangleAlert className="mx-auto size-10 text-amber" />
@@ -747,7 +829,7 @@ export default function PlayerPage() {
         </div>
       )}
 
-      {showWarning && (
+      {!mini && showWarning && (
         <div className="absolute top-20 left-1/2 z-10 flex w-[min(40rem,calc(100%-2rem))] -translate-x-1/2 items-start gap-3 rounded-xl border border-amber/30 bg-black/80 px-4 py-3 text-sm backdrop-blur">
           <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber" />
           <p className="flex-1 text-ink/85">
@@ -758,25 +840,37 @@ export default function PlayerPage() {
       )}
 
       {/* Auto-next overlay */}
-      {ended && next && !error && (
-        <div className="absolute right-6 bottom-28 z-20 w-80 overflow-hidden rounded-2xl border border-line bg-surface/95 shadow-2xl backdrop-blur">
+      {showUpNext && next && (
+        <div className="absolute right-4 bottom-28 z-20 w-72 overflow-hidden rounded-2xl border border-line bg-surface/95 shadow-2xl backdrop-blur sm:right-6 sm:w-80" role="dialog" aria-label="Next episode">
           {next.stillPath && <img src={imageUrl(next.stillPath, 'w300') ?? ''} alt="" className="aspect-video w-full object-cover" />}
           <div className="p-4">
-            <p className="text-xs text-muted">Up next {episodeCode(next.seasonNumber, next.episodeNumber)}</p>
+            <p className="text-xs text-muted">Next episode · {episodeCode(next.seasonNumber, next.episodeNumber)}</p>
             <p className="truncate font-medium">{next.title ?? `Episode ${next.episodeNumber}`}</p>
+            {countdown !== null && <p className="mt-1 text-sm text-ink/80">Playing in {countdown} {countdown === 1 ? 'second' : 'seconds'}</p>}
             <div className="mt-3 flex gap-2">
               <button type="button" onClick={goNext} className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-ink font-semibold text-bg">
-                <Play className="size-4 fill-current" />
-                {countdown !== null ? `Play in ${countdown}` : 'Play now'}
+                <Play className="size-4 fill-current" /> Play now
               </button>
-              {countdown !== null && (
+              {!ended && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCountdown(null);
+                    setUpNextDismissed(true);
+                  }}
+                  className="h-9 rounded-lg bg-raised px-3 text-sm"
+                >
+                  Cancel
+                </button>
+              )}
+              {ended && countdown !== null && (
                 <button type="button" onClick={() => setCountdown(null)} className="h-9 rounded-lg bg-raised px-3 text-sm">Cancel</button>
               )}
             </div>
           </div>
         </div>
       )}
-      {ended && !next && !error && (
+      {!mini && ended && !next && !error && (
         <div className="absolute inset-0 z-10 grid place-items-center bg-black/60">
           <div className="text-center">
             <p className="font-display text-2xl font-semibold">Finished</p>
@@ -790,8 +884,39 @@ export default function PlayerPage() {
         </div>
       )}
 
+      {!mini && askResume && item.data && (
+        <div className="absolute inset-0 z-20 grid place-items-center bg-black/60 px-6" role="dialog" aria-label="Resume playback">
+          <div className="w-full max-w-xs rounded-2xl border border-line bg-surface/95 p-5 text-center shadow-2xl backdrop-blur">
+            <p className="font-display text-lg font-semibold">Resume from {formatClock(suggestedStart)}</p>
+            <div className="mt-4 flex gap-2">
+              <button type="button" autoFocus onClick={() => setStartChoice(suggestedStart)} className="h-10 flex-1 rounded-lg bg-accent font-semibold text-accent-ink">Resume</button>
+              <button type="button" onClick={() => setStartChoice(0)} className="h-10 flex-1 rounded-lg bg-raised">Start over</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!mini && showHelp && (
+        <div className="absolute inset-0 z-30 grid place-items-center bg-black/60 px-6" role="dialog" aria-label="Keyboard shortcuts" onClick={() => setShowHelp(false)}>
+          <div className="w-full max-w-sm rounded-2xl border border-line bg-surface/95 p-5 shadow-2xl backdrop-blur" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="font-display text-lg font-semibold">Keyboard shortcuts</p>
+              <button type="button" onClick={() => setShowHelp(false)} className="grid size-8 place-items-center rounded-full hover:bg-raised" aria-label="Close"><X className="size-4" /></button>
+            </div>
+            <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+              {SHORTCUTS.map(([keys, action]) => (
+                <div key={keys} className="contents">
+                  <dt><kbd className="rounded bg-raised px-1.5 py-0.5 font-mono text-xs">{keys}</kbd></dt>
+                  <dd className="text-ink/85">{action}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </div>
+      )}
+
       {/* Top bar */}
-      <div className={`absolute inset-x-0 top-0 flex items-center gap-3 bg-gradient-to-b from-black/80 to-transparent px-4 pt-4 pb-12 transition-opacity duration-300 sm:px-6 ${showUi ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+      <div className={`absolute inset-x-0 top-0 items-center gap-3 ${mini ? 'hidden' : 'flex'} bg-gradient-to-b from-black/80 to-transparent px-4 pt-4 pb-12 transition-opacity duration-300 sm:px-6 ${showUi ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
         <button type="button" onClick={exit} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label="Back">
           <ArrowLeft className="size-5" />
         </button>
@@ -804,7 +929,7 @@ export default function PlayerPage() {
 
       {/* Bottom controls */}
       <div
-        className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-16 pb-4 transition-opacity duration-300 sm:px-6 ${showUi ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`absolute inset-x-0 bottom-0 ${mini ? 'hidden' : ''} bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-16 pb-4 transition-opacity duration-300 sm:px-6 ${showUi ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Seek bar */}
@@ -813,7 +938,7 @@ export default function PlayerPage() {
           onMouseMove={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
             const x = Math.min(Math.max(0, e.clientX - r.left), r.width);
-            setSeekHover({ x, t: totalDuration ? (x / r.width) * totalDuration : 0 });
+            setSeekHover({ x, w: r.width, t: totalDuration ? (x / r.width) * totalDuration : 0 });
           }}
           onMouseLeave={() => setSeekHover(null)}
         >
@@ -825,7 +950,7 @@ export default function PlayerPage() {
             <div className="absolute inset-y-0 left-0 bg-accent" style={{ width: `${totalDuration ? Math.min(100, (time / totalDuration) * 100) : 0}%` }} />
           </div>
           {seekHover && totalDuration > 0 && (
-            <span className="pointer-events-none absolute -top-7 -translate-x-1/2 rounded bg-black/80 px-1.5 py-0.5 text-xs tabular-nums" style={{ left: seekHover.x }}>
+            <span className="pointer-events-none absolute -top-7 -translate-x-1/2 rounded bg-black/80 px-1.5 py-0.5 text-xs tabular-nums" style={{ left: Math.min(Math.max(seekHover.x, 24), seekHover.w - 24) }}>
               {formatClock(seekHover.t)}
             </span>
           )}
@@ -889,8 +1014,11 @@ export default function PlayerPage() {
                 <AudioLines className="size-5" />
               </button>
             )}
-            <button type="button" onClick={() => setMenu(menu === 'speed' ? null : 'speed')} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label="Playback speed">
-              <Gauge className="size-5" />
+            <button type="button" onClick={() => setMenu(menu === 'settings' ? null : 'settings')} className={`grid size-10 place-items-center rounded-full hover:bg-white/10 ${speed !== 1 ? 'text-accent' : ''}`} aria-label="Playback settings" title="Playback settings">
+              <Settings2 className="size-5" />
+            </button>
+            <button type="button" onClick={minimize} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label="Minimize player" title="Keep watching while you browse (I)">
+              <PictureInPicture2 className="size-5" />
             </button>
             <button type="button" onClick={toggleFullscreen} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label={fullscreen ? 'Exit full screen' : 'Full screen'} title="Full screen (F)">
               {fullscreen ? <Minimize className="size-5" /> : <Maximize className="size-5" />}
@@ -910,7 +1038,7 @@ export default function PlayerPage() {
                     ))}
                     {subs.length === 0 && <p className="px-4 py-2 text-sm text-muted">No text subtitles found for this file.</p>}
                     {(file?.embeddedSubtitles.some((s) => !s.textBased) ?? false) && (
-                      <p className="px-4 pt-2 text-xs text-faint">Image-based subtitles (PGS/VobSub) need transcoding and are not available yet.</p>
+                      <p className="px-4 pt-2 text-xs text-faint">Image-based subtitles (PGS/VobSub) cannot be shown in the browser.</p>
                     )}
                     <div className="mt-2 space-y-3 border-t border-line/60 px-4 pt-3 pb-1">
                       <Segmented label="Size" value={prefs.subtitleSize} onChange={(v) => setPrefs({ subtitleSize: v })} options={[['small', 'S'], ['medium', 'M'], ['large', 'L'], ['xlarge', 'XL']]} />
@@ -945,8 +1073,8 @@ export default function PlayerPage() {
                         ))
                       : fileAudio.map((a) => (
                           <MenuItem key={a.index} active={info?.decision.audioIndex === a.index} onClick={() => { selectServerAudio(a.index); setMenu(null); }}>
-                            {a.title || a.languageName || 'Unknown'}
-                            <span className="ml-2 text-xs text-faint">{[codecName(a.codec), channelLabel(a.channels)].filter(Boolean).join(' ')}</span>
+                            {[a.languageName || a.title || 'Unknown', channelLabel(a.channels)].filter(Boolean).join(' ')}
+                            <span className="ml-2 text-xs text-faint">{[a.title && a.title !== a.languageName ? a.title : null, codecName(a.codec)].filter(Boolean).join(' · ')}</span>
                           </MenuItem>
                         ))}
                     <div className="mt-2 space-y-3 border-t border-line/60 px-4 pt-3 pb-1">
@@ -957,28 +1085,93 @@ export default function PlayerPage() {
                     {info?.decision.note && <p className="px-4 pt-2 text-xs text-faint">{info.decision.note}</p>}
                   </>
                 )}
-                {menu === 'speed' && (
+                {menu === 'settings' && (
                   <>
-                    <p className="px-4 pt-1 pb-2 text-xs text-faint">Speed</p>
-                    {SPEEDS.map((s) => (
-                      <MenuItem
-                        key={s}
-                        active={speed === s}
-                        onClick={() => {
-                          setSpeed(s);
-                          if (videoRef.current) videoRef.current.playbackRate = s;
-                          setMenu(null);
+                    <p className="px-4 pt-1 pb-2 text-xs text-faint">Playback settings</p>
+                    <div className="space-y-3 px-4 pb-2">
+                      <Segmented
+                        label="Speed"
+                        value={String(speed)}
+                        onChange={(v) => {
+                          const n = Number(v);
+                          setSpeed(n);
+                          if (videoRef.current) videoRef.current.playbackRate = n;
                         }}
-                      >
-                        {s === 1 ? 'Normal' : `${s}×`}
-                      </MenuItem>
-                    ))}
+                        options={SPEEDS.map((n) => [String(n), n === 1 ? '1×' : `${n}×`] as [string, string])}
+                      />
+                      <Toggle label="Autoplay next episode" checked={prefs.autoplayNext} onChange={(v) => setPrefs({ autoplayNext: v })} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenu(null);
+                        setShowHelp(true);
+                      }}
+                      className="flex w-full items-center gap-3 border-t border-line/60 px-4 pt-3 pb-1 text-left text-sm hover:text-accent"
+                    >
+                      <Keyboard className="size-4 shrink-0" /> Keyboard shortcuts
+                      <kbd className="ml-auto rounded bg-raised px-1.5 font-mono text-xs text-muted">?</kbd>
+                    </button>
                   </>
                 )}
               </div>
             )}
           </div>
         </div>
+      </div>
+      {mini && (
+        <MiniBar
+          title={item.data?.title ?? ''}
+          subtitle={item.data?.subtitle ?? null}
+          playing={playing}
+          loading={buffering || !streamSrc}
+          problem={error ?? (showUnavailable ? 'Cannot play here' : null)}
+          progress={totalDuration ? Math.min(1, time / totalDuration) : 0}
+          onTogglePlay={togglePlay}
+          onRestore={onRestore}
+          onClose={exit}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Floating player: bottom-right card on larger screens, a compact bar along the bottom edge on
+ * phones. The <video> stays the same element as in the full player.
+ */
+const MINI_CLASSES =
+  'fixed z-50 flex h-16 items-center overflow-hidden rounded-xl bg-black text-ink shadow-2xl ring-1 ring-white/10 inset-x-2 bottom-2 sm:inset-x-auto sm:right-4 sm:bottom-4 sm:block sm:h-auto sm:w-[22rem] sm:aspect-video';
+
+function MiniBar({ title, subtitle, playing, loading, problem, progress, onTogglePlay, onRestore, onClose }: {
+  title: string;
+  subtitle: string | null;
+  playing: boolean;
+  loading: boolean;
+  problem: string | null;
+  progress: number;
+  onTogglePlay: () => void;
+  onRestore: () => void;
+  onClose: () => void;
+}) {
+  const button = 'grid size-9 shrink-0 place-items-center rounded-full hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none';
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-1 pr-1 pl-3 sm:absolute sm:inset-x-0 sm:bottom-0 sm:bg-gradient-to-t sm:from-black/90 sm:via-black/60 sm:to-transparent sm:px-2 sm:pt-8 sm:pb-2">
+      <button type="button" onClick={onRestore} className="min-w-0 flex-1 text-left" title="Open the full player">
+        <span className="block truncate text-sm font-medium">{title}</span>
+        <span className={`block truncate text-xs ${problem ? 'text-amber' : 'text-ink/70'}`}>{problem ?? subtitle ?? (loading ? 'Loading…' : '\u00a0')}</span>
+      </button>
+      <button type="button" onClick={onTogglePlay} className={button} aria-label={playing ? 'Pause' : 'Play'}>
+        {loading && !problem ? <Spinner className="size-4" /> : playing ? <Pause className="size-4 fill-current" /> : <Play className="size-4 fill-current" />}
+      </button>
+      <button type="button" onClick={onRestore} className={button} aria-label="Open full player" title="Open full player">
+        <Maximize2 className="size-4" />
+      </button>
+      <button type="button" onClick={onClose} className={button} aria-label="Close player" title="Stop and close">
+        <X className="size-4" />
+      </button>
+      <div className="absolute inset-x-0 bottom-0 h-0.5 bg-white/15" aria-hidden>
+        <div className="h-full bg-accent" style={{ width: `${progress * 100}%` }} />
       </div>
     </div>
   );

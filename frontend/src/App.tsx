@@ -15,8 +15,10 @@ import { SettingsPage } from './pages/Settings';
 import { NotFoundPage } from './pages/NotFound';
 import { CollectionPage, CollectionsPage } from './pages/Collections';
 
-// The player and the admin area are loaded on demand to keep the initial bundle small.
-const PlayerPage = lazy(() => import('./pages/Player'));
+import { PlayerHost, PlayRoute } from './components/PlayerHost';
+import { PlaybackSessionProvider } from './lib/playback-session';
+
+// The admin area is loaded on demand to keep the initial bundle small (the player too, see PlayerHost).
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 
 /** After signing in, continue to the page the user originally asked for (same-origin paths only). */
@@ -55,9 +57,10 @@ export function App() {
   }
 
   return (
+    <PlaybackSessionProvider>
     <Suspense fallback={<FullscreenLoader />}>
       <Routes>
-        <Route path="/play/:kind/:id" element={<PlayerPage />} />
+        <Route path="/play/:kind/:id" element={<PlayRoute />} />
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
           <Route path="/movies" element={<BrowsePage kind="movies" />} />
@@ -78,6 +81,8 @@ export function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
+      <PlayerHost />
     </Suspense>
+    </PlaybackSessionProvider>
   );
 }
