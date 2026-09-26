@@ -1,10 +1,10 @@
-import { playHref } from '../lib/player';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Clapperboard, Info, Play } from 'lucide-react';
+import { Clapperboard, Info, Play, RotateCcw } from 'lucide-react';
+import { continueDetail, continuePosition, isStarted, resumeHref, startOverHref } from '../lib/continue';
 import { api } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
-import { formatClock, greeting, imageUrl, progressFraction } from '../lib/format';
+import { greeting, imageUrl, progressFraction } from '../lib/format';
 import type { Card, ContinueItem, HomeData } from '../lib/types';
 import { toast } from '../components/Toast';
 import { ContinueCard, PosterCard } from '../components/Cards';
@@ -19,11 +19,13 @@ function Hero({ data }: { data: HomeData }) {
 
   const title = cw ? cw.title : featured!.title;
   const backdrop = cw ? cw.imagePath : featured!.backdropPath;
-  const overview = cw ? cw.subtitle : featured!.overview;
-  const playLink = cw ? playHref(cw.type, cw.id, cw.progress?.positionSec) : featured!.type === 'movie' ? `/play/movie/${featured!.id}` : `/shows/${featured!.id}`;
+  const overview = cw ? [continueDetail(cw), cw.type === 'episode' ? cw.episodeTitle : null].filter(Boolean).join(' · ') : featured!.overview;
+  const started = cw ? isStarted(cw) : false;
+  const playLink = cw ? resumeHref(cw) : featured!.type === 'movie' ? `/play/movie/${featured!.id}` : `/shows/${featured!.id}`;
   const infoHref = cw ? (cw.type === 'movie' ? `/movies/${cw.id}` : `/shows/${cw.showId}`) : featured!.type === 'movie' ? `/movies/${featured!.id}` : `/shows/${featured!.id}`;
   const src = imageUrl(backdrop, 'w1280');
-  const fraction = cw ? progressFraction(cw.progress) : 0;
+  const fraction = cw && started ? progressFraction(cw.progress) : 0;
+  const position = cw ? continuePosition(cw) : null;
   const featuredShow = !cw && featured!.type === 'show';
 
   return (
@@ -41,18 +43,24 @@ function Hero({ data }: { data: HomeData }) {
         <p className="text-sm text-muted">{cw ? 'Pick up where you left off' : 'Recently added'}</p>
         <h2 className="mt-1 max-w-2xl font-display text-4xl leading-[1.05] font-semibold tracking-tight sm:text-5xl">{title}</h2>
         {overview && <p className="mt-3 line-clamp-2 max-w-xl text-ink/80">{overview}</p>}
-        {cw?.progress && fraction > 0 && (
-          <div className="mt-4 flex max-w-xs items-center gap-3 text-sm text-muted">
+        {position && fraction > 0 && (
+          <div className="mt-4 flex max-w-sm items-center gap-3 text-sm text-muted">
             <ProgressBar value={fraction} className="flex-1" />
-            <span>{formatClock(cw.progress.positionSec)}</span>
+            <span className="tabular-nums">{position}</span>
           </div>
         )}
-        <div className="mt-6 flex gap-3">
-          <Link to={playLink} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 font-semibold text-bg transition hover:bg-white">
+        <div className="mt-6 flex flex-wrap gap-2 sm:gap-3">
+          <Link to={playLink} className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 font-semibold whitespace-nowrap text-bg transition hover:bg-white sm:h-12 sm:px-6">
             <Play className="size-5 fill-current" />
-            {cw?.progress && fraction > 0 ? 'Resume' : featuredShow ? 'Episodes' : 'Play'}
+            {cw && started ? 'Resume' : featuredShow ? 'Episodes' : 'Play'}
           </Link>
-          {!featuredShow && <Link to={infoHref} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink/10 px-5 font-medium backdrop-blur transition hover:bg-ink/20">
+          {cw && started && (
+            <Link to={startOverHref(cw)} className="inline-flex h-11 items-center gap-2 rounded-full bg-ink/10 px-4 font-medium whitespace-nowrap backdrop-blur transition hover:bg-ink/20 sm:h-12 sm:px-5">
+              <RotateCcw className="size-5" />
+              Start over
+            </Link>
+          )}
+          {!featuredShow && <Link to={infoHref} className="inline-flex h-11 items-center gap-2 rounded-full bg-ink/10 px-4 font-medium whitespace-nowrap backdrop-blur transition hover:bg-ink/20 sm:h-12 sm:px-5">
             <Info className="size-5" />
             Details
           </Link>}
@@ -75,6 +83,15 @@ export function HomePage() {
       toast.error(err);
       void qc.invalidateQueries({ queryKey: ['home'] });
     },
+  });
+
+  const markWatched = useMutation({
+    mutationFn: (item: ContinueItem) => api.post('/api/progress/watched', { [item.type === 'movie' ? 'movieId' : 'episodeId']: item.id, watched: true }),
+    // A movie leaves the list right away; a show comes back with its next episode after the refresh.
+    onMutate: (item) =>
+      qc.setQueryData<HomeData>(['home'], (d) => (d ? { ...d, continueWatching: d.continueWatching.filter((c) => !(c.type === item.type && c.id === item.id)) } : d)),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['home'] }),
+    onError: (err) => toast.error(err),
   });
 
   if (q.isLoading) return <PageLoader />;
@@ -114,7 +131,7 @@ export function HomePage() {
           {d.continueWatching.length > 0 && (
             <Shelf title="Continue Watching">
               {d.continueWatching.map((c) => (
-                <ContinueCard key={`${c.type}-${c.id}`} item={c} onDismiss={(item) => dismiss.mutate(item)} />
+                <ContinueCard key={`${c.type}-${c.id}`} item={c} onDismiss={(item) => dismiss.mutate(item)} onMarkWatched={(item) => markWatched.mutate(item)} />
               ))}
             </Shelf>
           )}

@@ -61,6 +61,27 @@ export function fileInfo(f: FileRow, externalSubs: Array<typeof subtitles.$infer
   };
 }
 
+/** One Continue Watching entry (a movie, or one show via its current or next episode). */
+export interface ContinueItem {
+  type: 'movie' | 'episode';
+  id: number;
+  title: string;
+  subtitle: string | null;
+  imagePath: string | null;
+  posterPath: string | null;
+  showId: number | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  episodeTitle: string | null;
+  /** The next episode of a show (not started yet, or barely). */
+  upNext: boolean;
+  progress: { positionSec: number; durationSec: number } | null;
+  /** 0–100. */
+  percent: number;
+  /** When it was last watched. */
+  updatedAt: number;
+}
+
 export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   const catalog = new Catalog(ctx.db);
   const replacements = new ReplacementTracker(ctx.db);
@@ -85,22 +106,20 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
   const subsFor = (fileIds: number[]) =>
     fileIds.length ? db.select().from(subtitles).where(inArray(subtitles.mediaFileId, fileIds)).all() : [];
 
-  // ------------------------------------------------------------------ home
-  app.get('/api/home', { preHandler: requireUser }, async (request) => {
-    const userId = request.user!.id;
-    const scope = scopeOf(request);
-    const movieVis = scopeCondition(scope, movies.libraryId);
-    const showVis = scopeCondition(scope, shows.libraryId);
-
-    // Continue watching: partially watched items + "next up" episodes of shows in progress.
+  /**
+   * Continue Watching for one user: movies and episodes started but not finished, and the next
+   * episode of shows whose latest watched episode is finished. One entry per movie or show, newest
+   * first; items the user removed stay hidden until they are watched again. A handful of batched
+   * queries, however many entries there are.
+   */
+  function continueWatching(userId: number, scope: ReturnType<typeof scopeOf>): ContinueItem[] {
     const inProgress = db
       .select()
       .from(watchProgress)
       .where(and(eq(watchProgress.userId, userId), eq(watchProgress.completed, false), sql`${watchProgress.positionSec} >= 30`))
       .orderBy(desc(watchProgress.updatedAt))
-      .limit(30)
+      .limit(40)
       .all();
-
     const latestCompletedPerShow = db
       .select({ showId: episodes.showId, episodeId: episodes.id, updatedAt: sql<number>`max(${watchProgress.updatedAt})` })
       .from(watchProgress)
@@ -111,84 +130,67 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       .limit(20)
       .all();
 
-    type CW = {
-      type: 'movie' | 'episode';
-      id: number;
-      title: string;
-      subtitle: string | null;
-      imagePath: string | null;
-      posterPath: string | null;
-      showId: number | null;
-      progress: { positionSec: number; durationSec: number } | null;
-      updatedAt: number;
-    };
-    const cw: CW[] = [];
-    const showsInProgress = new Set<number>();
+    const movieIds = inProgress.flatMap((p) => (p.movieId ? [p.movieId] : []));
+    const movieRows = new Map(movieIds.length ? db.select().from(movies).where(inArray(movies.id, movieIds)).all().map((m) => [m.id, m]) : []);
+    const loadEpisodes = (ids: number[]) =>
+      new Map(ids.length ? db.select({ e: episodes, s: shows }).from(episodes).innerJoin(shows, eq(shows.id, episodes.showId)).where(inArray(episodes.id, ids)).all().map((r) => [r.e.id, r]) : []);
+    const episodeRows = loadEpisodes(inProgress.flatMap((p) => (p.episodeId ? [p.episodeId] : [])));
 
+    const percent = (p: { positionSec: number; durationSec: number } | null) => (p && p.durationSec > 0 ? Math.min(100, Math.round((p.positionSec / p.durationSec) * 100)) : 0);
+    const episodeItem = (row: { e: typeof episodes.$inferSelect; s: typeof shows.$inferSelect }, progress: { positionSec: number; durationSec: number } | null, upNext: boolean, updatedAt: number): ContinueItem => ({
+      type: 'episode',
+      id: row.e.id,
+      title: row.s.title,
+      subtitle: `${upNext ? 'Next: ' : ''}S${row.e.seasonNumber} E${row.e.episodeNumber}${row.e.title ? ` · ${row.e.title}` : ''}`,
+      imagePath: row.e.stillPath ?? row.s.backdropPath,
+      posterPath: row.s.posterPath,
+      showId: row.s.id,
+      seasonNumber: row.e.seasonNumber,
+      episodeNumber: row.e.episodeNumber,
+      episodeTitle: row.e.title,
+      upNext,
+      progress,
+      percent: percent(progress),
+      updatedAt,
+    });
+
+    const cw: ContinueItem[] = [];
+    const showsInProgress = new Set<number>();
     for (const p of inProgress) {
+      const progress = { positionSec: p.positionSec, durationSec: p.durationSec };
       if (p.movieId) {
-        const m = db.select().from(movies).where(eq(movies.id, p.movieId)).get();
+        const m = movieRows.get(p.movieId);
         if (m && canSee(scope, m.libraryId))
-          cw.push({
-            type: 'movie',
-            id: m.id,
-            title: m.title,
-            subtitle: m.year ? String(m.year) : null,
-            imagePath: m.backdropPath,
-            posterPath: m.posterPath,
-            showId: null,
-            progress: { positionSec: p.positionSec, durationSec: p.durationSec },
-            updatedAt: p.updatedAt,
-          });
+          cw.push({ type: 'movie', id: m.id, title: m.title, subtitle: m.year ? String(m.year) : null, imagePath: m.backdropPath, posterPath: m.posterPath, showId: null, seasonNumber: null, episodeNumber: null, episodeTitle: null, upNext: false, progress, percent: percent(progress), updatedAt: p.updatedAt });
       } else if (p.episodeId) {
-        const row = db
-          .select({ e: episodes, s: shows })
-          .from(episodes)
-          .innerJoin(shows, eq(shows.id, episodes.showId))
-          .where(eq(episodes.id, p.episodeId))
-          .get();
+        const row = episodeRows.get(p.episodeId);
+        // One entry per show: its most recently watched episode.
         if (row && canSee(scope, row.s.libraryId) && !showsInProgress.has(row.s.id)) {
           showsInProgress.add(row.s.id);
-          cw.push({
-            type: 'episode',
-            id: row.e.id,
-            title: row.s.title,
-            subtitle: `S${row.e.seasonNumber} E${row.e.episodeNumber}${row.e.title ? ` · ${row.e.title}` : ''}`,
-            imagePath: row.e.stillPath ?? row.s.backdropPath,
-            posterPath: row.s.posterPath,
-            showId: row.s.id,
-            progress: { positionSec: p.positionSec, durationSec: p.durationSec },
-            updatedAt: p.updatedAt,
-          });
+          cw.push(episodeItem(row, progress, false, p.updatedAt));
         }
       }
     }
-    for (const c of latestCompletedPerShow) {
-      if (showsInProgress.has(c.showId)) continue;
-      // SQLite takes the bare episode id from the row holding max(updatedAt): the most recently completed episode.
-      const next = catalog.nextEpisode(c.episodeId);
-      if (!next) continue;
-      const existing = db
-        .select()
-        .from(watchProgress)
-        .where(and(eq(watchProgress.userId, userId), eq(watchProgress.episodeId, next.id)))
-        .get();
-      if (existing?.completed) continue;
-      const s = db.select().from(shows).where(eq(shows.id, c.showId)).get();
-      if (!s || !canSee(scope, s.libraryId)) continue;
-      showsInProgress.add(s.id);
-      cw.push({
-        type: 'episode',
-        id: next.id,
-        title: s.title,
-        subtitle: `Next: S${next.seasonNumber} E${next.episodeNumber}${next.title ? ` · ${next.title}` : ''}`,
-        imagePath: next.stillPath ?? s.backdropPath,
-        posterPath: s.posterPath,
-        showId: s.id,
-        progress: existing ? { positionSec: existing.positionSec, durationSec: existing.durationSec } : null,
-        updatedAt: c.updatedAt,
-      });
+
+    // "Next up": the episode after the latest finished one, for shows not already listed.
+    const nexts = latestCompletedPerShow
+      .filter((c) => !showsInProgress.has(c.showId))
+      .map((c) => ({ c, next: catalog.nextEpisode(c.episodeId) }))
+      .filter((x): x is { c: (typeof latestCompletedPerShow)[number]; next: NonNullable<ReturnType<typeof catalog.nextEpisode>> } => Boolean(x.next));
+    const nextRows = loadEpisodes(nexts.map((x) => x.next.id));
+    const nextProgress = new Map(
+      nexts.length
+        ? db.select().from(watchProgress).where(and(eq(watchProgress.userId, userId), inArray(watchProgress.episodeId, nexts.map((x) => x.next.id)))).all().map((w) => [w.episodeId!, w])
+        : [],
+    );
+    for (const { c, next } of nexts) {
+      const existing = nextProgress.get(next.id);
+      const row = nextRows.get(next.id);
+      if (existing?.completed || !row || !canSee(scope, row.s.libraryId) || showsInProgress.has(row.s.id)) continue;
+      showsInProgress.add(row.s.id);
+      cw.push(episodeItem(row, existing && existing.positionSec > 0 ? { positionSec: existing.positionSec, durationSec: existing.durationSec } : null, true, c.updatedAt));
     }
+
     // Items the user removed from Continue Watching stay hidden until they are watched again.
     const dismissed = new Map(
       db
@@ -198,12 +200,22 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
         .all()
         .map((d) => [`${d.kind}:${d.itemId}`, d.at]),
     );
-    const visibleCw = cw.filter((c) => {
-      const at = dismissed.get(c.type === 'movie' ? `movie:${c.id}` : `show:${c.showId}`);
-      return at === undefined || c.updatedAt > at;
-    });
-    cw.splice(0, cw.length, ...visibleCw);
-    cw.sort((a, b) => b.updatedAt - a.updatedAt);
+    return cw
+      .filter((c) => {
+        const at = dismissed.get(c.type === 'movie' ? `movie:${c.id}` : `show:${c.showId}`);
+        return at === undefined || c.updatedAt > at;
+      })
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  // ------------------------------------------------------------------ home
+  app.get('/api/home', { preHandler: requireUser }, async (request) => {
+    const userId = request.user!.id;
+    const scope = scopeOf(request);
+    const movieVis = scopeCondition(scope, movies.libraryId);
+    const showVis = scopeCondition(scope, shows.libraryId);
+
+    const cw = continueWatching(userId, scope);
 
     const recentMovies = db.select().from(movies).where(movieVis).orderBy(desc(movies.addedAt)).limit(20).all();
     const recentShows = db.select().from(shows).where(showVis).orderBy(desc(shows.lastEpisodeAddedAt)).limit(20).all();

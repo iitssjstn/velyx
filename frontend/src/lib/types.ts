@@ -97,7 +97,14 @@ export interface ContinueItem {
   imagePath: string | null;
   posterPath: string | null;
   showId: number | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  episodeTitle: string | null;
+  /** The next episode of a show (not started yet). */
+  upNext: boolean;
   progress: { positionSec: number; durationSec: number } | null;
+  /** 0–100. */
+  percent: number;
   updatedAt: number;
 }
 
