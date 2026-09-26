@@ -1,5 +1,8 @@
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { migrationsFolder, openDatabase } from '../src/db/client.js';
 import { addLibrary, cookieFrom, createTestEnv, createUser, setupAdmin, touch, type TestEnv } from './helpers.js';
 
 let env: TestEnv;
@@ -102,5 +105,31 @@ describe('interface language', () => {
     expect(a.components.audio.note).toMatch(/^Omgezet naar AAC stereo/);
     // Codec names are not translated.
     expect(a.video.label).toBe('H.264');
+  });
+
+  it('upgrades an existing database: every existing user starts in English, nothing else changes', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'velyx-lang-'));
+    try {
+      // The migrations of 0.5.8 (all but the language one).
+      const old = path.join(dir, 'old');
+      fs.cpSync(migrationsFolder(), old, { recursive: true });
+      const journalFile = path.join(old, 'meta', '_journal.json');
+      const journal = JSON.parse(fs.readFileSync(journalFile, 'utf8'));
+      const last = journal.entries.pop();
+      expect(last.tag).toBe('0016_interface_language');
+      fs.writeFileSync(journalFile, JSON.stringify(journal));
+      const file = path.join(dir, 'velyx.db');
+      const before = openDatabase(file, { migrationsFolder: old });
+      before.$client.prepare("INSERT INTO users (username, password_hash, role, pref_audio_language) VALUES ('oud', 'x', 'admin', 'nl')").run();
+      expect(before.$client.prepare('PRAGMA table_info(users)').all().some((c) => (c as { name: string }).name === 'language')).toBe(false);
+      before.$client.close();
+      const after = openDatabase(file, { backupDir: path.join(dir, 'backups') });
+      expect(after.$client.prepare("SELECT username, language, pref_audio_language AS audio FROM users").get()).toEqual({ username: 'oud', language: 'en', audio: 'nl' });
+      after.$client.close();
+      // A safety copy was made before migrating.
+      expect(fs.readdirSync(path.join(dir, 'backups')).some((f) => f.startsWith('pre-migration-'))).toBe(true);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

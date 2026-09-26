@@ -1,0 +1,23 @@
+export const health = {
+  groups: {
+    playback: 'Playback',
+    playbackHint: 'How files play in a typical current browser. The player still decides per device.',
+    formats: 'Formats',
+    formatsHint: 'Video, audio and subtitle formats worth knowing about.',
+    library: 'Library',
+    libraryHint: 'Metadata, artwork, unreadable files and duplicates.',
+  },
+  noTmdb: 'TMDB is not configured, so no metadata is looked up. Add a key in {link}.',
+  closeList: 'Close list',
+  nothingHere: 'Nothing here.',
+  noLibrariesText: 'Add a library to see how your media will play.',
+  intro: 'What is in your libraries and what needs attention, from the information Velyx stored while scanning — nothing is rescanned to build this page. Velyx does not transcode video, so “Unsupported” files only play on devices that decode them themselves.',
+  library: 'Library',
+  allLibraries: 'All libraries',
+  analysing: 'Analysing files… {done} of {total}',
+  notAnalyzed: {
+    one: '{count} file was scanned before bit depth and HDR were recorded, so 10-bit and HDR counts may be low. It is analysed when first played, or here right away.',
+    other: '{count} files were scanned before bit depth and HDR were recorded, so 10-bit and HDR counts may be low. They are analysed when first played, or all at once here (one file at a time).',
+  },
+  analyseNow: 'Analyse now',
+};

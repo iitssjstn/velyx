@@ -1,0 +1,28 @@
+import type { Messages } from '../index';
+export const collections: Messages['collections'] = {
+  new: 'Nieuwe collectie',
+  noneYet: 'Je hebt nog geen collecties.',
+  tmdbGrouped: 'Filmreeksen van TMDB, zoals “The Matrix Collection”, worden automatisch gegroepeerd.',
+  itemCount: {
+    one: '{count} item',
+    other: '{count} items',
+  },
+  updated: 'Collectie bijgewerkt.',
+  created: 'Collectie aangemaakt.',
+  namePlaceholder: 'bijv. Kerstfilms',
+  create: 'Collectie aanmaken',
+  empty: 'Nog geen collecties',
+  emptyHint: 'Filmreeksen zoals “The Matrix Collection” verschijnen hier automatisch zodra je bibliotheek twee of meer films ervan bevat.',
+  emptyHintAdmin: 'Je kunt ook je eigen collecties maken.',
+  deleted: 'Collectie verwijderd.',
+  movieCollection: 'Filmcollectie',
+  collection: 'Collectie',
+  itemsEmpty: 'Deze collectie is leeg',
+  itemsEmptyHint: 'Open een film of serie en kies “Toevoegen aan collectie” in het ⋯-menu.',
+  removeItem: '{name} uit deze collectie verwijderen',
+  removeFrom: 'Uit collectie verwijderen',
+  edit: 'Collectie bewerken',
+  deleteTitle: 'Collectie verwijderen?',
+  delete: 'Collectie verwijderen',
+  deleteText: '“{name}” wordt verwijderd. De films en series erin blijven in je bibliotheek.',
+};

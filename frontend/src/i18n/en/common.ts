@@ -22,4 +22,5 @@ export const common = {
   dismiss: 'Dismiss',
   undo: 'Undo',
   back: 'Back',
+  refresh: 'Refresh',
 };

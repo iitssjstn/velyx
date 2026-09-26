@@ -41,7 +41,7 @@ export function PosterCard({ item, className = '' }: { item: Card; className?: s
 /** "2008 • 2h 32m" for movies, "2008 • 5 Seasons" for series. */
 export function cardFacts(item: Card): string {
   const second =
-    item.type === 'movie' ? formatRuntime(item.runtime) : item.seasonCount > 0 ? t('series.seasonCount', { count: item.seasonCount }) : null;
+    item.type === 'movie' ? formatRuntime(item.runtime) : item.seasonCount > 0 ? t('series.seasonCountFact', { count: item.seasonCount }) : null;
   return [item.year, second].filter(Boolean).join(' • ');
 }
 

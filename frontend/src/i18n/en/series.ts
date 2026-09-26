@@ -26,4 +26,8 @@ export const series = {
     planned: 'Planned',
     pilot: 'Pilot',
   },
+  seasonCountFact: {
+    one: '{count} Season',
+    other: '{count} Seasons',
+  },
 };

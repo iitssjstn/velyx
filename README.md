@@ -63,7 +63,8 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Search from anywhere** — press **Ctrl+K** (⌘K on a Mac) or **/**, or use the search field at the top of the sidebar: movies, TV shows and episodes appear while you type (by title, part of a title, or episode title, ignoring case and accents), and **↑ ↓** and **Enter** open one. Type a code to go straight to an episode: *reacher s02e04*, *reacher 2x04*, *season 2 episode 4*, or *reacher s02* for a whole season. *All results* opens the full search page. Everything is searched locally in the Velyx database, with one request per pause in typing.
 - **Fast with large libraries** — server-side filters (watch state, favorites, watchlist, 4K/1080p/720p, HDR, genre, year, rating) and sorting (recently added or watched, title, year, rating, runtime), paged API and a virtualized poster grid; search on a SQLite full-text index ("spider man" finds every Spider-Man).
 - **More Like This** on every movie and show, from shared collections, directors, cast and genres — deterministic and cheap, no AI.
-- **Language preferences per account** — preferred audio language, subtitle language with fallback, and when to show subtitles (always, only for other languages, forced only, off, or remember your last choice).
+- **Velyx in your language** — every account chooses its own interface language (English or Nederlands) in Settings → Account. It covers the whole app, including the player and the admin pages, and the server's own messages and explanations. It switches at once, without signing out or interrupting what is playing, and is kept for your account on every device. Before signing in, Velyx follows the browser's language (and remembers a choice made on the sign-in page). Media titles, descriptions and genres come from TMDB in the server's metadata language (Admin → Server).
+- **Audio and subtitle languages per account** — separate from the interface language: preferred audio language, subtitle language with fallback, and when to show subtitles (always, only for other languages, forced only, off, or remember your last choice).
 - **Watchlist and favorites.** Watched movies leave the watchlist automatically.
 - **Per-user library access** — choose which libraries each user can see (for example a kids-only library).
 - **Collections** — movie series from TMDB (such as “The Matrix Collection”) are grouped automatically once you have two or more of their movies; administrators can also make their own collections of movies and shows. **Smart collections** (Recently Added, Unwatched, 4K, HDR, Short Movies, decades, …) are saved filters, evaluated per viewer, and admins can save their own.
@@ -312,6 +313,7 @@ Boost voices and Level volume always convert the audio.
 - **Library access**: by default a user sees every library, including ones added later. In Admin → Users you can limit a user to specific libraries. Everything outside those libraries is hidden: browsing, search, Home, detail pages and the streams themselves. Administrators always see everything.
 - Velyx always keeps at least one active administrator: you cannot demote, disable or delete the last one, or remove your own admin access.
 - **Sessions:** everyone sees their signed-in devices (browser, OS, address, last activity) under Settings → Account and can revoke them; administrators can do the same for any user in Admin → Users. Only a derived id is ever shown — never the session token.
+- **Interface language:** everyone picks English or Nederlands under Settings → Account (administrators too, for the admin pages). The choice is stored with the account, so it follows you to every device, and two people can use Velyx in different languages at the same time. It is separate from the audio and subtitle languages of what you watch.
 - Changing your password asks whether to sign out your other devices; a password reset by an administrator always signs the user out.
 - **Sign-in throttling:** after five failed attempts for an address or an account, Velyx asks to wait 30 seconds, then 1, 2, 4… up to 15 minutes. There is no permanent lockout, and failures are forgotten after an hour.
 - **Audit log** (Admin → Audit log): sign-ins (successful, failed, throttled), user and session changes, libraries, metadata matches, server/TMDB settings, backups and restores — with who, when and from where. Passwords, API keys and tokens are never recorded. Entries older than a year are pruned.
@@ -542,6 +544,8 @@ Fastify server ── Auth / sessions ── SQLite (Drizzle, WAL)
    └── PlaybackRegistry ─ compatibility analysis ─ DirectPlayEngine ─ RemuxEngine (FFmpeg: copy video, convert audio)   (future: TranscodingEngine)
 ```
 
+**Translations** live in `frontend/src/i18n` (one folder per language, stable keys such as `player.skipIntro`; only English is in the main bundle, other languages load when chosen) and `backend/src/i18n` for the server's own messages. Adding a language means adding a folder with the same keys (the TypeScript build checks that none is missing) and its code on the server.
+
 The `PlaybackEngine` interface decides per file and client how media is delivered: Direct Play first, audio conversion when only the audio or container is the problem. `playback/compatibility.ts` is the single place that knows what a device can decode; the engines use it for their decision and the player shows its explanation. A future transcoding engine (FFmpeg with CPU, NVENC, Quick Sync, VAAPI or AMF) plugs into the same registry without changing the player or API.
 
 ## Troubleshooting
@@ -578,6 +582,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 - While audio is converted, seeking outside the already loaded part restarts the stream (about a second).
 - Intro and credits detection needs at least two episodes of a season with the same intro or credits. Movies are not analysed.
 - Music, photos and live TV are out of scope for this version.
+- The interface is available in English and Dutch. Media titles, descriptions and genres come from TMDB in one metadata language for the whole server; a few details stored by older versions (such as audit-log notes) stay in English.
 
 ## Roadmap
 

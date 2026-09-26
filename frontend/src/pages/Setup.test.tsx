@@ -44,7 +44,7 @@ describe('SetupPage', () => {
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/setup');
-    expect(JSON.parse(String(init.body))).toEqual({ username: 'justin', password: 'correct-horse', serverName: 'Velyx', tmdbApiKey: 'abc123' });
+    expect(JSON.parse(String(init.body))).toEqual({ username: 'justin', password: 'correct-horse', serverName: 'Velyx', tmdbApiKey: 'abc123', language: 'en' });
   });
 
   it('shows the server error message', async () => {

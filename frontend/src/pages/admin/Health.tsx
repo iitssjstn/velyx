@@ -6,6 +6,7 @@ import { formatBytes } from '../../lib/format';
 import { Button } from '../../components/Button';
 import { EmptyState, ErrorState, PageLoader, Spinner } from '../../components/States';
 import { toast } from '../../components/Toast';
+import { intlLocale, t, useT, type MessageKey } from '../../i18n';
 
 export interface HealthCategory {
   key: string;
@@ -36,10 +37,10 @@ export interface HealthItem {
 
 const PAGE_SIZE = 50;
 
-const GROUPS: { key: HealthCategory['group']; title: string; hint: string }[] = [
-  { key: 'playback', title: 'Playback', hint: 'How files play in a typical current browser. The player still decides per device.' },
-  { key: 'formats', title: 'Formats', hint: 'Video, audio and subtitle formats worth knowing about.' },
-  { key: 'library', title: 'Library', hint: 'Metadata, artwork, unreadable files and duplicates.' },
+const GROUPS: { key: HealthCategory['group']; title: MessageKey; hint: MessageKey }[] = [
+  { key: 'playback', title: 'health.groups.playback', hint: 'health.groups.playbackHint' },
+  { key: 'formats', title: 'health.groups.formats', hint: 'health.groups.formatsHint' },
+  { key: 'library', title: 'health.groups.library', hint: 'health.groups.libraryHint' },
 ];
 
 /** Colour per playback category; other categories use a neutral dot. */
@@ -48,8 +49,8 @@ const DOT: Record<string, string> = { direct: 'bg-ok', remux: 'bg-accent', 'brow
 /** Categories that are a problem when not empty (shown in amber). */
 const ATTENTION = new Set(['unsupported', 'scan-errors', 'missing-metadata', 'missing-artwork', 'duplicates']);
 
-function unitLabel(c: Pick<HealthCategory, 'unit'>, n: number): string {
-  return c.unit === 'files' ? (n === 1 ? 'file' : 'files') : n === 1 ? 'item' : 'items';
+function countLabel(c: Pick<HealthCategory, 'unit'>, n: number): string {
+  return c.unit === 'files' ? t('dashboard.fileCount', { count: n }) : t('collections.itemCount', { count: n });
 }
 
 function Tile({ c, selected, onSelect }: { c: HealthCategory; selected: boolean; onSelect: () => void }) {
@@ -64,7 +65,7 @@ function Tile({ c, selected, onSelect }: { c: HealthCategory; selected: boolean;
     >
       <span className={`size-2.5 shrink-0 rounded-full ${DOT[c.key] ?? (attention ? 'bg-amber' : 'bg-line')}`} aria-hidden />
       <span className={`flex-1 text-sm ${c.count === 0 ? 'text-muted' : ''}`}>{c.label}</span>
-      <span className={`font-display text-lg font-semibold tabular-nums ${c.count === 0 ? 'text-faint' : attention ? 'text-amber' : ''}`}>{c.count.toLocaleString()}</span>
+      <span className={`font-display text-lg font-semibold tabular-nums ${c.count === 0 ? 'text-faint' : attention ? 'text-amber' : ''}`}>{c.count.toLocaleString(intlLocale())}</span>
     </button>
   );
 }
@@ -82,8 +83,9 @@ function PlaybackBar({ categories, files }: { categories: HealthCategory[]; file
 }
 
 function CategoryList({ category, libraryId, page, onPage, onClose, tmdbConfigured }: { category: HealthCategory; libraryId: string | null; page: number; onPage: (p: number) => void; onClose: () => void; tmdbConfigured: boolean }) {
+  const { t, tRich, lang } = useT();
   const q = useQuery({
-    queryKey: ['admin', 'health', category.key, libraryId, page],
+    queryKey: ['admin', 'health', category.key, libraryId, page, lang],
     queryFn: () => api.get<{ total: number; items: HealthItem[] }>(`/api/admin/health/${category.key}?page=${page}&limit=${PAGE_SIZE}${libraryId ? `&libraryId=${libraryId}` : ''}`),
     placeholderData: keepPreviousData,
   });
@@ -95,15 +97,15 @@ function CategoryList({ category, libraryId, page, onPage, onClose, tmdbConfigur
         <div>
           <h2 id="health-list-title" className="font-display text-xl font-semibold">{category.label}</h2>
           <p className="mt-1 text-sm text-muted">
-            {total.toLocaleString()} {unitLabel(category, total)} · {category.description}
+            {countLabel(category, total)} · {category.description}
           </p>
           {category.key === 'missing-metadata' && !tmdbConfigured && (
             <p className="mt-2 text-sm text-amber">
-              TMDB is not configured, so no metadata is looked up. Add a key in <Link to="/admin/server" className="underline underline-offset-4">Server</Link>.
+              {tRich('health.noTmdb', { link: <Link to="/admin/server" className="underline underline-offset-4">{t('admin.tabs.server')}</Link> })}
             </p>
           )}
         </div>
-        <button type="button" onClick={onClose} className="grid size-9 shrink-0 place-items-center rounded-full text-muted hover:bg-raised hover:text-ink" aria-label="Close list">
+        <button type="button" onClick={onClose} className="grid size-9 shrink-0 place-items-center rounded-full text-muted hover:bg-raised hover:text-ink" aria-label={t('health.closeList')}>
           <X className="size-4" />
         </button>
       </div>
@@ -112,7 +114,7 @@ function CategoryList({ category, libraryId, page, onPage, onClose, tmdbConfigur
       ) : q.error || !q.data ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       ) : q.data.items.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted">Nothing here.</p>
+        <p className="py-10 text-center text-sm text-muted">{t('health.nothingHere')}</p>
       ) : (
         <ul className={`mt-4 divide-y divide-line/60 ${q.isFetching ? 'opacity-60' : ''}`}>
           {q.data.items.map((item, i) => (
@@ -142,9 +144,9 @@ function CategoryList({ category, libraryId, page, onPage, onClose, tmdbConfigur
       )}
       {pages > 1 && (
         <div className="mt-4 flex items-center justify-end gap-2 text-sm">
-          <span className="mr-2 text-muted">Page {page} of {pages}</span>
-          <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)} icon={<ChevronLeft className="size-4" />}>Previous</Button>
-          <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => onPage(page + 1)} icon={<ChevronRight className="size-4" />}>Next</Button>
+          <span className="mr-2 text-muted">{t('common.pageOf', { page, pages })}</span>
+          <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)} icon={<ChevronLeft className="size-4" />}>{t('common.previous')}</Button>
+          <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => onPage(page + 1)} icon={<ChevronRight className="size-4" />}>{t('common.next')}</Button>
         </div>
       )}
     </section>
@@ -153,13 +155,14 @@ function CategoryList({ category, libraryId, page, onPage, onClose, tmdbConfigur
 
 export function HealthPage() {
   const qc = useQueryClient();
+  const { t, lang } = useT();
   const [params, setParams] = useSearchParams();
   const libraryId = params.get('library');
   const selected = params.get('category');
   const page = Math.max(1, Number(params.get('page')) || 1);
   const libs = useQuery({ queryKey: ['libraries'], queryFn: () => api.get<{ libraries: { id: number; name: string }[] }>('/api/libraries') });
   const q = useQuery({
-    queryKey: ['admin', 'health', libraryId],
+    queryKey: ['admin', 'health', libraryId, lang],
     queryFn: () => api.get<HealthSummary>(`/api/admin/health${libraryId ? `?libraryId=${libraryId}` : ''}`),
     placeholderData: keepPreviousData,
     refetchInterval: (query) => (query.state.data?.analysis.running ? 5000 : false),
@@ -185,23 +188,23 @@ export function HealthPage() {
   const current = categories.find((c) => c.key === selected) ?? null;
 
   if (!libs.isLoading && libs.data && libs.data.libraries.length === 0) {
-    return <EmptyState icon={<HeartPulse className="size-6" />} title="No libraries yet">Add a library to see how your media will play.</EmptyState>;
+    return <EmptyState icon={<HeartPulse className="size-6" />} title={t('home.noLibraries')}>{t('health.noLibrariesText')}</EmptyState>;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <p className="max-w-2xl text-sm text-muted">
-          What is in your libraries and what needs attention, from the information Velyx stored while scanning — nothing is rescanned to build this page. Velyx does not transcode video, so “Unsupported” files only play on devices that decode them themselves.
+          {t('health.intro')}
         </p>
         <label className="flex items-center gap-2 text-sm">
-          <span className="text-muted">Library</span>
+          <span className="text-muted">{t('health.library')}</span>
           <select
             value={libraryId ?? ''}
             onChange={(e) => update({ library: e.target.value || null, page: null })}
             className="h-9 rounded-lg border border-line bg-surface px-3"
           >
-            <option value="">All libraries</option>
+            <option value="">{t('health.allLibraries')}</option>
             {libs.data?.libraries.map((l) => (
               <option key={l.id} value={l.id}>{l.name}</option>
             ))}
@@ -213,10 +216,10 @@ export function HealthPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-raised/50 px-4 py-3 text-sm">
           <p>
             {analysis.running
-              ? `Analysing files… ${analysis.done.toLocaleString()} of ${analysis.total.toLocaleString()}`
-              : `${notAnalyzed.toLocaleString()} ${notAnalyzed === 1 ? 'file was' : 'files were'} scanned before bit depth and HDR were recorded, so 10-bit and HDR counts may be low. They are analysed when first played, or all at once here (one file at a time).`}
+              ? t('health.analysing', { done: analysis.done.toLocaleString(intlLocale()), total: analysis.total.toLocaleString(intlLocale()) })
+              : t('health.notAnalyzed', { count: notAnalyzed })}
           </p>
-          {!analysis.running && <Button variant="secondary" size="sm" onClick={() => analyze.mutate()} loading={analyze.isPending}>Analyse now</Button>}
+          {!analysis.running && <Button variant="secondary" size="sm" onClick={() => analyze.mutate()} loading={analyze.isPending}>{t('health.analyseNow')}</Button>}
         </div>
       )}
 
@@ -225,8 +228,8 @@ export function HealthPage() {
         return (
           <section key={g.key} aria-labelledby={`health-${g.key}`}>
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-              <h2 id={`health-${g.key}`} className="font-display text-lg font-semibold">{g.title}</h2>
-              <p className="text-xs text-faint">{g.key === 'playback' ? `${files.toLocaleString()} files · ` : ''}{g.hint}</p>
+              <h2 id={`health-${g.key}`} className="font-display text-lg font-semibold">{t(g.title)}</h2>
+              <p className="text-xs text-faint">{g.key === 'playback' ? `${t('dashboard.fileCount', { count: files })} · ` : ''}{t(g.hint)}</p>
             </div>
             {g.key === 'playback' && (
               <div className="mb-3">
