@@ -83,4 +83,5 @@ export const player = {
   noMediaFile: 'There is no media file for this item.',
   cannotPlayItem: 'Cannot play this item',
   noMediaFileRescan: 'There is no media file for this item. Try rescanning the library.',
+  playName: 'Play {name}',
 };

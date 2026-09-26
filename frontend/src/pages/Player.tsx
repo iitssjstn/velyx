@@ -67,6 +67,8 @@ interface LoadedItem {
   subtitle: string | null;
   backHref: string;
   backdrop: string | null;
+  /** The series' backdrop (behind the Next episode card when the next episode has no picture). */
+  showBackdrop: string | null;
   files: MediaFileInfo[];
   progress: MovieDetail['progress'];
   next: EpisodeDetail['next'];
@@ -76,7 +78,7 @@ interface LoadedItem {
 async function loadItem(kind: string, id: number): Promise<LoadedItem> {
   if (kind === 'movie') {
     const m = await api.get<MovieDetail>(`/api/movies/${id}`);
-    return { kind: 'movie', id, title: m.title, subtitle: m.year ? String(m.year) : null, backHref: `/movies/${id}`, backdrop: m.backdropPath, files: m.files, progress: m.progress, next: null, segments: null };
+    return { kind: 'movie', id, title: m.title, subtitle: m.year ? String(m.year) : null, backHref: `/movies/${id}`, backdrop: m.backdropPath, showBackdrop: null, files: m.files, progress: m.progress, next: null, segments: null };
   }
   const e = await api.get<EpisodeDetail>(`/api/episodes/${id}`);
   return {
@@ -86,6 +88,7 @@ async function loadItem(kind: string, id: number): Promise<LoadedItem> {
     subtitle: `${episodeCode(e.seasonNumber, e.episodeNumber)}${e.title ? ` — ${e.title}` : ''}`,
     backHref: `/shows/${e.showId}?season=${e.seasonNumber}`,
     backdrop: e.stillPath ?? e.showBackdropPath,
+    showBackdrop: e.showBackdropPath,
     files: e.files,
     progress: e.progress,
     next: e.next,
@@ -202,6 +205,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // Buffering for a long time without progress: offer a retry instead of an endless spinner.
   const [stalled, setStalled] = useState(false);
   const [ended, setEnded] = useState(false);
+  // The picture fades in once the first frame is there (smooth start, also after the next episode begins).
+  const [revealed, setRevealed] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   // The viewer closed the "Up next" card for this episode.
   const [upNextDismissed, setUpNextDismissed] = useState(false);
@@ -473,6 +478,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     setSubDelay(0);
     setActiveTrack(null);
     setEnded(false);
+    setRevealed(false);
     setCountdown(null);
     setUpNextDismissed(false);
     setStartChoice(null);
@@ -627,6 +633,16 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const upNextAt = next ? upNextStart(item.data?.segments, file?.id, totalDuration, prefs.autoplayCountdown) : null;
   const nearEnd = upNextAt !== null && time >= upNextAt;
   const showUpNext = Boolean(next) && !mini && !error && (ended || (nearEnd && !upNextDismissed));
+  // The end of an episode with a next one: the picture moves aside for the Next episode card.
+  const postPlay = showUpNext;
+  const stayInEpisode = () => {
+    setCountdown(null);
+    if (!ended) setUpNextDismissed(true);
+  };
+  // Ready before it is needed: the next episode starts without waiting for its details.
+  useEffect(() => {
+    if (postPlay && next) void qc.prefetchQuery({ queryKey: ['play-item', 'episode', next.id], queryFn: () => loadItem('episode', next.id), staleTime: 60_000, gcTime: 120_000 });
+  }, [postPlay, next, qc]);
   useEffect(() => {
     if (ended) return;
     if (nearEnd && !upNextDismissed && next && getPrefs().autoplayNext) setCountdown((c) => c ?? getPrefs().autoplayCountdown);
@@ -807,7 +823,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
   const fileAudio = file?.audioTracks ?? [];
   const canSwitchAudio = audioTracks.length > 1;
-  const showUi = controlsVisible || !playing || menu !== null;
+  const showUi = !postPlay && (controlsVisible || !playing || menu !== null);
 
   return (
     <div
@@ -836,16 +852,33 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         />
       )}
 
+      {/* Behind the shrunken picture at the end: the next episode's picture, fading in. */}
+      {!mini && next && (
+        <div aria-hidden className={`pointer-events-none absolute inset-0 overflow-hidden transition-opacity duration-700 ${postPlay ? 'opacity-100' : 'opacity-0'}`}>
+          {postPlay && (imageUrl(next.stillPath ?? item.data?.showBackdrop, 'w1280') ?? null) && (
+            <img src={imageUrl(next.stillPath ?? item.data?.showBackdrop, 'w1280')!} alt="" className="h-full w-full scale-105 object-cover blur-[2px]" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/35" />
+        </div>
+      )}
+
       {info && streamSrc && !blocked && (
         <video
           key={`${streamSrc}#${reloadKey}`}
           ref={videoRef}
           src={streamSrc}
-          className={mini ? 'h-full w-28 shrink-0 cursor-pointer bg-black object-cover sm:w-full sm:object-contain' : 'h-full w-full'}
+          className={
+            mini
+              ? 'h-full w-28 shrink-0 cursor-pointer bg-black object-cover sm:w-full sm:object-contain'
+              : `relative h-full w-full origin-top-left transition-[translate,scale,opacity,border-radius] duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${revealed ? 'opacity-100' : 'opacity-0'} ${
+                  postPlay ? 'translate-x-[4vw] translate-y-[8vh] scale-[0.62] cursor-pointer object-top sm:translate-y-[7vh] sm:scale-[0.36] sm:rounded-3xl sm:bg-black sm:object-center sm:shadow-2xl sm:ring-1 sm:ring-white/15' : ''
+                }`
+          }
           preload="metadata"
           playsInline
           poster={imageUrl(item.data?.backdrop, 'w1280') ?? undefined}
           onLoadedMetadata={onLoadedMetadata}
+          onLoadedData={() => setRevealed(true)}
           onDurationChange={() => !live && setDuration(videoRef.current?.duration ?? 0)}
           onTimeUpdate={onTimeUpdate}
           onPlay={() => {
@@ -867,6 +900,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           onError={onError}
           onClick={() => {
             if (mini) onRestore();
+            // The small picture at the end: back to the credits, full size.
+            else if (postPlay) stayInEpisode();
             else if (menu) setMenu(null);
             else togglePlay();
           }}
@@ -880,7 +915,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       )}
 
       {/* The chosen subtitle stays selected while minimized; it is only not drawn on the small video. */}
-      {!mini && <SubtitleOverlay video={activeTrack?.video ?? null} track={activeTrack?.track ?? null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />}
+      {!mini && !postPlay && <SubtitleOverlay video={activeTrack?.video ?? null} track={activeTrack?.track ?? null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />}
 
       {!mini && !askResume && (buffering || !streamSrc) && !error && !showUnavailable && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
@@ -968,10 +1003,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           credits={creditsPlaying(item.data?.segments, file?.id, time)}
           ended={ended}
           onPlay={goNext}
-          onStay={() => {
-            setCountdown(null);
-            if (!ended) setUpNextDismissed(true);
-          }}
+          onStay={stayInEpisode}
+          onEpisodes={exit}
         />
       )}
       {!mini && ended && !next && !error && (

@@ -50,3 +50,23 @@ describe('Next episode card', () => {
     expect(screen.getByRole('button', { name: 'Next episode' })).toBeTruthy();
   });
 });
+
+describe('Next episode card at the end of an episode', () => {
+  it('shows the countdown big, plays from the picture, and leads to the episodes', async () => {
+    const onPlay = vi.fn();
+    const onEpisodes = vi.fn();
+    render(<UpNext next={next} countdown={4} countdownTotal={10} credits ended={false} onPlay={onPlay} onStay={vi.fn()} onEpisodes={onEpisodes} />);
+    expect(screen.getByText('Next episode, starts in 4 seconds')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Play La Catedral' }));
+    expect(onPlay).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole('button', { name: 'Episodes' }));
+    expect(onEpisodes).toHaveBeenCalledOnce();
+    expect((screen.getByRole('dialog').querySelector('img') as HTMLImageElement).src).toContain('/api/images/w780/still.jpg');
+  });
+
+  it('shows no countdown heading when nothing starts on its own', () => {
+    render(<UpNext next={next} countdown={null} countdownTotal={10} credits ended={false} onPlay={vi.fn()} onStay={vi.fn()} />);
+    expect(screen.queryByText(/starts in/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Episodes' })).toBeNull();
+  });
+});
