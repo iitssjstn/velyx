@@ -10,6 +10,7 @@ import { AuditPage } from './Audit';
 import { HealthPage } from './Health';
 import { SegmentsPage } from './Segments';
 import { ActivityPage } from './Activity';
+import { CleanupPage } from './Cleanup';
 
 const TABS = [
   { to: 'dashboard', label: 'Dashboard' },
@@ -19,6 +20,7 @@ const TABS = [
   { to: 'metadata', label: 'Metadata' },
   { to: 'health', label: 'Library health' },
   { to: 'intros', label: 'Intros & credits' },
+  { to: 'cleanup', label: 'Clean-up' },
   { to: 'server', label: 'Server' },
   { to: 'logs', label: 'Logs' },
   { to: 'audit', label: 'Audit log' },
@@ -49,6 +51,7 @@ export default function AdminLayout() {
         <Route path="metadata" element={<MetadataPage />} />
         <Route path="health" element={<HealthPage />} />
         <Route path="intros" element={<SegmentsPage />} />
+        <Route path="cleanup" element={<CleanupPage />} />
         {/* The compatibility overview became part of Library health in 0.4.2. */}
         <Route path="compatibility" element={<Navigate to="/admin/health" replace />} />
         <Route path="server" element={<ServerSettingsPanel />} />

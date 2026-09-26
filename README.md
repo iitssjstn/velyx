@@ -24,6 +24,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - [Users and roles](#users-and-roles)
 - [Monitoring and storage](#monitoring-and-storage)
 - [Activity and statistics](#activity-and-statistics)
+- [Library clean-up](#library-clean-up)
 - [Library health](#library-health)
 - [Intros and credits](#intros-and-credits)
 - [Running behind a reverse proxy](#running-behind-a-reverse-proxy)
@@ -64,6 +65,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Collections** — movie series from TMDB (such as “The Matrix Collection”) are grouped automatically once you have two or more of their movies; administrators can also make their own collections of movies and shows. **Smart collections** (Recently Added, Unwatched, 4K, HDR, Short Movies, decades, …) are saved filters, evaluated per viewer, and admins can save their own.
 - **Multiple users** with administrator and user roles, device/session management and an audit log.
 - **Activity and statistics** — who is watching what right now (with exactly how it is sent: Direct Play or Remux, codecs, resolution, bitrate, device), a full activity log, watch time per day, week or month, most watched movies and shows, and a watch history for every user.
+- **Library clean-up** — suggestions for freeing up space (never watched, not watched in a long time, very large files, extra versions, unidentified files), reviewed by an administrator. Nothing is deleted without selecting files and confirming, and deleting is off by default.
 - **Admin panel** — dashboard with CPU, memory, disk, scanner status, active streams and backups; activity and statistics; libraries with live scan progress; Library health; intros & credits; users and sessions; metadata review; server settings; logs; audit log; backups.
 - **Backups** — scheduled database backups with daily/weekly/monthly rotation, verification, and restore from the admin page or the command line.
 - **Storage monitoring** — warnings when the data volume runs low; scans pause automatically when it is critical; unused cache can be cleared.
@@ -349,6 +351,31 @@ Velyx finds intros and credits itself, without an online service or fixed timest
 - **History:** every viewing with user, title, start time, time watched, how far it got, device, mode, resolution and bitrate — filter by user and by movies or episodes.
 
 Every user sees their own history under **Settings → History**. A viewing counts as a play after one minute; pausing and skipping ahead do not add watch time. Viewings stay readable after a user or a title is removed. History older than two years is removed automatically.
+
+## Library clean-up
+
+**Admin → Clean-up** suggests files you might remove, from what Velyx already knows (file sizes, versions, metadata and what people watched). No file is read to build the list.
+
+| Rule | Suggests | Default |
+| --- | --- | --- |
+| Never watched | Added more than N days ago and not started by anyone | on, 365 days |
+| Not watched in a long time | Watched before, but nobody played it for N days | off, 730 days |
+| Very large files | Files above a size limit | on, 50 GB |
+| Extra versions | Lower-quality copies of a movie or episode (the version that plays by default is never suggested) | on |
+| Unidentified or unreadable | Titles without metadata and files FFprobe could not read | on |
+
+Each suggestion shows the title, path, size, resolution, library, whether and when it was watched, and why it is suggested. Select files and choose:
+
+- **Keep** — the file is not suggested again (unless it changes). Kept files can be suggested again later.
+- **Delete** — removes the selected files from disk after a confirmation that lists every file and the total size. Only the media file is removed; subtitles and other files in the folder stay. The library is rescanned afterwards.
+- **Cancel** — clears the selection.
+
+Deleting is **off by default**. To use it:
+
+1. Choose **Allow deleting** on the clean-up page. You can turn it off again at any time.
+2. Mount the library folder writable: remove `:ro` from its volume in `docker-compose.yml`. With `:ro` Velyx can never delete anything, and the page shows the library as read-only.
+
+Velyx only deletes files that are current suggestions, only inside their library folder, and never a file someone is watching. Every deletion is recorded in the audit log with the path and size.
 
 ## Running behind a reverse proxy
 

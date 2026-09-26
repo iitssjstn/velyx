@@ -633,3 +633,16 @@ export const playbackSessions = sqliteTable(
   },
   (t) => [index('playback_sessions_started_idx').on(t.startedAt), index('playback_sessions_user_idx').on(t.userId, t.startedAt)],
 );
+
+/**
+ * Library clean-up: files an administrator chose to keep. A kept file is not suggested again until
+ * it changes (another size means another file).
+ */
+export const cleanupDecisions = sqliteTable('cleanup_decisions', {
+  mediaFileId: integer('media_file_id')
+    .primaryKey()
+    .references(() => mediaFiles.id, { onDelete: 'cascade' }),
+  size: integer('size').notNull(),
+  decidedBy: text('decided_by').notNull(),
+  decidedAt: integer('decided_at').notNull().default(now),
+});
