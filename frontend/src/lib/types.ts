@@ -68,6 +68,18 @@ export interface CollectionSummary extends CollectionRef {
   itemCount: number;
 }
 
+export interface SmartCollection {
+  key: string;
+  id: number | null;
+  name: string;
+  kind: 'movies' | 'shows';
+  query: Record<string, string>;
+  custom: boolean;
+  count: number;
+  posterPath: string | null;
+  backdropPath: string | null;
+}
+
 export interface CollectionDetail extends CollectionSummary {
   items: Card[];
 }

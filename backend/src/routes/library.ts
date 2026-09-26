@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { and, asc, count, desc, eq, inArray, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, or, sql, type SQLWrapper } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireUser } from '../app.js';
@@ -18,37 +18,16 @@ import {
   subtitles,
   watchlist,
   watchProgress,
+  continueDismissals,
 } from '../db/schema.js';
 import { Catalog } from '../services/catalog.js';
 import { notFound, parseId } from '../http-error.js';
 import { languageName } from '../services/parser.js';
 import { SEARCH_KIND, ftsQuery } from '../services/search.js';
+import { similarItems } from '../services/recommendations.js';
+import { listQuery, movieListWhere, movieRuntime, showListWhere } from '../services/list-filters.js';
 import { visibleCollections } from '../services/collections.js';
 import { assertEpisode, assertMovie, assertShow, canSee, scopeCondition } from '../services/access.js';
-
-const listQuery = z.object({
-  page: z.coerce.number().int().min(1).max(100000).default(1),
-  limit: z.coerce.number().int().min(1).max(200).default(60),
-  sort: z.enum(['title', 'added', 'year', 'rating', 'release', 'watched', 'runtime']).default('title'),
-  order: z.enum(['asc', 'desc']).optional(),
-  genre: z.coerce.number().int().positive().optional(),
-  library: z.coerce.number().int().positive().optional(),
-  /** Watch state; 'completed' is the TV name for 'watched'. */
-  filter: z.enum(['all', 'unwatched', 'in-progress', 'watched', 'completed', 'favorites', 'watchlist']).default('all'),
-  resolution: z.enum(['4k', '1080p', '720p', 'sd']).optional(),
-  hdr: z.enum(['1', 'true']).optional(),
-  yearFrom: z.coerce.number().int().min(1870).max(2100).optional(),
-  yearTo: z.coerce.number().int().min(1870).max(2100).optional(),
-  minRating: z.coerce.number().min(0).max(10).optional(),
-});
-
-/** Resolution buckets by width (or height for unusual aspect ratios), matching resolutionLabel in the UI. */
-const RESOLUTION_SQL: Record<string, SQL> = {
-  '4k': sql`(mf.width >= 3800 OR mf.height >= 2100)`,
-  '1080p': sql`(mf.width >= 1900 OR mf.height >= 1000) AND mf.width < 3800 AND mf.height < 2100`,
-  '720p': sql`(mf.width >= 1200 OR mf.height >= 700) AND mf.width < 1900 AND mf.height < 1000`,
-  sd: sql`mf.width < 1200 AND mf.height < 700`,
-};
 
 type FileRow = typeof mediaFiles.$inferSelect;
 
@@ -215,6 +194,20 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
         updatedAt: c.updatedAt,
       });
     }
+    // Items the user removed from Continue Watching stay hidden until they are watched again.
+    const dismissed = new Map(
+      db
+        .select()
+        .from(continueDismissals)
+        .where(eq(continueDismissals.userId, userId))
+        .all()
+        .map((d) => [`${d.kind}:${d.itemId}`, d.at]),
+    );
+    const visibleCw = cw.filter((c) => {
+      const at = dismissed.get(c.type === 'movie' ? `movie:${c.id}` : `show:${c.showId}`);
+      return at === undefined || c.updatedAt > at;
+    });
+    cw.splice(0, cw.length, ...visibleCw);
     cw.sort((a, b) => b.updatedAt - a.updatedAt);
 
     const recentMovies = db.select().from(movies).where(movieVis).orderBy(desc(movies.addedAt)).limit(20).all();
@@ -279,6 +272,20 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     };
   });
 
+  const dismissBody = z.object({ type: z.enum(['movie', 'episode']), id: z.number().int().positive() });
+
+  /** Removes a movie, or a show (via one of its episodes), from Continue Watching. */
+  app.post('/api/home/continue/dismiss', { preHandler: requireUser }, async (request) => {
+    const body = dismissBody.parse(request.body);
+    const scope = scopeOf(request);
+    const target = body.type === 'movie' ? { kind: 'movie' as const, itemId: assertMovie(db, scope, body.id).id } : { kind: 'show' as const, itemId: assertEpisode(db, scope, body.id).s.id };
+    db.insert(continueDismissals)
+      .values({ userId: request.user!.id, ...target, at: Date.now() })
+      .onConflictDoUpdate({ target: [continueDismissals.userId, continueDismissals.kind, continueDismissals.itemId], set: { at: Date.now() } })
+      .run();
+    return { ok: true };
+  });
+
   // ------------------------------------------------------------------ genres
   app.get<{ Querystring: { type?: string } }>('/api/genres', { preHandler: requireUser }, async (request) => {
     const scope = scopeOf(request);
@@ -308,28 +315,13 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
   app.get('/api/movies', { preHandler: requireUser }, async (request) => {
     const q = listQuery.parse(request.query);
     const userId = request.user!.id;
-    const conds: SQL[] = [];
-    const vis = scopeCondition(scopeOf(request), movies.libraryId);
-    if (vis) conds.push(vis);
-    if (q.genre) conds.push(sql`${movies.id} IN (SELECT movie_id FROM movie_genres WHERE genre_id = ${q.genre})`);
-    if (q.library) conds.push(eq(movies.libraryId, q.library));
-    if (q.filter === 'watched' || q.filter === 'completed') conds.push(sql`${movies.id} IN (SELECT movie_id FROM watch_progress WHERE user_id = ${userId} AND completed = 1 AND movie_id IS NOT NULL)`);
-    if (q.filter === 'unwatched') conds.push(sql`${movies.id} NOT IN (SELECT movie_id FROM watch_progress WHERE user_id = ${userId} AND completed = 1 AND movie_id IS NOT NULL)`);
-    if (q.filter === 'in-progress') conds.push(sql`${movies.id} IN (SELECT movie_id FROM watch_progress WHERE user_id = ${userId} AND completed = 0 AND position_sec >= 30 AND movie_id IS NOT NULL)`);
-    if (q.filter === 'favorites') conds.push(sql`${movies.id} IN (SELECT movie_id FROM favorites WHERE user_id = ${userId} AND movie_id IS NOT NULL)`);
-    if (q.filter === 'watchlist') conds.push(sql`${movies.id} IN (SELECT movie_id FROM watchlist WHERE user_id = ${userId} AND movie_id IS NOT NULL)`);
-    if (q.resolution) conds.push(sql`EXISTS (SELECT 1 FROM media_files mf WHERE mf.movie_id = ${movies.id} AND ${RESOLUTION_SQL[q.resolution]})`);
-    if (q.hdr) conds.push(sql`EXISTS (SELECT 1 FROM media_files mf WHERE mf.movie_id = ${movies.id} AND mf.video_range IN ('HDR10', 'HLG', 'DV'))`);
-    if (q.yearFrom) conds.push(sql`${movies.year} >= ${q.yearFrom}`);
-    if (q.yearTo) conds.push(sql`${movies.year} <= ${q.yearTo}`);
-    if (q.minRating !== undefined) conds.push(sql`${movies.rating} >= ${q.minRating}`);
-    const where = conds.length ? and(...conds) : undefined;
+    const where = movieListWhere(q, userId, scopeOf(request));
     const dir = q.order ?? (q.sort === 'title' ? 'asc' : 'desc');
     const o = dir === 'asc' ? asc : desc;
     // Missing values (no year, never watched, …) always sort last.
     const last = (col: SQLWrapper) => sql`${col} IS NULL`;
     const lastWatched = sql`(SELECT max(updated_at) FROM watch_progress WHERE user_id = ${userId} AND movie_id = ${movies.id})`;
-    const runtime = sql`coalesce(${movies.runtime}, (SELECT max(duration_sec) / 60 FROM media_files WHERE movie_id = ${movies.id}))`;
+    const runtime = movieRuntime;
     const orderBy = {
       title: [o(movies.sortTitle)],
       added: [o(movies.addedAt), asc(movies.sortTitle)],
@@ -403,26 +395,34 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     };
   });
 
+  /** More Like This: deterministic recommendations from shared metadata. */
+  app.get<{ Params: { id: string } }>('/api/movies/:id/similar', { preHandler: requireUser }, async (request) => {
+    const id = parseId(request.params.id);
+    const scope = scopeOf(request);
+    assertMovie(db, scope, id);
+    const ranked = similarItems(db, scope, 'movie', id);
+    if (!ranked.length) return [];
+    const order = new Map(ranked.map((r, i) => [r.id, i]));
+    const rows = db.select().from(movies).where(inArray(movies.id, ranked.map((r) => r.id))).all().sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+    return catalog.movieCards(request.user!.id, rows);
+  });
+
+  app.get<{ Params: { id: string } }>('/api/shows/:id/similar', { preHandler: requireUser }, async (request) => {
+    const id = parseId(request.params.id);
+    const scope = scopeOf(request);
+    assertShow(db, scope, id);
+    const ranked = similarItems(db, scope, 'show', id);
+    if (!ranked.length) return [];
+    const order = new Map(ranked.map((r, i) => [r.id, i]));
+    const rows = db.select().from(shows).where(inArray(shows.id, ranked.map((r) => r.id))).all().sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+    return catalog.showCards(request.user!.id, rows);
+  });
+
   // ------------------------------------------------------------------ shows
   app.get('/api/shows', { preHandler: requireUser }, async (request) => {
     const q = listQuery.parse(request.query);
     const userId = request.user!.id;
-    const conds: SQL[] = [];
-    const vis = scopeCondition(scopeOf(request), shows.libraryId);
-    if (vis) conds.push(vis);
-    if (q.genre) conds.push(sql`${shows.id} IN (SELECT show_id FROM show_genres WHERE genre_id = ${q.genre})`);
-    if (q.library) conds.push(eq(shows.libraryId, q.library));
-    const watchedCount = sql`(SELECT count(*) FROM watch_progress wp JOIN episodes e ON e.id = wp.episode_id WHERE wp.user_id = ${userId} AND wp.completed = 1 AND e.show_id = ${shows.id})`;
-    const totalCount = sql`(SELECT count(*) FROM episodes e WHERE e.show_id = ${shows.id})`;
-    if (q.filter === 'watched' || q.filter === 'completed') conds.push(sql`${watchedCount} >= ${totalCount}`);
-    if (q.filter === 'unwatched') conds.push(sql`${watchedCount} = 0`);
-    if (q.filter === 'in-progress') conds.push(sql`${watchedCount} > 0 AND ${watchedCount} < ${totalCount}`);
-    if (q.filter === 'favorites') conds.push(sql`${shows.id} IN (SELECT show_id FROM favorites WHERE user_id = ${userId} AND show_id IS NOT NULL)`);
-    if (q.filter === 'watchlist') conds.push(sql`${shows.id} IN (SELECT show_id FROM watchlist WHERE user_id = ${userId} AND show_id IS NOT NULL)`);
-    if (q.yearFrom) conds.push(sql`${shows.year} >= ${q.yearFrom}`);
-    if (q.yearTo) conds.push(sql`${shows.year} <= ${q.yearTo}`);
-    if (q.minRating !== undefined) conds.push(sql`${shows.rating} >= ${q.minRating}`);
-    const where = conds.length ? and(...conds) : undefined;
+    const where = showListWhere(q, userId, scopeOf(request));
     const dir = q.order ?? (q.sort === 'title' ? 'asc' : 'desc');
     const o = dir === 'asc' ? asc : desc;
     const last = (col: SQLWrapper) => sql`${col} IS NULL`;

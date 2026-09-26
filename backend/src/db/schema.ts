@@ -399,8 +399,13 @@ export const collections = sqliteTable(
   'collections',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    /** 'auto' collections come from TMDB (e.g. "The Matrix Collection"); 'manual' ones are made by an admin. */
-    kind: text('kind', { enum: ['auto', 'manual'] }).notNull(),
+    /**
+     * 'auto' collections come from TMDB (e.g. "The Matrix Collection"); 'manual' ones are hand-picked
+     * by an admin; 'smart' ones are saved filters (`rules`) evaluated for each viewer.
+     */
+    kind: text('kind', { enum: ['auto', 'manual', 'smart'] }).notNull(),
+    /** Smart collections: JSON {"kind": "movies" | "shows", "query": {...list filters}}. */
+    rules: text('rules'),
     tmdbId: integer('tmdb_id').unique(),
     name: text('name').notNull(),
     sortTitle: text('sort_title').notNull(),
@@ -449,4 +454,22 @@ export const auditLog = sqliteTable(
     ip: text('ip'),
   },
   (t) => [index('audit_at_idx').on(t.at), index('audit_action_idx').on(t.action, t.at)],
+);
+
+/**
+ * Items a user removed from Continue Watching. An item reappears as soon as there is newer
+ * activity (progress saved after `at`), so dismissing never loses watch history.
+ */
+export const continueDismissals = sqliteTable(
+  'continue_dismissals',
+  {
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** 'movie' or 'show' (for episodes the whole show is dismissed). */
+    kind: text('kind', { enum: ['movie', 'show'] }).notNull(),
+    itemId: integer('item_id').notNull(),
+    at: integer('at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.kind, t.itemId] })],
 );

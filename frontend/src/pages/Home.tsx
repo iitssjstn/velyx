@@ -1,10 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Clapperboard, Info, Play } from 'lucide-react';
 import { api } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
 import { formatClock, greeting, imageUrl, progressFraction } from '../lib/format';
-import type { Card, HomeData } from '../lib/types';
+import type { Card, ContinueItem, HomeData } from '../lib/types';
+import { toast } from '../components/Toast';
 import { ContinueCard, PosterCard } from '../components/Cards';
 import { Shelf } from '../components/Shelf';
 import { EmptyState, ErrorState, PageLoader } from '../components/States';
@@ -62,7 +63,18 @@ function Hero({ data }: { data: HomeData }) {
 
 export function HomePage() {
   const { user } = useAuth();
+  const qc = useQueryClient();
   const q = useQuery({ queryKey: ['home'], queryFn: () => api.get<HomeData>('/api/home') });
+  const dismiss = useMutation({
+    mutationFn: (item: ContinueItem) => api.post('/api/home/continue/dismiss', { type: item.type, id: item.id }),
+    // Remove the card right away; the server keeps it hidden until it is watched again.
+    onMutate: (item) =>
+      qc.setQueryData<HomeData>(['home'], (d) => (d ? { ...d, continueWatching: d.continueWatching.filter((c) => !(c.type === item.type && c.id === item.id)) } : d)),
+    onError: (err) => {
+      toast.error(err);
+      void qc.invalidateQueries({ queryKey: ['home'] });
+    },
+  });
 
   if (q.isLoading) return <PageLoader />;
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
@@ -101,7 +113,7 @@ export function HomePage() {
           {d.continueWatching.length > 0 && (
             <Shelf title="Continue Watching">
               {d.continueWatching.map((c) => (
-                <ContinueCard key={`${c.type}-${c.id}`} item={c} />
+                <ContinueCard key={`${c.type}-${c.id}`} item={c} onDismiss={(item) => dismiss.mutate(item)} />
               ))}
             </Shelf>
           )}

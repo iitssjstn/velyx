@@ -1,15 +1,17 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { Check, CheckCheck, Eye, Play, Star } from 'lucide-react';
+import { Check, Eye, Play, Star } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { episodeCode, formatDate, formatRuntime, progressFraction, resolutionLabel } from '../lib/format';
 import type { EpisodeSummary, SeasonDetail, ShowDetail } from '../lib/types';
 import { CollectionLinks, DetailHero, MetaList } from '../components/DetailHero';
 import { FavoriteButton, WatchlistButton } from '../components/FavoriteButton';
+import { WatchedMenu } from '../components/WatchedMenu';
 import { AdminItemMenu } from '../components/AdminItemMenu';
 import { CastRow } from '../components/People';
+import { MoreLikeThis } from '../components/MoreLikeThis';
 import { Artwork } from '../components/Artwork';
 import { ProgressBar } from '../components/ProgressBar';
 import { ErrorState, PageLoader, Spinner } from '../components/States';
@@ -92,7 +94,6 @@ export function ShowPage() {
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const s = q.data;
   const currentSeason = seasons.find((x) => x.seasonNumber === current);
-  const allWatched = s.episodeCount > 0 && s.watchedCount >= s.episodeCount;
   const up = s.upNext;
   const resuming = up?.progress && !up.progress.completed && up.progress.positionSec >= 30;
   const creators = s.crew.filter((c) => c.role === 'Creator').map((c) => c.name);
@@ -135,15 +136,7 @@ export function ShowPage() {
           )}
           <WatchlistButton key={String(s.watchlist)} type="show" id={s.id} initial={s.watchlist} />
           <FavoriteButton type="show" id={s.id} initial={s.favorite} />
-          <button
-            type="button"
-            onClick={() => watched.mutate({ showId: s.id, watched: !allWatched })}
-            className={`grid size-12 place-items-center rounded-full border transition-colors ${allWatched ? 'border-ok/50 bg-ok/10 text-ok' : 'border-line bg-surface/70 text-muted hover:text-ink'}`}
-            aria-label={allWatched ? 'Mark show as unwatched' : 'Mark show as watched'}
-            title={allWatched ? 'Mark show as unwatched' : 'Mark show as watched'}
-          >
-            {allWatched ? <CheckCheck className="size-5" /> : <Eye className="size-5" />}
-          </button>
+          <WatchedMenu watchedCount={s.watchedCount} total={s.episodeCount} onMark={(value) => watched.mutate({ showId: s.id, watched: value })} />
           {user?.role === 'admin' && <AdminItemMenu type="show" id={s.id} collections={s.collections} query={s.match.parsedTitle} year={s.match.parsedYear} />}
         </div>
       </DetailHero>
@@ -175,13 +168,18 @@ export function ShowPage() {
             ))}
           </div>
           {currentSeason && (
-            <button
-              type="button"
-              className="text-sm text-muted hover:text-ink"
-              onClick={() => watched.mutate({ seasonId: currentSeason.id, watched: currentSeason.watchedCount < currentSeason.episodeCount })}
-            >
-              {currentSeason.watchedCount < currentSeason.episodeCount ? 'Mark season as watched' : 'Mark season as unwatched'}
-            </button>
+            <div className="flex gap-4 text-sm">
+              {currentSeason.watchedCount < currentSeason.episodeCount && (
+                <button type="button" className="text-muted hover:text-ink" onClick={() => watched.mutate({ seasonId: currentSeason.id, watched: true })}>
+                  Mark season as watched
+                </button>
+              )}
+              {currentSeason.watchedCount > 0 && (
+                <button type="button" className="text-muted hover:text-ink" onClick={() => watched.mutate({ seasonId: currentSeason.id, watched: false })}>
+                  Mark season as unwatched
+                </button>
+              )}
+            </div>
           )}
         </div>
         {season.data?.overview && <p className="mt-4 max-w-3xl text-sm text-muted">{season.data.overview}</p>}
@@ -200,6 +198,7 @@ export function ShowPage() {
         )}
       </section>
       <CastRow cast={s.cast} />
+      <MoreLikeThis type="show" id={s.id} />
     </div>
   );
 }

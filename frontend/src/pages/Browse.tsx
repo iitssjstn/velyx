@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
-import { Film, SlidersHorizontal, Tv, X } from 'lucide-react';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Film, SlidersHorizontal, Sparkles, Tv, X } from 'lucide-react';
 import { api, qs } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { Card, Genre, Paged } from '../lib/types';
@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, PageLoader, Spinner } from '../components/State
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { VirtualGrid } from '../components/VirtualGrid';
+import { toast } from '../components/Toast';
 
 type Kind = 'movies' | 'shows';
 
@@ -43,7 +44,7 @@ const RESOLUTIONS = [
 const RATINGS = ['5', '6', '7', '8'];
 const PAGE_SIZE = 60;
 /** Filter keys stored in the URL; everything but sort/order counts as "filtered". */
-const FILTER_KEYS = ['filter', 'genre', 'resolution', 'hdr', 'yearFrom', 'yearTo', 'minRating'] as const;
+const FILTER_KEYS = ['filter', 'genre', 'resolution', 'hdr', 'yearFrom', 'yearTo', 'minRating', 'maxRuntime'] as const;
 
 const minColumnWidth = () => (typeof window !== 'undefined' && window.matchMedia?.('(min-width: 640px)').matches ? 160 : 136);
 // Poster (2:3) + 8px gap + title (20px) + subtitle (16px).
@@ -64,6 +65,8 @@ export function activeFilterChips(params: URLSearchParams, kind: Kind, genres: G
   if (from || to) chips.push({ label: from && to ? `${from}–${to}` : from ? `From ${from}` : `Until ${to}`, keys: ['yearFrom', 'yearTo'] });
   const rating = params.get('minRating');
   if (rating) chips.push({ label: `Rating ${rating}+`, keys: ['minRating'] });
+  const runtime = params.get('maxRuntime');
+  if (runtime) chips.push({ label: `Up to ${runtime} min`, keys: ['maxRuntime'] });
   return chips;
 }
 
@@ -153,20 +156,58 @@ function FilterPanel({ kind, params, genres, onApply, onClose }: { kind: Kind; p
   );
 }
 
+/** Saves the current filters as a smart collection (admin). */
+function SaveSmartCollection({ kind, query, summary, onDone }: { kind: Kind; query: Record<string, string>; summary: string; onDone: () => void }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [name, setName] = useState('');
+  const save = useMutation({
+    mutationFn: () => api.post('/api/collections/smart', { name: name.trim(), kind, query }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['collections', 'smart'] });
+      toast.success('Smart collection saved.');
+      onDone();
+      navigate('/collections');
+    },
+    onError: (err) => toast.error(err),
+  });
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save.mutate();
+      }}
+    >
+      <p className="text-sm text-muted">Everyone sees the {kind === 'movies' ? 'movies' : 'shows'} that match these filters for them, always up to date: {summary}.</p>
+      <div>
+        <label className="label" htmlFor="smart-name">Name</label>
+        <input id="smart-name" className="input" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. 90s action" />
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={onDone}>Cancel</Button>
+        <Button type="submit" loading={save.isPending}>Save</Button>
+      </div>
+    </form>
+  );
+}
+
 export function BrowsePage({ kind }: { kind: Kind }) {
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const [panel, setPanel] = useState(false);
   const sort = params.get('sort') ?? 'title';
+  const order = params.get('order') ?? undefined;
+  const [saving, setSaving] = useState(false);
   const title = kind === 'movies' ? 'Movies' : 'TV Shows';
   const query = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? undefined]));
   if (query.filter === 'all') query.filter = undefined;
 
   const genres = useQuery({ queryKey: ['genres', kind], queryFn: () => api.get<Genre[]>(`/api/genres?type=${kind}`), staleTime: 5 * 60_000 });
   const q = useInfiniteQuery({
-    queryKey: [kind, 'list', sort, query],
+    queryKey: [kind, 'list', sort, order, query],
     initialPageParam: 1,
-    queryFn: ({ pageParam }) => api.get<Paged<Card>>(`/api/${kind}${qs({ page: pageParam, limit: PAGE_SIZE, sort, ...query })}`),
+    queryFn: ({ pageParam }) => api.get<Paged<Card>>(`/api/${kind}${qs({ page: pageParam, limit: PAGE_SIZE, sort, order, ...query })}`),
     getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
   });
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = q;
@@ -178,6 +219,7 @@ export function BrowsePage({ kind }: { kind: Kind }) {
     const next = new URLSearchParams(params);
     if (value === 'title') next.delete('sort');
     else next.set('sort', value);
+    next.delete('order');
     setParams(next, { replace: true });
   };
   const clearKeys = (keys: string[]) => {
@@ -222,6 +264,11 @@ export function BrowsePage({ kind }: { kind: Kind }) {
           <button type="button" onClick={() => clearKeys([...FILTER_KEYS])} className="px-2 text-sm text-muted hover:text-ink">
             Clear all
           </button>
+          {user?.role === 'admin' && (
+            <button type="button" onClick={() => setSaving(true)} className="ml-auto inline-flex items-center gap-1.5 px-2 text-sm text-muted hover:text-ink">
+              <Sparkles className="size-4" /> Save as smart collection
+            </button>
+          )}
         </div>
       )}
 
@@ -254,6 +301,16 @@ export function BrowsePage({ kind }: { kind: Kind }) {
         </>
       )}
 
+      <Modal title="New smart collection" open={saving} onClose={() => setSaving(false)}>
+        {saving && (
+          <SaveSmartCollection
+            kind={kind}
+            query={Object.fromEntries([...FILTER_KEYS, 'sort', 'order'].flatMap((k) => (params.get(k) ? [[k, params.get(k)!]] : [])))}
+            summary={chips.map((c) => c.label).join(' · ')}
+            onDone={() => setSaving(false)}
+          />
+        )}
+      </Modal>
       <Modal title="Filters" open={panel} onClose={() => setPanel(false)}>
         {panel && (
           <FilterPanel

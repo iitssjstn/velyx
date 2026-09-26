@@ -64,6 +64,20 @@
       "when": 1790389356751,
       "tag": "0008_search_fts",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1790389617327,
+      "tag": "0009_continue_dismissals",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1790389889623,
+      "tag": "0010_smart_collections",
+      "breakpoints": true
     }
   ]
 }

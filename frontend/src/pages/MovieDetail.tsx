@@ -10,6 +10,7 @@ import { CollectionLinks, DetailHero, MetaList } from '../components/DetailHero'
 import { FavoriteButton, WatchlistButton } from '../components/FavoriteButton';
 import { AdminItemMenu } from '../components/AdminItemMenu';
 import { CastRow } from '../components/People';
+import { MoreLikeThis } from '../components/MoreLikeThis';
 import { MediaInfo } from '../components/MediaInfo';
 import { ProgressBar } from '../components/ProgressBar';
 import { ErrorState, PageLoader } from '../components/States';
@@ -162,6 +163,7 @@ export function MoviePage() {
         )}
       </div>
       <CastRow cast={m.cast} />
+      <MoreLikeThis type="movie" id={m.id} />
     </div>
   );
 }
