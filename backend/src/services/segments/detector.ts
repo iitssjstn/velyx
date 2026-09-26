@@ -6,6 +6,7 @@ import { episodes, episodeSegments, libraries, mediaFiles, segmentReferences, sh
 import { createLogger } from '../../logger.js';
 import { fingerprint, longestCommonSegment, SAMPLE_RATE, type Fingerprint } from './fingerprint.js';
 import { DETECTION_VERSION, detectSeason, headWindow, tailWindow, type Detection, type EpisodeAudio } from './detect.js';
+import { diagnoseSeason, type SeasonDiagnosis } from './diagnose.js';
 
 const log = createLogger('segments');
 
@@ -378,6 +379,41 @@ export class SegmentDetector {
     this.learnReferences(job, audio, results);
     const found = [...results.values()];
     log.info(`${title} season ${job.seasonNumber}: ${found.filter((d) => d.intro && d.intro.confidence !== 'low').length} intro(s), ${found.filter((d) => d.credits && d.credits.confidence !== 'low').length} credits found`);
+  }
+
+  /**
+   * Analyses one season without storing anything and reports, per episode, what was found with
+   * each neighbour and why results were rejected (for the `velyx intros` command).
+   */
+  async diagnose(showId: number, seasonNumber: number): Promise<SeasonDiagnosis> {
+    const files = this.episodeFiles({ showId, seasonNumber });
+    const audio: EpisodeAudio[] = [];
+    const errors = new Map<number, string>();
+    for (const f of files) {
+      try {
+        audio.push(await this.readEpisode(f));
+      } catch (err) {
+        errors.set(f.episodeId, (err as Error).message);
+      }
+    }
+    const tracks = new Map(
+      files.length
+        ? this.db
+            .select({ id: mediaFiles.id, tracks: mediaFiles.audioTracks, codec: mediaFiles.audioCodec, channels: mediaFiles.audioChannels })
+            .from(mediaFiles)
+            .where(inArray(mediaFiles.id, files.map((f) => f.fileId)))
+            .all()
+            .map((r) => [r.id, r])
+        : [],
+    );
+    return diagnoseSeason(
+      files.map((f) => {
+        const t = tracks.get(f.fileId);
+        const first = t?.tracks?.[0];
+        return { id: f.episodeId, episodeNumber: f.episodeNumber, path: f.path, audio: first ? `${first.codec ?? '?'} ${first.channels ?? '?'}ch ${first.language ?? ''}`.trim() : `${t?.codec ?? '?'} ${t?.channels ?? '?'}ch`, audioTracks: t?.tracks?.length ?? 0, error: errors.get(f.episodeId) ?? null };
+      }),
+      audio,
+    );
   }
 
   private async readEpisode(f: EpisodeFile): Promise<EpisodeAudio> {

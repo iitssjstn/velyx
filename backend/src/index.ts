@@ -57,6 +57,7 @@ async function main(): Promise<void> {
   ctx.disk.start();
   // A backup missed while Velyx was off runs shortly after start, not in the middle of it.
   setTimeout(() => ctx.backups.tick(), 2 * 60 * 1000).unref();
+  ctx.streams.closeInterrupted();
   ctx.streams.start();
   ctx.streams.purgeHistory();
   const purgeTimer = setInterval(() => {

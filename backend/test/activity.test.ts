@@ -81,8 +81,11 @@ describe('recording viewings', () => {
     t.touch(u, file.id, 'direct', null, null, t0 + 300_000);
     t.progress(u.id, { movieId: movie.id }, 100, t0 + 310_000);
     expect(rows()[0].endedAt).toBeNull();
-    // Velyx restarts: the open viewing ends where it was last seen.
+    // Building another tracker (the CLI does) leaves it alone…
     new StreamTracker(env.ctx.db);
+    expect(rows()[0].endedAt).toBeNull();
+    // …a restart of the server ends it where it was last seen.
+    new StreamTracker(env.ctx.db).closeInterrupted();
     expect(rows()[0].endedAt).toBe(t0 + 310_000);
   });
 

@@ -1,6 +1,6 @@
 {
   "name": "velyx",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "private": true,
   "type": "module",
   "description": "Velyx — Your media. Your server. A lightweight, Docker-first self-hosted media server.",

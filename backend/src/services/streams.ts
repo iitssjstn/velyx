@@ -57,8 +57,14 @@ export class StreamTracker {
   private streams = new Map<string, Internal>();
   private timer: NodeJS.Timeout | null = null;
 
-  constructor(private readonly db: DB) {
-    // Viewings that were running when Velyx stopped ended at their last sign of life.
+  constructor(private readonly db: DB) {}
+
+  /**
+   * Called once by the server at start-up: viewings that were running when Velyx stopped ended at
+   * their last sign of life. (Not in the constructor: the CLI builds a context too, while the
+   * server may be running.)
+   */
+  closeInterrupted(): void {
     const open = this.db.select().from(playbackSessions).where(isNull(playbackSessions.endedAt)).all();
     for (const r of open) this.finish(r.id, r.startedAt, r.lastSeenAt, r.watchedSec);
   }

@@ -127,3 +127,26 @@ describe('intro and credits detection', () => {
     expect(['medium', 'high']).toContain(d.intro?.confidence);
   });
 });
+
+describe('diagnosis', () => {
+  it('reports every pair at each strictness level plus the final result, as pasteable text', async () => {
+    const { diagnoseSeason, formatDiagnosis } = await import('../src/services/segments/diagnose.js');
+    const eps = [
+      makeEpisode(1, { coldOpen: 40, intro: INTRO_S1, story: 300, credits: CREDITS }),
+      makeEpisode(2, { coldOpen: 70, intro: INTRO_S1, story: 320, credits: CREDITS }),
+    ];
+    const files = eps.map((e, i) => ({ id: e.id, episodeNumber: i + 1, path: `/tv/Show/S01E0${i + 1}.mkv`, audio: 'eac3 6ch eng', audioTracks: 2, error: null }));
+    const d = diagnoseSeason([...files, { id: 99, episodeNumber: 3, path: '/tv/Show/S01E03.mkv', audio: '? ?ch', audioTracks: 0, error: 'Invalid data found' }], eps);
+    const e1 = d.episodes[0];
+    expect(e1.pairs).toHaveLength(1);
+    expect(e1.pairs[0].peer).toBe(2);
+    expect(Math.abs(e1.pairs[0].intro[0]!.start - 40)).toBeLessThan(1.5);
+    expect(e1.result?.intro).toMatch(/^(39\.\d|40(\.\d)?)–7[45](\.\d)? \(medium\)$/);
+    expect(d.episodes[2]).toMatchObject({ error: 'Invalid data found', pairs: [], result: null });
+    const text = formatDiagnosis('Show', 1, d);
+    expect(text).toContain('E01 S01E01.mkv');
+    expect(text).toContain('audio eac3 6ch eng (+1 more)');
+    expect(text).toContain('ERROR Invalid data found');
+    expect(text).toMatch(/vs E02 {2}intro /);
+  }, 30_000);
+});

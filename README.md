@@ -447,9 +447,13 @@ docker compose exec velyx velyx restore --cancel
 docker compose exec velyx velyx reset-password <username> <new-password>
 docker compose exec velyx velyx scan                      # scan all libraries
 docker compose exec velyx velyx scan --refresh-metadata   # scan and refresh metadata
+docker compose exec velyx velyx intros                    # list TV shows
+docker compose exec velyx velyx intros "Show title" 2     # explain intro/credits detection for season 2
 ```
 
 `reset-password` is the way back in if the only administrator forgets their password.
+
+`intros` reads the audio of one season (nothing is stored or changed) and prints, per episode, the longest common part found with each neighbouring episode at the strictness detection uses and at two looser levels, the audio track that was analysed, and the final result. Useful when intros or credits are not found; the output contains only numbers and file names.
 
 ## Security
 
@@ -553,6 +557,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 | New files do not appear automatically | Check Admin → Libraries for *Auto-updating*; see the inotify note under [Libraries and scanning](#libraries-and-scanning). |
 | Signed out behind HTTPS proxy | Set `TRUST_PROXY` (e.g. `1`) and forward the `Host` header. |
 | Forgot the admin password | `docker compose exec velyx velyx reset-password <user> <password>` |
+| Intros or credits not found | Short title cards (under 10 seconds) and credits with a different song every episode are not detected. Run `velyx intros "Show" <season>` (see [Maintenance CLI](#maintenance-cli)) to see what was compared, and correct episodes by hand in Admin → Intros & credits. |
 | Container unhealthy | `docker compose logs velyx`. |
 
 ## Known limitations
