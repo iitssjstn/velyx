@@ -123,6 +123,8 @@ export interface PlaybackAnalysis {
     target: string | null;
   };
   container: { name: string | null; action: 'direct' | 'remux' };
+  /** Overall bitrate in bits per second, as FFprobe measured it. */
+  bitrate: number | null;
   /** Why the file cannot play (empty when it can). */
   problems: string[];
   /** Things that work but are worth knowing (HDR, image subtitles, …). */
@@ -267,6 +269,7 @@ export function analyzePlayback(
       target,
     },
     container: { name: file.container, action: mode === 'remux' ? 'remux' : 'direct' },
+    bitrate: file.bitrate ?? null,
     problems,
     warnings,
     transcodeRequired: mode === 'unsupported',

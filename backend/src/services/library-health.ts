@@ -15,6 +15,7 @@ export type HealthKey =
   | 'remux'
   | 'browser-dependent'
   | 'unsupported'
+  | '4k'
   | 'hevc'
   | 'av1'
   | '10-bit'
@@ -44,6 +45,7 @@ export const HEALTH_CATEGORIES: HealthCategory[] = [
   { key: 'remux', label: 'Remux required', group: 'playback', unit: 'files', description: 'The video plays as-is; the audio or the container is converted on the fly, which costs little CPU.' },
   { key: 'browser-dependent', label: 'Depends on device', group: 'playback', unit: 'files', description: 'HEVC video: plays in Safari and in Chrome or Edge on hardware with HEVC decoding, not everywhere.' },
   { key: 'unsupported', label: 'Unsupported', group: 'playback', unit: 'files', description: 'Browsers cannot decode the video, and Velyx does not transcode video.' },
+  { key: '4k', label: '4K', group: 'formats', unit: 'files', description: 'Video of about 3840×2160. Large files: the network between server and device must keep up.' },
   { key: 'hevc', label: 'HEVC', group: 'formats', unit: 'files', description: 'HEVC / H.265 video.' },
   { key: 'av1', label: 'AV1', group: 'formats', unit: 'files', description: 'AV1 video: current Chrome, Edge and Firefox decode it; older devices and Safari may not.' },
   { key: '10-bit', label: '10-bit video', group: 'formats', unit: 'files', description: 'More than 8 bits per colour. 10-bit H.264 does not play in browsers.' },
@@ -103,6 +105,7 @@ export function fileCategories(f: FileRow): HealthKey[] {
   if (verdict) keys.push(verdict);
   if (f.probeError) keys.push('scan-errors');
   else if (f.videoCodec && f.videoBitDepth === null) keys.push('not-analyzed');
+  if ((f.width ?? 0) >= 3200 || (f.height ?? 0) >= 2000) keys.push('4k');
   if (f.videoCodec === 'hevc') keys.push('hevc');
   if (f.videoCodec === 'av1') keys.push('av1');
   if ((f.videoBitDepth ?? 8) > 8) keys.push('10-bit');
@@ -208,6 +211,7 @@ export interface HealthItem {
 export interface HealthSummary {
   categories: Array<HealthCategory & { count: number }>;
   files: number;
+  totals: { movies: number; shows: number; episodes: number; bytes: number };
   tmdbConfigured: boolean;
 }
 
@@ -272,8 +276,23 @@ export class LibraryHealth {
     return {
       categories: HEALTH_CATEGORIES.map((c) => ({ ...c, label: tr(lang, c.label), description: tr(lang, c.description), count: counts.get(c.key) ?? 0 })),
       files: files.length,
+      totals: this.totals(files, libraryId),
       tmdbConfigured: this.tmdbConfigured(),
     };
+  }
+
+  /** What the library holds: movies, series, episodes and the files' total size. */
+  private totals(files: FileRow[], libraryId?: number) {
+    const count = (table: typeof movies | typeof shows) => Number(this.db.select({ n: sql<number>`count(*)` }).from(table).where(libraryId ? eq(table.libraryId, libraryId) : undefined).get()!.n);
+    const episodeCount = Number(
+      this.db
+        .select({ n: sql<number>`count(*)` })
+        .from(episodes)
+        .innerJoin(shows, eq(shows.id, episodes.showId))
+        .where(libraryId ? eq(shows.libraryId, libraryId) : undefined)
+        .get()!.n,
+    );
+    return { movies: count(movies), shows: count(shows), episodes: episodeCount, bytes: files.reduce((sum, f) => sum + (f.size ?? 0), 0) };
   }
 
   /** The items in one category, one page at a time, sorted by title. */

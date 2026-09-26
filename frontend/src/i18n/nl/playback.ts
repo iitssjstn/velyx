@@ -32,4 +32,7 @@ export const playback: Messages['playback'] = {
   checking: 'Controleren…',
   checkFailed: 'Kon niet controleren hoe dit op dit apparaat afspeelt.',
   checkedFor: 'Gecontroleerd voor {device}.',
+  bitrate: 'Bitrate',
+  reason: 'Waarom',
+  subtitleInUse: 'Ondertitel in gebruik',
 };

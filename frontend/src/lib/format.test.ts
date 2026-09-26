@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { episodeCode, formatBytes, formatClock, formatIn, formatRuntime, imageUrl, intervalLabel, progressFraction, resolutionLabel, greeting, scheduleLabel } from './format';
+import { setLanguage } from '../i18n';
+import { episodeCode, formatBitrate, formatBytes, formatClock, formatIn, formatRuntime, imageUrl, intervalLabel, progressFraction, resolutionLabel, greeting, scheduleLabel } from './format';
 
 describe('format helpers', () => {
   it('formats clocks', () => {
@@ -18,6 +19,19 @@ describe('format helpers', () => {
     expect(formatBytes(512)).toBe('512 B');
     expect(formatBytes(1536)).toBe('1.5 KB');
     expect(formatBytes(4.2 * 1024 ** 3)).toBe('4.2 GB');
+    expect(formatBytes(3000 * 1024 ** 3)).toBe('2.9 TB');
+  });
+  it('writes sizes and bitrates the Dutch way in Dutch', async () => {
+    await setLanguage('nl');
+    try {
+      expect(formatBytes(4.2 * 1024 ** 3)).toBe('4,2 GB');
+      expect(formatBytes(150 * 1024 ** 2)).toBe('150 MB');
+      expect(formatBitrate(24_000_000)).toBe('24,0 Mbps');
+      expect(formatBitrate(640_000)).toBe('640 kbps');
+    } finally {
+      await setLanguage('en');
+    }
+    expect(formatBitrate(24_000_000)).toBe('24.0 Mbps');
   });
   it('builds proxied image URLs only', () => {
     expect(imageUrl('/abc.jpg', 'w342')).toBe('/api/images/w342/abc.jpg');

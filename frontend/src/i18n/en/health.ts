@@ -20,4 +20,12 @@ export const health = {
     other: '{count} files were scanned before bit depth and HDR were recorded, so 10-bit and HDR counts may be low. They are analysed when first played, or all at once here (one file at a time).',
   },
   analyseNow: 'Analyse now',
+  totals: {
+    title: 'What the library holds',
+    movies: 'Movies',
+    shows: 'TV shows',
+    episodes: 'Episodes',
+    files: 'Files',
+    size: 'Total size',
+  },
 };

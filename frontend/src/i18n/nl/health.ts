@@ -21,4 +21,12 @@ export const health: Messages['health'] = {
     other: '{count} bestanden zijn gescand voordat bitdiepte en HDR werden vastgelegd, dus de aantallen voor 10-bit en HDR kunnen te laag zijn. Ze worden geanalyseerd als ze voor het eerst afspelen, of hier allemaal tegelijk (één bestand per keer).',
   },
   analyseNow: 'Nu analyseren',
+  totals: {
+    title: 'Wat de bibliotheek bevat',
+    movies: 'Films',
+    shows: 'Series',
+    episodes: 'Afleveringen',
+    files: 'Bestanden',
+    size: 'Totale grootte',
+  },
 };

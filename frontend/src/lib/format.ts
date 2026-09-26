@@ -41,12 +41,15 @@ export function formatBytes(bytes: number | null | undefined): string {
     v /= 1024;
     i++;
   }
-  return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
+  const digits = v >= 100 || i === 0 ? 0 : 1;
+  // Written the way the interface language writes numbers ("3.4 TB" / "3,4 TB").
+  return `${v.toLocaleString(intlLocale(), { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false })} ${units[i]}`;
 }
 
 export function formatBitrate(bps: number | null | undefined): string | null {
   if (!bps) return null;
-  return bps >= 1_000_000 ? `${(bps / 1_000_000).toFixed(1)} Mbps` : `${Math.round(bps / 1000)} kbps`;
+  const n = (v: number, digits: number) => v.toLocaleString(intlLocale(), { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
+  return bps >= 1_000_000 ? `${n(bps / 1_000_000, 1)} Mbps` : `${n(bps / 1000, 0)} kbps`;
 }
 
 export function formatDate(value: string | number | null | undefined): string | null {

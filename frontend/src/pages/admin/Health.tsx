@@ -20,6 +20,8 @@ export interface HealthCategory {
 export interface HealthSummary {
   categories: HealthCategory[];
   files: number;
+  /** What the library holds (movies, shows, episodes, total size of the files). */
+  totals?: { movies: number; shows: number; episodes: number; bytes: number };
   tmdbConfigured: boolean;
   analysis: { running: boolean; done: number; total: number; failed: number };
 }
@@ -212,6 +214,8 @@ export function HealthPage() {
         </label>
       </div>
 
+      {q.data.totals && <Totals totals={q.data.totals} files={files} />}
+
       {(notAnalyzed > 0 || analysis.running) && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-raised/50 px-4 py-3 text-sm">
           <p>
@@ -257,5 +261,30 @@ export function HealthPage() {
         );
       })}
     </div>
+  );
+}
+
+/** Movies, series, episodes, files and their size: what the (selected) library holds. */
+function Totals({ totals, files }: { totals: NonNullable<HealthSummary['totals']>; files: number }) {
+  const { t } = useT();
+  const n = (v: number) => v.toLocaleString(intlLocale());
+  const items: Array<[MessageKey, string]> = [
+    ['health.totals.movies', n(totals.movies)],
+    ['health.totals.shows', n(totals.shows)],
+    ['health.totals.episodes', n(totals.episodes)],
+    ['health.totals.files', n(files)],
+    ['health.totals.size', formatBytes(totals.bytes)],
+  ];
+  return (
+    <section aria-label={t('health.totals.title')}>
+      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {items.map(([label, value]) => (
+          <div key={label} className="rounded-xl border border-line bg-surface px-4 py-3">
+            <dt className="text-xs text-faint">{t(label)}</dt>
+            <dd className="mt-0.5 font-display text-xl font-semibold tabular-nums">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }

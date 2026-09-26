@@ -388,6 +388,8 @@ export interface PlaybackAnalysis {
   video: { codec: string | null; label: string; width: number | null; height: number | null; bitDepth: number | null; range: string | null; action: 'direct' | 'copy' | 'unsupported' };
   audio: { codec: string | null; label: string; channels: number | null; action: 'direct' | 'copy' | 'convert' | 'none'; target: string | null };
   container: { name: string | null; action: 'direct' | 'remux' };
+  /** Overall bitrate in bits per second. */
+  bitrate?: number | null;
   problems: string[];
   warnings: string[];
   transcodeRequired: boolean;
