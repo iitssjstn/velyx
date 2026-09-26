@@ -78,5 +78,6 @@ export function subtitleLineStyle(prefs: Pick<PlaybackPrefs, 'subtitleSize' | 's
 /** Distance from the bottom: above the controls when they are visible, plus the viewer's offset. */
 export function subtitleBottom(controlsVisible: boolean, position: number): string {
   const p = Math.max(0, Math.min(20, position));
-  return controlsVisible ? `calc(7.5rem + ${p}%)` : `calc(5% + ${p}%)`;
+  // --player-controls is the height of the player's control bar (larger on big screens).
+  return controlsVisible ? `calc(var(--player-controls, 7.5rem) + ${p}%)` : `calc(5% + ${p}%)`;
 }

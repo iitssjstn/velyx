@@ -763,7 +763,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   return (
     <div
       ref={wrapRef}
-      className={mini ? `${MINI_CLASSES} select-none` : `fixed inset-0 z-50 bg-black text-ink select-none ${showUi ? '' : 'cursor-none'}`}
+      className={mini ? `${MINI_CLASSES} select-none` : `fixed inset-0 z-50 bg-black text-ink select-none [--player-controls:7.5rem] sm:[--player-controls:10rem] ${showUi ? '' : 'cursor-none'}`}
       onMouseMove={mini ? undefined : poke}
       onTouchStart={mini ? undefined : poke}
       role={mini ? 'region' : undefined}
@@ -887,13 +887,13 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             e.stopPropagation();
             doSkip(skip, false);
           }}
-          className="absolute right-4 bottom-28 z-20 flex h-11 items-center gap-2 rounded-lg border border-white/25 bg-black/70 px-4 font-semibold backdrop-blur transition hover:bg-white hover:text-black sm:right-6"
+          className="absolute right-4 bottom-28 z-20 sm:right-8 sm:bottom-40 flex h-11 items-center gap-2 rounded-lg border border-white/25 bg-black/70 px-4 font-semibold backdrop-blur sm:h-14 sm:px-6 sm:text-lg transition hover:bg-white hover:text-black"
         >
           <SkipForward className="size-4" /> {skip.kind === 'intro' ? 'Skip intro' : 'Skip credits'}
         </button>
       )}
       {!mini && skipNotice && !showUpNext && (
-        <div className="absolute right-4 bottom-28 z-20 flex items-center gap-3 rounded-lg bg-black/70 px-4 py-2.5 text-sm backdrop-blur sm:right-6" role="status">
+        <div className="absolute right-4 bottom-28 z-20 sm:right-8 sm:bottom-40 flex items-center gap-3 rounded-lg bg-black/70 px-4 py-2.5 text-sm backdrop-blur" role="status">
           <span>{skipNotice.label}</span>
           <button
             type="button"
@@ -911,7 +911,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
 
       {/* Auto-next overlay */}
       {showUpNext && next && (
-        <div className="absolute right-4 bottom-28 z-20 w-72 overflow-hidden rounded-2xl border border-line bg-surface/95 shadow-2xl backdrop-blur sm:right-6 sm:w-80" role="dialog" aria-label="Next episode">
+        <div className="absolute right-4 bottom-28 z-20 sm:right-8 sm:bottom-40 w-72 overflow-hidden rounded-2xl border border-line bg-surface/95 shadow-2xl backdrop-blur sm:w-80" role="dialog" aria-label="Next episode">
           {next.stillPath && <img src={imageUrl(next.stillPath, 'w300') ?? ''} alt="" className="aspect-video w-full object-cover" />}
           <div className="p-4">
             <p className="text-xs text-muted">Next episode · {episodeCode(next.seasonNumber, next.episodeNumber)}</p>
@@ -986,25 +986,25 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       )}
 
       {/* Top bar */}
-      <div className={`absolute inset-x-0 top-0 items-center gap-3 ${mini ? 'hidden' : 'flex'} bg-gradient-to-b from-black/80 to-transparent px-4 pt-4 pb-12 transition-opacity duration-300 sm:px-6 ${showUi ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
-        <button type="button" onClick={exit} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label="Back">
-          <ArrowLeft className="size-5" />
+      <div className={`absolute inset-x-0 top-0 items-center gap-3 ${mini ? 'hidden' : 'flex'} bg-gradient-to-b from-black/80 to-transparent px-4 pt-4 pb-12 transition-opacity duration-300 sm:px-8 sm:pt-6 sm:pb-16 ${showUi ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+        <button type="button" onClick={exit} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label="Back">
+          <ArrowLeft className="size-5 sm:size-7" />
         </button>
         <div className="min-w-0">
-          <p className="truncate font-display text-lg font-semibold">{item.data?.title}</p>
-          {item.data?.subtitle && <p className="truncate text-sm text-ink/70">{item.data.subtitle}</p>}
+          <p className="truncate font-display text-lg font-semibold sm:text-2xl">{item.data?.title}</p>
+          {item.data?.subtitle && <p className="truncate text-sm text-ink/70 sm:text-base">{item.data.subtitle}</p>}
         </div>
         {info?.analysis && <PlaybackBadge analysis={info.analysis} />}
       </div>
 
       {/* Bottom controls */}
       <div
-        className={`absolute inset-x-0 bottom-0 ${mini ? 'hidden' : ''} bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-16 pb-4 transition-opacity duration-300 sm:px-6 ${showUi ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`absolute inset-x-0 bottom-0 ${mini ? 'hidden' : ''} bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-16 pb-4 transition-opacity duration-300 sm:px-8 sm:pt-24 sm:pb-7 ${showUi ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Seek bar */}
         <div
-          className="group relative h-5"
+          className="group relative h-5 sm:h-7"
           onMouseMove={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
             const x = Math.min(Math.max(0, e.clientX - r.left), r.width);
@@ -1012,7 +1012,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           }}
           onMouseLeave={() => setSeekHover(null)}
         >
-          <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-white/20 transition-all group-hover:h-1.5">
+          <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-white/20 transition-all group-hover:h-1.5 sm:h-1.5 sm:group-hover:h-2.5">
             {live && offset > 0 && totalDuration > 0 && (
               <div className="absolute inset-y-0 bg-white/30" style={{ left: `${(offset / totalDuration) * 100}%`, width: `${Math.max(0, ((buffered - offset) / totalDuration) * 100)}%` }} />
             )}
@@ -1020,7 +1020,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             <div className="absolute inset-y-0 left-0 bg-accent" style={{ width: `${totalDuration ? Math.min(100, (time / totalDuration) * 100) : 0}%` }} />
           </div>
           {seekHover && totalDuration > 0 && (
-            <span className="pointer-events-none absolute -top-7 -translate-x-1/2 rounded bg-black/80 px-1.5 py-0.5 text-xs tabular-nums" style={{ left: Math.min(Math.max(seekHover.x, 24), seekHover.w - 24) }}>
+            <span className="pointer-events-none absolute -top-7 -translate-x-1/2 rounded bg-black/80 px-1.5 py-0.5 text-xs tabular-nums sm:-top-9 sm:px-2 sm:text-sm" style={{ left: Math.min(Math.max(seekHover.x, 24), seekHover.w - 24) }}>
               {formatClock(seekHover.t)}
             </span>
           )}
@@ -1041,19 +1041,19 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           />
         </div>
 
-        <div className="mt-2 flex items-center gap-1 sm:gap-2">
-          <button type="button" onClick={togglePlay} className="grid size-11 place-items-center rounded-full hover:bg-white/10" aria-label={playing ? 'Pause' : 'Play'}>
-            {playing ? <Pause className="size-6 fill-current" /> : <Play className="size-6 fill-current" />}
+        <div className="mt-2 flex items-center gap-1 sm:mt-3 sm:gap-3">
+          <button type="button" onClick={togglePlay} className="grid size-11 place-items-center rounded-full hover:bg-white/10 sm:size-14" aria-label={playing ? 'Pause' : 'Play'}>
+            {playing ? <Pause className="size-6 fill-current sm:size-9" /> : <Play className="size-6 fill-current sm:size-9" />}
           </button>
-          <button type="button" onClick={() => seekBy(-10)} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label="Back 10 seconds" title="Back 10 s (←)">
-            <RotateCcw className="size-5" />
+          <button type="button" onClick={() => seekBy(-10)} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label="Back 10 seconds" title="Back 10 s (←)">
+            <RotateCcw className="size-5 sm:size-7" />
           </button>
-          <button type="button" onClick={() => seekBy(10)} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label="Forward 10 seconds" title="Forward 10 s (→)">
-            <RotateCw className="size-5" />
+          <button type="button" onClick={() => seekBy(10)} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label="Forward 10 seconds" title="Forward 10 s (→)">
+            <RotateCw className="size-5 sm:size-7" />
           </button>
           <div className="group/vol hidden items-center sm:flex">
-            <button type="button" onClick={() => applyVolume(volume, !muted)} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label={muted ? 'Unmute' : 'Mute'}>
-              <VolumeIcon className="size-5" />
+            <button type="button" onClick={() => applyVolume(volume, !muted)} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={muted ? 'Unmute' : 'Mute'}>
+              <VolumeIcon className="size-5 sm:size-7" />
             </button>
             <input
               type="range"
@@ -1062,40 +1062,40 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
               step={0.05}
               value={muted ? 0 : volume}
               onChange={(e) => applyVolume(Number(e.target.value), Number(e.target.value) === 0)}
-              className="w-0 accent-[var(--color-accent)] opacity-0 transition-all group-hover/vol:w-24 group-hover/vol:opacity-100 focus-visible:w-24 focus-visible:opacity-100"
+              className="w-0 accent-[var(--color-accent)] opacity-0 transition-all group-hover/vol:w-24 group-hover/vol:opacity-100 focus-visible:w-24 sm:group-hover/vol:w-32 sm:focus-visible:w-32 focus-visible:opacity-100"
               aria-label="Volume"
             />
           </div>
-          <span className="ml-2 text-sm text-ink/80 tabular-nums">
+          <span className="ml-1 text-sm whitespace-nowrap text-ink/80 tabular-nums sm:ml-3 sm:text-lg">
             {formatClock(time)} <span className="text-ink/40">/ {formatClock(totalDuration)}</span>
           </span>
 
           <div className="relative ml-auto flex items-center gap-1">
             {next && (
-              <button type="button" onClick={goNext} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label="Next episode" title="Next episode (N)">
-                <SkipForward className="size-5" />
+              <button type="button" onClick={goNext} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label="Next episode" title="Next episode (N)">
+                <SkipForward className="size-5 sm:size-7" />
               </button>
             )}
-            <button type="button" onClick={() => setMenu(menu === 'subs' ? null : 'subs')} className={`grid size-10 place-items-center rounded-full hover:bg-white/10 ${subKey ? 'text-accent' : ''}`} aria-label="Subtitles" title="Subtitles (C)">
-              <Captions className="size-5" />
+            <button type="button" onClick={() => setMenu(menu === 'subs' ? null : 'subs')} className={`grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${subKey ? 'text-accent' : ''}`} aria-label="Subtitles" title="Subtitles (C)">
+              <Captions className="size-5 sm:size-7" />
             </button>
             {fileAudio.length > 0 && (
-              <button type="button" onClick={() => setMenu(menu === 'audio' ? null : 'audio')} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label="Audio">
-                <AudioLines className="size-5" />
+              <button type="button" onClick={() => setMenu(menu === 'audio' ? null : 'audio')} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label="Audio">
+                <AudioLines className="size-5 sm:size-7" />
               </button>
             )}
-            <button type="button" onClick={() => setMenu(menu === 'settings' ? null : 'settings')} className={`grid size-10 place-items-center rounded-full hover:bg-white/10 ${speed !== 1 ? 'text-accent' : ''}`} aria-label="Playback settings" title="Playback settings">
-              <Settings2 className="size-5" />
+            <button type="button" onClick={() => setMenu(menu === 'settings' ? null : 'settings')} className={`grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${speed !== 1 ? 'text-accent' : ''}`} aria-label="Playback settings" title="Playback settings">
+              <Settings2 className="size-5 sm:size-7" />
             </button>
-            <button type="button" onClick={minimize} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label="Minimize player" title="Keep watching while you browse (I)">
-              <PictureInPicture2 className="size-5" />
+            <button type="button" onClick={minimize} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label="Minimize player" title="Keep watching while you browse (I)">
+              <PictureInPicture2 className="size-5 sm:size-7" />
             </button>
-            <button type="button" onClick={toggleFullscreen} className="grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label={fullscreen ? 'Exit full screen' : 'Full screen'} title="Full screen (F)">
-              {fullscreen ? <Minimize className="size-5" /> : <Maximize className="size-5" />}
+            <button type="button" onClick={toggleFullscreen} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={fullscreen ? 'Exit full screen' : 'Full screen'} title="Full screen (F)">
+              {fullscreen ? <Minimize className="size-5 sm:size-7" /> : <Maximize className="size-5 sm:size-7" />}
             </button>
 
             {menu && (
-              <div className="absolute right-0 bottom-14 max-h-[75vh] w-72 overflow-y-auto rounded-xl border border-line bg-surface/95 py-2 shadow-2xl backdrop-blur" role="menu">
+              <div className="absolute right-0 bottom-14 max-h-[75vh] sm:bottom-16 w-72 overflow-y-auto rounded-xl border border-line bg-surface/95 py-2 shadow-2xl backdrop-blur" role="menu">
                 {menu === 'subs' && (
                   <>
                     <p className="px-4 pt-1 pb-2 text-xs text-faint">Subtitles</p>
