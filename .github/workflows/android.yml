@@ -69,6 +69,16 @@ jobs:
         env:
           CI: 1
 
+      # The generated project gives Gradle 2 GB, too little to merge the release build's code; the
+      # runner has 16 GB.
+      - name: Give Gradle enough memory
+        working-directory: app/android
+        run: |
+          sed -i '/^org.gradle.jvmargs=/d' gradle.properties
+          # The file may not end with a newline; never glue this onto its last setting.
+          printf '\norg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\n' >> gradle.properties
+          tail -n 3 gradle.properties
+
       - name: Build the APK
         working-directory: app/android
         run: ./gradlew assembleRelease --no-daemon

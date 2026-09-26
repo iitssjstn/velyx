@@ -59,9 +59,9 @@ export function Shelf({ title, cards }: { title: string; cards: Card[] }) {
   );
 }
 
+/** Continue Watching plays straight away, from where the viewer stopped. */
 function openContinue(item: ContinueItem) {
-  if (item.type === 'movie') router.push(`/movie/${item.id}`);
-  else if (item.showId) router.push(`/show/${item.showId}`);
+  router.push(`/play/${item.type}/${item.id}`);
 }
 
 export function ContinueShelf({ title, items }: { title: string; items: ContinueItem[] }) {

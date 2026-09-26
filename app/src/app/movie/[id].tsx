@@ -1,8 +1,8 @@
 import { ScrollView, Text, View } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Artwork } from '../../components/media';
-import { ErrorState, Loading, ProgressLine, styles } from '../../components/ui';
+import { Button, ErrorState, Loading, ProgressLine, styles } from '../../components/ui';
 import { formatClock, formatRuntime, progressFraction } from '../../lib/format';
 import { useSession } from '../../lib/session';
 import { colors, radius } from '../../lib/theme';
@@ -38,9 +38,12 @@ export default function Movie() {
             </Text>
           </View>
         )}
-        <View style={{ backgroundColor: colors.surface, borderRadius: radius.md, padding: 12 }}>
-          <Text style={styles.muted}>{t('detail.playSoon')}</Text>
-        </View>
+        {m.files.length ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            <Button label={resume ? t('player.resume', { time: formatClock(resume.positionSec) }) : t('player.play')} onPress={() => router.push(`/play/movie/${m.id}`)} />
+            {resume && <Button label={t('player.fromStart')} variant="ghost" onPress={() => router.push(`/play/movie/${m.id}?t=0`)} />}
+          </View>
+        ) : null}
         {m.tagline ? <Text style={[styles.body, { fontStyle: 'italic', color: colors.muted }]}>{m.tagline}</Text> : null}
         {m.overview ? <Text style={styles.body}>{m.overview}</Text> : null}
         {m.director ? (
