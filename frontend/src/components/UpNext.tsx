@@ -40,7 +40,7 @@ export function UpNext({
       role="dialog"
       aria-label={t('player.nextEpisode')}
       onClick={(e) => e.stopPropagation()}
-      className="absolute inset-x-4 bottom-28 z-20 sm:inset-x-auto sm:right-8 sm:bottom-40 sm:w-[30rem]"
+      className="absolute inset-x-4 bottom-40 z-20 sm:inset-x-auto sm:right-8 sm:w-[30rem]"
     >
       <div className="flex gap-4 rounded-xl bg-black/85 p-3 shadow-2xl ring-1 ring-white/10 backdrop-blur">
         <div className="aspect-video w-28 shrink-0 overflow-hidden rounded-lg bg-raised sm:w-40">{still && <img src={still} alt="" className="h-full w-full object-cover" />}</div>

@@ -776,7 +776,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   return (
     <div
       ref={wrapRef}
-      className={mini ? `${MINI_CLASSES} select-none` : `fixed inset-0 z-50 bg-black text-ink select-none [--player-controls:7.5rem] sm:[--player-controls:10rem] ${showUi ? '' : 'cursor-none'}`}
+      className={mini ? `${MINI_CLASSES} select-none` : `fixed inset-0 z-50 bg-black text-ink select-none [--player-controls:10rem] ${showUi ? '' : 'cursor-none'}`}
       onMouseMove={mini ? undefined : poke}
       onTouchStart={mini ? undefined : poke}
       role={mini ? 'region' : undefined}
@@ -901,13 +901,13 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             e.stopPropagation();
             doSkip(skip, false);
           }}
-          className="absolute right-4 bottom-28 z-20 sm:right-8 sm:bottom-40 flex h-11 items-center gap-2 rounded-lg border border-white/25 bg-black/70 px-4 font-semibold backdrop-blur sm:h-14 sm:px-6 sm:text-lg transition hover:bg-white hover:text-black"
+          className="absolute right-4 bottom-40 z-20 sm:right-8 flex h-11 items-center gap-2 rounded-lg border border-white/25 bg-black/70 px-4 font-semibold backdrop-blur sm:h-14 sm:px-6 sm:text-lg transition hover:bg-white hover:text-black"
         >
           <SkipForward className="size-4" /> {skip.kind === 'intro' ? t('player.skipIntro') : t('player.skipCredits')}
         </button>
       )}
       {!mini && skipNotice && !showUpNext && (
-        <div className="absolute right-4 bottom-28 z-20 sm:right-8 sm:bottom-40 flex items-center gap-3 rounded-lg bg-black/70 px-4 py-2.5 text-sm backdrop-blur" role="status">
+        <div className="absolute right-4 bottom-40 z-20 sm:right-8 flex items-center gap-3 rounded-lg bg-black/70 px-4 py-2.5 text-sm backdrop-blur" role="status">
           <span>{skipNotice.kind === 'intro' ? t('player.introSkipped') : t('player.creditsSkipped')}</span>
           <button
             type="button"
@@ -1039,7 +1039,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           />
         </div>
 
-        <div className="mt-2 flex items-center gap-1 sm:mt-3 sm:gap-3">
+        {/* On phones the buttons on the right move to a second row, so every control fits on screen. */}
+        <div className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1 sm:mt-3 sm:flex-nowrap sm:gap-3">
           <button type="button" onClick={togglePlay} className="grid size-11 place-items-center rounded-full hover:bg-white/10 sm:size-14" aria-label={playing ? t('player.pause') : t('player.play')}>
             {playing ? <Pause className="size-6 fill-current sm:size-9" /> : <Play className="size-6 fill-current sm:size-9" />}
           </button>
@@ -1068,7 +1069,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             {formatClock(time)} <span className="text-ink/40">/ {formatClock(totalDuration)}</span>
           </span>
 
-          <div className="relative ml-auto flex items-center gap-1">
+          <div className="relative ml-auto flex shrink-0 items-center gap-1">
             {next && (
               <button type="button" onClick={goNext} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={t('player.nextEpisode')} title={t('player.nextEpisodeTitle')}>
                 <SkipForward className="size-5 sm:size-7" />
@@ -1093,7 +1094,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             </button>
 
             {menu && (
-              <div className="absolute right-0 bottom-14 max-h-[75vh] sm:bottom-16 w-72 overflow-y-auto rounded-xl border border-line bg-surface/95 py-2 shadow-2xl backdrop-blur" role="menu">
+              <div className="absolute right-0 bottom-12 max-h-[min(75vh,calc(100dvh-7rem))] w-[min(18rem,calc(100vw-2rem))] overflow-y-auto sm:bottom-16 rounded-xl border border-line bg-surface/95 py-2 shadow-2xl backdrop-blur" role="menu">
                 {menu === 'subs' && (
                   <>
                     <p className="px-4 pt-1 pb-2 text-xs text-faint">{t('playback.subtitles')}</p>
