@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MoviePage } from './MovieDetail';
 
@@ -99,5 +99,40 @@ describe('movie page', () => {
     expect(await screen.findByText('Could not check playback for this device.')).toBeTruthy();
     // The rest of the page still works.
     expect(screen.getByRole('region', { name: 'Audio' })).toBeTruthy();
+  });
+});
+
+describe('moving between movies', () => {
+  it('starts each movie with its own state, not the previous one’s', async () => {
+    const other = { ...movie, id: 6, title: 'Arrival', year: 2016, files: [{ ...uhd, id: 21 }, { ...hd, id: 22 }], progress: null, favorite: false };
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/movies/5') return new Response(JSON.stringify(movie), { status: 200 });
+      if (url === '/api/movies/6') return new Response(JSON.stringify(other), { status: 200 });
+      if (/^\/api\/media\/\d+\/playback$/.test(url)) return new Response(JSON.stringify({ decision: {}, analysis: analysis(12), file: {}, subtitles: [] }), { status: 200 });
+      if (url.includes('/similar')) return new Response(JSON.stringify([]), { status: 200 });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }));
+    // Arrival was visited before, so its page shows at once from the cache.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(['movie', 6], other);
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/movies/5']}>
+          <Link to="/movies/6">Next movie</Link>
+          <Routes>
+            <Route path="/movies/:id" element={<MoviePage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('heading', { name: 'Dune' });
+    await userEvent.click(screen.getByRole('button', { name: 'Add to favorites' }));
+    expect(screen.getByRole('button', { name: 'Remove from favorites' }).getAttribute('aria-pressed')).toBe('true');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Version' }), '1');
+    await userEvent.click(screen.getByRole('link', { name: 'Next movie' }));
+    await screen.findByRole('heading', { name: 'Arrival' });
+    expect(screen.getByRole('button', { name: 'Add to favorites' }).getAttribute('aria-pressed')).toBe('false');
+    // The version picked for Dune does not carry over: Arrival starts at its first version.
+    expect((screen.getByRole('combobox', { name: 'Version' }) as HTMLSelectElement).value).toBe('0');
   });
 });

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrationsFolder, openDatabase } from '../src/db/client.js';
 import { movieHash, rankSubtitles, type OnlineSubtitle } from '../src/services/opensubtitles.js';
+import { pruneOnlineSubtitleFiles } from '../src/routes/online-subtitles.js';
 import { addLibrary, createTestEnv, createUser, setupAdmin, touch, type TestEnv } from './helpers.js';
 
 const SRT = '1\n00:00:01,000 --> 00:00:03,500\nHallo daar\n\n2\n00:00:05,000 --> 00:00:06,000\nTot ziens\n';
@@ -306,6 +307,18 @@ describe('fetching a subtitle', () => {
     await fetchSub(21);
     env.ctx.db.$client.prepare('DELETE FROM media_files WHERE id = ?').run(fileId);
     expect(env.ctx.db.$client.prepare('SELECT count(*) AS n FROM online_subtitles').get()).toEqual({ n: 0 });
+    // Its file is cleaned up by the periodic maintenance (not while it may still be being written).
+    const dir = env.ctx.config.onlineSubtitleDir;
+    expect(await pruneOnlineSubtitleFiles(env.ctx.db, dir)).toBe(0);
+    expect(fs.readdirSync(dir)).toEqual([`${fileId}-21.vtt`]);
+    expect(await pruneOnlineSubtitleFiles(env.ctx.db, dir, Date.now() + 120_000)).toBe(1);
+    expect(fs.readdirSync(dir)).toEqual([]);
+  });
+
+  it('keeps the files of subtitles that are still in use', async () => {
+    await fetchSub(21);
+    expect(await pruneOnlineSubtitleFiles(env.ctx.db, env.ctx.config.onlineSubtitleDir, Date.now() + 120_000)).toBe(0);
+    expect(fs.readdirSync(env.ctx.config.onlineSubtitleDir)).toEqual([`${fileId}-21.vtt`]);
   });
 });
 

@@ -5,6 +5,7 @@ import { loadConfig } from './config.js';
 import { openDatabase } from './db/client.js';
 import { applyPendingRestore } from './services/backup.js';
 import { buildApp, createContext } from './app.js';
+import { pruneOnlineSubtitleFiles } from './routes/online-subtitles.js';
 import { checkBinary } from './services/probe.js';
 import { createLogger } from './logger.js';
 import { APP_VERSION } from './version.js';
@@ -60,9 +61,11 @@ async function main(): Promise<void> {
   ctx.streams.closeInterrupted();
   ctx.streams.start();
   ctx.streams.purgeHistory();
+  void pruneOnlineSubtitleFiles(db, ctx.config.onlineSubtitleDir);
   const purgeTimer = setInterval(() => {
     ctx.sessions.purgeExpired();
     ctx.streams.purgeHistory();
+    void pruneOnlineSubtitleFiles(db, ctx.config.onlineSubtitleDir);
   }, 6 * 60 * 60 * 1000);
   purgeTimer.unref();
 

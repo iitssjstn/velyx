@@ -87,6 +87,36 @@ describe('per-user library access', () => {
     expect(await status(`/api/media/${kidsFile}/playback`, c, 'POST', {})).toBe(200);
   });
 
+  it('keeps hidden items out of every other item route too', async () => {
+    touch(path.join(env.mediaDir, 'movies', 'Heat (1995).en.srt'), '1\n00:00:01,000 --> 00:00:02,000\nHi\n');
+    await env.app.inject({ method: 'POST', url: `/api/libraries/${moviesLib}/scan`, headers: { cookie: admin } });
+    await env.ctx.scans.whenIdle();
+    const kid = await createUser(env.app, admin, 'kid');
+    await grant(kid.id, [kidsLib]);
+    const c = kid.cookie;
+    const adult = await get(`/api/movies/${adultMovieId}`);
+    const file = adult.files[0];
+    expect(file.externalSubtitles).toHaveLength(1);
+    const episodeFile = (await get(`/api/episodes/${episodeId}`)).files?.[0]?.id ?? (await get(`/api/shows/${showId}/seasons/1`)).episodes[0].files[0].id;
+
+    for (const url of [
+      `/api/movies/${adultMovieId}/similar`,
+      `/api/shows/${showId}/similar`,
+      `/api/media/${file.id}/remux`,
+      `/api/media/${file.id}/keyframe?t=10`,
+      `/api/media/${file.id}/subtitles`,
+      `/api/media/${file.id}/subtitles/0.vtt`,
+      `/api/subtitles/${file.externalSubtitles[0].id}.vtt`,
+      `/api/media/${episodeFile}/stream`,
+      `/api/media/${file.id}/subtitles/online?language=en`,
+    ]) {
+      expect([403, 404, 400], url).toContain(await status(url, c));
+    }
+    expect([403, 404, 400]).toContain(await status(`/api/media/${file.id}/subtitles/online`, c, 'POST', { fileId: 1 }));
+    expect(await status('/api/home/continue/dismiss', c, 'POST', { movieId: adultMovieId })).not.toBe(200);
+    expect(await status('/api/progress', c, 'POST', { episodeId, positionSec: 10, durationSec: 100 })).toBe(404);
+  });
+
   it('drops saved items from lists once access is revoked', async () => {
     const user = await createUser(env.app, admin, 'viewer');
     await env.app.inject({ method: 'POST', url: '/api/favorites', headers: { cookie: user.cookie }, payload: { movieId: adultMovieId } });

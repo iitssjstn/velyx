@@ -75,8 +75,13 @@ function EpisodeRow({ ep, onToggleWatched }: { ep: EpisodeSummary; onToggleWatch
   );
 }
 
+/** Keyed by id, so going straight from one show to another starts with fresh state. */
 export function ShowPage() {
   const id = Number(useParams().id);
+  return <ShowScreen key={id} id={id} />;
+}
+
+function ShowScreen({ id }: { id: number }) {
   const { user } = useAuth();
   const { t } = useT();
   const qc = useQueryClient();

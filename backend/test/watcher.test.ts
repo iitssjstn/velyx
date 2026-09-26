@@ -41,6 +41,17 @@ describe('automatic library updates (folder watching)', () => {
     expect(await titles()).toEqual(['Alien']);
   });
 
+  it('picks up a folder with dots in its name that is moved in', async () => {
+    touch(path.join(env.mediaDir, 'movies', 'Alien (1979).mkv'));
+    await addLibrary(env, admin, 'movies', 'movies');
+    env.ctx.watcher.sync(true);
+    const outside = path.join(env.mediaDir, 'incoming', 'Heat.1995.1080p');
+    touch(path.join(outside, 'Heat.1995.1080p.mkv'));
+    fs.renameSync(outside, path.join(env.mediaDir, 'movies', 'Heat.1995.1080p'));
+    await settle();
+    expect(await titles()).toEqual(['Alien', 'Heat']);
+  });
+
   it('ignores unrelated files and partial downloads', async () => {
     touch(path.join(env.mediaDir, 'movies', 'Alien (1979).mkv'));
     await addLibrary(env, admin, 'movies', 'movies');
