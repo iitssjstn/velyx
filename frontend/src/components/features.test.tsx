@@ -29,7 +29,7 @@ describe('WatchedMenu', () => {
 
 describe('ContinueCard', () => {
   it('can be removed from Continue Watching', async () => {
-    const item: ContinueItem = { type: 'episode', id: 12, title: 'Severance', subtitle: 'S2 E4 · Woe’s Hollow', imagePath: null, posterPath: null, showId: 3, progress: { positionSec: 600, durationSec: 3000 }, updatedAt: 1 } as ContinueItem;
+    const item: ContinueItem = { type: 'episode', id: 12, title: 'Severance', subtitle: 'S2 E4 · Woe’s Hollow', imagePath: null, posterPath: null, showId: 3, seasonNumber: 2, episodeNumber: 4, episodeTitle: 'Woe’s Hollow', upNext: false, progress: { positionSec: 600, durationSec: 3000 }, percent: 20, updatedAt: 1 };
     const onDismiss = vi.fn();
     render(
       <MemoryRouter>
@@ -37,8 +37,9 @@ describe('ContinueCard', () => {
       </MemoryRouter>,
     );
     // Resume goes straight to the saved position (no "resume or start over?" prompt).
-    expect(screen.getByRole('link', { name: 'Resume Severance' }).getAttribute('href')).toBe('/play/episode/12?t=600');
-    await userEvent.click(screen.getByRole('button', { name: 'Remove Severance from Continue Watching' }));
+    expect(screen.getByRole('link', { name: 'Resume Severance, Season 2 · Episode 4' }).getAttribute('href')).toBe('/play/episode/12?t=600');
+    await userEvent.click(screen.getByRole('button', { name: 'More actions for Severance, Season 2 · Episode 4' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Remove from Continue Watching' }));
     expect(onDismiss).toHaveBeenCalledWith(item);
   });
 });

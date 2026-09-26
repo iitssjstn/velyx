@@ -1,3 +1,4 @@
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -84,23 +85,59 @@ describe('Artwork', () => {
 });
 
 describe('ContinueCard', () => {
-  it('opens the details page, with a separate button to resume', () => {
+  const episode = { type: 'episode' as const, id: 42, title: 'Reacher', subtitle: 'S2 E4', imagePath: null, posterPath: null, showId: 7, seasonNumber: 2, episodeNumber: 4, episodeTitle: 'A Night at the Motel', upNext: false, progress: { positionSec: 1934, durationSec: 2901 }, percent: 67, updatedAt: 0 };
+
+  it('shows season, episode and position, opens details, and resumes from the saved position', () => {
     render(
       <MemoryRouter>
-        <ContinueCard item={{ type: 'episode', id: 42, title: 'Breaking Bad', subtitle: 'S2 E1', imagePath: null, posterPath: null, showId: 7, progress: { positionSec: 600, durationSec: 3000 }, updatedAt: 0 }} />
+        <ContinueCard item={episode} />
       </MemoryRouter>,
     );
-    const links = screen.getAllByRole('link');
-    expect(links.map((l) => (l as HTMLAnchorElement).pathname)).toEqual(['/shows/7', '/play/episode/42']);
-    expect(screen.getByRole('link', { name: 'Resume Breaking Bad' })).toBeTruthy();
+    expect(screen.getByText('Season 2 · Episode 4 · A Night at the Motel')).toBeTruthy();
+    expect(screen.getByText('32:14 / 48:21')).toBeTruthy();
+    expect((screen.getByRole('link', { name: 'Reacher, Season 2 · Episode 4: details' }) as HTMLAnchorElement).getAttribute('href')).toBe('/shows/7');
+    expect((screen.getByRole('link', { name: 'Resume Reacher, Season 2 · Episode 4' }) as HTMLAnchorElement).getAttribute('href')).toBe('/play/episode/42?t=1934');
   });
 
-  it('links movies to the movie page', () => {
-    render(
+  it('offers Play for the next episode, and Start over / Mark as watched / Remove in its menu', async () => {
+    const marked: number[] = [];
+    const removed: number[] = [];
+    const { rerender } = render(
       <MemoryRouter>
-        <ContinueCard item={{ type: 'movie', id: 3, title: 'Interstellar', subtitle: '2014', imagePath: null, posterPath: null, showId: null, progress: { positionSec: 60, durationSec: 6000 }, updatedAt: 0 }} />
+        <ContinueCard item={{ ...episode, upNext: true, progress: null, percent: 0, episodeNumber: 5 }} onMarkWatched={(i) => marked.push(i.id)} onDismiss={(i) => removed.push(i.id)} />
       </MemoryRouter>,
     );
-    expect(screen.getAllByRole('link').map((l) => (l as HTMLAnchorElement).pathname)).toEqual(['/movies/3', '/play/movie/3']);
+    expect(screen.getByText(/^Up next · Season 2 · Episode 5/)).toBeTruthy();
+    expect((screen.getByRole('link', { name: /^Play Reacher/ }) as HTMLAnchorElement).getAttribute('href')).toBe('/play/episode/42');
+    await userEvent.click(screen.getByRole('button', { name: /^More actions for Reacher/ }));
+    // Nothing to start over for an episode that was not started.
+    expect(screen.queryByRole('menuitem', { name: 'Start over' })).toBeNull();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Mark as watched' }));
+    expect(marked).toEqual([42]);
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    rerender(
+      <MemoryRouter>
+        <ContinueCard item={episode} onMarkWatched={(i) => marked.push(i.id)} onDismiss={(i) => removed.push(i.id)} />
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /^More actions for Reacher/ }));
+    expect((screen.getByRole('menuitem', { name: 'Start over' }) as HTMLAnchorElement).getAttribute('href')).toBe('/play/episode/42?t=0');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /^More actions for Reacher/ }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Remove from Continue Watching' }));
+    expect(removed).toEqual([42]);
+  });
+
+  it('shows a movie with its year and links to the movie page', () => {
+    render(
+      <MemoryRouter>
+        <ContinueCard item={{ ...episode, type: 'movie', id: 3, title: 'Dune', subtitle: '2021', showId: null, seasonNumber: null, episodeNumber: null, episodeTitle: null, progress: { positionSec: 3600, durationSec: 9360 }, percent: 38 }} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('2021')).toBeTruthy();
+    expect((screen.getByRole('link', { name: 'Dune, 2021: details' }) as HTMLAnchorElement).getAttribute('href')).toBe('/movies/3');
+    expect(screen.getByText('1:00:00 / 2:36:00')).toBeTruthy();
   });
 });
