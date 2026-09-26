@@ -1,0 +1,18 @@
+export const home = {
+  pickUp: 'Pick up where you left off',
+  recentlyAddedHero: 'Recently added',
+  episodes: 'Episodes',
+  details: 'Details',
+  greeting: '{greeting}, {name}',
+  noLibraries: 'No libraries yet',
+  librariesEmpty: 'Your libraries are empty',
+  addLibrary: 'Add a library',
+  manageLibraries: 'Manage libraries',
+  noLibrariesAdmin: 'Point Velyx at your movie and TV folders to fill this page.',
+  librariesEmptyAdmin: 'Velyx did not find any videos yet. A scan may still be running — check the Libraries page.',
+  noLibrariesUser: 'An administrator needs to add a media library, or give you access to one, before there is anything to watch.',
+  recentlyAdded: 'Recently Added',
+  yourWatchlist: 'Your Watchlist',
+  yourFavorites: 'Your Favorites',
+  recentlyWatched: 'Recently Watched',
+};

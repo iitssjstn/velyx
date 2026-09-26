@@ -4,6 +4,7 @@ import { Layers } from 'lucide-react';
 import type { CollectionRef } from '../lib/types';
 import { imageUrl } from '../lib/format';
 import { Artwork } from './Artwork';
+import { useT } from '../i18n';
 
 /**
  * Signature layout for detail pages: a wide backdrop that fades into the page with the poster
@@ -46,11 +47,12 @@ export function MetaList({ items }: { items: Array<ReactNode | null | undefined 
 
 /** "Part of …" links to the collections an item belongs to. */
 export function CollectionLinks({ collections }: { collections: CollectionRef[] }) {
+  const { t } = useT();
   if (!collections.length) return null;
   return (
     <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
       <Layers className="size-4" aria-hidden />
-      Part of
+      {t('library.partOf')}
       {collections.map((c, i) => (
         <span key={c.id}>
           <Link to={`/collections/${c.id}`} className="text-ink/90 underline decoration-line underline-offset-4 hover:decoration-accent">

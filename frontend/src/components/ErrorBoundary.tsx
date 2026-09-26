@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { t } from '../i18n';
 import { Logo } from './Logo';
 
 interface State {
@@ -25,14 +26,14 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
           <div className="mb-8 flex justify-center">
             <Logo />
           </div>
-          <h1 className="font-display text-3xl font-semibold">Something went wrong.</h1>
-          <p className="mt-3 text-muted">The page hit an unexpected problem. Reloading usually fixes it.</p>
+          <h1 className="font-display text-3xl font-semibold">{t('errors.generic')}</h1>
+          <p className="mt-3 text-muted">{t('errors.crashText')}</p>
           <div className="mt-6 flex justify-center gap-3">
             <button className="h-10 rounded-lg bg-accent px-4 font-semibold text-accent-ink" onClick={() => window.location.reload()}>
-              Try again
+              {t('common.tryAgain')}
             </button>
             <a className="grid h-10 place-items-center rounded-lg bg-raised px-4" href="/">
-              Go home
+              {t('errors.goHome')}
             </a>
           </div>
         </div>

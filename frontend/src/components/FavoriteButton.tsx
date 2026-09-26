@@ -3,6 +3,7 @@ import { Bookmark, Heart } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { toast } from './Toast';
+import { useT } from '../i18n';
 
 interface SaveButtonProps {
   type: 'movie' | 'show';
@@ -14,6 +15,7 @@ interface SaveButtonProps {
 /** Round toggle that adds an item to, or removes it from, one of the user's saved lists. */
 function SaveToggle({ list, type, id, initial, className = '' }: SaveButtonProps & { list: 'favorites' | 'watchlist' }) {
   const qc = useQueryClient();
+  const { t } = useT();
   const [on, setOn] = useState(initial);
   const m = useMutation({
     mutationFn: (next: boolean) =>
@@ -30,7 +32,7 @@ function SaveToggle({ list, type, id, initial, className = '' }: SaveButtonProps
     },
   });
   const Icon = list === 'favorites' ? Heart : Bookmark;
-  const label = list === 'favorites' ? (on ? 'Remove from favorites' : 'Add to favorites') : on ? 'Remove from watchlist' : 'Add to watchlist';
+  const label = list === 'favorites' ? (on ? t('library.removeFavorite') : t('library.addFavorite')) : on ? t('library.removeWatchlist') : t('library.addWatchlist');
   return (
     <button
       type="button"

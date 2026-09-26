@@ -1,3 +1,4 @@
+import { intlLocale, t } from '../i18n';
 /** Artwork is proxied (and cached) by the server: never load TMDB URLs directly in the browser. */
 export function imageUrl(path: string | null | undefined, size: 'w92' | 'w185' | 'w300' | 'w342' | 'w500' | 'w780' | 'w1280' | 'original' = 'w342'): string | null {
   if (!path) return null;
@@ -9,8 +10,8 @@ export function formatRuntime(minutes: number | null | undefined): string | null
   if (!minutes || minutes <= 0) return null;
   const h = Math.floor(minutes / 60);
   const m = Math.round(minutes % 60);
-  if (h === 0) return `${m}m`;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  if (h === 0) return t('time.minutesShort', { m });
+  return m === 0 ? t('time.hoursShort', { h }) : t('time.hoursMinutesShort', { h, m });
 }
 
 /** 1:02:03 / 37:24 / 0:05 */
@@ -52,13 +53,13 @@ export function formatDate(value: string | number | null | undefined): string | 
   if (value === null || value === undefined || value === '') return null;
   const d = typeof value === 'number' ? new Date(value) : new Date(`${value}${/^\d{4}-\d{2}-\d{2}$/.test(value) ? 'T00:00:00' : ''}`);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return d.toLocaleDateString(intlLocale(), { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 export function formatRelative(ts: number | null | undefined, now = Date.now()): string {
-  if (!ts) return 'never';
+  if (!ts) return t('time.never');
   const diff = Math.round((now - ts) / 1000);
-  if (diff < 45) return 'just now';
+  if (diff < 45) return t('time.justNow');
   const units: [number, Intl.RelativeTimeFormatUnit][] = [
     [60, 'second'],
     [60, 'minute'],
@@ -75,24 +76,24 @@ export function formatRelative(ts: number | null | undefined, now = Date.now()):
     if (Math.abs(value) < step) break;
     value = value / step;
   }
-  return new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(-Math.round(value), unit);
+  return new Intl.RelativeTimeFormat(intlLocale(), { numeric: 'auto' }).format(-Math.round(value), unit);
 }
 
 export function formatDuration(sec: number): string {
   const d = Math.floor(sec / 86400);
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+  if (d > 0) return t('time.daysHoursShort', { d, h });
+  if (h > 0) return t('time.hoursMinutesShort', { h, m });
+  return t('time.minutesShort', { m });
 }
 
 export function greeting(date = new Date()): string {
   const h = date.getHours();
-  if (h < 5) return 'Good night';
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
+  if (h < 5) return t('greeting.night');
+  if (h < 12) return t('greeting.morning');
+  if (h < 18) return t('greeting.afternoon');
+  return t('greeting.evening');
 }
 
 export function episodeCode(season: number, episode: number): string {
@@ -141,11 +142,11 @@ export function codecName(codec: string | null | undefined): string | null {
 
 export function channelLabel(channels: number | null | undefined): string | null {
   if (!channels) return null;
-  if (channels === 1) return 'Mono';
-  if (channels === 2) return 'Stereo';
+  if (channels === 1) return t('media.mono');
+  if (channels === 2) return t('media.stereo');
   if (channels === 6) return '5.1';
   if (channels === 8) return '7.1';
-  return `${channels} ch`;
+  return t('media.channels', { n: channels });
 }
 
 export function progressFraction(p: { positionSec: number; durationSec: number } | null | undefined): number {
@@ -156,25 +157,25 @@ export function progressFraction(p: { positionSec: number; durationSec: number }
 /** "in 3 h", "in 25 min", "in 2 days", or "now" for a moment in the future. */
 export function formatIn(ts: number, now = Date.now()): string {
   const min = Math.round((ts - now) / 60_000);
-  if (min <= 0) return 'now';
-  if (min < 60) return `in ${min} min`;
+  if (min <= 0) return t('time.now');
+  if (min < 60) return t('time.inMinutes', { n: min });
   const h = Math.round(min / 60);
-  if (h < 48) return `in ${h} h`;
-  return `in ${Math.round(h / 24)} days`;
+  if (h < 48) return t('time.inHours', { n: h });
+  return t('time.inDays', { n: Math.round(h / 24) });
 }
 
 /** Plain description of the automatic scan schedule. */
 export function scheduleLabel(s: { intervalMinutes: number; nextAt: number | null; waitingForPlayback: boolean }, now = Date.now()): string {
-  if (s.intervalMinutes <= 0 || !s.nextAt) return 'Off';
-  if (s.waitingForPlayback) return 'Waiting until nobody is watching';
-  return `Next ${formatIn(s.nextAt, now)} (${intervalLabel(s.intervalMinutes).toLowerCase()})`;
+  if (s.intervalMinutes <= 0 || !s.nextAt) return t('schedule.off');
+  if (s.waitingForPlayback) return t('schedule.waitingForPlayback');
+  return t('schedule.next', { when: formatIn(s.nextAt, now), interval: intervalLabel(s.intervalMinutes).toLowerCase() });
 }
 
 export function intervalLabel(minutes: number): string {
-  if (minutes <= 0) return 'Off';
-  if (minutes % 1440 === 0) return minutes === 1440 ? 'Every day' : `Every ${minutes / 1440} days`;
-  if (minutes % 60 === 0) return minutes === 60 ? 'Every hour' : `Every ${minutes / 60} hours`;
-  return `Every ${minutes} minutes`;
+  if (minutes <= 0) return t('schedule.off');
+  if (minutes % 1440 === 0) return t('schedule.everyDays', { count: minutes / 1440 });
+  if (minutes % 60 === 0) return t('schedule.everyHours', { count: minutes / 60 });
+  return t('schedule.everyMinutes', { count: minutes });
 }
 
 /** "2160p · HEVC · HDR10 · Blu-ray · 18.2 GB" for a replaced or replacing file. */
@@ -182,4 +183,15 @@ export function snapshotLabel(s: { width: number | null; height: number | null; 
   const res = !s.width || !s.height ? null : s.width >= 3200 || s.height >= 2000 ? '2160p' : s.width >= 1800 || s.height >= 1000 ? '1080p' : s.width >= 1200 || s.height >= 700 ? '720p' : `${s.height}p`;
   const codec = s.videoCodec ? ({ h264: 'H.264', hevc: 'HEVC', av1: 'AV1', vp9: 'VP9', mpeg4: 'MPEG-4' } as Record<string, string>)[s.videoCodec] ?? s.videoCodec.toUpperCase() : null;
   return [res, codec, s.videoRange && s.videoRange !== 'SDR' ? (s.videoRange === 'DV' ? 'Dolby Vision' : s.videoRange) : null, s.source, formatBytes(s.size)].filter(Boolean).join(' · ');
+}
+
+/**
+ * A device as the server stored it ("Chrome on Windows", "Unknown device"), in the interface
+ * language. Browser and system names stay as they are.
+ */
+export function deviceName(text: string | null | undefined): string {
+  if (!text || text === 'Unknown device') return t('device.unknown');
+  const word = (w: string) => (w === 'Browser' ? t('device.browser') : w === 'Script' ? t('device.script') : w);
+  const m = /^(.+) on (.+)$/.exec(text);
+  return m ? t('device.on', { browser: word(m[1]), os: m[2] }) : word(text);
 }

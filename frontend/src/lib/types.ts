@@ -7,6 +7,8 @@ export interface User {
   displayName: string | null;
   role: Role;
   avatarUrl: string | null;
+  /** Interface language (en, nl). */
+  language: string;
 }
 
 export interface ServerInfo {

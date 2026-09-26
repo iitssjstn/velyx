@@ -16,6 +16,7 @@ import { NotFoundPage } from './pages/NotFound';
 import { CollectionPage, CollectionsPage } from './pages/Collections';
 
 import { PlayerHost, PlayRoute } from './components/PlayerHost';
+import { useT } from './i18n';
 import { PlaybackSessionProvider } from './lib/playback-session';
 
 // The admin area is loaded on demand to keep the initial bundle small (the player too, see PlayerHost).
@@ -31,13 +32,14 @@ function AfterLogin() {
 export function App() {
   const { server, user, loading, error } = useAuth();
   const location = useLocation();
+  const { t } = useT();
 
   useEffect(() => {
     document.title = server?.name && server.name !== 'Velyx' ? `${server.name} · Velyx` : 'Velyx';
   }, [server?.name]);
 
   if (loading) return <FullscreenLoader />;
-  if (!server) return <ErrorState title="Velyx is not reachable" error={error} fullscreen />;
+  if (!server) return <ErrorState title={t('errors.notReachable')} error={error} fullscreen />;
   if (server.setupRequired) {
     return (
       <Routes>

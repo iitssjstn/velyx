@@ -11,27 +11,20 @@ import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { VirtualGrid } from '../components/VirtualGrid';
 import { toast } from '../components/Toast';
+import { t, useT } from '../i18n';
 
 type Kind = 'movies' | 'shows';
 
-const SORTS = [
-  { value: 'title', label: 'Title' },
-  { value: 'added', label: 'Recently added' },
-  { value: 'watched', label: 'Recently watched' },
-  { value: 'release', label: 'Release date' },
-  { value: 'year', label: 'Year' },
-  { value: 'rating', label: 'Rating' },
-  { value: 'runtime', label: 'Runtime' },
-];
+const SORTS = ['title', 'added', 'watched', 'release', 'year', 'rating', 'runtime'] as const;
 
 export function watchFilters(kind: Kind) {
   return [
-    { value: 'all', label: 'All' },
-    { value: 'unwatched', label: 'Unwatched' },
-    { value: 'in-progress', label: 'In progress' },
-    { value: kind === 'movies' ? 'watched' : 'completed', label: kind === 'movies' ? 'Watched' : 'Completed' },
-    { value: 'favorites', label: 'Favorites' },
-    { value: 'watchlist', label: 'Watchlist' },
+    { value: 'all', label: t('browse.filters.all') },
+    { value: 'unwatched', label: t('library.unwatched') },
+    { value: 'in-progress', label: t('browse.filters.inProgress') },
+    { value: kind === 'movies' ? 'watched' : 'completed', label: kind === 'movies' ? t('library.watched') : t('browse.filters.completed') },
+    { value: 'favorites', label: t('nav.favorites') },
+    { value: 'watchlist', label: t('nav.watchlist') },
   ];
 }
 
@@ -56,21 +49,22 @@ export function activeFilterChips(params: URLSearchParams, kind: Kind, genres: G
   const filter = params.get('filter');
   if (filter && filter !== 'all') chips.push({ label: watchFilters(kind).find((f) => f.value === filter)?.label ?? filter, keys: ['filter'] });
   const genre = params.get('genre');
-  if (genre) chips.push({ label: genres.find((g) => String(g.id) === genre)?.name ?? 'Genre', keys: ['genre'] });
+  if (genre) chips.push({ label: genres.find((g) => String(g.id) === genre)?.name ?? t('browse.genre'), keys: ['genre'] });
   const res = params.get('resolution');
   if (res) chips.push({ label: RESOLUTIONS.find((r) => r.value === res)?.label ?? res, keys: ['resolution'] });
   if (params.get('hdr')) chips.push({ label: 'HDR', keys: ['hdr'] });
   const from = params.get('yearFrom');
   const to = params.get('yearTo');
-  if (from || to) chips.push({ label: from && to ? `${from}–${to}` : from ? `From ${from}` : `Until ${to}`, keys: ['yearFrom', 'yearTo'] });
+  if (from || to) chips.push({ label: from && to ? `${from}–${to}` : from ? t('browse.fromYear', { year: from }) : t('browse.untilYear', { year: to ?? '' }), keys: ['yearFrom', 'yearTo'] });
   const rating = params.get('minRating');
-  if (rating) chips.push({ label: `Rating ${rating}+`, keys: ['minRating'] });
+  if (rating) chips.push({ label: t('browse.ratingAtLeast', { rating }), keys: ['minRating'] });
   const runtime = params.get('maxRuntime');
-  if (runtime) chips.push({ label: `Up to ${runtime} min`, keys: ['maxRuntime'] });
+  if (runtime) chips.push({ label: t('browse.upToMinutes', { n: runtime }), keys: ['maxRuntime'] });
   return chips;
 }
 
 function FilterPanel({ kind, params, genres, onApply, onClose }: { kind: Kind; params: URLSearchParams; genres: Genre[]; onApply: (next: URLSearchParams) => void; onClose: () => void }) {
+  const { t } = useT();
   const [draft, setDraft] = useState(() => new URLSearchParams(params));
   const set = (key: string, value: string | null) =>
     setDraft((d) => {
@@ -84,7 +78,7 @@ function FilterPanel({ kind, params, genres, onApply, onClose }: { kind: Kind; p
   return (
     <div className="space-y-6">
       <fieldset>
-        <legend className="label">Show</legend>
+        <legend className="label">{t('browse.show')}</legend>
         <div className="flex flex-wrap gap-2">
           {watchFilters(kind).map((f) => (
             <button key={f.value} type="button" aria-pressed={(draft.get('filter') ?? 'all') === f.value} className={chip((draft.get('filter') ?? 'all') === f.value)} onClick={() => set('filter', f.value)}>
@@ -95,7 +89,7 @@ function FilterPanel({ kind, params, genres, onApply, onClose }: { kind: Kind; p
       </fieldset>
       {kind === 'movies' && (
         <fieldset>
-          <legend className="label">Quality</legend>
+          <legend className="label">{t('browse.quality')}</legend>
           <div className="flex flex-wrap gap-2">
             {RESOLUTIONS.map((r) => (
               <button key={r.value} type="button" aria-pressed={draft.get('resolution') === r.value} className={chip(draft.get('resolution') === r.value)} onClick={() => set('resolution', draft.get('resolution') === r.value ? null : r.value)}>
@@ -110,30 +104,30 @@ function FilterPanel({ kind, params, genres, onApply, onClose }: { kind: Kind; p
       )}
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="label" htmlFor="f-genre">Genre</label>
+          <label className="label" htmlFor="f-genre">{t('browse.genre')}</label>
           <select id="f-genre" className="input" value={draft.get('genre') ?? ''} onChange={(e) => set('genre', e.target.value)}>
-            <option value="">All genres</option>
+            <option value="">{t('browse.allGenres')}</option>
             {genres.map((g) => (
               <option key={g.id} value={g.id}>{g.name}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="label" htmlFor="f-rating">Rating</label>
+          <label className="label" htmlFor="f-rating">{t('browse.rating')}</label>
           <select id="f-rating" className="input" value={draft.get('minRating') ?? ''} onChange={(e) => set('minRating', e.target.value)}>
-            <option value="">Any rating</option>
+            <option value="">{t('browse.anyRating')}</option>
             {RATINGS.map((r) => (
               <option key={r} value={r}>{r}+</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="label" htmlFor="f-from">Year from</label>
-          <input id="f-from" className="input" type="number" inputMode="numeric" min={1870} max={2100} placeholder="e.g. 1990" value={draft.get('yearFrom') ?? ''} onChange={(e) => set('yearFrom', e.target.value)} />
+          <label className="label" htmlFor="f-from">{t('browse.yearFrom')}</label>
+          <input id="f-from" className="input" type="number" inputMode="numeric" min={1870} max={2100} placeholder={t('browse.egYear', { year: 1990 })} value={draft.get('yearFrom') ?? ''} onChange={(e) => set('yearFrom', e.target.value)} />
         </div>
         <div>
-          <label className="label" htmlFor="f-to">Year to</label>
-          <input id="f-to" className="input" type="number" inputMode="numeric" min={1870} max={2100} placeholder="e.g. 1999" value={draft.get('yearTo') ?? ''} onChange={(e) => set('yearTo', e.target.value)} />
+          <label className="label" htmlFor="f-to">{t('browse.yearTo')}</label>
+          <input id="f-to" className="input" type="number" inputMode="numeric" min={1870} max={2100} placeholder={t('browse.egYear', { year: 1999 })} value={draft.get('yearTo') ?? ''} onChange={(e) => set('yearTo', e.target.value)} />
         </div>
       </div>
       <div className="flex justify-between gap-2">
@@ -145,11 +139,11 @@ function FilterPanel({ kind, params, genres, onApply, onClose }: { kind: Kind; p
             setDraft(n);
           }}
         >
-          Reset
+          {t('browse.reset')}
         </Button>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => onApply(draft)}>Show results</Button>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button onClick={() => onApply(draft)}>{t('browse.showResults')}</Button>
         </div>
       </div>
     </div>
@@ -160,12 +154,13 @@ function FilterPanel({ kind, params, genres, onApply, onClose }: { kind: Kind; p
 function SaveSmartCollection({ kind, query, summary, onDone }: { kind: Kind; query: Record<string, string>; summary: string; onDone: () => void }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { t } = useT();
   const [name, setName] = useState('');
   const save = useMutation({
     mutationFn: () => api.post('/api/collections/smart', { name: name.trim(), kind, query }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['collections', 'smart'] });
-      toast.success('Smart collection saved.');
+      toast.success(t('smart.saved'));
       onDone();
       navigate('/collections');
     },
@@ -179,14 +174,14 @@ function SaveSmartCollection({ kind, query, summary, onDone }: { kind: Kind; que
         save.mutate();
       }}
     >
-      <p className="text-sm text-muted">Everyone sees the {kind === 'movies' ? 'movies' : 'shows'} that match these filters for them, always up to date: {summary}.</p>
+      <p className="text-sm text-muted">{kind === 'movies' ? t('smart.explainMovies', { summary }) : t('smart.explainShows', { summary })}</p>
       <div>
-        <label className="label" htmlFor="smart-name">Name</label>
-        <input id="smart-name" className="input" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. 90s action" />
+        <label className="label" htmlFor="smart-name">{t('common.name')}</label>
+        <input id="smart-name" className="input" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder={t('smart.namePlaceholder')} />
       </div>
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={onDone}>Cancel</Button>
-        <Button type="submit" loading={save.isPending}>Save</Button>
+        <Button variant="ghost" onClick={onDone}>{t('common.cancel')}</Button>
+        <Button type="submit" loading={save.isPending}>{t('common.save')}</Button>
       </div>
     </form>
   );
@@ -194,12 +189,13 @@ function SaveSmartCollection({ kind, query, summary, onDone }: { kind: Kind; que
 
 export function BrowsePage({ kind }: { kind: Kind }) {
   const { user } = useAuth();
+  const { t } = useT();
   const [params, setParams] = useSearchParams();
   const [panel, setPanel] = useState(false);
   const sort = params.get('sort') ?? 'title';
   const order = params.get('order') ?? undefined;
   const [saving, setSaving] = useState(false);
-  const title = kind === 'movies' ? 'Movies' : 'TV Shows';
+  const title = kind === 'movies' ? t('nav.movies') : t('nav.tvShows');
   const query = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? undefined]));
   if (query.filter === 'all') query.filter = undefined;
 
@@ -238,35 +234,35 @@ export function BrowsePage({ kind }: { kind: Kind }) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold tracking-tight">{title}</h1>
-          {q.data && <p className="mt-1 text-sm text-muted">{total.toLocaleString()} {kind === 'movies' ? (total === 1 ? 'movie' : 'movies') : total === 1 ? 'show' : 'shows'}</p>}
+          {q.data && <p className="mt-1 text-sm text-muted">{t(kind === 'movies' ? 'browse.movieCount' : 'browse.showCount', { count: total })}</p>}
         </div>
         <div className="flex gap-2">
-          <select aria-label="Sort" className="input h-10 w-auto py-0 pr-8 text-sm" value={sort} onChange={(e) => setSort(e.target.value)}>
-            {SORTS.filter((s) => kind === 'movies' || s.value !== 'runtime').map((s) => (
-              <option key={s.value} value={s.value}>{s.label}</option>
+          <select aria-label={t('browse.sort')} className="input h-10 w-auto py-0 pr-8 text-sm" value={sort} onChange={(e) => setSort(e.target.value)}>
+            {SORTS.filter((s) => kind === 'movies' || s !== 'runtime').map((s) => (
+              <option key={s} value={s}>{t(`browse.sorts.${s}`)}</option>
             ))}
           </select>
-          <Button variant="secondary" icon={<SlidersHorizontal className="size-4" />} onClick={() => setPanel(true)} aria-label={`Filters${filtered ? ` (${chips.length} active)` : ''}`}>
-            <span className="hidden sm:inline">Filters</span>
+          <Button variant="secondary" icon={<SlidersHorizontal className="size-4" />} onClick={() => setPanel(true)} aria-label={filtered ? t('browse.filtersActive', { count: chips.length }) : t('browse.filtersTitle')}>
+            <span className="hidden sm:inline">{t('browse.filtersTitle')}</span>
             {filtered && <span className="rounded-full bg-accent px-1.5 text-xs font-semibold text-accent-ink">{chips.length}</span>}
           </Button>
         </div>
       </div>
 
       {filtered && (
-        <div className="mt-4 flex flex-wrap items-center gap-2" aria-label="Active filters">
+        <div className="mt-4 flex flex-wrap items-center gap-2" aria-label={t('browse.activeFilters')}>
           {chips.map((c) => (
-            <button key={c.label} type="button" onClick={() => clearKeys(c.keys)} className="inline-flex items-center gap-1.5 rounded-full bg-raised px-3 py-1 text-sm text-ink/90 hover:bg-line" aria-label={`Remove filter ${c.label}`}>
+            <button key={c.label} type="button" onClick={() => clearKeys(c.keys)} className="inline-flex items-center gap-1.5 rounded-full bg-raised px-3 py-1 text-sm text-ink/90 hover:bg-line" aria-label={t('browse.removeFilter', { label: c.label })}>
               {c.label}
               <X className="size-3.5 text-muted" />
             </button>
           ))}
           <button type="button" onClick={() => clearKeys([...FILTER_KEYS])} className="px-2 text-sm text-muted hover:text-ink">
-            Clear all
+            {t('browse.clearAll')}
           </button>
           {user?.role === 'admin' && (
             <button type="button" onClick={() => setSaving(true)} className="ml-auto inline-flex items-center gap-1.5 px-2 text-sm text-muted hover:text-ink">
-              <Sparkles className="size-4" /> Save as smart collection
+              <Sparkles className="size-4" /> {t('smart.saveAs')}
             </button>
           )}
         </div>
@@ -279,16 +275,16 @@ export function BrowsePage({ kind }: { kind: Kind }) {
       ) : items.length === 0 ? (
         <EmptyState
           icon={kind === 'movies' ? <Film className="size-6" /> : <Tv className="size-6" />}
-          title={filtered ? 'Nothing matches these filters' : `No ${title.toLowerCase()} yet`}
+          title={filtered ? t('browse.nothingMatches') : kind === 'movies' ? t('browse.noMovies') : t('browse.noShows')}
           action={
             filtered ? (
-              <Button variant="secondary" onClick={() => clearKeys([...FILTER_KEYS])}>Clear filters</Button>
+              <Button variant="secondary" onClick={() => clearKeys([...FILTER_KEYS])}>{t('browse.clearFilters')}</Button>
             ) : user?.role === 'admin' ? (
-              <Link to="/admin/libraries" className="inline-flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">Manage libraries</Link>
+              <Link to="/admin/libraries" className="inline-flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">{t('home.manageLibraries')}</Link>
             ) : undefined
           }
         >
-          {!filtered && `Add a ${kind === 'movies' ? 'Movies' : 'TV Shows'} library to see it here.`}
+          {!filtered && (kind === 'movies' ? t('browse.addMoviesLibrary') : t('browse.addShowsLibrary'))}
         </EmptyState>
       ) : (
         <>
@@ -296,12 +292,12 @@ export function BrowsePage({ kind }: { kind: Kind }) {
             <VirtualGrid items={items} getKey={(i) => i.id} renderItem={(item) => <PosterCard item={item} />} minColumnWidth={minColumnWidth} rowHeightFor={rowHeightFor} onNearEnd={loadMore} />
           </div>
           <div className="flex justify-center py-10">
-            {isFetchingNextPage ? <Spinner className="size-6" /> : hasNextPage ? <Button variant="secondary" onClick={loadMore}>Load more</Button> : null}
+            {isFetchingNextPage ? <Spinner className="size-6" /> : hasNextPage ? <Button variant="secondary" onClick={loadMore}>{t('browse.loadMore')}</Button> : null}
           </div>
         </>
       )}
 
-      <Modal title="New smart collection" open={saving} onClose={() => setSaving(false)}>
+      <Modal title={t('smart.new')} open={saving} onClose={() => setSaving(false)}>
         {saving && (
           <SaveSmartCollection
             kind={kind}
@@ -311,7 +307,7 @@ export function BrowsePage({ kind }: { kind: Kind }) {
           />
         )}
       </Modal>
-      <Modal title="Filters" open={panel} onClose={() => setPanel(false)}>
+      <Modal title={t('browse.filtersTitle')} open={panel} onClose={() => setPanel(false)}>
         {panel && (
           <FilterPanel
             kind={kind}

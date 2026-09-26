@@ -1,4 +1,5 @@
 import type { MediaFileInfo } from './types';
+import { languageLabel, t } from '../i18n';
 import { channelLabel, codecName, formatBitrate, resolutionLabel } from './format';
 
 /** How the dynamic range is named in a headline ("HDR") and in technical details ("HDR10"). */
@@ -22,29 +23,36 @@ export interface DetailLine {
   note: string | null;
 }
 
+/** A track's language in the interface language, or its title, or "Unknown language". */
+function trackName(track: { language: string | null; languageName: string | null; title: string | null }): string {
+  return languageLabel(track.language) ?? track.languageName ?? track.title ?? t('media.unknownLanguage');
+}
+
 /** A track's title when it adds something to its language ("Commentary", "SDH"). */
-function extraTitle(t: { languageName: string | null; title: string | null }): string | null {
-  return t.languageName && t.title && t.title.toLowerCase() !== t.languageName.toLowerCase() ? t.title : null;
+function extraTitle(track: { language: string | null; languageName: string | null; title: string | null }): string | null {
+  if (!track.title || !(track.languageName || languageLabel(track.language))) return null;
+  const same = [track.languageName, languageLabel(track.language)].some((n) => n && n.toLowerCase() === track.title!.toLowerCase());
+  return same ? null : track.title;
 }
 
 /** Audio tracks in file order: language and channels first, the format after. */
 export function audioLines(file: MediaFileInfo): DetailLine[] {
   const several = file.audioTracks.length > 1;
   return file.audioTracks.map((a) => ({
-    label: [a.languageName ?? a.title ?? 'Unknown language', channelLabel(a.channels)].filter(Boolean).join(' '),
-    note: [codecName(a.codec), extraTitle(a), several && a.isDefault ? 'Default' : null].filter(Boolean).join(' · ') || null,
+    label: [trackName(a), channelLabel(a.channels)].filter(Boolean).join(' '),
+    note: [codecName(a.codec), extraTitle(a), several && a.isDefault ? t('media.default') : null].filter(Boolean).join(' · ') || null,
   }));
 }
 
 /** Subtitles: files next to the video first, then the ones inside it. Image-based ones cannot be shown. */
 export function subtitleLines(file: MediaFileInfo): DetailLine[] {
   const external = file.externalSubtitles.map((s) => ({
-    label: s.label,
-    note: [s.format.toUpperCase(), s.forced ? 'Forced' : null, 'Separate file'].filter(Boolean).join(' · '),
+    label: languageLabel(s.language) ?? s.label,
+    note: [s.format.toUpperCase(), s.forced ? t('media.forced') : null, t('media.separateFile')].filter(Boolean).join(' · '),
   }));
   const embedded = file.embeddedSubtitles.map((s) => ({
-    label: s.languageName ?? s.title ?? 'Unknown language',
-    note: [codecName(s.codec), extraTitle(s), s.isForced ? 'Forced' : null, s.textBased ? null : 'image-based, not shown'].filter(Boolean).join(' · ') || null,
+    label: trackName(s),
+    note: [codecName(s.codec), extraTitle(s), s.isForced ? t('media.forced') : null, s.textBased ? null : t('media.imageBasedNotShown')].filter(Boolean).join(' · ') || null,
   }));
   return [...external, ...embedded];
 }

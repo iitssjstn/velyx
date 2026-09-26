@@ -1,0 +1,15 @@
+export const mediaInfo = {
+  noAudio: 'No audio tracks.',
+  noSubtitles: 'No subtitles.',
+  technical: 'Technical',
+  videoFormat: 'Video format',
+  problem: 'Problem',
+  duration: 'Duration',
+  size: 'Size',
+  file: 'File',
+  replaced: 'Replaced',
+  historyKept: 'Watch history was kept.',
+  media: 'Media',
+  version: 'Version',
+  overview: 'Overview',
+};

@@ -18,12 +18,14 @@ import { DevicePlayback } from '../components/DevicePlayback';
 import { ProgressBar } from '../components/ProgressBar';
 import { ErrorState, PageLoader } from '../components/States';
 import { toast } from '../components/Toast';
+import { useT } from '../i18n';
 
 export function MoviePage() {
   const id = Number(useParams().id);
   const { user } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { t } = useT();
   const [fileIdx, setFileIdx] = useState(0);
   const q = useQuery({ queryKey: ['movie', id], queryFn: () => api.get<MovieDetail>(`/api/movies/${id}`) });
   const watched = useMutation({
@@ -63,7 +65,7 @@ export function MoviePage() {
             qualityLabel(file),
             m.progress?.completed && (
               <span className="inline-flex items-center gap-1 text-ok">
-                <Check className="size-3.5" /> Watched
+                <Check className="size-3.5" /> {t('library.watched')}
               </span>
             ),
           ]}
@@ -83,16 +85,16 @@ export function MoviePage() {
             <>
               <Link to={playHref('movie', m.id, resume?.positionSec, m.files.length > 1 ? file.id : null)} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 font-semibold text-bg hover:bg-white">
                 <Play className="size-5 fill-current" />
-                {resume ? `Resume from ${formatClock(resume.positionSec)}` : 'Play'}
+                {resume ? t('player.resumeFrom', { time: formatClock(resume.positionSec) }) : t('player.play')}
               </Link>
               {resume && (
-                <Link to={`/play/movie/${m.id}?t=0${m.files.length > 1 ? `&file=${file.id}` : ''}`} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink/10 px-5 hover:bg-ink/20" title="Play from the beginning">
-                  <RotateCcw className="size-4" /> From start
+                <Link to={`/play/movie/${m.id}?t=0${m.files.length > 1 ? `&file=${file.id}` : ''}`} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink/10 px-5 hover:bg-ink/20" title={t('player.playFromBeginning')}>
+                  <RotateCcw className="size-4" /> {t('player.fromStart')}
                 </Link>
               )}
             </>
           ) : (
-            <p className="text-sm text-danger">No playable file — rescan the library.</p>
+            <p className="text-sm text-danger">{t('detail.noPlayableFile')}</p>
           )}
           <WatchlistButton key={String(m.watchlist)} type="movie" id={m.id} initial={m.watchlist} />
           <FavoriteButton type="movie" id={m.id} initial={m.favorite} />
@@ -100,8 +102,8 @@ export function MoviePage() {
             type="button"
             onClick={() => watched.mutate(!m.progress?.completed)}
             className={`grid size-12 place-items-center rounded-full border transition-colors ${m.progress?.completed ? 'border-ok/50 bg-ok/10 text-ok' : 'border-line bg-surface/70 text-muted hover:text-ink'}`}
-            aria-label={m.progress?.completed ? 'Mark as unwatched' : 'Mark as watched'}
-            title={m.progress?.completed ? 'Mark as unwatched' : 'Mark as watched'}
+            aria-label={m.progress?.completed ? t('library.markUnwatched') : t('library.markWatched')}
+            title={m.progress?.completed ? t('library.markUnwatched') : t('library.markWatched')}
           >
             {m.progress?.completed ? <Check className="size-5" /> : <Eye className="size-5" />}
           </button>
@@ -113,37 +115,37 @@ export function MoviePage() {
       </DetailHero>
 
       <div className="mt-10 px-4 sm:px-8">
-        <h2 className="mb-3 font-display text-xl font-semibold">Overview</h2>
-        {m.overview ? <p className="max-w-3xl text-lg leading-relaxed text-ink/85">{m.overview}</p> : <p className="text-muted">No description available.</p>}
+        <h2 className="mb-3 font-display text-xl font-semibold">{t('mediaInfo.overview')}</h2>
+        {m.overview ? <p className="max-w-3xl text-lg leading-relaxed text-ink/85">{m.overview}</p> : <p className="text-muted">{t('detail.noDescription')}</p>}
         <dl className="mt-6 grid max-w-3xl gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
           {director && (
             <div>
-              <dt className="text-faint">Director</dt>
+              <dt className="text-faint">{t('detail.director')}</dt>
               <dd>{director}</dd>
             </div>
           )}
           {writers.length > 0 && (
             <div>
-              <dt className="text-faint">Writing</dt>
+              <dt className="text-faint">{t('detail.writing')}</dt>
               <dd>{writers.join(', ')}</dd>
             </div>
           )}
           {m.releaseDate && (
             <div>
-              <dt className="text-faint">Released</dt>
+              <dt className="text-faint">{t('detail.released')}</dt>
               <dd>{formatDate(m.releaseDate)}</dd>
             </div>
           )}
           {m.originalTitle && m.originalTitle !== m.title && (
             <div>
-              <dt className="text-faint">Original title</dt>
+              <dt className="text-faint">{t('detail.originalTitle')}</dt>
               <dd>{m.originalTitle}</dd>
             </div>
           )}
         </dl>
         {m.match.status === 'unmatched' && (
           <p className="mt-6 rounded-lg bg-amber/10 px-4 py-3 text-sm text-amber">
-            Velyx could not identify this movie with confidence. {user?.role === 'admin' ? 'Use “Fix match” from the menu above.' : 'An administrator can fix the match.'}
+            {t('detail.unmatchedMovie')} {user?.role === 'admin' ? t('detail.unmatchedAdmin') : t('detail.unmatchedUser')}
           </p>
         )}
       </div>
@@ -151,10 +153,10 @@ export function MoviePage() {
         <section aria-labelledby="media-heading" className="mt-10 px-4 sm:px-8">
           <div className="mb-4 flex max-w-5xl flex-wrap items-center justify-between gap-3">
             <h2 id="media-heading" className="font-display text-xl font-semibold">
-              Media
+              {t('mediaInfo.media')}
             </h2>
             {m.files.length > 1 && (
-              <select aria-label="Version" className="input h-8 w-auto py-0 text-xs" value={fileIdx} onChange={(e) => setFileIdx(Number(e.target.value))}>
+              <select aria-label={t('mediaInfo.version')} className="input h-8 w-auto py-0 text-xs" value={fileIdx} onChange={(e) => setFileIdx(Number(e.target.value))}>
                 {m.files.map((f, i) => (
                   <option key={f.id} value={i}>
                     {qualityLabel(f) ?? f.fileName}

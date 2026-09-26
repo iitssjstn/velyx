@@ -33,25 +33,26 @@ import { Spinner } from '../components/States';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { PlaybackBadge, PlaybackUnavailable } from '../components/PlaybackDetails';
 import { UpNext } from '../components/UpNext';
+import { intlLocale, languageLabel, t, useT, type MessageKey } from '../i18n';
 
 const SAVE_INTERVAL_MS = 10_000;
 const HIDE_CONTROLS_MS = 3000;
 const STALL_HINT_MS = 20_000;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
-const SHORTCUTS: Array<[string, string]> = [
-  ['Space / K', 'Play / pause'],
-  ['← / J', 'Back 10 seconds'],
-  ['→ / L', 'Forward 10 seconds'],
-  ['↑ / ↓', 'Volume up / down'],
-  ['M', 'Mute'],
-  ['F', 'Full screen'],
-  ['I', 'Minimize player'],
-  ['C', 'Next subtitle'],
-  ['S', 'Skip intro / credits'],
-  ['N', 'Next episode'],
-  ['0–9', 'Jump to 0–90 %'],
-  ['?', 'Show these shortcuts'],
-  ['Esc', 'Close menu / leave player'],
+const SHORTCUTS: Array<[string, MessageKey]> = [
+  ['Space / K', 'player.shortcuts.playPause'],
+  ['← / J', 'player.shortcuts.back'],
+  ['→ / L', 'player.shortcuts.forward'],
+  ['↑ / ↓', 'player.shortcuts.volume'],
+  ['M', 'player.shortcuts.mute'],
+  ['F', 'player.shortcuts.fullscreen'],
+  ['I', 'player.shortcuts.minimize'],
+  ['C', 'player.shortcuts.nextSubtitle'],
+  ['S', 'player.shortcuts.skip'],
+  ['N', 'player.shortcuts.nextEpisode'],
+  ['0–9', 'player.shortcuts.jump'],
+  ['?', 'player.shortcuts.help'],
+  ['Esc', 'player.shortcuts.escape'],
 ];
 /** Only Safari exposes HTMLMediaElement.audioTracks by default; elsewhere the server switches tracks. */
 const NATIVE_AUDIO_SWITCHING = typeof HTMLMediaElement !== 'undefined' && 'audioTracks' in HTMLMediaElement.prototype;
@@ -134,6 +135,8 @@ export interface PlayerProps {
  * item plays; minimizing only changes the layout, so the stream, position and tracks carry on.
  */
 export default function Player({ kind, id, search, mini, onMinimize, onRestore, onClose, onPlayItem }: PlayerProps) {
+  // Re-renders the player (never remounts it) when the interface language changes.
+  useT();
   const params = useMemo(() => new URLSearchParams(search), [search]);
   const qc = useQueryClient();
   const prefs = usePrefs();
@@ -183,6 +186,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const [subKey, setSubKey] = useState<string | null>(null);
   const [speed, setSpeed] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  /** The file is gone (removed or unmounted): trying again will not help. */
+  const [errorGone, setErrorGone] = useState(false);
   const [warningDismissed, setWarningDismissed] = useState(false);
   // The server predicted the file cannot play here; the viewer can still try (browsers under-report).
   const [tryAnyway, setTryAnyway] = useState(false);
@@ -200,7 +205,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // Parts skipped automatically in this playback (each only once, so seeking back replays them),
   // and the short "Skipped" notice with a way back.
   const autoSkipped = useRef(new Set<string>());
-  const [skipNotice, setSkipNotice] = useState<{ label: string; back: number } | null>(null);
+  const [skipNotice, setSkipNotice] = useState<{ kind: 'intro' | 'credits'; back: number } | null>(null);
   const [audioTracks, setAudioTracks] = useState<BrowserAudioTrack[]>([]);
   const [seekHover, setSeekHover] = useState<{ x: number; w: number; t: number } | null>(null);
   // The stream to load: `base` is the decision's URL. Live (restart) streams are requested with
@@ -541,14 +546,16 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           )
         : null;
       // A stream that already played was understood by the browser: a later "not supported" is a transfer problem.
-      if (!reachable || (code === 4 && startedRef.current && !gone)) setError('The connection to the server was interrupted.');
-      else if (gone) setError(gone);
-      else if (info?.analysis) setDecodeFailed(true);
-      else setError(reasons.length ? `Your browser cannot play this file: ${reasons.join('; ')}.` : 'Your browser cannot decode this file. Try Chrome or Edge, which handle the most formats.');
+      if (!reachable || (code === 4 && startedRef.current && !gone)) setError(t('player.errors.interrupted'));
+      else if (gone) {
+        setError(gone);
+        setErrorGone(true);
+      } else if (info?.analysis) setDecodeFailed(true);
+      else setError(reasons.length ? t('player.errors.cannotPlay', { reasons: reasons.join('; ') }) : t('player.errors.cannotDecode'));
     } else if (code === 2) {
-      setError('The connection to the server was interrupted.');
+      setError(t('player.errors.interrupted'));
     } else {
-      setError('Playback failed. The file may be unavailable — try rescanning the library.');
+      setError(t('player.errors.failed'));
     }
   };
 
@@ -556,6 +563,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const retry = useCallback(() => {
     const at = time;
     setError(null);
+    setErrorGone(false);
     setStalled(false);
     setBuffering(true);
     playAfterLoadRef.current = true;
@@ -598,7 +606,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         goNext();
         return;
       }
-      if (automatic) setSkipNotice({ label: s.kind === 'intro' ? 'Intro skipped' : 'Credits skipped', back: time });
+      if (automatic) setSkipNotice({ kind: s.kind, back: time });
       seekTo(s.to);
     },
     [next, goNext, seekTo, time],
@@ -737,15 +745,15 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         {mini ? (
           <>
             <TriangleAlert className="size-5 shrink-0 text-amber" />
-            <p className="min-w-0 flex-1 truncate">{loadError ? errorMessage(loadError) : 'There is no media file for this item.'}</p>
-            <button type="button" onClick={exit} className="grid size-9 place-items-center rounded-full hover:bg-white/10" aria-label="Close player"><X className="size-4" /></button>
+            <p className="min-w-0 flex-1 truncate">{loadError ? errorMessage(loadError) : t('player.noMediaFile')}</p>
+            <button type="button" onClick={exit} className="grid size-9 place-items-center rounded-full hover:bg-white/10" aria-label={t('player.close')}><X className="size-4" /></button>
           </>
         ) : (
         <div>
           <TriangleAlert className="mx-auto size-10 text-amber" />
-          <h1 className="mt-4 font-display text-2xl font-semibold">Cannot play this item</h1>
-          <p className="mt-2 text-muted">{loadError ? errorMessage(loadError) : 'There is no media file for this item. Try rescanning the library.'}</p>
-          <button type="button" onClick={exit} className="mt-6 h-10 rounded-lg bg-raised px-4">Go back</button>
+          <h1 className="mt-4 font-display text-2xl font-semibold">{t('player.cannotPlayItem')}</h1>
+          <p className="mt-2 text-muted">{loadError ? errorMessage(loadError) : t('player.noMediaFileRescan')}</p>
+          <button type="button" onClick={exit} className="mt-6 h-10 rounded-lg bg-raised px-4">{t('common.goBack')}</button>
         </div>
         )}
       </div>
@@ -768,7 +776,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       onMouseMove={mini ? undefined : poke}
       onTouchStart={mini ? undefined : poke}
       role={mini ? 'region' : undefined}
-      aria-label={mini ? 'Mini player' : undefined}
+      aria-label={mini ? t('player.miniPlayer') : undefined}
     >
       {!mini && showUnavailable && info && (
         <PlaybackUnavailable
@@ -777,8 +785,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
               ? {
                   ...info.analysis,
                   mode: 'unsupported',
-                  components: { ...info.analysis.components, video: { status: 'fail', note: 'The browser stopped with a decoding error: it could not decode this file after all.' } },
-                  summary: ['Your current browser/device could not play this file.', 'Server transcoding: No. Velyx does not convert video.'],
+                  components: { ...info.analysis.components, video: { status: 'fail', note: t('player.errors.decodeError') } },
+                  summary: [t('player.errors.couldNotPlay'), t('player.errors.noTranscoding')],
                 }
               : info.analysis
           }
@@ -839,9 +847,9 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             <Spinner className="size-10" />
             {stalled && streamSrc && (
               <div className="pointer-events-auto flex flex-col items-center gap-3 rounded-xl bg-black/70 px-5 py-4 text-center text-sm backdrop-blur" role="status">
-                <p className="text-ink/85">This is taking longer than usual. The connection or the server may be slow.</p>
+                <p className="text-ink/85">{t('player.slow')}</p>
                 <button type="button" onClick={retry} className="flex h-9 items-center gap-2 rounded-lg bg-raised px-4">
-                  <RotateCcw className="size-4" /> Try again
+                  <RotateCcw className="size-4" /> {t('common.tryAgain')}
                 </button>
               </div>
             )}
@@ -853,17 +861,17 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         <div className="absolute inset-0 grid place-items-center bg-black/85 px-6 text-center">
           <div className="max-w-lg">
             <TriangleAlert className="mx-auto size-10 text-amber" />
-            <h2 className="mt-4 font-display text-2xl font-semibold">Playback problem</h2>
+            <h2 className="mt-4 font-display text-2xl font-semibold">{t('player.problem')}</h2>
             <p className="mt-2 text-muted">{error}</p>
             <div className="mt-6 flex justify-center gap-3">
-              <button type="button" onClick={exit} className="h-10 rounded-lg bg-raised px-4">Go back</button>
-              {!/no longer available/i.test(error) && (
+              <button type="button" onClick={exit} className="h-10 rounded-lg bg-raised px-4">{t('common.goBack')}</button>
+              {!errorGone && (
                 <button type="button" onClick={retry} className="flex h-10 items-center gap-2 rounded-lg bg-accent px-4 font-semibold text-accent-ink">
-                  <RotateCcw className="size-4" /> Try again
+                  <RotateCcw className="size-4" /> {t('common.tryAgain')}
                 </button>
               )}
               {next && (
-                <button type="button" onClick={goNext} className="h-10 rounded-lg bg-raised px-4">Next episode</button>
+                <button type="button" onClick={goNext} className="h-10 rounded-lg bg-raised px-4">{t('player.nextEpisode')}</button>
               )}
             </div>
           </div>
@@ -874,9 +882,9 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         <div className="absolute top-20 left-1/2 z-10 flex w-[min(40rem,calc(100%-2rem))] -translate-x-1/2 items-start gap-3 rounded-xl border border-amber/30 bg-black/80 px-4 py-3 text-sm backdrop-blur">
           <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber" />
           <p className="flex-1 text-ink/85">
-            This file may not play in this browser: {info!.decision.reasons.join('; ')}. Velyx will try anyway.
+            {t('player.mayNotPlay', { reasons: info!.decision.reasons.join('; ') })}
           </p>
-          <button type="button" className="text-muted hover:text-ink" onClick={() => setWarningDismissed(true)}>Dismiss</button>
+          <button type="button" className="text-muted hover:text-ink" onClick={() => setWarningDismissed(true)}>{t('common.dismiss')}</button>
         </div>
       )}
 
@@ -890,12 +898,12 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           }}
           className="absolute right-4 bottom-28 z-20 sm:right-8 sm:bottom-40 flex h-11 items-center gap-2 rounded-lg border border-white/25 bg-black/70 px-4 font-semibold backdrop-blur sm:h-14 sm:px-6 sm:text-lg transition hover:bg-white hover:text-black"
         >
-          <SkipForward className="size-4" /> {skip.kind === 'intro' ? 'Skip intro' : 'Skip credits'}
+          <SkipForward className="size-4" /> {skip.kind === 'intro' ? t('player.skipIntro') : t('player.skipCredits')}
         </button>
       )}
       {!mini && skipNotice && !showUpNext && (
         <div className="absolute right-4 bottom-28 z-20 sm:right-8 sm:bottom-40 flex items-center gap-3 rounded-lg bg-black/70 px-4 py-2.5 text-sm backdrop-blur" role="status">
-          <span>{skipNotice.label}</span>
+          <span>{skipNotice.kind === 'intro' ? t('player.introSkipped') : t('player.creditsSkipped')}</span>
           <button
             type="button"
             onClick={() => {
@@ -905,7 +913,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             }}
             className="font-semibold text-accent hover:underline"
           >
-            Undo
+            {t('common.undo')}
           </button>
         </div>
       )}
@@ -928,41 +936,41 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       {!mini && ended && !next && !error && (
         <div className="absolute inset-0 z-10 grid place-items-center bg-black/60">
           <div className="text-center">
-            <p className="font-display text-2xl font-semibold">Finished</p>
+            <p className="font-display text-2xl font-semibold">{t('player.finished')}</p>
             <div className="mt-4 flex justify-center gap-3">
               <button type="button" onClick={() => { setEnded(false); if (live && offset > 0) restartAt(0); else { const v = videoRef.current; if (v) { v.currentTime = 0; void v.play(); } } }} className="flex h-10 items-center gap-2 rounded-lg bg-raised px-4">
-                <RotateCcw className="size-4" /> Watch again
+                <RotateCcw className="size-4" /> {t('player.watchAgain')}
               </button>
-              <Link to={item.data?.backHref ?? '/'} className="flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">Done</Link>
+              <Link to={item.data?.backHref ?? '/'} className="flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">{t('common.done')}</Link>
             </div>
           </div>
         </div>
       )}
 
       {!mini && askResume && item.data && (
-        <div className="absolute inset-0 z-20 grid place-items-center bg-black/60 px-6" role="dialog" aria-label="Resume playback">
+        <div className="absolute inset-0 z-20 grid place-items-center bg-black/60 px-6" role="dialog" aria-label={t('player.resumePlayback')}>
           <div className="w-full max-w-xs rounded-2xl border border-line bg-surface/95 p-5 text-center shadow-2xl backdrop-blur">
-            <p className="font-display text-lg font-semibold">Resume from {formatClock(suggestedStart)}</p>
+            <p className="font-display text-lg font-semibold">{t('player.resumeFrom', { time: formatClock(suggestedStart) })}</p>
             <div className="mt-4 flex gap-2">
-              <button type="button" autoFocus onClick={() => setStartChoice(suggestedStart)} className="h-10 flex-1 rounded-lg bg-accent font-semibold text-accent-ink">Resume</button>
-              <button type="button" onClick={() => setStartChoice(0)} className="h-10 flex-1 rounded-lg bg-raised">Start over</button>
+              <button type="button" autoFocus onClick={() => setStartChoice(suggestedStart)} className="h-10 flex-1 rounded-lg bg-accent font-semibold text-accent-ink">{t('player.resume')}</button>
+              <button type="button" onClick={() => setStartChoice(0)} className="h-10 flex-1 rounded-lg bg-raised">{t('player.startOver')}</button>
             </div>
           </div>
         </div>
       )}
 
       {!mini && showHelp && (
-        <div className="absolute inset-0 z-30 grid place-items-center bg-black/60 px-6" role="dialog" aria-label="Keyboard shortcuts" onClick={() => setShowHelp(false)}>
+        <div className="absolute inset-0 z-30 grid place-items-center bg-black/60 px-6" role="dialog" aria-label={t('player.keyboardShortcuts')} onClick={() => setShowHelp(false)}>
           <div className="w-full max-w-sm rounded-2xl border border-line bg-surface/95 p-5 shadow-2xl backdrop-blur" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <p className="font-display text-lg font-semibold">Keyboard shortcuts</p>
-              <button type="button" onClick={() => setShowHelp(false)} className="grid size-8 place-items-center rounded-full hover:bg-raised" aria-label="Close"><X className="size-4" /></button>
+              <p className="font-display text-lg font-semibold">{t('player.keyboardShortcuts')}</p>
+              <button type="button" onClick={() => setShowHelp(false)} className="grid size-8 place-items-center rounded-full hover:bg-raised" aria-label={t('common.close')}><X className="size-4" /></button>
             </div>
             <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
               {SHORTCUTS.map(([keys, action]) => (
                 <div key={keys} className="contents">
                   <dt><kbd className="rounded bg-raised px-1.5 py-0.5 font-mono text-xs">{keys}</kbd></dt>
-                  <dd className="text-ink/85">{action}</dd>
+                  <dd className="text-ink/85">{t(action)}</dd>
                 </div>
               ))}
             </dl>
@@ -972,7 +980,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
 
       {/* Top bar */}
       <div className={`absolute inset-x-0 top-0 items-center gap-3 ${mini ? 'hidden' : 'flex'} bg-gradient-to-b from-black/80 to-transparent px-4 pt-4 pb-12 transition-opacity duration-300 sm:px-8 sm:pt-6 sm:pb-16 ${showUi ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
-        <button type="button" onClick={exit} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label="Back">
+        <button type="button" onClick={exit} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={t('common.back')}>
           <ArrowLeft className="size-5 sm:size-7" />
         </button>
         <div className="min-w-0">
@@ -1016,28 +1024,28 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             max={totalDuration || 0}
             step={0.1}
             value={Math.min(time, totalDuration || 0)}
-            aria-label="Seek"
+            aria-label={t('player.seek')}
             aria-valuetext={formatClock(time)}
             onChange={(e) => {
-              const t = Number(e.target.value);
-              setTime(t);
-              seekTo(t);
+              const to = Number(e.target.value);
+              setTime(to);
+              seekTo(to);
             }}
           />
         </div>
 
         <div className="mt-2 flex items-center gap-1 sm:mt-3 sm:gap-3">
-          <button type="button" onClick={togglePlay} className="grid size-11 place-items-center rounded-full hover:bg-white/10 sm:size-14" aria-label={playing ? 'Pause' : 'Play'}>
+          <button type="button" onClick={togglePlay} className="grid size-11 place-items-center rounded-full hover:bg-white/10 sm:size-14" aria-label={playing ? t('player.pause') : t('player.play')}>
             {playing ? <Pause className="size-6 fill-current sm:size-9" /> : <Play className="size-6 fill-current sm:size-9" />}
           </button>
-          <button type="button" onClick={() => seekBy(-10)} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label="Back 10 seconds" title="Back 10 s (←)">
+          <button type="button" onClick={() => seekBy(-10)} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={t('player.shortcuts.back')} title={t('player.backTitle')}>
             <RotateCcw className="size-5 sm:size-7" />
           </button>
-          <button type="button" onClick={() => seekBy(10)} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label="Forward 10 seconds" title="Forward 10 s (→)">
+          <button type="button" onClick={() => seekBy(10)} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={t('player.shortcuts.forward')} title={t('player.forwardTitle')}>
             <RotateCw className="size-5 sm:size-7" />
           </button>
           <div className="group/vol hidden items-center sm:flex">
-            <button type="button" onClick={() => applyVolume(volume, !muted)} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={muted ? 'Unmute' : 'Mute'}>
+            <button type="button" onClick={() => applyVolume(volume, !muted)} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={muted ? t('player.unmute') : t('player.shortcuts.mute')}>
               <VolumeIcon className="size-5 sm:size-7" />
             </button>
             <input
@@ -1048,7 +1056,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
               value={muted ? 0 : volume}
               onChange={(e) => applyVolume(Number(e.target.value), Number(e.target.value) === 0)}
               className="w-0 accent-[var(--color-accent)] opacity-0 transition-all group-hover/vol:w-24 group-hover/vol:opacity-100 focus-visible:w-24 sm:group-hover/vol:w-32 sm:focus-visible:w-32 focus-visible:opacity-100"
-              aria-label="Volume"
+              aria-label={t('player.volume')}
             />
           </div>
           <span className="ml-1 text-sm whitespace-nowrap text-ink/80 tabular-nums sm:ml-3 sm:text-lg">
@@ -1057,25 +1065,25 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
 
           <div className="relative ml-auto flex items-center gap-1">
             {next && (
-              <button type="button" onClick={goNext} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label="Next episode" title="Next episode (N)">
+              <button type="button" onClick={goNext} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={t('player.nextEpisode')} title={t('player.nextEpisodeTitle')}>
                 <SkipForward className="size-5 sm:size-7" />
               </button>
             )}
-            <button type="button" onClick={() => setMenu(menu === 'subs' ? null : 'subs')} className={`grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${subKey ? 'text-accent' : ''}`} aria-label="Subtitles" title="Subtitles (C)">
+            <button type="button" onClick={() => setMenu(menu === 'subs' ? null : 'subs')} className={`grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${subKey ? 'text-accent' : ''}`} aria-label={t('playback.subtitles')} title={t('player.subtitlesTitle')}>
               <Captions className="size-5 sm:size-7" />
             </button>
             {fileAudio.length > 0 && (
-              <button type="button" onClick={() => setMenu(menu === 'audio' ? null : 'audio')} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label="Audio">
+              <button type="button" onClick={() => setMenu(menu === 'audio' ? null : 'audio')} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={t('playback.audio')}>
                 <AudioLines className="size-5 sm:size-7" />
               </button>
             )}
-            <button type="button" onClick={() => setMenu(menu === 'settings' ? null : 'settings')} className={`grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${speed !== 1 ? 'text-accent' : ''}`} aria-label="Playback settings" title="Playback settings">
+            <button type="button" onClick={() => setMenu(menu === 'settings' ? null : 'settings')} className={`grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${speed !== 1 ? 'text-accent' : ''}`} aria-label={t('player.settings')} title={t('player.settings')}>
               <Settings2 className="size-5 sm:size-7" />
             </button>
-            <button type="button" onClick={minimize} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label="Minimize player" title="Keep watching while you browse (I)">
+            <button type="button" onClick={minimize} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={t('player.shortcuts.minimize')} title={t('player.minimizeTitle')}>
               <PictureInPicture2 className="size-5 sm:size-7" />
             </button>
-            <button type="button" onClick={toggleFullscreen} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={fullscreen ? 'Exit full screen' : 'Full screen'} title="Full screen (F)">
+            <button type="button" onClick={toggleFullscreen} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={fullscreen ? t('player.exitFullscreen') : t('player.shortcuts.fullscreen')} title={t('player.fullscreenTitle')}>
               {fullscreen ? <Minimize className="size-5 sm:size-7" /> : <Maximize className="size-5 sm:size-7" />}
             </button>
 
@@ -1083,33 +1091,34 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
               <div className="absolute right-0 bottom-14 max-h-[75vh] sm:bottom-16 w-72 overflow-y-auto rounded-xl border border-line bg-surface/95 py-2 shadow-2xl backdrop-blur" role="menu">
                 {menu === 'subs' && (
                   <>
-                    <p className="px-4 pt-1 pb-2 text-xs text-faint">Subtitles</p>
-                    <MenuItem active={subKey === null} onClick={() => chooseSubtitle(null)}>Off</MenuItem>
+                    <p className="px-4 pt-1 pb-2 text-xs text-faint">{t('playback.subtitles')}</p>
+                    <MenuItem active={subKey === null} onClick={() => chooseSubtitle(null)}>{t('player.off')}</MenuItem>
                     {subs.map((s) => (
                       <MenuItem key={s.key} active={subKey === s.key} onClick={() => chooseSubtitle(s.key)}>
-                        {s.label}
-                        <span className="ml-2 text-xs text-faint">{s.kind === 'embedded' ? 'embedded' : 'file'}</span>
+                        {languageLabel(s.language) ?? s.label}
+                        {s.forced && ` (${t('media.forced').toLowerCase()})`}
+                        <span className="ml-2 text-xs text-faint">{s.kind === 'embedded' ? t('player.embedded') : t('player.file')}</span>
                       </MenuItem>
                     ))}
-                    {subs.length === 0 && <p className="px-4 py-2 text-sm text-muted">No text subtitles found for this file.</p>}
+                    {subs.length === 0 && <p className="px-4 py-2 text-sm text-muted">{t('player.noSubtitles')}</p>}
                     {(file?.embeddedSubtitles.some((s) => !s.textBased) ?? false) && (
-                      <p className="px-4 pt-2 text-xs text-faint">Image-based subtitles (PGS/VobSub) cannot be shown in the browser.</p>
+                      <p className="px-4 pt-2 text-xs text-faint">{t('player.imageSubtitles')}</p>
                     )}
                     <div className="mt-2 space-y-3 border-t border-line/60 px-4 pt-3 pb-1">
-                      <Segmented label="Size" value={prefs.subtitleSize} onChange={(v) => setPrefs({ subtitleSize: v })} options={[['small', 'S'], ['medium', 'M'], ['large', 'L'], ['xlarge', 'XL']]} />
-                      <Segmented label="Color" value={prefs.subtitleColor} onChange={(v) => setPrefs({ subtitleColor: v })} options={[['white', 'White'], ['yellow', 'Yellow']]} />
-                      <Segmented label="Background" value={prefs.subtitleBackground} onChange={(v) => setPrefs({ subtitleBackground: v })} options={[['none', 'None'], ['translucent', 'Dim'], ['solid', 'Solid']]} />
-                      <Segmented label="Edge" value={prefs.subtitleEdge} onChange={(v) => setPrefs({ subtitleEdge: v })} options={[['shadow', 'Shadow'], ['outline', 'Outline'], ['none', 'None']]} />
+                      <Segmented label={t('subtitleStyle.size')} value={prefs.subtitleSize} onChange={(v) => setPrefs({ subtitleSize: v })} options={[['small', 'S'], ['medium', 'M'], ['large', 'L'], ['xlarge', 'XL']]} />
+                      <Segmented label={t('subtitleStyle.color')} value={prefs.subtitleColor} onChange={(v) => setPrefs({ subtitleColor: v })} options={[['white', t('subtitleStyle.white')], ['yellow', t('subtitleStyle.yellow')]]} />
+                      <Segmented label={t('subtitleStyle.background')} value={prefs.subtitleBackground} onChange={(v) => setPrefs({ subtitleBackground: v })} options={[['none', t('subtitleStyle.none')], ['translucent', t('player.dim')], ['solid', t('player.solid')]]} />
+                      <Segmented label={t('subtitleStyle.edge')} value={prefs.subtitleEdge} onChange={(v) => setPrefs({ subtitleEdge: v })} options={[['shadow', t('player.shadow')], ['outline', t('subtitleStyle.outline')], ['none', t('subtitleStyle.none')]]} />
                       <Stepper
-                        label="Position"
-                        value={prefs.subtitlePosition === 0 ? 'Bottom' : `+${prefs.subtitlePosition}%`}
+                        label={t('subtitleStyle.position')}
+                        value={prefs.subtitlePosition === 0 ? t('subtitleStyle.bottom') : `+${prefs.subtitlePosition}%`}
                         onMinus={() => setPrefs({ subtitlePosition: Math.max(0, prefs.subtitlePosition - 5) })}
                         onPlus={() => setPrefs({ subtitlePosition: Math.min(20, prefs.subtitlePosition + 5) })}
                       />
                       <Stepper
-                        label="Sync"
-                        value={subDelay === 0 ? 'In sync' : `${subDelay > 0 ? '+' : ''}${subDelay.toFixed(1)} s`}
-                        hint="+ shows subtitles later"
+                        label={t('player.sync')}
+                        value={subDelay === 0 ? t('player.inSync') : `${subDelay > 0 ? '+' : ''}${subDelay.toLocaleString(intlLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`}
+                        hint={t('player.syncHint')}
                         onMinus={() => setSubDelay((d) => Math.round((d - 0.5) * 10) / 10)}
                         onPlus={() => setSubDelay((d) => Math.round((d + 0.5) * 10) / 10)}
                         onReset={subDelay !== 0 ? () => setSubDelay(0) : undefined}
@@ -1119,42 +1128,42 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
                 )}
                 {menu === 'audio' && (
                   <>
-                    <p className="px-4 pt-1 pb-2 text-xs text-faint">Audio track</p>
+                    <p className="px-4 pt-1 pb-2 text-xs text-faint">{t('player.audioTrack')}</p>
                     {canSwitchAudio && !live
-                      ? audioTracks.map((t, i) => (
-                          <MenuItem key={t.id || i} active={t.enabled} onClick={() => { selectNativeAudio(t.id); setMenu(null); }}>
-                            {t.label || fileAudio[i]?.title || fileAudio[i]?.languageName || t.language || `Track ${i + 1}`}
+                      ? audioTracks.map((track, i) => (
+                          <MenuItem key={track.id || i} active={track.enabled} onClick={() => { selectNativeAudio(track.id); setMenu(null); }}>
+                            {track.label || fileAudio[i]?.title || languageLabel(fileAudio[i]?.language ?? track.language) || fileAudio[i]?.languageName || track.language || t('player.track', { n: i + 1 })}
                           </MenuItem>
                         ))
                       : fileAudio.map((a) => (
                           <MenuItem key={a.index} active={info?.decision.audioIndex === a.index} onClick={() => { selectServerAudio(a.index); setMenu(null); }}>
-                            {[a.languageName || a.title || 'Unknown', channelLabel(a.channels)].filter(Boolean).join(' ')}
+                            {[languageLabel(a.language) || a.languageName || a.title || t('playback.unknown'), channelLabel(a.channels)].filter(Boolean).join(' ')}
                             <span className="ml-2 text-xs text-faint">{[a.title && a.title !== a.languageName ? a.title : null, codecName(a.codec)].filter(Boolean).join(' · ')}</span>
                           </MenuItem>
                         ))}
                     <div className="mt-2 space-y-3 border-t border-line/60 px-4 pt-3 pb-1">
-                      <Segmented label="Sound" value={prefs.audioOutput} onChange={(v) => changeAudioPrefs({ audioOutput: v })} options={[['stereo', 'Stereo'], ['surround', 'Surround 5.1']]} />
-                      <Toggle label="Boost voices" checked={prefs.boostVoices} onChange={(v) => changeAudioPrefs({ boostVoices: v })} />
-                      <Toggle label="Level volume" hint="Quieter explosions, louder dialogue" checked={prefs.levelVolume} onChange={(v) => changeAudioPrefs({ levelVolume: v })} />
+                      <Segmented label={t('settings.audio.sound')} value={prefs.audioOutput} onChange={(v) => changeAudioPrefs({ audioOutput: v })} options={[['stereo', t('media.stereo')], ['surround', t('settings.audio.surround')]]} />
+                      <Toggle label={t('settings.audio.boostVoices')} checked={prefs.boostVoices} onChange={(v) => changeAudioPrefs({ boostVoices: v })} />
+                      <Toggle label={t('settings.audio.levelVolume')} hint={t('player.levelVolumeHint')} checked={prefs.levelVolume} onChange={(v) => changeAudioPrefs({ levelVolume: v })} />
                     </div>
                     {info?.decision.note && <p className="px-4 pt-2 text-xs text-faint">{info.decision.note}</p>}
                   </>
                 )}
                 {menu === 'settings' && (
                   <>
-                    <p className="px-4 pt-1 pb-2 text-xs text-faint">Playback settings</p>
+                    <p className="px-4 pt-1 pb-2 text-xs text-faint">{t('player.settings')}</p>
                     <div className="space-y-3 px-4 pb-2">
                       <Segmented
-                        label="Speed"
+                        label={t('player.speed')}
                         value={String(speed)}
                         onChange={(v) => {
                           const n = Number(v);
                           setSpeed(n);
                           if (videoRef.current) videoRef.current.playbackRate = n;
                         }}
-                        options={SPEEDS.map((n) => [String(n), n === 1 ? '1×' : `${n}×`] as [string, string])}
+                        options={SPEEDS.map((n) => [String(n), `${n.toLocaleString(intlLocale())}×`] as [string, string])}
                       />
-                      <Toggle label="Autoplay next episode" checked={prefs.autoplayNext} onChange={(v) => setPrefs({ autoplayNext: v })} />
+                      <Toggle label={t('settings.playback.autoplay')} checked={prefs.autoplayNext} onChange={(v) => setPrefs({ autoplayNext: v })} />
                     </div>
                     <button
                       type="button"
@@ -1164,7 +1173,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
                       }}
                       className="flex w-full items-center gap-3 border-t border-line/60 px-4 pt-3 pb-1 text-left text-sm hover:text-accent"
                     >
-                      <Keyboard className="size-4 shrink-0" /> Keyboard shortcuts
+                      <Keyboard className="size-4 shrink-0" /> {t('player.keyboardShortcuts')}
                       <kbd className="ml-auto rounded bg-raised px-1.5 font-mono text-xs text-muted">?</kbd>
                     </button>
                   </>
@@ -1180,7 +1189,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           subtitle={item.data?.subtitle ?? null}
           playing={playing}
           loading={buffering || !streamSrc}
-          problem={error ?? (showUnavailable ? 'Cannot play here' : null)}
+          problem={error ?? (showUnavailable ? t('player.cannotPlayHere') : null)}
           progress={totalDuration ? Math.min(1, time / totalDuration) : 0}
           onTogglePlay={togglePlay}
           onRestore={onRestore}
@@ -1209,20 +1218,21 @@ function MiniBar({ title, subtitle, playing, loading, problem, progress, onToggl
   onRestore: () => void;
   onClose: () => void;
 }) {
+  useT();
   const button = 'grid size-9 shrink-0 place-items-center rounded-full hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none';
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1 pr-1 pl-3 sm:absolute sm:inset-x-0 sm:bottom-0 sm:bg-gradient-to-t sm:from-black/90 sm:via-black/60 sm:to-transparent sm:px-2 sm:pt-8 sm:pb-2">
-      <button type="button" onClick={onRestore} className="min-w-0 flex-1 text-left" title="Open the full player">
+      <button type="button" onClick={onRestore} className="min-w-0 flex-1 text-left" title={t('player.openFull')}>
         <span className="block truncate text-sm font-medium">{title}</span>
-        <span className={`block truncate text-xs ${problem ? 'text-amber' : 'text-ink/70'}`}>{problem ?? subtitle ?? (loading ? 'Loading…' : '\u00a0')}</span>
+        <span className={`block truncate text-xs ${problem ? 'text-amber' : 'text-ink/70'}`}>{problem ?? subtitle ?? (loading ? t('common.loadingDots') : '\u00a0')}</span>
       </button>
-      <button type="button" onClick={onTogglePlay} className={button} aria-label={playing ? 'Pause' : 'Play'}>
+      <button type="button" onClick={onTogglePlay} className={button} aria-label={playing ? t('player.pause') : t('player.play')}>
         {loading && !problem ? <Spinner className="size-4" /> : playing ? <Pause className="size-4 fill-current" /> : <Play className="size-4 fill-current" />}
       </button>
-      <button type="button" onClick={onRestore} className={button} aria-label="Open full player" title="Open full player">
+      <button type="button" onClick={onRestore} className={button} aria-label={t('player.openFull')} title={t('player.openFull')}>
         <Maximize2 className="size-4" />
       </button>
-      <button type="button" onClick={onClose} className={button} aria-label="Close player" title="Stop and close">
+      <button type="button" onClick={onClose} className={button} aria-label={t('player.close')} title={t('player.stopAndClose')}>
         <X className="size-4" />
       </button>
       <div className="absolute inset-x-0 bottom-0 h-0.5 bg-white/15" aria-hidden>
@@ -1264,11 +1274,11 @@ function Stepper({ label, value, hint, onMinus, onPlus, onReset }: { label: stri
         {hint && <span className="ml-1 text-faint/70">({hint})</span>}
       </p>
       <div className="flex items-center gap-1">
-        <button type="button" onClick={onMinus} className="grid size-7 place-items-center rounded-md bg-raised text-sm hover:bg-line" aria-label={`${label} down`}>−</button>
+        <button type="button" onClick={onMinus} className="grid size-7 place-items-center rounded-md bg-raised text-sm hover:bg-line" aria-label={t('player.decrease', { label })}>−</button>
         <span className="flex-1 text-center text-xs tabular-nums">{value}</span>
-        <button type="button" onClick={onPlus} className="grid size-7 place-items-center rounded-md bg-raised text-sm hover:bg-line" aria-label={`${label} up`}>+</button>
+        <button type="button" onClick={onPlus} className="grid size-7 place-items-center rounded-md bg-raised text-sm hover:bg-line" aria-label={t('player.increase', { label })}>+</button>
         {onReset && (
-          <button type="button" onClick={onReset} className="ml-1 rounded-md px-2 py-1 text-xs text-muted hover:text-ink">Reset</button>
+          <button type="button" onClick={onReset} className="ml-1 rounded-md px-2 py-1 text-xs text-muted hover:text-ink">{t('browse.reset')}</button>
         )}
       </div>
     </div>

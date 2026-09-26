@@ -4,10 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Film, Search as SearchIcon, Tv, X } from 'lucide-react';
 import { api, qs } from '../lib/api';
 import { useDebounced } from '../lib/hooks';
-import { GROUP_LABELS, quickItems, totalResults, type QuickItem } from '../lib/search';
+import { groupLabel, quickItems, totalResults, type QuickItem } from '../lib/search';
 import type { SearchResults } from '../lib/types';
 import { Artwork } from './Artwork';
 import { Spinner } from './States';
+import { useT } from '../i18n';
 
 /**
  * Search from anywhere (Ctrl/⌘+K or "/"): a few results of each kind while typing, arrow keys and
@@ -15,6 +16,7 @@ import { Spinner } from './States';
  */
 export function QuickSearch({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
+  const { t } = useT();
   const [text, setText] = useState('');
   const [active, setActive] = useState(0);
   const query = useDebounced(text.trim(), 200);
@@ -68,7 +70,7 @@ export function QuickSearch({ onClose }: { onClose: () => void }) {
 
   let lastGroup: string | null = null;
   return (
-    <div className="fixed inset-0 z-[60] flex items-start justify-center sm:px-4 sm:pt-[12vh]" role="dialog" aria-modal="true" aria-label="Search Velyx">
+    <div className="fixed inset-0 z-[60] flex items-start justify-center sm:px-4 sm:pt-[12vh]" role="dialog" aria-modal="true" aria-label={t('nav.searchVelyx')}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative flex h-full w-full flex-col overflow-hidden bg-surface shadow-2xl sm:h-auto sm:max-h-[70vh] sm:max-w-xl sm:rounded-2xl sm:border sm:border-line">
         <div className="flex items-center gap-3 border-b border-line/70 px-4">
@@ -79,29 +81,29 @@ export function QuickSearch({ onClose }: { onClose: () => void }) {
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search Velyx…"
+            placeholder={t('quickSearch.placeholder')}
             role="combobox"
             aria-expanded={rows > 0}
             aria-controls={listId}
             aria-activedescendant={rows ? optionId(active) : undefined}
             aria-autocomplete="list"
-            aria-label="Search Velyx"
+            aria-label={t('nav.searchVelyx')}
             className="h-14 flex-1 bg-transparent text-lg outline-none placeholder:text-faint [&::-webkit-search-cancel-button]:hidden"
           />
           {q.isFetching && <Spinner className="size-4" />}
-          <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-full text-muted hover:bg-raised hover:text-ink" aria-label="Close search">
+          <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-full text-muted hover:bg-raised hover:text-ink" aria-label={t('quickSearch.close')}>
             <X className="size-4" />
           </button>
         </div>
         <div className="overflow-y-auto py-2">
           {!query ? (
-            <p className="px-4 py-6 text-sm text-muted">Movies, shows and episodes — try a title, part of one, or a code like “reacher s02e04”.</p>
+            <p className="px-4 py-6 text-sm text-muted">{t('quickSearch.hint')}</p>
           ) : results && total === 0 ? (
-            <p className="px-4 py-6 text-sm text-muted">Nothing found for “{query}”.</p>
+            <p className="px-4 py-6 text-sm text-muted">{t('quickSearch.nothingFound', { query })}</p>
           ) : (
-            <ul id={listId} role="listbox" aria-label="Results">
+            <ul id={listId} role="listbox" aria-label={t('quickSearch.results')}>
               {items.map((item: QuickItem, i) => {
-                const header = item.group !== lastGroup ? GROUP_LABELS[item.group] : null;
+                const header = item.group !== lastGroup ? groupLabel(item.group) : null;
                 lastGroup = item.group;
                 return (
                   <li key={item.key} role="presentation">
@@ -141,7 +143,7 @@ export function QuickSearch({ onClose }: { onClose: () => void }) {
                     onClick={() => open(allHref)}
                     className={`mx-2 mt-1 flex cursor-pointer items-center justify-between rounded-lg px-3 py-2.5 text-sm ${active === items.length ? 'bg-raised' : 'text-muted'}`}
                   >
-                    All results for “{query}”{total ? ` (${total})` : ''}
+                    {total ? t('quickSearch.allResultsCount', { query, count: total }) : t('quickSearch.allResults', { query })}
                     <ArrowRight className="size-4" />
                   </div>
                 </li>
@@ -149,7 +151,7 @@ export function QuickSearch({ onClose }: { onClose: () => void }) {
             </ul>
           )}
         </div>
-        <p className="hidden border-t border-line/70 px-4 py-2 text-xs text-faint sm:block">↑ ↓ to choose · Enter to open · Esc to close</p>
+        <p className="hidden border-t border-line/70 px-4 py-2 text-xs text-faint sm:block">{t('quickSearch.keys')}</p>
       </div>
     </div>
   );

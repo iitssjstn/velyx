@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { episodeCode, formatRuntime } from './format';
 import type { SearchResults } from './types';
 
@@ -13,7 +14,8 @@ export interface QuickItem {
   wide: boolean;
 }
 
-export const GROUP_LABELS: Record<QuickGroup, string> = { movies: 'Movies', shows: 'TV Shows', episodes: 'Episodes' };
+/** Group headings, in the current language. */
+export const groupLabel = (g: QuickGroup): string => t(`search.groups.${g}`);
 
 /** "reacher s02e04", "2x04", "season 2": the person is looking for an episode. */
 export function looksLikeEpisodeCode(query: string): boolean {
@@ -26,7 +28,6 @@ export function looksLikeEpisodeCode(query: string): boolean {
  */
 export function quickItems(r: SearchResults | undefined, limits: Record<QuickGroup, number> = { movies: 5, shows: 5, episodes: 6 }): QuickItem[] {
   if (!r) return [];
-  const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
   const items = [
     ...r.movies.slice(0, limits.movies).map((m) => ({
       key: `movie-${m.id}`,
@@ -42,7 +43,7 @@ export function quickItems(r: SearchResults | undefined, limits: Record<QuickGro
       group: 'shows' as const,
       href: `/shows/${s.id}`,
       title: s.title,
-      meta: [s.year, s.seasonCount ? plural(s.seasonCount, 'season') : null].filter(Boolean).join(' · ') || null,
+      meta: [s.year, s.seasonCount ? t('series.seasonCount', { count: s.seasonCount }) : null].filter(Boolean).join(' · ') || null,
       image: s.posterPath,
       wide: false,
     })),

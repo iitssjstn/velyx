@@ -1,13 +1,22 @@
 import { Link } from 'react-router-dom';
-import { codecName, formatClock, formatRelative, resolutionLabel } from '../lib/format';
+import { codecName, deviceName, formatClock, formatRelative, resolutionLabel } from '../lib/format';
 import type { ActiveStream, HistoryEntry } from '../lib/types';
+import { intlLocale, t, useT } from '../i18n';
+
+/** "AAC 5.1 · voices boosted" as the server records it, in the interface language. */
+function audioConversionLabel(text: string): string {
+  return text
+    .replace(/\bstereo\b/, t('media.stereo').toLowerCase())
+    .replace('voices boosted', t('playback.voicesBoosted'))
+    .replace('volume levelled', t('playback.volumeLevelled'));
+}
 
 type StreamInfo = Pick<ActiveStream, 'mode' | 'audioConversion' | 'container' | 'videoCodec' | 'audioCodec' | 'width' | 'height' | 'bitrate'>;
 
 /** "Direct Play", "Remux" or "Remux · Audio → AAC 5.1". */
 export function modeLabel(s: Pick<StreamInfo, 'mode' | 'audioConversion'>): string {
-  if (s.mode === 'direct') return 'Direct Play';
-  return s.audioConversion ? `Remux · Audio → ${s.audioConversion}` : 'Remux';
+  if (s.mode === 'direct') return t('playback.directPlay');
+  return s.audioConversion ? t('playback.remuxAudio', { target: audioConversionLabel(s.audioConversion) }) : t('playback.remux');
 }
 
 /** What is sent: e.g. "HEVC · 4K · 20.0 Mbps · MKV → MP4 · E-AC3 → AAC 5.1". */
@@ -19,7 +28,7 @@ export function streamFormat(s: StreamInfo): string {
     resolutionLabel(s.width, s.height),
     s.bitrate ? `${(s.bitrate / 1_000_000).toFixed(1)} Mbps` : null,
     container && (s.mode === 'remux' ? `${container} → MP4` : container),
-    audio && (s.mode === 'remux' && s.audioConversion ? `${audio} → ${s.audioConversion.split(' · ')[0]}` : audio),
+    audio && (s.mode === 'remux' && s.audioConversion ? `${audio} → ${audioConversionLabel(s.audioConversion.split(' · ')[0])}` : audio),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -28,10 +37,10 @@ export function streamFormat(s: StreamInfo): string {
 /** Minutes of watching, readable: "45 s", "12 min", "1 h 05 min". */
 export function formatWatched(sec: number): string {
   const s = Math.round(sec);
-  if (s < 60) return `${s} s`;
+  if (s < 60) return t('time.seconds', { n: s });
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m} min`;
-  return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`;
+  if (m < 60) return t('time.minutes', { n: m });
+  return t('time.hoursMinutes', { h: Math.floor(m / 60), m: String(m % 60).padStart(2, '0') });
 }
 
 export function itemHref(s: Pick<HistoryEntry, 'movieId' | 'episodeId' | 'showId'>): string | null {
@@ -42,6 +51,7 @@ export function itemHref(s: Pick<HistoryEntry, 'movieId' | 'episodeId' | 'showId
 
 /** One live stream: who, what, where in the item, and exactly how it is sent. */
 export function StreamRow({ s, now = Date.now() }: { s: ActiveStream; now?: number }) {
+  useT();
   const running = Math.max(0, Math.floor((now - s.startedAt) / 1000));
   const progress = s.positionSec !== null && s.durationSec ? Math.min(1, s.positionSec / s.durationSec) : null;
   const href = itemHref(s);
@@ -55,7 +65,7 @@ export function StreamRow({ s, now = Date.now() }: { s: ActiveStream; now?: numb
           </p>
           <p className="truncate text-xs text-faint">
             {s.username}
-            {s.device && ` · ${s.device}`}
+            {s.device && ` · ${deviceName(s.device)}`}
           </p>
         </div>
         <span className={`w-fit rounded-full px-2 py-0.5 text-xs ${s.mode === 'direct' ? 'bg-ok/15 text-ok' : 'bg-accent/15 text-accent'}`}>{modeLabel(s)}</span>
@@ -65,8 +75,8 @@ export function StreamRow({ s, now = Date.now() }: { s: ActiveStream; now?: numb
         <div className="h-1 flex-1 overflow-hidden rounded-full bg-line" aria-hidden>
           {progress !== null && <div className="h-full bg-accent" style={{ width: `${progress * 100}%` }} />}
         </div>
-        <span title="Position">{s.positionSec !== null && s.durationSec ? `${formatClock(s.positionSec)} / ${formatClock(s.durationSec)}` : '—'}</span>
-        <span title="Watching for">{formatClock(running)}</span>
+        <span title={t('activity.position')}>{s.positionSec !== null && s.durationSec ? `${formatClock(s.positionSec)} / ${formatClock(s.durationSec)}` : '—'}</span>
+        <span title={t('activity.watchingFor')}>{formatClock(running)}</span>
       </div>
     </li>
   );
@@ -74,6 +84,7 @@ export function StreamRow({ s, now = Date.now() }: { s: ActiveStream; now?: numb
 
 /** One viewing: what, who (for admins), when, how long, and how it was sent. */
 export function HistoryRow({ h, showUser }: { h: HistoryEntry; showUser: boolean }) {
+  useT();
   const href = itemHref(h);
   const progress = h.positionSec !== null && h.durationSec ? Math.round((h.positionSec / h.durationSec) * 100) : null;
   return (
@@ -84,13 +95,13 @@ export function HistoryRow({ h, showUser }: { h: HistoryEntry; showUser: boolean
           {h.subtitle && <span className="font-normal text-muted"> · {h.subtitle}</span>}
         </p>
         <p className="truncate text-xs text-faint">
-          {[showUser ? h.username : null, h.device, streamFormat(h)].filter(Boolean).join(' · ')}
+          {[showUser ? h.username : null, h.device ? deviceName(h.device) : null, streamFormat(h)].filter(Boolean).join(' · ')}
         </p>
       </div>
       <div className="flex flex-wrap items-baseline gap-x-3 text-xs text-muted sm:flex-col sm:items-end">
-        <span title={new Date(h.startedAt).toLocaleString()}>{h.endedAt === null ? <span className="text-ok">Playing now</span> : formatRelative(h.startedAt)}</span>
+        <span title={new Date(h.startedAt).toLocaleString(intlLocale())}>{h.endedAt === null ? <span className="text-ok">{t('activity.playingNow')}</span> : formatRelative(h.startedAt)}</span>
         <span className="tabular-nums">
-          {formatWatched(h.watchedSec)} watched{progress !== null ? ` · ${progress}%` : ''} · <span className={h.mode === 'direct' ? 'text-ok' : 'text-accent'}>{modeLabel(h)}</span>
+          {t('activity.watchedFor', { time: formatWatched(h.watchedSec) })}{progress !== null ? ` · ${progress}%` : ''} · <span className={h.mode === 'direct' ? 'text-ok' : 'text-accent'}>{modeLabel(h)}</span>
         </span>
       </div>
     </li>

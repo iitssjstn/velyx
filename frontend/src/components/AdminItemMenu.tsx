@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { toast } from './Toast';
 import { FixMatchModal } from './FixMatchModal';
 import { CollectionPicker } from './CollectionPicker';
+import { useT } from '../i18n';
 
 /** Admin-only actions for a movie or show: collections, fix match and refresh metadata. */
 export function AdminItemMenu({
@@ -24,6 +25,7 @@ export function AdminItemMenu({
   onMatched?: (id: number) => void;
 }) {
   const qc = useQueryClient();
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [fix, setFix] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -37,7 +39,7 @@ export function AdminItemMenu({
   const refresh = useMutation({
     mutationFn: () => api.post<{ result: string }>(`/api/admin/refresh/${type}/${id}`),
     onSuccess: (r) => {
-      toast.success(r.result === 'matched' ? 'Metadata refreshed.' : 'No confident match found — use Fix match.');
+      toast.success(r.result === 'matched' ? t('adminItem.refreshed') : t('adminItem.noMatch'));
       void qc.invalidateQueries();
     },
     onError: (err) => toast.error(err),
@@ -48,7 +50,7 @@ export function AdminItemMenu({
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="grid size-12 place-items-center rounded-full border border-line bg-surface/70 text-muted hover:text-ink"
-        aria-label="More actions"
+        aria-label={t('adminItem.moreActions')}
         aria-expanded={open}
       >
         {refresh.isPending ? <RefreshCw className="size-5 animate-spin" /> : <MoreHorizontal className="size-5" />}
@@ -56,13 +58,13 @@ export function AdminItemMenu({
       {open && (
         <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-line bg-raised py-1 shadow-2xl sm:right-auto sm:left-0">
           <button type="button" className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-line" onClick={() => { setOpen(false); setPicking(true); }}>
-            <Layers className="size-4 text-muted" /> Add to collection
+            <Layers className="size-4 text-muted" /> {t('adminItem.addToCollection')}
           </button>
           <button type="button" className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-line" onClick={() => { setOpen(false); setFix(true); }}>
-            <Wand2 className="size-4 text-muted" /> Fix match
+            <Wand2 className="size-4 text-muted" /> {t('adminItem.fixMatch')}
           </button>
           <button type="button" className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-line" onClick={() => { setOpen(false); refresh.mutate(); }}>
-            <RefreshCw className="size-4 text-muted" /> Refresh metadata
+            <RefreshCw className="size-4 text-muted" /> {t('adminItem.refreshMetadata')}
           </button>
         </div>
       )}

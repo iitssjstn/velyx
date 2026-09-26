@@ -1,11 +1,13 @@
 import type { Person } from '../lib/types';
 import { imageUrl } from '../lib/format';
+import { useT } from '../i18n';
 
 export function CastRow({ cast }: { cast: Person[] }) {
+  const { t } = useT();
   if (!cast.length) return null;
   return (
     <section className="mt-12">
-      <h2 className="px-4 font-display text-xl font-semibold sm:px-8">Cast</h2>
+      <h2 className="px-4 font-display text-xl font-semibold sm:px-8">{t('library.cast')}</h2>
       <div className="no-scrollbar mt-4 flex gap-4 overflow-x-auto px-4 pb-2 sm:px-8">
         {cast.map((p) => {
           const src = imageUrl(p.profilePath, 'w185');

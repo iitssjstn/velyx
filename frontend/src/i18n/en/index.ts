@@ -1,0 +1,36 @@
+import { activity } from './activity';
+import { adminItem } from './adminItem';
+import { auth } from './auth';
+import { browse } from './browse';
+import { collections } from './collections';
+import { common } from './common';
+import { continueWatching } from './continueWatching';
+import { detail } from './detail';
+import { device } from './device';
+import { errors } from './errors';
+import { fixMatch } from './fixMatch';
+import { greeting } from './greeting';
+import { home } from './home';
+import { library } from './library';
+import { lists } from './lists';
+import { media } from './media';
+import { mediaInfo } from './mediaInfo';
+import { nav } from './nav';
+import { notFound } from './notFound';
+import { playback } from './playback';
+import { player } from './player';
+import { quickSearch } from './quickSearch';
+import { roles } from './roles';
+import { schedule } from './schedule';
+import { search } from './search';
+import { searchPage } from './searchPage';
+import { series } from './series';
+import { sessions } from './sessions';
+import { settings } from './settings';
+import { setup } from './setup';
+import { smart } from './smart';
+import { subtitleStyle } from './subtitleStyle';
+import { time } from './time';
+
+/** English: the source language. Every other language has exactly these keys. */
+export const en = { activity, adminItem, auth, browse, collections, common, continueWatching, detail, device, errors, fixMatch, greeting, home, library, lists, media, mediaInfo, nav, notFound, playback, player, quickSearch, roles, schedule, search, searchPage, series, sessions, settings, setup, smart, subtitleStyle, time };

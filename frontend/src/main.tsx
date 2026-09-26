@@ -7,6 +7,7 @@ import { AuthProvider } from './lib/auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { App } from './App';
 import { Toaster } from './components/Toast';
+import { initialLanguage, setLanguage } from './i18n';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -19,7 +20,12 @@ const queryClient = new QueryClient({
   },
 });
 
-createRoot(document.getElementById('root')!).render(
+// The language of this device (or browser) is loaded before the first paint; after signing in the
+// account's own language takes over.
+const language = initialLanguage();
+const ready = language === 'en' ? Promise.resolve() : setLanguage(language).catch(() => undefined);
+
+void ready.then(() => createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -32,4 +38,4 @@ createRoot(document.getElementById('root')!).render(
       </QueryClientProvider>
     </ErrorBoundary>
   </StrictMode>,
-);
+));

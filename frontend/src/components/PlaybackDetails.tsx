@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, CircleHelp, RefreshCw, TriangleAlert, X } from 'lucide-react';
 import { channelLabel, resolutionLabel } from '../lib/format';
 import type { ComponentStatus, PlaybackAnalysis } from '../lib/types';
+import { t, useT, type MessageKey } from '../i18n';
 
 /** Short label for the player: "Direct Play", "Remux", "Remux · Audio → AAC". */
 export function modeLabel(a: PlaybackAnalysis): string {
-  if (a.mode === 'direct') return 'Direct Play';
-  if (a.mode === 'unsupported') return 'Not supported';
-  return a.audio.action === 'convert' ? 'Remux · Audio → AAC' : 'Remux';
+  if (a.mode === 'direct') return t('playback.directPlay');
+  if (a.mode === 'unsupported') return t('playback.notSupported');
+  return a.audio.action === 'convert' ? t('playback.remuxAudio', { target: 'AAC' }) : t('playback.remux');
 }
 
 const MODE_ICON = { direct: Check, remux: RefreshCw, unsupported: TriangleAlert } as const;
@@ -20,28 +21,29 @@ function videoLine(a: PlaybackAnalysis): string {
 }
 
 function audioLine(a: PlaybackAnalysis): string {
-  if (a.audio.action === 'none' && !a.audio.codec) return 'None';
+  if (a.audio.action === 'none' && !a.audio.codec) return t('playback.none');
   return [a.audio.label, channelLabel(a.audio.channels)].filter(Boolean).join(' ');
 }
 
-const STATUS: Record<ComponentStatus, { icon: typeof Check; className: string; label: string }> = {
-  ok: { icon: Check, className: 'text-ok', label: 'Supported' },
-  warn: { icon: TriangleAlert, className: 'text-amber', label: 'Converted' },
-  fail: { icon: X, className: 'text-danger', label: 'Not supported' },
-  unknown: { icon: CircleHelp, className: 'text-muted', label: 'Not certain' },
+const STATUS: Record<ComponentStatus, { icon: typeof Check; className: string; label: MessageKey }> = {
+  ok: { icon: Check, className: 'text-ok', label: 'playback.status.ok' },
+  warn: { icon: TriangleAlert, className: 'text-amber', label: 'playback.status.warn' },
+  fail: { icon: X, className: 'text-danger', label: 'playback.status.fail' },
+  unknown: { icon: CircleHelp, className: 'text-muted', label: 'playback.status.unknown' },
 };
 
 function StatusIcon({ status }: { status: ComponentStatus }) {
   const { icon: Icon, className, label } = STATUS[status];
-  return <Icon className={`size-4 shrink-0 ${className}`} strokeWidth={2.5} role="img" aria-label={label} />;
+  return <Icon className={`size-4 shrink-0 ${className}`} strokeWidth={2.5} role="img" aria-label={t(label)} />;
 }
 
 /** Video / Audio / Container, each with what it is, whether this device handles it and what happens to it. */
 export function StreamRows({ analysis: a }: { analysis: PlaybackAnalysis }) {
+  const { t } = useT();
   const rows: Array<[string, string, PlaybackAnalysis['components']['video']]> = [
-    ['Video', videoLine(a), a.components.video],
-    ['Audio', audioLine(a), a.components.audio],
-    ['Container', (a.container.name ?? 'unknown').toUpperCase(), a.components.container],
+    [t('playback.video'), videoLine(a), a.components.video],
+    [t('playback.audio'), audioLine(a), a.components.audio],
+    [t('playback.container'), a.container.name ? a.container.name.toUpperCase() : t('playback.unknown'), a.components.container],
   ];
   return (
     <dl className="grid grid-cols-[auto_1fr_auto] items-start gap-x-4 gap-y-2.5 text-sm">
@@ -61,13 +63,14 @@ export function StreamRows({ analysis: a }: { analysis: PlaybackAnalysis }) {
   );
 }
 
-const MODE_TITLE: Record<PlaybackAnalysis['mode'], string> = { direct: 'Direct Play', remux: 'Remux', unsupported: 'Playback unavailable' };
+const MODE_TITLE: Record<PlaybackAnalysis['mode'], MessageKey> = { direct: 'playback.directPlay', remux: 'playback.remux', unsupported: 'playback.unavailable' };
 
 /** Overview of how a file is delivered, for the player's info panel. */
 export function PlaybackSummary({ analysis: a }: { analysis: PlaybackAnalysis }) {
+  const { t } = useT();
   return (
     <div>
-      <p className="mb-3 font-display text-base font-semibold">{MODE_TITLE[a.mode]}</p>
+      <p className="mb-3 font-display text-base font-semibold">{t(MODE_TITLE[a.mode])}</p>
       <StreamRows analysis={a} />
       <div className="mt-3 space-y-1 text-sm text-ink/85">
         {a.summary.map((s) => (
@@ -77,21 +80,21 @@ export function PlaybackSummary({ analysis: a }: { analysis: PlaybackAnalysis })
       <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs text-muted">
         {a.mode !== 'unsupported' && (
           <>
-            <dt>Server transcoding</dt>
-            <dd>No</dd>
+            <dt>{t('playback.serverTranscoding')}</dt>
+            <dd>{t('common.no')}</dd>
           </>
         )}
         {a.subtitles && (a.subtitles.text.length > 0 || a.subtitles.image.length > 0) && (
           <>
-            <dt>Subtitles</dt>
+            <dt>{t('playback.subtitles')}</dt>
             <dd>
-              {[a.subtitles.text.length ? `${a.subtitles.text.join(', ')} (shown)` : null, a.subtitles.image.length ? `${a.subtitles.image.join(', ')} (image-based, not shown)` : null].filter(Boolean).join(' · ')}
+              {[a.subtitles.text.length ? t('playback.subtitlesShown', { list: a.subtitles.text.join(', ') }) : null, a.subtitles.image.length ? t('playback.subtitlesNotShown', { list: a.subtitles.image.join(', ') }) : null].filter(Boolean).join(' · ')}
             </dd>
           </>
         )}
         {(a.device ?? a.browser) && (
           <>
-            <dt>Device</dt>
+            <dt>{t('playback.device')}</dt>
             <dd>{a.device ?? a.browser}</dd>
           </>
         )}
@@ -110,6 +113,7 @@ export function PlaybackSummary({ analysis: a }: { analysis: PlaybackAnalysis })
 /** Subtle status chip in the player's top bar; opens the playback details. */
 export function PlaybackBadge({ analysis }: { analysis: PlaybackAnalysis }) {
   const [open, setOpen] = useState(false);
+  const { t } = useT();
   const ref = useRef<HTMLDivElement>(null);
   const ModeIcon = MODE_ICON[analysis.mode];
   useEffect(() => {
@@ -124,14 +128,14 @@ export function PlaybackBadge({ analysis }: { analysis: PlaybackAnalysis }) {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        title="Playback details"
+        title={t('playback.details')}
         className="inline-flex max-w-[60vw] items-center gap-1.5 rounded-full bg-black/30 px-2.5 py-1 text-xs text-ink/70 ring-1 ring-white/10 backdrop-blur hover:bg-black/50 hover:text-ink"
       >
         <ModeIcon className={`size-3.5 shrink-0 ${analysis.mode === 'unsupported' ? 'text-amber' : ''}`} aria-hidden />
         <span className="truncate">{modeLabel(analysis)}</span>
       </button>
       {open && (
-        <div role="dialog" aria-label="Playback details" className="absolute right-0 z-30 mt-2 max-h-[70vh] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-line bg-surface/95 p-4 shadow-2xl backdrop-blur">
+        <div role="dialog" aria-label={t('playback.details')} className="absolute right-0 z-30 mt-2 max-h-[70vh] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-line bg-surface/95 p-4 shadow-2xl backdrop-blur">
           <PlaybackSummary analysis={analysis} />
         </div>
       )}
@@ -154,12 +158,13 @@ export function PlaybackUnavailable({
   onTryAnyway?: () => void;
   onNext?: () => void;
 }) {
+  const { t } = useT();
   return (
     <div className="absolute inset-0 z-20 grid place-items-center overflow-y-auto bg-black/90 px-5 py-10">
       <div className="w-full max-w-lg rounded-2xl border border-line bg-surface/90 p-6 shadow-2xl">
         <div className="flex items-center gap-3">
           <TriangleAlert className="size-6 shrink-0 text-amber" />
-          <h2 className="font-display text-2xl font-semibold">Playback unavailable</h2>
+          <h2 className="font-display text-2xl font-semibold">{t('playback.unavailable')}</h2>
         </div>
         <div className="mt-5">
           <StreamRows analysis={a} />
@@ -177,8 +182,8 @@ export function PlaybackUnavailable({
           </ul>
         )}
         <p className="mt-4 text-sm text-muted">
-          {a.device ? `Current device: ${a.device}. ` : ''}
-          Try a browser or device that supports this format{a.video.codec === 'hevc' ? ', such as Safari, or Edge/Chrome on a PC with HEVC hardware decoding' : ''}.
+          {a.device ? `${t('playback.currentDevice', { device: a.device })} ` : ''}
+          {a.video.codec === 'hevc' ? t('playback.tryOtherHevc') : t('playback.tryOther')}
         </p>
         {a.warnings.length > 0 && (
           <ul className="mt-3 space-y-1 text-xs text-amber/90">
@@ -190,16 +195,16 @@ export function PlaybackUnavailable({
         <div className="mt-6 flex flex-wrap justify-end gap-2">
           {onTryAnyway && (
             <button type="button" onClick={onTryAnyway} className="h-10 rounded-lg px-4 text-muted hover:bg-raised hover:text-ink">
-              Try anyway
+              {t('playback.tryAnyway')}
             </button>
           )}
           {onNext && (
             <button type="button" onClick={onNext} className="h-10 rounded-lg bg-raised px-4">
-              Next episode
+              {t('player.nextEpisode')}
             </button>
           )}
           <button type="button" onClick={onBack} className="h-10 rounded-lg bg-accent px-4 font-semibold text-accent-ink">
-            Go back
+            {t('common.goBack')}
           </button>
         </div>
       </div>
