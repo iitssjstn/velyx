@@ -1,11 +1,12 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireUser } from '../app.js';
-import { episodes, favorites, movies, shows, watchProgress } from '../db/schema.js';
+import { episodes, favorites, watchlist, watchProgress } from '../db/schema.js';
 import { Catalog } from '../services/catalog.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
+import { assertEpisode, assertMovie, assertShow } from '../services/access.js';
 
 /** Fraction of the runtime after which an item counts as watched. */
 export const COMPLETION_THRESHOLD = 0.9;
@@ -29,7 +30,7 @@ const watchedBody = z
   })
   .refine((b) => [b.movieId, b.episodeId, b.showId, b.seasonId].filter(Boolean).length === 1, 'Provide exactly one item.');
 
-const favoriteBody = z
+const savedBody = z
   .object({ movieId: z.number().int().positive().optional(), showId: z.number().int().positive().optional() })
   .refine((b) => Boolean(b.movieId) !== Boolean(b.showId), 'Provide either movieId or showId.');
 
@@ -48,6 +49,7 @@ export function saveProgress(
   const reached = durationSec > 0 && positionSec / durationSec >= COMPLETION_THRESHOLD;
   const completed = reached || (existing?.completed ?? false);
   const justCompleted = reached && !existing?.completed;
+  if (justCompleted && target.movieId) removeFromWatchlist(ctx, userId, { movieId: target.movieId });
   // Once finished, the resume point resets so the next play starts at the beginning.
   const position = justCompleted ? 0 : positionSec;
   if (existing) {
@@ -80,6 +82,12 @@ export function saveProgress(
     .get();
 }
 
+/** A finished movie leaves the watchlist, like on other media servers. */
+function removeFromWatchlist(ctx: AppContext, userId: number, target: { movieId?: number; showId?: number }): void {
+  const cond = target.movieId ? eq(watchlist.movieId, target.movieId) : eq(watchlist.showId, target.showId!);
+  ctx.db.delete(watchlist).where(and(eq(watchlist.userId, userId), cond)).run();
+}
+
 function setWatched(ctx: AppContext, userId: number, target: { movieId?: number; episodeId?: number }, watched: boolean): void {
   const where = target.movieId
     ? and(eq(watchProgress.userId, userId), eq(watchProgress.movieId, target.movieId))
@@ -88,6 +96,7 @@ function setWatched(ctx: AppContext, userId: number, target: { movieId?: number;
     ctx.db.delete(watchProgress).where(where).run();
     return;
   }
+  if (target.movieId) removeFromWatchlist(ctx, userId, { movieId: target.movieId });
   const existing = ctx.db.select().from(watchProgress).where(where).get();
   if (existing) {
     ctx.db
@@ -122,8 +131,9 @@ export async function userDataRoutes(app: FastifyInstance, ctx: AppContext): Pro
 
   app.post('/api/progress', { preHandler: requireUser }, async (request) => {
     const body = progressBody.parse(request.body);
-    if (body.movieId && !db.select({ id: movies.id }).from(movies).where(eq(movies.id, body.movieId)).get()) throw notFound('Movie');
-    if (body.episodeId && !db.select({ id: episodes.id }).from(episodes).where(eq(episodes.id, body.episodeId)).get()) throw notFound('Episode');
+    const scope = ctx.access.scope(request.user!);
+    if (body.movieId) assertMovie(db, scope, body.movieId);
+    if (body.episodeId) assertEpisode(db, scope, body.episodeId);
     const row = saveProgress(ctx, request.user!.id, body, body.positionSec, body.durationSec);
     return { positionSec: row.positionSec, durationSec: row.durationSec, completed: row.completed };
   });
@@ -131,51 +141,59 @@ export async function userDataRoutes(app: FastifyInstance, ctx: AppContext): Pro
   app.post('/api/progress/watched', { preHandler: requireUser }, async (request) => {
     const body = watchedBody.parse(request.body);
     const userId = request.user!.id;
-    if (body.movieId) setWatched(ctx, userId, { movieId: body.movieId }, body.watched);
-    else if (body.episodeId) setWatched(ctx, userId, { episodeId: body.episodeId }, body.watched);
-    else {
+    const scope = ctx.access.scope(request.user!);
+    if (body.movieId) {
+      assertMovie(db, scope, body.movieId);
+      setWatched(ctx, userId, { movieId: body.movieId }, body.watched);
+    } else if (body.episodeId) {
+      assertEpisode(db, scope, body.episodeId);
+      setWatched(ctx, userId, { episodeId: body.episodeId }, body.watched);
+    } else {
       const eps = body.showId
-        ? db.select({ id: episodes.id }).from(episodes).where(eq(episodes.showId, body.showId)).all()
-        : db.select({ id: episodes.id }).from(episodes).where(eq(episodes.seasonId, body.seasonId!)).all();
+        ? db.select({ id: episodes.id, showId: episodes.showId }).from(episodes).where(eq(episodes.showId, body.showId)).all()
+        : db.select({ id: episodes.id, showId: episodes.showId }).from(episodes).where(eq(episodes.seasonId, body.seasonId!)).all();
       if (!eps.length) throw notFound(body.showId ? 'Show' : 'Season');
+      assertShow(db, scope, eps[0].showId);
       db.transaction(() => {
         for (const e of eps) setWatched(ctx, userId, { episodeId: e.id }, body.watched);
+        if (body.showId && body.watched) removeFromWatchlist(ctx, userId, { showId: body.showId });
       });
     }
     return { ok: true };
   });
 
-  // ---- favorites
-  app.get('/api/favorites', { preHandler: requireUser }, async (request) => {
-    const userId = request.user!.id;
-    const rows = db.select().from(favorites).where(eq(favorites.userId, userId)).orderBy(desc(favorites.createdAt)).all();
-    const movieIds = rows.filter((r) => r.movieId).map((r) => r.movieId!);
-    const showIds = rows.filter((r) => r.showId).map((r) => r.showId!);
-    const movieCards = catalog.movieCards(userId, movieIds.length ? db.select().from(movies).where(inArray(movies.id, movieIds)).all() : []);
-    const showCards = catalog.showCards(userId, showIds.length ? db.select().from(shows).where(inArray(shows.id, showIds)).all() : []);
-    const order = (type: string, id: number) => rows.findIndex((r) => (type === 'movie' ? r.movieId === id : r.showId === id));
-    return [...movieCards, ...showCards].sort((a, b) => order(a.type, a.id) - order(b.type, b.id));
-  });
+  // ---- favorites and watchlist share the same shape
+  for (const [name, table] of [
+    ['favorites', favorites],
+    ['watchlist', watchlist],
+  ] as const) {
+    const flag = name === 'favorites' ? 'favorite' : 'watchlist';
 
-  app.post('/api/favorites', { preHandler: requireUser }, async (request) => {
-    const body = favoriteBody.parse(request.body);
-    if (body.movieId && !db.select({ id: movies.id }).from(movies).where(eq(movies.id, body.movieId)).get()) throw notFound('Movie');
-    if (body.showId && !db.select({ id: shows.id }).from(shows).where(eq(shows.id, body.showId)).get()) throw notFound('Show');
-    db.insert(favorites)
-      .values({ userId: request.user!.id, movieId: body.movieId ?? null, showId: body.showId ?? null })
-      .onConflictDoNothing()
-      .run();
-    return { favorite: true };
-  });
+    app.get(`/api/${name}`, { preHandler: requireUser }, async (request) =>
+      catalog.savedCards(name, request.user!.id, ctx.access.scope(request.user!)),
+    );
 
-  app.delete<{ Params: { type: string; id: string } }>('/api/favorites/:type/:id', { preHandler: requireUser }, async (request) => {
-    const id = parseId(request.params.id);
-    const userId = request.user!.id;
-    if (request.params.type === 'movie') db.delete(favorites).where(and(eq(favorites.userId, userId), eq(favorites.movieId, id))).run();
-    else if (request.params.type === 'show') db.delete(favorites).where(and(eq(favorites.userId, userId), eq(favorites.showId, id))).run();
-    else throw new HttpError(400, 'Type must be movie or show.');
-    return { favorite: false };
-  });
+    app.post(`/api/${name}`, { preHandler: requireUser }, async (request) => {
+      const body = savedBody.parse(request.body);
+      const scope = ctx.access.scope(request.user!);
+      if (body.movieId) assertMovie(db, scope, body.movieId);
+      if (body.showId) assertShow(db, scope, body.showId);
+      db.insert(table)
+        .values({ userId: request.user!.id, movieId: body.movieId ?? null, showId: body.showId ?? null })
+        .onConflictDoNothing()
+        .run();
+      return { [flag]: true };
+    });
+
+    app.delete<{ Params: { type: string; id: string } }>(`/api/${name}/:type/:id`, { preHandler: requireUser }, async (request) => {
+      const id = parseId(request.params.id);
+      const userId = request.user!.id;
+      if (request.params.type === 'movie') db.delete(table).where(and(eq(table.userId, userId), eq(table.movieId, id))).run();
+      else if (request.params.type === 'show') db.delete(table).where(and(eq(table.userId, userId), eq(table.showId, id))).run();
+      else throw new HttpError(400, 'Type must be movie or show.');
+      return { [flag]: false };
+    });
+  }
 
   /** Removes a favorite by its own id (kept for API completeness). */
   app.delete<{ Params: { id: string } }>('/api/favorites/:id', { preHandler: requireUser }, async (request) => {

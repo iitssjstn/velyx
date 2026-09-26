@@ -9,7 +9,7 @@ import { HomePage } from './pages/Home';
 import { BrowsePage } from './pages/Browse';
 import { MoviePage } from './pages/MovieDetail';
 import { ShowPage } from './pages/ShowDetail';
-import { FavoritesPage } from './pages/Favorites';
+import { FavoritesPage, WatchlistPage } from './pages/Favorites';
 import { SearchPage } from './pages/Search';
 import { SettingsPage } from './pages/Settings';
 import { NotFoundPage } from './pages/NotFound';
@@ -63,6 +63,7 @@ export function App() {
           <Route path="/shows" element={<BrowsePage kind="shows" />} />
           <Route path="/movies/:id" element={<MoviePage />} />
           <Route path="/shows/:id" element={<ShowPage />} />
+          <Route path="/watchlist" element={<WatchlistPage />} />
           <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/settings/*" element={<SettingsPage />} />

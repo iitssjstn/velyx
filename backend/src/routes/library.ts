@@ -6,7 +6,6 @@ import { requireUser } from '../app.js';
 import {
   credits,
   episodes,
-  favorites,
   genres,
   libraries,
   mediaFiles,
@@ -17,11 +16,13 @@ import {
   showGenres,
   shows,
   subtitles,
+  watchlist,
   watchProgress,
 } from '../db/schema.js';
 import { Catalog } from '../services/catalog.js';
 import { notFound, parseId } from '../http-error.js';
 import { languageName } from '../services/parser.js';
+import { assertEpisode, assertMovie, assertShow, canSee, scopeCondition } from '../services/access.js';
 
 const listQuery = z.object({
   page: z.coerce.number().int().min(1).max(100000).default(1),
@@ -65,12 +66,25 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
   const catalog = new Catalog(ctx.db);
   const db = ctx.db;
 
+  const scopeOf = (request: { user: { id: number; role: 'admin' | 'user' } | null }) => ctx.access.scope(request.user!);
+  const inWatchlist = (userId: number, where: { movieId?: number; showId?: number }) =>
+    Boolean(
+      db
+        .select({ id: watchlist.id })
+        .from(watchlist)
+        .where(and(eq(watchlist.userId, userId), where.movieId ? eq(watchlist.movieId, where.movieId) : eq(watchlist.showId, where.showId!)))
+        .get(),
+    );
+
   const subsFor = (fileIds: number[]) =>
     fileIds.length ? db.select().from(subtitles).where(inArray(subtitles.mediaFileId, fileIds)).all() : [];
 
   // ------------------------------------------------------------------ home
   app.get('/api/home', { preHandler: requireUser }, async (request) => {
     const userId = request.user!.id;
+    const scope = scopeOf(request);
+    const movieVis = scopeCondition(scope, movies.libraryId);
+    const showVis = scopeCondition(scope, shows.libraryId);
 
     // Continue watching: partially watched items + "next up" episodes of shows in progress.
     const inProgress = db
@@ -108,7 +122,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     for (const p of inProgress) {
       if (p.movieId) {
         const m = db.select().from(movies).where(eq(movies.id, p.movieId)).get();
-        if (m)
+        if (m && canSee(scope, m.libraryId))
           cw.push({
             type: 'movie',
             id: m.id,
@@ -127,7 +141,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
           .innerJoin(shows, eq(shows.id, episodes.showId))
           .where(eq(episodes.id, p.episodeId))
           .get();
-        if (row && !showsInProgress.has(row.s.id)) {
+        if (row && canSee(scope, row.s.libraryId) && !showsInProgress.has(row.s.id)) {
           showsInProgress.add(row.s.id);
           cw.push({
             type: 'episode',
@@ -163,7 +177,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
         .get();
       if (existing?.completed) continue;
       const s = db.select().from(shows).where(eq(shows.id, c.showId)).get();
-      if (!s) continue;
+      if (!s || !canSee(scope, s.libraryId)) continue;
       showsInProgress.add(s.id);
       cw.push({
         type: 'episode',
@@ -179,8 +193,8 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     }
     cw.sort((a, b) => b.updatedAt - a.updatedAt);
 
-    const recentMovies = db.select().from(movies).orderBy(desc(movies.addedAt)).limit(20).all();
-    const recentShows = db.select().from(shows).orderBy(desc(shows.lastEpisodeAddedAt)).limit(20).all();
+    const recentMovies = db.select().from(movies).where(movieVis).orderBy(desc(movies.addedAt)).limit(20).all();
+    const recentShows = db.select().from(shows).where(showVis).orderBy(desc(shows.lastEpisodeAddedAt)).limit(20).all();
     const recentlyAdded = [...catalog.movieCards(userId, recentMovies), ...catalog.showCards(userId, recentShows)]
       .sort((a, b) => b.addedAt - a.addedAt)
       .slice(0, 20);
@@ -207,8 +221,8 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       if (w.movieId && !order.has(`m${w.movieId}`)) order.set(`m${w.movieId}`, i);
     });
     const recentlyWatched = [
-      ...catalog.movieCards(userId, watchedMovieIds.length ? db.select().from(movies).where(inArray(movies.id, watchedMovieIds)).all() : []),
-      ...catalog.showCards(userId, watchedShowIds.length ? db.select().from(shows).where(inArray(shows.id, watchedShowIds)).all() : []),
+      ...catalog.movieCards(userId, watchedMovieIds.length ? db.select().from(movies).where(and(inArray(movies.id, watchedMovieIds), movieVis)).all() : []),
+      ...catalog.showCards(userId, watchedShowIds.length ? db.select().from(shows).where(and(inArray(shows.id, watchedShowIds), showVis)).all() : []),
     ]
       .sort((a, b) => {
         const ka = a.type === 'movie' ? watchedMovieIds.indexOf(a.id) : watchedShowIds.indexOf(a.id);
@@ -217,16 +231,11 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       })
       .slice(0, 20);
 
-    const movieRow = db.select().from(movies).orderBy(desc(movies.releaseDate), desc(movies.year)).limit(20).all();
-    const showRow = db.select().from(shows).orderBy(desc(shows.rating)).limit(20).all();
+    const movieRow = db.select().from(movies).where(movieVis).orderBy(desc(movies.releaseDate), desc(movies.year)).limit(20).all();
+    const showRow = db.select().from(shows).where(showVis).orderBy(desc(shows.rating)).limit(20).all();
 
-    const favRows = db.select().from(favorites).where(eq(favorites.userId, userId)).orderBy(desc(favorites.createdAt)).limit(40).all();
-    const favMovieIds = favRows.filter((f) => f.movieId).map((f) => f.movieId!);
-    const favShowIds = favRows.filter((f) => f.showId).map((f) => f.showId!);
-    const favoritesSection = [
-      ...catalog.movieCards(userId, favMovieIds.length ? db.select().from(movies).where(inArray(movies.id, favMovieIds)).all() : []),
-      ...catalog.showCards(userId, favShowIds.length ? db.select().from(shows).where(inArray(shows.id, favShowIds)).all() : []),
-    ];
+    const favoritesSection = catalog.savedCards('favorites', userId, scope, 40);
+    const watchlistSection = catalog.watchlistCards(userId, scope, 20);
 
     const hero = cw[0] ?? null;
     return {
@@ -237,21 +246,25 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       movies: catalog.movieCards(userId, movieRow),
       shows: catalog.showCards(userId, showRow),
       favorites: favoritesSection,
+      watchlist: watchlistSection,
       counts: {
-        movies: db.select({ n: count() }).from(movies).get()!.n,
-        shows: db.select({ n: count() }).from(shows).get()!.n,
-        libraries: db.select({ n: count() }).from(libraries).get()!.n,
+        movies: db.select({ n: count() }).from(movies).where(movieVis).get()!.n,
+        shows: db.select({ n: count() }).from(shows).where(showVis).get()!.n,
+        libraries: db.select({ n: count() }).from(libraries).where(scopeCondition(scope, libraries.id)).get()!.n,
       },
     };
   });
 
   // ------------------------------------------------------------------ genres
   app.get<{ Querystring: { type?: string } }>('/api/genres', { preHandler: requireUser }, async (request) => {
+    const scope = scopeOf(request);
     if (request.query.type === 'shows') {
       return db
         .select({ id: genres.id, name: genres.name, count: count() })
         .from(genres)
         .innerJoin(showGenres, eq(showGenres.genreId, genres.id))
+        .innerJoin(shows, eq(shows.id, showGenres.showId))
+        .where(scopeCondition(scope, shows.libraryId))
         .groupBy(genres.id)
         .orderBy(asc(genres.name))
         .all();
@@ -260,6 +273,8 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       .select({ id: genres.id, name: genres.name, count: count() })
       .from(genres)
       .innerJoin(movieGenres, eq(movieGenres.genreId, genres.id))
+      .innerJoin(movies, eq(movies.id, movieGenres.movieId))
+      .where(scopeCondition(scope, movies.libraryId))
       .groupBy(genres.id)
       .orderBy(asc(genres.name))
       .all();
@@ -270,6 +285,8 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     const q = listQuery.parse(request.query);
     const userId = request.user!.id;
     const conds: SQL[] = [];
+    const vis = scopeCondition(scopeOf(request), movies.libraryId);
+    if (vis) conds.push(vis);
     if (q.genre) conds.push(sql`${movies.id} IN (SELECT movie_id FROM movie_genres WHERE genre_id = ${q.genre})`);
     if (q.library) conds.push(eq(movies.libraryId, q.library));
     if (q.filter === 'watched') conds.push(sql`${movies.id} IN (SELECT movie_id FROM watch_progress WHERE user_id = ${userId} AND completed = 1 AND movie_id IS NOT NULL)`);
@@ -300,8 +317,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
   app.get<{ Params: { id: string } }>('/api/movies/:id', { preHandler: requireUser }, async (request) => {
     const id = parseId(request.params.id);
     const userId = request.user!.id;
-    const m = db.select().from(movies).where(eq(movies.id, id)).get();
-    if (!m) throw notFound('Movie');
+    const m = assertMovie(db, scopeOf(request), id);
     const g = db
       .select({ id: genres.id, name: genres.name })
       .from(movieGenres)
@@ -345,6 +361,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       files: files.map((f) => fileInfo(f, subs.filter((s) => s.mediaFileId === f.id))),
       progress,
       favorite,
+      watchlist: inWatchlist(userId, { movieId: id }),
     };
   });
 
@@ -353,6 +370,8 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     const q = listQuery.parse(request.query);
     const userId = request.user!.id;
     const conds: SQL[] = [];
+    const vis = scopeCondition(scopeOf(request), shows.libraryId);
+    if (vis) conds.push(vis);
     if (q.genre) conds.push(sql`${shows.id} IN (SELECT show_id FROM show_genres WHERE genre_id = ${q.genre})`);
     if (q.library) conds.push(eq(shows.libraryId, q.library));
     const watchedCount = sql`(SELECT count(*) FROM watch_progress wp JOIN episodes e ON e.id = wp.episode_id WHERE wp.user_id = ${userId} AND wp.completed = 1 AND e.show_id = ${shows.id})`;
@@ -385,8 +404,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
   app.get<{ Params: { id: string } }>('/api/shows/:id', { preHandler: requireUser }, async (request) => {
     const id = parseId(request.params.id);
     const userId = request.user!.id;
-    const s = db.select().from(shows).where(eq(shows.id, id)).get();
-    if (!s) throw notFound('Show');
+    const s = assertShow(db, scopeOf(request), id);
     const g = db
       .select({ id: genres.id, name: genres.name })
       .from(showGenres)
@@ -461,6 +479,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
         ? { id: upNext.id, seasonNumber: upNext.seasonNumber, episodeNumber: upNext.episodeNumber, title: upNext.title, progress: progress.get(upNext.id) ?? null }
         : null,
       favorite,
+      watchlist: inWatchlist(userId, { showId: id }),
     };
   });
 
@@ -469,6 +488,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     const n = Number(request.params.season);
     if (!Number.isInteger(n) || n < 0) throw notFound('Season');
     const userId = request.user!.id;
+    assertShow(db, scopeOf(request), id);
     const season = db
       .select()
       .from(seasons)
@@ -513,13 +533,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
   app.get<{ Params: { id: string } }>('/api/episodes/:id', { preHandler: requireUser }, async (request) => {
     const id = parseId(request.params.id);
     const userId = request.user!.id;
-    const row = db
-      .select({ e: episodes, s: shows })
-      .from(episodes)
-      .innerJoin(shows, eq(shows.id, episodes.showId))
-      .where(eq(episodes.id, id))
-      .get();
-    if (!row) throw notFound('Episode');
+    const row = assertEpisode(db, scopeOf(request), id);
     const files = db.select().from(mediaFiles).where(eq(mediaFiles.episodeId, id)).orderBy(desc(mediaFiles.height)).all();
     const subs = subsFor(files.map((f) => f.id));
     const next = catalog.nextEpisode(id);
@@ -551,19 +565,20 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     const q = (request.query.q ?? '').trim().slice(0, 100);
     const userId = request.user!.id;
     if (!q) return { query: q, movies: [], shows: [], episodes: [] };
+    const scope = scopeOf(request);
     const pattern = `%${escapeLike(q)}%`;
     const likeEsc = (col: Parameters<typeof like>[0]) => sql`${col} LIKE ${pattern} ESCAPE '\\'`;
     const movieRows = db
       .select()
       .from(movies)
-      .where(or(likeEsc(movies.title), likeEsc(movies.originalTitle), likeEsc(movies.parsedTitle)))
+      .where(and(or(likeEsc(movies.title), likeEsc(movies.originalTitle), likeEsc(movies.parsedTitle)), scopeCondition(scope, movies.libraryId)))
       .orderBy(sql`CASE WHEN ${movies.title} LIKE ${escapeLike(q) + '%'} ESCAPE '\\' THEN 0 ELSE 1 END`, asc(movies.sortTitle))
       .limit(30)
       .all();
     const showRows = db
       .select()
       .from(shows)
-      .where(or(likeEsc(shows.title), likeEsc(shows.originalTitle), likeEsc(shows.parsedTitle)))
+      .where(and(or(likeEsc(shows.title), likeEsc(shows.originalTitle), likeEsc(shows.parsedTitle)), scopeCondition(scope, shows.libraryId)))
       .orderBy(sql`CASE WHEN ${shows.title} LIKE ${escapeLike(q) + '%'} ESCAPE '\\' THEN 0 ELSE 1 END`, asc(shows.sortTitle))
       .limit(30)
       .all();
@@ -571,7 +586,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       .select({ e: episodes, showTitle: shows.title, showBackdrop: shows.backdropPath })
       .from(episodes)
       .innerJoin(shows, eq(shows.id, episodes.showId))
-      .where(likeEsc(episodes.title))
+      .where(and(likeEsc(episodes.title), scopeCondition(scope, shows.libraryId)))
       .orderBy(asc(shows.sortTitle), asc(episodes.seasonNumber), asc(episodes.episodeNumber))
       .limit(30)
       .all();

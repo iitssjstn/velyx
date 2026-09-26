@@ -75,6 +75,7 @@ export interface HomeData {
   movies: MovieCard[];
   shows: ShowCard[];
   favorites: Card[];
+  watchlist: Card[];
   counts: { movies: number; shows: number; libraries: number };
 }
 
@@ -172,6 +173,7 @@ export interface MovieDetail {
   files: MediaFileInfo[];
   progress: Progress | null;
   favorite: boolean;
+  watchlist: boolean;
 }
 
 export interface SeasonSummary {
@@ -209,6 +211,7 @@ export interface ShowDetail {
   watchedCount: number;
   upNext: { id: number; seasonNumber: number; episodeNumber: number; title: string | null; progress: Progress | null } | null;
   favorite: boolean;
+  watchlist: boolean;
 }
 
 export interface EpisodeSummary {
@@ -336,6 +339,8 @@ export interface AdminUser extends User {
   disabled: boolean;
   createdAt: number;
   lastLoginAt: number | null;
+  /** Libraries this user may see; null = all libraries, including ones added later. */
+  libraryIds: number[] | null;
 }
 
 export interface Dashboard {

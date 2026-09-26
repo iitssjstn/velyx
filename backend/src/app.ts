@@ -17,6 +17,7 @@ import { ScanManager } from './services/scan-manager.js';
 import { LibraryWatcher } from './services/watcher.js';
 import { createFfprobe, type Prober } from './services/probe.js';
 import { EmbeddedSubtitleExtractor } from './services/subtitles.js';
+import { LibraryAccess } from './services/access.js';
 import { PlaybackRegistry } from './playback/engine.js';
 import { DirectPlayEngine } from './playback/direct-play.js';
 import { RemuxEngine } from './playback/remux.js';
@@ -46,6 +47,7 @@ export interface AppContext {
   watcher: LibraryWatcher;
   playback: PlaybackRegistry;
   subtitleExtractor: EmbeddedSubtitleExtractor;
+  access: LibraryAccess;
   startedAt: number;
 }
 
@@ -76,7 +78,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   playback.register(new DirectPlayEngine());
   playback.register(new RemuxEngine(config.ffmpegPath));
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

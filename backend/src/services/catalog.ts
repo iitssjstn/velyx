@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
-import { episodes, favorites, mediaFiles, movies, shows, watchProgress } from '../db/schema.js';
+import { episodes, favorites, mediaFiles, movies, shows, watchlist, watchProgress } from '../db/schema.js';
+import { scopeCondition, type LibraryScope } from './access.js';
 
 export interface ProgressInfo {
   positionSec: number;
@@ -136,6 +137,30 @@ export class Catalog {
       watchedCount: watchedMap.get(s.id) ?? 0,
       favorite: favs.shows.has(s.id),
     }));
+  }
+
+  /** Cards for a user's favorites or watchlist, newest addition first, limited to the libraries they can see. */
+  savedCards(list: 'favorites' | 'watchlist', userId: number, scope: LibraryScope, limit?: number): Array<MovieCard | ShowCard> {
+    const table = list === 'favorites' ? favorites : watchlist;
+    let query = this.db.select().from(table).where(eq(table.userId, userId)).orderBy(desc(table.createdAt), desc(table.id)).$dynamic();
+    if (limit) query = query.limit(limit);
+    const rows = query.all();
+    const movieIds = rows.filter((r) => r.movieId).map((r) => r.movieId!);
+    const showIds = rows.filter((r) => r.showId).map((r) => r.showId!);
+    const movieCards = this.movieCards(
+      userId,
+      movieIds.length ? this.db.select().from(movies).where(and(inArray(movies.id, movieIds), scopeCondition(scope, movies.libraryId))).all() : [],
+    );
+    const showCards = this.showCards(
+      userId,
+      showIds.length ? this.db.select().from(shows).where(and(inArray(shows.id, showIds), scopeCondition(scope, shows.libraryId))).all() : [],
+    );
+    const order = (c: MovieCard | ShowCard) => rows.findIndex((r) => (c.type === 'movie' ? r.movieId === c.id : r.showId === c.id));
+    return [...movieCards, ...showCards].sort((a, b) => order(a) - order(b));
+  }
+
+  watchlistCards(userId: number, scope: LibraryScope, limit?: number) {
+    return this.savedCards('watchlist', userId, scope, limit);
   }
 
   /** Best file for an item: prefers files that probed successfully and have the highest resolution. */
