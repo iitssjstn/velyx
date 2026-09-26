@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { and, asc, count, desc, eq, inArray, like, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, like, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireUser } from '../app.js';
@@ -28,12 +28,26 @@ import { assertEpisode, assertMovie, assertShow, canSee, scopeCondition } from '
 const listQuery = z.object({
   page: z.coerce.number().int().min(1).max(100000).default(1),
   limit: z.coerce.number().int().min(1).max(200).default(60),
-  sort: z.enum(['title', 'added', 'year', 'rating', 'release']).default('title'),
+  sort: z.enum(['title', 'added', 'year', 'rating', 'release', 'watched', 'runtime']).default('title'),
   order: z.enum(['asc', 'desc']).optional(),
   genre: z.coerce.number().int().positive().optional(),
   library: z.coerce.number().int().positive().optional(),
-  filter: z.enum(['all', 'unwatched', 'in-progress', 'watched']).default('all'),
+  /** Watch state; 'completed' is the TV name for 'watched'. */
+  filter: z.enum(['all', 'unwatched', 'in-progress', 'watched', 'completed', 'favorites', 'watchlist']).default('all'),
+  resolution: z.enum(['4k', '1080p', '720p', 'sd']).optional(),
+  hdr: z.enum(['1', 'true']).optional(),
+  yearFrom: z.coerce.number().int().min(1870).max(2100).optional(),
+  yearTo: z.coerce.number().int().min(1870).max(2100).optional(),
+  minRating: z.coerce.number().min(0).max(10).optional(),
 });
+
+/** Resolution buckets by width (or height for unusual aspect ratios), matching resolutionLabel in the UI. */
+const RESOLUTION_SQL: Record<string, SQL> = {
+  '4k': sql`(mf.width >= 3800 OR mf.height >= 2100)`,
+  '1080p': sql`(mf.width >= 1900 OR mf.height >= 1000) AND mf.width < 3800 AND mf.height < 2100`,
+  '720p': sql`(mf.width >= 1200 OR mf.height >= 700) AND mf.width < 1900 AND mf.height < 1000`,
+  sd: sql`mf.width < 1200 AND mf.height < 700`,
+};
 
 function escapeLike(q: string): string {
   return q.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -298,18 +312,31 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     if (vis) conds.push(vis);
     if (q.genre) conds.push(sql`${movies.id} IN (SELECT movie_id FROM movie_genres WHERE genre_id = ${q.genre})`);
     if (q.library) conds.push(eq(movies.libraryId, q.library));
-    if (q.filter === 'watched') conds.push(sql`${movies.id} IN (SELECT movie_id FROM watch_progress WHERE user_id = ${userId} AND completed = 1 AND movie_id IS NOT NULL)`);
+    if (q.filter === 'watched' || q.filter === 'completed') conds.push(sql`${movies.id} IN (SELECT movie_id FROM watch_progress WHERE user_id = ${userId} AND completed = 1 AND movie_id IS NOT NULL)`);
     if (q.filter === 'unwatched') conds.push(sql`${movies.id} NOT IN (SELECT movie_id FROM watch_progress WHERE user_id = ${userId} AND completed = 1 AND movie_id IS NOT NULL)`);
     if (q.filter === 'in-progress') conds.push(sql`${movies.id} IN (SELECT movie_id FROM watch_progress WHERE user_id = ${userId} AND completed = 0 AND position_sec >= 30 AND movie_id IS NOT NULL)`);
+    if (q.filter === 'favorites') conds.push(sql`${movies.id} IN (SELECT movie_id FROM favorites WHERE user_id = ${userId} AND movie_id IS NOT NULL)`);
+    if (q.filter === 'watchlist') conds.push(sql`${movies.id} IN (SELECT movie_id FROM watchlist WHERE user_id = ${userId} AND movie_id IS NOT NULL)`);
+    if (q.resolution) conds.push(sql`EXISTS (SELECT 1 FROM media_files mf WHERE mf.movie_id = ${movies.id} AND ${RESOLUTION_SQL[q.resolution]})`);
+    if (q.hdr) conds.push(sql`EXISTS (SELECT 1 FROM media_files mf WHERE mf.movie_id = ${movies.id} AND mf.video_range IN ('HDR10', 'HLG', 'DV'))`);
+    if (q.yearFrom) conds.push(sql`${movies.year} >= ${q.yearFrom}`);
+    if (q.yearTo) conds.push(sql`${movies.year} <= ${q.yearTo}`);
+    if (q.minRating !== undefined) conds.push(sql`${movies.rating} >= ${q.minRating}`);
     const where = conds.length ? and(...conds) : undefined;
     const dir = q.order ?? (q.sort === 'title' ? 'asc' : 'desc');
     const o = dir === 'asc' ? asc : desc;
+    // Missing values (no year, never watched, …) always sort last.
+    const last = (col: SQLWrapper) => sql`${col} IS NULL`;
+    const lastWatched = sql`(SELECT max(updated_at) FROM watch_progress WHERE user_id = ${userId} AND movie_id = ${movies.id})`;
+    const runtime = sql`coalesce(${movies.runtime}, (SELECT max(duration_sec) / 60 FROM media_files WHERE movie_id = ${movies.id}))`;
     const orderBy = {
       title: [o(movies.sortTitle)],
       added: [o(movies.addedAt), asc(movies.sortTitle)],
-      year: [o(movies.year), asc(movies.sortTitle)],
-      rating: [o(movies.rating), asc(movies.sortTitle)],
+      year: [last(movies.year), o(movies.year), asc(movies.sortTitle)],
+      rating: [last(movies.rating), o(movies.rating), asc(movies.sortTitle)],
       release: [o(movies.releaseDate), o(movies.year), asc(movies.sortTitle)],
+      watched: [last(lastWatched), o(lastWatched), asc(movies.sortTitle)],
+      runtime: [last(runtime), o(runtime), asc(movies.sortTitle)],
     }[q.sort];
     const total = db.select({ n: count() }).from(movies).where(where).get()!.n;
     const rows = db
@@ -386,18 +413,28 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     if (q.library) conds.push(eq(shows.libraryId, q.library));
     const watchedCount = sql`(SELECT count(*) FROM watch_progress wp JOIN episodes e ON e.id = wp.episode_id WHERE wp.user_id = ${userId} AND wp.completed = 1 AND e.show_id = ${shows.id})`;
     const totalCount = sql`(SELECT count(*) FROM episodes e WHERE e.show_id = ${shows.id})`;
-    if (q.filter === 'watched') conds.push(sql`${watchedCount} >= ${totalCount}`);
+    if (q.filter === 'watched' || q.filter === 'completed') conds.push(sql`${watchedCount} >= ${totalCount}`);
     if (q.filter === 'unwatched') conds.push(sql`${watchedCount} = 0`);
     if (q.filter === 'in-progress') conds.push(sql`${watchedCount} > 0 AND ${watchedCount} < ${totalCount}`);
+    if (q.filter === 'favorites') conds.push(sql`${shows.id} IN (SELECT show_id FROM favorites WHERE user_id = ${userId} AND show_id IS NOT NULL)`);
+    if (q.filter === 'watchlist') conds.push(sql`${shows.id} IN (SELECT show_id FROM watchlist WHERE user_id = ${userId} AND show_id IS NOT NULL)`);
+    if (q.yearFrom) conds.push(sql`${shows.year} >= ${q.yearFrom}`);
+    if (q.yearTo) conds.push(sql`${shows.year} <= ${q.yearTo}`);
+    if (q.minRating !== undefined) conds.push(sql`${shows.rating} >= ${q.minRating}`);
     const where = conds.length ? and(...conds) : undefined;
     const dir = q.order ?? (q.sort === 'title' ? 'asc' : 'desc');
     const o = dir === 'asc' ? asc : desc;
+    const last = (col: SQLWrapper) => sql`${col} IS NULL`;
+    const lastWatched = sql`(SELECT max(wp.updated_at) FROM watch_progress wp JOIN episodes e ON e.id = wp.episode_id WHERE wp.user_id = ${userId} AND e.show_id = ${shows.id})`;
+    const runtime = sql`(SELECT avg(runtime) FROM episodes e WHERE e.show_id = ${shows.id})`;
     const orderBy = {
       title: [o(shows.sortTitle)],
       added: [o(shows.lastEpisodeAddedAt), asc(shows.sortTitle)],
-      year: [o(shows.year), asc(shows.sortTitle)],
-      rating: [o(shows.rating), asc(shows.sortTitle)],
+      year: [last(shows.year), o(shows.year), asc(shows.sortTitle)],
+      rating: [last(shows.rating), o(shows.rating), asc(shows.sortTitle)],
       release: [o(shows.firstAirDate), asc(shows.sortTitle)],
+      watched: [last(lastWatched), o(lastWatched), asc(shows.sortTitle)],
+      runtime: [last(runtime), o(runtime), asc(shows.sortTitle)],
     }[q.sort];
     const total = db.select({ n: count() }).from(shows).where(where).get()!.n;
     const rows = db

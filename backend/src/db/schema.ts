@@ -110,6 +110,8 @@ export const movies = sqliteTable(
     index('movies_sort_idx').on(t.sortTitle),
     index('movies_added_idx').on(t.addedAt),
     index('movies_tmdb_idx').on(t.tmdbId),
+    index('movies_year_idx').on(t.year),
+    index('movies_rating_idx').on(t.rating),
   ],
 );
 
@@ -150,6 +152,8 @@ export const shows = sqliteTable(
     uniqueIndex('shows_group_idx').on(t.libraryId, t.groupKey),
     index('shows_sort_idx').on(t.sortTitle),
     index('shows_added_idx').on(t.lastEpisodeAddedAt),
+    index('shows_year_idx').on(t.year),
+    index('shows_rating_idx').on(t.rating),
   ],
 );
 
@@ -324,7 +328,7 @@ export const credits = sqliteTable(
     role: text('role'),
     sortOrder: integer('sort_order').notNull().default(0),
   },
-  (t) => [index('credits_movie_idx').on(t.movieId), index('credits_show_idx').on(t.showId)],
+  (t) => [index('credits_movie_idx').on(t.movieId), index('credits_show_idx').on(t.showId), index('credits_person_idx').on(t.personId)],
 );
 
 export const watchProgress = sqliteTable(
