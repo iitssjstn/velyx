@@ -11,7 +11,7 @@ import { deviceDecoders } from '../../../../modules/velyx-codecs';
 import { SeekBar } from '../../../components/SeekBar';
 import { Button, styles } from '../../../components/ui';
 import { episodeCode, formatClock } from '../../../lib/format';
-import { fallbackCaps, playbackCaps, playerAudioPosition, resumePoint, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { endedEarly, fallbackCaps, playbackCaps, playerAudioPosition, resumePoint, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { rememberSubtitle, rememberedSubtitle } from '../../../lib/remember';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
 import { useSession } from '../../../lib/session';
@@ -246,7 +246,21 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       setProblem(t('player.failed', { reason: error?.message ?? t('common.error') }));
     }
   });
+  // A stream that stops well before the end broke off (connection lost, server stalled): continue
+  // from there — a few times at most at the same spot — instead of ending the episode.
+  const resumes = useRef<{ at: number; count: number }>({ at: -1, count: 0 });
   useEventListener(player, 'playToEnd', () => {
+    if (answer && endedEarly(position, duration)) {
+      const r = resumes.current;
+      resumes.current = Math.abs(position - r.at) < 10 ? { at: position, count: r.count + 1 } : { at: position, count: 1 };
+      if (resumes.current.count <= 3) {
+        void load(answer, position).catch((err: Error) => setProblem(err.message || t('common.error')));
+        return;
+      }
+      void save(position, true);
+      setProblem(t('player.interrupted'));
+      return;
+    }
     void save(duration, true);
     setEnded(true);
     setControls(true);

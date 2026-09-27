@@ -74,6 +74,7 @@ const en = {
   'player.skipCredits': 'Skip credits',
   'player.playIn': 'Play in {n}',
   'player.watchCredits': 'Watch credits',
+  'player.interrupted': 'The stream keeps stopping. Check your connection and try again.',
 
   'account.signedInAs': 'Signed in as {name}',
   'account.server': 'Server',
@@ -160,6 +161,7 @@ const nl: Record<MessageKey, string> = {
   'player.skipCredits': 'Aftiteling overslaan',
   'player.playIn': 'Start over {n}',
   'player.watchCredits': 'Aftiteling kijken',
+  'player.interrupted': 'De stream blijft stoppen. Controleer je verbinding en probeer het opnieuw.',
 
   'account.signedInAs': 'Ingelogd als {name}',
   'account.server': 'Server',

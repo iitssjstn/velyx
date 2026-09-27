@@ -137,3 +137,15 @@ export function resumePoint(progress: { positionSec: number; durationSec: number
   if (progress.durationSec > 0 && (progress.durationSec - progress.positionSec < 15 || progress.positionSec / progress.durationSec >= 0.9)) return null;
   return progress.positionSec;
 }
+
+/** How far before the end a stream may stop and still count as the end of the file. */
+const END_MARGIN_SEC = 30;
+
+/**
+ * Whether the player stopping at `position` means the stream broke off (a dropped connection,
+ * a stalled server) rather than the file ending: then playback continues from there instead of
+ * offering the next episode and marking this one watched.
+ */
+export function endedEarly(position: number, duration: number): boolean {
+  return duration > 0 && position < duration - END_MARGIN_SEC;
+}
