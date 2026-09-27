@@ -2,10 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as Device from 'expo-device';
+import * as Network from 'expo-network';
+import { onlineManager } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import { getLocales } from 'expo-localization';
 import { createApi, type Api } from './api';
 import { appUserAgent } from './auth';
+import { connectionState, type Connection } from './connection';
 import { pickLanguage, translator, type Language, type Translate } from './i18n';
 import type { ServerInfo } from './server';
 import type { User } from './types';
@@ -40,6 +43,8 @@ interface SessionValue {
   updateUser(user: User): Promise<void>;
   /** The server stopped accepting this device's sign-in (signed out elsewhere, password changed, account disabled). */
   sessionEnded: boolean;
+  /** Whether the device is online and the server answers (for the connection banner). */
+  connection: Connection;
   /** Ends the session here (and on the server, when it can be reached). */
   signOut(): Promise<void>;
 }
@@ -54,6 +59,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [stored, setStored] = useState<Stored | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
+  const [serverReachable, setServerReachable] = useState(true);
+  const [deviceOnline, setDeviceOnline] = useState<boolean | null>(null);
+
+  // The device's own network. Lists pause while it is offline and load again when it comes back.
+  useEffect(() => {
+    const apply = (state: Network.NetworkState) => {
+      // Only "no network at all" counts: a home server on Wi-Fi without internet must keep working.
+      const online = state.isConnected === false ? false : state.isConnected === true ? true : null;
+      setDeviceOnline(online);
+      onlineManager.setOnline(online !== false);
+    };
+    void Network.getNetworkStateAsync().then(apply).catch(() => undefined);
+    const sub = Network.addNetworkStateListener(apply);
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     SecureStore.getItemAsync(STORE_KEY)
@@ -78,6 +98,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         token: stored?.token ?? null,
         userAgent: USER_AGENT,
         // Signed out elsewhere (or the account was disabled): back to the sign-in screen, which says so.
+        onReachable: (reachable) => setServerReachable(reachable),
         onUnauthorized: () => {
           setSessionEnded(true);
           void save(stored ? { ...stored, token: null, user: null } : null);
@@ -112,6 +133,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     user: stored?.user ?? null,
     signedIn,
     sessionEnded,
+    connection: connectionState(deviceOnline, serverReachable),
     api,
     deviceName: DEVICE_NAME,
     appVersion: APP_VERSION,

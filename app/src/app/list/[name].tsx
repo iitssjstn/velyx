@@ -21,7 +21,7 @@ export default function SavedList() {
       <Stack.Screen options={{ title }} />
       {q.isLoading ? (
         <GridSkeleton />
-      ) : q.error || !q.data ? (
+      ) : !q.data ? (
         <ErrorState error={q.error} onRetry={() => void q.refetch()} />
       ) : (
         <FlatList

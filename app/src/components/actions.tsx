@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Text } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
+import { errorMessage } from '../lib/connection';
 import type { ApiRequest } from '../lib/lists';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
@@ -16,8 +17,7 @@ export function useServerAction() {
       else await api.del(req.path);
       return true;
     } catch (err) {
-      const status = (err as { status?: number }).status;
-      Alert.alert(t('common.error'), status === 0 ? t('common.unreachable') : (err as Error).message || t('common.error'));
+      Alert.alert(t('common.error'), errorMessage(err, t));
       return false;
     } finally {
       void qc.invalidateQueries({ queryKey: [serverUrl] });

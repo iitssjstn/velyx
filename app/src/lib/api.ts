@@ -17,7 +17,14 @@ export interface ApiConfig {
   fetchImpl?: Fetch;
   /** Called when the server no longer accepts the token (signed out elsewhere, account disabled). */
   onUnauthorized?: () => void;
+  /** Called after every request: whether the server answered at all (any HTTP status counts). */
+  onReachable?: (reachable: boolean) => void;
+  /** A request without an answer after this many milliseconds counts as unreachable (default 15 s). */
+  timeoutMs?: number;
 }
+
+/** Status 0: no answer — the device is offline, the server is down, or it took too long. */
+export const NO_ANSWER = 0;
 
 export interface Api {
   readonly baseUrl: string;
@@ -44,20 +51,33 @@ export function createApi(config: ApiConfig): Api {
   const url = (path: string) => `${config.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
 
   async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+    // A request never hangs: without an answer in time it counts as unreachable. A signal from the
+    // caller (a search replaced by the next one) cancels it too.
+    const timeout = new AbortController();
+    const timer = setTimeout(() => timeout.abort(), config.timeoutMs ?? 15_000);
+    const cancel = () => timeout.abort();
+    if (signal?.aborted) timeout.abort();
+    else signal?.addEventListener('abort', cancel);
     let res: Response;
+    let text: string;
     try {
       res = await fetchImpl(url(path), {
         method,
         headers: { ...headers(), Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
         body: body !== undefined ? JSON.stringify(body) : undefined,
-        signal,
+        signal: timeout.signal,
       });
+      text = await res.text();
     } catch (err) {
       // Cancelled on purpose: not a connection problem.
       if (signal?.aborted) throw err;
-      throw new ApiError('unreachable', 0);
+      config.onReachable?.(false);
+      throw new ApiError(timeout.signal.aborted ? 'timeout' : 'unreachable', NO_ANSWER);
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', cancel);
     }
-    const text = await res.text();
+    config.onReachable?.(true);
     let data: unknown = null;
     try {
       data = text ? JSON.parse(text) : null;

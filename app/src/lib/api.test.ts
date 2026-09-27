@@ -54,6 +54,23 @@ describe('API client', () => {
     expect((err as Error).name).toBe('AbortError');
     expect((err as { status?: number }).status).toBeUndefined();
   });
+  it('gives up on a request without an answer and says it timed out', async () => {
+    const fetchImpl = ((_url: string, init: RequestInit) =>
+      new Promise((_resolve, reject) => init.signal?.addEventListener('abort', () => reject(new Error('aborted'))))) as unknown as typeof fetch;
+    const reachable: boolean[] = [];
+    const api = createApi({ baseUrl: 'http://v', token: null, userAgent: 'x', fetchImpl, timeoutMs: 20, onReachable: (r) => reachable.push(r) });
+    const err = await api.get('/api/home').catch((e: unknown) => e);
+    expect(err).toMatchObject({ status: 0, message: 'timeout' });
+    expect(reachable).toEqual([false]);
+  });
+
+  it('reports that the server answered, also with an error status', async () => {
+    const reachable: boolean[] = [];
+    const { fetchImpl } = server(() => ({ status: 404, body: { error: 'Not found.' } }));
+    const api = createApi({ baseUrl: 'http://v', token: null, userAgent: 'x', fetchImpl, onReachable: (r) => reachable.push(r) });
+    await api.get('/api/movies/9').catch(() => undefined);
+    expect(reachable).toEqual([true]);
+  });
 });
 
 describe('signing in', () => {
