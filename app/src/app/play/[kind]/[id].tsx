@@ -11,8 +11,9 @@ import { deviceDecoders } from '../../../../modules/velyx-codecs';
 import { SeekBar } from '../../../components/SeekBar';
 import { Button, styles } from '../../../components/ui';
 import { episodeCode, formatClock } from '../../../lib/format';
-import { fallbackCaps, playbackCaps, playerAudioPosition, resumePoint, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
-import { rememberSubtitle, rememberedSubtitle } from '../../../lib/remember';
+import { endedEarly, fallbackCaps, playbackCaps, playerAudioPosition, resumePoint, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { rememberSubtitle, rememberedSubtitle, storeSubtitleStyle, storedSubtitleStyle } from '../../../lib/remember';
+import { DEFAULT_SUBTITLE_STYLE, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
 import { useSession } from '../../../lib/session';
 import { skipAt, upNextStart, type EpisodeSegments, type SkipMode } from '../../../lib/skip';
@@ -127,6 +128,23 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   const [audioIndex, setAudioIndex] = useState<number | null>(null);
   const [subtitle, setSubtitle] = useState<SubtitleOption | null>(null);
   const [cues, setCues] = useState<Cue[]>([]);
+  /** How subtitles look (kept on this device) and their timing for this playback (+ is later). */
+  const [subStyle, setSubStyle] = useState<SubtitleStyle>(DEFAULT_SUBTITLE_STYLE);
+  const [subDelay, setSubDelay] = useState(0);
+  const [screenHeight, setScreenHeight] = useState(360);
+  useEffect(() => {
+    let alive = true;
+    void storedSubtitleStyle().then((st) => alive && setSubStyle(st));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const changeStyle = (patch: Partial<SubtitleStyle>) =>
+    setSubStyle((current) => {
+      const next = { ...current, ...patch };
+      void storeSubtitleStyle(next);
+      return next;
+    });
   const [ended, setEnded] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [nextDismissed, setNextDismissed] = useState(false);
@@ -246,7 +264,21 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       setProblem(t('player.failed', { reason: error?.message ?? t('common.error') }));
     }
   });
+  // A stream that stops well before the end broke off (connection lost, server stalled): continue
+  // from there — a few times at most at the same spot — instead of ending the episode.
+  const resumes = useRef<{ at: number; count: number }>({ at: -1, count: 0 });
   useEventListener(player, 'playToEnd', () => {
+    if (answer && endedEarly(position, duration)) {
+      const r = resumes.current;
+      resumes.current = Math.abs(position - r.at) < 10 ? { at: position, count: r.count + 1 } : { at: position, count: 1 };
+      if (resumes.current.count <= 3) {
+        void load(answer, position).catch((err: Error) => setProblem(err.message || t('common.error')));
+        return;
+      }
+      void save(position, true);
+      setProblem(t('player.interrupted'));
+      return;
+    }
     void save(duration, true);
     setEnded(true);
     setControls(true);
@@ -387,16 +419,19 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
 
   if (problem) return <Problem message={problem} />;
 
-  const text = cueTextAt(cues, position);
+  const text = cueTextAt(cues, position - subDelay);
   const shown = scrub ?? position;
   const audioTracks = answer?.file.audioTracks ?? [];
   const showNext = Boolean(item.next && countdown !== null && !nextDismissed);
   return (
-    <View style={{ flex: 1 }} onLayout={(e) => (screenWidth.current = e.nativeEvent.layout.width)}>
+    <View style={{ flex: 1 }} onLayout={(e) => {
+        screenWidth.current = e.nativeEvent.layout.width;
+        setScreenHeight(e.nativeEvent.layout.height);
+      }}>
       <VideoView player={player} style={{ flex: 1 }} nativeControls={false} contentFit="contain" allowsPictureInPicture={false} />
       {text ? (
-        <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: controls ? 96 : 28, alignItems: 'center' }}>
-          <Text style={{ color: '#fff', fontSize: 20, textAlign: 'center', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>{text}</Text>
+        <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleBottom(subStyle, screenHeight, controls), alignItems: 'center' }}>
+          <Text style={subtitleTextStyle(subStyle, screenHeight)}>{text}</Text>
         </View>
       ) : null}
       {seekFlash && (
@@ -489,6 +524,25 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
               {(answer?.subtitles ?? []).map((s) => (
                 <Choice key={s.key} label={[s.languageName || s.label, s.title && s.title !== s.languageName ? s.title : null, s.forced ? 'Forced' : null].filter(Boolean).join(' · ')} selected={subtitle?.key === s.key} onPress={() => chooseSubtitle(s)} />
               ))}
+              <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('subtitleStyle.title')}</Text>
+              <Segmented label={t('subtitleStyle.size')} value={subStyle.size} onChange={(v) => changeStyle({ size: v })} options={[['small', 'S'], ['medium', 'M'], ['large', 'L'], ['xlarge', 'XL']]} />
+              <Segmented label={t('subtitleStyle.color')} value={subStyle.color} onChange={(v) => changeStyle({ color: v })} options={[['white', t('subtitleStyle.white')], ['yellow', t('subtitleStyle.yellow')]]} />
+              <Segmented label={t('subtitleStyle.background')} value={subStyle.background} onChange={(v) => changeStyle({ background: v })} options={[['none', t('subtitleStyle.none')], ['translucent', t('subtitleStyle.dimmed')], ['solid', t('subtitleStyle.solid')]]} />
+              <Segmented label={t('subtitleStyle.edge')} value={subStyle.edge} onChange={(v) => changeStyle({ edge: v })} options={[['shadow', t('subtitleStyle.shadow')], ['outline', t('subtitleStyle.outline')], ['none', t('subtitleStyle.none')]]} />
+              <Stepper
+                label={t('subtitleStyle.position')}
+                value={subStyle.position === 0 ? t('subtitleStyle.bottom') : `+${subStyle.position}%`}
+                onMinus={() => changeStyle({ position: clampPosition(subStyle.position - 5) })}
+                onPlus={() => changeStyle({ position: clampPosition(subStyle.position + 5) })}
+              />
+              <Stepper
+                label={t('subtitleStyle.sync')}
+                hint={t('subtitleStyle.syncHint')}
+                value={subDelay === 0 ? t('subtitleStyle.inSync') : `${subDelay > 0 ? '+' : ''}${subDelay.toFixed(1)} s`}
+                onMinus={() => setSubDelay((d) => stepDelay(d, -1))}
+                onPlus={() => setSubDelay((d) => stepDelay(d, 1))}
+                onReset={subDelay !== 0 ? () => setSubDelay(0) : undefined}
+              />
             </ScrollView>
           </Pressable>
         </Pressable>
@@ -516,5 +570,43 @@ function Choice({ label, selected, onPress }: { label: string; selected: boolean
       <Feather name="check" size={16} color={selected ? colors.accent : 'transparent'} />
       <Text style={{ color: colors.ink, flex: 1 }} numberOfLines={2}>{label}</Text>
     </Pressable>
+  );
+}
+
+function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (value: T) => void }) {
+  return (
+    <View style={{ gap: 6, paddingVertical: 4 }}>
+      <Text style={{ color: colors.muted, fontSize: 13 }}>{label}</Text>
+      <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{ flexDirection: 'row', backgroundColor: colors.raised, borderRadius: radius.sm, padding: 2 }}>
+        {options.map(([v, text]) => (
+          <Pressable
+            key={v}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: v === value }}
+            onPress={() => onChange(v)}
+            style={{ flex: 1, paddingVertical: 8, borderRadius: radius.sm, alignItems: 'center', backgroundColor: v === value ? colors.accent : 'transparent' }}
+          >
+            <Text style={{ color: v === value ? colors.accentInk : colors.ink, fontSize: 13 }} numberOfLines={1}>{text}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function Stepper({ label, value, hint, onMinus, onPlus, onReset }: { label: string; value: string; hint?: string; onMinus: () => void; onPlus: () => void; onReset?: () => void }) {
+  return (
+    <View style={{ gap: 6, paddingVertical: 4 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        <Text style={{ color: colors.muted, fontSize: 13 }}>{label}</Text>
+        {hint ? <Text style={{ color: colors.muted, fontSize: 12 }}>{hint}</Text> : null}
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <IconButton name="minus" label={`${label} −`} onPress={onMinus} size={20} />
+        <Text style={{ color: colors.ink, flex: 1, textAlign: 'center' }} accessibilityLiveRegion="polite">{value}</Text>
+        <IconButton name="plus" label={`${label} +`} onPress={onPlus} size={20} />
+        {onReset ? <IconButton name="rotate-ccw" label={`${label}: 0`} onPress={onReset} size={18} /> : null}
+      </View>
+    </View>
   );
 }

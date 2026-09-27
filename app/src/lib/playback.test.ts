@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApi } from './api';
-import { playbackCaps, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, type PlaybackAnswer, type SubtitleOption } from './playback';
+import { endedEarly, playbackCaps, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, type PlaybackAnswer, type SubtitleOption } from './playback';
 import { cueTextAt, parseVtt } from './vtt';
 
 const api = (respond: (url: string) => unknown = () => ({})) =>
@@ -104,3 +104,17 @@ describe('a second try', () => {
     expect(fallbackCaps(caps)).toEqual({ ...caps, containers: ['mp4'], audioCodecs: ['aac'], audioTrackSwitching: false });
   });
 });
+
+describe('endedEarly', () => {
+  it('treats a stop long before the end as a broken-off stream', () => {
+    expect(endedEarly(2768, 3362)).toBe(true);
+  });
+  it('treats the last seconds as the real end', () => {
+    expect(endedEarly(3361, 3362)).toBe(false);
+    expect(endedEarly(3340, 3362)).toBe(false);
+  });
+  it('never with an unknown duration', () => {
+    expect(endedEarly(100, 0)).toBe(false);
+  });
+});
+
