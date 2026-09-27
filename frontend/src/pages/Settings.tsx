@@ -13,6 +13,7 @@ import { Avatar } from '../components/Avatar';
 import { Button } from '../components/Button';
 import { toast } from '../components/Toast';
 import { SessionList } from '../components/SessionList';
+import { VidaluneAccount } from '../components/VidaluneAccount';
 import { HistoryRow } from '../components/ActiveStreams';
 import { ServerSettingsPanel } from './admin/ServerSettings';
 import { LibrariesPanel } from './admin/Libraries';
@@ -213,6 +214,7 @@ function AccountSettings() {
           {t('sessions.connectApp')}
         </Link>
       </Section>
+      <VidaluneAccount />
     </div>
   );
 }

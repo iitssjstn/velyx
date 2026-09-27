@@ -125,6 +125,8 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     /** Raised when the API changes in a way the Vidalune app has to know about. */
     apiVersion: API_VERSION,
     setupRequired: setupRequired(ctx),
+    /** Linked to a Vidalune account: where its users find all their servers. */
+    vidalune: ctx.cloud.appUrl() ? { appUrl: ctx.cloud.appUrl() } : null,
   }));
 
   app.post('/api/setup', async (request, reply) => {
@@ -208,6 +210,46 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     ctx.notifications.notify('newDevice', { user: user.username, device: `Vidalune app, ${deviceName}` });
     return { token, expiresAt };
   };
+
+  // ---- a Vidalune account: a one-time ticket from vidalune.com, checked with the account service
+  const ticketBody = z.object({ ticket: z.string().min(20).max(200) });
+  /** Who the ticket is for here: the user who connected that Vidalune account (enabled), or nobody. */
+  const ticketUser = async (ticket: string, request: FastifyRequest) => {
+    const who = await ctx.cloud.redeem(ticket);
+    const user = who.userRef && /^\d+$/.test(who.userRef) ? ctx.db.select().from(users).where(eq(users.id, Number(who.userRef))).get() : undefined;
+    if (!user || user.disabled) {
+      ctx.audit.record('login.failed', { actorName: who.email ?? 'Vidalune account', ip: request.ip, detail: user ? 'account disabled (Vidalune account)' : 'Vidalune account not connected to a user' });
+      return null;
+    }
+    ctx.db.update(users).set({ lastLoginAt: Date.now() }).where(eq(users.id, user.id)).run();
+    return user;
+  };
+
+  /** Opened from app.vidalune.com: signed in with the ticket, then on to the home page. */
+  app.get('/sso', async (request, reply) => {
+    const parsed = ticketBody.safeParse(request.query);
+    if (!parsed.success) return reply.redirect('/login?vidalune=failed');
+    try {
+      const user = await ticketUser(parsed.data.ticket, request);
+      if (!user) return reply.redirect('/login?vidalune=unknown');
+      const { token } = ctx.sessions.create(user.id, request.headers['user-agent'], request.ip);
+      setSessionCookie(ctx, request, reply, token);
+      ctx.audit.record('login.success', { actor: user, ip: request.ip, detail: `Vidalune account, ${describeUserAgent(request.headers['user-agent'])}` });
+      ctx.notifications.notify('newDevice', { user: user.displayName || user.username, device: describeUserAgent(request.headers['user-agent']) });
+      return reply.header('Cache-Control', 'no-store').redirect('/');
+    } catch (err) {
+      log.warn(`Sign-in with a Vidalune account failed: ${(err as Error).message}`);
+      return reply.redirect('/login?vidalune=failed');
+    }
+  });
+
+  /** The app signs in with a ticket it got from the account service for this server. */
+  app.post('/api/auth/app/ticket', async (request) => {
+    const body = ticketBody.extend({ deviceName: deviceNameSchema }).parse(request.body);
+    const user = await ticketUser(body.ticket, request);
+    if (!user) throw new HttpError(403, 'Your Vidalune account is not connected to a user on this server. Sign in with your username and password.');
+    return { ...appSignIn(user, body.deviceName, request, 'Vidalune account'), user: publicUser(user) };
+  });
 
   app.post('/api/auth/app/login', async (request, reply) => {
     const body = loginBody.extend({ deviceName: deviceNameSchema }).parse(request.body);

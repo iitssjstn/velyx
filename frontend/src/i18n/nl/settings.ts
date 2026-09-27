@@ -6,6 +6,17 @@ export const settings: Messages['settings'] = {
     description: 'De taal van Vidalune op elk apparaat waarop je inlogt. De talen voor audio en ondertiteling stel je hieronder apart in.',
     interface: 'Taal van de interface',
   },
+  vidalune: {
+    title: 'Vidalune-account',
+    intro: 'Koppel je eigen Vidalune-account aan je gebruiker hier. Dan log je vanaf app.vidalune.com en in de Vidalune-app in zonder wachtwoord, en staat deze server daar in je lijst.',
+    how: 'Kies Koppelen: vidalune.com opent met een ingevulde code. Log daar in (of maak een account) en bevestig.',
+    connect: 'Mijn Vidalune-account koppelen',
+    waiting: 'Wachten tot de code {code} op vidalune.com is bevestigd…',
+    connected: 'Gekoppeld aan {email}.',
+    open: 'Mijn servers op app.vidalune.com',
+    unlink: 'Ontkoppelen',
+    unlinked: 'Je Vidalune-account is niet meer gekoppeld.',
+  },
   account: {
     profileSaved: 'Profiel opgeslagen.',
     passwordsDoNotMatch: 'De nieuwe wachtwoorden komen niet overeen.',

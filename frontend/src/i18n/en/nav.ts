@@ -9,6 +9,8 @@ export const nav = {
   settings: 'Settings',
   admin: 'Admin',
   searchVidalune: 'Search Vidalune',
+  servers: 'Servers',
+  otherServers: 'Other servers…',
   searchPlaceholder: 'Search…',
   openMenu: 'Open menu',
   closeMenu: 'Close menu',

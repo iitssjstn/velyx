@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CloudError, createCloud, serverAddresses, sortServers, type CloudServer } from './cloud';
+import { CloudError, createCloud, serverAddresses, signInWithTicket, sortServers, type CloudServer } from './cloud';
 
 const answer = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
 
@@ -28,6 +28,20 @@ describe('Vidalune account service', () => {
     expect(await problem(answer(429, {}))).toBe('tooMany');
     expect(await problem(answer(401, {}), 'servers')).toBe('signedOut');
     expect(await problem(async () => { throw new Error('offline'); })).toBe('unreachable');
+  });
+
+  it('signs in on a server with a ticket, or leaves it to a password', async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const ok = (async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({ token: 't'.repeat(43), user: { id: 7, username: 'lisa' } }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const r = await signInWithTicket('https://k7f3q9ma.vidalune.com', 'ticket-ticket-ticket-ticket', 'Pixel 8', 'VidaluneApp/0.10.5 (Android 15; Pixel 8)', ok);
+    expect(r?.user).toMatchObject({ username: 'lisa' });
+    expect(calls[0]!.url).toBe('https://k7f3q9ma.vidalune.com/api/auth/app/ticket');
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ ticket: 'ticket-ticket-ticket-ticket', deviceName: 'Pixel 8' });
+    const refused = (async () => new Response('{}', { status: 403 })) as unknown as typeof fetch;
+    expect(await signInWithTicket('https://x', 'ticket-ticket-ticket-ticket', 'Pixel 8', 'ua', refused)).toBeNull();
   });
 
   it('tries the server\'s own address before the relay', () => {

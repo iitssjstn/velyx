@@ -22,7 +22,7 @@ const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1
 
 /** Texts that are the same in Dutch on purpose: technical terms, product names and formats. */
 const SAME_IN_DUTCH = new Set([
-  'time.seconds', 'time.minutes', 'media.mono', 'media.stereo', 'series.special', 'series.specials', 'series.status.pilot', 'nav.menu',
+  'nav.servers', 'time.seconds', 'time.minutes', 'media.mono', 'media.stereo', 'series.special', 'series.specials', 'series.status.pilot', 'nav.menu',
   'settings.audio.surround', 'settings.device.containers', 'settings.server.title', 'settings.tabs.account', 'settings.tabs.server',
   'continueWatching.details', 'library.cast', 'player.volume', 'collections.itemCount.one', 'collections.itemCount.other', 'device.browser',
   'device.script', 'playback.directPlay', 'playback.remux', 'playback.remuxAudio', 'playback.video', 'playback.audio', 'playback.container',

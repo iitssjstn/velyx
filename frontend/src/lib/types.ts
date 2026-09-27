@@ -17,6 +17,8 @@ export interface ServerInfo {
   tagline: string;
   version: string;
   setupRequired: boolean;
+  /** Linked to a Vidalune account: where its users find all their servers. */
+  vidalune?: { appUrl: string } | null;
 }
 
 export interface Progress {

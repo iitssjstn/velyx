@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 /** A Vidalune account: one person, any number of servers. */
 export const accounts = sqliteTable('accounts', {
@@ -50,5 +50,48 @@ export const linkCodes = sqliteTable('link_codes', {
     .notNull()
     .unique()
     .references(() => servers.id, { onDelete: 'cascade' }),
+  /** The server user (administrator) who asked for the code: they become a member when it is used. */
+  userRef: text('user_ref'),
+  expiresAt: integer('expires_at').notNull(),
+});
+
+/**
+ * Which Vidalune account belongs to which user on a server (the server's own user id). Made when
+ * that user enters a code their server showed them; the server's owner is added when linking.
+ */
+export const memberships = sqliteTable(
+  'memberships',
+  {
+    serverId: text('server_id')
+      .notNull()
+      .references(() => servers.id, { onDelete: 'cascade' }),
+    userRef: text('user_ref').notNull(),
+    accountId: integer('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.serverId, t.userRef] }), index('memberships_account').on(t.accountId)],
+);
+
+/** Codes a server user enters to connect their Vidalune account (hashed, ten minutes). */
+export const memberCodes = sqliteTable('member_codes', {
+  codeHash: text('code_hash').primaryKey(),
+  serverId: text('server_id')
+    .notNull()
+    .references(() => servers.id, { onDelete: 'cascade' }),
+  userRef: text('user_ref').notNull(),
+  expiresAt: integer('expires_at').notNull(),
+});
+
+/** One-time tickets: "this account opens this server" (hashed, one minute, used once). */
+export const tickets = sqliteTable('tickets', {
+  ticketHash: text('ticket_hash').primaryKey(),
+  serverId: text('server_id')
+    .notNull()
+    .references(() => servers.id, { onDelete: 'cascade' }),
+  accountId: integer('account_id')
+    .notNull()
+    .references(() => accounts.id, { onDelete: 'cascade' }),
   expiresAt: integer('expires_at').notNull(),
 });

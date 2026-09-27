@@ -5,9 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import { Button, Field, styles } from '../components/ui';
 import { Logo } from '../components/Logo';
-import { CloudError, createCloud, serverAddresses, sortServers, type CloudAccount, type CloudServer } from '../lib/cloud';
+import { CloudError, createCloud, serverAddresses, signInWithTicket, sortServers, type CloudAccount, type CloudServer } from '../lib/cloud';
 import { findServer, SERVER_PROBLEMS, ServerError } from '../lib/server';
-import { useSession } from '../lib/session';
+import { USER_AGENT, useSession } from '../lib/session';
 import { colors } from '../lib/theme';
 import type { MessageKey } from '../lib/i18n';
 
@@ -18,7 +18,7 @@ const cloud = createCloud();
 const problemKey = (err: unknown): MessageKey => (err instanceof CloudError ? (`cloud.${err.problem}` as MessageKey) : 'cloud.failed');
 
 export default function CloudAccountScreen() {
-  const { t, setServer } = useSession();
+  const { t, setServer, signIn, deviceName } = useSession();
   const [account, setAccount] = useState<CloudAccount | null | undefined>(undefined);
   const [servers, setServers] = useState<CloudServer[] | null>(null);
   const [mode, setMode] = useState<'in' | 'up'>('in');
@@ -69,19 +69,30 @@ export default function CloudAccountScreen() {
     }
   };
 
-  /** Its own address first (fastest at home), then the relay. */
+  /** Its own address first (fastest at home), then the relay; signed in with a ticket when it can. */
   const open = async (s: CloudServer) => {
-    const addresses = serverAddresses(s);
-    if (!addresses.length) return;
+    if (!account || !serverAddresses(s).length) return;
     setBusy(s.id);
     setError(null);
     let last: unknown = null;
-    for (const address of addresses) {
+    let opened: { ticket: string; addresses: string[] } | null = null;
+    try {
+      opened = await cloud.open(account.token, s.id);
+    } catch {
+      // No ticket (older account service): the addresses from the list, and a password.
+    }
+    for (const address of opened?.addresses ?? serverAddresses(s)) {
       try {
         const { url, info } = await findServer(address, fetch);
         await setServer(url, info);
+        const signedIn = opened ? await signInWithTicket(url, opened.ticket, deviceName, USER_AGENT).catch(() => null) : null;
         setBusy(null);
-        router.replace('/sign-in');
+        if (signedIn) {
+          await signIn(signedIn.token, signedIn.user);
+          router.replace('/home');
+        } else {
+          router.replace('/sign-in');
+        }
         return;
       } catch (err) {
         last = err;

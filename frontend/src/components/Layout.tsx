@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bookmark, Film, Heart, Layers, House, LogOut, Menu, Search, Settings, ShieldCheck, Tv, X } from 'lucide-react';
+import { ArrowLeftRight, Bookmark, Film, Heart, Layers, House, LogOut, Menu, Search, Server, Settings, ShieldCheck, Tv, X } from 'lucide-react';
 import { displayName, useAuth } from '../lib/auth';
 import { Logo } from './Logo';
 import { Avatar } from './Avatar';
@@ -44,7 +44,31 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
           )}
         </NavLink>
       ))}
+      <ServerSwitch />
     </nav>
+  );
+}
+
+/** This server, and the way to your other servers on app.vidalune.com (when it is linked). */
+function ServerSwitch() {
+  const { server } = useAuth();
+  const { t } = useT();
+  if (!server?.vidalune) return null;
+  return (
+    <div className="mt-5 border-t border-line/50 pt-4">
+      <p className="px-3 pb-1.5 text-xs font-medium tracking-wide text-faint uppercase">{t('nav.servers')}</p>
+      <p className="flex items-center gap-3 rounded-lg px-3 py-2 text-[0.95rem] text-ink">
+        <Server className="size-[1.15rem] text-accent" strokeWidth={2.1} aria-hidden="true" />
+        <span className="truncate">{server.name}</span>
+      </p>
+      <a
+        href={`${server.vidalune.appUrl}/servers?choose`}
+        className="flex items-center gap-3 rounded-lg px-3 py-2 text-[0.95rem] text-muted transition-colors hover:bg-raised/60 hover:text-ink"
+      >
+        <ArrowLeftRight className="size-[1.15rem]" strokeWidth={1.9} aria-hidden="true" />
+        {t('nav.otherServers')}
+      </a>
+    </div>
   );
 }
 

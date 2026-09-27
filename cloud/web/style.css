@@ -25,3 +25,6 @@ ul.servers li:first-child { border-top: 0; }
 .dot.on { background: #6fd48f; }
 .small { font-size: 13px; color: var(--muted); }
 a { color: var(--accent); }
+.actions { display: flex; gap: 8px; }
+details { margin-bottom: 12px; }
+summary { cursor: pointer; color: var(--accent); margin-bottom: 8px; }

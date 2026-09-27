@@ -53,7 +53,7 @@ const SessionContext = createContext<SessionValue | null>(null);
 
 export const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
 const DEVICE_NAME = (Device.modelName ?? Device.deviceName ?? (Platform.OS === 'ios' ? 'iPhone' : 'Android')).slice(0, 64);
-const USER_AGENT = appUserAgent(APP_VERSION, Platform.OS === 'ios' ? 'iOS' : 'Android', Device.osVersion, DEVICE_NAME);
+export const USER_AGENT = appUserAgent(APP_VERSION, Platform.OS === 'ios' ? 'iOS' : 'Android', Device.osVersion, DEVICE_NAME);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);

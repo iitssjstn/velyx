@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Cloud } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { User } from '../lib/types';
@@ -13,6 +15,9 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { t, tRich } = useT();
+  // Back from app.vidalune.com without being signed in: say why.
+  const [params] = useSearchParams();
+  const vidalune = params.get('vidalune');
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -40,6 +45,11 @@ export function LoginPage() {
           <label className="label" htmlFor="password">{t('auth.password')}</label>
           <input id="password" type="password" className="input" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
+        {!error && (vidalune === 'unknown' || vidalune === 'failed') && (
+          <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+            {t(vidalune === 'unknown' ? 'auth.vidaluneUnknown' : 'auth.vidaluneFailed')}
+          </p>
+        )}
         {error && (
           <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
             {error}
@@ -49,6 +59,12 @@ export function LoginPage() {
           {t('auth.signIn')}
         </Button>
       </form>
+      {server?.vidalune && (
+        <a href={`${server.vidalune.appUrl}/servers?choose`} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-raised text-sm font-medium hover:bg-raised/80">
+          <Cloud className="size-4 text-accent" aria-hidden="true" />
+          {t('auth.withVidalune')}
+        </a>
+      )}
       <p className="mt-8 text-xs text-faint">{tRich('auth.forgotPassword', { command: <code className="text-muted">vidalune reset-password</code> })}</p>
     </AuthShell>
   );

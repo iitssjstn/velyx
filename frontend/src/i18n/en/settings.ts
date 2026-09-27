@@ -5,6 +5,17 @@ export const settings = {
     description: 'The language of Vidalune on every device you sign in on. Audio and subtitle languages are set separately below.',
     interface: 'Interface language',
   },
+  vidalune: {
+    title: 'Vidalune account',
+    intro: 'Connect your own Vidalune account to your user here. Then you sign in from app.vidalune.com and the Vidalune app without a password, and this server is in your list there.',
+    how: 'Choose Connect: vidalune.com opens with a code filled in. Sign in there (or create an account) and confirm.',
+    connect: 'Connect my Vidalune account',
+    waiting: 'Waiting for the code {code} to be confirmed on vidalune.com…',
+    connected: 'Connected to {email}.',
+    open: 'My servers on app.vidalune.com',
+    unlink: 'Disconnect',
+    unlinked: 'Your Vidalune account is no longer connected.',
+  },
   account: {
     profileSaved: 'Profile saved.',
     passwordsDoNotMatch: 'The new passwords do not match.',
