@@ -30,7 +30,8 @@ networks:
 
 In Nginx Proxy Manager add a proxy host for `vidalune.com` → `vidalune-cloud`, port `3100`, with
 *Websockets support* on and an SSL certificate (Force SSL). The other domains (vidalune.nl, .online,
-.store, .site) can redirect to `https://vidalune.com` with a redirection host.
+.store, .site) and `www.vidalune.com` can redirect to `https://vidalune.com` with a redirection host,
+and `app.vidalune.com` to `https://vidalune.com/servers` (the list of your servers).
 
 | Variable | Default | Meaning |
 | --- | --- | --- |

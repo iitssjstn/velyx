@@ -4,18 +4,8 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Field, styles } from '../components/ui';
 import { Logo } from '../components/Logo';
-import { findServer, ServerError, type ServerProblem } from '../lib/server';
+import { findServer, SERVER_PROBLEMS, ServerError } from '../lib/server';
 import { useSession } from '../lib/session';
-import type { MessageKey } from '../lib/i18n';
-
-const PROBLEMS: Record<ServerProblem, MessageKey> = {
-  invalid: 'connect.invalid',
-  unreachable: 'connect.unreachable',
-  'not-vidalune': 'connect.notVidalune',
-  'too-old': 'connect.tooOld',
-  'too-new': 'connect.tooNew',
-  setup: 'connect.setup',
-};
 
 export default function Connect() {
   const { t, setServer, serverUrl } = useSession();
@@ -31,7 +21,7 @@ export default function Connect() {
       await setServer(url, info);
       router.replace('/sign-in');
     } catch (err) {
-      setError(t(err instanceof ServerError ? PROBLEMS[err.problem] : 'common.error'));
+      setError(t(err instanceof ServerError ? SERVER_PROBLEMS[err.problem] : 'common.error'));
     } finally {
       setBusy(false);
     }
@@ -59,6 +49,10 @@ export default function Connect() {
           />
           {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
           <Button label={t('connect.button')} onPress={() => void connect()} busy={busy} disabled={!address.trim()} />
+          <View style={{ gap: 8, marginTop: 8 }}>
+            <Text style={styles.muted}>{t('connect.orAccount')}</Text>
+            <Button label={t('connect.withAccount')} variant="ghost" onPress={() => router.push('/cloud')} />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

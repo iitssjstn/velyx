@@ -67,6 +67,24 @@ describe('accounts', () => {
     expect((await app.inject({ url: '/api/account', headers: { cookie } })).statusCode).toBe(401);
   });
 
+  it('gives the app a token instead of a cookie, which works until signing out', async () => {
+    await signUp();
+    const res = await app.inject({ method: 'POST', url: '/api/login', payload: { email: 'justin@example.com', password: 'correct-horse', client: 'app' } });
+    expect(res.cookies).toEqual([]);
+    const { token } = res.json();
+    expect(token).toMatch(/^[\w-]{40,}$/);
+    const authorization = `Bearer ${token}`;
+    expect((await app.inject({ url: '/api/servers', headers: { authorization } })).json()).toEqual([]);
+    // Still signed in after five months; a browser session would have ended.
+    clock += 150 * 86_400_000;
+    expect((await app.inject({ url: '/api/account', headers: { authorization } })).statusCode).toBe(200);
+    await app.inject({ method: 'POST', url: '/api/logout', headers: { authorization } });
+    expect((await app.inject({ url: '/api/account', headers: { authorization } })).statusCode).toBe(401);
+    // Creating an account from the app signs in the same way.
+    const made = await app.inject({ method: 'POST', url: '/api/account', payload: { email: 'app@example.com', password: 'correct-horse', client: 'app' } });
+    expect(made.json()).toMatchObject({ email: 'app@example.com', token: expect.any(String) });
+  });
+
   it('validates input and refuses requests from other sites', async () => {
     expect((await app.inject({ method: 'POST', url: '/api/account', payload: { email: 'not-an-address', password: 'correct-horse' } })).json().error).toMatch(/valid email/);
     expect((await app.inject({ method: 'POST', url: '/api/account', payload: { email: 'a@example.com', password: 'short' } })).statusCode).toBe(400);

@@ -15,6 +15,8 @@ import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sh
 const DAY = 86_400_000;
 export const SESSION_COOKIE = 'vl_session';
 const SESSION_DAYS = 30;
+/** The Vidalune app stays signed in longer than a browser. */
+const APP_SESSION_DAYS = 180;
 const CODE_MINUTES = 10;
 /** A server that has not reported for this long is shown as offline. */
 export const ONLINE_WINDOW = 2 * 60 * 60 * 1000;
@@ -48,6 +50,8 @@ const email = z.string().trim().toLowerCase().max(254).email('Enter a valid emai
 const password = z.string().min(8, 'Passwords are at least 8 characters.').max(256);
 const serverName = z.string().trim().min(1).max(60);
 const version = z.string().trim().min(1).max(32);
+/** Who signs in: a browser (cookie) or the Vidalune app (token). */
+const client = z.enum(['web', 'app']).default('web');
 /** The address a server can be opened at, if its administrator set one. */
 const serverUrl = z
   .string()
@@ -76,7 +80,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   // Browsers only: state-changing requests must come from our own pages (no form posts from elsewhere).
   app.addHook('onRequest', async (request) => {
     if (request.method === 'GET' || request.method === 'HEAD') return;
-    if (request.headers.authorization) return; // servers, with their secret
+    // Servers and the app send a secret header: other sites cannot (no CORS), so nothing to check.
+    if (request.headers.authorization) return;
     const origin = request.headers.origin;
     if (origin && origin !== config.publicUrl) throw new HttpError(403, 'Requests from other sites are not accepted.');
   });
@@ -96,15 +101,25 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   // ---- accounts
 
-  function startSession(reply: FastifyReply, accountId: number) {
+  /** Browsers get a cookie; the Vidalune app (client "app") gets the token in the answer. */
+  function startSession(reply: FastifyReply, accountId: number, client: 'web' | 'app' = 'web'): string | undefined {
     const token = newToken();
     const t = now();
-    db.insert(accountSessions).values({ tokenHash: sha256(token), accountId, createdAt: t, expiresAt: t + SESSION_DAYS * DAY }).run();
-    reply.setCookie(SESSION_COOKIE, token, { path: '/', httpOnly: true, sameSite: 'lax', secure: secureCookie, maxAge: SESSION_DAYS * 86_400 });
+    const days = client === 'app' ? APP_SESSION_DAYS : SESSION_DAYS;
+    db.insert(accountSessions).values({ tokenHash: sha256(token), accountId, createdAt: t, expiresAt: t + days * DAY }).run();
+    if (client === 'app') return token;
+    reply.setCookie(SESSION_COOKIE, token, { path: '/', httpOnly: true, sameSite: 'lax', secure: secureCookie, maxAge: days * 86_400 });
+    return undefined;
   }
 
+  /** The session token: the cookie of a browser, or "Authorization: Bearer …" from the app. */
+  const sessionToken = (request: FastifyRequest) => {
+    const bearer = /^Bearer ([\w-]{20,200})$/.exec(request.headers.authorization ?? '')?.[1];
+    return bearer ?? request.cookies[SESSION_COOKIE];
+  };
+
   function account(request: FastifyRequest) {
-    const token = request.cookies[SESSION_COOKIE];
+    const token = sessionToken(request);
     if (!token) throw new HttpError(401, 'Sign in first.');
     const session = db.select().from(accountSessions).where(and(eq(accountSessions.tokenHash, sha256(token)), gt(accountSessions.expiresAt, now()))).get();
     if (!session) throw new HttpError(401, 'Sign in first.');
@@ -113,26 +128,26 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   app.post('/api/account', async (request, reply) => {
     limiter.check(`signup:${request.ip}`, now());
-    const body = z.object({ email, password }).parse(request.body);
+    const body = z.object({ email, password, client }).parse(request.body);
     if (db.select().from(accounts).where(eq(accounts.email, body.email)).get()) throw new HttpError(409, 'There is already an account with this email address. Sign in instead.');
     const row = db.insert(accounts).values({ email: body.email, passwordHash: await hashPassword(body.password), createdAt: now() }).returning().get();
-    startSession(reply, row.id);
-    return { email: row.email };
+    const token = startSession(reply, row.id, body.client);
+    return { email: row.email, ...(token ? { token } : {}) };
   });
 
   app.post('/api/login', async (request, reply) => {
-    const body = z.object({ email, password: z.string().max(256) }).parse(request.body);
+    const body = z.object({ email, password: z.string().max(256), client }).parse(request.body);
     limiter.check(`login:${request.ip}`, now());
     limiter.check(`login:${body.email}`, now());
     const row = db.select().from(accounts).where(eq(accounts.email, body.email)).get();
     const ok = row ? await verifyPassword(row.passwordHash, body.password) : await dummyVerify(body.password);
     if (!row || !ok) throw new HttpError(401, 'Wrong email address or password.');
-    startSession(reply, row.id);
-    return { email: row.email };
+    const token = startSession(reply, row.id, body.client);
+    return { email: row.email, ...(token ? { token } : {}) };
   });
 
   app.post('/api/logout', async (request, reply) => {
-    const token = request.cookies[SESSION_COOKIE];
+    const token = sessionToken(request);
     if (token) db.delete(accountSessions).where(eq(accountSessions.tokenHash, sha256(token))).run();
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     return { ok: true };

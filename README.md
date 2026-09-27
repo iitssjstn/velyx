@@ -349,6 +349,7 @@ Besides installing the website as an app, Vidalune has its own Android app (for 
 **Connecting:**
 
 1. Enter the address you use in the browser (for example `vidalune.example.com` or `192.168.1.10:3000`). Without `https://` or `http://`, the app tries HTTPS first and then plain HTTP. It needs Vidalune 0.7.3 or newer.
+   Or choose **Sign in with a Vidalune account**: the app lists the servers linked to that account (see [Vidalune account](#vidalune-account-optional)); pick one that has an address to connect to it. You then sign in to the server itself as usual.
 2. Sign in with your username and password, or choose **Code**: the app shows a code such as `K7M-2QX`. Enter it on the website under **Settings → Account → Connect the Vidalune app** (or at `/link`) while signed in as yourself, and the app signs in by itself.
 3. The app appears as your device (for example *Pixel 8 · Vidalune app*) under **Settings → Account → Devices**, where you can sign it out. **Account → Sign out** in the app does the same.
 
@@ -504,7 +505,7 @@ A rule either **only suggests** files (they appear in the list with the rule's n
 1. Choose **Link to a Vidalune account**. The server shows a code (valid for ten minutes) and a button to the account page.
 2. On vidalune.com, sign in or create an account and enter the code. The admin page shows the account once it is linked.
 
-While linked, the server sends the account service its name, version and address (Admin → Server) every half hour — never media, users or what anyone watches. **Unlink** removes the server from the account service, after which nothing is sent. On vidalune.com you see your servers (online or not, version, address) and can unlink them or delete your account.
+While linked, the server sends the account service its name, version and address (Admin → Server) every half hour — never media, users or what anyone watches. **Unlink** removes the server from the account service, after which nothing is sent. On vidalune.com you see your servers (online or not, version, address) and can unlink them or delete your account. The Android app can sign in with the same account to list your servers.
 
 ## Running behind a reverse proxy
 

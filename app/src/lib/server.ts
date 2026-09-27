@@ -1,3 +1,4 @@
+import type { MessageKey } from './i18n';
 /** The newest server API this app understands (see `apiVersion` in /api/server/info). */
 export const SUPPORTED_API_VERSION = 1;
 
@@ -10,6 +11,16 @@ export interface ServerInfo {
 }
 
 export type ServerProblem = 'invalid' | 'unreachable' | 'not-vidalune' | 'too-old' | 'too-new' | 'setup';
+
+/** The text that explains each problem. */
+export const SERVER_PROBLEMS: Record<ServerProblem, MessageKey> = {
+  invalid: 'connect.invalid',
+  unreachable: 'connect.unreachable',
+  'not-vidalune': 'connect.notVidalune',
+  'too-old': 'connect.tooOld',
+  'too-new': 'connect.tooNew',
+  setup: 'connect.setup',
+};
 
 export class ServerError extends Error {
   constructor(readonly problem: ServerProblem) {
