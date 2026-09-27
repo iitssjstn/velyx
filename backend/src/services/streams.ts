@@ -60,7 +60,7 @@ export class StreamTracker {
   constructor(private readonly db: DB) {}
 
   /**
-   * Called once by the server at start-up: viewings that were running when Velyx stopped ended at
+   * Called once by the server at start-up: viewings that were running when Vidalune stopped ended at
    * their last sign of life. (Not in the constructor: the CLI builds a context too, while the
    * server may be running.)
    */

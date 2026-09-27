@@ -1,4 +1,4 @@
-/** Velyx's colours (the same as the website's dark theme). */
+/** Vidalune's colours (the same as the website's dark theme). */
 export const colors = {
   bg: '#14121c',
   surface: '#1e1b29',

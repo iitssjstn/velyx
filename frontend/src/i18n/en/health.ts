@@ -11,7 +11,7 @@ export const health = {
   closeList: 'Close list',
   nothingHere: 'Nothing here.',
   noLibrariesText: 'Add a library to see how your media will play.',
-  intro: 'What is in your libraries and what needs attention, from the information Velyx stored while scanning — nothing is rescanned to build this page. Velyx does not transcode video, so “Unsupported” files only play on devices that decode them themselves.',
+  intro: 'What is in your libraries and what needs attention, from the information Vidalune stored while scanning — nothing is rescanned to build this page. Vidalune does not transcode video, so “Unsupported” files only play on devices that decode them themselves.',
   library: 'Library',
   allLibraries: 'All libraries',
   analysing: 'Analysing files… {done} of {total}',

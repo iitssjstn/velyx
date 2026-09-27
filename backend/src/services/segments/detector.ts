@@ -389,7 +389,7 @@ export class SegmentDetector {
 
   /**
    * Analyses one season without storing anything and reports, per episode, what was found with
-   * each neighbour and why results were rejected (for the `velyx intros` command).
+   * each neighbour and why results were rejected (for the `vidalune intros` command).
    */
   async diagnose(showId: number, seasonNumber: number): Promise<SeasonDiagnosis> {
     const files = this.episodeFiles({ showId, seasonNumber });

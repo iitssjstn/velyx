@@ -194,7 +194,7 @@ export function snapshotLabel(s: { width: number | null; height: number | null; 
  */
 export function deviceName(text: string | null | undefined): string {
   if (!text || text === 'Unknown device') return t('device.unknown');
-  const word = (w: string) => (w === 'Browser' ? t('device.browser') : w === 'Script' ? t('device.script') : w === 'Velyx app' ? t('sessions.app') : w);
+  const word = (w: string) => (w === 'Browser' ? t('device.browser') : w === 'Script' ? t('device.script') : w === 'Vidalune app' ? t('sessions.app') : w);
   const m = /^(.+) on (.+)$/.exec(text);
   return m ? t('device.on', { browser: word(m[1]), os: m[2] }) : word(text);
 }

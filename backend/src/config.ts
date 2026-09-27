@@ -91,6 +91,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     fs.mkdirSync(dir, { recursive: true });
   }
 
+  // VELYX_UPDATE_REPO: the name before the rename to Vidalune, still honoured.
+  const updateRepo = env.VIDALUNE_UPDATE_REPO ?? env.VELYX_UPDATE_REPO ?? 'iitssjstn/velyx';
   const cookieSecureRaw = (env.COOKIE_SECURE ?? 'auto').toLowerCase();
   // Default: the monorepo layout (backend/dist or backend/src → ../../frontend/dist).
   const frontendCandidate = env.FRONTEND_DIR
@@ -121,7 +123,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
     scanIntervalMinutes: int(env.SCAN_INTERVAL_MINUTES, 360),
     scanConcurrency: Math.min(4, Math.max(1, int(env.SCAN_CONCURRENCY, 1))),
-    updateRepo: /^[\w.-]+\/[\w.-]+$/.test(env.VELYX_UPDATE_REPO ?? 'iitssjstn/velyx') ? (env.VELYX_UPDATE_REPO ?? 'iitssjstn/velyx') : '',
+    updateRepo: /^[\w.-]+\/[\w.-]+$/.test(updateRepo) ? updateRepo : '',
     lowDiskGb: Math.max(0, num(env.LOW_DISK_GB, 10)),
     criticalDiskGb: Math.max(0, num(env.CRITICAL_DISK_GB, 2)),
     ffprobePath: env.FFPROBE_PATH || 'ffprobe',

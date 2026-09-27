@@ -34,7 +34,7 @@ const items = (page: number): HealthItem[] =>
     href: `/movies/${page * 100 + i}`,
     library: 'Films',
     file: { id: i, path: 'Old Divx (2001)/old.avi', size: 734003200, summary: 'MPEG-4 Part 2 (DivX/Xvid) · 480p · MP3 stereo · AVI' },
-    reasons: ['MPEG-4 Part 2 (DivX/Xvid) video cannot be decoded by web browsers.', 'Velyx does not transcode video.'],
+    reasons: ['MPEG-4 Part 2 (DivX/Xvid) video cannot be decoded by web browsers.', 'Vidalune does not transcode video.'],
   }));
 
 function setup(initial = '/admin/health') {
@@ -74,7 +74,7 @@ describe('HealthPage', () => {
     const calls = setup();
     await userEvent.click(await screen.findByRole('button', { name: /Unsupported/ }));
     expect(await screen.findByRole('link', { name: 'Old Divx' })).toHaveProperty('pathname', '/movies/100');
-    expect(screen.getAllByText('Velyx does not transcode video.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Vidalune does not transcode video.').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Old Divx \(2001\)\/old\.avi/).length).toBeGreaterThan(0);
     expect(screen.getByText('Page 1 of 2')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Next' }));

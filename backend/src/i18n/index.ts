@@ -10,7 +10,7 @@ export const LANGUAGES = ['en', 'nl'] as const;
 export type Language = (typeof LANGUAGES)[number];
 export const DEFAULT_LANGUAGE: Language = 'en';
 
-/** Only the languages Velyx has; anything else is rejected. */
+/** Only the languages Vidalune has; anything else is rejected. */
 export const languageSchema = z.enum(LANGUAGES, { message: 'Unsupported language.' });
 
 export function isLanguage(value: unknown): value is Language {
@@ -42,11 +42,12 @@ export function hasTranslation(message: string): boolean {
 
 /**
  * The language to answer a request in: the signed-in user's choice; before signing in, what the
- * browser asked for (the X-Velyx-Language header the web app sends, then Accept-Language).
+ * browser asked for (the X-Vidalune-Language header the web app sends, then Accept-Language).
  */
 export function requestLanguage(request: FastifyRequest): Language {
   if (request.user?.language) return request.user.language;
-  const header = request.headers['x-velyx-language'];
+  // X-Velyx-Language: sent by pages loaded before the rename to Vidalune.
+  const header = request.headers['x-vidalune-language'] ?? request.headers['x-velyx-language'];
   if (isLanguage(header)) return header;
   const accept = String(request.headers['accept-language'] ?? '');
   for (const part of accept.split(',')) {

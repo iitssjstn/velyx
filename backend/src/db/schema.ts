@@ -51,7 +51,7 @@ export const sessions = sqliteTable(
     userAgent: text('user_agent'),
     /** Client address when the session was created / last refreshed (as seen through trusted proxies). */
     ip: text('ip'),
-    /** 'web' (browser, cookie) or 'app' (the Velyx app, bearer token). */
+    /** 'web' (browser, cookie) or 'app' (the Vidalune app, bearer token). */
     client: text('client', { enum: ['web', 'app'] }).notNull().default('web'),
     /** The name an app gave its device ("Pixel 8"), shown in the session list. */
     deviceName: text('device_name'),
@@ -296,7 +296,7 @@ export const subtitles = sqliteTable(
 );
 
 /**
- * Subtitles downloaded from OpenSubtitles for one media file. The files live in Velyx's data folder
+ * Subtitles downloaded from OpenSubtitles for one media file. The files live in Vidalune's data folder
  * (never next to the media); anyone who can see the file can use them once one person fetched them.
  */
 export const onlineSubtitles = sqliteTable(

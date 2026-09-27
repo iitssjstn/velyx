@@ -44,7 +44,7 @@ describe('global search', () => {
   it('opens with Ctrl+K and "/", searches once per pause in typing, and shows each kind', async () => {
     const urls = setup();
     await userEvent.keyboard('{Control>}k{/Control}');
-    const input = screen.getByRole('combobox', { name: 'Search Velyx' });
+    const input = screen.getByRole('combobox', { name: 'Search Vidalune' });
     expect(document.activeElement).toBe(input);
     await userEvent.type(input, 'rea');
     expect(await screen.findByRole('option', { name: /^Real Steel/ })).toBeTruthy();
@@ -53,14 +53,14 @@ describe('global search', () => {
     expect(screen.getByRole('option', { name: 'Reacher 2022 · 2 seasons' })).toBeTruthy();
     expect(screen.getByRole('option', { name: /All results for “rea” \(3\)/ })).toBeTruthy();
     await userEvent.keyboard('{Escape}{Escape}');
-    expect(screen.queryByRole('dialog', { name: 'Search Velyx' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Search Vidalune' })).toBeNull();
     await userEvent.keyboard('/');
-    expect(screen.getByRole('dialog', { name: 'Search Velyx' })).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Search Vidalune' })).toBeTruthy();
   });
 
   it('moves through results with the arrow keys and opens one with Enter', async () => {
     setup();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Search Velyx' })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: 'Search Vidalune' })[0]);
     await userEvent.type(screen.getByRole('combobox'), 'rea');
     await screen.findByRole('option', { name: /^Real Steel/ });
     expect(screen.getByRole('option', { name: /Real Steel/ }).getAttribute('aria-selected')).toBe('true');
@@ -68,7 +68,7 @@ describe('global search', () => {
     expect(screen.getByRole('option', { name: /Reacher S02E04/ }).getAttribute('aria-selected')).toBe('true');
     await userEvent.keyboard('{Enter}');
     expect(screen.getByTestId('where').textContent).toBe('/play/episode/9');
-    expect(screen.queryByRole('dialog', { name: 'Search Velyx' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Search Vidalune' })).toBeNull();
   });
 
   it('goes to all results from the last row, and says when nothing is found', async () => {
@@ -88,7 +88,7 @@ describe('global search', () => {
     await act(async () => {
       await userEvent.keyboard('/');
     });
-    expect(screen.queryByRole('dialog', { name: 'Search Velyx' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Search Vidalune' })).toBeNull();
     field.remove();
   });
 });

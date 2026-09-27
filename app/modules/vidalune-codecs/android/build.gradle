@@ -3,11 +3,11 @@ plugins {
   id 'expo-module-gradle-plugin'
 }
 
-group = 'app.velyx'
+group = 'app.vidalune'
 version = '1.0.0'
 
 android {
-  namespace "app.velyx.codecs"
+  namespace "app.vidalune.codecs"
   defaultConfig {
     versionCode 1
     versionName '1.0.0'

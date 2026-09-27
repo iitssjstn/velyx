@@ -48,12 +48,12 @@ export class BackupScheduler {
     return listBackups(this.backupDir);
   }
 
-  /** A database snapshot named velyx-<kind>-<timestamp>.db. */
+  /** A database snapshot named vidalune-<kind>-<timestamp>.db. */
   create(kind: 'auto' | 'manual'): BackupFile {
     // Timestamps have one-second resolution; never overwrite a backup made in the same second.
     const stamp = timestamp();
-    let name = `velyx-${kind}-${stamp}.db`;
-    for (let n = 2; fs.existsSync(path.join(this.backupDir, name)); n++) name = `velyx-${kind}-${stamp}-${n}.db`;
+    let name = `vidalune-${kind}-${stamp}.db`;
+    for (let n = 2; fs.existsSync(path.join(this.backupDir, name)); n++) name = `vidalune-${kind}-${stamp}-${n}.db`;
     const file = createDatabaseSnapshot(this.db, this.backupDir, name);
     const st = fs.statSync(file);
     log.info(`${kind === 'auto' ? 'Scheduled' : 'Manual'} backup written to ${path.basename(file)}`);

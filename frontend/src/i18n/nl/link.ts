@@ -1,7 +1,7 @@
 import type { Messages } from '../index';
 export const link: Messages['link'] = {
-  title: 'Velyx-app koppelen',
-  intro: 'Open de Velyx-app en kies ‘Inloggen met een code’. Vul hier de code in die de app toont.',
+  title: 'Vidalune-app koppelen',
+  intro: 'Open de Vidalune-app en kies ‘Inloggen met een code’. Vul hier de code in die de app toont.',
   code: 'Code',
   check: 'Doorgaan',
   confirm: '{device} inloggen als {name}?',

@@ -34,7 +34,7 @@ RUN npm ci --omit=dev --workspace backend --no-audit --no-fund
 # ---------------------------------------------------------------- runtime stage
 FROM node:22-bookworm-slim
 
-LABEL org.opencontainers.image.title="Velyx" \
+LABEL org.opencontainers.image.title="Vidalune" \
       org.opencontainers.image.description="Your media. Your server. A lightweight self-hosted media server." \
       org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0"
 
@@ -60,8 +60,8 @@ COPY --from=build /app/backend/dist ./backend/dist
 COPY --from=build /app/backend/drizzle ./backend/drizzle
 COPY --from=build /app/frontend/dist ./frontend/dist
 COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-COPY docker/velyx /usr/local/bin/velyx
-RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh /usr/local/bin/velyx \
+COPY docker/vidalune docker/velyx /usr/local/bin/
+RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh /usr/local/bin/vidalune /usr/local/bin/velyx \
  && mkdir -p /data /media
 
 EXPOSE 3000

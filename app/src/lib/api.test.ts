@@ -15,16 +15,16 @@ function server(respond: (url: string, init: RequestInit) => { status: number; b
 describe('API client', () => {
   it('sends the token and the app User-Agent, and parses JSON', async () => {
     const { calls, fetchImpl } = server(() => ({ status: 200, body: { ok: true } }));
-    const api = createApi({ baseUrl: 'http://velyx.local', token: 'abc', userAgent: 'VelyxApp/0.8.1 (Android 15; Pixel 8)', fetchImpl });
+    const api = createApi({ baseUrl: 'http://vidalune.local', token: 'abc', userAgent: 'VidaluneApp/0.8.1 (Android 15; Pixel 8)', fetchImpl });
     expect(await api.post('/api/favorites', { movieId: 3 })).toEqual({ ok: true });
-    expect(calls[0]!.url).toBe('http://velyx.local/api/favorites');
-    expect(calls[0]!.init.headers).toMatchObject({ Authorization: 'Bearer abc', 'User-Agent': 'VelyxApp/0.8.1 (Android 15; Pixel 8)', 'Content-Type': 'application/json' });
+    expect(calls[0]!.url).toBe('http://vidalune.local/api/favorites');
+    expect(calls[0]!.init.headers).toMatchObject({ Authorization: 'Bearer abc', 'User-Agent': 'VidaluneApp/0.8.1 (Android 15; Pixel 8)', 'Content-Type': 'application/json' });
     expect(calls[0]!.init.body).toBe('{"movieId":3}');
     // Images and video get the same headers.
-    expect(api.headers()).toEqual({ Authorization: 'Bearer abc', 'User-Agent': 'VelyxApp/0.8.1 (Android 15; Pixel 8)' });
+    expect(api.headers()).toEqual({ Authorization: 'Bearer abc', 'User-Agent': 'VidaluneApp/0.8.1 (Android 15; Pixel 8)' });
     // The same object every time, so images do not load again on every render.
     expect(api.headers()).toBe(api.headers());
-    expect(api.url('/api/images/w342/a.jpg')).toBe('http://velyx.local/api/images/w342/a.jpg');
+    expect(api.url('/api/images/w342/a.jpg')).toBe('http://vidalune.local/api/images/w342/a.jpg');
   });
 
   it('turns server errors into their message, and reports a token that stopped working', async () => {
@@ -99,7 +99,7 @@ describe('signing in', () => {
   });
 
   it('names itself so the server recognises the app', () => {
-    expect(appUserAgent('0.8.1', 'Android', '15', 'Pixel 8')).toBe('VelyxApp/0.8.1 (Android 15; Pixel 8)');
-    expect(appUserAgent('0.8.1', 'Android', null, null)).toBe('VelyxApp/0.8.1 (Android)');
+    expect(appUserAgent('0.8.1', 'Android', '15', 'Pixel 8')).toBe('VidaluneApp/0.8.1 (Android 15; Pixel 8)');
+    expect(appUserAgent('0.8.1', 'Android', null, null)).toBe('VidaluneApp/0.8.1 (Android)');
   });
 });

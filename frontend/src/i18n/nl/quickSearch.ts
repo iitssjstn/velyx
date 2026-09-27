@@ -1,6 +1,6 @@
 import type { Messages } from '../index';
 export const quickSearch: Messages['quickSearch'] = {
-  placeholder: 'Zoeken in Velyx…',
+  placeholder: 'Zoeken in Vidalune…',
   close: 'Zoeken sluiten',
   hint: 'Films, series en afleveringen — typ een titel, een deel ervan, of een code zoals “reacher s02e04”.',
   nothingFound: 'Niets gevonden voor “{query}”.',

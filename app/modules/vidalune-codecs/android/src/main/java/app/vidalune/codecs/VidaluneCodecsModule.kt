@@ -1,4 +1,4 @@
-package app.velyx.codecs
+package app.vidalune.codecs
 
 import android.content.Context
 import android.hardware.display.DisplayManager
@@ -11,11 +11,11 @@ import expo.modules.kotlin.modules.ModuleDefinition
 
 /**
  * Tells the app which video and audio formats this device can decode, from Android's own list of
- * decoders, so the Velyx server can decide what plays directly and what has to be repackaged.
+ * decoders, so the Vidalune server can decide what plays directly and what has to be repackaged.
  */
-class VelyxCodecsModule : Module() {
+class VidaluneCodecsModule : Module() {
   override fun definition() = ModuleDefinition {
-    Name("VelyxCodecs")
+    Name("VidaluneCodecs")
 
     Function("decoders") {
       val video = linkedSetOf<String>()

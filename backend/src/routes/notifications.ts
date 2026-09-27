@@ -57,7 +57,7 @@ export async function notificationRoutes(app: FastifyInstance, ctx: AppContext):
     const lang = requestLanguage(request);
     const url = ctx.notifications.config().discordWebhook;
     if (!url) throw new HttpError(400, 'No Discord webhook is set up.');
-    const error = await ctx.notifications.postDiscord(url, { title: tr(lang, 'Test message from Velyx'), body: tr(lang, 'Notifications for administrators arrive in this channel.') }, lang);
+    const error = await ctx.notifications.postDiscord(url, { title: tr(lang, 'Test message from Vidalune'), body: tr(lang, 'Notifications for administrators arrive in this channel.') }, lang);
     return { ok: error === null, error };
   });
 }

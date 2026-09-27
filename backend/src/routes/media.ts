@@ -47,9 +47,9 @@ function offsetParam(query: unknown): number {
   return n;
 }
 
-/** How a viewer's device shows in the activity overview: "Velyx app on Pixel 8" or "Chrome on Windows". */
+/** How a viewer's device shows in the activity overview: "Vidalune app on Pixel 8" or "Chrome on Windows". */
 function deviceLabel(request: FastifyRequest): string {
-  return request.appDevice ? `Velyx app on ${request.appDevice}` : describeUserAgent(request.headers['user-agent']);
+  return request.appDevice ? `Vidalune app on ${request.appDevice}` : describeUserAgent(request.headers['user-agent']);
 }
 
 export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
@@ -232,7 +232,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const index = Number(request.params.index);
     const track = (file.subtitleTracks ?? []).find((t) => t.index === index);
     if (!Number.isInteger(index) || !track) throw notFound('Subtitle track');
-    if (!track.textBased) throw new HttpError(415, 'Image-based subtitles (PGS/VobSub) cannot be shown in the browser without converting them, which Velyx does not do. Use a text subtitle (SRT/ASS) instead.');
+    if (!track.textBased) throw new HttpError(415, 'Image-based subtitles (PGS/VobSub) cannot be shown in the browser without converting them, which Vidalune does not do. Use a text subtitle (SRT/ASS) instead.');
     const vtt = shiftVtt(await ctx.subtitleExtractor.extract(file.id, file.mtimeMs, abs, index), offsetParam(request.query));
     return reply.type('text/vtt; charset=utf-8').header('Cache-Control', 'private, max-age=3600').send(vtt);
   });

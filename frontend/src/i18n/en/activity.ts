@@ -23,7 +23,7 @@ export const activity = {
   howItPlayed: 'How it played',
   noPlays: 'No plays in this period.',
   audioConverted: 'of which audio converted',
-  neverTranscodes: 'Velyx never transcodes video.',
+  neverTranscodes: 'Vidalune never transcodes video.',
   user: 'User',
   everyone: 'Everyone',
   type: 'Type',

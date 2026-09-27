@@ -51,8 +51,11 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          # GHCR requires a lowercase image name
-          images: ghcr.io/${{ github.repository_owner }}/velyx
+          # GHCR requires a lowercase image name. The image is also published under its name from
+          # before the rename, so existing installations keep updating.
+          images: |
+            ghcr.io/${{ github.repository_owner }}/vidalune
+            ghcr.io/${{ github.repository_owner }}/velyx
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}

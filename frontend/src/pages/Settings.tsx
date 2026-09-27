@@ -48,7 +48,7 @@ function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange
 const MEDIA_LANGUAGES = ['en', 'nl', 'de', 'fr', 'es', 'it', 'pt', 'sv', 'da', 'no', 'fi', 'pl', 'tr', 'ja', 'ko', 'zh'] as const;
 
 /**
- * The language of Velyx itself, for this account. Separate from the audio and subtitle languages:
+ * The language of Vidalune itself, for this account. Separate from the audio and subtitle languages:
  * changing it never changes a track. Switches at once, without reloading. Exported for tests.
  */
 export function InterfaceLanguage() {
@@ -460,7 +460,7 @@ function ServerInfoPanel() {
         </div>
         <div>
           <dt className="text-faint">{t('settings.server.version')}</dt>
-          <dd>Velyx {server?.version}</dd>
+          <dd>Vidalune {server?.version}</dd>
         </div>
       </dl>
     </Section>

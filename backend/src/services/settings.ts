@@ -85,11 +85,11 @@ export interface ServerSettings {
   backupKeepDaily: number;
   backupKeepWeekly: number;
   backupKeepMonthly: number;
-  /** Look for new Velyx versions (GitHub tags) at most once a day. */
+  /** Look for new Vidalune versions (GitHub tags) at most once a day. */
   updateCheck: boolean;
   /** Minutes between scheduled scans (0 = off); null = SCAN_INTERVAL_MINUTES from the environment. */
   scanIntervalMinutes: number | null;
-  /** Look for new and changed files shortly after Velyx starts. */
+  /** Look for new and changed files shortly after Vidalune starts. */
   scanOnStartup: boolean;
   /** Scheduled scans wait while someone is watching (up to a few hours). */
   deferScansWhilePlaying: boolean;
@@ -111,7 +111,7 @@ export interface ServerSettings {
 }
 
 const DEFAULTS: ServerSettings = {
-  serverName: 'Velyx',
+  serverName: 'Vidalune',
   serverUrl: '',
   tmdbApiKey: '',
   tmdbLanguage: '',
@@ -159,6 +159,8 @@ export class SettingsService {
         }
       }
     }
+    // The default name before the rename: a server nobody named shows the new name.
+    if (result.serverName === 'Velyx') result.serverName = DEFAULTS.serverName;
     this.cache = result;
     return result;
   }
@@ -202,7 +204,7 @@ export class SettingsService {
   }
 
   serverName(): string {
-    return this.load().serverName || 'Velyx';
+    return this.load().serverName || 'Vidalune';
   }
 
   /** Effective minutes between scheduled scans: the admin setting, else the environment. */

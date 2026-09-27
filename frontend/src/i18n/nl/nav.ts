@@ -9,7 +9,7 @@ export const nav: Messages['nav'] = {
   favorites: 'Favorieten',
   settings: 'Instellingen',
   admin: 'Beheer',
-  searchVelyx: 'Zoeken in Velyx',
+  searchVidalune: 'Zoeken in Vidalune',
   searchPlaceholder: 'Zoeken…',
   openMenu: 'Menu openen',
   closeMenu: 'Menu sluiten',

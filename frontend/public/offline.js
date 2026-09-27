@@ -8,7 +8,7 @@
   }
   if (/^nl/i.test(lang)) {
     document.documentElement.lang = 'nl';
-    document.getElementById('title').textContent = 'Velyx is niet bereikbaar';
+    document.getElementById('title').textContent = 'Vidalune is niet bereikbaar';
     document.getElementById('text').textContent = 'Controleer je internetverbinding of dat de server draait, en probeer het opnieuw.';
     document.getElementById('retry').textContent = 'Opnieuw proberen';
   }

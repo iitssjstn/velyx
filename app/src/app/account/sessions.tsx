@@ -26,7 +26,7 @@ export default function Sessions() {
   const now = Date.now();
 
   const signOutAll = () =>
-    Alert.alert('Velyx', t('account.signOutOthersConfirm'), [
+    Alert.alert('Vidalune', t('account.signOutOthersConfirm'), [
       { text: t('common.cancel'), style: 'cancel' },
       {
         text: t('common.ok'),
@@ -34,7 +34,7 @@ export default function Sessions() {
         onPress: async () => {
           try {
             const r = await api.post<{ revoked: number }>('/api/account/sessions/revoke-others');
-            Alert.alert('Velyx', t('account.signOutOthersDone', { n: r.revoked }));
+            Alert.alert('Vidalune', t('account.signOutOthersDone', { n: r.revoked }));
           } catch (err) {
             Alert.alert(t('common.error'), (err as Error).message);
           } finally {

@@ -112,7 +112,7 @@ describe('library health', () => {
       href: `/movies/${s.hi10p}`,
       library: 'Films',
       file: { summary: 'H.264 · 1080p · 10-bit · AAC stereo · MKV' },
-      reasons: [expect.stringMatching(/10-bit H\.264.*cannot be decoded/), 'Velyx does not transcode video.'],
+      reasons: [expect.stringMatching(/10-bit H\.264.*cannot be decoded/), 'Vidalune does not transcode video.'],
     });
     expect(unsupported.items[1].reasons[0]).toMatch(/MPEG-4 Part 2.*cannot be decoded/);
     // Paths are shown relative to the library folder.

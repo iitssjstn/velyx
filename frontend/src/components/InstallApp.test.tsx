@@ -43,7 +43,7 @@ describe('Install app', () => {
     expect(e.defaultPrevented).toBe(true);
     await userEvent.click(await screen.findByRole('button', { name: 'Install app' }));
     expect(prompt).toHaveBeenCalledOnce();
-    expect(toastSuccess).toHaveBeenCalledWith('Velyx was installed. You can open it from its icon.');
+    expect(toastSuccess).toHaveBeenCalledWith('Vidalune was installed. You can open it from its icon.');
     act(() => void window.dispatchEvent(new Event('appinstalled')));
     expect(screen.queryByRole('button', { name: 'Install app' })).toBeNull();
   });
@@ -64,7 +64,7 @@ describe('Install app', () => {
     const { InstallApp } = await load();
     render(<InstallApp />);
     await userEvent.click(screen.getByRole('button', { name: 'Install app' }));
-    const dialog = screen.getByRole('dialog', { name: 'Install Velyx as an app' });
+    const dialog = screen.getByRole('dialog', { name: 'Install Vidalune as an app' });
     expect(dialog.textContent).toContain('Add to Home Screen');
   });
 
@@ -115,7 +115,7 @@ describe('Back button in the installed app', () => {
 });
 
 describe('service worker', () => {
-  it('is registered at an address that changes with every Velyx version', async () => {
+  it('is registered at an address that changes with every Vidalune version', async () => {
     const { serviceWorkerUrl } = await import('../lib/install');
     expect(serviceWorkerUrl('0.8.0')).toBe('/sw.js?v=0.8.0');
     // The build fills in the version from package.json.

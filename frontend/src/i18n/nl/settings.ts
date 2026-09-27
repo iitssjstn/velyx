@@ -3,7 +3,7 @@ export const settings: Messages['settings'] = {
   language: {
     title: 'Taal',
     saved: 'Taal opgeslagen.',
-    description: 'De taal van Velyx op elk apparaat waarop je inlogt. De talen voor audio en ondertiteling stel je hieronder apart in.',
+    description: 'De taal van Vidalune op elk apparaat waarop je inlogt. De talen voor audio en ondertiteling stel je hieronder apart in.',
     interface: 'Taal van de interface',
   },
   account: {
@@ -71,7 +71,7 @@ export const settings: Messages['settings'] = {
       never: 'Nooit',
     },
     title: 'Intro\'s en aftiteling',
-    description: 'Velyx herkent intro\'s en aftitelingen van afleveringen aan het terugkerende geluid en, bij aftitelingen, aan de tekst in beeld. Alleen betrouwbare resultaten worden gebruikt; een scène na de aftiteling wordt nooit overgeslagen.',
+    description: 'Vidalune herkent intro\'s en aftitelingen van afleveringen aan het terugkerende geluid en, bij aftitelingen, aan de tekst in beeld. Alleen betrouwbare resultaten worden gebruikt; een scène na de aftiteling wordt nooit overgeslagen.',
     intros: 'Intro\'s overslaan',
     introsHint: 'De knop verschijnt alleen tijdens de intro.',
     credits: 'Aftiteling overslaan',
@@ -86,7 +86,7 @@ export const settings: Messages['settings'] = {
     warn: 'Waarschuwen voor bestanden die deze browser mogelijk niet afspeelt',
   },
   audio: {
-    description: 'Gebruikt als Velyx audio omzet (Dolby/DTS in browsers, of als een optie hieronder aan staat). Bewaard in deze browser.',
+    description: 'Gebruikt als Vidalune audio omzet (Dolby/DTS in browsers, of als een optie hieronder aan staat). Bewaard in deze browser.',
     sound: 'Geluid',
     soundHint: 'Surround behoudt tot 5.1 kanalen; stereo mengt terug voor speakers en koptelefoons.',
     surround: 'Surround 5.1',
@@ -101,12 +101,12 @@ export const settings: Messages['settings'] = {
   },
   device: {
     plays: 'Speelt af',
-    converted: 'Omgezet door Velyx',
+    converted: 'Omgezet door Vidalune',
     depends: 'Hangt ervan af',
     containers: 'Containers',
     screen: 'Scherm',
     title: 'Huidig apparaat',
-    description: 'Wat deze browser afspeelt. Velyx speelt bestanden waar mogelijk direct af; audio en containers die het apparaat niet aankan worden tijdens het afspelen omgezet, maar video wordt nooit getranscodeerd.',
+    description: 'Wat deze browser afspeelt. Vidalune speelt bestanden waar mogelijk direct af; audio en containers die het apparaat niet aankan worden tijdens het afspelen omgezet, maar video wordt nooit getranscodeerd.',
     checking: 'Deze browser controleren…',
     estimates: 'Deze browser gaf zijn formaten niet door, dus dit zijn schattingen.',
   },

@@ -102,11 +102,11 @@ describe('verification', () => {
 
     const foreign = path.join(dir, 'foreign.db');
     new Database(foreign).exec('CREATE TABLE notes (id INTEGER)');
-    expect(verifyBackup(foreign).errors.join(' ')).toMatch(/Not a complete Velyx database/);
+    expect(verifyBackup(foreign).errors.join(' ')).toMatch(/Not a complete Vidalune database/);
 
     const newer = path.join(dir, 'newer.db');
     openDatabase(newer).$client.exec("INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('future', 1)");
-    expect(verifyBackup(newer).errors.join(' ')).toMatch(/newer version of Velyx/);
+    expect(verifyBackup(newer).errors.join(' ')).toMatch(/newer version of Vidalune/);
 
     // A damaged page inside an otherwise valid database fails the integrity check.
     const damaged = path.join(dir, 'damaged.db');
@@ -156,11 +156,11 @@ describe('restore', () => {
 });
 
 describe('migration safety', () => {
-  it('refuses to open a database from a newer Velyx', () => {
+  it('refuses to open a database from a newer Vidalune', () => {
     const file = path.join(tmp(), 'v.db');
     openDatabase(file).$client.exec("INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('future', 1)");
     expect(() => openDatabase(file)).toThrow(MigrationError);
-    expect(() => openDatabase(file)).toThrow(/newer version of Velyx/);
+    expect(() => openDatabase(file)).toThrow(/newer version of Vidalune/);
   });
 
   it('leaves the database unchanged and stops when a migration fails', () => {
@@ -215,7 +215,7 @@ describe('CLI', () => {
     env.ctx.backups.create('manual');
     const run = (...args: string[]) =>
       execFileSync('npx', ['tsx', 'src/cli.ts', ...args], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, DATA_DIR: env!.ctx.config.dataDir, SESSION_SECRET: 'test-secret-test-secret-1234' }, encoding: 'utf8' });
-    expect(run('backup', 'list')).toMatch(/manual .* velyx-manual-/);
-    expect(run('backup', 'verify')).toMatch(/^OK +velyx-manual-.*\(1 users/m);
+    expect(run('backup', 'list')).toMatch(/manual .* vidalune-manual-/);
+    expect(run('backup', 'verify')).toMatch(/^OK +vidalune-manual-.*\(1 users/m);
   }, 60000);
 });

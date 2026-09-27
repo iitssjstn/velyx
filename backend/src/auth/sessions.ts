@@ -75,7 +75,7 @@ export type SessionClient = 'web' | 'app';
 
 export interface SessionInfo {
   id: string;
-  /** 'app': signed in from the Velyx app (with deviceName), 'web': a browser. */
+  /** 'app': signed in from the Vidalune app (with deviceName), 'web': a browser. */
   client: SessionClient;
   deviceName: string | null;
   createdAt: number;
@@ -132,7 +132,7 @@ export class SessionService {
         lastSeenAt: s.lastSeenAt,
         expiresAt: s.expiresAt,
         userAgent: s.userAgent,
-        device: s.client === 'app' ? (s.deviceName ?? 'Velyx app') : describeUserAgent(s.userAgent),
+        device: s.client === 'app' ? (s.deviceName ?? 'Vidalune app') : describeUserAgent(s.userAgent),
         ip: s.ip,
         current: s.id === current,
       }));

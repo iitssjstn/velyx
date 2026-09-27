@@ -61,7 +61,7 @@ export function titleList(titles: string[], lang: Language, max = 5): string {
 /**
  * Messages for administrators only. Each enabled event is stored for the bell in the admin pages
  * and, when a Discord webhook is set (opt-in), posted there too. Sending never blocks or breaks the
- * work that caused it; a failed post is logged and the message stays in Velyx.
+ * work that caused it; a failed post is logged and the message stays in Vidalune.
  */
 export class NotificationService {
   constructor(

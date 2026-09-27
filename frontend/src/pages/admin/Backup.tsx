@@ -138,7 +138,7 @@ export function BackupPage() {
         <div role="alert" className="flex flex-wrap items-start gap-3 rounded-xl border border-amber/40 bg-amber/10 px-4 py-3 text-sm">
           <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber" />
           <p className="flex-1">
-            {tRich('backup.pending', { source: <strong>{d.pendingRestore.source}</strong>, by: d.pendingRestore.requestedBy, command: <code className="rounded bg-bg/60 px-1.5 py-0.5 text-xs">docker compose restart velyx</code> })}
+            {tRich('backup.pending', { source: <strong>{d.pendingRestore.source}</strong>, by: d.pendingRestore.requestedBy, command: <code className="rounded bg-bg/60 px-1.5 py-0.5 text-xs">docker compose restart vidalune</code> })}
           </p>
           <Button variant="ghost" size="sm" onClick={() => cancelRestore.mutate()} loading={cancelRestore.isPending}>{t('backup.cancelRestore')}</Button>
         </div>
@@ -197,10 +197,10 @@ export function BackupPage() {
       <section className="panel p-5 text-sm sm:p-6">
         <h2 className="font-display text-lg font-semibold">{t('backup.commandLine')}</h2>
         <p className="mt-2 text-muted">{t('backup.archiveText')}</p>
-        <pre className="mt-3 overflow-x-auto rounded-lg bg-bg/70 p-3 text-xs">{`docker compose exec velyx velyx backup
-docker compose exec velyx velyx backup list
-docker compose exec velyx velyx backup verify
-docker compose exec velyx velyx restore <backup-name>`}</pre>
+        <pre className="mt-3 overflow-x-auto rounded-lg bg-bg/70 p-3 text-xs">{`docker compose exec vidalune vidalune backup
+docker compose exec vidalune vidalune backup list
+docker compose exec vidalune vidalune backup verify
+docker compose exec vidalune vidalune restore <backup-name>`}</pre>
         <p className="mt-3 text-muted">{t('backup.autoCopies')}</p>
       </section>
 

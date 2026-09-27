@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "Velyx",
-    "slug": "velyx",
-    "version": "0.9.7",
-    "scheme": "velyx",
+    "name": "Vidalune",
+    "slug": "vidalune",
+    "version": "0.9.8",
+    "scheme": "vidalune",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#14121c",
     "android": {
-      "package": "com.velyx.app",
-      "versionCode": 907,
+      "package": "com.vidalune.app",
+      "versionCode": 908,
       "adaptiveIcon": {
         "backgroundColor": "#14121c",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -21,7 +21,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.velyx.app"
+      "bundleIdentifier": "com.vidalune.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"

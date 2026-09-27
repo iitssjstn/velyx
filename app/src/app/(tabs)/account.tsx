@@ -26,7 +26,7 @@ export default function Account() {
     }
   };
   const confirm = (message: string, action: () => void) =>
-    Alert.alert('Velyx', message, [
+    Alert.alert('Vidalune', message, [
       { text: t('common.cancel'), style: 'cancel' },
       { text: t('common.ok'), style: 'destructive', onPress: action },
     ]);

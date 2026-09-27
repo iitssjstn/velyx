@@ -20,7 +20,7 @@ export default function SignIn() {
         <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24, gap: 20, width: '100%', maxWidth: 520, alignSelf: 'center' }} keyboardShouldPersistTaps="handled">
           <Logo />
           <View style={{ gap: 6 }}>
-            <Text style={styles.title} accessibilityRole="header">{t('signIn.title', { server: serverName ?? 'Velyx' })}</Text>
+            <Text style={styles.title} accessibilityRole="header">{t('signIn.title', { server: serverName ?? 'Vidalune' })}</Text>
             <Text style={styles.muted}>{serverUrl}</Text>
           </View>
           {sessionEnded && (

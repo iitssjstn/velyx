@@ -5,7 +5,7 @@ import { cueTextAt, parseVtt } from './vtt';
 
 const api = (respond: (url: string) => unknown = () => ({})) =>
   createApi({
-    baseUrl: 'http://velyx.local',
+    baseUrl: 'http://vidalune.local',
     token: 't',
     userAgent: 'x',
     fetchImpl: vi.fn(async (url: string) => new Response(JSON.stringify(respond(url)), { status: 200 })) as unknown as typeof fetch,
@@ -41,19 +41,19 @@ describe('what the app reports', () => {
 
 describe('where a stream starts', () => {
   it('plays the file itself for direct play, from wherever the player seeks', async () => {
-    expect(await streamFrom(api(), answer('range', '/api/media/7/stream'), 600)).toEqual({ uri: 'http://velyx.local/api/media/7/stream', offset: 0 });
+    expect(await streamFrom(api(), answer('range', '/api/media/7/stream'), 600)).toEqual({ uri: 'http://vidalune.local/api/media/7/stream', offset: 0 });
   });
 
   it('starts a remux stream at the keyframe the server names, and offsets positions by it', async () => {
     const a = api((url) => (url.includes('/keyframe?t=600.000') ? { start: 598.5, seek: 600 } : {}));
-    expect(await streamFrom(a, answer('restart', '/api/media/7/remux?audio=1&ch=2'), 600)).toEqual({ uri: 'http://velyx.local/api/media/7/remux?audio=1&ch=2&start=600.000', offset: 598.5 });
-    expect(await streamFrom(a, answer('restart', '/api/media/7/remux?audio=1'), 0)).toEqual({ uri: 'http://velyx.local/api/media/7/remux?audio=1', offset: 0 });
+    expect(await streamFrom(a, answer('restart', '/api/media/7/remux?audio=1&ch=2'), 600)).toEqual({ uri: 'http://vidalune.local/api/media/7/remux?audio=1&ch=2&start=600.000', offset: 598.5 });
+    expect(await streamFrom(a, answer('restart', '/api/media/7/remux?audio=1'), 0)).toEqual({ uri: 'http://vidalune.local/api/media/7/remux?audio=1', offset: 0 });
   });
 
   it('shifts subtitles along with a stream that starts later', () => {
     const sub = { url: '/api/subtitles/3.vtt' } as SubtitleOption;
-    expect(subtitleUrl(api(), sub, 0)).toBe('http://velyx.local/api/subtitles/3.vtt');
-    expect(subtitleUrl(api(), sub, 598.5)).toBe('http://velyx.local/api/subtitles/3.vtt?offset=598.500');
+    expect(subtitleUrl(api(), sub, 0)).toBe('http://vidalune.local/api/subtitles/3.vtt');
+    expect(subtitleUrl(api(), sub, 598.5)).toBe('http://vidalune.local/api/subtitles/3.vtt?offset=598.500');
   });
 });
 

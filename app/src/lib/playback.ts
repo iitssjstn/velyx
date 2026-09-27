@@ -1,6 +1,6 @@
 import type { Api } from './api';
 
-/** What the device's decoders report (see modules/velyx-codecs). */
+/** What the device's decoders report (see modules/vidalune-codecs). */
 export interface Decoders {
   videoCodecs: string[];
   tenBitCodecs: string[];
@@ -46,7 +46,7 @@ const SAFE_AUDIO = ['aac', 'mp3', 'opus', 'vorbis', 'flac'];
 
 /**
  * A second try after direct play failed on the device (its decoder list promised more than it
- * could do): the video stays as it is — Velyx never transcodes it — but the server is asked to
+ * could do): the video stays as it is — Vidalune never transcodes it — but the server is asked to
  * repackage the file as MP4 and convert the audio, which fixes most failures.
  */
 export function fallbackCaps(caps: PlaybackCaps): PlaybackCaps {

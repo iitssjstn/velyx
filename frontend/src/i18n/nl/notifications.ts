@@ -1,6 +1,6 @@
 import type { Messages } from '../index';
 export const notifications: Messages['notifications'] = {
-  intro: 'Berichten voor beheerders over wat Velyx zelf doet: geplande opschoonacties, mislukte back-ups en scans, nieuwe aanmeldingen en schijfruimte. Alleen beheerders zien ze.',
+  intro: 'Berichten voor beheerders over wat Vidalune zelf doet: geplande opschoonacties, mislukte back-ups en scans, nieuwe aanmeldingen en schijfruimte. Alleen beheerders zien ze.',
   empty: 'Geen meldingen.',
   markRead: 'Alles als gelezen markeren',
   unread: { one: '{count} ongelezen', other: '{count} ongelezen' },

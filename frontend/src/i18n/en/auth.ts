@@ -3,7 +3,7 @@ export const auth = {
   signIn: 'Sign in',
   signOut: 'Sign out',
   toServer: 'to {name}',
-  toYourServer: 'to your Velyx server',
+  toYourServer: 'to your Vidalune server',
   username: 'Username',
   password: 'Password',
   confirmPassword: 'Confirm password',

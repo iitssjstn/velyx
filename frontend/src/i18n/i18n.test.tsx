@@ -27,7 +27,7 @@ const SAME_IN_DUTCH = new Set([
   'continueWatching.details', 'library.cast', 'player.volume', 'collections.itemCount.one', 'collections.itemCount.other', 'device.browser',
   'device.script', 'playback.directPlay', 'playback.remux', 'playback.remuxAudio', 'playback.video', 'playback.audio', 'playback.container',
   'mediaInfo.media', 'home.details', 'home.greeting', 'browse.genre', 'browse.filtersTitle', 'smart.builtIn.hdr', 'admin.tabs.dashboard',
-  'admin.tabs.metadata', 'admin.tabs.server', 'dashboard.scanner', 'dashboard.phase.metadata', 'dashboard.database', 'dashboard.cpuVelyx',
+  'admin.tabs.metadata', 'admin.tabs.server', 'dashboard.scanner', 'dashboard.phase.metadata', 'dashboard.database', 'dashboard.cpuVidalune',
   'dashboard.runtime', 'server.status', 'audit.groups.tmdb', 'segments.intro',
   'onlineSubs.hearingImpaired', 'onlineSubs.downloads.one', 'onlineSubs.downloads.other', 'onlineSubs.tag', 'link.code', 'playback.bitrate',
 ]);
@@ -93,7 +93,7 @@ describe('t', () => {
     expect(initialLanguage()).toBe('nl');
   });
 
-  it('starts in the browser language when Velyx has it, otherwise English', () => {
+  it('starts in the browser language when Vidalune has it, otherwise English', () => {
     const original = Object.getOwnPropertyDescriptor(Navigator.prototype, 'languages');
     const setLanguages = (list: string[]) => Object.defineProperty(navigator, 'languages', { value: list, configurable: true });
     try {

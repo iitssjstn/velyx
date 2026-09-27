@@ -44,7 +44,7 @@ export const cleanup = {
     one: '{count} file is kept and will not be suggested again.',
     other: '{count} files are kept and will not be suggested again.',
   },
-  intro: 'Suggestions for freeing up space, from what Velyx already knows about your files and what people watched. Rules only suggest: nothing is deleted until you select files, choose Delete and confirm.',
+  intro: 'Suggestions for freeing up space, from what Vidalune already knows about your files and what people watched. Rules only suggest: nothing is deleted until you select files, choose Delete and confirm.',
   keptButton: 'Kept files ({count})',
   rulesButton: 'Rules',
   deletionOn: 'Deleting files is allowed. Deleted files are gone for good.',

@@ -10,7 +10,7 @@ import { SESSION_COOKIE, describeUserAgent, sessionCookieOptions } from '../auth
 import { ProgressiveLimiter } from '../auth/rate-limit.js';
 import { PAIRING_POLL_SECONDS, PairingService } from '../services/pairing.js';
 
-/** Version of the API the Velyx app talks to. */
+/** Version of the API the Vidalune app talks to. */
 export const API_VERSION = 1;
 
 /** Public session ids are 20 hex characters. */
@@ -122,13 +122,13 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     product: APP_NAME,
     tagline: APP_TAGLINE,
     version: APP_VERSION,
-    /** Raised when the API changes in a way the Velyx app has to know about. */
+    /** Raised when the API changes in a way the Vidalune app has to know about. */
     apiVersion: API_VERSION,
     setupRequired: setupRequired(ctx),
   }));
 
   app.post('/api/setup', async (request, reply) => {
-    if (!setupRequired(ctx)) throw new HttpError(409, 'Velyx is already set up.');
+    if (!setupRequired(ctx)) throw new HttpError(409, 'Vidalune is already set up.');
     const body = setupBody.parse(request.body);
     const uErr = validateUsername(body.username);
     if (uErr) throw new HttpError(400, uErr);
@@ -147,11 +147,11 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     // Re-check inside a transaction so two concurrent setup requests cannot both create an admin.
     const user = ctx.db.transaction((tx) => {
       const existing = tx.select({ n: count() }).from(users).where(eq(users.role, 'admin')).get()!.n;
-      if (existing > 0) throw new HttpError(409, 'Velyx is already set up.');
+      if (existing > 0) throw new HttpError(409, 'Vidalune is already set up.');
       return tx.insert(users).values({ username: body.username, passwordHash, role: 'admin', language: body.language ?? DEFAULT_LANGUAGE, lastLoginAt: Date.now() }).returning().get();
     });
     ctx.settings.update({
-      serverName: body.serverName || 'Velyx',
+      serverName: body.serverName || 'Vidalune',
       ...(body.tmdbApiKey ? { tmdbApiKey: body.tmdbApiKey } : {}),
     });
     const { token } = ctx.sessions.create(user.id, request.headers['user-agent'], request.ip);
@@ -198,14 +198,14 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     return { user: publicUser(user) };
   });
 
-  // ---- the Velyx app: a token instead of a cookie, by password or by a code confirmed on the website
+  // ---- the Vidalune app: a token instead of a cookie, by password or by a code confirmed on the website
   const pairing = new PairingService();
   const pairStarts = new ProgressiveLimiter({ freeAttempts: 10, baseDelayMs: 60_000 });
   const codeGuesses = new ProgressiveLimiter({ freeAttempts: 5, baseDelayMs: 30_000 });
   const appSignIn = (user: { id: number; username: string }, deviceName: string, request: FastifyRequest, how: string) => {
     const { token, expiresAt } = ctx.sessions.create(user.id, request.headers['user-agent'], request.ip, { deviceName });
-    ctx.audit.record('login.success', { actor: user, ip: request.ip, detail: `Velyx app (${how}): ${deviceName}` });
-    ctx.notifications.notify('newDevice', { user: user.username, device: `Velyx app, ${deviceName}` });
+    ctx.audit.record('login.success', { actor: user, ip: request.ip, detail: `Vidalune app (${how}): ${deviceName}` });
+    ctx.notifications.notify('newDevice', { user: user.username, device: `Vidalune app, ${deviceName}` });
     return { token, expiresAt };
   };
 

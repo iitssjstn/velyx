@@ -74,7 +74,7 @@ const settingsBody = z.object({
 const matchSearch = z.object({ type: z.enum(['movie', 'show']), query: z.string().trim().min(1).max(200), year: z.coerce.number().int().min(1870).max(2100).optional() });
 const matchApply = z.object({ type: z.enum(['movie', 'show']), id: z.number().int().positive(), tmdbId: z.number().int().positive() });
 
-/** CPU usage between two calls (system-wide and for the Velyx process), from cheap counters. */
+/** CPU usage between two calls (system-wide and for the Vidalune process), from cheap counters. */
 function cpuSampler() {
   let prev = { times: os.cpus().map((c) => c.times), proc: process.cpuUsage(), at: process.hrtime.bigint() };
   return () => {
@@ -407,7 +407,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const losingAdmin = target.role === 'admin' && !target.disabled && ((body.role && body.role !== 'admin') || body.disabled === true);
     if (losingAdmin) {
       if (id === request.user!.id) throw new HttpError(400, 'You cannot remove your own administrator access or disable yourself.');
-      if (adminCount(ctx) <= 1) throw new HttpError(400, 'Velyx needs at least one active administrator.');
+      if (adminCount(ctx) <= 1) throw new HttpError(400, 'Vidalune needs at least one active administrator.');
     }
     const patch: Partial<typeof users.$inferInsert> = { updatedAt: Date.now() };
     if (body.displayName !== undefined) patch.displayName = body.displayName || null;
@@ -437,7 +437,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (id === request.user!.id) throw new HttpError(400, 'You cannot delete your own account.');
     const target = db.select().from(users).where(eq(users.id, id)).get();
     if (!target) throw notFound('User');
-    if (target.role === 'admin' && !target.disabled && adminCount(ctx) <= 1) throw new HttpError(400, 'Velyx needs at least one active administrator.');
+    if (target.role === 'admin' && !target.disabled && adminCount(ctx) <= 1) throw new HttpError(400, 'Vidalune needs at least one active administrator.');
     db.delete(users).where(eq(users.id, id)).run();
     for (const ext of ['png', 'jpg', 'webp']) fs.rmSync(path.join(ctx.config.avatarDir, `${id}.${ext}`), { force: true });
     log.info(`User "${target.username}" deleted by ${request.user!.username}`);
@@ -627,7 +627,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     return reply
       .type('application/vnd.sqlite3')
-      .header('Content-Disposition', `attachment; filename="velyx-${stamp}.db"`)
+      .header('Content-Disposition', `attachment; filename="vidalune-${stamp}.db"`)
       .header('Cache-Control', 'no-store')
       .send(stream);
   });
@@ -690,7 +690,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return backupView();
   });
 
-  /** Stages a restore; it is applied (after a safety copy) when Velyx restarts. */
+  /** Stages a restore; it is applied (after a safety copy) when Vidalune restarts. */
   app.post<{ Params: { name: string } }>('/api/admin/backups/:name/restore', { preHandler: requireAdmin }, async (request) => {
     // Explicit confirmation guards against accidental restores.
     z.object({ confirm: z.literal(true) }).parse(request.body);

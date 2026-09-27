@@ -55,7 +55,7 @@ describe('BackupPage', () => {
     expect(calls.some((c) => c.url.endsWith('/restore'))).toBe(false);
     await userEvent.click(within(dialog).getByRole('button', { name: 'Stage restore' }));
     expect(calls.find((c) => c.url.endsWith('/restore'))?.body).toEqual({ confirm: true });
-    expect((await screen.findByRole('alert')).textContent).toContain('docker compose restart velyx');
+    expect((await screen.findByRole('alert')).textContent).toContain('docker compose restart vidalune');
   });
 
   it('saves the schedule', async () => {

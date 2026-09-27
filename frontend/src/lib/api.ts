@@ -20,7 +20,7 @@ export function onUnauthorized(handler: (() => void) | null): void {
 
 export async function request<T>(method: Method, url: string, body?: unknown, init: RequestInit = {}): Promise<T> {
   // The server answers errors in this language until the user is signed in (then in theirs).
-  const headers: Record<string, string> = { Accept: 'application/json', 'X-Velyx-Language': currentLanguage() };
+  const headers: Record<string, string> = { Accept: 'application/json', 'X-Vidalune-Language': currentLanguage() };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   let res: Response;
   try {

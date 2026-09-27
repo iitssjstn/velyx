@@ -397,7 +397,7 @@ export interface PlaybackAnalysis {
   serverLoad: 'none' | 'low';
   /** "Chrome on Windows"; null when unknown. */
   device: string | null;
-  /** reported = the device listed its formats; profile/assumed = Velyx estimated them. */
+  /** reported = the device listed its formats; profile/assumed = Vidalune estimated them. */
   confidence: 'reported' | 'profile' | 'assumed';
   components: Record<'video' | 'audio' | 'container', { status: ComponentStatus; note: string }>;
   summary: string[];
@@ -424,7 +424,7 @@ export interface DeviceReport {
 
 export interface SessionInfo {
   id: string;
-  /** 'app': the Velyx app (named by deviceName), 'web': a browser. */
+  /** 'app': the Vidalune app (named by deviceName), 'web': a browser. */
   client: 'web' | 'app';
   deviceName: string | null;
   createdAt: number;

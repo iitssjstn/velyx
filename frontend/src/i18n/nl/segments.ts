@@ -68,7 +68,7 @@ export const segments: Messages['segments'] = {
   removeCorrection: 'Correctie verwijderen (automatisch herkennen)',
   analyseEpisode: 'Aflevering {n} opnieuw analyseren',
   analyseAgain: 'Opnieuw analyseren',
-  intro_text: 'Velyx vindt intro\'s door het geluid van afleveringen uit hetzelfde seizoen te vergelijken, en aftitelingen door tekst op een donkere achtergrond in beeld te herkennen (of terugkerende muziek bij de aftiteling). Hoofdstukken met de naam Intro of Credits worden gebruikt als een bestand ze heeft. Alles draait op deze server, één aflevering tegelijk, en nooit als iemand kijkt of er een scan loopt. Alleen resultaten met hoge of gemiddelde zekerheid krijgen een knop om over te slaan.',
+  intro_text: 'Vidalune vindt intro\'s door het geluid van afleveringen uit hetzelfde seizoen te vergelijken, en aftitelingen door tekst op een donkere achtergrond in beeld te herkennen (of terugkerende muziek bij de aftiteling). Hoofdstukken met de naam Intro of Credits worden gebruikt als een bestand ze heeft. Alles draait op deze server, één aflevering tegelijk, en nooit als iemand kijkt of er een scan loopt. Alleen resultaten met hoge of gemiddelde zekerheid krijgen een knop om over te slaan.',
   analyseEverything: 'Alles opnieuw analyseren',
   stats: {
     analysed: 'Geanalyseerd',

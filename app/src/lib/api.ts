@@ -12,7 +12,7 @@ type Fetch = typeof fetch;
 export interface ApiConfig {
   baseUrl: string;
   token: string | null;
-  /** "VelyxApp/0.8.1 (Android 15; Pixel 8)": tells the server this is the app. */
+  /** "VidaluneApp/0.8.1 (Android 15; Pixel 8)": tells the server this is the app. */
   userAgent: string;
   fetchImpl?: Fetch;
   /** Called when the server no longer accepts the token (signed out elsewhere, account disabled). */

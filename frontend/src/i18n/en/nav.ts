@@ -8,7 +8,7 @@ export const nav = {
   favorites: 'Favorites',
   settings: 'Settings',
   admin: 'Admin',
-  searchVelyx: 'Search Velyx',
+  searchVidalune: 'Search Vidalune',
   searchPlaceholder: 'Search…',
   openMenu: 'Open menu',
   closeMenu: 'Close menu',

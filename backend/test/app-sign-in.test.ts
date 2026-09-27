@@ -26,10 +26,10 @@ const call = (method: Method, url: string, opts: { payload?: object; cookie?: st
     ...(opts.payload ? { payload: opts.payload } : {}),
   });
 
-describe('signing in from the Velyx app', () => {
+describe('signing in from the Vidalune app', () => {
   it('says which API version the server speaks, before signing in', async () => {
     const info = (await call('GET', '/api/server/info')).json();
-    expect(info).toMatchObject({ product: 'Velyx', apiVersion: 1 });
+    expect(info).toMatchObject({ product: 'Vidalune', apiVersion: 1 });
   });
 
   it('gets a token by password, used as a bearer token for everything, including streams', async () => {

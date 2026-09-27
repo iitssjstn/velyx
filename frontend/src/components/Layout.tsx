@@ -85,7 +85,7 @@ function SearchButton({ onOpen }: { onOpen: () => void }) {
       type="button"
       onClick={onOpen}
       className="mb-4 flex w-full items-center gap-3 rounded-lg border border-line/70 bg-surface/60 px-3 py-2 text-left text-sm text-muted transition hover:border-line hover:text-ink"
-      aria-label={t('nav.searchVelyx')}
+      aria-label={t('nav.searchVidalune')}
     >
       <Search className="size-4" />
       <span className="flex-1">{t('nav.searchPlaceholder')}</span>
@@ -144,7 +144,7 @@ export function Layout() {
           <Logo size="sm" />
         </div>
         <div className="flex items-center gap-1">
-          <button type="button" onClick={() => setSearching(true)} className="grid size-10 place-items-center rounded-full text-muted" aria-label={t('nav.searchVelyx')}>
+          <button type="button" onClick={() => setSearching(true)} className="grid size-10 place-items-center rounded-full text-muted" aria-label={t('nav.searchVidalune')}>
             <Search className="size-5" />
           </button>
           <button type="button" className="grid size-10 place-items-center rounded-full text-muted" onClick={() => setOpen(true)} aria-label={t('nav.openMenu')}>

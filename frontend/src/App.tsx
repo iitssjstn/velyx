@@ -36,7 +36,7 @@ export function App() {
   const { t } = useT();
 
   useEffect(() => {
-    document.title = server?.name && server.name !== 'Velyx' ? `${server.name} · Velyx` : 'Velyx';
+    document.title = server?.name && server.name !== 'Vidalune' ? `${server.name} · Vidalune` : 'Vidalune';
   }, [server?.name]);
 
   if (loading) return <FullscreenLoader />;

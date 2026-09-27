@@ -1,13 +1,13 @@
 /**
  * Maintenance commands, run inside the container:
- *   docker compose exec velyx velyx backup                 full archive (database, avatars, cache)
- *   docker compose exec velyx velyx backup list            list backups
- *   docker compose exec velyx velyx backup verify [name]   verify one backup, or all of them
- *   docker compose exec velyx velyx restore <name|path>    restore on the next start
- *   docker compose exec velyx velyx restore --cancel       cancel a staged restore
- *   docker compose exec velyx velyx reset-password <username> <new-password>
- *   docker compose exec velyx velyx scan [--refresh-metadata]
- *   docker compose exec velyx velyx intros ["show title"|show-id] [season]
+ *   docker compose exec vidalune vidalune backup                 full archive (database, avatars, cache)
+ *   docker compose exec vidalune vidalune backup list            list backups
+ *   docker compose exec vidalune vidalune backup verify [name]   verify one backup, or all of them
+ *   docker compose exec vidalune vidalune restore <name|path>    restore on the next start
+ *   docker compose exec vidalune vidalune restore --cancel       cancel a staged restore
+ *   docker compose exec vidalune vidalune reset-password <username> <new-password>
+ *   docker compose exec vidalune vidalune scan [--refresh-metadata]
+ *   docker compose exec vidalune vidalune intros ["show title"|show-id] [season]
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,11 +25,11 @@ import { formatDiagnosis } from './services/segments/diagnose.js';
 import { ffmpegFrameReader, ffprobeChapterReader } from './services/segments/readers.js';
 import { setLogLevel } from './logger.js';
 
-const HELP = `Velyx maintenance commands:
+const HELP = `Vidalune maintenance commands:
   backup                     create a full backup archive (database, avatars, cache)
   backup list                list backups in the data folder
   backup verify [name|path]  check backups can be restored (all when no name is given)
-  restore <name|path>        restore a backup when Velyx next starts
+  restore <name|path>        restore a backup when Vidalune next starts
   restore --cancel           cancel a staged restore
   reset-password <username> <new-password>
   scan [--refresh-metadata]
@@ -91,17 +91,17 @@ async function run(): Promise<number> {
       }
       const file = args[0] ? resolve(args[0]) : null;
       if (!file) {
-        console.error(args[0] ? `Backup "${args[0]}" not found.` : 'Usage: velyx restore <backup name or path>');
+        console.error(args[0] ? `Backup "${args[0]}" not found.` : 'Usage: vidalune restore <backup name or path>');
         return 2;
       }
       stageRestore(file, config.dataDir, 'CLI');
-      console.log(`Restore of ${path.basename(file)} is staged. Restart Velyx to apply it:\n  docker compose restart velyx\nThe current database is kept as a pre-restore backup.`);
+      console.log(`Restore of ${path.basename(file)} is staged. Restart Vidalune to apply it:\n  docker compose restart vidalune\nThe current database is kept as a pre-restore backup.`);
       return 0;
     }
     case 'reset-password': {
       const [username, password] = args;
       if (!username || !password) {
-        console.error('Usage: velyx reset-password <username> <new-password>');
+        console.error('Usage: vidalune reset-password <username> <new-password>');
         return 2;
       }
       const err = validatePassword(password);
@@ -139,7 +139,7 @@ async function run(): Promise<number> {
       const q = args[0].toLowerCase();
       const show = all.find((s) => String(s.id) === args[0]) ?? all.find((s) => s.title.toLowerCase() === q) ?? all.find((s) => s.title.toLowerCase().includes(q));
       if (!show) {
-        console.error(`No show matches "${args[0]}". Run "velyx intros" for the list.`);
+        console.error(`No show matches "${args[0]}". Run "vidalune intros" for the list.`);
         return 1;
       }
       const seasons = [...new Set(db.select({ s: episodes.seasonNumber }).from(episodes).where(eq(episodes.showId, show.id)).all().map((r) => r.s))].sort((a, b) => a - b);

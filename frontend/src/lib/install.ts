@@ -12,7 +12,7 @@ const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
 
 /**
- * Listens for the browser offering to install Velyx. Called once at start-up, before React renders,
+ * Listens for the browser offering to install Vidalune. Called once at start-up, before React renders,
  * because the browser may make the offer right away.
  */
 export function initInstall(): void {
@@ -30,7 +30,7 @@ export function initInstall(): void {
 }
 
 /**
- * The service worker's address. It carries the Velyx version: the worker itself hardly ever
+ * The service worker's address. It carries the Vidalune version: the worker itself hardly ever
  * changes, and a browser only installs a worker again (and with it a fresh offline page) when its
  * address or content changes.
  */
@@ -44,7 +44,7 @@ export function registerServiceWorker(): void {
   window.addEventListener('load', () => void navigator.serviceWorker.register(serviceWorkerUrl()).catch(() => undefined));
 }
 
-/** Velyx runs as an installed app (its own window, no browser bar). */
+/** Vidalune runs as an installed app (its own window, no browser bar). */
 export function isStandalone(): boolean {
   return window.matchMedia?.('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
@@ -68,7 +68,7 @@ function subscribe(listener: () => void) {
 }
 
 /**
- * How Velyx can be installed on this device: 'prompt' (the browser offers it), 'ios' (by hand from
+ * How Vidalune can be installed on this device: 'prompt' (the browser offers it), 'ios' (by hand from
  * Safari's Share menu) or null (installed already, or not possible in this browser).
  */
 export function useInstall(): { how: InstallState; install: () => Promise<boolean> } {

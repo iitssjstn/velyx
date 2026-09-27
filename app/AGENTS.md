@@ -1,6 +1,6 @@
-# Velyx app
+# Vidalune app
 
-The Velyx app for Android (Expo, React Native, Expo Router). It talks to a Velyx server through
+The Vidalune app for Android (Expo, React Native, Expo Router). It talks to a Vidalune server through
 the API described in the main README ("Signing in from an app").
 
 - Routes live in `src/app/` (Expo Router); everything else in `src/lib/` and `src/components/`.

@@ -4,7 +4,7 @@ import { collectionItems, credits, movieGenres, movies, showGenres, shows } from
 import { scopeCondition, type LibraryScope } from './access.js';
 
 /**
- * "More Like This" from metadata Velyx already has: shared collection, director/creator, lead cast
+ * "More Like This" from metadata Vidalune already has: shared collection, director/creator, lead cast
  * and genres, plus release-year proximity. Deterministic and cheap: candidates come from indexed
  * lookups (genre, person, collection), never from scanning the whole library.
  */

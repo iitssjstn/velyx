@@ -12,7 +12,7 @@ afterEach(async () => {
 describe('first-run setup', () => {
   it('reports that setup is required until an admin exists', async () => {
     const before = await env.app.inject({ url: '/api/server/info' });
-    expect(before.json()).toMatchObject({ product: 'Velyx', version: '0.9.7', setupRequired: true });
+    expect(before.json()).toMatchObject({ product: 'Vidalune', version: '0.9.8', setupRequired: true });
     await setupAdmin(env.app);
     const after = await env.app.inject({ url: '/api/server/info' });
     expect(after.json().setupRequired).toBe(false);
@@ -165,7 +165,7 @@ describe('health and headers', () => {
   it('serves /health without auth', async () => {
     const res = await env.app.inject({ url: '/health' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({ status: 'ok', name: 'Velyx' });
+    expect(res.json()).toMatchObject({ status: 'ok', name: 'Vidalune' });
   });
 
   it('sends security headers', async () => {

@@ -1,4 +1,4 @@
-/** The parts of the Velyx API the app uses (same shapes as the website's). */
+/** The parts of the Vidalune API the app uses (same shapes as the website's). */
 
 export interface User {
   id: number;

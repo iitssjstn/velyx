@@ -1,8 +1,3 @@
 #!/bin/sh
-# Velyx maintenance CLI: velyx backup [list|verify] | restore <backup> | reset-password <user> <password> | scan
-# Runs as the same user as the server so files in the data volume keep the right owner.
-set -eu
-if [ "$(id -u)" = "0" ]; then
-  exec setpriv --reuid="${PUID:-1000}" --regid="${PGID:-1000}" --clear-groups -- node /app/backend/dist/cli.js "$@"
-fi
-exec node /app/backend/dist/cli.js "$@"
+# The maintenance CLI under its name from before the rename to Vidalune.
+exec /usr/local/bin/vidalune "$@"

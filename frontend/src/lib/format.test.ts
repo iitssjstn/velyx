@@ -72,11 +72,11 @@ describe('scan schedule labels', () => {
 });
 
 describe('device names', () => {
-  it('names the Velyx app and its device in the interface language', async () => {
-    expect(deviceName('Velyx app on Pixel 8')).toBe('Velyx app on Pixel 8');
+  it('names the Vidalune app and its device in the interface language', async () => {
+    expect(deviceName('Vidalune app on Pixel 8')).toBe('Vidalune app on Pixel 8');
     await setLanguage('nl');
     try {
-      expect(deviceName('Velyx app on Pixel 8')).toBe('Velyx-app op Pixel 8');
+      expect(deviceName('Vidalune app on Pixel 8')).toBe('Vidalune-app op Pixel 8');
       expect(deviceName('Chrome on Windows')).toBe('Chrome op Windows');
     } finally {
       await setLanguage('en');

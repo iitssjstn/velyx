@@ -116,7 +116,7 @@ export async function setLanguage(lang: Language): Promise<void> {
 
 /**
  * The language before anyone signs in: the last one used on this device, else the browser's
- * language when Velyx has it, else English. A signed-in user's own choice replaces it.
+ * language when Vidalune has it, else English. A signed-in user's own choice replaces it.
  */
 export function initialLanguage(): Language {
   try {

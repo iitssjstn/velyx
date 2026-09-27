@@ -1,6 +1,6 @@
 /**
  * The app's connection as the viewer sees it: fine, the device is offline, or the device is online
- * but the Velyx server does not answer (down, restarting, or out of reach on this network).
+ * but the Vidalune server does not answer (down, restarting, or out of reach on this network).
  */
 export type Connection = 'ok' | 'offline' | 'unreachable';
 

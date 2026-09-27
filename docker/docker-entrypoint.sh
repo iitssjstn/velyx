@@ -1,5 +1,5 @@
 #!/bin/sh
-# Prepares the data directory and drops root privileges before starting Velyx.
+# Prepares the data directory and drops root privileges before starting Vidalune.
 set -eu
 
 PUID="${PUID:-1000}"

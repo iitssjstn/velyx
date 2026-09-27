@@ -8,7 +8,7 @@ import { AuthShell } from './AuthShell';
 
 export function SetupPage() {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ username: '', password: '', confirm: '', serverName: 'Velyx', tmdbApiKey: '' });
+  const [form, setForm] = useState({ username: '', password: '', confirm: '', serverName: 'Vidalune', tmdbApiKey: '' });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { t } = useT();
@@ -24,7 +24,7 @@ export function SetupPage() {
       const res = await api.post<{ user: User }>('/api/setup', {
         username: form.username.trim(),
         password: form.password,
-        serverName: form.serverName.trim() || 'Velyx',
+        serverName: form.serverName.trim() || 'Vidalune',
         tmdbApiKey: form.tmdbApiKey.trim() || undefined,
         // The language chosen on this page becomes the administrator's interface language.
         language: currentLanguage(),

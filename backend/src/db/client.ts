@@ -17,7 +17,7 @@ export function migrationsFolder(): string {
   return path.resolve(here, '..', '..', 'drizzle');
 }
 
-/** Number of migrations this version of Velyx ships. */
+/** Number of migrations this version of Vidalune ships. */
 export function journalEntryCount(folder = migrationsFolder()): number {
   const journal = JSON.parse(fs.readFileSync(path.join(folder, 'meta', '_journal.json'), 'utf8')) as { entries: unknown[] };
   return journal.entries.length;
@@ -71,7 +71,7 @@ export function openDatabase(file: string, opts: OpenDbOptions = {}): DB {
   if (applied > shipped) {
     sqlite.close();
     throw new MigrationError(
-      `The database was created by a newer version of Velyx (${applied} migrations, this version knows ${shipped}). Velyx will not start, to avoid damaging it. Update Velyx, or restore a backup made with this version.`,
+      `The database was created by a newer version of Vidalune (${applied} migrations, this version knows ${shipped}). Vidalune will not start, to avoid damaging it. Update Vidalune, or restore a backup made with this version.`,
     );
   }
   const pending = shipped - applied;
@@ -93,7 +93,7 @@ export function openDatabase(file: string, opts: OpenDbOptions = {}): DB {
   } catch (err) {
     sqlite.close();
     throw new MigrationError(
-      `Database migration failed: ${(err as Error).message}. The database was left unchanged and Velyx did not start.${safetyCopy ? ` A copy from before the upgrade is at ${safetyCopy}.` : ''}`,
+      `Database migration failed: ${(err as Error).message}. The database was left unchanged and Vidalune did not start.${safetyCopy ? ` A copy from before the upgrade is at ${safetyCopy}.` : ''}`,
     );
   }
   if (pending > 0) {

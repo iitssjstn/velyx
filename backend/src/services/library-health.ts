@@ -44,7 +44,7 @@ export const HEALTH_CATEGORIES: HealthCategory[] = [
   { key: 'direct', label: 'Direct Play', group: 'playback', unit: 'files', description: 'Plays as-is in a current browser. No work for the server.' },
   { key: 'remux', label: 'Remux required', group: 'playback', unit: 'files', description: 'The video plays as-is; the audio or the container is converted on the fly, which costs little CPU.' },
   { key: 'browser-dependent', label: 'Depends on device', group: 'playback', unit: 'files', description: 'HEVC video: plays in Safari and in Chrome or Edge on hardware with HEVC decoding, not everywhere.' },
-  { key: 'unsupported', label: 'Unsupported', group: 'playback', unit: 'files', description: 'Browsers cannot decode the video, and Velyx does not transcode video.' },
+  { key: 'unsupported', label: 'Unsupported', group: 'playback', unit: 'files', description: 'Browsers cannot decode the video, and Vidalune does not transcode video.' },
   { key: '4k', label: '4K', group: 'formats', unit: 'files', description: 'Video of about 3840×2160. Large files: the network between server and device must keep up.' },
   { key: 'hevc', label: 'HEVC', group: 'formats', unit: 'files', description: 'HEVC / H.265 video.' },
   { key: 'av1', label: 'AV1', group: 'formats', unit: 'files', description: 'AV1 video: current Chrome, Edge and Firefox decode it; older devices and Safari may not.' },
@@ -57,7 +57,7 @@ export const HEALTH_CATEGORIES: HealthCategory[] = [
   { key: 'missing-metadata', label: 'Missing metadata', group: 'library', unit: 'items', description: 'Movies and shows that are not matched with TMDB, or have no description.' },
   { key: 'missing-artwork', label: 'Missing artwork', group: 'library', unit: 'items', description: 'Movies and shows without a poster.' },
   { key: 'scan-errors', label: 'Scan errors', group: 'library', unit: 'files', description: 'FFprobe could not read these files. They may be damaged or still being copied.' },
-  { key: 'not-analyzed', label: 'Not fully analysed', group: 'library', unit: 'files', description: 'Scanned before Velyx recorded bit depth and HDR. They are analysed when first played.' },
+  { key: 'not-analyzed', label: 'Not fully analysed', group: 'library', unit: 'files', description: 'Scanned before Vidalune recorded bit depth and HDR. They are analysed when first played.' },
   { key: 'duplicates', label: 'Possible duplicates', group: 'library', unit: 'items', description: 'Movies or episodes with more than one file, or two movies matched to the same TMDB entry.' },
   { key: 'replaced', label: 'Recently replaced', group: 'library', unit: 'items', description: 'Files swapped for another release in the last 30 days (usually upgrades). Watch history was kept.' },
 ];
@@ -156,9 +156,9 @@ export function playbackReasons(f: FileRow, lang: Language = 'en'): string[] {
   if (verdict === 'unsupported') {
     if (!f.videoCodec) return [T('No video stream was found in this file.')];
     const support = videoSupport(f, {}, lang);
-    if (support.ok === false && support.problem) return [support.problem, T('Velyx does not transcode video.')];
-    if (!COPYABLE_VIDEO.has(f.videoCodec) && !REFERENCE_CAPS.videoCodecs.includes(f.videoCodec)) return [T('{codec} video cannot be decoded by web browsers.', { codec: codecLabel(f.videoCodec, lang) }), T('Velyx does not transcode video.')];
-    return [support.problem ?? T('Browsers cannot decode this video.'), T('Velyx does not transcode video.')];
+    if (support.ok === false && support.problem) return [support.problem, T('Vidalune does not transcode video.')];
+    if (!COPYABLE_VIDEO.has(f.videoCodec) && !REFERENCE_CAPS.videoCodecs.includes(f.videoCodec)) return [T('{codec} video cannot be decoded by web browsers.', { codec: codecLabel(f.videoCodec, lang) }), T('Vidalune does not transcode video.')];
+    return [support.problem ?? T('Browsers cannot decode this video.'), T('Vidalune does not transcode video.')];
   }
   if (verdict === 'remux') {
     const reasons: string[] = [];
