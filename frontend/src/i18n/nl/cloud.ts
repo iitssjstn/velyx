@@ -20,6 +20,7 @@ export const cloud: Messages['cloud'] = {
   relayTitle: 'Bereikbaar zonder open poort (relay)',
   relayIntro: 'Je server houdt een verbinding open met vidalune.com en krijgt een eigen HTTPS-adres. De website en de app bereiken hem daar overal, zonder port forwarding of eigen domein.',
   relayPrivacy: 'Alles wat je kijkt en doet gaat dan via vidalune.com (onderweg versleuteld, daar ontsleuteld om het door te geven). Er wordt niets bewaard. Waar een direct adres werkt, wordt dat eerst gebruikt.',
+  relaySubscription: 'Toegang op afstand via Vidalune (de relay en app.vidalune.com) vereist een abonnement op het Vidalune-account {account}. In je thuisnetwerk, en op een eigen adres, werkt de server gewoon zoals altijd.',
   relayOn: 'Relay aanzetten',
   relayOff: 'Relay uitzetten',
   relayAddress: 'Adres: {url}',
@@ -27,6 +28,7 @@ export const cloud: Messages['cloud'] = {
   relayConnecting: 'Verbinden…',
   relayProblem: {
     refused: 'De relay weigerde de verbinding. Zet de relay uit en weer aan.',
+    subscription: 'De relay is niet beschikbaar: toegang op afstand via Vidalune vereist een abonnement.',
     unreachable: 'vidalune.com is nu niet bereikbaar. De server blijft het proberen.',
     closed: 'De verbinding werd verbroken. De server maakt opnieuw verbinding.',
   },

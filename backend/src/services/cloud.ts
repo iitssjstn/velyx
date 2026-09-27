@@ -19,7 +19,7 @@ export interface CloudStatus {
   /** Where the account pages are. */
   serviceUrl: string;
   /** The relay: reachable at `url` without an open port (opt-in, only while linked). */
-  relay: { enabled: boolean; url: string | null; connected: boolean; error: RelayProblem | null };
+  relay: { enabled: boolean; url: string | null; connected: boolean; error: RelayProblem | null; allowed: boolean };
 }
 
 /**
@@ -60,7 +60,14 @@ export class CloudService {
       account: link?.account ?? null,
       code,
       serviceUrl: this.deps.baseUrl,
-      relay: { enabled: relayOn, url: relayOn ? (link?.relayUrl ?? null) : null, connected: relayOn && tunnel.connected, error: relayOn && !tunnel.connected ? tunnel.error : null },
+      relay: {
+        enabled: relayOn,
+        url: relayOn ? (link?.relayUrl ?? null) : null,
+        connected: relayOn && tunnel.connected,
+        error: relayOn && !tunnel.connected ? tunnel.error : null,
+        // The owner's Vidalune account has remote access (unknown until the service said so: yes).
+        allowed: link?.relayAllowed !== false,
+      },
     };
   }
 
@@ -70,7 +77,8 @@ export class CloudService {
   }
 
   /** `soft401`: a 401 is about the request (a used ticket), not about this server's registration. */
-  private async call<T>(method: string, path: string, body?: unknown, auth = true, soft401 = false): Promise<T> {
+  /** `soft402`: pass a 402 (no remote access) on instead of a generic failure. */
+  private async call<T>(method: string, path: string, body?: unknown, auth = true, soft401 = false, soft402 = false): Promise<T> {
     const link = this.deps.settings.get().cloud;
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -89,6 +97,7 @@ export class CloudService {
       this.code = null;
       throw new HttpError(409, 'The Vidalune account service no longer knows this server. Turn linking on again.');
     }
+    if (res.status === 402 && soft402) throw new HttpError(402, 'Remote access through Vidalune needs a subscription.');
     if (!res.ok) throw new HttpError(502, 'The Vidalune account service could not handle the request. Try again later.');
     return (await res.json()) as T;
   }
@@ -111,13 +120,14 @@ export class CloudService {
   async check(): Promise<CloudStatus> {
     const link = this.deps.settings.get().cloud;
     if (!link) return this.status();
-    const r = await this.call<{ linked: boolean; account: string | null; relay?: { enabled: boolean; url: string | null } }>('POST', '/api/server/heartbeat', this.about());
+    const r = await this.call<{ linked: boolean; account: string | null; relay?: { enabled: boolean; url: string | null; allowed?: boolean } }>('POST', '/api/server/heartbeat', this.about());
     const current = this.deps.settings.get().cloud;
     // The service decides: an unlinked server (unlinked on vidalune.com) has no relay any more.
     const relay = !!r.relay?.enabled;
     const relayUrl = r.relay?.url ?? null;
-    if (current && (current.account !== r.account || !!current.relay !== relay || (current.relayUrl ?? null) !== relayUrl)) {
-      this.deps.settings.update({ cloud: { ...current, account: r.account, relay, relayUrl } });
+    const relayAllowed = r.relay?.allowed !== false;
+    if (current && (current.account !== r.account || !!current.relay !== relay || (current.relayUrl ?? null) !== relayUrl || (current.relayAllowed !== false) !== relayAllowed)) {
+      this.deps.settings.update({ cloud: { ...current, account: r.account, relay, relayUrl, relayAllowed } });
     }
     if (r.account) this.code = null;
     this.syncRelay();
@@ -171,8 +181,17 @@ export class CloudService {
   async setRelay(enabled: boolean): Promise<CloudStatus> {
     const link = this.deps.settings.get().cloud;
     if (!link?.account) throw new HttpError(409, 'Link this server to a Vidalune account first.');
-    const r = await this.call<{ enabled: boolean; url: string | null }>('POST', '/api/server/relay', { enabled });
-    this.deps.settings.update({ cloud: { ...link, relay: r.enabled, relayUrl: r.url } });
+    let r: { enabled: boolean; url: string | null; allowed?: boolean };
+    try {
+      r = await this.call('POST', '/api/server/relay', { enabled }, true, false, true);
+    } catch (err) {
+      if (err instanceof HttpError && err.statusCode === 402) {
+        this.deps.settings.update({ cloud: { ...link, relayAllowed: false } });
+        throw new HttpError(402, 'Remote access through Vidalune needs a subscription.');
+      }
+      throw err;
+    }
+    this.deps.settings.update({ cloud: { ...link, relay: r.enabled, relayUrl: r.url, relayAllowed: r.allowed !== false } });
     this.syncRelay();
     return this.status();
   }

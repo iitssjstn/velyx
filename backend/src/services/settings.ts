@@ -78,6 +78,8 @@ export interface CloudLink {
   relay?: boolean;
   /** Its relay address (https://<name>.vidalune.com). */
   relayUrl?: string | null;
+  /** The owner's Vidalune account has remote access (false: the relay needs a subscription). */
+  relayAllowed?: boolean;
 }
 
 export interface ServerSettings {

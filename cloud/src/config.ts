@@ -15,6 +15,8 @@ export interface CloudConfig {
   webDir: string | null;
   /** Relay addresses are <slug>.<relayDomain> (default: the host of PUBLIC_URL). */
   relayDomain: string;
+  /** Accounts that may use the admin page (/admin); they always have remote access themselves. */
+  adminEmails: string[];
 }
 
 const int = (v: string | undefined, fallback: number) => {
@@ -28,6 +30,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
   const defaultWeb = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'web');
   const publicUrl = (env.PUBLIC_URL ?? 'https://vidalune.com').replace(/\/+$/, '');
   return {
+    adminEmails: (env.ADMIN_EMAILS ?? '')
+      .split(/[\s,;]+/)
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
     relayDomain: (env.RELAY_DOMAIN || new URL(publicUrl).hostname).toLowerCase(),
     port: int(env.PORT, 3100),
     host: env.HOST ?? '0.0.0.0',

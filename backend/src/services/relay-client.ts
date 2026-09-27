@@ -12,8 +12,11 @@ interface Local {
   credit: number;
 }
 
-/** Why the tunnel is not open: the relay refused it, could not be reached, or it closed. */
-export type RelayProblem = 'refused' | 'unreachable' | 'closed';
+/**
+ * Why the tunnel is not open: the relay refused it, the account that owns this server has no remote
+ * access (subscription), the relay could not be reached, or the tunnel closed.
+ */
+export type RelayProblem = 'refused' | 'subscription' | 'unreachable' | 'closed';
 
 export interface RelayClientStatus {
   /** The tunnel to the relay is open. */
@@ -80,7 +83,9 @@ export class RelayClient {
     });
     ws.on('message', (data: Buffer) => this.onFrame(data));
     ws.on('unexpected-response', (_req, res) => {
-      this.lastError = res.statusCode === 401 || res.statusCode === 403 ? 'refused' : 'unreachable';
+      this.lastError = res.statusCode === 402 ? 'subscription' : res.statusCode === 401 || res.statusCode === 403 ? 'refused' : 'unreachable';
+      // No remote access: look again every minute (it may be given any moment).
+      if (res.statusCode === 402) this.delay = 60_000;
       ws.terminate();
     });
     ws.on('error', (err) => {

@@ -28,3 +28,7 @@ a { color: var(--accent); }
 .actions { display: flex; gap: 8px; }
 details { margin-bottom: 12px; }
 summary { cursor: pointer; color: var(--accent); margin-bottom: 8px; }
+input.inline { display: inline-block; width: auto; margin: 0 0 0 8px; vertical-align: middle; }
+select { font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+form.row input { flex: 1; min-width: 200px; margin: 0; }
+form.row { margin-bottom: 16px; }

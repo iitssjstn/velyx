@@ -8,6 +8,8 @@ let linkedTo: string | null;
 let calls: Array<{ url: string; method: string; auth: string | null; body: unknown }>;
 let reachable: boolean;
 let relayOn: boolean;
+/** The owner's account has remote access (a subscription). */
+let allowed: boolean;
 // Never reached in these tests: the tunnel itself is tested against the real relay in cloud/.
 const RELAY_URL = 'https://k7f3q9ma.vidalune.invalid';
 const fakeService = async (url: string, init?: RequestInit) => {
@@ -18,10 +20,12 @@ const fakeService = async (url: string, init?: RequestInit) => {
   const json = (data: unknown) => new Response(JSON.stringify(data), { status: 200 });
   if (path === '/api/server/register') return json({ id: 'srv-1', secret: 'secret-secret-secret-secret' });
   if (path === '/api/server/code') return json({ code: 'K7F3-Q9MA', expiresAt: Date.now() + 600_000, linkUrl: 'https://vidalune.com/link' });
-  if (path === '/api/server/heartbeat') return json({ linked: !!linkedTo, account: linkedTo, relay: { enabled: relayOn && !!linkedTo, url: relayOn && linkedTo ? RELAY_URL : null } });
+  if (path === '/api/server/heartbeat') return json({ linked: !!linkedTo, account: linkedTo, relay: { enabled: relayOn && !!linkedTo, allowed, url: relayOn && linkedTo && allowed ? RELAY_URL : null } });
   if (path === '/api/server/relay') {
-    relayOn = (JSON.parse(String(init?.body)) as { enabled: boolean }).enabled;
-    return json({ enabled: relayOn, url: relayOn ? RELAY_URL : null });
+    const enabled = (JSON.parse(String(init?.body)) as { enabled: boolean }).enabled;
+    if (enabled && !allowed) return new Response(JSON.stringify({ error: 'Remote access through Vidalune needs a subscription.' }), { status: 402 });
+    relayOn = enabled;
+    return json({ enabled: relayOn, allowed, url: relayOn ? RELAY_URL : null });
   }
   if (path === '/api/server') return json({ ok: true });
   return new Response('{}', { status: 404 });
@@ -34,6 +38,7 @@ beforeEach(async () => {
   calls = [];
   reachable = true;
   relayOn = false;
+  allowed = true;
   env = await createTestEnv({ fetchImpl: fakeService });
   admin = await setupAdmin(env.app, 'justin');
 });
@@ -75,6 +80,20 @@ describe('linking to a Vidalune account', () => {
     expect(calls.at(-1)).toMatchObject({ method: 'DELETE' });
     const audit = env.ctx.db.select().from(auditLog).where(eq(auditLog.actorName, 'justin')).all().map((a) => a.action);
     expect(audit).toEqual(expect.arrayContaining(['cloud.linking', 'cloud.unlinked']));
+  });
+
+  it('explains that the relay needs a subscription when the account has no remote access', async () => {
+    linkedTo = 'justin@example.com';
+    allowed = false;
+    await post('/api/admin/cloud/link');
+    const status = (await post('/api/admin/cloud/check')).json();
+    expect(status.relay).toMatchObject({ enabled: false, allowed: false });
+    const refused = await env.app.inject({ method: 'POST', url: '/api/admin/cloud/relay', headers: { cookie: admin }, payload: { enabled: true } });
+    expect(refused.statusCode).toBe(402);
+    expect(refused.json().error).toBe('Remote access through Vidalune needs a subscription.');
+    // Given on vidalune.com: the next report says so.
+    allowed = true;
+    expect((await post('/api/admin/cloud/check')).json().relay).toMatchObject({ allowed: true });
   });
 
   it('turns the relay on only for a linked server, and off again when the server is unlinked on vidalune.com', async () => {

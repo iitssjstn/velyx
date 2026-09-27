@@ -193,6 +193,8 @@ export class Relay {
       scheme: string;
       port: string;
       trustProxy: number;
+      /** Whether the owner (account id) of a server may use the relay: they have remote access. */
+      allowed: (accountId: number | null) => boolean;
     },
   ) {}
 
@@ -202,6 +204,11 @@ export class Relay {
 
   connected(serverId: string): boolean {
     return this.tunnels.has(serverId);
+  }
+
+  /** Open tunnels right now. */
+  count(): number {
+    return this.tunnels.size;
   }
 
   /** The slug a request is for, if it is a relay address. */
@@ -214,8 +221,8 @@ export class Relay {
   }
 
   handleRequest(req: IncomingMessage, res: ServerResponse, slug: string): void {
-    const row = this.opts.db.select({ id: servers.id, enabled: servers.relayEnabled }).from(servers).where(eq(servers.relaySlug, slug)).get();
-    const tunnel = row?.enabled ? this.tunnels.get(row.id) : undefined;
+    const row = this.opts.db.select({ id: servers.id, enabled: servers.relayEnabled, accountId: servers.accountId }).from(servers).where(eq(servers.relaySlug, slug)).get();
+    const tunnel = row?.enabled && this.opts.allowed(row.accountId) ? this.tunnels.get(row.id) : undefined;
     if (!tunnel) return unavailable(res, 502);
     tunnel.forward(req, res, clientIp(req, this.opts.trustProxy));
   }
@@ -223,7 +230,8 @@ export class Relay {
   /** A server opens its tunnel: wss://<domain>/api/server/tunnel with its secret. */
   handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
     const deny = (status: number) => {
-      socket.write(`HTTP/1.1 ${status} ${status === 401 ? 'Unauthorized' : 'Forbidden'}\r\nConnection: close\r\n\r\n`);
+      const reason = { 401: 'Unauthorized', 402: 'Payment Required', 403: 'Forbidden' }[status] ?? 'Forbidden';
+      socket.write(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\n\r\n`);
       socket.destroy();
     };
     if (!req.url?.startsWith('/api/server/tunnel')) return deny(403);
@@ -231,6 +239,8 @@ export class Relay {
     const row = m ? this.opts.db.select().from(servers).where(eq(servers.id, m[1])).get() : undefined;
     if (!row || !m || !crypto.timingSafeEqual(Buffer.from(row.secretHash), Buffer.from(sha256(m[2])))) return deny(401);
     if (!row.relayEnabled || !row.accountId) return deny(403);
+    // The owner has no remote access (any more): 402, so the server can say why.
+    if (!this.opts.allowed(row.accountId)) return deny(402);
     this.wss.handleUpgrade(req, socket, head, (ws) => {
       // One tunnel per server: a reconnect replaces the old one.
       this.tunnels.get(row.id)?.close();
@@ -245,6 +255,14 @@ export class Relay {
   drop(serverId: string): void {
     this.tunnels.get(serverId)?.close();
     this.tunnels.delete(serverId);
+  }
+
+  /** Closes the tunnels of servers whose owner no longer has remote access. */
+  dropUnallowed(): void {
+    for (const id of [...this.tunnels.keys()]) {
+      const row = this.opts.db.select({ accountId: servers.accountId, enabled: servers.relayEnabled }).from(servers).where(eq(servers.id, id)).get();
+      if (!row?.enabled || !this.opts.allowed(row.accountId)) this.drop(id);
+    }
   }
 
   close(): void {

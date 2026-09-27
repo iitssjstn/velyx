@@ -77,7 +77,12 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const publicUrl = new URL(config.publicUrl);
   /** The service's own addresses: vidalune.com, and app.vidalune.com / www.vidalune.com that serve the same pages. */
   const ownOrigins = new Set([config.publicUrl, ...['app', 'www'].map((n) => `${publicUrl.protocol}//${n}.${config.relayDomain}${publicUrl.port ? `:${publicUrl.port}` : ''}`)]);
-  const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops });
+  const admins = new Set(config.adminEmails);
+  const isAdmin = (a: { email: string }) => admins.has(a.email);
+  /** Whether an account's servers may be reached through Vidalune: an active plan (administrators always). */
+  const hasRemote = (a: typeof accounts.$inferSelect | undefined): boolean => !!a && (isAdmin(a) || (a.plan === 'remote' && (a.planUntil === null || a.planUntil > now())));
+  const ownerHasRemote = (accountId: number | null): boolean => accountId !== null && hasRemote(db.select().from(accounts).where(eq(accounts.id, accountId)).get());
+  const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops, allowed: ownerHasRemote });
   const app = Fastify({
     trustProxy: (_addr: string, hop: number) => hop < hops,
     bodyLimit: 64 * 1024,
@@ -179,7 +184,12 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     return { ok: true };
   });
 
-  app.get('/api/account', async (request) => ({ email: account(request).email }));
+  const planView = (a: typeof accounts.$inferSelect) => ({ active: hasRemote(a), until: isAdmin(a) ? null : a.planUntil });
+
+  app.get('/api/account', async (request) => {
+    const me = account(request);
+    return { email: me.email, remote: planView(me), ...(isAdmin(me) ? { admin: true } : {}) };
+  });
 
   /** Deleting an account signs out everywhere and unlinks its servers. */
   app.delete('/api/account', async (request, reply) => {
@@ -195,7 +205,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   // ---- servers, as seen by their owner
 
-  const relayUrl = (s: typeof servers.$inferSelect) => (s.relayEnabled && s.relaySlug ? relay.url(s.relaySlug) : null);
+  /** A server's relay address while its relay is on and its owner has remote access (null: not reachable that way). */
+  const relayUrl = (s: typeof servers.$inferSelect) => (s.relayEnabled && s.relaySlug && ownerHasRemote(s.accountId) ? relay.url(s.relaySlug) : null);
   const serverView = (s: typeof servers.$inferSelect) => ({
     id: s.id,
     name: s.name,
@@ -295,7 +306,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   const serverStatus = (s: typeof servers.$inferSelect) => {
     const owner = s.accountId ? db.select().from(accounts).where(eq(accounts.id, s.accountId)).get() : undefined;
-    return { linked: !!owner, account: owner?.email ?? null, relay: { enabled: s.relayEnabled && !!owner, url: owner ? relayUrl(s) : null, connected: relay.connected(s.id) } };
+    // allowed: the owner has remote access (a plan); without it the relay does not connect.
+    return { linked: !!owner, account: owner?.email ?? null, relay: { enabled: s.relayEnabled && !!owner, allowed: hasRemote(owner), url: owner ? relayUrl(s) : null, connected: relay.connected(s.id) } };
   };
 
   app.post('/api/server/register', async (request) => {
@@ -331,6 +343,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const me = server(request);
     const { enabled } = z.object({ enabled: z.boolean() }).parse(request.body);
     if (enabled && !me.accountId) throw new HttpError(409, 'Link this server to a Vidalune account first.');
+    if (enabled && !ownerHasRemote(me.accountId)) throw new HttpError(402, 'Remote access through Vidalune needs a subscription.');
     let slug = me.relaySlug;
     if (enabled && !slug) {
       // A new, unused address (kept when the relay is turned off and on again).
@@ -398,6 +411,70 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     return { ok: true };
   });
 
+  // ---- the admin page: who has remote access
+
+  function admin(request: FastifyRequest) {
+    const me = account(request);
+    if (!isAdmin(me)) throw new HttpError(403, 'Only for Vidalune administrators.');
+    return me;
+  }
+
+  const adminView = (a: typeof accounts.$inferSelect) => {
+    const owned = db.select({ id: servers.id, name: servers.name, lastSeenAt: servers.lastSeenAt, relayEnabled: servers.relayEnabled }).from(servers).where(eq(servers.accountId, a.id)).all();
+    return {
+      id: a.id,
+      email: a.email,
+      createdAt: a.createdAt,
+      admin: isAdmin(a),
+      plan: a.plan,
+      planUntil: a.planUntil,
+      planNote: a.planNote,
+      planChangedAt: a.planChangedAt,
+      remote: hasRemote(a),
+      servers: owned.map((s) => ({ ...s, relayConnected: relay.connected(s.id) })),
+    };
+  };
+
+  app.get('/api/admin/accounts', async (request) => {
+    admin(request);
+    const q = z.object({ q: z.string().trim().toLowerCase().max(254).default(''), filter: z.enum(['all', 'remote', 'servers']).default('all') }).parse(request.query);
+    const all = db.select().from(accounts).orderBy(desc(accounts.createdAt)).all();
+    const list = all
+      .filter((a) => !q.q || a.email.includes(q.q))
+      .map(adminView)
+      .filter((a) => q.filter === 'all' || (q.filter === 'remote' ? a.remote : a.servers.length > 0));
+    const linked = db.select({ id: servers.id }).from(servers).where(isNotNull(servers.accountId)).all().length;
+    return {
+      stats: { accounts: all.length, remote: all.filter(hasRemote).length, servers: linked, tunnels: relay.count() },
+      accounts: list.slice(0, 200),
+      more: list.length > 200,
+    };
+  });
+
+  /** Gives or takes remote access: the plan, until when (null: no end) and a note. */
+  app.put('/api/admin/accounts/:id/plan', async (request) => {
+    admin(request);
+    const { id } = z.object({ id: z.coerce.number().int().positive() }).parse(request.params);
+    const body = z
+      .object({
+        plan: z.enum(['free', 'remote']),
+        until: z.number().int().positive().nullable().default(null),
+        note: z.string().trim().max(200).nullable().default(null),
+      })
+      .parse(request.body);
+    if (body.plan === 'remote' && body.until !== null && body.until <= now()) throw new HttpError(400, 'Choose an end date in the future.');
+    const res = db
+      .update(accounts)
+      .set({ plan: body.plan, planUntil: body.plan === 'remote' ? body.until : null, planNote: body.note || null, planChangedAt: now() })
+      .where(eq(accounts.id, id))
+      .run();
+    if (!res.changes) throw new HttpError(404, 'Not found.');
+    const row = db.select().from(accounts).where(eq(accounts.id, id)).get()!;
+    // Taken away: its servers' tunnels close now, not at the next check.
+    if (!hasRemote(row)) for (const s of db.select({ id: servers.id }).from(servers).where(eq(servers.accountId, id)).all()) relay.drop(s.id);
+    return adminView(row);
+  });
+
   // ---- housekeeping and pages
 
   app.get('/health', async () => ({ status: 'ok' }));
@@ -408,6 +485,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     db.delete(linkCodes).where(lt(linkCodes.expiresAt, t)).run();
     db.delete(memberCodes).where(lt(memberCodes.expiresAt, t)).run();
     db.delete(tickets).where(lt(tickets.expiresAt, t)).run();
+    // Plans that ended: those servers are no longer reachable through the relay.
+    relay.dropUnallowed();
     // Registered but never linked, and silent for 30 days: forgotten.
     db.delete(servers)
       .where(and(isNull(servers.accountId), lt(servers.lastSeenAt, t - 30 * DAY)))
@@ -423,6 +502,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     app.get('/link', page);
     app.get('/servers', page);
     app.get('/join', page);
+    app.get('/admin', page);
   }
   app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: 'Not found.' }));
 
