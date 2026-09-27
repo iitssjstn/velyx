@@ -11,7 +11,9 @@ import { deviceDecoders } from '../../../../modules/velyx-codecs';
 import { SeekBar } from '../../../components/SeekBar';
 import { Button, styles } from '../../../components/ui';
 import { episodeCode, formatClock } from '../../../lib/format';
-import { fallbackCaps, pickSubtitle, playbackCaps, playerAudioPosition, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { fallbackCaps, playbackCaps, playerAudioPosition, resumePoint, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { rememberSubtitle, rememberedSubtitle } from '../../../lib/remember';
+import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
 import { useSession } from '../../../lib/session';
 import { skipAt, upNextStart, type EpisodeSegments, type SkipMode } from '../../../lib/skip';
 import { colors, radius } from '../../../lib/theme';
@@ -30,14 +32,12 @@ interface Item {
   fileId: number;
   title: string;
   subtitle: string | null;
-  progress: { positionSec: number; completed: boolean } | null;
+  progress: { positionSec: number; durationSec: number; completed: boolean } | null;
   next: NextEpisode | null;
   segments: EpisodeSegments | null;
 }
 
-interface Prefs {
-  subtitleMode?: string;
-  subtitleLanguage?: string | null;
+interface Prefs extends SubtitlePrefs {
   skipIntro?: SkipMode;
   skipCredits?: SkipMode;
 }
@@ -186,20 +186,25 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
 
   // Start: resume where the viewer stopped (unless asked to start elsewhere).
   useEffect(() => {
-    const resume = item.progress && !item.progress.completed ? item.progress.positionSec : 0;
-    void decide(startAt ?? resume);
+    void decide(startAt ?? resumePoint(item.progress) ?? 0);
     // Once per item.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The subtitle the account asks for, once the list is known.
+  // The subtitle the account asks for (or the last choice on this device), once the list is known.
   const subtitlePicked = useRef(false);
   useEffect(() => {
     if (!answer || subtitlePicked.current) return;
     subtitlePicked.current = true;
     const audio = answer.file.audioTracks.find((a) => a.index === answer.decision.audioIndex);
-    setSubtitle(pickSubtitle(answer.subtitles, prefs, audio?.language ?? null));
+    void rememberedSubtitle().then((remembered) => setSubtitle((current) => current ?? initialSubtitle(answer.subtitles, prefs, remembered, audio?.language ?? null)));
   }, [answer, prefs]);
+  /** A subtitle picked in the menu: shown now and remembered for the next time. */
+  const chooseSubtitle = (option: SubtitleOption | null) => {
+    setSubtitle(option);
+    setMenu(false);
+    void rememberSubtitle(choiceFor(option));
+  };
 
   // Subtitles are shown by the app (the same for direct play and remux), from the server's WebVTT.
   useEffect(() => {
@@ -283,12 +288,23 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   // Offered when the credits begin (or in the last seconds), with a countdown unless dismissed.
   const upNextAt = item.next ? upNextStart(item.segments, item.fileId, duration, NEXT_COUNTDOWN) : null;
   const nearEnd = upNextAt !== null && position >= upNextAt;
+  // Only after playing up to that moment: starting (or jumping) straight into the credits does not
+  // start the countdown — then it waits for the end of the episode.
+  const reachedEnd = useRef(false);
+  const lastPosition = useRef<number | null>(null);
+  useEffect(() => {
+    if (!playing || loading || upNextAt === null) return;
+    const before = lastPosition.current;
+    lastPosition.current = position;
+    if (before !== null && before < upNextAt && position >= upNextAt && position - before < 5) reachedEnd.current = true;
+    if (position < upNextAt) reachedEnd.current = false;
+  }, [position, playing, loading, upNextAt]);
   useEffect(() => {
     if (!item.next || nextDismissed) return;
-    if (nearEnd && playing) setCountdown((c) => c ?? NEXT_COUNTDOWN);
+    if (nearEnd && playing && reachedEnd.current) setCountdown((c) => c ?? NEXT_COUNTDOWN);
     // Seeking back out of the end cancels it.
     if (!nearEnd && !ended) setCountdown(null);
-  }, [nearEnd, playing, ended, item.next, nextDismissed]);
+  }, [nearEnd, playing, ended, item.next, nextDismissed, position]);
   useEffect(() => {
     if (countdown === null) return;
     if (countdown <= 0) {
@@ -323,10 +339,17 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   // straight to the next episode when there is one.
   useEffect(() => {
     if (!skip || skip.mode !== 'always' || autoSkipped.current.has(skip.kind)) return;
+    if (skip.kind === 'credits' && skip.toNext && item.next) {
+      // Straight on to the next episode only when the credits were reached by watching, not when
+      // playback started inside them.
+      if (!reachedEnd.current) return;
+      autoSkipped.current.add(skip.kind);
+      goNext();
+      return;
+    }
     autoSkipped.current.add(skip.kind);
-    if (skip.kind === 'credits' && skip.toNext && item.next) goNext();
-    else seekTo(skip.to);
-  }, [skip, item.next, goNext, seekTo]);
+    seekTo(skip.to);
+  }, [skip, item.next, goNext, seekTo, position]);
 
   const toggle = () => {
     if (ended) {
@@ -462,9 +485,9 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
                 />
               ))}
               <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('player.subtitles')}</Text>
-              <Choice label={t('player.off')} selected={!subtitle} onPress={() => (setSubtitle(null), setMenu(false))} />
+              <Choice label={t('player.off')} selected={!subtitle} onPress={() => chooseSubtitle(null)} />
               {(answer?.subtitles ?? []).map((s) => (
-                <Choice key={s.key} label={[s.languageName || s.label, s.title && s.title !== s.languageName ? s.title : null, s.forced ? 'Forced' : null].filter(Boolean).join(' · ')} selected={subtitle?.key === s.key} onPress={() => (setSubtitle(s), setMenu(false))} />
+                <Choice key={s.key} label={[s.languageName || s.label, s.title && s.title !== s.languageName ? s.title : null, s.forced ? 'Forced' : null].filter(Boolean).join(' · ')} selected={subtitle?.key === s.key} onPress={() => chooseSubtitle(s)} />
               ))}
             </ScrollView>
           </Pressable>

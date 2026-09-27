@@ -127,21 +127,13 @@ export function playerAudioPosition(tracks: AudioTrackInfo[], index: number | nu
   return [...tracks].sort((a, b) => a.index - b.index).findIndex((t) => t.index === index);
 }
 
-/** The subtitle to start with: the account's choice from the server's list, else none. */
-export function pickSubtitle(options: SubtitleOption[], prefs: { subtitleMode?: string; subtitleLanguage?: string | null } | null, audioLanguage: string | null): SubtitleOption | null {
-  if (!prefs || !options.length) return null;
-  const lang = prefs.subtitleLanguage?.toLowerCase().slice(0, 2) ?? null;
-  const matches = (o: SubtitleOption) => Boolean(lang && o.language?.toLowerCase().slice(0, 2) === lang);
-  switch (prefs.subtitleMode) {
-    case 'always':
-      return options.find((o) => matches(o) && !o.forced) ?? options.find(matches) ?? null;
-    case 'foreign':
-      // Only when the audio is in another language than the subtitle language.
-      if (!lang || (audioLanguage && audioLanguage.toLowerCase().slice(0, 2) === lang)) return options.find((o) => o.forced && matches(o)) ?? null;
-      return options.find((o) => matches(o) && !o.forced) ?? null;
-    case 'forced':
-      return options.find((o) => o.forced && matches(o)) ?? options.find((o) => o.forced) ?? null;
-    default:
-      return null;
-  }
+/**
+ * Where playback resumes, or null to start from the beginning: from 30 seconds in, and not in the
+ * last part (the last 15 seconds or 10 %, where the credits usually are) — as on the website, so
+ * continuing an episode never lands in its credits and the "next episode" card.
+ */
+export function resumePoint(progress: { positionSec: number; durationSec: number; completed?: boolean } | null | undefined): number | null {
+  if (!progress || progress.completed || progress.positionSec < 30) return null;
+  if (progress.durationSec > 0 && (progress.durationSec - progress.positionSec < 15 || progress.positionSec / progress.durationSec >= 0.9)) return null;
+  return progress.positionSec;
 }
