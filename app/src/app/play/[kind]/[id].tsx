@@ -13,7 +13,7 @@ import { deviceDecoders } from '../../../../modules/velyx-codecs';
 import { SeekBar } from '../../../components/SeekBar';
 import { Button, styles } from '../../../components/ui';
 import { episodeCode, formatClock } from '../../../lib/format';
-import { endedEarly, fallbackCaps, playbackCaps, playerAudioPosition, resumePoint, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { endOfStream, fallbackCaps, playbackCaps, playerAudioPosition, resumePoint, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { rememberSubtitle, rememberedSubtitle, storeSubtitleStyle, storedSubtitleStyle } from '../../../lib/remember';
 import { DEFAULT_SUBTITLE_STYLE, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
@@ -154,6 +154,8 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   const [seekFlash, setSeekFlash] = useState<'back' | 'forward' | null>(null);
   const pendingSeek = useRef<number | null>(null);
   const tracksSet = useRef(false);
+  /** A stream is loaded and ready (the player exists before that, without a video). */
+  const streamReady = useRef(false);
   const lastSave = useRef(0);
   /** The caps of the current stream; after a failed first try, the safer second-try caps. */
   const capsRef = useRef<PlaybackCaps>(playbackCaps(deviceDecoders()));
@@ -173,6 +175,8 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       // Direct play starts at 0 and seeks once the file is open; a remux stream already starts there.
       pendingSeek.current = a.decision.seek === 'range' && at > 0 ? at : null;
       tracksSet.current = false;
+      streamReady.current = false;
+      setEnded(false);
       await player.replaceAsync({ uri: s.uri, headers: api.headers(), metadata: { title: item.title, artist: item.subtitle ?? undefined } });
       player.play();
     },
@@ -247,6 +251,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   useEventListener(player, 'playingChange', ({ isPlaying }) => setPlaying(isPlaying));
   useEventListener(player, 'statusChange', ({ status, error }) => {
     setLoading(status === 'loading');
+    if (status === 'readyToPlay') streamReady.current = true;
     if (status === 'readyToPlay' && pendingSeek.current !== null) {
       player.currentTime = pendingSeek.current;
       pendingSeek.current = null;
@@ -275,7 +280,9 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   // from there — a few times at most at the same spot — instead of ending the episode.
   const resumes = useRef<{ at: number; count: number }>({ at: -1, count: 0 });
   useEventListener(player, 'playToEnd', () => {
-    if (answer && endedEarly(position, duration)) {
+    const kind = answer ? endOfStream(streamReady.current, position, duration) : 'ignore';
+    if (kind === 'ignore') return;
+    if (kind === 'resume' && answer) {
       const r = resumes.current;
       resumes.current = Math.abs(position - r.at) < 10 ? { at: position, count: r.count + 1 } : { at: position, count: 1 };
       if (resumes.current.count <= 3) {

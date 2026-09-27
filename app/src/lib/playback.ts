@@ -142,10 +142,14 @@ export function resumePoint(progress: { positionSec: number; durationSec: number
 const END_MARGIN_SEC = 30;
 
 /**
- * Whether the player stopping at `position` means the stream broke off (a dropped connection,
- * a stalled server) rather than the file ending: then playback continues from there instead of
- * offering the next episode and marking this one watched.
+ * What the player reporting "played to the end" means:
+ * - `ignore`: no stream is playing yet. A player without a video (it exists before the video is
+ *   loaded) reports its end straight away; that is not the end of the episode.
+ * - `resume`: the stream broke off long before the end (a dropped connection, a stalled server):
+ *   playback continues from there instead of offering the next episode and marking it watched.
+ * - `end`: the real end of the file.
  */
-export function endedEarly(position: number, duration: number): boolean {
-  return duration > 0 && position < duration - END_MARGIN_SEC;
+export function endOfStream(streamReady: boolean, position: number, duration: number): 'ignore' | 'resume' | 'end' {
+  if (!streamReady) return 'ignore';
+  return duration > 0 && position < duration - END_MARGIN_SEC ? 'resume' : 'end';
 }
