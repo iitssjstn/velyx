@@ -348,6 +348,8 @@ Besides installing the website as an app, Velyx has its own Android app (for pho
 2. Sign in with your username and password, or choose **Code**: the app shows a code such as `K7M-2QX`. Enter it on the website under **Settings → Account → Connect the Velyx app** (or at `/link`) while signed in as yourself, and the app signs in by itself.
 3. The app appears as your device (for example *Pixel 8 · Velyx app*) under **Settings → Account → Devices**, where you can sign it out. **Account → Sign out** in the app does the same.
 
+**Your account in the app** (the Account tab): change your display name and the interface language (English or Dutch, the same setting as on the website), change your password (optionally signing out every other device), see every device where your account is signed in and sign out any of them (or all others at once), and see the server, its version, the app version and this device's name. **Use another server** signs out and returns to the connect screen. When the server no longer accepts this device — it was signed out from another device, or the password was changed there — the app goes back to signing in and says why. The sign-in token is kept in Android's encrypted storage and never written to logs.
+
 The app follows your account's language (English or Dutch). Before signing in, it follows the phone's language.
 
 ## Subtitles and audio tracks
