@@ -33,10 +33,13 @@ export interface Api {
 
 export function createApi(config: ApiConfig): Api {
   const fetchImpl = config.fetchImpl ?? fetch;
-  const headers = (): Record<string, string> => ({
+  // One object for the whole session: images compare their source, and a new object on every
+  // render would make them load again.
+  const fixedHeaders: Record<string, string> = Object.freeze({
     'User-Agent': config.userAgent,
     ...(config.token ? { Authorization: `Bearer ${config.token}` } : {}),
-  });
+  }) as Record<string, string>;
+  const headers = (): Record<string, string> => fixedHeaders;
   const url = (path: string) => `${config.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
 
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {

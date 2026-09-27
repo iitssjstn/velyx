@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View, type GestureResponderEvent } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { NavigationBar } from 'expo-navigation-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -51,10 +53,15 @@ const DOUBLE_TAP_MS = 300;
 export default function Player() {
   const { kind, id, t: startParam } = useLocalSearchParams<{ kind: string; id: string; t?: string }>();
   const { api, t, serverUrl } = useSession();
-  const qc = useQueryClient();
 
   const item = useQuery({
     queryKey: [serverUrl, 'play-item', kind, id],
+    // Always fresh: a cached copy would resume from where the previous playback started.
+    gcTime: 0,
+    staleTime: 0,
+    // Loaded once per playback, not again when coming back to the app.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async (): Promise<Item> => {
       if (kind === 'episode') {
         const e = await api.get<{ id: number; showTitle: string; seasonNumber: number; episodeNumber: number; title: string | null; files: { id: number }[]; progress: Item['progress']; next: NextEpisode | null; segments?: EpisodeSegments | null }>(`/api/episodes/${id}`);
@@ -74,18 +81,12 @@ export default function Player() {
     return () => void ScreenOrientation.unlockAsync().catch(() => undefined);
   }, []);
 
-  // Lists (progress, Continue Watching) are fresh after watching.
-  useEffect(
-    () => () => {
-      void qc.invalidateQueries({ queryKey: [serverUrl] });
-    },
-    [qc, serverUrl],
-  );
-
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <Stack.Screen options={{ headerShown: false, animation: 'fade' }} />
       <StatusBar hidden />
+      {/* Full screen: the system's navigation bar too (a swipe from the edge shows it briefly). */}
+      <NavigationBar hidden />
       {item.error ? (
         <Problem message={(item.error as Error).message} />
       ) : item.data && !prefs.isLoading ? (
@@ -110,7 +111,9 @@ function Problem({ message }: { message: string }) {
 }
 
 function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; startAt: number | null }) {
-  const { api, t } = useSession();
+  const { api, t, serverUrl } = useSession();
+  const qc = useQueryClient();
+  const insets = useSafeAreaInsets();
   const player = useVideoPlayer(null, (p) => {
     p.timeUpdateEventInterval = 0.5;
     p.keepScreenOnWhilePlaying = true;
@@ -150,6 +153,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   const [nextDismissed, setNextDismissed] = useState(false);
   const [seekFlash, setSeekFlash] = useState<'back' | 'forward' | null>(null);
   const pendingSeek = useRef<number | null>(null);
+  const tracksSet = useRef(false);
   const lastSave = useRef(0);
   /** The caps of the current stream; after a failed first try, the safer second-try caps. */
   const capsRef = useRef<PlaybackCaps>(playbackCaps(deviceDecoders()));
@@ -168,6 +172,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       setTime(Math.max(0, at - s.offset));
       // Direct play starts at 0 and seeks once the file is open; a remux stream already starts there.
       pendingSeek.current = a.decision.seek === 'range' && at > 0 ? at : null;
+      tracksSet.current = false;
       await player.replaceAsync({ uri: s.uri, headers: api.headers(), metadata: { title: item.title, artist: item.subtitle ?? undefined } });
       player.play();
     },
@@ -246,7 +251,9 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       player.currentTime = pendingSeek.current;
       pendingSeek.current = null;
     }
-    if (status === 'readyToPlay' && answer) {
+    // Once per stream: setting tracks again after every buffering pause can interrupt playback.
+    if (status === 'readyToPlay' && answer && !tracksSet.current) {
+      tracksSet.current = true;
       // No subtitles from the file itself: the app shows its own.
       player.subtitleTrack = null;
       const pos = playerAudioPosition(answer.file.audioTracks, answer.decision.audioIndex);
@@ -307,7 +314,13 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   useEffect(() => {
     if (!playing && answer) void saveRef.current();
   }, [playing, answer]);
-  useEffect(() => () => void saveRef.current(), []);
+  // On leaving: save, then refresh the lists (Continue Watching, progress bars) with the new position.
+  useEffect(
+    () => () => {
+      void Promise.resolve(saveRef.current()).finally(() => void qc.invalidateQueries({ queryKey: [serverUrl] }));
+    },
+    [qc, serverUrl],
+  );
 
   // ---------------------------------------------------------------- skip intro / credits
   const modes = { intro: prefs?.skipIntro ?? 'ask', credits: prefs?.skipCredits ?? 'ask' };
@@ -350,19 +363,28 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   }, [countdown, playing, ended, goNext]);
 
   // ---------------------------------------------------------------- controls
+  // Hidden after a few seconds without touching them (counted from the last touch, not the last
+  // time update — those come twice a second).
+  const [touched, setTouched] = useState(0);
+  const poke = () => setTouched((n) => n + 1);
   useEffect(() => {
     if (!controls || !playing || menu || scrub !== null) return;
     const timer = setTimeout(() => setControls(false), HIDE_CONTROLS_MS);
     return () => clearTimeout(timer);
-  }, [controls, playing, menu, scrub, time]);
+  }, [controls, playing, menu, scrub, touched]);
 
   const seekTo = useCallback(
     (target: number) => {
       if (!answer) return;
       const tt = Math.max(0, Math.min(Math.max(0, duration - 1), target));
       setEnded(false);
+      setTouched((n) => n + 1);
       if (answer.decision.seek === 'restart') void load(answer, tt);
-      else player.currentTime = tt;
+      else {
+        player.currentTime = tt;
+        // Show the new position straight away instead of after the next time update.
+        setTime(tt);
+      }
     },
     [answer, duration, load, player],
   );
@@ -384,6 +406,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   }, [skip, item.next, goNext, seekTo, position]);
 
   const toggle = () => {
+    poke();
     if (ended) {
       seekTo(0);
       player.play();
@@ -398,6 +421,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
     const x = e.nativeEvent.pageX;
     const prev = lastTap.current;
     lastTap.current = { at: now, x };
+    poke();
     if (now - prev.at < DOUBLE_TAP_MS && Math.abs(x - prev.x) < 80 && screenWidth.current > 0) {
       const side = x < screenWidth.current / 3 ? 'back' : x > (screenWidth.current * 2) / 3 ? 'forward' : null;
       if (side) {
@@ -430,7 +454,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       }}>
       <VideoView player={player} style={{ flex: 1 }} nativeControls={false} contentFit="contain" allowsPictureInPicture={false} />
       {text ? (
-        <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleBottom(subStyle, screenHeight, controls), alignItems: 'center' }}>
+        <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleBottom(subStyle, screenHeight, controls) + insets.bottom, alignItems: 'center' }}>
           <Text style={subtitleTextStyle(subStyle, screenHeight)}>{text}</Text>
         </View>
       ) : null}
@@ -443,7 +467,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       )}
       <Pressable accessibilityLabel={t('player.tracks')} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={onTap}>
         {controls && (
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'space-between', padding: 16 }}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'space-between', paddingTop: 16 + insets.top, paddingBottom: 16 + insets.bottom, paddingLeft: 16 + insets.left, paddingRight: 16 + insets.right }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <IconButton name="arrow-left" label={t('player.back')} onPress={() => router.back()} />
               <View style={{ flex: 1 }}>
@@ -469,7 +493,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       </Pressable>
       {/* Skip intro / credits: visible with or without the controls, above them. */}
       {skip?.mode === 'ask' && !showNext && (
-        <View style={{ position: 'absolute', right: 24, bottom: controls ? 110 : 32 }}>
+        <View style={{ position: 'absolute', right: 24 + insets.right, bottom: (controls ? 110 : 32) + insets.bottom }}>
           <Button
             label={skip.kind === 'intro' ? t('player.skipIntro') : t('player.skipCredits')}
             onPress={() => {
@@ -480,7 +504,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
         </View>
       )}
       {showNext && item.next && (
-        <View style={{ position: 'absolute', right: 24, bottom: controls ? 110 : 32, width: 300, maxWidth: '80%', backgroundColor: 'rgba(20,18,28,0.92)', borderRadius: radius.lg, padding: 14, gap: 10, borderWidth: 1, borderColor: colors.line }}>
+        <View style={{ position: 'absolute', right: 24 + insets.right, bottom: (controls ? 110 : 32) + insets.bottom, width: 300, maxWidth: '80%', backgroundColor: 'rgba(20,18,28,0.92)', borderRadius: radius.lg, padding: 14, gap: 10, borderWidth: 1, borderColor: colors.line }}>
           <Text style={{ color: colors.muted, fontSize: 13 }}>{t('player.next')}</Text>
           <Text style={{ color: colors.ink, fontWeight: '700' }} numberOfLines={2}>
             {episodeCode(item.next.seasonNumber, item.next.episodeNumber)}
@@ -503,9 +527,9 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
           </View>
         </View>
       )}
-      <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)} supportedOrientations={['landscape', 'portrait']}>
+      <Modal visible={menu} transparent statusBarTranslucent navigationBarTranslucent animationType="fade" onRequestClose={() => setMenu(false)} supportedOrientations={['landscape', 'portrait']}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'flex-end' }} onPress={() => setMenu(false)} accessibilityLabel={t('player.close')}>
-          <Pressable style={{ width: 320, maxWidth: '90%', height: '100%', backgroundColor: colors.surface, padding: 16 }} onPress={() => undefined}>
+          <Pressable style={{ width: 320 + insets.right, maxWidth: '90%', height: '100%', backgroundColor: colors.surface, paddingTop: 16 + insets.top, paddingBottom: 16 + insets.bottom, paddingLeft: 16, paddingRight: 16 + insets.right }} onPress={() => undefined}>
             <ScrollView contentContainerStyle={{ gap: 6 }}>
               <Text style={[styles.label, { marginBottom: 4 }]}>{t('player.audio')}</Text>
               {audioTracks.map((a) => (

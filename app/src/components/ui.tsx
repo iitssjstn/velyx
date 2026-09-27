@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { colors, radius } from '../lib/theme';
 import { useSession } from '../lib/session';
@@ -17,11 +17,11 @@ export function Button({ label, onPress, busy, disabled, variant = 'primary' }: 
   );
 }
 
-export function Field({ label, ...props }: TextInputProps & { label: string }) {
+export function Field({ label, ref, ...props }: TextInputProps & { label: string; ref?: Ref<TextInput> }) {
   return (
     <View style={{ gap: 6 }}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput placeholderTextColor={colors.faint} style={styles.input} accessibilityLabel={label} {...props} />
+      <TextInput ref={ref} placeholderTextColor={colors.faint} style={styles.input} accessibilityLabel={label} {...props} />
     </View>
   );
 }

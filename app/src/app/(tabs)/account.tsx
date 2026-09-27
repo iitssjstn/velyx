@@ -25,9 +25,13 @@ export default function Account() {
         busy={busy}
         onPress={async () => {
           setBusy(true);
-          await signOut();
-          qc.clear();
-          router.replace('/');
+          try {
+            await signOut();
+            qc.clear();
+            router.replace('/');
+          } finally {
+            setBusy(false);
+          }
         }}
       />
       <Text style={styles.muted}>{t('account.signOutHint')}</Text>

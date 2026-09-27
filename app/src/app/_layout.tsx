@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { SessionProvider } from '../lib/session';
 import { colors } from '../lib/theme';
 
@@ -23,6 +24,12 @@ export default function RootLayout() {
         },
       }),
   );
+  // Coming back to the app counts as focus: lists older than their stale time load again, so
+  // progress watched on another device shows up.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => focusManager.setFocused(state === 'active'));
+    return () => sub.remove();
+  }, []);
   return (
     <QueryClientProvider client={client}>
       <SessionProvider>
