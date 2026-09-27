@@ -32,6 +32,8 @@ export const audit = {
     cleanupDeleted: 'Deleted a file during clean-up',
     cleanupKept: 'Kept files in clean-up',
     cleanupSettings: 'Changed clean-up settings',
+    cleanupRules: 'Changed own clean-up rules',
+    notificationsSettings: 'Changed notification settings',
     segmentsAnalyze: 'Started intro and credits detection for',
     segmentsEdited: 'Edited intro and credits of',
     segmentsReset: 'Reset intro and credits of',

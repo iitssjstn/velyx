@@ -22,6 +22,10 @@ export interface ScanHooks {
   yieldMs?: number;
   /** Every queued scan has finished (follow-up work such as intro detection starts here). */
   onIdle?: () => void;
+  /** A library scan finished (for administrator notifications). */
+  onScanDone?: (libraryId: number, summary: ScanSummary) => void;
+  /** A library scan failed. */
+  onScanFailed?: (libraryId: number, message: string) => void;
 }
 
 /** How long a scheduled scan waits for playback to end before it runs anyway. */
@@ -221,6 +225,7 @@ export class ScanManager {
         .set({ lastScanAt: Date.now(), lastScanStatus: 'ok', lastScanMessage: parts.join(', '), lastSuccessAt: Date.now(), lastScanDurationMs: summary.durationMs })
         .where(eq(libraries.id, job.libraryId))
         .run();
+      this.hooks.onScanDone?.(job.libraryId, summary);
     } catch (err) {
       log.error(`Library scan failed`, err);
       this.db
@@ -228,6 +233,7 @@ export class ScanManager {
         .set({ lastScanAt: Date.now(), lastScanStatus: 'error', lastScanMessage: (err as Error).message.slice(0, 500), lastFailureAt: Date.now(), lastScanDurationMs: Date.now() - this.running!.startedAt })
         .where(eq(libraries.id, job.libraryId))
         .run();
+      this.hooks.onScanFailed?.(job.libraryId, (err as Error).message.slice(0, 300));
     } finally {
       this.running = null;
       setImmediate(() => void this.pump());

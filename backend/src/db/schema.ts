@@ -680,3 +680,33 @@ export const cleanupDecisions = sqliteTable('cleanup_decisions', {
   decidedBy: text('decided_by').notNull(),
   decidedAt: integer('decided_at').notNull().default(now),
 });
+
+/**
+ * Library clean-up: files an administrator's own rule planned to delete. The file is deleted on
+ * `dueAt` if it still matches the rule, is not kept and nobody is watching it; until then it can be
+ * kept (which removes the plan). Deleting also needs the clean-up's "Allow deleting".
+ */
+export const cleanupPlanned = sqliteTable('cleanup_planned', {
+  mediaFileId: integer('media_file_id')
+    .primaryKey()
+    .references(() => mediaFiles.id, { onDelete: 'cascade' }),
+  ruleId: text('rule_id').notNull(),
+  /** The file this plan is about (another size means another file). */
+  size: integer('size').notNull(),
+  plannedAt: integer('planned_at').notNull().default(now),
+  dueAt: integer('due_at').notNull(),
+});
+
+/** Messages for administrators (planned deletions, failed backups, …), shown under the bell. */
+export const adminNotifications = sqliteTable(
+  'admin_notifications',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    event: text('event').notNull(),
+    /** Parameters for the message; it is written in the reader's language when read. */
+    params: text('params').notNull().default('{}'),
+    createdAt: integer('created_at').notNull().default(now),
+    readAt: integer('read_at'),
+  },
+  (t) => [index('admin_notifications_created_idx').on(t.createdAt)],
+);

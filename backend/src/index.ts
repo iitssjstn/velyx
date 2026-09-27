@@ -56,6 +56,7 @@ async function main(): Promise<void> {
   ctx.watcher.sync(ctx.settings.get().watchFolders);
   ctx.backups.start();
   ctx.disk.start();
+  ctx.cleanupScheduler.start();
   // A backup missed while Velyx was off runs shortly after start, not in the middle of it.
   setTimeout(() => ctx.backups.tick(), 2 * 60 * 1000).unref();
   ctx.streams.closeInterrupted();
@@ -80,6 +81,7 @@ async function main(): Promise<void> {
     ctx.watcher.stop();
     ctx.backups.stop();
     ctx.disk.stop();
+    ctx.cleanupScheduler.stop();
     (ctx.playback.get('remux') as RemuxEngine | undefined)?.stopAll();
     clearInterval(purgeTimer);
     try {

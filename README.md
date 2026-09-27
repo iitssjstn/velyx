@@ -27,6 +27,7 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - [Monitoring and storage](#monitoring-and-storage)
 - [Activity and statistics](#activity-and-statistics)
 - [Library clean-up](#library-clean-up)
+- [Admin notifications](#admin-notifications)
 - [Library health](#library-health)
 - [Intros and credits](#intros-and-credits)
 - [Running behind a reverse proxy](#running-behind-a-reverse-proxy)
@@ -74,7 +75,8 @@ Velyx is a lightweight, Docker-first, self-hosted media server for movies and TV
 - **Collections** — movie series from TMDB (such as “The Matrix Collection”) are grouped automatically once you have two or more of their movies; administrators can also make their own collections of movies and shows. **Smart collections** (Recently Added, Unwatched, 4K, HDR, Short Movies, decades, …) are saved filters, evaluated per viewer, and admins can save their own.
 - **Multiple users** with administrator and user roles, device/session management and an audit log.
 - **Activity and statistics** — who is watching what right now (with exactly how it is sent: Direct Play or Remux, codecs, resolution, bitrate, device), a full activity log, watch time per day, week or month, most watched movies and shows, and a watch history for every user.
-- **Library clean-up** — suggestions for freeing up space (never watched, not watched in a long time, very large files, extra versions, unidentified files), reviewed by an administrator. Nothing is deleted without selecting files and confirming, and deleting is off by default.
+- **Library clean-up** — suggestions for freeing up space (never watched, not watched in a long time, very large files, extra versions, unidentified files), reviewed by an administrator, plus your own rules that combine conditions. Nothing is deleted without selecting files and confirming — or, for your own rules, a planned date that administrators are told about — and deleting is off by default.
+- **Admin notifications** — administrators see what Velyx did on its own (planned and completed clean-ups, failed scans and backups, new sign-ins, low disk space) under Admin → Notifications, and can also have them posted in a Discord channel (off unless you add a webhook).
 - **Admin panel** — dashboard with CPU, memory, disk, scanner status, active streams and backups; activity and statistics; libraries with live scan progress; Library health; intros & credits; users and sessions; metadata review; server settings; logs; audit log; backups.
 - **Backups** — scheduled database backups with daily/weekly/monthly rotation, verification, and restore from the admin page or the command line.
 - **Storage monitoring** — warnings when the data volume runs low; scans pause automatically when it is critical; unused cache can be cleared.
@@ -460,6 +462,38 @@ Deleting is **off by default**. To use it:
 2. Mount the library folder writable: remove `:ro` from its volume in `docker-compose.yml`. With `:ro` Velyx can never delete anything, and the page shows the library as read-only.
 
 Velyx only deletes files that are current suggestions, only inside their library folder, and never a file someone is watching. Every deletion is recorded in the audit log with the path and size.
+
+### Your own rules
+
+Under **Your own rules** on the clean-up page you can combine conditions yourself. All conditions you set must match:
+
+- library (or all libraries) and type (movies, episodes or both);
+- watched: never watched by anyone, watched by at least one person, or watched by everyone who can see the library;
+- added at least N days ago, nobody played it for N days (counted from when it was added if it was never played), larger than N GB.
+
+**Check what this rule catches** shows the matching files before you save. A rule needs at least one condition, and you can have up to 20.
+
+A rule either **only suggests** files (they appear in the list with the rule's name as the reason) or **plans deleting** them after a number of days (1–365):
+
+- A file that starts matching is listed under **Planned deletions** with its date, and administrators are notified.
+- **Keep** stops the plan. A plan is also dropped when the file no longer matches (for example because someone watched it, or the rule was changed or turned off).
+- On the date, the file is deleted only while **Allow deleting** is on, only if it still matches, and never while someone is watching it. Otherwise it waits. Each deletion is in the audit log (by `rule: <name>`), administrators are notified, and the library is rescanned.
+
+## Admin notifications
+
+**Admin → Notifications** lists what Velyx did on its own. Only administrators see it; the tab shows how many are unread. Notifications are kept for 90 days.
+
+| Event | Default |
+| --- | --- |
+| Own clean-up rules plan to delete files | on |
+| Own clean-up rules deleted files | on |
+| New files found by a scan | off |
+| A library scan failed | on |
+| A scheduled backup failed | on |
+| Someone signs in (browser or app) | off |
+| Disk space runs low | on |
+
+**Discord (optional):** paste a Discord webhook address (Server settings → Integrations → Webhooks) to also post notifications in a channel, and use **Send a test message** to check it. Only Discord webhook addresses are accepted, the address is never shown again after saving, messages never mention anyone and never contain file paths or passwords. Messages are in the language of the administrator who saved the webhook. Nothing is sent unless a webhook is set up.
 
 ## Running behind a reverse proxy
 

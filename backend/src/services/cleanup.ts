@@ -2,14 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
-import { cleanupDecisions, episodes, libraries, mediaFiles, movies, shows, watchProgress } from '../db/schema.js';
+import { cleanupDecisions, cleanupPlanned, episodes, libraries, mediaFiles, movies, shows, userLibraries, users, watchProgress } from '../db/schema.js';
 import { resolveMediaPath } from './paths.js';
 import { tr, type Language } from '../i18n/index.js';
-import { DEFAULT_CLEANUP_RULES, type CleanupRules } from './settings.js';
+import { DEFAULT_CLEANUP_RULES, type CleanupRules, type CustomCleanupRule } from './settings.js';
 import { formatSummary } from './library-health.js';
 
-export type CleanupRule = keyof CleanupRules;
-export const CLEANUP_RULES: CleanupRule[] = ['unwatched', 'stale', 'large', 'duplicates', 'missingInfo'];
+export type CleanupRule = keyof CleanupRules | 'custom';
+export const CLEANUP_RULES: CleanupRule[] = ['unwatched', 'stale', 'large', 'duplicates', 'missingInfo', 'custom'];
+const BUILT_IN = CLEANUP_RULES.filter((r): r is keyof CleanupRules => r !== 'custom');
 
 export interface CleanupCandidate {
   fileId: number;
@@ -32,7 +33,49 @@ export interface CleanupCandidate {
   format: string;
   /** For possible duplicates: every version of the title, the one Velyx would keep first. */
   versions: { fileId: number; name: string; format: string; size: number; keep: boolean }[] | null;
-  reasons: { rule: CleanupRule; text: string }[];
+  reasons: { rule: CleanupRule; text: string; ruleId?: string }[];
+  /** An own rule planned this file for deletion on `dueAt` (it can still be kept until then). */
+  plan: { ruleId: string; rule: string; dueAt: number } | null;
+}
+
+/** What an own rule looks at for one file. */
+export interface FileFacts {
+  kind: 'movie' | 'episode';
+  libraryId: number;
+  size: number;
+  addedAt: number;
+  /** Anyone started it. */
+  started: boolean;
+  /** Users who finished it. */
+  watchedBy: number;
+  /** Users who can see its library (for "watched by everyone"). */
+  audience: number;
+  lastWatchedAt: number | null;
+}
+
+/** Whether a file matches an own rule: every condition that is set must hold. */
+export function matchesCustomRule(rule: CustomCleanupRule, f: FileFacts, now: number): boolean {
+  if (!rule.enabled) return false;
+  if (rule.libraryId !== null && rule.libraryId !== f.libraryId) return false;
+  if (rule.kind !== 'all' && rule.kind !== f.kind) return false;
+  if (rule.watched === 'nobody' && f.started) return false;
+  if (rule.watched === 'someone' && f.watchedBy < 1) return false;
+  if (rule.watched === 'everyone' && (f.audience < 1 || f.watchedBy < f.audience)) return false;
+  if (rule.addedDays !== null && now - f.addedAt < rule.addedDays * DAY) return false;
+  if (rule.notPlayedDays !== null && now - (f.lastWatchedAt ?? f.addedAt) < rule.notPlayedDays * DAY) return false;
+  if (rule.minGb !== null && f.size <= rule.minGb * GB) return false;
+  // A rule without any condition would match everything: never.
+  return rule.watched !== 'any' || rule.addedDays !== null || rule.notPlayedDays !== null || rule.minGb !== null;
+}
+
+/** How many active users can see each library (administrators see all of them). */
+export function libraryAudience(db: DB): Map<number, number> {
+  const libs = db.select({ id: libraries.id }).from(libraries).all();
+  const people = db.select({ id: users.id, role: users.role, all: users.allLibraries }).from(users).where(eq(users.disabled, false)).all();
+  const grants = db.select().from(userLibraries).all();
+  const out = new Map<number, number>();
+  for (const l of libs) out.set(l.id, people.filter((u) => u.role === 'admin' || u.all || grants.some((g) => g.userId === u.id && g.libraryId === l.id)).length);
+  return out;
 }
 
 /** HDR and Dolby Vision count as better than SDR at the same resolution. */
@@ -56,6 +99,7 @@ export function betterVersion<T extends { height: number | null; videoRange: str
 
 export interface CleanupSummary {
   rules: CleanupRules;
+  custom: CustomCleanupRule[];
   counts: Record<CleanupRule, { files: number; bytes: number }>;
   total: { files: number; bytes: number };
   kept: number;
@@ -79,7 +123,7 @@ const GB = 1024 ** 3;
 /** Stored rules with defaults filled in (settings from older versions may lack a rule). */
 export function effectiveRules(stored: Partial<CleanupRules> | undefined): CleanupRules {
   const out = { ...DEFAULT_CLEANUP_RULES } as CleanupRules;
-  for (const k of CLEANUP_RULES) (out as unknown as Record<string, object>)[k] = { ...DEFAULT_CLEANUP_RULES[k], ...(stored?.[k] ?? {}) };
+  for (const k of BUILT_IN) (out as unknown as Record<string, object>)[k] = { ...DEFAULT_CLEANUP_RULES[k], ...(stored?.[k] ?? {}) };
   return out;
 }
 
@@ -94,7 +138,7 @@ const ago = (ms: number, lang: Language) => {
  * Suggests files to remove, from data Velyx already has (no file is read). Rules only produce
  * suggestions; files an administrator chose to keep are left out until they change.
  */
-export function cleanupCandidates(db: DB, rules: CleanupRules, now = Date.now(), lang: Language = 'en'): { candidates: CleanupCandidate[]; kept: number } {
+export function cleanupCandidates(db: DB, rules: CleanupRules, now = Date.now(), lang: Language = 'en', custom: CustomCleanupRule[] = []): { candidates: CleanupCandidate[]; kept: number } {
   const files = db
     .select({
       f: mediaFiles,
@@ -146,6 +190,8 @@ export function cleanupCandidates(db: DB, rules: CleanupRules, now = Date.now(),
   }
 
   const kept = new Map(db.select().from(cleanupDecisions).all().map((d) => [d.mediaFileId, d.size]));
+  const audience = custom.some((c) => c.enabled && c.watched === 'everyone') ? libraryAudience(db) : new Map<number, number>();
+  const planned = new Map(db.select().from(cleanupPlanned).all().map((p) => [p.mediaFileId, p]));
   let keptCount = 0;
   const out: CleanupCandidate[] = [];
   for (const r of files) {
@@ -167,6 +213,8 @@ export function cleanupCandidates(db: DB, rules: CleanupRules, now = Date.now(),
       if (f.probeError) reasons.push({ rule: 'missingInfo', text: tr(lang, 'The file could not be read: {error}', { error: f.probeError }) });
       else if ((f.movieId ? r.movieMatch : r.showMatch) === 'unmatched') reasons.push({ rule: 'missingInfo', text: tr(lang, 'Not identified: no metadata found') });
     }
+    const facts: FileFacts = { kind: f.movieId ? 'movie' : 'episode', libraryId: f.libraryId, size: f.size, addedAt: f.addedAt, started: w.started, watchedBy: w.watchedBy, audience: audience.get(f.libraryId) ?? 0, lastWatchedAt: w.last };
+    for (const c of custom) if (matchesCustomRule(c, facts, now)) reasons.push({ rule: 'custom', ruleId: c.id, text: tr(lang, 'Your rule "{rule}"', { rule: c.name }) });
     if (!reasons.length) continue;
     if (kept.get(f.id) === f.size) {
       keptCount++;
@@ -195,13 +243,18 @@ export function cleanupCandidates(db: DB, rules: CleanupRules, now = Date.now(),
             .map((v) => ({ fileId: v.id, name: path.basename(v.path), format: formatSummary(v), size: v.size, keep: v.id === best.get(group)!.id }))
         : null,
       reasons,
+      plan: (() => {
+        const p = planned.get(f.id);
+        const rule = p && p.size === f.size ? custom.find((c) => c.id === p.ruleId) : undefined;
+        return p && rule ? { ruleId: rule.id, rule: rule.name, dueAt: p.dueAt } : null;
+      })(),
     });
   }
   out.sort((a, b) => b.size - a.size);
   return { candidates: out, kept: keptCount };
 }
 
-export function summarize(rules: CleanupRules, candidates: CleanupCandidate[], kept: number): CleanupSummary {
+export function summarize(rules: CleanupRules, candidates: CleanupCandidate[], kept: number, custom: CustomCleanupRule[] = []): CleanupSummary {
   const counts = Object.fromEntries(CLEANUP_RULES.map((r) => [r, { files: 0, bytes: 0 }])) as CleanupSummary['counts'];
   for (const c of candidates) {
     for (const rule of new Set(c.reasons.map((x) => x.rule))) {
@@ -209,7 +262,7 @@ export function summarize(rules: CleanupRules, candidates: CleanupCandidate[], k
       counts[rule].bytes += c.size;
     }
   }
-  return { rules, counts, total: { files: candidates.length, bytes: candidates.reduce((n, c) => n + c.size, 0) }, kept };
+  return { rules, custom, counts, total: { files: candidates.length, bytes: candidates.reduce((n, c) => n + c.size, 0) }, kept };
 }
 
 /** Whether Velyx may write in the library folder (a read-only mount makes deleting impossible). */

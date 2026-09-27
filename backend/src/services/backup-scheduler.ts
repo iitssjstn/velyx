@@ -40,6 +40,8 @@ export class BackupScheduler {
     private readonly settings: SettingsService,
     /** Returns a reason to skip (e.g. disk space critically low), or null. */
     private readonly skipReason: () => string | null = () => null,
+    /** A scheduled backup failed (for administrator notifications). */
+    private readonly onFailed: (reason: string) => void = () => undefined,
   ) {}
 
   list(): BackupFile[] {
@@ -104,6 +106,7 @@ export class BackupScheduler {
       return created;
     } catch (err) {
       log.error('Scheduled backup failed', err);
+      this.onFailed((err as Error).message.slice(0, 300));
       return null;
     } finally {
       this.running = false;

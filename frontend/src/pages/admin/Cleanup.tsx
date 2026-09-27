@@ -3,14 +3,15 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { Link, useSearchParams } from 'react-router-dom';
 import { Check, ChevronLeft, ChevronRight, ShieldCheck, Trash2, TriangleAlert } from 'lucide-react';
 import { api } from '../../lib/api';
-import { formatBytes, formatRelative, resolutionLabel } from '../../lib/format';
+import { formatBytes, formatDate, formatRelative, resolutionLabel } from '../../lib/format';
 import { Button } from '../../components/Button';
 import { ConfirmModal, Modal } from '../../components/Modal';
 import { EmptyState, ErrorState, PageLoader, Spinner } from '../../components/States';
 import { toast } from '../../components/Toast';
 import { intlLocale, t, useT, type MessageKey } from '../../i18n';
+import { OwnRules, type OwnRule } from './CleanupOwnRules';
 
-export type CleanupRule = 'unwatched' | 'stale' | 'large' | 'duplicates' | 'missingInfo';
+export type CleanupRule = 'unwatched' | 'stale' | 'large' | 'duplicates' | 'missingInfo' | 'custom';
 
 export interface CleanupRules {
   unwatched: { enabled: boolean; days: number };
@@ -40,11 +41,13 @@ export interface CleanupCandidate {
   format?: string;
   /** Possible duplicates: every version of the title, the one to keep first. */
   versions?: { fileId: number; name: string; format: string; size: number; keep: boolean }[] | null;
-  reasons: { rule: CleanupRule; text: string }[];
+  reasons: { rule: CleanupRule; text: string; ruleId?: string }[];
+  /** An own rule planned to delete this file on `dueAt`. */
+  plan?: { ruleId: string; rule: string; dueAt: number } | null;
 }
 
 export interface CleanupList {
-  summary: { rules: CleanupRules; counts: Record<CleanupRule, { files: number; bytes: number }>; total: { files: number; bytes: number }; kept: number };
+  summary: { rules: CleanupRules; custom?: OwnRule[]; counts: Partial<Record<CleanupRule, { files: number; bytes: number }>>; total: { files: number; bytes: number }; kept: number };
   deletion: { enabled: boolean; libraries: { id: number; name: string; path: string; writable: boolean }[] };
   total: number;
   bytes: number;
@@ -66,8 +69,9 @@ const RULE_LABELS: Record<CleanupRule, MessageKey> = {
   large: 'cleanup.rules.large',
   duplicates: 'cleanup.rules.duplicates',
   missingInfo: 'cleanup.rules.missingInfo',
+  custom: 'cleanup.rules.custom',
 };
-const RULE_ORDER: CleanupRule[] = ['unwatched', 'stale', 'large', 'duplicates', 'missingInfo'];
+const RULE_ORDER: CleanupRule[] = ['unwatched', 'stale', 'large', 'duplicates', 'missingInfo', 'custom'];
 
 export function watchStatus(c: Pick<CleanupCandidate, 'started' | 'watchedBy' | 'lastWatchedAt'>): string {
   if (!c.started) return t('cleanup.rules.unwatched');
@@ -88,7 +92,7 @@ function RulesEditor({ rules, onClose }: { rules: CleanupRules; onClose: () => v
     },
     onError: (err) => toast.error(err),
   });
-  const toggle = (key: CleanupRule, label: string, hint: string, extra?: React.ReactNode) => (
+  const toggle = (key: keyof CleanupRules, label: string, hint: string, extra?: React.ReactNode) => (
     <div className="flex flex-wrap items-center gap-3 py-2.5">
       <label className="flex flex-1 items-start gap-3 text-sm">
         <input type="checkbox" className="mt-0.5 size-4 accent-[var(--color-accent)]" checked={r[key].enabled} onChange={(e) => setR({ ...r, [key]: { ...r[key], enabled: e.target.checked } })} />
@@ -245,6 +249,8 @@ export function CleanupPage() {
   const { summary, deletion, items, total } = q.data;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const readOnly = deletion.libraries.filter((l) => !l.writable);
+  // "Your own rules" only appears once there is one.
+  const chips = RULE_ORDER.filter((r) => r !== 'custom' || (summary.custom?.length ?? 0) > 0);
   const chosen = [...selected.values()];
   const chosenBytes = chosen.reduce((n, c) => n + c.size, 0);
   const allOnPage = items.length > 0 && items.every((c) => selected.has(c.fileId));
@@ -281,10 +287,12 @@ export function CleanupPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-        {RULE_ORDER.map((key) => {
-          const c = summary.counts[key];
-          const on = summary.rules[key].enabled;
+      <OwnRules libraries={deletion.libraries} deletionEnabled={deletion.enabled} onKeep={(ids) => keep.mutate(ids)} />
+
+      <div className={`grid grid-cols-2 gap-2 ${chips.length > 5 ? 'lg:grid-cols-6' : 'lg:grid-cols-5'}`}>
+        {chips.map((key) => {
+          const c = summary.counts[key] ?? { files: 0, bytes: 0 };
+          const on = key === 'custom' ? (summary.custom ?? []).some((r) => r.enabled) : summary.rules[key].enabled;
           return (
             <button
               key={key}
@@ -367,6 +375,11 @@ export function CleanupPage() {
                         ))}
                       </ul>
                     </div>
+                  )}
+                  {c.plan && (
+                    <p className="mt-1 inline-flex rounded-full bg-danger/15 px-2 py-0.5 text-xs text-danger">
+                      {t('cleanup.plannedBadge', { when: c.plan.dueAt <= Date.now() ? t('cleanup.own.overdue') : t('cleanup.own.due', { date: formatDate(c.plan.dueAt) ?? '' }) })}
+                    </p>
                   )}
                   <ul className="mt-1 flex flex-wrap gap-1.5">
                     {c.reasons.map((r) => (

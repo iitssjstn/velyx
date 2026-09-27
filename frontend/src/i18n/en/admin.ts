@@ -14,5 +14,6 @@ export const admin = {
     logs: 'Logs',
     audit: 'Audit log',
     backup: 'Backup',
+    notifications: 'Notifications',
   },
 };

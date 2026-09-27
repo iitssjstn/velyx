@@ -42,6 +42,8 @@ const AUDIT_ACTIONS: Record<string, MessageKey> = {
   'cleanup.deleted': 'audit.actions.cleanupDeleted',
   'cleanup.kept': 'audit.actions.cleanupKept',
   'cleanup.settings': 'audit.actions.cleanupSettings',
+  'cleanup.rules': 'audit.actions.cleanupRules',
+  'notifications.settings': 'audit.actions.notificationsSettings',
   'segments.analyze': 'audit.actions.segmentsAnalyze',
   'segments.edited': 'audit.actions.segmentsEdited',
   'segments.reset': 'audit.actions.segmentsReset',

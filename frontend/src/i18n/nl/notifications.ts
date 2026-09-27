@@ -1,0 +1,28 @@
+import type { Messages } from '../index';
+export const notifications: Messages['notifications'] = {
+  intro: 'Berichten voor beheerders over wat Velyx zelf doet: geplande opschoonacties, mislukte back-ups en scans, nieuwe aanmeldingen en schijfruimte. Alleen beheerders zien ze.',
+  empty: 'Geen meldingen.',
+  markRead: 'Alles als gelezen markeren',
+  unread: { one: '{count} ongelezen', other: '{count} ongelezen' },
+  settingsTitle: 'Waarover je een melding krijgt',
+  events: {
+    cleanupPlanned: 'Eigen opschoonregels plannen bestanden te verwijderen',
+    cleanupDeleted: 'Eigen opschoonregels hebben bestanden verwijderd',
+    newMedia: 'Nieuwe bestanden gevonden bij een scan',
+    scanFailed: 'Het scannen van een bibliotheek is mislukt',
+    backupFailed: 'Een geplande back-up is mislukt',
+    newDevice: 'Iemand meldt zich aan (browser of app)',
+    storageLow: 'De schijfruimte raakt op',
+  },
+  saved: 'Meldingsinstellingen opgeslagen.',
+  discordTitle: 'Discord (optioneel)',
+  discordIntro: 'Plaats meldingen ook in een Discord-kanaal. In Discord: Serverinstellingen → Integraties → Webhooks → Nieuwe webhook, en kopieer het adres. Alleen titels en redenen worden verstuurd — nooit bestandspaden of wachtwoorden.',
+  discordAddress: 'Webhook-adres',
+  discordConfigured: 'Er is een webhook ingesteld ({hint}).',
+  discordNotSet: 'Uit: geen webhook ingesteld.',
+  discordSave: 'Webhook opslaan',
+  discordRemove: 'Webhook verwijderen',
+  discordTest: 'Testbericht versturen',
+  discordTestOk: 'Testbericht verstuurd. Kijk in het kanaal.',
+  discordTestFailed: 'Het testbericht is niet verstuurd: {error}',
+};
