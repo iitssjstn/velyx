@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApi } from './api';
-import { endedEarly, playbackCaps, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, type PlaybackAnswer, type SubtitleOption } from './playback';
+import { endOfStream, playbackCaps, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, type PlaybackAnswer, type SubtitleOption } from './playback';
 import { cueTextAt, parseVtt } from './vtt';
 
 const api = (respond: (url: string) => unknown = () => ({})) =>
@@ -105,16 +105,20 @@ describe('a second try', () => {
   });
 });
 
-describe('endedEarly', () => {
+describe('endOfStream', () => {
+  it('ignores an end reported before any stream played (a player without a video yet)', () => {
+    expect(endOfStream(false, 0, 3362)).toBe('ignore');
+    expect(endOfStream(false, 2768, 3362)).toBe('ignore');
+  });
   it('treats a stop long before the end as a broken-off stream', () => {
-    expect(endedEarly(2768, 3362)).toBe(true);
+    expect(endOfStream(true, 2768, 3362)).toBe('resume');
+    expect(endOfStream(true, 0, 3362)).toBe('resume');
   });
   it('treats the last seconds as the real end', () => {
-    expect(endedEarly(3361, 3362)).toBe(false);
-    expect(endedEarly(3340, 3362)).toBe(false);
+    expect(endOfStream(true, 3361, 3362)).toBe('end');
+    expect(endOfStream(true, 3340, 3362)).toBe('end');
   });
-  it('never with an unknown duration', () => {
-    expect(endedEarly(100, 0)).toBe(false);
+  it('ends with an unknown duration', () => {
+    expect(endOfStream(true, 100, 0)).toBe('end');
   });
 });
-
