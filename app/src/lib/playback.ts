@@ -153,3 +153,21 @@ export function endOfStream(streamReady: boolean, position: number, duration: nu
   if (!streamReady) return 'ignore';
   return duration > 0 && position < duration - END_MARGIN_SEC ? 'resume' : 'end';
 }
+
+/** Attempts to continue a stream that broke off, counted per spot in the file. */
+export interface Retries {
+  at: number;
+  count: number;
+}
+
+export const NO_RETRIES: Retries = { at: -1, count: 0 };
+
+/**
+ * Whether playback may continue once more at `position`: up to three times at the same spot
+ * (within 10 seconds); a new spot starts counting again. A stream that keeps failing at one place
+ * is reported instead of being restarted forever.
+ */
+export function retryAt(previous: Retries, position: number): { retries: Retries; allowed: boolean } {
+  const count = Math.abs(position - previous.at) < 10 ? previous.count + 1 : 1;
+  return { retries: { at: position, count }, allowed: count <= 3 };
+}

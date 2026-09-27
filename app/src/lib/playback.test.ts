@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApi } from './api';
-import { endOfStream, playbackCaps, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, type PlaybackAnswer, type SubtitleOption } from './playback';
+import { NO_RETRIES, endOfStream, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, type PlaybackAnswer, type SubtitleOption } from './playback';
 import { cueTextAt, parseVtt } from './vtt';
 
 const api = (respond: (url: string) => unknown = () => ({})) =>
@@ -120,5 +120,22 @@ describe('endOfStream', () => {
   });
   it('ends with an unknown duration', () => {
     expect(endOfStream(true, 100, 0)).toBe('end');
+  });
+});
+
+describe('retryAt', () => {
+  it('allows three attempts at the same spot', () => {
+    let r = NO_RETRIES;
+    const results: boolean[] = [];
+    for (let i = 0; i < 4; i++) {
+      const next = retryAt(r, 1200 + i);
+      r = next.retries;
+      results.push(next.allowed);
+    }
+    expect(results).toEqual([true, true, true, false]);
+  });
+  it('starts counting again at another spot', () => {
+    const first = retryAt({ at: 1200, count: 3 }, 1800);
+    expect(first).toEqual({ retries: { at: 1800, count: 1 }, allowed: true });
   });
 });

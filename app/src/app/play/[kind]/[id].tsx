@@ -2,18 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View, type GestureResponderEvent } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationBar } from 'expo-navigation-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { deviceDecoders } from '../../../../modules/velyx-codecs';
 import { SeekBar } from '../../../components/SeekBar';
+import { playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
 import { episodeCode, formatClock } from '../../../lib/format';
-import { endOfStream, fallbackCaps, playbackCaps, playerAudioPosition, resumePoint, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { rememberSubtitle, rememberedSubtitle, storeSubtitleStyle, storedSubtitleStyle } from '../../../lib/remember';
 import { DEFAULT_SUBTITLE_STYLE, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
@@ -75,17 +74,11 @@ export default function Player() {
   });
   const prefs = useQuery({ queryKey: [serverUrl, 'account-prefs'], queryFn: () => api.get<Prefs>('/api/account/preferences') });
 
-  // Landscape, and no status or navigation bar while watching (a swipe from the edge shows the
-  // navigation bar briefly); back to normal on leaving. The navigation bar is switched directly:
-  // its <NavigationBar hidden /> component makes "hidden" the default, so the bar stayed away after
-  // playback and the tab bar moved down into its place.
+  // Landscape without the navigation bar while watching (a swipe from the edge shows it briefly);
+  // back to the app's own orientation when the last player closes.
   useEffect(() => {
-    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => undefined);
-    NavigationBar.setHidden(true);
-    return () => {
-      NavigationBar.setHidden(false);
-      void ScreenOrientation.unlockAsync().catch(() => undefined);
-    };
+    playerScreenState.enter();
+    return () => playerScreenState.leave();
   }, []);
 
   return (
@@ -271,6 +264,9 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       if (track && answer.decision.seek === 'range') player.audioTrack = track;
     }
     if (status === 'error') {
+      // It played, then failed (a lost connection; a converted stream the server ended while the
+      // app was in the background): continue from the same spot.
+      if (streamReady.current && continueAt(position)) return;
       // The original file did not play after all: once, ask the server for a repackaged stream.
       if (answer?.decision.engine === 'direct' && !triedFallback.current) {
         triedFallback.current = true;
@@ -283,17 +279,21 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   });
   // A stream that stops well before the end broke off (connection lost, server stalled): continue
   // from there — a few times at most at the same spot — instead of ending the episode.
-  const resumes = useRef<{ at: number; count: number }>({ at: -1, count: 0 });
+  const resumes = useRef(NO_RETRIES);
+  /** Continues the stream at `at` when it broke off; false when it keeps breaking there. */
+  const continueAt = (at: number): boolean => {
+    if (!answer) return false;
+    const next = retryAt(resumes.current, at);
+    resumes.current = next.retries;
+    if (!next.allowed) return false;
+    void load(answer, at).catch((err: Error) => setProblem(err.message || t('common.error')));
+    return true;
+  };
   useEventListener(player, 'playToEnd', () => {
     const kind = answer ? endOfStream(streamReady.current, position, duration) : 'ignore';
     if (kind === 'ignore') return;
-    if (kind === 'resume' && answer) {
-      const r = resumes.current;
-      resumes.current = Math.abs(position - r.at) < 10 ? { at: position, count: r.count + 1 } : { at: position, count: 1 };
-      if (resumes.current.count <= 3) {
-        void load(answer, position).catch((err: Error) => setProblem(err.message || t('common.error')));
-        return;
-      }
+    if (kind === 'resume') {
+      if (continueAt(position)) return;
       void save(position, true);
       setProblem(t('player.interrupted'));
       return;
