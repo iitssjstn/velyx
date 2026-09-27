@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
+import { appOrientation } from '../components/screen';
 import { SessionProvider } from '../lib/session';
 import { colors } from '../lib/theme';
 
@@ -26,6 +27,8 @@ export default function RootLayout() {
   );
   // Coming back to the app counts as focus: lists older than their stale time load again, so
   // progress watched on another device shows up.
+  // Phones stay upright (only the player turns); tablets turn freely.
+  useEffect(appOrientation, []);
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => focusManager.setFocused(state === 'active'));
     return () => sub.remove();
