@@ -30,6 +30,7 @@ Vidalune is a lightweight, Docker-first, self-hosted media server for movies and
 - [Admin notifications](#admin-notifications)
 - [Library health](#library-health)
 - [Intros and credits](#intros-and-credits)
+- [Vidalune account (optional)](#vidalune-account-optional)
 - [Running behind a reverse proxy](#running-behind-a-reverse-proxy)
 - [Updating](#updating)
 - [Backup and restore](#backup-and-restore)
@@ -162,6 +163,7 @@ These are **not needed** and deliberately not in the compose file. They exist fo
 | `TMDB_LANGUAGE` | Default metadata language, e.g. `nl-NL` (normally set in Admin → Server). |
 | `SERVER_URL` | Public address shown to admins (normally set in Admin → Server). |
 | `SESSION_SECRET` | Fixed cookie-signing secret. When unset, one is generated once and stored in `data/.session-secret`. |
+| `VIDALUNE_CLOUD_URL` | The Vidalune account service (default `https://vidalune.com`). Only contacted after an administrator links the server. |
 | `VIDALUNE_UPDATE_REPO` | GitHub repository (`owner/name`) whose version tags announce updates (default `iitssjstn/velyx`; empty disables the check). The old name `VELYX_UPDATE_REPO` still works. |
 
 
@@ -494,6 +496,15 @@ A rule either **only suggests** files (they appear in the list with the rule's n
 | Disk space runs low | on |
 
 **Discord (optional):** paste a Discord webhook address (Server settings → Integrations → Webhooks) to also post notifications in a channel, and use **Send a test message** to check it. Only Discord webhook addresses are accepted, the address is never shown again after saving, messages never mention anyone and never contain file paths or passwords. Messages are in the language of the administrator who saved the webhook. Nothing is sent unless a webhook is set up.
+
+## Vidalune account (optional)
+
+**Admin → Vidalune account** links this server to a Vidalune account on vidalune.com, so you can find your servers there. It is off until an administrator turns it on:
+
+1. Choose **Link to a Vidalune account**. The server shows a code (valid for ten minutes) and a button to the account page.
+2. On vidalune.com, sign in or create an account and enter the code. The admin page shows the account once it is linked.
+
+While linked, the server sends the account service its name, version and address (Admin → Server) every half hour — never media, users or what anyone watches. **Unlink** removes the server from the account service, after which nothing is sent. On vidalune.com you see your servers (online or not, version, address) and can unlink them or delete your account.
 
 ## Running behind a reverse proxy
 

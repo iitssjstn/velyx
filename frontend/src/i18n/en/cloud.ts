@@ -1,0 +1,18 @@
+export const cloud = {
+  intro: 'Link this server to a Vidalune account to find it again on vidalune.com and in the app, also outside your home network.',
+  shares: 'While linked, this server sends the account service its name, version and address (Admin → Server) every half hour. Never media, users or what anyone watches. Off by default.',
+  off: 'Not linked.',
+  link: 'Link to a Vidalune account',
+  waitingTitle: 'Enter this code on vidalune.com',
+  waitingHelp: 'Sign in (or create an account) on the account page and enter the code. This page updates by itself.',
+  openPage: 'Open the account page',
+  expires: 'Valid until {time}.',
+  newCode: 'New code',
+  linked: 'Linked to {account}.',
+  manage: 'Manage on vidalune.com',
+  unlink: 'Unlink',
+  unlinkTitle: 'Unlink this server?',
+  unlinkConfirm: 'The account service forgets this server and nothing is sent any more. You can link it again later.',
+  unlinked: 'This server is no longer linked.',
+  linkedToast: 'Linked to {account}.',
+};

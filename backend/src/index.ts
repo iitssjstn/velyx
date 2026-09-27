@@ -57,6 +57,7 @@ async function main(): Promise<void> {
   ctx.backups.start();
   ctx.disk.start();
   ctx.cleanupScheduler.start();
+  ctx.cloud.start();
   // A backup missed while Vidalune was off runs shortly after start, not in the middle of it.
   setTimeout(() => ctx.backups.tick(), 2 * 60 * 1000).unref();
   ctx.streams.closeInterrupted();
@@ -82,6 +83,7 @@ async function main(): Promise<void> {
     ctx.backups.stop();
     ctx.disk.stop();
     ctx.cleanupScheduler.stop();
+    ctx.cloud.stop();
     (ctx.playback.get('remux') as RemuxEngine | undefined)?.stopAll();
     clearInterval(purgeTimer);
     try {

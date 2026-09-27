@@ -40,6 +40,7 @@ import { hasTranslation, requestLanguage, tr } from './i18n/index.js';
 import { registerRoutes } from './routes/index.js';
 import { NotificationService } from './services/notifications.js';
 import { CleanupScheduler } from './services/cleanup-scheduler.js';
+import { CloudService } from './services/cloud.js';
 import { libraries } from './db/schema.js';
 
 const log = createLogger('http');
@@ -87,6 +88,8 @@ export interface AppContext {
   notifications: NotificationService;
   /** Carries out own clean-up rules that plan deletions. */
   cleanupScheduler: CleanupScheduler;
+  /** Link to a Vidalune account (opt-in). */
+  cloud: CloudService;
   startedAt: number;
 }
 
@@ -183,7 +186,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     fetchImpl: opts.fetchImpl,
     userAgent: `Vidalune v${APP_VERSION}`,
   });
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateRepo, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateRepo, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud: new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl }), startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

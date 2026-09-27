@@ -15,5 +15,6 @@ export const admin = {
     audit: 'Audit log',
     backup: 'Backup',
     notifications: 'Notifications',
+    cloud: 'Vidalune account',
   },
 };

@@ -67,6 +67,15 @@ export const DEFAULT_NOTIFICATIONS: NotificationSettings = {
   discordLanguage: 'en',
 };
 
+/** This server's registration with the Vidalune account service (only while linking is on). */
+export interface CloudLink {
+  serverId: string;
+  /** Proves to the account service that requests come from this server. */
+  secret: string;
+  /** The account it is linked to (email), as the service last reported. */
+  account: string | null;
+}
+
 export interface ServerSettings {
   serverName: string;
   serverUrl: string;
@@ -108,6 +117,8 @@ export interface ServerSettings {
   /** Optional OpenSubtitles account (more downloads per day than without one). */
   openSubtitlesUsername: string;
   openSubtitlesPassword: string;
+  /** Linked to a Vidalune account (opt-in; null: never contacts the account service). */
+  cloud: CloudLink | null;
 }
 
 const DEFAULTS: ServerSettings = {
@@ -136,6 +147,7 @@ const DEFAULTS: ServerSettings = {
   openSubtitlesApiKey: '',
   openSubtitlesUsername: '',
   openSubtitlesPassword: '',
+  cloud: null,
 };
 
 export class SettingsService {

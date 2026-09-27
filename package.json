@@ -1,23 +1,24 @@
 {
   "name": "vidalune",
-  "version": "0.9.8",
+  "version": "0.10.1",
   "private": true,
   "type": "module",
-  "description": "Vidalune — Your media. Your server. A lightweight, Docker-first self-hosted media server.",
+  "description": "Vidalune \u2014 Your media. Your server. A lightweight, Docker-first self-hosted media server.",
   "license": "PolyForm-Noncommercial-1.0.0",
   "workspaces": [
     "backend",
-    "frontend"
+    "frontend",
+    "cloud"
   ],
   "engines": {
     "node": ">=20.11"
   },
   "scripts": {
     "dev": "npm run dev --workspace backend & npm run dev --workspace frontend",
-    "build": "npm run build --workspace frontend && npm run build --workspace backend",
+    "build": "npm run build --workspace frontend && npm run build --workspace backend && npm run build --workspace cloud",
     "lint": "eslint .",
-    "typecheck": "npm run typecheck --workspace backend && npm run typecheck --workspace frontend",
-    "test": "npm run test --workspace backend && npm run test --workspace frontend",
+    "typecheck": "npm run typecheck --workspace backend && npm run typecheck --workspace frontend && npm run typecheck --workspace cloud",
+    "test": "npm run test --workspace backend && npm run test --workspace frontend && npm run test --workspace cloud",
     "start": "npm run start --workspace backend",
     "db:generate": "npm run db:generate --workspace backend"
   },

@@ -1,0 +1,27 @@
+:root { --bg: #0f0d15; --raised: #17151f; --line: #2a2636; --ink: #eee9ff; --muted: #a49dba; --accent: #b69cff; --accent-ink: #1b1430; --danger: #ff8a8a; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+main { max-width: 440px; margin: 0 auto; padding: 48px 16px; }
+header { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+.brand { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; }
+h1 { font-size: 22px; margin: 0 0 6px; }
+p { color: var(--muted); margin: 0 0 16px; }
+.card { background: var(--raised); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 12px; }
+input { display: block; width: 100%; margin-top: 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+input.code { font-size: 22px; letter-spacing: 0.15em; text-transform: uppercase; text-align: center; }
+button { font: inherit; border: 0; border-radius: 10px; padding: 10px 16px; cursor: pointer; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+button.link { background: none; color: var(--accent); padding: 0; font-weight: 500; }
+button.ghost { background: none; color: var(--muted); border: 1px solid var(--line); }
+button:disabled { opacity: 0.6; cursor: default; }
+.row { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.error { color: var(--danger); font-size: 14px; min-height: 1.5em; margin: 4px 0 8px; }
+.ok { color: #9be3b0; }
+ul.servers { list-style: none; padding: 0; margin: 0; }
+ul.servers li { padding: 12px 0; border-top: 1px solid var(--line); }
+ul.servers li:first-child { border-top: 0; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--muted); }
+.dot.on { background: #6fd48f; }
+.small { font-size: 13px; color: var(--muted); }
+a { color: var(--accent); }

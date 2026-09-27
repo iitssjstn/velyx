@@ -16,5 +16,6 @@ export const admin: Messages['admin'] = {
     audit: 'Auditlogboek',
     backup: 'Back-up',
     notifications: 'Meldingen',
+    cloud: 'Vidalune-account',
   },
 };

@@ -11,6 +11,7 @@ import { activityRoutes } from './activity.js';
 import { cleanupRoutes } from './cleanup.js';
 import { notificationRoutes } from './notifications.js';
 import { onlineSubtitleRoutes } from './online-subtitles.js';
+import { cloudRoutes } from './cloud.js';
 
 export async function registerRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   await authRoutes(app, ctx);
@@ -24,4 +25,5 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext): Pro
   await cleanupRoutes(app, ctx);
   await notificationRoutes(app, ctx);
   await onlineSubtitleRoutes(app, ctx);
+  await cloudRoutes(app, ctx);
 }

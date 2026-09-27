@@ -44,6 +44,8 @@ const AUDIT_ACTIONS: Record<string, MessageKey> = {
   'cleanup.settings': 'audit.actions.cleanupSettings',
   'cleanup.rules': 'audit.actions.cleanupRules',
   'notifications.settings': 'audit.actions.notificationsSettings',
+  'cloud.linking': 'audit.actions.cloudLinking',
+  'cloud.unlinked': 'audit.actions.cloudUnlinked',
   'segments.analyze': 'audit.actions.segmentsAnalyze',
   'segments.edited': 'audit.actions.segmentsEdited',
   'segments.reset': 'audit.actions.segmentsReset',

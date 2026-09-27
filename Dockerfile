@@ -12,12 +12,13 @@ RUN apt-get update \
 COPY package.json package-lock.json ./
 COPY backend/package.json backend/
 COPY frontend/package.json frontend/
+COPY cloud/package.json cloud/
 RUN npm ci --no-audit --no-fund
 
 COPY tsconfig.base.json ./
 COPY backend backend
 COPY frontend frontend
-RUN npm run build
+RUN npm run build --workspace frontend && npm run build --workspace backend
 
 # ---------------------------------------------------------------- production dependencies (backend only)
 FROM node:22-bookworm-slim AS deps
@@ -28,6 +29,7 @@ RUN apt-get update \
 COPY package.json package-lock.json ./
 COPY backend/package.json backend/
 COPY frontend/package.json frontend/
+COPY cloud/package.json cloud/
 # The frontend is shipped as static files, so only the backend's runtime packages are installed.
 RUN npm ci --omit=dev --workspace backend --no-audit --no-fund
 
