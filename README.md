@@ -317,7 +317,13 @@ Good to know:
 
 ## The Velyx app for Android
 
-Besides installing the website as an app, Velyx has its own Android app (for phones and tablets). It connects to your server, signs in, and shows Home (Continue Watching, recently added, movies and shows), all movies and all TV shows, and the pages of movies and shows with their seasons and episodes — and it plays them with its own player.
+Besides installing the website as an app, Velyx has its own Android app (for phones and tablets). It connects to your server, signs in, and shows Home (Continue Watching, your watchlist, recently added, movies, shows and favorites), search, all movies and all TV shows, and the pages of movies and shows with their seasons and episodes — and it plays them with its own player.
+
+**Search and your lists in the app:**
+
+- **Search** (its own tab) looks through movies, shows and episode titles on your server while you type, after a short pause; a code such as `s02e04` finds that episode. A tap on an episode opens its show.
+- **Watchlist**, **Favorite** and **Watched** buttons on every movie and show page. A show page also marks a whole season as watched (or unwatched), and each episode has its own check mark. Everything is saved on the server, so the website and the app always show the same.
+- Home shows your **Watchlist** and **Favorites**; **See all** opens the complete list.
 
 **Playing in the app:**
 

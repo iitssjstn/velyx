@@ -25,7 +25,8 @@ export interface Api {
   headers(): Record<string, string>;
   /** Absolute address of a server path ("/api/images/w342/a.jpg"). */
   url(path: string): string;
-  get<T>(path: string): Promise<T>;
+  /** `signal` cancels the request (a search superseded by the next one). */
+  get<T>(path: string, options?: { signal?: AbortSignal }): Promise<T>;
   post<T>(path: string, body?: unknown): Promise<T>;
   put<T>(path: string, body?: unknown): Promise<T>;
   del<T>(path: string): Promise<T>;
@@ -42,15 +43,18 @@ export function createApi(config: ApiConfig): Api {
   const headers = (): Record<string, string> => fixedHeaders;
   const url = (path: string) => `${config.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
 
-  async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
     let res: Response;
     try {
       res = await fetchImpl(url(path), {
         method,
         headers: { ...headers(), Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
         body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal,
       });
-    } catch {
+    } catch (err) {
+      // Cancelled on purpose: not a connection problem.
+      if (signal?.aborted) throw err;
       throw new ApiError('unreachable', 0);
     }
     const text = await res.text();
@@ -72,7 +76,7 @@ export function createApi(config: ApiConfig): Api {
     baseUrl: config.baseUrl,
     headers,
     url,
-    get: (path) => request('GET', path),
+    get: (path, options) => request('GET', path, undefined, options?.signal),
     post: (path, body) => request('POST', path, body ?? {}),
     put: (path, body) => request('PUT', path, body ?? {}),
     del: (path) => request('DELETE', path),

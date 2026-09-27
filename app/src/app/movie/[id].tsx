@@ -1,7 +1,9 @@
 import { ScrollView, Text, View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { Toggle } from '../../components/actions';
 import { Artwork } from '../../components/media';
+import { savedRequest, watchedRequest } from '../../lib/lists';
 import { Button, ErrorState, Loading, ProgressLine, styles } from '../../components/ui';
 import { formatClock, formatRuntime, progressFraction } from '../../lib/format';
 import { useSession } from '../../lib/session';
@@ -44,6 +46,11 @@ export default function Movie() {
             {resume && <Button label={t('player.fromStart')} variant="ghost" onPress={() => router.push(`/play/movie/${m.id}?t=0`)} />}
           </View>
         ) : null}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <Toggle active={m.watchlist} icon="bookmark" text={t('actions.watchlist')} label={t('actions.addWatchlist')} activeLabel={t('actions.removeWatchlist')} request={(on) => savedRequest('watchlist', 'movie', m.id, on)} />
+          <Toggle active={m.favorite} icon="heart" text={t('actions.favorite')} label={t('actions.addFavorite')} activeLabel={t('actions.removeFavorite')} request={(on) => savedRequest('favorites', 'movie', m.id, on)} />
+          <Toggle active={Boolean(m.progress?.completed)} icon="check" text={t('actions.watched')} label={t('actions.markWatched')} activeLabel={t('actions.markUnwatched')} request={(on) => watchedRequest({ movieId: m.id }, on)} />
+        </View>
         {m.tagline ? <Text style={[styles.body, { fontStyle: 'italic', color: colors.muted }]}>{m.tagline}</Text> : null}
         {m.overview ? <Text style={styles.body}>{m.overview}</Text> : null}
         {m.director ? (

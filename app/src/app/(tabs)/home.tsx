@@ -23,9 +23,11 @@ export default function Home() {
         </View>
         {empty && <Text style={[styles.muted, { paddingHorizontal: 16 }]}>{t('home.empty')}</Text>}
         <ContinueShelf title={t('home.continue')} items={d.continueWatching} />
+        <Shelf title={t('home.watchlist')} cards={d.watchlist ?? []} more={{ label: t('home.seeAll'), href: '/list/watchlist' }} />
         <Shelf title={t('home.recentlyAdded')} cards={d.recentlyAdded} />
         <Shelf title={t('home.movies')} cards={d.movies} />
         <Shelf title={t('home.shows')} cards={d.shows} />
+        <Shelf title={t('home.favorites')} cards={d.favorites ?? []} more={{ label: t('home.seeAll'), href: '/list/favorites' }} />
       </ScrollView>
     </SafeAreaView>
   );
