@@ -13,6 +13,8 @@ export interface CloudConfig {
   trustProxy: number;
   /** Serve the account pages from this folder (null: API only). */
   webDir: string | null;
+  /** Relay addresses are <slug>.<relayDomain> (default: the host of PUBLIC_URL). */
+  relayDomain: string;
 }
 
 const int = (v: string | undefined, fallback: number) => {
@@ -24,12 +26,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
   const dataDir = path.resolve(overrides.dataDir ?? env.DATA_DIR ?? path.join(process.cwd(), 'data'));
   fs.mkdirSync(dataDir, { recursive: true });
   const defaultWeb = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'web');
+  const publicUrl = (env.PUBLIC_URL ?? 'https://vidalune.com').replace(/\/+$/, '');
   return {
+    relayDomain: (env.RELAY_DOMAIN || new URL(publicUrl).hostname).toLowerCase(),
     port: int(env.PORT, 3100),
     host: env.HOST ?? '0.0.0.0',
     dataDir,
     dbPath: path.join(dataDir, 'cloud.db'),
-    publicUrl: (env.PUBLIC_URL ?? 'https://vidalune.com').replace(/\/+$/, ''),
+    publicUrl,
     trustProxy: Math.max(0, int(env.TRUST_PROXY, 1)),
     webDir: fs.existsSync(defaultWeb) ? defaultWeb : null,
     ...overrides,

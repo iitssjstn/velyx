@@ -39,5 +39,31 @@ and `app.vidalune.com` to `https://vidalune.com/servers` (the list of your serve
 | `TRUST_PROXY` | `1` | Number of proxies in front (for rate limiting by the real address). |
 | `PORT` | `3100` | Port inside the container. |
 | `DATA_DIR` | `/data` | Folder of `cloud.db`. |
+| `RELAY_DOMAIN` | host of `PUBLIC_URL` | Relay addresses are `<name>.<RELAY_DOMAIN>`. |
+
+## The relay
+
+A Vidalune server whose administrator turns the relay on (Admin → Vidalune account, only while
+linked) keeps a WebSocket open to `wss://vidalune.com/api/server/tunnel` and gets the address
+`https://<name>.vidalune.com`. Visitors of that address are passed through the tunnel to the server;
+nothing is stored. Names like `www`, `app` and `api` are never given out.
+
+In Nginx Proxy Manager:
+
+1. DNS: `vidalune.com` and `*.vidalune.com` point to the VPS (Cloudflare: *DNS only*, grey cloud —
+   video through Cloudflare's proxy is not allowed on the free plan).
+2. One certificate for `vidalune.com` and `*.vidalune.com` (Let's Encrypt with a DNS challenge).
+3. Proxy host `vidalune.com` → `vidalune-cloud:3100`, *Websockets support* on (the tunnels use it).
+4. Proxy host `*.vidalune.com` → `vidalune-cloud:3100`, *Websockets support* on, the same
+   certificate, and under *Advanced* (so video is passed on as it arrives):
+
+   ```
+   proxy_buffering off;
+   proxy_request_buffering off;
+   proxy_read_timeout 1h;
+   ```
+
+   Hosts you set up yourself (`app.vidalune.com`, `www.vidalune.com`) take precedence over the
+   wildcard.
 
 Migrations run on start. `GET /health` answers `{"status":"ok"}`.

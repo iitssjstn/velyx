@@ -317,4 +317,5 @@ export const nl: Record<string, string> = {
   'Could not reach the Vidalune account service. Try again later.': 'De Vidalune-accountdienst is niet bereikbaar. Probeer het later opnieuw.',
   'The Vidalune account service could not handle the request. Try again later.': 'De Vidalune-accountdienst kon het verzoek niet verwerken. Probeer het later opnieuw.',
   'The Vidalune account service no longer knows this server. Turn linking on again.': 'De Vidalune-accountdienst kent deze server niet meer. Zet koppelen opnieuw aan.',
+  'Link this server to a Vidalune account first.': 'Koppel deze server eerst aan een Vidalune-account.',
 };

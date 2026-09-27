@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CloudError, createCloud, sortServers, type CloudServer } from './cloud';
+import { CloudError, createCloud, serverAddresses, sortServers, type CloudServer } from './cloud';
 
 const answer = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
 
@@ -28,6 +28,12 @@ describe('Vidalune account service', () => {
     expect(await problem(answer(429, {}))).toBe('tooMany');
     expect(await problem(answer(401, {}), 'servers')).toBe('signedOut');
     expect(await problem(async () => { throw new Error('offline'); })).toBe('unreachable');
+  });
+
+  it('tries the server\'s own address before the relay', () => {
+    const s: CloudServer = { id: '1', name: 'Thuis', version: '1', url: 'https://media.example.com', relayUrl: 'https://k7f3q9ma.vidalune.com', online: true, lastSeenAt: 0 };
+    expect(serverAddresses(s)).toEqual(['https://media.example.com', 'https://k7f3q9ma.vidalune.com']);
+    expect(serverAddresses({ ...s, url: null })).toEqual(['https://k7f3q9ma.vidalune.com']);
   });
 
   it('lists servers that can be opened first', () => {

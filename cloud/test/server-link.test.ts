@@ -36,6 +36,7 @@ beforeEach(async () => {
     baseUrl: 'https://vidalune.example',
     settings,
     version: '0.10.1',
+    localPort: 0,
     fetchImpl: async (url, init) => {
       if (init?.body) sent.push(JSON.parse(String(init.body)));
       const res = await app.inject({ method: (init?.method ?? 'GET') as 'GET', url: new URL(String(url)).pathname, headers: init?.headers as Record<string, string>, payload: init?.body as string | undefined });
@@ -44,7 +45,7 @@ beforeEach(async () => {
   });
 });
 afterEach(async () => {
-  cloud.stop();
+  cloud.shutdown();
   await app.close();
   db.$client.close();
   fs.rmSync(dir, { recursive: true, force: true });

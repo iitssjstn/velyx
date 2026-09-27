@@ -15,4 +15,18 @@ export const cloud = {
   unlinkConfirm: 'The account service forgets this server and nothing is sent any more. You can link it again later.',
   unlinked: 'This server is no longer linked.',
   linkedToast: 'Linked to {account}.',
+  relayTitle: 'Reachable without an open port (relay)',
+  relayIntro: 'Your server keeps a connection open to vidalune.com and gets its own HTTPS address. The website and the app reach it there from anywhere, without port forwarding or your own domain.',
+  relayPrivacy: 'Everything you watch and do then passes through vidalune.com (encrypted on the way, decrypted there to pass it on). Nothing is stored. A direct address is used first where it works.',
+  relayOn: 'Turn the relay on',
+  relayOff: 'Turn the relay off',
+  relayAddress: 'Address: {url}',
+  relayConnected: 'Connected.',
+  relayConnecting: 'Connecting…',
+  relayProblem: {
+    refused: 'The relay refused the connection. Turn the relay off and on again.',
+    unreachable: 'vidalune.com cannot be reached right now. The server keeps trying.',
+    closed: 'The connection closed. The server is reconnecting.',
+  },
+  relayNeedsLink: 'Link this server first to use the relay.',
 };

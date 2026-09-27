@@ -8,6 +8,13 @@
       "when": 1790527555900,
       "tag": "0000_accounts_servers",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790532404011,
+      "tag": "0001_relay",
+      "breakpoints": true
     }
   ]
 }

@@ -36,6 +36,8 @@ export const audit = {
     notificationsSettings: 'Changed notification settings',
     cloudLinking: 'Started linking to a Vidalune account',
     cloudUnlinked: 'Unlinked from the Vidalune account',
+    cloudRelayOn: 'Turned the Vidalune relay on',
+    cloudRelayOff: 'Turned the Vidalune relay off',
     segmentsAnalyze: 'Started intro and credits detection for',
     segmentsEdited: 'Edited intro and credits of',
     segmentsReset: 'Reset intro and credits of',

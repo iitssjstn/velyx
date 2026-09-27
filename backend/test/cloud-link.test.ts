@@ -7,6 +7,9 @@ import { auditLog } from '../src/db/schema.js';
 let linkedTo: string | null;
 let calls: Array<{ url: string; method: string; auth: string | null; body: unknown }>;
 let reachable: boolean;
+let relayOn: boolean;
+// Never reached in these tests: the tunnel itself is tested against the real relay in cloud/.
+const RELAY_URL = 'https://k7f3q9ma.vidalune.invalid';
 const fakeService = async (url: string, init?: RequestInit) => {
   if (!reachable) throw new Error('offline');
   const path = new URL(url).pathname;
@@ -15,7 +18,11 @@ const fakeService = async (url: string, init?: RequestInit) => {
   const json = (data: unknown) => new Response(JSON.stringify(data), { status: 200 });
   if (path === '/api/server/register') return json({ id: 'srv-1', secret: 'secret-secret-secret-secret' });
   if (path === '/api/server/code') return json({ code: 'K7F3-Q9MA', expiresAt: Date.now() + 600_000, linkUrl: 'https://vidalune.com/link' });
-  if (path === '/api/server/heartbeat') return json({ linked: !!linkedTo, account: linkedTo });
+  if (path === '/api/server/heartbeat') return json({ linked: !!linkedTo, account: linkedTo, relay: { enabled: relayOn && !!linkedTo, url: relayOn && linkedTo ? RELAY_URL : null } });
+  if (path === '/api/server/relay') {
+    relayOn = (JSON.parse(String(init?.body)) as { enabled: boolean }).enabled;
+    return json({ enabled: relayOn, url: relayOn ? RELAY_URL : null });
+  }
   if (path === '/api/server') return json({ ok: true });
   return new Response('{}', { status: 404 });
 };
@@ -26,11 +33,12 @@ beforeEach(async () => {
   linkedTo = null;
   calls = [];
   reachable = true;
+  relayOn = false;
   env = await createTestEnv({ fetchImpl: fakeService });
   admin = await setupAdmin(env.app, 'justin');
 });
 afterEach(async () => {
-  env.ctx.cloud.stop();
+  env.ctx.cloud.shutdown();
   await env.cleanup();
 });
 
@@ -67,6 +75,21 @@ describe('linking to a Vidalune account', () => {
     expect(calls.at(-1)).toMatchObject({ method: 'DELETE' });
     const audit = env.ctx.db.select().from(auditLog).where(eq(auditLog.actorName, 'justin')).all().map((a) => a.action);
     expect(audit).toEqual(expect.arrayContaining(['cloud.linking', 'cloud.unlinked']));
+  });
+
+  it('turns the relay on only for a linked server, and off again when the server is unlinked on vidalune.com', async () => {
+    await post('/api/admin/cloud/link');
+    const refused = await env.app.inject({ method: 'POST', url: '/api/admin/cloud/relay', headers: { cookie: admin }, payload: { enabled: true } });
+    expect(refused.statusCode).toBe(409);
+    linkedTo = 'justin@example.com';
+    await post('/api/admin/cloud/check');
+    const on = (await env.app.inject({ method: 'POST', url: '/api/admin/cloud/relay', headers: { cookie: admin }, payload: { enabled: true } })).json();
+    expect(on.relay).toMatchObject({ enabled: true, url: RELAY_URL, connected: false });
+    const audit = env.ctx.db.select().from(auditLog).where(eq(auditLog.actorName, 'justin')).all().map((a) => a.action);
+    expect(audit).toContain('cloud.relay_on');
+    // Unlinked on vidalune.com: the next report turns the relay off here too.
+    linkedTo = null;
+    expect((await post('/api/admin/cloud/check')).json()).toMatchObject({ account: null, relay: { enabled: false, url: null } });
   });
 
   it('explains when the account service cannot be reached, and can still be turned off', async () => {

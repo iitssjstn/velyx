@@ -7,6 +7,9 @@ export interface CloudServer {
   version: string;
   /** The address the server's administrator set (null: none yet). */
   url: string | null;
+  /** Its address through the Vidalune relay, while the relay is on. */
+  relayUrl?: string | null;
+  relayConnected?: boolean;
   online: boolean;
   lastSeenAt: number;
 }
@@ -57,8 +60,13 @@ export function createCloud(fetchImpl: typeof fetch = fetch, baseUrl = CLOUD_URL
   };
 }
 
+/** The addresses to try for a server: its own first, then the relay. */
+export function serverAddresses(s: CloudServer): string[] {
+  return [s.url, s.relayUrl].filter((u): u is string => !!u);
+}
+
 /** Online servers with an address first, then the rest, each by name. */
 export function sortServers(list: CloudServer[]): CloudServer[] {
-  const rank = (s: CloudServer) => (s.url ? 0 : 2) + (s.online ? 0 : 1);
+  const rank = (s: CloudServer) => (serverAddresses(s).length ? 0 : 2) + (s.online ? 0 : 1);
   return [...list].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }

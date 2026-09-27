@@ -505,6 +505,8 @@ A rule either **only suggests** files (they appear in the list with the rule's n
 1. Choose **Link to a Vidalune account**. The server shows a code (valid for ten minutes) and a button to the account page.
 2. On vidalune.com, sign in or create an account and enter the code. The admin page shows the account once it is linked.
 
+**Relay (optional):** a linked server can also turn on **Reachable without an open port (relay)**. It then keeps a connection open to vidalune.com and gets its own address, `https://<name>.vidalune.com`, that works from anywhere — no port forwarding, domain or certificate needed. Everything you watch and do then passes through vidalune.com (encrypted on the way, decrypted there to pass it on); nothing is stored. The app and the account page use the server's own address first and the relay only when that does not work. Turning the relay off (or unlinking) closes the connection at once.
+
 While linked, the server sends the account service its name, version and address (Admin → Server) every half hour — never media, users or what anyone watches. **Unlink** removes the server from the account service, after which nothing is sent. On vidalune.com you see your servers (online or not, version, address) and can unlink them or delete your account. The Android app can sign in with the same account to list your servers.
 
 ## Running behind a reverse proxy

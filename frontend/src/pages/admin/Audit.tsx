@@ -46,6 +46,8 @@ const AUDIT_ACTIONS: Record<string, MessageKey> = {
   'notifications.settings': 'audit.actions.notificationsSettings',
   'cloud.linking': 'audit.actions.cloudLinking',
   'cloud.unlinked': 'audit.actions.cloudUnlinked',
+  'cloud.relay_on': 'audit.actions.cloudRelayOn',
+  'cloud.relay_off': 'audit.actions.cloudRelayOff',
   'segments.analyze': 'audit.actions.segmentsAnalyze',
   'segments.edited': 'audit.actions.segmentsEdited',
   'segments.reset': 'audit.actions.segmentsReset',

@@ -6,9 +6,11 @@ import { CloudPage, type CloudStatus } from './Cloud';
 
 afterEach(() => vi.unstubAllGlobals());
 
-const off: CloudStatus = { enabled: false, account: null, code: null, serviceUrl: 'https://vidalune.com' };
-const waiting: CloudStatus = { enabled: true, account: null, code: { code: 'K7F3-Q9MA', expiresAt: Date.now() + 600_000, linkUrl: 'https://vidalune.com/link#K7F3-Q9MA' }, serviceUrl: 'https://vidalune.com' };
-const linked: CloudStatus = { enabled: true, account: 'justin@example.com', code: null, serviceUrl: 'https://vidalune.com' };
+const noRelay = { enabled: false, url: null, connected: false, error: null };
+const off: CloudStatus = { enabled: false, account: null, code: null, serviceUrl: 'https://vidalune.com', relay: noRelay };
+const waiting: CloudStatus = { enabled: true, account: null, code: { code: 'K7F3-Q9MA', expiresAt: Date.now() + 600_000, linkUrl: 'https://vidalune.com/link#K7F3-Q9MA' }, serviceUrl: 'https://vidalune.com', relay: noRelay };
+const linked: CloudStatus = { enabled: true, account: 'justin@example.com', code: null, serviceUrl: 'https://vidalune.com', relay: noRelay };
+const relayed: CloudStatus = { ...linked, relay: { enabled: true, url: 'https://k7f3q9ma.vidalune.com', connected: true, error: null } };
 
 function setup(initial: CloudStatus, answers: Record<string, CloudStatus>) {
   const calls: string[] = [];
@@ -34,6 +36,15 @@ describe('Vidalune account page', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Link to a Vidalune account' }));
     expect(await screen.findByText('K7F3-Q9MA')).toBeTruthy();
     expect(screen.getByRole('link', { name: /Open the account page/ }).getAttribute('href')).toBe('https://vidalune.com/link#K7F3-Q9MA');
+  });
+
+  it('turns the relay on, explaining that traffic then passes through vidalune.com', async () => {
+    const calls = setup(linked, { '/api/admin/cloud/relay': relayed });
+    expect(await screen.findByText(/Nothing is stored/)).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Turn the relay on' }));
+    expect(calls).toContain('POST /api/admin/cloud/relay');
+    expect(await screen.findByRole('link', { name: 'https://k7f3q9ma.vidalune.com' })).toBeTruthy();
+    expect(screen.getByText('Connected.')).toBeTruthy();
   });
 
   it('shows the linked account and unlinks after confirming', async () => {
