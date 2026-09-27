@@ -13,6 +13,8 @@ export interface CloudConfig {
   trustProxy: number;
   /** Serve the account pages from this folder (null: API only). */
   webDir: string | null;
+  /** The Vidalune web interface (frontend/dist) that app.<domain> serves (null: not served). */
+  frontendDir: string | null;
   /** Relay addresses are <slug>.<relayDomain> (default: the host of PUBLIC_URL). */
   relayDomain: string;
   /** Accounts that may use the admin page (/admin); they always have remote access themselves. */
@@ -28,6 +30,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
   const dataDir = path.resolve(overrides.dataDir ?? env.DATA_DIR ?? path.join(process.cwd(), 'data'));
   fs.mkdirSync(dataDir, { recursive: true });
   const defaultWeb = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'web');
+  const defaultFrontend = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'frontend', 'dist');
+  const frontendDir = env.FRONTEND_DIR ? path.resolve(env.FRONTEND_DIR) : defaultFrontend;
   const publicUrl = (env.PUBLIC_URL ?? 'https://vidalune.com').replace(/\/+$/, '');
   return {
     adminEmails: (env.ADMIN_EMAILS ?? '')
@@ -42,6 +46,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     publicUrl,
     trustProxy: Math.max(0, int(env.TRUST_PROXY, 1)),
     webDir: fs.existsSync(defaultWeb) ? defaultWeb : null,
+    frontendDir: fs.existsSync(path.join(frontendDir, 'index.html')) ? frontendDir : null,
     ...overrides,
   };
 }

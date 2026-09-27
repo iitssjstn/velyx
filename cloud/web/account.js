@@ -45,6 +45,9 @@
         planRemote: 'Remote access', planEnd: 'Up to and including (empty: no end date)', planNote: 'Note (e.g. how it was paid)', change: 'Change', save: 'Save',
         saved: 'Saved: {email}.', more: 'There are more accounts: search to narrow down.', empty: 'No accounts found.', changed: 'changed {date}',
       };
+  // On app.vidalune.com these pages live under /_vl (the rest of that site is the chosen server).
+  const BASE = location.pathname === '/_vl' || location.pathname.startsWith('/_vl/') ? '/_vl' : '';
+  const page = location.pathname.slice(BASE.length) || '/';
   const t = (key, vars = {}) => T[key].replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
   const view = document.getElementById('view');
   const show = (...nodes) => view.replaceChildren(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
@@ -58,7 +61,7 @@
     return e;
   };
   async function api(method, url, body) {
-    const res = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' });
+    const res = await fetch(BASE + url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(data.error || t('failed')), { status: res.status });
     return data;
@@ -89,8 +92,16 @@
     }
   }
 
-  /** Opens a server, signed in: a one-time ticket, its own address when this browser reaches it, else the relay. */
+  /**
+   * Opens a server, signed in. On app.vidalune.com: right here, through its relay (the choice is
+   * remembered). Elsewhere, or without the relay: a one-time ticket, at its own address when this
+   * browser reaches it, else at its relay address.
+   */
   async function openServer(s) {
+    if (BASE && s.relayUrl && s.relayConnected) {
+      remember(s.id);
+      return location.assign(`${BASE}/open?server=${encodeURIComponent(s.id)}`);
+    }
     const { ticket, addresses } = await api('POST', `/api/servers/${encodeURIComponent(s.id)}/open`);
     if (!addresses.length) throw new Error(t('noAddress'));
     let target = addresses[addresses.length - 1];
@@ -145,13 +156,18 @@
     } catch {
       return signIn(pendingCode() ? 'up' : 'in');
     }
-    if (location.pathname === '/admin') return adminPage(me);
+    if (page === '/admin') return adminPage(me);
     const list = await api('GET', '/api/servers');
-    const joining = location.pathname === '/join';
+    const joining = page === '/join';
     // Straight into the server used last time (app.vidalune.com), unless asked to choose.
     const params = new URLSearchParams(location.search);
-    const last = list.find((s) => s.id === lastServer() && (s.url || s.relayUrl));
-    if (!message && !joining && !pendingCode() && !params.has('choose') && location.hostname.startsWith('app.') && last) {
+    // Back from app.vidalune.com/_vl/open: the server chosen could not be reached through its relay.
+    const offline = list.find((s) => s.id === params.get('offline'));
+    const warning = !message && offline ? t('unreachable', { name: offline.name }) : '';
+    // The server used last time; with only one server, that one.
+    const openable = list.filter((s) => s.url || s.relayUrl);
+    const last = openable.find((s) => s.id === lastServer()) ?? (list.length === 1 ? openable[0] : undefined);
+    if (!message && !offline && !joining && !pendingCode() && !params.has('choose') && location.hostname.startsWith('app.') && last) {
       try {
         return await openServer(last);
       } catch {
@@ -163,7 +179,7 @@
       el('p', {}, t('joinIntro')),
       form([el('label', {}, t('code'), el('input', { name: 'code', class: 'code', autocomplete: 'off', value: joining ? pendingCode() : '', maxlength: 12, required: true }))], t('linkButton'), async (v) => {
         const s = await api('POST', '/api/join', v);
-        history.replaceState(null, '', '/servers');
+        history.replaceState(null, '', `${BASE}/servers`);
         await home(t('joined', { name: s.name }));
       }),
     );
@@ -172,7 +188,7 @@
       el('p', {}, t('linkIntro')),
       form([el('label', {}, t('code'), el('input', { name: 'code', class: 'code', autocomplete: 'off', value: joining ? '' : pendingCode(), maxlength: 12, required: true }))], t('linkButton'), async (v) => {
         const s = await api('POST', '/api/link', v);
-        history.replaceState(null, '', '/servers');
+        history.replaceState(null, '', `${BASE}/servers`);
         await home(t('linked', { name: s.name }));
       }),
     );
@@ -180,12 +196,13 @@
       el('div', { class: 'row' },
         el('span', { class: 'small' }, me.email),
         el('span', { class: 'actions' },
-          me.admin ? el('a', { href: '/admin' }, t('adminLink')) : null,
+          me.admin ? el('a', { href: `${BASE}/admin` }, t('adminLink')) : null,
           el('button', { class: 'link', type: 'button', onclick: async () => { await api('POST', '/api/logout'); signIn(); } }, t('signOut')),
         ),
       ),
       el('p', { class: 'small' }, me.remote && me.remote.active ? (me.remote.until ? t('remoteUntil', { date: day(me.remote.until) }) : t('remoteOn')) : t('remoteOff')),
       message ? el('p', { class: 'ok', role: 'status' }, message) : null,
+      warning ? el('p', { class: 'error', role: 'alert' }, warning) : null,
       el('div', { class: 'card' },
         el('h1', {}, t('servers')),
         list.length === 0
@@ -247,7 +264,7 @@
 
   /** For Vidalune administrators: every account, and who has remote access (until when). */
   async function adminPage(me, message = '', query = { q: '', filter: 'all' }) {
-    if (!me.admin) return show(el('p', {}, t('adminOnly')), el('a', { href: '/servers' }, t('back')));
+    if (!me.admin) return show(el('p', {}, t('adminOnly')), el('a', { href: `${BASE}/servers` }, t('back')));
     const data = await api('GET', `/api/admin/accounts?${new URLSearchParams(query)}`);
     const search = el('form', {
       class: 'row',
@@ -277,7 +294,7 @@
     const status = (a) =>
       a.admin ? t('remoteOn') : a.remote ? (a.planUntil ? t('remoteUntil', { date: day(a.planUntil) }) : t('remoteOn')) : t('planNone');
     show(
-      el('div', { class: 'row' }, el('a', { href: '/servers' }, t('back')), el('span', { class: 'small' }, me.email)),
+      el('div', { class: 'row' }, el('a', { href: `${BASE}/servers` }, t('back')), el('span', { class: 'small' }, me.email)),
       el('h1', {}, t('adminTitle')),
       el('p', { class: 'small' }, t('stats', data.stats)),
       message ? el('p', { class: 'ok', role: 'status' }, message) : null,

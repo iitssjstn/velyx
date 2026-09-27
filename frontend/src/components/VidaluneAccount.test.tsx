@@ -40,7 +40,7 @@ describe('Vidalune account in Settings', () => {
   it('shows the connected account and disconnects it', async () => {
     const { calls } = setup({ available: true, email: 'lisa@example.com', appUrl: 'https://app.vidalune.com' });
     expect(await screen.findByText('Connected to lisa@example.com.')).toBeTruthy();
-    expect(screen.getByRole('link', { name: /My servers/ }).getAttribute('href')).toBe('https://app.vidalune.com/servers?choose');
+    expect(screen.getByRole('link', { name: /My servers/ }).getAttribute('href')).toBe('https://app.vidalune.com/_vl/servers?choose');
     await userEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
     expect(calls).toContain('POST /api/account/cloud/unlink');
   });

@@ -7,6 +7,7 @@ import { Avatar } from './Avatar';
 import { useT, type MessageKey } from '../i18n';
 import { QuickSearch } from './QuickSearch';
 import { AppBackButton, InstallApp } from './InstallApp';
+import { serversPage } from '../lib/vidalune';
 
 const NAV: Array<{ to: string; label: MessageKey; icon: typeof House; end?: boolean }> = [
   { to: '/', label: 'nav.home', icon: House, end: true },
@@ -62,7 +63,7 @@ function ServerSwitch() {
         <span className="truncate">{server.name}</span>
       </p>
       <a
-        href={`${server.vidalune.appUrl}/servers?choose`}
+        href={serversPage(server.vidalune.appUrl)}
         className="flex items-center gap-3 rounded-lg px-3 py-2 text-[0.95rem] text-muted transition-colors hover:bg-raised/60 hover:text-ink"
       >
         <ArrowLeftRight className="size-[1.15rem]" strokeWidth={1.9} aria-hidden="true" />

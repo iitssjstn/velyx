@@ -5,9 +5,9 @@ name: Account service image
 on:
   push:
     branches: [main]
-    paths: ['cloud/**', 'package-lock.json', '.github/workflows/cloud-image.yml']
+    paths: ['cloud/**', 'frontend/**', 'package-lock.json', '.github/workflows/cloud-image.yml']
   pull_request:
-    paths: ['cloud/**', '.github/workflows/cloud-image.yml']
+    paths: ['cloud/**', 'frontend/**', '.github/workflows/cloud-image.yml']
   workflow_dispatch:
 
 permissions:

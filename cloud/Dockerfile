@@ -11,9 +11,12 @@ COPY package.json package-lock.json tsconfig.base.json ./
 COPY backend/package.json backend/
 COPY frontend/package.json frontend/
 COPY cloud/package.json cloud/
-RUN npm ci --workspace cloud --no-audit --no-fund
+RUN npm ci --workspace cloud --workspace frontend --no-audit --no-fund
 COPY cloud cloud
 RUN npm run build --workspace cloud
+# The Vidalune web interface that app.vidalune.com shows for the server its visitor chose.
+COPY frontend frontend
+RUN npm run build --workspace frontend
 
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
@@ -37,6 +40,7 @@ COPY --from=build /app/cloud/package.json cloud/
 COPY --from=build /app/cloud/dist cloud/dist
 COPY --from=build /app/cloud/drizzle cloud/drizzle
 COPY --from=build /app/cloud/web cloud/web
+COPY --from=build /app/frontend/dist frontend/dist
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME ["/data"]

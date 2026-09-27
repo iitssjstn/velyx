@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { Button } from './Button';
 import { toast } from './Toast';
 import { useT } from '../i18n';
+import { serversPage } from '../lib/vidalune';
 
 export interface AccountCloud {
   /** This server is linked to Vidalune: its users can connect their own Vidalune account. */
@@ -52,7 +53,7 @@ export function VidaluneAccount() {
             <p>{t('settings.vidalune.connected', { email: s.email })}</p>
             <div className="flex flex-wrap gap-2">
               {s.appUrl && (
-                <a className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm text-accent hover:bg-raised" href={`${s.appUrl}/servers?choose`}>
+                <a className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm text-accent hover:bg-raised" href={serversPage(s.appUrl)}>
                   <ExternalLink className="size-4" aria-hidden="true" />
                   {t('settings.vidalune.open')}
                 </a>

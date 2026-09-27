@@ -19,12 +19,19 @@ const MAX_STREAMS = 64;
 const MAX_REQUEST_BODY = 8 * 1024 * 1024;
 const PING_MS = 25_000;
 
+/** Changes made to what passes through (app.vidalune.com: cookies per server, a strict policy). */
+export interface Rewrite {
+  request?: (headers: Record<string, string | string[]>) => void;
+  response?: (headers: Record<string, string | string[]>) => void;
+}
+
 interface Stream {
   res: ServerResponse;
   req: IncomingMessage;
   started: boolean;
   /** Bytes written to the visitor but not yet credited back (waiting for "drain"). */
   owed: number;
+  rewrite: Rewrite;
 }
 
 class Tunnel {
@@ -55,17 +62,18 @@ class Tunnel {
   }
 
   /** Passes one visitor's request to the server and its answer back. */
-  forward(req: IncomingMessage, res: ServerResponse, ip: string): void {
+  forward(req: IncomingMessage, res: ServerResponse, ip: string, rewrite: Rewrite = {}): void {
     if (this.streams.size >= MAX_STREAMS) return unavailable(res, 503);
     const id = this.next;
     this.next = this.next >= 0xfffffff0 ? 1 : this.next + 1;
-    const stream: Stream = { req, res, started: false, owed: 0 };
+    const stream: Stream = { req, res, started: false, owed: 0, rewrite };
     this.streams.set(id, stream);
     const headers: Record<string, string | string[]> = {};
     for (const [k, v] of Object.entries(req.headers)) {
       if (v === undefined || HOP_BY_HOP.has(k) || k.startsWith('x-forwarded-') || k === 'forwarded' || k === 'x-real-ip') continue;
       headers[k] = v;
     }
+    rewrite.request?.(headers);
     this.send(FRAME.request, id, JSON.stringify({ method: req.method, url: req.url, headers, ip, window: INITIAL_WINDOW }));
     let size = 0;
     req.on('data', (chunk: Buffer) => {
@@ -103,7 +111,8 @@ class Tunnel {
           return this.reset(frame.stream);
         }
         const headers: Record<string, string | string[]> = {};
-        for (const [k, v] of Object.entries(head.headers ?? {})) if (!HOP_BY_HOP.has(k.toLowerCase())) headers[k] = v;
+        for (const [k, v] of Object.entries(head.headers ?? {})) if (!HOP_BY_HOP.has(k.toLowerCase())) headers[k.toLowerCase()] = v;
+        stream.rewrite.response?.(headers);
         stream.started = true;
         res.writeHead(head.status, headers);
         break;
@@ -225,6 +234,17 @@ export class Relay {
     const tunnel = row?.enabled && this.opts.allowed(row.accountId) ? this.tunnels.get(row.id) : undefined;
     if (!tunnel) return unavailable(res, 502);
     tunnel.forward(req, res, clientIp(req, this.opts.trustProxy));
+  }
+
+  /**
+   * Passes a request for app.vidalune.com to the server its visitor chose (checked by the caller).
+   * False: that server's tunnel is not open.
+   */
+  forwardTo(serverId: string, req: IncomingMessage, res: ServerResponse, rewrite: Rewrite): boolean {
+    const tunnel = this.tunnels.get(serverId);
+    if (!tunnel) return false;
+    tunnel.forward(req, res, clientIp(req, this.opts.trustProxy), rewrite);
+    return true;
   }
 
   /** A server opens its tunnel: wss://<domain>/api/server/tunnel with its secret. */
