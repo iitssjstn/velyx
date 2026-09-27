@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Field, styles } from '../components/ui';
 import { Logo } from '../components/Logo';
 import { checkPairing, signInWithPassword, startPairing, type Pairing } from '../lib/auth';
+import { errorMessage } from '../lib/connection';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 
@@ -69,7 +70,7 @@ function PasswordForm() {
       await signIn(res.token, res.user);
       router.replace('/home');
     } catch (err) {
-      setError((err as { status?: number }).status === 0 ? t('common.unreachable') : (err as Error).message || t('common.error'));
+      setError(errorMessage(err, t));
     } finally {
       setBusy(false);
     }
@@ -124,7 +125,7 @@ function CodeForm() {
         };
         timer = setTimeout(poll, p.interval * 1000);
       })
-      .catch((err: Error & { status?: number }) => alive.current && setError(err.status === 0 ? t('common.unreachable') : err.message));
+      .catch((err: unknown) => alive.current && setError(errorMessage(err, t)));
     return () => {
       alive.current = false;
       if (timer) clearTimeout(timer);

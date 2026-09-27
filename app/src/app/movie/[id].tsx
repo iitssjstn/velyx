@@ -18,7 +18,7 @@ export default function Movie() {
   const { width } = useWindowDimensions();
   const q = useQuery({ queryKey: [serverUrl, 'movie', id], queryFn: () => api.get<MovieDetail>(`/api/movies/${id}`) });
   if (q.isLoading) return <DetailSkeleton wide={wide} />;
-  if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
+  if (!q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const m = q.data;
   const facts = [m.year, formatRuntime(m.runtime), m.rating ? `★ ${m.rating.toFixed(1)}` : null].filter(Boolean).join(' · ');
   const resume = m.progress && !m.progress.completed && m.progress.positionSec > 0 ? m.progress : null;

@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View, type
 import { Stack, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { Button, Field, styles } from '../../components/ui';
+import { errorMessage } from '../../lib/connection';
 import { useSession } from '../../lib/session';
 import { colors } from '../../lib/theme';
 
@@ -33,8 +34,7 @@ export default function ChangePassword() {
       setNext('');
       setAgain('');
     } catch (err) {
-      const status = (err as { status?: number }).status;
-      setError(status === 0 ? t('common.unreachable') : (err as Error).message || t('common.error'));
+      setError(errorMessage(err, t));
     } finally {
       setBusy(false);
     }

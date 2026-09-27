@@ -16,6 +16,7 @@ import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAud
 import { rememberSubtitle, rememberedSubtitle, storeSubtitleStyle, storedSubtitleStyle } from '../../../lib/remember';
 import { DEFAULT_SUBTITLE_STYLE, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
+import { errorMessage } from '../../../lib/connection';
 import { useSession } from '../../../lib/session';
 import { skipAt, upNextStart, type EpisodeSegments, type SkipMode } from '../../../lib/skip';
 import { colors, radius } from '../../../lib/theme';
@@ -86,7 +87,7 @@ export default function Player() {
       <Stack.Screen options={{ headerShown: false, animation: 'fade' }} />
       <StatusBar hidden />
       {item.error ? (
-        <Problem message={(item.error as Error).message} />
+        <Problem message={errorMessage(item.error, t)} />
       ) : item.data && !prefs.isLoading ? (
         <Playback key={`${item.data.kind}-${item.data.id}`} item={item.data} prefs={prefs.data ?? null} startAt={startParam !== undefined ? Number(startParam) : null} />
       ) : (
@@ -203,7 +204,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
         }
         await load(a, at);
       } catch (err) {
-        setProblem((err as Error).message || t('common.error'));
+        setProblem(errorMessage(err, t));
       }
     },
     [api, item.fileId, answer, load, player, t],
@@ -286,7 +287,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
     const next = retryAt(resumes.current, at);
     resumes.current = next.retries;
     if (!next.allowed) return false;
-    void load(answer, at).catch((err: Error) => setProblem(err.message || t('common.error')));
+    void load(answer, at).catch((err: unknown) => setProblem(errorMessage(err, t)));
     return true;
   };
   useEventListener(player, 'playToEnd', () => {

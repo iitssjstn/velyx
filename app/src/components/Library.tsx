@@ -20,7 +20,7 @@ export function Library({ kind }: { kind: 'movies' | 'shows' }) {
     getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
   });
   if (q.isLoading) return <GridSkeleton />;
-  if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
+  if (!q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const items = q.data.pages.flatMap((p) => p.items);
   return (
     <FlatList

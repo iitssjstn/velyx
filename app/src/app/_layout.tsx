@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
+import { ConnectionBanner } from '../components/ConnectionBanner';
 import { appOrientation } from '../components/screen';
 import { SessionProvider } from '../lib/session';
 import { colors } from '../lib/theme';
@@ -21,6 +22,8 @@ export default function RootLayout() {
             staleTime: 30_000,
             // Errors the server answered (e.g. 404) are final; only network trouble is retried.
             retry: (count, err) => (err as { status?: number }).status === 0 && count < 2,
+            // Kept for half an hour, so what was loaded stays visible while the connection is gone.
+            gcTime: 30 * 60_000,
           },
         },
       }),
@@ -57,6 +60,7 @@ export default function RootLayout() {
             <Stack.Screen name="account/sessions" options={{ title: '' }} />
             <Stack.Screen name="play/[kind]/[id]" options={{ headerShown: false, animation: 'fade' }} />
           </Stack>
+          <ConnectionBanner />
         </ThemeProvider>
       </SessionProvider>
     </QueryClientProvider>

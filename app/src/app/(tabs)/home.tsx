@@ -22,7 +22,7 @@ export default function Home() {
         <ShelvesSkeleton poster={wide ? 150 : 120} />
       </SafeAreaView>
     );
-  if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
+  if (!q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const d = q.data;
   const empty = !d.continueWatching.length && !d.recentlyAdded.length && !d.movies.length && !d.shows.length;
   return (

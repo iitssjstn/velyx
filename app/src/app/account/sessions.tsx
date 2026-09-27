@@ -53,7 +53,7 @@ export default function Sessions() {
             <Block key={i} width="100%" height={64} />
           ))}
         </View>
-      ) : q.error || !q.data ? (
+      ) : !q.data ? (
         <ErrorState error={q.error} onRetry={() => void q.refetch()} />
       ) : (
         <FlatList

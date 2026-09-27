@@ -1,6 +1,7 @@
 import type { ReactNode, Ref } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { colors, radius } from '../lib/theme';
+import { errorMessage } from '../lib/connection';
 import { useSession } from '../lib/session';
 
 export function Button({ label, onPress, busy, disabled, variant = 'primary' }: { label: string; onPress: () => void; busy?: boolean; disabled?: boolean; variant?: 'primary' | 'ghost' }) {
@@ -37,8 +38,7 @@ export function Loading() {
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const { t } = useSession();
-  const status = (error as { status?: number } | null)?.status;
-  const message = status === 0 ? t('common.unreachable') : error instanceof Error && error.message && !error.message.startsWith('HTTP ') ? error.message : t('common.error');
+  const message = errorMessage(error, t);
   return (
     <View style={[styles.center, { gap: 16, padding: 24 }]}>
       <Text style={[styles.body, { textAlign: 'center' }]}>{message}</Text>
