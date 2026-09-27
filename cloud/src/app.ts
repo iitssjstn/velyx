@@ -71,6 +71,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const now = opts.now ?? Date.now;
   const hops = config.trustProxy;
   const publicUrl = new URL(config.publicUrl);
+  /** The service's own addresses: vidalune.com, and app.vidalune.com / www.vidalune.com that serve the same pages. */
+  const ownOrigins = new Set([config.publicUrl, ...['app', 'www'].map((n) => `${publicUrl.protocol}//${n}.${config.relayDomain}${publicUrl.port ? `:${publicUrl.port}` : ''}`)]);
   const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops });
   const app = Fastify({
     trustProxy: (_addr: string, hop: number) => hop < hops,
@@ -103,7 +105,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     // Servers and the app send a secret header: other sites cannot (no CORS), so nothing to check.
     if (request.headers.authorization) return;
     const origin = request.headers.origin;
-    if (origin && origin !== config.publicUrl) throw new HttpError(403, 'Requests from other sites are not accepted.');
+    if (origin && !ownOrigins.has(origin)) throw new HttpError(403, 'Requests from other sites are not accepted.');
   });
   app.addHook('preHandler', async (request) => {
     if (request.body === undefined) return;
