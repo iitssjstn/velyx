@@ -69,7 +69,8 @@ export class CloudService {
     return { name: s.serverName().slice(0, 60), version: this.deps.version, url: s.serverUrl() || null };
   }
 
-  private async call<T>(method: string, path: string, body?: unknown, auth = true): Promise<T> {
+  /** `soft401`: a 401 is about the request (a used ticket), not about this server's registration. */
+  private async call<T>(method: string, path: string, body?: unknown, auth = true, soft401 = false): Promise<T> {
     const link = this.deps.settings.get().cloud;
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -81,6 +82,7 @@ export class CloudService {
       log.warn(`Vidalune account service not reachable: ${(err as Error).message}`);
       throw new HttpError(502, 'Could not reach the Vidalune account service. Try again later.');
     }
+    if (res.status === 401 && soft401) throw new HttpError(401, 'This sign-in link is not valid (any more).');
     if (res.status === 401 && auth) {
       // The service no longer knows this server (it was removed there): start over when linking again.
       this.deps.settings.update({ cloud: null });
@@ -92,13 +94,14 @@ export class CloudService {
   }
 
   /** Turns linking on (registering once) and returns a fresh code to enter on the account page. */
-  async link(): Promise<CloudStatus> {
+  async link(userId?: number): Promise<CloudStatus> {
     if (!this.deps.settings.get().cloud) {
       const reg = await this.call<{ id: string; secret: string }>('POST', '/api/server/register', this.about(), false);
       this.deps.settings.update({ cloud: { serverId: reg.id, secret: reg.secret, account: null } });
       this.start();
     }
-    const c = await this.call<{ code: string; expiresAt: number; linkUrl: string }>('POST', '/api/server/code', {});
+    // The administrator asking signs in with that account from then on.
+    const c = await this.call<{ code: string; expiresAt: number; linkUrl: string }>('POST', '/api/server/code', userId ? { userRef: String(userId) } : {});
     // The code rides along after "#": it is not sent to the service in the page request.
     this.code = { code: c.code, expiresAt: c.expiresAt, linkUrl: `${c.linkUrl}#${c.code}` };
     return this.status();
@@ -119,6 +122,49 @@ export class CloudService {
     if (r.account) this.code = null;
     this.syncRelay();
     return this.status();
+  }
+
+  /** The site where people sign in with their Vidalune account and open their servers. */
+  appUrl(): string | null {
+    if (!this.deps.settings.get().cloud?.account) return null;
+    const u = new URL(this.deps.baseUrl);
+    return `${u.protocol}//app.${u.host}`;
+  }
+
+  private membersCache: { at: number; list: Array<{ userRef: string; email: string }> } | null = null;
+
+  /** Which users here connected a Vidalune account (asked at most every half minute). */
+  async members(): Promise<Array<{ userRef: string; email: string }>> {
+    if (!this.deps.settings.get().cloud?.account) return [];
+    if (this.membersCache && this.membersCache.at > this.now() - 30_000) return this.membersCache.list;
+    const list = await this.call<Array<{ userRef: string; email: string }>>('GET', '/api/server/members');
+    this.membersCache = { at: this.now(), list };
+    return list;
+  }
+
+  /** A code for one user here to connect their own Vidalune account. */
+  async memberCode(userId: number): Promise<{ code: string; expiresAt: number; linkUrl: string }> {
+    if (!this.deps.settings.get().cloud?.account) throw new HttpError(409, 'Link this server to a Vidalune account first.');
+    const c = await this.call<{ code: string; expiresAt: number; linkUrl: string }>('POST', '/api/server/member-code', { userRef: String(userId) });
+    this.membersCache = null;
+    return { code: c.code, expiresAt: c.expiresAt, linkUrl: `${c.linkUrl}#${c.code}` };
+  }
+
+  async removeMember(userId: number): Promise<void> {
+    if (!this.deps.settings.get().cloud) return;
+    await this.call('DELETE', `/api/server/members/${userId}`);
+    this.membersCache = null;
+  }
+
+  /** Exchanges a one-time ticket from vidalune.com for who is opening this server. */
+  async redeem(ticket: string): Promise<{ email: string | null; userRef: string | null }> {
+    if (!this.deps.settings.get().cloud?.account) throw new HttpError(401, 'This sign-in link is not valid (any more).');
+    try {
+      return await this.call<{ email: string | null; userRef: string | null }>('POST', '/api/server/ticket', { ticket }, true, true);
+    } catch (err) {
+      if (err instanceof HttpError && err.statusCode === 401) throw new HttpError(401, 'This sign-in link is not valid (any more).');
+      throw err;
+    }
   }
 
   /** Turns the relay on or off (the server must be linked). */

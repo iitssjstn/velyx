@@ -12,6 +12,10 @@
         unlinkConfirm: '{name} ontkoppelen van je account?', signOut: 'Uitloggen', delete: 'Account verwijderen', deleteConfirm: 'Vul je wachtwoord in om je account te verwijderen. Je servers worden ontkoppeld.',
         deleteButton: 'Definitief verwijderen', cancel: 'Annuleren', version: 'versie {v}', open: 'Openen', privacy: 'Vidalune bewaart alleen je e-mailadres, een versleuteld wachtwoord en per server de naam, versie en het adres. Nooit je media of wat je kijkt.',
         failed: 'Dat lukte niet. Probeer het opnieuw.',
+        openServer: 'Openen', opening: 'Openen…', leave: 'Verlaten', leaveConfirm: '{name} uit je lijst halen? Je kunt dan niet meer met je Vidalune-account op deze server inloggen.',
+        member: 'gedeeld met jou', unreachable: '{name} is nu niet bereikbaar. Staat hij aan?', noAddress: 'Deze server heeft nog geen adres: zet op de server de relay aan of stel zijn adres in.',
+        join: 'Server toevoegen', joinIntro: 'Gebruik je de server van iemand anders? Ga daar naar Instellingen → Account → Vidalune-account en vul de code in die je daar krijgt.',
+        joined: '{name} staat nu in je lijst.', choose: 'Andere server kiezen',
       }
     : {
         title: 'Vidalune account', intro: 'With a Vidalune account you find your own servers again, also outside your home network.',
@@ -22,6 +26,10 @@
         unlinkConfirm: 'Unlink {name} from your account?', signOut: 'Sign out', delete: 'Delete account', deleteConfirm: 'Enter your password to delete your account. Your servers are unlinked.',
         deleteButton: 'Delete for good', cancel: 'Cancel', version: 'version {v}', open: 'Open', privacy: 'Vidalune keeps only your email address, an encrypted password and, per server, its name, version and address. Never your media or what you watch.',
         failed: 'That did not work. Try again.',
+        openServer: 'Open', opening: 'Opening…', leave: 'Leave', leaveConfirm: 'Remove {name} from your list? You can then no longer sign in there with your Vidalune account.',
+        member: 'shared with you', unreachable: '{name} cannot be reached right now. Is it on?', noAddress: 'This server has no address yet: turn the relay on or set its address on the server.',
+        join: 'Add a server', joinIntro: 'Using someone else\'s server? There, go to Settings → Account → Vidalune account and enter the code you get.',
+        joined: '{name} is in your list now.', choose: 'Choose another server',
       };
   const t = (key, vars = {}) => T[key].replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
   const view = document.getElementById('view');
@@ -44,6 +52,34 @@
   // A code handed over in the address (/link#K7F3-Q9MA), kept until someone is signed in.
   const pendingCode = () => (location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : '');
   const when = (ms) => new Date(ms).toLocaleString(nl ? 'nl-NL' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+
+  const LAST = 'vidalune.lastServer';
+  const remember = (id) => { try { localStorage.setItem(LAST, id); } catch { /* private window */ } };
+  const lastServer = () => { try { return localStorage.getItem(LAST); } catch { return null; } };
+
+  /** Whether this browser reaches an address (any answer counts; a network error does not). */
+  async function reachable(url) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+    try {
+      await fetch(`${url}/api/server/info`, { mode: 'no-cors', cache: 'no-store', signal: controller.signal });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** Opens a server, signed in: a one-time ticket, its own address when this browser reaches it, else the relay. */
+  async function openServer(s) {
+    const { ticket, addresses } = await api('POST', `/api/servers/${encodeURIComponent(s.id)}/open`);
+    if (!addresses.length) throw new Error(t('noAddress'));
+    let target = addresses[addresses.length - 1];
+    for (const a of addresses.slice(0, -1)) if (await reachable(a)) { target = a; break; }
+    remember(s.id);
+    location.assign(`${target}/sso?ticket=${encodeURIComponent(ticket)}`);
+  }
 
   function form(fields, submitLabel, onSubmit) {
     const error = el('p', { class: 'error', role: 'alert' });
@@ -92,10 +128,30 @@
       return signIn(pendingCode() ? 'up' : 'in');
     }
     const list = await api('GET', '/api/servers');
+    const joining = location.pathname === '/join';
+    // Straight into the server used last time (app.vidalune.com), unless asked to choose.
+    const params = new URLSearchParams(location.search);
+    const last = list.find((s) => s.id === lastServer() && (s.url || s.relayUrl));
+    if (!message && !joining && !pendingCode() && !params.has('choose') && location.hostname.startsWith('app.') && last) {
+      try {
+        return await openServer(last);
+      } catch {
+        /* show the list instead */
+      }
+    }
+    const joinCard = el('div', { class: 'card' },
+      el('h1', {}, t('join')),
+      el('p', {}, t('joinIntro')),
+      form([el('label', {}, t('code'), el('input', { name: 'code', class: 'code', autocomplete: 'off', value: joining ? pendingCode() : '', maxlength: 12, required: true }))], t('linkButton'), async (v) => {
+        const s = await api('POST', '/api/join', v);
+        history.replaceState(null, '', '/servers');
+        await home(t('joined', { name: s.name }));
+      }),
+    );
     const linkCard = el('div', { class: 'card' },
       el('h1', {}, t('link')),
       el('p', {}, t('linkIntro')),
-      form([el('label', {}, t('code'), el('input', { name: 'code', class: 'code', autocomplete: 'off', value: pendingCode(), maxlength: 12, required: true }))], t('linkButton'), async (v) => {
+      form([el('label', {}, t('code'), el('input', { name: 'code', class: 'code', autocomplete: 'off', value: joining ? '' : pendingCode(), maxlength: 12, required: true }))], t('linkButton'), async (v) => {
         const s = await api('POST', '/api/link', v);
         history.replaceState(null, '', '/servers');
         await home(t('linked', { name: s.name }));
@@ -111,17 +167,45 @@
           : el('ul', { class: 'servers' }, list.map((s) =>
               el('li', {},
                 el('div', { class: 'row' },
-                  el('strong', {}, s.name),
-                  el('button', { class: 'ghost', type: 'button', onclick: async () => { if (confirm(t('unlinkConfirm', { name: s.name }))) { await api('DELETE', `/api/servers/${encodeURIComponent(s.id)}`); await home(); } } }, t('unlink')),
+                  el('strong', {}, s.name, s.role === 'member' ? el('span', { class: 'small' }, ` · ${t('member')}`) : null),
+                  el('span', { class: 'actions' },
+                    el('button', {
+                      type: 'button',
+                      disabled: !(s.url || s.relayUrl),
+                      onclick: async (e) => {
+                        const b = e.currentTarget;
+                        b.disabled = true;
+                        b.textContent = t('opening');
+                        try {
+                          await openServer(s);
+                        } catch (err) {
+                          b.disabled = false;
+                          b.textContent = t('openServer');
+                          alert(err.message || t('unreachable', { name: s.name }));
+                        }
+                      },
+                    }, t('openServer')),
+                    el('button', {
+                      class: 'ghost',
+                      type: 'button',
+                      onclick: async () => {
+                        if (confirm(t(s.role === 'member' ? 'leaveConfirm' : 'unlinkConfirm', { name: s.name }))) {
+                          await api('DELETE', `/api/servers/${encodeURIComponent(s.id)}`);
+                          await home();
+                        }
+                      },
+                    }, s.role === 'member' ? t('leave') : t('unlink')),
+                  ),
                 ),
                 el('div', { class: 'small' },
                   el('span', { class: s.online ? 'dot on' : 'dot' }),
                   s.online ? t('online') : t('offline', { when: when(s.lastSeenAt) }), ' · ', t('version', { v: s.version }),
-                  s.url || s.relayUrl ? [' · ', el('a', { href: s.url || s.relayUrl, rel: 'noopener' }, t('open'))] : null,
+                  !(s.url || s.relayUrl) ? [' · ', t('noAddress')] : null,
                 ),
               ))),
       ),
-      pendingCode() || list.length === 0 ? linkCard : el('details', {}, el('summary', {}, t('link')), linkCard),
+      joining ? joinCard : el('details', {}, el('summary', {}, t('join')), joinCard),
+      (pendingCode() && !joining) || list.length === 0 ? linkCard : el('details', {}, el('summary', {}, t('link')), linkCard),
       el('details', {},
         el('summary', { class: 'small' }, t('delete')),
         el('div', { class: 'card' },

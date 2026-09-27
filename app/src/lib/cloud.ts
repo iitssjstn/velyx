@@ -56,8 +56,24 @@ export function createCloud(fetchImpl: typeof fetch = fetch, baseUrl = CLOUD_URL
     signIn: (email: string, password: string) => request<CloudAccount>('POST', '/api/login', null, { email: email.trim(), password, client: 'app' }),
     signUp: (email: string, password: string) => request<CloudAccount>('POST', '/api/account', null, { email: email.trim(), password, client: 'app' }),
     servers: (token: string) => request<CloudServer[]>('GET', '/api/servers', token),
+    /** A one-time ticket to sign in on a server, and the addresses to try (its own first). */
+    open: (token: string, serverId: string) => request<{ ticket: string; addresses: string[] }>('POST', `/api/servers/${encodeURIComponent(serverId)}/open`, token),
     signOut: (token: string) => request<{ ok: true }>('POST', '/api/logout', token).catch(() => undefined),
   };
+}
+
+/**
+ * Signs in on a server with a ticket from the account service. Null when the server does not know
+ * this Vidalune account (the app then asks for a username and password).
+ */
+export async function signInWithTicket(serverUrl: string, ticket: string, deviceName: string, userAgent: string, fetchImpl: typeof fetch = fetch) {
+  const res = await fetchImpl(`${serverUrl}/api/auth/app/ticket`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': userAgent },
+    body: JSON.stringify({ ticket, deviceName }),
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as { token: string; user: import('./types').User };
 }
 
 /** The addresses to try for a server: its own first, then the relay. */

@@ -318,4 +318,6 @@ export const nl: Record<string, string> = {
   'The Vidalune account service could not handle the request. Try again later.': 'De Vidalune-accountdienst kon het verzoek niet verwerken. Probeer het later opnieuw.',
   'The Vidalune account service no longer knows this server. Turn linking on again.': 'De Vidalune-accountdienst kent deze server niet meer. Zet koppelen opnieuw aan.',
   'Link this server to a Vidalune account first.': 'Koppel deze server eerst aan een Vidalune-account.',
+  'This sign-in link is not valid (any more).': 'Deze inloglink is niet (meer) geldig.',
+  'Your Vidalune account is not connected to a user on this server. Sign in with your username and password.': 'Je Vidalune-account is niet gekoppeld aan een gebruiker op deze server. Log in met je gebruikersnaam en wachtwoord.',
 };

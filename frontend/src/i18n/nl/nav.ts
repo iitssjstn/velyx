@@ -10,6 +10,8 @@ export const nav: Messages['nav'] = {
   settings: 'Instellingen',
   admin: 'Beheer',
   searchVidalune: 'Zoeken in Vidalune',
+  servers: 'Servers',
+  otherServers: 'Andere servers…',
   searchPlaceholder: 'Zoeken…',
   openMenu: 'Menu openen',
   closeMenu: 'Menu sluiten',

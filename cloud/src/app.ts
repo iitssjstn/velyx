@@ -6,11 +6,11 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import fastifyCookie from '@fastify/cookie';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyStatic from '@fastify/static';
-import { and, eq, gt, isNull, lt } from 'drizzle-orm';
+import { and, desc, eq, gt, isNotNull, isNull, lt } from 'drizzle-orm';
 import { z, ZodError } from 'zod';
 import type { CloudConfig } from './config.js';
 import type { DB } from './db/client.js';
-import { accountSessions, accounts, linkCodes, servers } from './db/schema.js';
+import { accountSessions, accounts, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
 import { newSlug, Relay } from './relay.js';
 
@@ -20,6 +20,10 @@ const SESSION_DAYS = 30;
 /** The Vidalune app stays signed in longer than a browser. */
 const APP_SESSION_DAYS = 180;
 const CODE_MINUTES = 10;
+/** A ticket to open a server is used within a minute (the browser goes there right away). */
+const TICKET_MS = 60_000;
+/** A server's own id for one of its users. */
+const userRef = z.string().trim().min(1).max(64);
 /** A server that has not reported for this long is shown as offline. */
 export const ONLINE_WINDOW = 2 * 60 * 60 * 1000;
 
@@ -96,7 +100,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   await app.register(fastifyCookie);
   await app.register(fastifyHelmet, {
-    contentSecurityPolicy: { directives: { defaultSrc: ["'self'"], imgSrc: ["'self'", 'data:'], styleSrc: ["'self'"], scriptSrc: ["'self'"], connectSrc: ["'self'"] } },
+    contentSecurityPolicy: { directives: { defaultSrc: ["'self'"], imgSrc: ["'self'", 'data:'], styleSrc: ["'self'"], scriptSrc: ["'self'"], connectSrc: ["'self'", 'https:', 'http:'], formAction: ["'self'"], frameAncestors: ["'none'"] } },
   });
 
   // Browsers only: state-changing requests must come from our own pages (no form posts from elsewhere).
@@ -205,9 +209,49 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     online: s.lastSeenAt > now() - ONLINE_WINDOW || relay.connected(s.id),
   });
 
-  app.get('/api/servers', async (request) => {
+  /** The servers this account owns, and the ones where one of its users is this account. */
+  const accessible = (accountId: number) => {
+    const owned = db.select().from(servers).where(eq(servers.accountId, accountId)).all();
+    const memberOf = db
+      .select({ server: servers })
+      .from(memberships)
+      .innerJoin(servers, eq(memberships.serverId, servers.id))
+      .where(and(eq(memberships.accountId, accountId), isNotNull(servers.accountId)))
+      .all()
+      .map((r) => r.server)
+      .filter((s) => !owned.some((o) => o.id === s.id));
+    return [...owned.map((s) => ({ ...serverView(s), role: 'owner' as const })), ...memberOf.map((s) => ({ ...serverView(s), role: 'member' as const }))];
+  };
+
+  app.get('/api/servers', async (request) => accessible(account(request).id));
+
+  /**
+   * Opening a server: a one-time ticket the server exchanges (with its own secret) for who this is,
+   * so the browser or app is signed in there without a password.
+   */
+  app.post('/api/servers/:id/open', async (request) => {
     const me = account(request);
-    return db.select().from(servers).where(eq(servers.accountId, me.id)).all().map(serverView);
+    const { id } = z.object({ id: z.string().max(64) }).parse(request.params);
+    const s = accessible(me.id).find((x) => x.id === id);
+    if (!s) throw new HttpError(404, 'Not found.');
+    const ticket = newToken();
+    const t = now();
+    db.delete(tickets).where(lt(tickets.expiresAt, t)).run();
+    db.insert(tickets).values({ ticketHash: sha256(ticket), serverId: id, accountId: me.id, expiresAt: t + TICKET_MS }).run();
+    return { ticket, addresses: [s.url, s.relayUrl].filter(Boolean) };
+  });
+
+  /** Someone who uses a server connects their Vidalune account with the code it showed them. */
+  app.post('/api/join', async (request) => {
+    const me = account(request);
+    limiter.check(`join:${me.id}`, now());
+    const { code } = z.object({ code: z.string().max(20) }).parse(request.body);
+    const normalized = normalizeLinkCode(code);
+    const row = normalized ? db.select().from(memberCodes).where(and(eq(memberCodes.codeHash, sha256(normalized)), gt(memberCodes.expiresAt, now()))).get() : undefined;
+    if (!row) throw new HttpError(400, 'This code is not valid (any more). Ask the server for a new one.');
+    db.insert(memberships).values({ serverId: row.serverId, userRef: row.userRef, accountId: me.id, createdAt: now() }).onConflictDoUpdate({ target: [memberships.serverId, memberships.userRef], set: { accountId: me.id, createdAt: now() } }).run();
+    db.delete(memberCodes).where(eq(memberCodes.codeHash, row.codeHash)).run();
+    return serverView(db.select().from(servers).where(eq(servers.id, row.serverId)).get()!);
   });
 
   /** Entering the code a server shows links that server to this account. */
@@ -219,6 +263,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const row = normalized ? db.select().from(linkCodes).where(and(eq(linkCodes.codeHash, sha256(normalized)), gt(linkCodes.expiresAt, now()))).get() : undefined;
     if (!row) throw new HttpError(400, 'This code is not valid (any more). Ask the server for a new one.');
     db.update(servers).set({ accountId: me.id }).where(eq(servers.id, row.serverId)).run();
+    // The administrator who linked it signs in with this account from now on.
+    if (row.userRef) db.insert(memberships).values({ serverId: row.serverId, userRef: row.userRef, accountId: me.id, createdAt: now() }).onConflictDoUpdate({ target: [memberships.serverId, memberships.userRef], set: { accountId: me.id } }).run();
     db.delete(linkCodes).where(eq(linkCodes.serverId, row.serverId)).run();
     return serverView(db.select().from(servers).where(eq(servers.id, row.serverId)).get()!);
   });
@@ -227,8 +273,13 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const me = account(request);
     const { id } = z.object({ id: z.string().max(64) }).parse(request.params);
     const res = db.update(servers).set({ accountId: null, relayEnabled: false }).where(and(eq(servers.id, id), eq(servers.accountId, me.id))).run();
-    if (!res.changes) throw new HttpError(404, 'Not found.');
-    relay.drop(id);
+    if (res.changes) {
+      relay.drop(id);
+      return { ok: true };
+    }
+    // Not the owner: leave the server (its user no longer signs in with this account).
+    const left = db.delete(memberships).where(and(eq(memberships.serverId, id), eq(memberships.accountId, me.id))).run();
+    if (!left.changes) throw new HttpError(404, 'Not found.');
     return { ok: true };
   });
 
@@ -260,9 +311,10 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   app.post('/api/server/code', async (request) => {
     const me = server(request);
     limiter.check(`code:${me.id}`, now());
+    const { userRef: ref } = z.object({ userRef: userRef.optional() }).parse(request.body ?? {});
     const code = newLinkCode();
     const expiresAt = now() + CODE_MINUTES * 60_000;
-    db.insert(linkCodes).values({ codeHash: sha256(code), serverId: me.id, expiresAt }).onConflictDoUpdate({ target: linkCodes.serverId, set: { codeHash: sha256(code), expiresAt } }).run();
+    db.insert(linkCodes).values({ codeHash: sha256(code), serverId: me.id, userRef: ref ?? null, expiresAt }).onConflictDoUpdate({ target: linkCodes.serverId, set: { codeHash: sha256(code), userRef: ref ?? null, expiresAt } }).run();
     return { code, expiresAt, linkUrl: `${config.publicUrl}/link` };
   });
 
@@ -290,6 +342,54 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     return serverStatus(db.select().from(servers).where(eq(servers.id, me.id)).get()!).relay;
   });
 
+  /** A code for one of the server's users to connect their own Vidalune account. */
+  app.post('/api/server/member-code', async (request) => {
+    const me = server(request);
+    if (!me.accountId) throw new HttpError(409, 'Link this server to a Vidalune account first.');
+    limiter.check(`member-code:${me.id}`, now());
+    const { userRef: ref } = z.object({ userRef }).parse(request.body);
+    const code = newLinkCode();
+    const expiresAt = now() + CODE_MINUTES * 60_000;
+    db.delete(memberCodes).where(and(eq(memberCodes.serverId, me.id), eq(memberCodes.userRef, ref))).run();
+    db.insert(memberCodes).values({ codeHash: sha256(code), serverId: me.id, userRef: ref, expiresAt }).run();
+    return { code, expiresAt, linkUrl: `${config.publicUrl}/join` };
+  });
+
+  /** Which of the server's users have connected a Vidalune account. */
+  app.get('/api/server/members', async (request) => {
+    const me = server(request);
+    return db
+      .select({ userRef: memberships.userRef, email: accounts.email })
+      .from(memberships)
+      .innerJoin(accounts, eq(memberships.accountId, accounts.id))
+      .where(eq(memberships.serverId, me.id))
+      .all();
+  });
+
+  app.delete('/api/server/members/:userRef', async (request) => {
+    const me = server(request);
+    const { userRef: ref } = z.object({ userRef }).parse(request.params);
+    db.delete(memberships).where(and(eq(memberships.serverId, me.id), eq(memberships.userRef, ref))).run();
+    return { ok: true };
+  });
+
+  /** The server exchanges a ticket (once) for who is opening it: the account and its user there. */
+  app.post('/api/server/ticket', async (request) => {
+    const me = server(request);
+    const { ticket } = z.object({ ticket: z.string().min(20).max(200) }).parse(request.body);
+    const row = db.select().from(tickets).where(and(eq(tickets.ticketHash, sha256(ticket)), eq(tickets.serverId, me.id))).get();
+    if (row) db.delete(tickets).where(eq(tickets.ticketHash, row.ticketHash)).run();
+    if (!row || row.expiresAt < now()) throw new HttpError(401, 'This sign-in link is not valid (any more).');
+    const who = db.select().from(accounts).where(eq(accounts.id, row.accountId)).get();
+    const member = db
+      .select()
+      .from(memberships)
+      .where(and(eq(memberships.serverId, me.id), eq(memberships.accountId, row.accountId)))
+      .orderBy(desc(memberships.createdAt))
+      .get();
+    return { email: who?.email ?? null, userRef: member?.userRef ?? null };
+  });
+
   /** The server's administrator stops using the account service: everything about it is removed. */
   app.delete('/api/server', async (request) => {
     const me = server(request);
@@ -306,6 +406,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const t = now();
     db.delete(accountSessions).where(lt(accountSessions.expiresAt, t)).run();
     db.delete(linkCodes).where(lt(linkCodes.expiresAt, t)).run();
+    db.delete(memberCodes).where(lt(memberCodes.expiresAt, t)).run();
+    db.delete(tickets).where(lt(tickets.expiresAt, t)).run();
     // Registered but never linked, and silent for 30 days: forgotten.
     db.delete(servers)
       .where(and(isNull(servers.accountId), lt(servers.lastSeenAt, t - 30 * DAY)))
@@ -320,6 +422,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     app.get('/', page);
     app.get('/link', page);
     app.get('/servers', page);
+    app.get('/join', page);
   }
   app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: 'Not found.' }));
 

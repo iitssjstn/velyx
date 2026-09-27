@@ -15,6 +15,13 @@
       "when": 1790532404011,
       "tag": "0001_relay",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790540749852,
+      "tag": "0002_members_tickets",
+      "breakpoints": true
     }
   ]
 }
