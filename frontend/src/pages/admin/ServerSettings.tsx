@@ -59,7 +59,7 @@ export function ServerSettingsPanel() {
           </div>
           <div>
             <label className="label" htmlFor="surl">{t('server.url')}</label>
-            <input id="surl" className="input" placeholder="https://velyx.example.com" value={form.serverUrl} onChange={(e) => setForm({ ...form, serverUrl: e.target.value })} />
+            <input id="surl" className="input" placeholder="https://vidalune.example.com" value={form.serverUrl} onChange={(e) => setForm({ ...form, serverUrl: e.target.value })} />
             <p className="mt-1 text-xs text-faint">{t('server.urlHint')}</p>
           </div>
           <div>
@@ -135,7 +135,7 @@ export function ServerSettingsPanel() {
         <dl className="grid gap-3 border-t border-line/60 pt-5 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-faint">{t('settings.server.version')}</dt>
-            <dd>Velyx {s.version}</dd>
+            <dd>Vidalune {s.version}</dd>
           </div>
           <div>
             <dt className="text-faint">{t('server.mediaRoots')}</dt>

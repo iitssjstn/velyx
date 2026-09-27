@@ -92,7 +92,7 @@ export class DirectPlayEngine implements PlaybackEngine {
     let audioIndex = defaultAudio;
     if (options.audioIndex !== undefined && options.audioIndex !== defaultAudio) {
       if (caps.audioTrackSwitching) {
-        // A player that switches tracks itself (the Velyx app) plays the original file.
+        // A player that switches tracks itself (the Vidalune app) plays the original file.
         audioIndex = options.audioIndex;
         const track = (file.audioTracks ?? []).find((t) => t.index === audioIndex);
         if (reported && track?.codec && caps.audioCodecs && !caps.audioCodecs.includes(track.codec)) {

@@ -4,6 +4,7 @@ import path from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
+import fastifyCompress from '@fastify/compress';
 import fastifyStatic from '@fastify/static';
 import { ZodError } from 'zod';
 import type { AppConfig } from './config.js';
@@ -50,7 +51,7 @@ declare module 'fastify' {
   interface FastifyRequest {
     user: SessionUser | null;
     sessionToken: string | undefined;
-    /** The device name of a Velyx app session ("Pixel 8"); null for browsers. */
+    /** The device name of a Vidalune app session ("Pixel 8"); null for browsers. */
     appDevice: string | null;
   }
 }
@@ -156,7 +157,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const disk = new DiskMonitor(storage, (level, info) => {
     if (level === 'critical') scans.pause('low-disk');
     else scans.resume('low-disk');
-    if (level !== 'ok') notifications.notify('storageLow', { disk: 'Velyx data', free: `${(info.free / 1024 ** 3).toFixed(1)} GB` });
+    if (level !== 'ok') notifications.notify('storageLow', { disk: 'Vidalune data', free: `${(info.free / 1024 ** 3).toFixed(1)} GB` });
   });
   const backups = new BackupScheduler(
     db,
@@ -180,7 +181,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
       return { apiKey: s.openSubtitlesApiKey, username: s.openSubtitlesUsername, password: s.openSubtitlesPassword };
     },
     fetchImpl: opts.fetchImpl,
-    userAgent: `Velyx v${APP_VERSION}`,
+    userAgent: `Vidalune v${APP_VERSION}`,
   });
   return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateRepo, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, startedAt: Date.now() };
 }
@@ -208,7 +209,7 @@ export function requireAdmin(request: FastifyRequest, reply: FastifyReply, done:
 export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   const app = Fastify({
     logger: false,
-    // A hop count trusts exactly that many proxies in front of Velyx (e.g. 2 for Cloudflare + Nginx).
+    // A hop count trusts exactly that many proxies in front of Vidalune (e.g. 2 for Cloudflare + Nginx).
     trustProxy: typeof ctx.config.trustProxy === 'number' ? ((_addr: string, hop: number) => hop < (ctx.config.trustProxy as number)) : ctx.config.trustProxy,
     bodyLimit: 4 * 1024 * 1024,
   });
@@ -241,7 +242,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   // Resolve the session for every API request.
   app.addHook('onRequest', async (request, reply) => {
     if (!request.url.startsWith('/api/')) return;
-    // The Velyx app sends its token as "Authorization: Bearer …" instead of a cookie. Only tokens
+    // The Vidalune app sends its token as "Authorization: Bearer …" instead of a cookie. Only tokens
     // handed out to the app are accepted this way, never a browser's session.
     const auth = request.headers.authorization;
     if (auth?.startsWith('Bearer ')) {
@@ -250,7 +251,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
       if (resolved?.client === 'app') {
         request.sessionToken = token;
         request.user = resolved.user;
-        request.appDevice = resolved.deviceName ?? 'Velyx app';
+        request.appDevice = resolved.deviceName ?? 'Vidalune app';
       }
       return;
     }
@@ -263,7 +264,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     request.sessionToken = unsigned.value;
     request.user = resolved?.user ?? null;
     // The session was extended on the server: renew the cookie too, or the browser would still
-    // drop it when the original sign-in expires, however often Velyx is used.
+    // drop it when the original sign-in expires, however often Vidalune is used.
     if (resolved?.extended) reply.setCookie(SESSION_COOKIE, unsigned.value, sessionCookieOptions(ctx.config.cookieSecure, request.protocol, ctx.sessions.ttlMs));
   });
 
@@ -304,7 +305,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
       const first = err.issues[0];
       if (!first) return reply.code(400).send({ error: tr(lang, 'Invalid input.') });
       const field = first.path.join('.') || 'input';
-      // Messages written for Velyx are translated; library defaults are replaced by a plain one.
+      // Messages written for Vidalune are translated; library defaults are replaced by a plain one.
       const message = lang === 'en' || hasTranslation(first.message) ? tr(lang, first.message) : tr(lang, 'This value is not valid.');
       return reply.code(400).send({ error: `${field}: ${message}` });
     }
@@ -317,6 +318,10 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     return reply.code(500).send(body);
   });
 
+  // Text (JSON, subtitles, scripts) is sent compressed when the client accepts it. gzip only: cheap
+  // enough for old hardware. Video, audio and images are already compressed and stay seekable.
+  await app.register(fastifyCompress, { encodings: ['gzip'], threshold: 2048, customTypes: /^(?:application\/(?:json|javascript|manifest\+json)|text\/)/ });
+
   await registerRoutes(app, ctx);
 
   // ---- frontend (production build)
@@ -327,6 +332,8 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
       prefix: '/',
       wildcard: false,
       index: false,
+      // The build writes .br and .gz next to scripts and styles: served as they are, no work per request.
+      preCompressed: true,
       setHeaders(res, filePath) {
         if (filePath.includes(`${path.sep}assets${path.sep}`)) res.header('Cache-Control', 'public, max-age=31536000, immutable');
         else res.header('Cache-Control', 'no-cache');

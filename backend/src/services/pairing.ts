@@ -31,7 +31,7 @@ export function formatCode(code: string): string {
 }
 
 /**
- * Connecting the Velyx app with a code, like signing in to a TV: the app shows a short code, someone
+ * Connecting the Vidalune app with a code, like signing in to a TV: the app shows a short code, someone
  * who is signed in on the website enters it, and the app is signed in to that account. Codes live
  * only in memory for ten minutes and work once; a restart simply means asking for a new code.
  */

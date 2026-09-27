@@ -254,11 +254,11 @@ export function DashboardPage() {
           <h2 className="font-display text-lg font-semibold">{t('settings.server.title')}</h2>
           <div className="mt-4 space-y-3">
             <Meter label={t('dashboard.cpuSystem')} value={d.cpu.system} />
-            <Meter label={t('dashboard.cpuVelyx')} value={d.cpu.velyx} />
+            <Meter label={t('dashboard.cpuVidalune')} value={d.cpu.velyx} />
             <Meter label={t('dashboard.memory')} value={(memUsed / d.memory.systemTotal) * 100} detail={t('dashboard.memoryDetail', { used: formatBytes(memUsed), total: formatBytes(d.memory.systemTotal), velyx: formatBytes(d.memory.rss) })} />
           </div>
           <dl className="mt-4 grid grid-cols-[9rem_1fr] gap-y-2 text-sm">
-            <dt className="text-faint">Velyx</dt>
+            <dt className="text-faint">Vidalune</dt>
             <dd>{t('dashboard.versionUptime', { version: d.version, uptime: formatDuration(d.uptimeSec) })}</dd>
             <dt className="text-faint">TMDB</dt>
             <dd className={d.tmdb.configured ? 'text-ok' : 'text-amber'}>{d.tmdb.configured ? (d.tmdb.source === 'environment' ? t('dashboard.tmdbEnv') : t('dashboard.tmdbSettings')) : t('dashboard.notConfigured')}</dd>

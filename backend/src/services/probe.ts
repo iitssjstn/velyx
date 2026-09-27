@@ -88,7 +88,7 @@ export function videoRangeOf(s: Pick<FfStream, 'color_transfer' | 'side_data_lis
   return 'SDR';
 }
 
-/** Maps raw ffprobe JSON to Velyx' media info. Exported for tests. */
+/** Maps raw ffprobe JSON to Vidalune' media info. Exported for tests. */
 export function mapProbeOutput(out: FfOutput, fileName: string): ProbeResult {
   const streams = out.streams ?? [];
   const video = streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);

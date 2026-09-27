@@ -1,5 +1,5 @@
 export const quickSearch = {
-  placeholder: 'Search Velyx…',
+  placeholder: 'Search Vidalune…',
   close: 'Close search',
   hint: 'Movies, shows and episodes — try a title, part of one, or a code like “reacher s02e04”.',
   nothingFound: 'Nothing found for “{query}”.',

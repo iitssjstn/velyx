@@ -7,7 +7,7 @@ import { Modal } from './Modal';
 import { toast } from './Toast';
 
 /**
- * "Install app" in the menu: shown only where Velyx can be installed and is not yet. Browsers that
+ * "Install app" in the menu: shown only where Vidalune can be installed and is not yet. Browsers that
  * offer installing show their own confirmation; on an iPhone or iPad it explains the Safari steps.
  */
 export function InstallApp({ onDone }: { onDone?: () => void }) {
@@ -55,7 +55,7 @@ const isTopLevel = (path: string) => TOP_LEVEL.includes(path) || TOP_LEVEL_SECTI
 
 /**
  * A Back button for the installed app, which has no browser bar with one (an iPhone has no back
- * gesture either). Shown on pages below the menu, when there is somewhere in Velyx to go back to.
+ * gesture either). Shown on pages below the menu, when there is somewhere in Vidalune to go back to.
  */
 export function AppBackButton({ className = '' }: { className?: string }) {
   const location = useLocation();

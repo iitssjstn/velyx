@@ -10,7 +10,7 @@ import { createLogger } from '../logger.js';
 
 const log = createLogger('backup');
 
-/** Writes a consistent copy of the live SQLite database (safe while Velyx is running). */
+/** Writes a consistent copy of the live SQLite database (safe while Vidalune is running). */
 export function createDatabaseSnapshot(db: DB, dir: string, name?: string): string {
   fs.mkdirSync(dir, { recursive: true });
   const target = path.join(dir, name ?? `snapshot-${Date.now()}-${process.pid}.db`);
@@ -23,7 +23,7 @@ export function timestamp(d = new Date()): string {
 }
 
 /**
- * Creates DATA_DIR/backups/velyx-backup-<timestamp>.tar.gz containing a database snapshot,
+ * Creates DATA_DIR/backups/vidalune-backup-<timestamp>.tar.gz containing a database snapshot,
  * the session secret, avatars, subtitles fetched online and the artwork/subtitle cache. Media files
  * are never included.
  */
@@ -33,7 +33,7 @@ export function createFullBackup(db: DB, dataDir: string, backupDir: string): st
   try {
     const snapshot = createDatabaseSnapshot(db, staging);
     fs.renameSync(snapshot, path.join(staging, 'velyx.db'));
-    const archive = path.join(backupDir, `velyx-backup-${timestamp()}.tar.gz`);
+    const archive = path.join(backupDir, `vidalune-backup-${timestamp()}.tar.gz`);
     const extras = ['.session-secret', 'avatars', 'subtitles', 'cache'].filter((p) => fs.existsSync(path.join(dataDir, p)));
     const res = spawnSync('tar', ['-czf', archive, '-C', staging, 'velyx.db', '-C', dataDir, ...extras], { stdio: 'pipe' });
     if (res.status !== 0) throw new Error(`tar failed: ${res.stderr.toString()}`);
@@ -58,9 +58,11 @@ const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(db|tar\.gz)$/;
 
 export function kindOf(name: string): BackupKind | null {
   if (!NAME_RE.test(name)) return null;
-  if (name.startsWith('velyx-auto-')) return 'auto';
-  if (name.startsWith('velyx-manual-')) return 'manual';
-  if (name.startsWith('velyx-backup-') && name.endsWith('.tar.gz')) return 'archive';
+  // "velyx-…": backups made before the rename to Vidalune.
+  const own = /^(?:vidalune|velyx)-(auto|manual|backup)-/.exec(name)?.[1];
+  if (own === 'auto') return 'auto';
+  if (own === 'manual') return 'manual';
+  if (own === 'backup' && name.endsWith('.tar.gz')) return 'archive';
   if (name.startsWith('pre-migration-')) return 'pre-migration';
   if (name.startsWith('pre-restore-')) return 'pre-restore';
   return null;
@@ -145,7 +147,7 @@ const REQUIRED_TABLES = ['users', 'sessions', 'settings', 'libraries', 'movies',
 
 /** Extracts velyx.db from a full-backup archive into a temporary folder. */
 function extractArchiveDb(archive: string): { file: string; cleanup: () => void } {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'velyx-verify-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-verify-'));
   const res = spawnSync('tar', ['-xzf', archive, '-C', tmp, 'velyx.db'], { stdio: 'pipe' });
   const cleanup = () => fs.rmSync(tmp, { recursive: true, force: true });
   if (res.status !== 0) {
@@ -157,7 +159,7 @@ function extractArchiveDb(archive: string): { file: string; cleanup: () => void 
 
 /**
  * Checks that a backup can be restored: the file exists, is a readable SQLite database that passes
- * PRAGMA integrity_check, has Velyx's tables, and is not from a newer Velyx than this one.
+ * PRAGMA integrity_check, has Vidalune's tables, and is not from a newer Vidalune than this one.
  */
 export function verifyBackup(file: string, lang: Language = 'en'): VerifyResult {
   const errors: string[] = [];
@@ -183,10 +185,10 @@ export function verifyBackup(file: string, lang: Language = 'en'): VerifyResult 
     }
     const tables = new Set((sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]).map((r) => r.name));
     const missing = REQUIRED_TABLES.filter((t) => !tables.has(t));
-    if (missing.length) errors.push(tr(lang, 'Not a complete Velyx database (missing: {tables}).', { tables: missing.join(', ') }));
+    if (missing.length) errors.push(tr(lang, 'Not a complete Vidalune database (missing: {tables}).', { tables: missing.join(', ') }));
     const count = (table: string) => (tables.has(table) ? (sqlite!.prepare(`SELECT count(*) AS n FROM "${table}"`).get() as { n: number }).n : null);
     const migrations = count('__drizzle_migrations');
-    if (migrations !== null && migrations > journalEntryCount()) errors.push(tr(lang, 'This backup is from a newer version of Velyx. Update Velyx before restoring it.'));
+    if (migrations !== null && migrations > journalEntryCount()) errors.push(tr(lang, 'This backup is from a newer version of Vidalune. Update Vidalune before restoring it.'));
     return { ok: errors.length === 0, errors, info: { size, migrations, users: count('users'), movies: count('movies'), shows: count('shows') } };
   } catch (err) {
     return { ok: false, errors: [tr(lang, 'Not a readable SQLite database: {error}', { error: (err as Error).message })], info: { size, migrations: null, users: null, movies: null, shows: null } };
@@ -220,7 +222,7 @@ export function stageRestore(backupFile: string, dataDir: string, requestedBy: s
     fs.copyFileSync(backupFile, target);
   }
   fs.writeFileSync(`${target}.json`, JSON.stringify({ source: path.basename(backupFile), requestedBy, requestedAt: Date.now() }));
-  log.info(`Restore of ${path.basename(backupFile)} staged; it is applied when Velyx next starts`);
+  log.info(`Restore of ${path.basename(backupFile)} staged; it is applied when Vidalune next starts`);
 }
 
 export function pendingRestore(dataDir: string): { source: string; requestedBy: string; requestedAt: number } | null {

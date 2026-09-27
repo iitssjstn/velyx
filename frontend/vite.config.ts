@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import pkg from './package.json' with { type: 'json' };
 
-const backend = process.env.VELYX_DEV_BACKEND ?? 'http://localhost:3000';
+const backend = process.env.VIDALUNE_DEV_BACKEND ?? process.env.VELYX_DEV_BACKEND ?? 'http://localhost:3000';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

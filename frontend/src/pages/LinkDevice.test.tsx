@@ -28,7 +28,7 @@ function setup(url = '/link', respond?: (url: string, method: string) => Respons
   return calls;
 }
 
-describe('connecting the Velyx app', () => {
+describe('connecting the Vidalune app', () => {
   it('checks the code, asks to confirm the device, then connects it', async () => {
     const calls = setup();
     const input = screen.getByLabelText('Code');

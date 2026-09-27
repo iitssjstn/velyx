@@ -12,7 +12,7 @@ export const health: Messages['health'] = {
   closeList: 'Lijst sluiten',
   nothingHere: 'Niets hier.',
   noLibrariesText: 'Voeg een bibliotheek toe om te zien hoe je media afspelen.',
-  intro: 'Wat er in je bibliotheken staat en wat aandacht nodig heeft, op basis van wat Velyx bij het scannen heeft opgeslagen — voor deze pagina wordt niets opnieuw gescand. Velyx transcodeert geen video, dus “Niet ondersteund” betekent dat een bestand alleen afspeelt op apparaten die het zelf kunnen decoderen.',
+  intro: 'Wat er in je bibliotheken staat en wat aandacht nodig heeft, op basis van wat Vidalune bij het scannen heeft opgeslagen — voor deze pagina wordt niets opnieuw gescand. Vidalune transcodeert geen video, dus “Niet ondersteund” betekent dat een bestand alleen afspeelt op apparaten die het zelf kunnen decoderen.',
   library: 'Bibliotheek',
   allLibraries: 'Alle bibliotheken',
   analysing: 'Bestanden analyseren… {done} van {total}',

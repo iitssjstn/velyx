@@ -15,7 +15,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error('Velyx UI error', error, info.componentStack);
+    console.error('Vidalune UI error', error, info.componentStack);
   }
 
   override render() {

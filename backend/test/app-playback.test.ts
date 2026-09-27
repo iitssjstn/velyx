@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { addLibrary, createTestEnv, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
 import type { ProbeResult } from '../src/services/probe.js';
 
-const APP_UA = 'VelyxApp/1.0 (Android 14; Pixel 8)';
+const APP_UA = 'VidaluneApp/1.0 (Android 14; Pixel 8)';
 /** What a typical Android phone reports through the app (ExoPlayer decoders). */
 const PHONE = {
   containers: ['mp4', 'mkv', 'webm'],
@@ -41,12 +41,12 @@ const twoAudioTracks = [
   { index: 2, codec: 'ac3', language: 'nld', channels: 2, channelLayout: 'stereo', title: null, isDefault: false },
 ];
 
-describe('playing from the Velyx app', () => {
+describe('playing from the Vidalune app', () => {
   it('plays what the phone reports directly: 10-bit HEVC HDR in MKV with Dolby audio, no remux', async () => {
     const { token, fileId } = await setup({ container: 'mkv', videoCodec: 'hevc', videoBitDepth: 10, videoRange: 'HDR10', audioCodec: 'eac3', audioTracks: [twoAudioTracks[0]!] });
     const res = (await playback(token, fileId, PHONE)).json();
     expect(res.decision).toMatchObject({ engine: 'direct', mode: 'direct', streamUrl: `/api/media/${fileId}/stream` });
-    expect(res.analysis).toMatchObject({ mode: 'direct', device: 'Velyx app on Pixel 8', confidence: 'reported', problems: [] });
+    expect(res.analysis).toMatchObject({ mode: 'direct', device: 'Vidalune app on Pixel 8', confidence: 'reported', problems: [] });
   });
 
   it('switches audio tracks in the original file instead of remuxing', async () => {
@@ -82,13 +82,13 @@ describe('playing from the Velyx app', () => {
     const { token, fileId } = await setup({ videoCodec: 'h264', audioCodec: 'aac', container: 'mkv' });
     await env.app.inject({ method: 'PUT', url: '/api/account/language', headers: { authorization: `Bearer ${token}` }, payload: { language: 'nl' } });
     const res = (await playback(token, fileId, {})).json();
-    expect(res.analysis).toMatchObject({ mode: 'direct', confidence: 'profile', device: 'Velyx-app op Pixel 8' });
+    expect(res.analysis).toMatchObject({ mode: 'direct', confidence: 'profile', device: 'Vidalune-app op Pixel 8' });
   });
 
   it('shows the app device in the activity overview', async () => {
     const { admin, token, fileId } = await setup({});
     await env.app.inject({ url: `/api/media/${fileId}/stream`, headers: { authorization: `Bearer ${token}`, range: 'bytes=0-0' } });
     const activity = (await env.app.inject({ url: '/api/admin/activity', headers: { cookie: admin } })).json();
-    expect(activity.streams[0]).toMatchObject({ device: 'Velyx app on Pixel 8', mode: 'direct' });
+    expect(activity.streams[0]).toMatchObject({ device: 'Vidalune app on Pixel 8', mode: 'direct' });
   });
 });

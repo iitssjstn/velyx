@@ -102,7 +102,7 @@ describe('CurrentDevice', () => {
             formats: [
               { key: 'h264', kind: 'video', label: 'H.264', support: 'yes', note: null },
               { key: 'hevc', kind: 'video', label: 'HEVC / H.265', support: 'no', note: 'Depends on hardware decoding support.' },
-              { key: 'dts', kind: 'audio', label: 'DTS', support: 'converted', note: 'Velyx converts it to AAC while playing.' },
+              { key: 'dts', kind: 'audio', label: 'DTS', support: 'converted', note: 'Vidalune converts it to AAC while playing.' },
               { key: 'hdr', kind: 'display', label: 'HDR screen', support: 'depends', note: null },
             ],
           }),
@@ -118,7 +118,7 @@ describe('CurrentDevice', () => {
     expect(await screen.findByText('Chrome on Windows')).toBeTruthy();
     expect(screen.getByRole('img', { name: 'Plays' })).toBeTruthy();
     expect(screen.getByRole('img', { name: 'Not supported' })).toBeTruthy();
-    expect(screen.getByRole('img', { name: 'Converted by Velyx' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Converted by Vidalune' })).toBeTruthy();
     expect(screen.getByText('Depends on hardware decoding support.')).toBeTruthy();
     // The browser's own detection is sent along.
     expect(posted[0]).toHaveProperty('videoCodecs');

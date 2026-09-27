@@ -4,7 +4,7 @@ export const auth: Messages['auth'] = {
   signIn: 'Inloggen',
   signOut: 'Uitloggen',
   toServer: 'bij {name}',
-  toYourServer: 'bij je Velyx-server',
+  toYourServer: 'bij je Vidalune-server',
   username: 'Gebruikersnaam',
   password: 'Wachtwoord',
   confirmPassword: 'Wachtwoord bevestigen',

@@ -54,7 +54,7 @@ describe('disk space', () => {
 });
 
 describe('storage report and cache cleanup', () => {
-  it('reports Velyx storage and removes only unused cache files', async () => {
+  it('reports Vidalune storage and removes only unused cache files', async () => {
     const libId = env.ctx.db.insert(libraries).values({ name: 'm', type: 'movies', path: '/media/m' }).returning().get().id;
     const movie = env.ctx.db.insert(movies).values({ libraryId: libId, groupKey: 'a', title: 'A', sortTitle: 'a', parsedTitle: 'a', posterPath: '/keep.jpg' }).returning().get();
     const file = env.ctx.db.insert(mediaFiles).values({ libraryId: libId, movieId: movie.id, path: '/media/m/a.mkv', size: 1, mtimeMs: 5000 }).returning().get();
@@ -66,7 +66,7 @@ describe('storage report and cache cleanup', () => {
     touch(path.join(subs, `${file.id}-3-5000.vtt`), 'WEBVTT');
     touch(path.join(subs, `${file.id}-3-4000.vtt`), 'WEBVTT old');
     touch(path.join(subs, '999-1-1.vtt'), 'WEBVTT orphan');
-    // Subtitles fetched from OpenSubtitles live in the data folder and count as Velyx's own too.
+    // Subtitles fetched from OpenSubtitles live in the data folder and count as Vidalune's own too.
     touch(path.join(env.ctx.config.onlineSubtitleDir, `${file.id}-21.vtt`), 'x'.repeat(40));
 
     const res = await env.app.inject({ url: '/api/admin/storage?refresh=1', headers: { cookie: admin } });

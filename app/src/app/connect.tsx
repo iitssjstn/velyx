@@ -11,7 +11,7 @@ import type { MessageKey } from '../lib/i18n';
 const PROBLEMS: Record<ServerProblem, MessageKey> = {
   invalid: 'connect.invalid',
   unreachable: 'connect.unreachable',
-  'not-velyx': 'connect.notVelyx',
+  'not-vidalune': 'connect.notVidalune',
   'too-old': 'connect.tooOld',
   'too-new': 'connect.tooNew',
   setup: 'connect.setup',

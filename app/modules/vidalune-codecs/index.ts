@@ -7,7 +7,7 @@ export interface Decoders {
   hdr: boolean;
 }
 
-const Native = requireOptionalNativeModule<{ decoders(): Decoders }>('VelyxCodecs');
+const Native = requireOptionalNativeModule<{ decoders(): Decoders }>('VidaluneCodecs');
 
 /** What this device decodes (Android's decoder list), or null where the module is not available. */
 export function deviceDecoders(): Decoders | null {

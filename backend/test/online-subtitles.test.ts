@@ -124,8 +124,8 @@ describe('setting up OpenSubtitles', () => {
     expect(ok.json()).toMatchObject({ configured: true, hint: '••••-key', username: null, hasPassword: false });
     expect(JSON.stringify(await get('/api/admin/online-subtitles'))).not.toContain('good-key');
     expect((await req('POST', `/api/media/${fileId}/playback`, {})).json().onlineSubtitles).toBe(true);
-    // Every request identifies Velyx.
-    expect(os_.calls[0]!.headers['user-agent']).toMatch(/^Velyx v\d/);
+    // Every request identifies Vidalune.
+    expect(os_.calls[0]!.headers['user-agent']).toMatch(/^Vidalune v\d/);
     expect((await get('/api/admin/audit')).items.some((e: { action: string }) => e.action === 'subtitles.settings')).toBe(true);
   });
 
@@ -255,7 +255,7 @@ describe('fetching a subtitle', () => {
     expect(vtt.body).toBe('WEBVTT\n\n00:00:01.000 --> 00:00:03.500\nHallo daar\n\n00:00:05.000 --> 00:00:06.000\nTot ziens\n');
     // Shifted for live streams that start later, like other subtitles.
     expect((await env.app.inject({ url: `${option.url}?offset=2`, headers: { cookie: admin } })).body).toContain('00:00:03.000 --> 00:00:04.000');
-    // Stored in Velyx's data folder, never next to the media.
+    // Stored in Vidalune's data folder, never next to the media.
     expect(fs.readdirSync(env.ctx.config.onlineSubtitleDir)).toEqual([`${fileId}-21.vtt`]);
     expect(fs.readdirSync(path.join(env.mediaDir, 'movies'))).toEqual(['Heat (1995).mkv']);
     // From now on it is one of the file's subtitles, also for others, and marked in search results.

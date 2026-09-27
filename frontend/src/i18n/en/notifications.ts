@@ -1,5 +1,5 @@
 export const notifications = {
-  intro: 'Messages for administrators about what Velyx does on its own: planned clean-ups, failed backups and scans, new sign-ins and disk space. Only administrators see them.',
+  intro: 'Messages for administrators about what Vidalune does on its own: planned clean-ups, failed backups and scans, new sign-ins and disk space. Only administrators see them.',
   empty: 'No notifications.',
   markRead: 'Mark all as read',
   unread: { one: '{count} unread', other: '{count} unread' },

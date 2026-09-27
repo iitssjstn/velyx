@@ -1,6 +1,6 @@
 name: Android app
 
-# Builds the Velyx app as an installable APK: on pull requests that touch the app (download it
+# Builds the Vidalune app as an installable APK: on pull requests that touch the app (download it
 # from the run's artifacts), and after every release build on main, where the APK is attached to
 # the GitHub release of that version.
 on:
@@ -88,14 +88,14 @@ jobs:
         run: |
           version=$(node -p "require('./package.json').version")
           mkdir -p out
-          cp android/app/build/outputs/apk/release/app-release.apk "out/velyx-$version.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "out/vidalune-$version.apk"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "file=app/out/velyx-$version.apk" >> "$GITHUB_OUTPUT"
+          echo "file=app/out/vidalune-$version.apk" >> "$GITHUB_OUTPUT"
           ls -la out
 
       - uses: actions/upload-artifact@v4
         with:
-          name: velyx-${{ steps.apk.outputs.version }}-apk
+          name: vidalune-${{ steps.apk.outputs.version }}-apk
           path: ${{ steps.apk.outputs.file }}
           retention-days: 30
 
@@ -113,5 +113,5 @@ jobs:
             echo "$tag does not point at this commit; nothing to attach."
             exit 0
           fi
-          gh release view "$tag" > /dev/null 2>&1 || gh release create "$tag" --verify-tag --title "Velyx $VERSION" --notes "Velyx $VERSION. The Android app is attached as velyx-$VERSION.apk (install it on an Android phone or tablet; see the README)."
-          gh release upload "$tag" "out/velyx-$VERSION.apk" --clobber
+          gh release view "$tag" > /dev/null 2>&1 || gh release create "$tag" --verify-tag --title "Vidalune $VERSION" --notes "Vidalune $VERSION. The Android app is attached as vidalune-$VERSION.apk (install it on an Android phone or tablet; see the README)."
+          gh release upload "$tag" "out/vidalune-$VERSION.apk" --clobber

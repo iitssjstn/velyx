@@ -2,7 +2,7 @@ export const settings = {
   language: {
     title: 'Language',
     saved: 'Language saved.',
-    description: 'The language of Velyx on every device you sign in on. Audio and subtitle languages are set separately below.',
+    description: 'The language of Vidalune on every device you sign in on. Audio and subtitle languages are set separately below.',
     interface: 'Interface language',
   },
   account: {
@@ -70,7 +70,7 @@ export const settings = {
       never: 'Never',
     },
     title: 'Intros & credits',
-    description: 'Velyx recognises intros and end credits of TV episodes by their recurring sound and, for credits, by the text in the picture. Only confident results are used; a scene after the credits is never skipped.',
+    description: 'Vidalune recognises intros and end credits of TV episodes by their recurring sound and, for credits, by the text in the picture. Only confident results are used; a scene after the credits is never skipped.',
     intros: 'Skip intros',
     introsHint: 'The button appears only while the intro plays.',
     credits: 'Skip credits',
@@ -85,7 +85,7 @@ export const settings = {
     warn: 'Warn about files this browser may not play',
   },
   audio: {
-    description: 'Used when Velyx converts audio (Dolby/DTS in browsers, or when an option below is on). Stored in this browser.',
+    description: 'Used when Vidalune converts audio (Dolby/DTS in browsers, or when an option below is on). Stored in this browser.',
     sound: 'Sound',
     soundHint: 'Surround keeps up to 5.1 channels; stereo mixes down for speakers and headphones.',
     surround: 'Surround 5.1',
@@ -100,12 +100,12 @@ export const settings = {
   },
   device: {
     plays: 'Plays',
-    converted: 'Converted by Velyx',
+    converted: 'Converted by Vidalune',
     depends: 'Depends',
     containers: 'Containers',
     screen: 'Screen',
     title: 'Current device',
-    description: 'What this browser plays. Velyx plays files directly whenever it can; audio and containers it cannot play are converted on the fly, but video is never transcoded.',
+    description: 'What this browser plays. Vidalune plays files directly whenever it can; audio and containers it cannot play are converted on the fly, but video is never transcoded.',
     checking: 'Checking this browser…',
     estimates: 'This browser did not report its formats, so these are estimates.',
   },

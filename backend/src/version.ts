@@ -14,5 +14,5 @@ function readVersion(): string {
 
 /** Single source of truth: backend/package.json "version" (kept in sync with the root package). */
 export const APP_VERSION = readVersion();
-export const APP_NAME = 'Velyx';
+export const APP_NAME = 'Vidalune';
 export const APP_TAGLINE = 'Your media. Your server.';

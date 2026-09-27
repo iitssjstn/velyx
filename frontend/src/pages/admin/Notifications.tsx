@@ -85,7 +85,7 @@ function Settings() {
   );
 }
 
-/** Admin → Notifications: what Velyx did on its own, and where administrators are told about it. */
+/** Admin → Notifications: what Vidalune did on its own, and where administrators are told about it. */
 export function NotificationsPage() {
   const { t, lang } = useT();
   const qc = useQueryClient();

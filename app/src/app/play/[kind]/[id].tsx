@@ -7,7 +7,7 @@ import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
-import { deviceDecoders } from '../../../../modules/velyx-codecs';
+import { deviceDecoders } from '../../../../modules/vidalune-codecs';
 import { SeekBar } from '../../../components/SeekBar';
 import { playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';

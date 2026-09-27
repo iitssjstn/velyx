@@ -1,9 +1,9 @@
 {
-  "name": "velyx",
-  "version": "0.9.7",
+  "name": "vidalune",
+  "version": "0.9.8",
   "private": true,
   "type": "module",
-  "description": "Velyx — Your media. Your server. A lightweight, Docker-first self-hosted media server.",
+  "description": "Vidalune — Your media. Your server. A lightweight, Docker-first self-hosted media server.",
   "license": "PolyForm-Noncommercial-1.0.0",
   "workspaces": [
     "backend",

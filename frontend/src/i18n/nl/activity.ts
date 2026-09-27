@@ -24,7 +24,7 @@ export const activity: Messages['activity'] = {
   howItPlayed: 'Hoe het afspeelde',
   noPlays: 'Niets afgespeeld in deze periode.',
   audioConverted: 'waarvan audio omgezet',
-  neverTranscodes: 'Velyx transcodeert nooit video.',
+  neverTranscodes: 'Vidalune transcodeert nooit video.',
   user: 'Gebruiker',
   everyone: 'Iedereen',
   type: 'Soort',

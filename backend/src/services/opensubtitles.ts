@@ -218,7 +218,7 @@ export class OpenSubtitlesClient {
     this.token = null;
     try {
       // A small search: unlike the informational endpoints it needs a valid key, and it costs no downloads.
-      await this.call(`${API_BASE}/subtitles?languages=en&query=velyx&type=movie`, { method: 'GET', headers: this.headers(creds.apiKey) });
+      await this.call(`${API_BASE}/subtitles?languages=en&query=vidalune&type=movie`, { method: 'GET', headers: this.headers(creds.apiKey) });
     } catch (err) {
       if (err instanceof OpenSubtitlesError && err.kind === 'auth') throw new OpenSubtitlesError(err.message, 'bad-key', err.status);
       throw err;

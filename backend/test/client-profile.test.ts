@@ -72,7 +72,7 @@ describe('client profiles', () => {
     expect(rows.h264.support).toBe('yes');
     expect(rows.hevc).toMatchObject({ support: 'no', note: 'Depends on hardware decoding support.' });
     expect(rows.av1.support).toBe('yes');
-    expect(rows.dts).toMatchObject({ support: 'converted', note: 'Velyx converts it to AAC while playing.' });
+    expect(rows.dts).toMatchObject({ support: 'converted', note: 'Vidalune converts it to AAC while playing.' });
     expect(rows.mkv.support).toBe('yes');
     expect(rows['h264-10'].support).toBe('no');
     expect(rows.hdr.support).toBe('no');
@@ -124,7 +124,7 @@ describe('playback diagnostics', () => {
     expect(a.components.video.note).toMatch(/cannot decode AV1/);
     expect(a.components.audio).toEqual({ status: 'ok', note: 'Supported' });
     expect(a.components.container.status).toBe('ok');
-    expect(a.summary).toEqual(['Your current browser/device cannot play this video format.', 'Server transcoding: No. Velyx does not convert video.']);
+    expect(a.summary).toEqual(['Your current browser/device cannot play this video format.', 'Server transcoding: No. Vidalune does not convert video.']);
   });
 
   it('does not claim certainty it does not have', () => {
@@ -155,15 +155,15 @@ describe('current device endpoint', () => {
   });
 });
 
-describe('the Velyx app as a client', () => {
+describe('the Vidalune app as a client', () => {
   it('is recognised by its User-Agent and named after the platform', () => {
-    expect(clientProfile('VelyxApp/1.0 (Android 14; Pixel 8)')).toMatchObject({ family: 'app', browser: 'Velyx app', os: 'Android', mobile: true });
+    expect(clientProfile('VidaluneApp/1.0 (Android 14; Pixel 8)')).toMatchObject({ family: 'app', browser: 'Vidalune app', os: 'Android', mobile: true });
     // A browser that mentions the app somewhere is still a browser.
-    expect(clientProfile('Mozilla/5.0 (Linux; Android 14) Chrome/128.0 Mobile Safari/537.36 VelyxApp/1.0').family).toBe('android');
+    expect(clientProfile('Mozilla/5.0 (Linux; Android 14) Chrome/128.0 Mobile Safari/537.36 VidaluneApp/1.0').family).toBe('android');
   });
 
   it('lists 10-bit H.264 as playable when the device reports it', () => {
-    const app = clientProfile('VelyxApp/1.0 (Android 14; Pixel 8)');
+    const app = clientProfile('VidaluneApp/1.0 (Android 14; Pixel 8)');
     const row = (caps: Parameters<typeof deviceSupport>[0]) => deviceSupport(caps, app).find((r) => r.key === 'h264-10')!.support;
     expect(row({ videoCodecs: ['h264'], tenBitCodecs: ['h264'] })).toBe('yes');
     expect(row({ videoCodecs: ['h264'], tenBitCodecs: [] })).toBe('no');

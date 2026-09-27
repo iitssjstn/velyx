@@ -31,7 +31,7 @@ export interface CleanupCandidate {
   lastWatchedAt: number | null;
   /** "HEVC · 2160p · 10-bit · HDR10 · E-AC3 5.1 · MKV" */
   format: string;
-  /** For possible duplicates: every version of the title, the one Velyx would keep first. */
+  /** For possible duplicates: every version of the title, the one Vidalune would keep first. */
   versions: { fileId: number; name: string; format: string; size: number; keep: boolean }[] | null;
   reasons: { rule: CleanupRule; text: string; ruleId?: string }[];
   /** An own rule planned this file for deletion on `dueAt` (it can still be kept until then). */
@@ -135,7 +135,7 @@ const ago = (ms: number, lang: Language) => {
 };
 
 /**
- * Suggests files to remove, from data Velyx already has (no file is read). Rules only produce
+ * Suggests files to remove, from data Vidalune already has (no file is read). Rules only produce
  * suggestions; files an administrator chose to keep are left out until they change.
  */
 export function cleanupCandidates(db: DB, rules: CleanupRules, now = Date.now(), lang: Language = 'en', custom: CustomCleanupRule[] = []): { candidates: CleanupCandidate[]; kept: number } {
@@ -265,7 +265,7 @@ export function summarize(rules: CleanupRules, candidates: CleanupCandidate[], k
   return { rules, custom, counts, total: { files: candidates.length, bytes: candidates.reduce((n, c) => n + c.size, 0) }, kept };
 }
 
-/** Whether Velyx may write in the library folder (a read-only mount makes deleting impossible). */
+/** Whether Vidalune may write in the library folder (a read-only mount makes deleting impossible). */
 export function libraryWritable(root: string): boolean {
   try {
     fs.accessSync(root, fs.constants.W_OK);

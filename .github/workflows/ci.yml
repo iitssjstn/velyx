@@ -53,18 +53,18 @@ jobs:
           context: .
           push: false
           load: true
-          tags: velyx:ci
+          tags: vidalune:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Smoke test the image
         run: |
           mkdir -p media/movies media/tv data
-          docker run -d --name velyx-ci -p 3000:3000 \
+          docker run -d --name vidalune-ci -p 3000:3000 \
             -e PUID=$(id -u) -e PGID=$(id -g) \
-            -v "$PWD/data:/data" -v "$PWD/media/movies:/media/movies:ro" -v "$PWD/media/tv:/media/tv:ro" velyx:ci
+            -v "$PWD/data:/data" -v "$PWD/media/movies:/media/movies:ro" -v "$PWD/media/tv:/media/tv:ro" vidalune:ci
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:3000/health; then exit 0; fi
             sleep 2
           done
-          docker logs velyx-ci
+          docker logs vidalune-ci
           exit 1

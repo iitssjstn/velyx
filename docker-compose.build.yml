@@ -1,14 +1,14 @@
-# Builds Velyx from this repository instead of pulling the published image (development/testing).
+# Builds Vidalune from this repository instead of pulling the published image (development/testing).
 # For normal use, see the compose file in the README.
 # Usage: docker compose -f docker-compose.build.yml up -d --build
 services:
-  velyx:
+  vidalune:
     build: .
-    image: velyx:local
-    container_name: velyx
+    image: vidalune:local
+    container_name: vidalune
     restart: unless-stopped
     ports:
-      - "${VELYX_PORT:-3000}:3000"
+      - "${VIDALUNE_PORT:-3000}:3000"
     environment:
       TZ: ${TZ:-Europe/Amsterdam}
       PUID: ${PUID:-1000}

@@ -41,10 +41,10 @@ function detectBrowser(ua: string): string | null {
 
 export function clientProfile(userAgent: string | undefined): ClientProfile {
   const ua = userAgent ?? '';
-  // The Velyx app: "VelyxApp/1.0 (Android 14; Pixel 8)".
-  if (/^VelyxApp\//.test(ua)) {
+  // The Vidalune app: "VidaluneApp/1.0 (Android 14; Pixel 8)" ("VelyxApp/…" before the rename).
+  if (/^(?:Vidalune|Velyx)App\//.test(ua)) {
     const os = /Android/.test(ua) ? 'Android' : /iOS|iPhone|iPad/.test(ua) ? 'iOS' : null;
-    return { family: 'app', browser: 'Velyx app', os, name: os ? `Velyx app on ${os}` : 'Velyx app', mobile: true };
+    return { family: 'app', browser: 'Vidalune app', os, name: os ? `Vidalune app on ${os}` : 'Vidalune app', mobile: true };
   }
   const { os, mobile } = detectOs(ua);
   const browser = detectBrowser(ua);
@@ -149,24 +149,24 @@ export function deviceSupport(reportedCaps: ClientCapabilities, profile: ClientP
     if (kind === 'video') {
       if (key === 'h264-10') {
         if (!guess && video.includes('h264') && tenBit.includes('h264')) return row('yes');
-        return row('no', 'No web browser decodes it; Velyx does not transcode video.');
+        return row('no', 'No web browser decodes it; Vidalune does not transcode video.');
       }
       const codec = key === 'hevc10' ? 'hevc' : key;
       const base = video.includes(codec);
       const ok = key === 'hevc10' ? base && tenBit.includes('hevc') : base;
       if (ok) return row(guess ? 'depends' : 'yes', guess ? 'Usually supported by this browser.' : hw.includes(codec) ? 'Uses hardware decoding on this device.' : null);
       if (guess || hw.includes(codec)) return row(guess ? 'depends' : 'no', hw.includes(codec) ? 'Depends on hardware decoding support.' : 'Could not be confirmed on this device.');
-      return row('no', 'Needs transcoding, which Velyx does not do.');
+      return row('no', 'Needs transcoding, which Vidalune does not do.');
     }
     if (kind === 'audio') {
       if (audio.includes(key)) return row(guess ? 'depends' : 'yes');
       // Converted audio becomes AAC, so a browser without AAC cannot be helped.
       if (key === 'aac') return row(guess ? 'depends' : 'no', 'Most files use AAC audio, and converted audio is AAC too.');
-      return row('converted', 'Velyx converts it to AAC while playing.');
+      return row('converted', 'Vidalune converts it to AAC while playing.');
     }
     if (kind === 'container') {
       if (containers.includes(key)) return row(guess ? 'depends' : 'yes');
-      return row('converted', 'Velyx repackages it as MP4 while playing.');
+      return row('converted', 'Vidalune repackages it as MP4 while playing.');
     }
     if (caps.hdr === true) return row('yes');
     if (caps.hdr === false) return row('no', 'HDR video plays, but colours can look washed out.');

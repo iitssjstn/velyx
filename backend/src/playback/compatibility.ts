@@ -130,16 +130,16 @@ export interface PlaybackAnalysis {
   problems: string[];
   /** Things that work but are worth knowing (HDR, image subtitles, …). */
   warnings: string[];
-  /** Playing this would need video transcoding, which Velyx does not do. */
+  /** Playing this would need video transcoding, which Vidalune does not do. */
   transcodeRequired: boolean;
-  /** Velyx never re-encodes video in this version. */
+  /** Vidalune never re-encodes video in this version. */
   serverTranscoding: false;
   /** Rough server load for this stream. */
   serverLoad: 'none' | 'low';
   /** "Chrome on Windows"; null when the device cannot be recognised. */
   device: string | null;
   /**
-   * How sure the verdict is: the device reported its formats, Velyx used the defaults for this
+   * How sure the verdict is: the device reported its formats, Vidalune used the defaults for this
    * kind of browser, or it assumed a typical browser.
    */
   confidence: 'reported' | 'profile' | 'assumed';
@@ -172,7 +172,7 @@ export function analyzePlayback(
   userAgent?: string,
   confidence: PlaybackAnalysis['confidence'] = reported(caps) ? 'reported' : 'assumed',
   lang: Language = 'en',
-  /** The name the Velyx app gave this device ("Pixel 8"). */
+  /** The name the Vidalune app gave this device ("Pixel 8"). */
   appDevice: string | null = null,
 ): PlaybackAnalysis {
   const T = (message: string, params?: Record<string, string | number>) => tr(lang, message, params);
@@ -204,13 +204,13 @@ export function analyzePlayback(
   const hdr = hdrWarning(file.videoRange, caps, lang);
   if (hdr) warnings.push(hdr);
   const imageSubs = (file.subtitleTracks ?? []).filter((s) => !s.textBased);
-  // The Velyx app shows them itself when it plays the original file.
+  // The Vidalune app shows them itself when it plays the original file.
   if (imageSubs.length && !(caps.imageSubtitles && mode === 'direct')) {
     const names = [...new Set(imageSubs.map((s) => codecLabel(s.codec, lang)))].join('/');
     warnings.push(T(imageSubs.length === 1 ? '1 image-based subtitle track ({names}) cannot be shown; text subtitles work.' : '{n} image-based subtitle tracks ({names}) cannot be shown; text subtitles work.', { n: imageSubs.length, names }));
   }
-  if (!isReported && mode !== 'unsupported') warnings.push(T('This device did not report which formats it supports, so Velyx assumed a typical browser.'));
-  if (confidence === 'profile') warnings.push(T('This device did not report which formats it supports, so Velyx used what {device} usually plays.', { device: profileName(profile, lang) }));
+  if (!isReported && mode !== 'unsupported') warnings.push(T('This device did not report which formats it supports, so Vidalune assumed a typical browser.'));
+  if (confidence === 'profile') warnings.push(T('This device did not report which formats it supports, so Vidalune used what {device} usually plays.', { device: profileName(profile, lang) }));
 
   // ---- per-stream status and a plain-language summary
   const audioSupported = !audioCodec || (caps.audioCodecs ?? REFERENCE_CAPS.audioCodecs).includes(audioCodec);
@@ -223,7 +223,7 @@ export function analyzePlayback(
         : mode === 'unsupported'
           ? { status: 'fail', note: problems[0] ?? T('This device cannot decode this video.') }
           : video.ok === 'unknown'
-            ? { status: 'unknown', note: video.problem ?? T('Velyx cannot confirm that this device decodes it.') }
+            ? { status: 'unknown', note: video.problem ?? T('Vidalune cannot confirm that this device decodes it.') }
             : { status: 'ok', note: mode === 'remux' ? T('Copied without re-encoding') : T('Plays as-is') },
     audio:
       audioAction === 'none'
@@ -245,12 +245,12 @@ export function analyzePlayback(
   if (mode === 'direct') summary.push(T('No server-side conversion required.'));
   else if (mode === 'remux') {
     summary.push(T('The video does not need transcoding.'));
-    summary.push(audioAction === 'convert' ? T('Velyx remuxes the file and converts the audio to {target}, which uses little CPU.', { target: target! }) : T('Velyx will remux the media for compatibility, which uses little CPU.'));
+    summary.push(audioAction === 'convert' ? T('Vidalune remuxes the file and converts the audio to {target}, which uses little CPU.', { target: target! }) : T('Vidalune will remux the media for compatibility, which uses little CPU.'));
   } else {
     summary.push(components.video.status === 'unknown' ? T('This device may not be able to play this video format.') : T('Your current browser/device cannot play this video format.'));
-    summary.push(T('Server transcoding: No. Velyx does not convert video.'));
+    summary.push(T('Server transcoding: No. Vidalune does not convert video.'));
   }
-  if (mode !== 'unsupported' && components.video.status === 'unknown') summary.push(T('Velyx cannot confirm that this device decodes the video. If it does not start, try another browser or device.'));
+  if (mode !== 'unsupported' && components.video.status === 'unknown') summary.push(T('Vidalune cannot confirm that this device decodes the video. If it does not start, try another browser or device.'));
   if (confidence !== 'reported') summary.push(T('This is an estimate: the device did not report which formats it supports.'));
 
   return {
@@ -279,7 +279,7 @@ export function analyzePlayback(
     transcodeRequired: mode === 'unsupported',
     serverTranscoding: false,
     serverLoad: mode === 'remux' ? 'low' : 'none',
-    device: appDevice ? profileName({ browser: tr(lang, 'Velyx app'), os: appDevice }, lang) : profile.family === 'unknown' && !profile.browser ? null : profileName(profile, lang),
+    device: appDevice ? profileName({ browser: tr(lang, 'Vidalune app'), os: appDevice }, lang) : profile.family === 'unknown' && !profile.browser ? null : profileName(profile, lang),
     confidence,
     components,
     summary,

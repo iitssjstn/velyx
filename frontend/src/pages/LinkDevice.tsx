@@ -10,7 +10,7 @@ import { useT } from '../i18n';
 type Step = { at: 'enter' } | { at: 'confirm'; code: string; deviceName: string } | { at: 'done'; deviceName: string };
 
 /**
- * Connects the Velyx app to the signed-in account: the app shows a code, it is entered here, and
+ * Connects the Vidalune app to the signed-in account: the app shows a code, it is entered here, and
  * after confirming the app is signed in (it keeps asking the server until then).
  */
 export function LinkDevicePage() {

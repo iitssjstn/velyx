@@ -70,7 +70,7 @@ export function QuickSearch({ onClose }: { onClose: () => void }) {
 
   let lastGroup: string | null = null;
   return (
-    <div className="fixed inset-0 z-[60] flex items-start justify-center sm:px-4 sm:pt-[12vh]" role="dialog" aria-modal="true" aria-label={t('nav.searchVelyx')}>
+    <div className="fixed inset-0 z-[60] flex items-start justify-center sm:px-4 sm:pt-[12vh]" role="dialog" aria-modal="true" aria-label={t('nav.searchVidalune')}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative flex h-full w-full flex-col overflow-hidden bg-surface shadow-2xl sm:h-auto sm:max-h-[70vh] sm:max-w-xl sm:rounded-2xl sm:border sm:border-line">
         <div className="flex items-center gap-3 border-b border-line/70 px-4">
@@ -87,7 +87,7 @@ export function QuickSearch({ onClose }: { onClose: () => void }) {
             aria-controls={listId}
             aria-activedescendant={rows ? optionId(active) : undefined}
             aria-autocomplete="list"
-            aria-label={t('nav.searchVelyx')}
+            aria-label={t('nav.searchVidalune')}
             className="h-14 flex-1 bg-transparent text-lg outline-none placeholder:text-faint [&::-webkit-search-cancel-button]:hidden"
           />
           {q.isFetching && <Spinner className="size-4" />}

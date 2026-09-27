@@ -9,7 +9,7 @@ export interface MockTmdb {
   offline: boolean;
 }
 
-/** A tiny fake of the TMDB API covering the endpoints Velyx uses. */
+/** A tiny fake of the TMDB API covering the endpoints Vidalune uses. */
 export function createMockTmdb(validKey = 'test-key'): MockTmdb {
   const state: MockTmdb = {
     calls: [],

@@ -30,7 +30,7 @@ export function LoginPage() {
   return (
     <AuthShell>
       <h1 className="font-display text-3xl font-semibold tracking-tight">{t('auth.signIn')}</h1>
-      <p className="mt-2 text-muted">{server?.name && server.name !== 'Velyx' ? t('auth.toServer', { name: server.name }) : t('auth.toYourServer')}</p>
+      <p className="mt-2 text-muted">{server?.name && server.name !== 'Vidalune' ? t('auth.toServer', { name: server.name }) : t('auth.toYourServer')}</p>
       <form onSubmit={submit} className="mt-8 space-y-4">
         <div>
           <label className="label" htmlFor="username">{t('auth.username')}</label>
@@ -49,7 +49,7 @@ export function LoginPage() {
           {t('auth.signIn')}
         </Button>
       </form>
-      <p className="mt-8 text-xs text-faint">{tRich('auth.forgotPassword', { command: <code className="text-muted">velyx reset-password</code> })}</p>
+      <p className="mt-8 text-xs text-faint">{tRich('auth.forgotPassword', { command: <code className="text-muted">vidalune reset-password</code> })}</p>
     </AuthShell>
   );
 }

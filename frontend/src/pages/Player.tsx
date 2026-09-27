@@ -127,7 +127,7 @@ export interface PlayerProps {
   id: number;
   /** Query string the item was started with (?t=, ?file=). */
   search: string;
-  /** Shown as a small floating player while the user browses Velyx. */
+  /** Shown as a small floating player while the user browses Vidalune. */
   mini: boolean;
   onMinimize: (backHref: string | undefined) => void;
   onRestore: () => void;

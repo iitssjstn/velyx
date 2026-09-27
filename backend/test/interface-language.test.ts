@@ -38,7 +38,7 @@ describe('interface language', () => {
     expect(await me(cookieFrom(login))).toMatchObject({ language: 'nl' });
   });
 
-  it('accepts only languages Velyx has', async () => {
+  it('accepts only languages Vidalune has', async () => {
     for (const bad of ['javascript', 'de', 'NL', '', null, 1, 'en-US']) {
       const res = await setLanguage(admin, bad);
       expect(res.statusCode).toBe(400);
@@ -72,11 +72,11 @@ describe('interface language', () => {
 
   it('uses the language the browser asks for before signing in', async () => {
     const wrong = { username: 'admin', password: 'wrong-password' };
-    const nl = await env.app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'x-velyx-language': 'nl' }, payload: wrong });
+    const nl = await env.app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'x-vidalune-language': 'nl' }, payload: wrong });
     expect(nl.json().error).toBe('Gebruikersnaam of wachtwoord onjuist.');
     const accept = await env.app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'accept-language': 'nl-NL,nl;q=0.9,en;q=0.8' }, payload: wrong });
     expect(accept.json().error).toBe('Gebruikersnaam of wachtwoord onjuist.');
-    const unknown = await env.app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'x-velyx-language': 'klingon' }, payload: wrong });
+    const unknown = await env.app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'x-vidalune-language': 'klingon' }, payload: wrong });
     expect(unknown.json().error).toBe('Incorrect username or password.');
   });
 

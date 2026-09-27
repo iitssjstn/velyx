@@ -29,7 +29,7 @@ const remux: PlaybackAnalysis = {
   container: { name: 'mkv', action: 'remux' },
   serverLoad: 'low',
   components: { video: { status: 'ok', note: 'Copied without re-encoding' }, audio: { status: 'warn', note: 'Converted to AAC stereo' }, container: { status: 'ok', note: 'Supported; streamed as MP4 while remuxing' } },
-  summary: ['The video does not need transcoding.', 'Velyx remuxes the file and converts the audio to AAC stereo, which uses little CPU.'],
+  summary: ['The video does not need transcoding.', 'Vidalune remuxes the file and converts the audio to AAC stereo, which uses little CPU.'],
 };
 
 const hevcFirefox: PlaybackAnalysis = {
@@ -41,7 +41,7 @@ const hevcFirefox: PlaybackAnalysis = {
   transcodeRequired: true,
   device: 'Firefox on Linux',
   components: { video: { status: 'fail', note: 'This browser cannot decode HEVC / H.265 video.' }, audio: { status: 'ok', note: 'Supported' }, container: { status: 'ok', note: 'Supported' } },
-  summary: ['Your current browser/device cannot play this video format.', 'Server transcoding: No. Velyx does not convert video.'],
+  summary: ['Your current browser/device cannot play this video format.', 'Server transcoding: No. Vidalune does not convert video.'],
 };
 
 describe('modeLabel', () => {
@@ -86,7 +86,7 @@ describe('PlaybackUnavailable', () => {
     // The reason appears once, next to the video.
     expect(screen.getAllByText('This browser cannot decode HEVC / H.265 video.')).toHaveLength(1);
     expect(screen.getByText('Your current browser/device cannot play this video format.')).toBeTruthy();
-    expect(screen.getByText('Server transcoding: No. Velyx does not convert video.')).toBeTruthy();
+    expect(screen.getByText('Server transcoding: No. Vidalune does not convert video.')).toBeTruthy();
     expect(document.body.textContent).toContain('Current device: Firefox on Linux');
     await userEvent.click(screen.getByRole('button', { name: 'Try anyway' }));
     expect(onTry).toHaveBeenCalledOnce();
@@ -95,7 +95,7 @@ describe('PlaybackUnavailable', () => {
   it('marks uncertain verdicts with a question mark instead of a cross', () => {
     render(
       <PlaybackUnavailable
-        analysis={{ ...hevcFirefox, confidence: 'assumed', components: { ...hevcFirefox.components, video: { status: 'unknown', note: 'Velyx cannot confirm that this device decodes it.' } }, summary: ['This device may not be able to play this video format.'] }}
+        analysis={{ ...hevcFirefox, confidence: 'assumed', components: { ...hevcFirefox.components, video: { status: 'unknown', note: 'Vidalune cannot confirm that this device decodes it.' } }, summary: ['This device may not be able to play this video format.'] }}
         onBack={() => undefined}
       />,
     );

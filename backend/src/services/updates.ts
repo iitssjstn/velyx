@@ -50,7 +50,7 @@ export class UpdateChecker {
   async check(now = Date.now()): Promise<void> {
     try {
       const res = await this.fetchImpl(`https://api.github.com/repos/${this.repo}/tags?per_page=30`, {
-        headers: { Accept: 'application/vnd.github+json', 'User-Agent': `Velyx/${APP_VERSION}` },
+        headers: { Accept: 'application/vnd.github+json', 'User-Agent': `Vidalune/${APP_VERSION}` },
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) throw new Error(`GitHub returned ${res.status}`);

@@ -1,6 +1,6 @@
 {
-  "name": "velyx-app",
-  "version": "0.9.7",
+  "name": "vidalune-app",
+  "version": "0.9.8",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

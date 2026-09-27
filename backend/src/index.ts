@@ -11,7 +11,7 @@ import { createLogger } from './logger.js';
 import { APP_VERSION } from './version.js';
 import type { RemuxEngine } from './playback/remux.js';
 
-const log = createLogger('velyx');
+const log = createLogger('vidalune');
 
 async function main(): Promise<void> {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -20,7 +20,7 @@ async function main(): Promise<void> {
     ...(process.env.FRONTEND_DIR ? {} : { frontendDir: fs.existsSync(bundledFrontend) ? bundledFrontend : null }),
   });
 
-  log.info(`Velyx ${APP_VERSION} starting`);
+  log.info(`Vidalune ${APP_VERSION} starting`);
   // A restore staged from the admin page or CLI is applied before anything opens the database.
   const restored = applyPendingRestore(config.dbPath, config.dataDir, config.backupDir);
   const db = openDatabase(config.dbPath, { backupDir: config.backupDir });
@@ -35,14 +35,14 @@ async function main(): Promise<void> {
 
   const app = await buildApp(ctx);
   await app.listen({ port: config.port, host: config.host });
-  log.info(`Velyx started on http://${config.host}:${config.port}`);
+  log.info(`Vidalune started on http://${config.host}:${config.port}`);
   if (!config.frontendDir) log.warn('Frontend build not found — only the API is served');
 
   ctx.scans.configureSchedule(ctx.settings.scanIntervalMinutes());
   if (ctx.settings.get().scanOnStartup) {
-    // After start-up has settled, look for files added while Velyx was off.
+    // After start-up has settled, look for files added while Vidalune was off.
     setTimeout(() => {
-      log.info('Scanning libraries for changes made while Velyx was off');
+      log.info('Scanning libraries for changes made while Vidalune was off');
       ctx.scans.enqueueAll(false);
     }, 60 * 1000).unref();
   }
@@ -51,13 +51,13 @@ async function main(): Promise<void> {
       if (done) ctx.settings.update({ collectionsBackfilled: true });
     });
   }
-  // Episodes added while Velyx was off (or never analysed) get their intros/credits found later on.
+  // Episodes added while Vidalune was off (or never analysed) get their intros/credits found later on.
   setTimeout(() => ctx.segments.enqueuePending(), 3 * 60 * 1000).unref();
   ctx.watcher.sync(ctx.settings.get().watchFolders);
   ctx.backups.start();
   ctx.disk.start();
   ctx.cleanupScheduler.start();
-  // A backup missed while Velyx was off runs shortly after start, not in the middle of it.
+  // A backup missed while Vidalune was off runs shortly after start, not in the middle of it.
   setTimeout(() => ctx.backups.tick(), 2 * 60 * 1000).unref();
   ctx.streams.closeInterrupted();
   ctx.streams.start();

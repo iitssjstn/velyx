@@ -40,7 +40,7 @@ export function LogsPage() {
         </label>
         <Button variant="secondary" size="sm" icon={<RefreshCw className="size-4" />} onClick={() => q.refetch()}>{t('common.refresh')}</Button>
       </div>
-      <p className="text-xs text-faint">{tRich('logs.recent', { command: <code>docker compose logs velyx</code> })}</p>
+      <p className="text-xs text-faint">{tRich('logs.recent', { command: <code>docker compose logs vidalune</code> })}</p>
       <div className="panel max-h-[65vh] overflow-auto p-2 font-mono text-xs">
         {rows.length === 0 ? (
           <p className="p-4 text-muted">{t('logs.none')}</p>

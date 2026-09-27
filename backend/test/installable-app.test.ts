@@ -12,7 +12,7 @@ beforeEach(async () => {
   // What the build puts in the frontend folder: the public files plus index.html.
   frontend = fs.mkdtempSync(path.join(os.tmpdir(), 'velyx-frontend-'));
   fs.cpSync(publicDir, frontend, { recursive: true });
-  fs.writeFileSync(path.join(frontend, 'index.html'), '<!doctype html><title>Velyx</title>');
+  fs.writeFileSync(path.join(frontend, 'index.html'), '<!doctype html><title>Vidalune</title>');
   env = await createTestEnv({ frontendDir: frontend });
 });
 afterEach(async () => {
@@ -22,13 +22,13 @@ afterEach(async () => {
 
 const get = (url: string) => env.app.inject({ url });
 
-describe('installing Velyx as an app', () => {
+describe('installing Vidalune as an app', () => {
   it('serves the app manifest and icons without signing in', async () => {
     const manifest = await get('/manifest.webmanifest');
     expect(manifest.statusCode).toBe(200);
     expect(manifest.headers['content-type']).toMatch(/^application\/manifest\+json/);
     const m = manifest.json();
-    expect(m).toMatchObject({ name: 'Velyx', start_url: '/', scope: '/', display: 'standalone' });
+    expect(m).toMatchObject({ name: 'Vidalune', start_url: '/', scope: '/', display: 'standalone' });
     for (const icon of m.icons) {
       const res = await get(icon.src);
       expect(res.statusCode, icon.src).toBe(200);

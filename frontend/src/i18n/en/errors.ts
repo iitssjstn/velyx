@@ -1,8 +1,8 @@
 export const errors = {
-  unreachable: 'Could not reach the Velyx server. Check your connection.',
+  unreachable: 'Could not reach the Vidalune server. Check your connection.',
   requestFailed: 'Request failed ({status})',
   generic: 'Something went wrong.',
-  notReachable: 'Velyx is not reachable',
+  notReachable: 'Vidalune is not reachable',
   notFound: 'Not found',
   tryAgainText: 'Try again.',
   diagnostics: 'Diagnostic details (visible to admins)',

@@ -31,10 +31,10 @@ function setup(userId?: number) {
 }
 
 describe('SessionList', () => {
-  it('names devices signed in with the Velyx app', async () => {
+  it('names devices signed in with the Vidalune app', async () => {
     setup();
     const row = (await screen.findByText('Pixel 8')).closest('li')!;
-    expect(row.textContent).toContain('Velyx app');
+    expect(row.textContent).toContain('Vidalune app');
   });
 
   it('shows devices and revokes one session', async () => {

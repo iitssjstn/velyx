@@ -45,7 +45,7 @@ export const cleanup: Messages['cleanup'] = {
     one: '{count} bestand wordt bewaard en niet opnieuw voorgesteld.',
     other: '{count} bestanden worden bewaard en niet opnieuw voorgesteld.',
   },
-  intro: 'Voorstellen om ruimte vrij te maken, op basis van wat Velyx al weet over je bestanden en wat er is gekeken. Regels stellen alleen voor: er wordt niets verwijderd tot je bestanden selecteert, Verwijderen kiest en bevestigt.',
+  intro: 'Voorstellen om ruimte vrij te maken, op basis van wat Vidalune al weet over je bestanden en wat er is gekeken. Regels stellen alleen voor: er wordt niets verwijderd tot je bestanden selecteert, Verwijderen kiest en bevestigt.',
   keptButton: 'Bewaarde bestanden ({count})',
   rulesButton: 'Regels',
   deletionOn: 'Bestanden verwijderen is toegestaan. Verwijderde bestanden zijn definitief weg.',
