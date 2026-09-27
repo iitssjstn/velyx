@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApi } from './api';
-import { pickSubtitle, playbackCaps, playerAudioPosition, streamFrom, subtitleUrl, type PlaybackAnswer, type SubtitleOption } from './playback';
+import { playbackCaps, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, type PlaybackAnswer, type SubtitleOption } from './playback';
 import { cueTextAt, parseVtt } from './vtt';
 
 const api = (respond: (url: string) => unknown = () => ({})) =>
@@ -68,15 +68,14 @@ describe('tracks', () => {
     expect(playerAudioPosition(tracks, 9)).toBe(-1);
   });
 
-  it('starts with the subtitle the account asks for', () => {
-    const o = (key: string, language: string, forced = false) => ({ key, kind: 'external', label: key, language, languageName: null, title: null, forced, isDefault: false, url: `/${key}` }) as SubtitleOption;
-    const options = [o('en', 'en'), o('nl-forced', 'nl', true), o('nl', 'nld')];
-    expect(pickSubtitle(options, { subtitleMode: 'always', subtitleLanguage: 'nl' }, 'eng')?.key).toBe('nl');
-    expect(pickSubtitle(options, { subtitleMode: 'foreign', subtitleLanguage: 'nl' }, 'eng')?.key).toBe('nl');
-    expect(pickSubtitle(options, { subtitleMode: 'foreign', subtitleLanguage: 'nl' }, 'nld')?.key).toBe('nl-forced');
-    expect(pickSubtitle(options, { subtitleMode: 'forced', subtitleLanguage: 'nl' }, 'nld')?.key).toBe('nl-forced');
-    expect(pickSubtitle(options, { subtitleMode: 'off', subtitleLanguage: 'nl' }, 'eng')).toBeNull();
-    expect(pickSubtitle([], { subtitleMode: 'always', subtitleLanguage: 'nl' }, 'eng')).toBeNull();
+  it('resumes like the website: not in the first 30 seconds, not in the last part', () => {
+    expect(resumePoint({ positionSec: 600, durationSec: 2600 })).toBe(600);
+    expect(resumePoint({ positionSec: 20, durationSec: 2600 })).toBeNull();
+    // In the credits (last 10 %) or the last 15 seconds: start over instead of landing at the end.
+    expect(resumePoint({ positionSec: 2400, durationSec: 2600 })).toBeNull();
+    expect(resumePoint({ positionSec: 590, durationSec: 600 })).toBeNull();
+    expect(resumePoint({ positionSec: 600, durationSec: 2600, completed: true })).toBeNull();
+    expect(resumePoint(null)).toBeNull();
   });
 });
 
