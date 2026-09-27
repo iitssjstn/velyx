@@ -18,6 +18,7 @@ export const cloud = {
   relayTitle: 'Reachable without an open port (relay)',
   relayIntro: 'Your server keeps a connection open to vidalune.com and gets its own HTTPS address. The website and the app reach it there from anywhere, without port forwarding or your own domain.',
   relayPrivacy: 'Everything you watch and do then passes through vidalune.com (encrypted on the way, decrypted there to pass it on). Nothing is stored. A direct address is used first where it works.',
+  relaySubscription: 'Remote access through Vidalune (the relay and app.vidalune.com) needs a subscription on the Vidalune account {account}. On your home network, and at an address of your own, the server keeps working as always.',
   relayOn: 'Turn the relay on',
   relayOff: 'Turn the relay off',
   relayAddress: 'Address: {url}',
@@ -25,6 +26,7 @@ export const cloud = {
   relayConnecting: 'Connecting…',
   relayProblem: {
     refused: 'The relay refused the connection. Turn the relay off and on again.',
+    subscription: 'The relay is not available: remote access through Vidalune needs a subscription.',
     unreachable: 'vidalune.com cannot be reached right now. The server keeps trying.',
     closed: 'The connection closed. The server is reconnecting.',
   },

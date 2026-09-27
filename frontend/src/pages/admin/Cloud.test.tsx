@@ -6,11 +6,11 @@ import { CloudPage, type CloudStatus } from './Cloud';
 
 afterEach(() => vi.unstubAllGlobals());
 
-const noRelay = { enabled: false, url: null, connected: false, error: null };
+const noRelay = { enabled: false, url: null, connected: false, error: null, allowed: true };
 const off: CloudStatus = { enabled: false, account: null, code: null, serviceUrl: 'https://vidalune.com', relay: noRelay };
 const waiting: CloudStatus = { enabled: true, account: null, code: { code: 'K7F3-Q9MA', expiresAt: Date.now() + 600_000, linkUrl: 'https://vidalune.com/link#K7F3-Q9MA' }, serviceUrl: 'https://vidalune.com', relay: noRelay };
 const linked: CloudStatus = { enabled: true, account: 'justin@example.com', code: null, serviceUrl: 'https://vidalune.com', relay: noRelay };
-const relayed: CloudStatus = { ...linked, relay: { enabled: true, url: 'https://k7f3q9ma.vidalune.com', connected: true, error: null } };
+const relayed: CloudStatus = { ...linked, relay: { enabled: true, url: 'https://k7f3q9ma.vidalune.com', connected: true, error: null, allowed: true } };
 
 function setup(initial: CloudStatus, answers: Record<string, CloudStatus>) {
   const calls: string[] = [];
@@ -45,6 +45,13 @@ describe('Vidalune account page', () => {
     expect(calls).toContain('POST /api/admin/cloud/relay');
     expect(await screen.findByRole('link', { name: 'https://k7f3q9ma.vidalune.com' })).toBeTruthy();
     expect(screen.getByText('Connected.')).toBeTruthy();
+  });
+
+  it('says the relay needs a subscription when the account has no remote access', async () => {
+    const calls = setup({ ...linked, relay: { ...noRelay, allowed: false } }, {});
+    expect(await screen.findByText(/needs a subscription on the Vidalune account justin@example.com/)).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Turn the relay on' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(calls).toEqual(['GET /api/admin/cloud']);
   });
 
   it('shows the linked account and unlinks after confirming', async () => {

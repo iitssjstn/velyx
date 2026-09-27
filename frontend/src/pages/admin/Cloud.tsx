@@ -13,7 +13,7 @@ export interface CloudStatus {
   account: string | null;
   code: { code: string; expiresAt: number; linkUrl: string } | null;
   serviceUrl: string;
-  relay: { enabled: boolean; url: string | null; connected: boolean; error: 'refused' | 'unreachable' | 'closed' | null };
+  relay: { enabled: boolean; url: string | null; connected: boolean; error: 'refused' | 'subscription' | 'unreachable' | 'closed' | null; allowed: boolean };
 }
 
 const KEY = ['admin', 'cloud'];
@@ -119,6 +119,11 @@ export function CloudPage() {
           </h2>
           <p className="text-sm text-muted">{t('cloud.relayIntro')}</p>
           <p className="text-xs text-faint">{t('cloud.relayPrivacy')}</p>
+          {!s.relay.allowed && (
+            <p className="rounded-lg border border-line bg-raised px-3 py-2 text-sm text-muted" role="status">
+              {t('cloud.relaySubscription', { account: s.account })}
+            </p>
+          )}
           {s.relay.enabled && (
             <div className="space-y-1 text-sm" aria-live="polite">
               {s.relay.url && (
@@ -132,7 +137,7 @@ export function CloudPage() {
               </p>
             </div>
           )}
-          <Button variant={s.relay.enabled ? 'secondary' : 'primary'} size="sm" loading={relay.isPending} onClick={() => relay.mutate(!s.relay.enabled)}>
+          <Button variant={s.relay.enabled ? 'secondary' : 'primary'} size="sm" loading={relay.isPending} disabled={!s.relay.enabled && !s.relay.allowed} onClick={() => relay.mutate(!s.relay.enabled)}>
             {s.relay.enabled ? t('cloud.relayOff') : t('cloud.relayOn')}
           </Button>
         </section>

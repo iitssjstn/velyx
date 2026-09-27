@@ -16,6 +16,13 @@
         member: 'gedeeld met jou', unreachable: '{name} is nu niet bereikbaar. Staat hij aan?', noAddress: 'Deze server heeft nog geen adres: zet op de server de relay aan of stel zijn adres in.',
         join: 'Server toevoegen', joinIntro: 'Gebruik je de server van iemand anders? Ga daar naar Instellingen → Account → Vidalune-account en vul de code in die je daar krijgt.',
         joined: '{name} staat nu in je lijst.', choose: 'Andere server kiezen',
+        remoteOn: 'Toegang op afstand: actief', remoteUntil: 'Toegang op afstand: actief tot {date}', remoteOff: 'Toegang op afstand via Vidalune (relay en app.vidalune.com) is niet actief. Thuis, en op een eigen adres, werken je servers gewoon.',
+        adminLink: 'Beheer', adminTitle: 'Beheer', adminOnly: 'Alleen voor beheerders van Vidalune.', back: 'Terug naar je servers',
+        stats: '{accounts} accounts · {remote} met toegang op afstand · {servers} gekoppelde servers · {tunnels} relays verbonden',
+        search: 'Zoeken op e-mailadres', filterAll: 'Alle accounts', filterRemote: 'Met toegang op afstand', filterServers: 'Met een server',
+        adminTag: 'beheerder', since: 'sinds {date}', noServers: 'geen servers', relayOn: 'relay verbonden', planNone: 'Geen toegang op afstand',
+        planRemote: 'Toegang op afstand', planEnd: 'Tot en met (leeg: geen einddatum)', planNote: 'Notitie (bijv. hoe er betaald is)', change: 'Wijzigen', save: 'Opslaan',
+        saved: 'Opgeslagen: {email}.', more: 'Er zijn meer accounts: zoek om te verfijnen.', empty: 'Geen accounts gevonden.', changed: 'gewijzigd {date}',
       }
     : {
         title: 'Vidalune account', intro: 'With a Vidalune account you find your own servers again, also outside your home network.',
@@ -30,6 +37,13 @@
         member: 'shared with you', unreachable: '{name} cannot be reached right now. Is it on?', noAddress: 'This server has no address yet: turn the relay on or set its address on the server.',
         join: 'Add a server', joinIntro: 'Using someone else\'s server? There, go to Settings → Account → Vidalune account and enter the code you get.',
         joined: '{name} is in your list now.', choose: 'Choose another server',
+        remoteOn: 'Remote access: active', remoteUntil: 'Remote access: active until {date}', remoteOff: 'Remote access through Vidalune (relay and app.vidalune.com) is not active. At home, and at an address of your own, your servers work as always.',
+        adminLink: 'Admin', adminTitle: 'Admin', adminOnly: 'Only for Vidalune administrators.', back: 'Back to your servers',
+        stats: '{accounts} accounts · {remote} with remote access · {servers} linked servers · {tunnels} relays connected',
+        search: 'Search by email address', filterAll: 'All accounts', filterRemote: 'With remote access', filterServers: 'With a server',
+        adminTag: 'administrator', since: 'since {date}', noServers: 'no servers', relayOn: 'relay connected', planNone: 'No remote access',
+        planRemote: 'Remote access', planEnd: 'Up to and including (empty: no end date)', planNote: 'Note (e.g. how it was paid)', change: 'Change', save: 'Save',
+        saved: 'Saved: {email}.', more: 'There are more accounts: search to narrow down.', empty: 'No accounts found.', changed: 'changed {date}',
       };
   const t = (key, vars = {}) => T[key].replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
   const view = document.getElementById('view');
@@ -52,6 +66,10 @@
   // A code handed over in the address (/link#K7F3-Q9MA), kept until someone is signed in.
   const pendingCode = () => (location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : '');
   const when = (ms) => new Date(ms).toLocaleString(nl ? 'nl-NL' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+  const day = (ms) => new Date(ms).toLocaleDateString(nl ? 'nl-NL' : 'en-GB', { dateStyle: 'medium' });
+  /** yyyy-mm-dd (local) for a date field, and back to the end of that day. */
+  const isoDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const endOfDay = (value) => { const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d, 23, 59, 59).getTime(); };
 
   const LAST = 'vidalune.lastServer';
   const remember = (id) => { try { localStorage.setItem(LAST, id); } catch { /* private window */ } };
@@ -127,6 +145,7 @@
     } catch {
       return signIn(pendingCode() ? 'up' : 'in');
     }
+    if (location.pathname === '/admin') return adminPage(me);
     const list = await api('GET', '/api/servers');
     const joining = location.pathname === '/join';
     // Straight into the server used last time (app.vidalune.com), unless asked to choose.
@@ -158,7 +177,14 @@
       }),
     );
     show(
-      el('div', { class: 'row' }, el('span', { class: 'small' }, me.email), el('button', { class: 'link', type: 'button', onclick: async () => { await api('POST', '/api/logout'); signIn(); } }, t('signOut'))),
+      el('div', { class: 'row' },
+        el('span', { class: 'small' }, me.email),
+        el('span', { class: 'actions' },
+          me.admin ? el('a', { href: '/admin' }, t('adminLink')) : null,
+          el('button', { class: 'link', type: 'button', onclick: async () => { await api('POST', '/api/logout'); signIn(); } }, t('signOut')),
+        ),
+      ),
+      el('p', { class: 'small' }, me.remote && me.remote.active ? (me.remote.until ? t('remoteUntil', { date: day(me.remote.until) }) : t('remoteOn')) : t('remoteOff')),
       message ? el('p', { class: 'ok', role: 'status' }, message) : null,
       el('div', { class: 'card' },
         el('h1', {}, t('servers')),
@@ -216,6 +242,62 @@
           }),
         ),
       ),
+    );
+  }
+
+  /** For Vidalune administrators: every account, and who has remote access (until when). */
+  async function adminPage(me, message = '', query = { q: '', filter: 'all' }) {
+    if (!me.admin) return show(el('p', {}, t('adminOnly')), el('a', { href: '/servers' }, t('back')));
+    const data = await api('GET', `/api/admin/accounts?${new URLSearchParams(query)}`);
+    const search = el('form', {
+      class: 'row',
+      onsubmit: (e) => {
+        e.preventDefault();
+        const v = Object.fromEntries(new FormData(e.currentTarget));
+        void adminPage(me, '', { q: v.q, filter: v.filter });
+      },
+    },
+      el('input', { name: 'q', type: 'search', placeholder: t('search'), 'aria-label': t('search'), value: query.q }),
+      el('select', { name: 'filter', 'aria-label': t('filterAll'), onchange: (e) => e.currentTarget.form.requestSubmit() },
+        ['all', 'remote', 'servers'].map((f) => el('option', { value: f, selected: query.filter === f }, t(`filter${f[0].toUpperCase()}${f.slice(1)}`))),
+      ),
+    );
+    const planForm = (a) => {
+      const remote = a.plan === 'remote';
+      return form([
+        el('label', {}, el('span', {}, t('planNone')), el('input', { type: 'radio', name: 'plan', value: 'free', checked: !remote, class: 'inline' })),
+        el('label', {}, el('span', {}, t('planRemote')), el('input', { type: 'radio', name: 'plan', value: 'remote', checked: remote, class: 'inline' })),
+        el('label', {}, t('planEnd'), el('input', { type: 'date', name: 'until', value: remote && a.planUntil ? isoDay(a.planUntil) : '' })),
+        el('label', {}, t('planNote'), el('input', { name: 'note', maxlength: 200, value: a.planNote || '' })),
+      ], t('save'), async (v) => {
+        await api('PUT', `/api/admin/accounts/${a.id}/plan`, { plan: v.plan, until: v.plan === 'remote' && v.until ? endOfDay(v.until) : null, note: v.note || null });
+        await adminPage(me, t('saved', { email: a.email }), query);
+      });
+    };
+    const status = (a) =>
+      a.admin ? t('remoteOn') : a.remote ? (a.planUntil ? t('remoteUntil', { date: day(a.planUntil) }) : t('remoteOn')) : t('planNone');
+    show(
+      el('div', { class: 'row' }, el('a', { href: '/servers' }, t('back')), el('span', { class: 'small' }, me.email)),
+      el('h1', {}, t('adminTitle')),
+      el('p', { class: 'small' }, t('stats', data.stats)),
+      message ? el('p', { class: 'ok', role: 'status' }, message) : null,
+      search,
+      data.accounts.length === 0 ? el('p', {}, t('empty')) : null,
+      el('ul', { class: 'servers' }, data.accounts.map((a) =>
+        el('li', {},
+          el('div', { class: 'row' },
+            el('strong', {}, a.email, a.admin ? el('span', { class: 'small' }, ` · ${t('adminTag')}`) : null),
+            el('span', { class: 'small' }, t('since', { date: day(a.createdAt) })),
+          ),
+          el('div', { class: 'small' }, el('span', { class: a.remote ? 'dot on' : 'dot' }), status(a), a.planNote ? ` · ${a.planNote}` : '', a.planChangedAt ? ` · ${t('changed', { date: day(a.planChangedAt) })}` : ''),
+          el('div', { class: 'small' },
+            a.servers.length === 0
+              ? t('noServers')
+              : a.servers.map((s, i) => [i ? ', ' : '', s.name, s.relayConnected ? ` (${t('relayOn')})` : '']),
+          ),
+          a.admin ? null : el('details', {}, el('summary', { class: 'small' }, t('change')), el('div', { class: 'card' }, planForm(a))),
+        ))),
+      data.more ? el('p', { class: 'small' }, t('more')) : null,
     );
   }
 

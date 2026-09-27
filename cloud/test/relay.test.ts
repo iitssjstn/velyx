@@ -10,7 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import { buildCloudApp, SESSION_COOKIE } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
-import { servers } from '../src/db/schema.js';
+import { accounts, servers } from '../src/db/schema.js';
 import { clientIp, RESERVED } from '../src/relay.js';
 import * as cloudProtocol from '../src/tunnel-protocol.js';
 // The other end: a real Vidalune server with its relay client.
@@ -53,7 +53,7 @@ async function until(check: () => boolean, ms = 5000) {
 
 beforeEach(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-relay-'));
-  const config = loadConfig({ DATA_DIR: dir, PUBLIC_URL: 'http://relay.test', TRUST_PROXY: '1' }, { webDir: null });
+  const config = loadConfig({ DATA_DIR: dir, PUBLIC_URL: 'http://relay.test', TRUST_PROXY: '1', ADMIN_EMAILS: 'boss@example.com' }, { webDir: null });
   db = openDatabase(config.dbPath);
   cloud = await buildCloudApp(config, db);
   await cloud.listen({ port: 0, host: '127.0.0.1' });
@@ -86,10 +86,22 @@ async function linkedServerWithRelay() {
   const cookie = `${SESSION_COOKIE}=${signUp.cookies.find((c) => c.name === SESSION_COOKIE)!.value}`;
   const { code } = (await cloud.inject({ method: 'POST', url: '/api/server/code', headers: { authorization: auth } })).json();
   await cloud.inject({ method: 'POST', url: '/api/link', headers: { cookie }, payload: { code } });
+  // No remote access yet: the relay stays off until a Vidalune administrator gives it.
+  const refused = await cloud.inject({ method: 'POST', url: '/api/server/relay', headers: { authorization: auth }, payload: { enabled: true } });
+  expect(refused.statusCode).toBe(402);
+  const accountId = db.select().from(accounts).where(eq(accounts.email, 'justin@example.com')).get()!.id;
+  const bossCookie = await signUpAs('boss@example.com');
+  const granted = await cloud.inject({ method: 'PUT', url: `/api/admin/accounts/${accountId}/plan`, headers: { cookie: bossCookie }, payload: { plan: 'remote', until: null, note: 'test' } });
+  expect(granted.json()).toMatchObject({ remote: true, plan: 'remote' });
   const relay = (await cloud.inject({ method: 'POST', url: '/api/server/relay', headers: { authorization: auth }, payload: { enabled: true } })).json();
   expect(relay).toMatchObject({ enabled: true, url: expect.stringMatching(/^http:\/\/[a-z0-9]{8}\.relay\.test$/) });
   const slug = new URL(relay.url).hostname.split('.')[0];
-  return { id: reg.id as string, auth, cookie, slug, host: `${slug}.relay.test` };
+  return { id: reg.id as string, auth, cookie, slug, host: `${slug}.relay.test`, accountId, bossCookie };
+}
+
+async function signUpAs(email: string) {
+  const res = await cloud.inject({ method: 'POST', url: '/api/account', payload: { email, password: 'correct-horse' } });
+  return `${SESSION_COOKIE}=${res.cookies.find((c) => c.name === SESSION_COOKIE)!.value}`;
 }
 
 describe('the relay', () => {
@@ -171,5 +183,21 @@ describe('the relay', () => {
     await cloud.inject({ method: 'DELETE', url: `/api/servers/${s.id}`, headers: { cookie: s.cookie } });
     await until(() => !cloud.relay.connected(s.id));
     expect(db.select().from(servers).where(eq(servers.id, s.id)).get()!.relayEnabled).toBe(false);
+  });
+
+  it('closes the tunnel when remote access is taken away, and the server learns why', async () => {
+    const s = await linkedServerWithRelay();
+    client.start(s.auth);
+    await until(() => cloud.relay.connected(s.id));
+    const taken = await cloud.inject({ method: 'PUT', url: `/api/admin/accounts/${s.accountId}/plan`, headers: { cookie: s.bossCookie }, payload: { plan: 'free' } });
+    expect(taken.json()).toMatchObject({ remote: false });
+    await until(() => !cloud.relay.connected(s.id));
+    expect((await get(s.host, '/api/server/info')).status).toBe(502);
+    await until(() => client.status().error === 'subscription', 10_000);
+    const beat = (await cloud.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: s.auth }, payload: { name: 'Thuis', version: '0.10.6' } })).json();
+    expect(beat.relay).toMatchObject({ enabled: true, allowed: false, url: null });
+    // The server's addresses on vidalune.com no longer include the relay.
+    const { addresses } = (await cloud.inject({ method: 'POST', url: `/api/servers/${s.id}/open`, headers: { cookie: s.cookie } })).json();
+    expect(addresses).toEqual([]);
   });
 });

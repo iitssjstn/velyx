@@ -20,6 +20,7 @@ services:
     environment:
       PUBLIC_URL: https://vidalune.com   # where people open it
       TRUST_PROXY: "1"                   # one proxy (Nginx Proxy Manager) in front
+      ADMIN_EMAILS: you@example.com      # accounts that may open /admin
     volumes:
       - ./cloud-data:/data               # cloud.db lives here: back it up
     networks: [npm]                      # the network Nginx Proxy Manager is on
@@ -41,6 +42,19 @@ same pages (sign in, your servers).
 | `PORT` | `3100` | Port inside the container. |
 | `DATA_DIR` | `/data` | Folder of `cloud.db`. |
 | `RELAY_DOMAIN` | host of `PUBLIC_URL` | Relay addresses are `<name>.<RELAY_DOMAIN>`. |
+| `ADMIN_EMAILS` | (none) | Accounts (email addresses, comma-separated) that may use the admin page. They always have remote access themselves. |
+
+## Remote access and the admin page
+
+Reaching a server through Vidalune — its relay address, and opening it from app.vidalune.com over
+the relay — needs *remote access* on the Vidalune account that owns the server. Without it the relay
+cannot be turned on, an open tunnel is closed, and relay addresses answer that the server cannot be
+reached. The server's own address (home network, port forwarding, own domain) is not affected.
+
+Administrators (`ADMIN_EMAILS`) open **vidalune.com/admin** (also linked from the account page): every
+account with its servers, filters for accounts with remote access or a server, and per account
+**Change**: remote access on or off, an optional last day, and a note (for instance how it was paid).
+Taking it away closes that account's tunnels at once; an end date takes effect by itself.
 
 ## The relay
 

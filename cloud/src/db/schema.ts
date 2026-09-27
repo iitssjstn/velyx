@@ -6,6 +6,13 @@ export const accounts = sqliteTable('accounts', {
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   createdAt: integer('created_at').notNull(),
+  /** "remote": the servers this account owns may be reached through Vidalune (relay, app.vidalune.com). */
+  plan: text('plan', { enum: ['free', 'remote'] }).notNull().default('free'),
+  /** When the plan ends (null: no end date). */
+  planUntil: integer('plan_until'),
+  /** A note by whoever set the plan (e.g. how it was paid). */
+  planNote: text('plan_note'),
+  planChangedAt: integer('plan_changed_at'),
 });
 
 /** Signed-in browsers and apps. Only a hash of the token is stored. */
