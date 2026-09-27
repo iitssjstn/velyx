@@ -1,6 +1,6 @@
 {
   "name": "velyx-app",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

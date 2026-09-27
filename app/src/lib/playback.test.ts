@@ -97,3 +97,11 @@ describe('subtitles', () => {
     expect(parseVtt('WEBVTT\n\n01:02.500 --> 01:03,000\nKort')).toEqual([{ start: 62.5, end: 63, text: 'Kort' }]);
   });
 });
+
+describe('a second try', () => {
+  it('asks for a repackaged stream with converted audio when the original file failed', async () => {
+    const { fallbackCaps } = await import('./playback');
+    const caps = playbackCaps({ videoCodecs: ['h264', 'hevc'], tenBitCodecs: ['hevc'], audioCodecs: ['aac', 'eac3', 'dts'], hdr: false }, 2);
+    expect(fallbackCaps(caps)).toEqual({ ...caps, containers: ['mp4'], audioCodecs: ['aac'], audioTrackSwitching: false });
+  });
+});

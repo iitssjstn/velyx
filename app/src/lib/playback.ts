@@ -41,6 +41,18 @@ export function playbackCaps(decoders: Decoders | null, audioIndex?: number): Pl
   };
 }
 
+/** Formats every Android device plays; asked for when playing the original file failed after all. */
+const SAFE_AUDIO = ['aac', 'mp3', 'opus', 'vorbis', 'flac'];
+
+/**
+ * A second try after direct play failed on the device (its decoder list promised more than it
+ * could do): the video stays as it is — Velyx never transcodes it — but the server is asked to
+ * repackage the file as MP4 and convert the audio, which fixes most failures.
+ */
+export function fallbackCaps(caps: PlaybackCaps): PlaybackCaps {
+  return { ...caps, containers: ['mp4'], audioCodecs: caps.audioCodecs.filter((c) => SAFE_AUDIO.includes(c)), audioTrackSwitching: false };
+}
+
 export interface AudioTrackInfo {
   index: number;
   codec: string | null;
