@@ -18,7 +18,7 @@ RUN npm ci --no-audit --no-fund
 COPY tsconfig.base.json ./
 COPY backend backend
 COPY frontend frontend
-RUN npm run build --workspace frontend && npm run build --workspace backend
+RUN npm run build --workspace frontend && npm run build:release --workspace backend
 
 # ---------------------------------------------------------------- production dependencies (backend only)
 FROM node:22-bookworm-slim AS deps
@@ -38,7 +38,7 @@ FROM node:22-bookworm-slim
 
 LABEL org.opencontainers.image.title="Vidalune" \
       org.opencontainers.image.description="Your media. Your server. A lightweight self-hosted media server." \
-      org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0"
+      org.opencontainers.image.licenses="LicenseRef-Vidalune-EULA"
 
 # FFmpeg provides ffprobe (media analysis) and ffmpeg (embedded subtitle extraction).
 RUN apt-get update \

@@ -153,7 +153,7 @@ describe('scan status', () => {
     const res = await env.app.inject({ method: 'POST', url: '/api/libraries', headers: { cookie: admin }, payload: { name: 'm', type: 'movies', path: dir } });
     await wait(50);
     expect(env.ctx.scans.state().running?.progress.phase).toBe('analyzing');
-    // Radarr drops a new file in; the watcher asks for a scan while the first one is busy.
+    // Download software drops a new file in; the watcher asks for a scan while the first one is busy.
     touch(path.join(dir, 'B (2002).mkv'));
     expect(env.ctx.scans.enqueue(res.json().id)).toBe(true);
     expect(env.ctx.scans.enqueue(res.json().id)).toBe(false); // already queued once

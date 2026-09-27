@@ -1,6 +1,6 @@
 {
   "name": "vidalune-app",
-  "version": "0.10.7",
+  "version": "0.10.8",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -39,5 +39,5 @@
     "prebuild": "expo prebuild --platform android --clean"
   },
   "private": true,
-  "license": "PolyForm-Noncommercial-1.0.0"
+  "license": "UNLICENSED"
 }

@@ -15,6 +15,8 @@ export interface CloudConfig {
   webDir: string | null;
   /** The Vidalune web interface (frontend/dist) that app.<domain> serves (null: not served). */
   frontendDir: string | null;
+  /** The Android app to hand out (vidalune-<version>.apk files; built into the image). */
+  downloadDir: string;
   /** Relay addresses are <slug>.<relayDomain> (default: the host of PUBLIC_URL). */
   relayDomain: string;
   /** Accounts that may use the admin page (/admin); they always have remote access themselves. */
@@ -46,6 +48,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     publicUrl,
     trustProxy: Math.max(0, int(env.TRUST_PROXY, 1)),
     webDir: fs.existsSync(defaultWeb) ? defaultWeb : null,
+    downloadDir: path.resolve(env.DOWNLOAD_DIR ?? path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'downloads')),
     frontendDir: fs.existsSync(path.join(frontendDir, 'index.html')) ? frontendDir : null,
     ...overrides,
   };

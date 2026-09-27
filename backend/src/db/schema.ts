@@ -536,7 +536,7 @@ export interface RetiredUserData {
 /**
  * Movies, shows and episodes whose last file disappeared (removed, renamed beyond recognition, or
  * replaced by a release that arrived later). Their user data is kept here for a while so it comes
- * back when the same title reappears — for example when Radarr or Sonarr swaps in a better release.
+ * back when the same title reappears — for example when download software swaps in a better release.
  */
 export const retiredItems = sqliteTable(
   'retired_items',

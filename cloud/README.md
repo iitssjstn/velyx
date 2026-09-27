@@ -44,6 +44,7 @@ interface (see *app.vidalune.com* below).
 | `DATA_DIR` | `/data` | Folder of `cloud.db`. |
 | `RELAY_DOMAIN` | host of `PUBLIC_URL` | Relay addresses are `<name>.<RELAY_DOMAIN>`. |
 | `FRONTEND_DIR` | `frontend/dist` in the image | The web interface app.vidalune.com shows (built into the image). |
+| `DOWNLOAD_DIR` | `cloud/downloads` in the image | Where the Android app (`vidalune-<version>.apk`) is handed out from; the image carries the newest release's app. |
 | `ADMIN_EMAILS` | (none) | Accounts (email addresses, comma-separated) that may use the admin page. They always have remote access themselves. |
 
 ## Remote access and the admin page
@@ -82,6 +83,19 @@ In Nginx Proxy Manager:
 
    Hosts you set up yourself take precedence over the wildcard (remove an older redirect for
    `app.vidalune.com`: the service answers there itself).
+
+## Installing Vidalune
+
+The service is also where people get Vidalune:
+
+- **`/install`**: the install page (English, or Dutch for browsers that ask for it; `?lang=nl|en`).
+- **`/install/docker-compose.yml`**: a ready compose file for the published image.
+- **`/get`**: the installer behind `curl -fsSL https://vidalune.com/get | sh` (asks the two media
+  folders, writes `~/vidalune/docker-compose.yml`, pulls and starts Vidalune; running it again updates).
+- **`/download/app`**: the newest Android app. The image is built again once a release's app is
+  built, so it always carries that app.
+- **`/api/releases/latest`**: `{ version, url, app }`, which Vidalune servers ask (at most daily,
+  when an administrator opens the dashboard) to announce updates.
 
 ## app.vidalune.com
 

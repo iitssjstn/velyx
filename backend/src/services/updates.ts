@@ -25,7 +25,7 @@ export interface UpdateInfo {
 }
 
 /**
- * Checks the project's version tags on GitHub at most once a day, only when an admin looks at the
+ * Asks vidalune.com for the latest version at most once a day, only when an admin looks at the
  * dashboard. Sends nothing about the server; can be switched off in Admin → Server.
  */
 export class UpdateChecker {
@@ -33,14 +33,15 @@ export class UpdateChecker {
   private inflight: Promise<void> | null = null;
 
   constructor(
-    private readonly repo: string,
+    /** Where the latest version is announced ({ version, url }); empty disables the check. */
+    private readonly releasesUrl: string,
     private readonly enabled: () => boolean,
     private readonly fetchImpl: FetchLike = (i, init) => fetch(i, init),
   ) {}
 
   /** Returns the last known result and refreshes it in the background when it is stale. */
   info(now = Date.now()): UpdateInfo {
-    if (!this.enabled() || !this.repo) return { ...this.cached, available: false };
+    if (!this.enabled() || !this.releasesUrl) return { ...this.cached, available: false };
     if (!this.inflight && (!this.cached.checkedAt || now - this.cached.checkedAt > DAY)) {
       this.inflight = this.check(now).finally(() => (this.inflight = null));
     }
@@ -49,19 +50,19 @@ export class UpdateChecker {
 
   async check(now = Date.now()): Promise<void> {
     try {
-      const res = await this.fetchImpl(`https://api.github.com/repos/${this.repo}/tags?per_page=30`, {
-        headers: { Accept: 'application/vnd.github+json', 'User-Agent': `Vidalune/${APP_VERSION}` },
+      const res = await this.fetchImpl(this.releasesUrl, {
+        headers: { Accept: 'application/json', 'User-Agent': `Vidalune/${APP_VERSION}` },
         signal: AbortSignal.timeout(10_000),
       });
-      if (!res.ok) throw new Error(`GitHub returned ${res.status}`);
-      const tags = (await res.json()) as { name: string }[];
-      const versions = tags.map((t) => /^v?(\d+\.\d+\.\d+)$/.exec(t.name)?.[1]).filter((v): v is string => Boolean(v));
-      const latest = versions.sort(compareVersions).at(-1) ?? null;
+      if (!res.ok) throw new Error(`vidalune.com returned ${res.status}`);
+      const body = (await res.json()) as { version?: unknown; url?: unknown };
+      const latest = typeof body.version === 'string' && /^\d+\.\d+\.\d+$/.test(body.version) ? body.version : null;
+      const url = typeof body.url === 'string' && /^https?:\/\//.test(body.url) ? body.url : null;
       this.cached = {
         current: APP_VERSION,
         latest,
         available: Boolean(latest && compareVersions(latest, APP_VERSION) > 0),
-        url: latest ? `https://github.com/${this.repo}/releases/tag/v${latest}` : null,
+        url: latest ? url : null,
         checkedAt: now,
       };
     } catch (err) {

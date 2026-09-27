@@ -71,7 +71,7 @@ export type RetiredRef = { id: number; libraryId: number; groupKey: string; tmdb
 /**
  * Keeps watch history and user choices when media is replaced. Two cases:
  *
- * - The file of a movie or episode is swapped within one scan (Radarr/Sonarr upgrades): the item
+ * - The file of a movie or episode is swapped within one scan (a better release swapped in): the item
  *   keeps its id and data; the swap is recorded.
  * - An item disappears entirely (its last file is gone) and comes back later, possibly under a
  *   different file name: its user data is set aside ("retired") and restored when a movie or show

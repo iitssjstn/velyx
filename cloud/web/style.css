@@ -32,3 +32,9 @@ input.inline { display: inline-block; width: auto; margin: 0 0 0 8px; vertical-a
 select { font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
 form.row input { flex: 1; min-width: 200px; margin: 0; }
 form.row { margin-bottom: 16px; }
+main.wide { max-width: 720px; }
+h2 { font-size: 18px; margin: 0 0 8px; }
+pre { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow-x: auto; font-size: 13px; }
+ul, ol { color: var(--muted); padding-left: 20px; }
+li { margin-bottom: 8px; }
+a.button { display: inline-block; text-decoration: none; background: var(--accent); color: var(--accent-ink); font-weight: 600; border-radius: 10px; padding: 10px 16px; }

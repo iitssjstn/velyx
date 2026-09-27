@@ -13,8 +13,10 @@ export type DB = BetterSQLite3Database<typeof schema> & { $client: Database.Data
 
 export function migrationsFolder(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  // Works both from src/db (tsx) and dist/db (compiled): the folder lives in backend/drizzle.
-  return path.resolve(here, '..', '..', 'drizzle');
+  // The folder lives in backend/drizzle: from src/db (tsx) or dist/db (compiled) it is two levels
+  // up, from the release bundle (dist/index.js) one.
+  const nested = path.resolve(here, '..', '..', 'drizzle');
+  return fs.existsSync(path.join(nested, 'meta', '_journal.json')) ? nested : path.resolve(here, '..', 'drizzle');
 }
 
 /** Number of migrations this version of Vidalune ships. */

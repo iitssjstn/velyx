@@ -4,7 +4,7 @@
 
 Vidalune is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.9.8 — **Velyx is now Vidalune**: a new name and logo; existing installations keep working (see [Upgrading from Velyx](#upgrading-from-velyx)). Vidalune is licensed under the PolyForm Noncommercial License 1.0.0 (see [License](#license)). Still built for old hardware: **Vidalune does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
+> Version 0.9.8 — **Velyx is now Vidalune**: a new name and logo; existing installations keep working (see [Upgrading from Velyx](#upgrading-from-velyx)). Vidalune is proprietary software (see [License](#license)). Still built for old hardware: **Vidalune does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
 
 ---
 
@@ -60,7 +60,7 @@ Vidalune is a lightweight, Docker-first, self-hosted media server for movies and
 - **Audio options** — *Boost voices* (clearer dialogue) and *Level volume* (night mode), switchable from the player.
 - **Subtitles your way** — size, colour, background, outline/shadow, position and timing (sync) adjustable from the player; subtitles always stay above the controls.
 - **Subtitles from OpenSubtitles.com (optional)** — with an OpenSubtitles API key set by an administrator, the subtitle menu in the player searches online by itself, in your subtitle language, as soon as you open it. Pick another language from the list, choose a subtitle (the ones made for exactly your file come first) and it plays straight away. Off until a key is added.
-- **Automatic library updates** — library folders are watched; new movies and episodes (e.g. from Radarr/Sonarr) appear about 30 seconds after they land.
+- **Automatic library updates** — library folders are watched; new movies and episodes (for example from your download software) appear about 30 seconds after they land.
 - **Playback compatibility, explained** — before playing, Vidalune checks the file against what the device can decode (codec, 10-bit, HDR) and picks Direct Play or a light remux. When a file cannot play, the player says why (e.g. "This browser cannot decode HEVC video") instead of just failing. A subtle badge shows *Direct Play* or *Remux • Audio converted to AAC*, with details on click.
 - **Continue Watching** — at the top of Home, per user: movies and episodes you started (with season, episode and *32:14 / 48:21*) and the next episode of series you are following. One entry per series, finished plays never appear; a movie or episode you already watched and play again shows up with its own resume point (it stays watched). After watching an earlier episode again, the series continues with the first episode you have not seen. **Resume** goes straight to where you stopped; the ⋯ menu has **Start over**, **Mark as watched** (a series moves on to its next episode) and **Remove** (hidden until you watch it again; your progress is kept).
 - **Movie pages** — backdrop, poster, year, length and quality (*2021 · 2h 35m · 4K HDR*), **Play** or **Resume from 32:14** with *From start*, and the overview. Below it: every **audio** track (*English 5.1 · Dolby Digital+*), every **subtitle** (separate files and the ones inside the video, image-based ones marked as not shown), the **technical** details (*HEVC · 10-bit · HDR10 · 24.0 Mbps*, resolution, frame rate, container, size) and **how it plays on this device** (*Direct Play*, *Remux · Audio → AAC* or why it cannot play). With several versions you pick which one to see. All of this comes from what the library scan stored: opening a page never analyses the file again.
@@ -102,7 +102,13 @@ Vidalune is a lightweight, Docker-first, self-hosted media server for movies and
 
 ## Quick start (Docker)
 
-Create a folder on your server with this `docker-compose.yml`. Change the two media paths on the left of the `:` to where your movies and series are; everything else can stay as it is.
+The install page, **vidalune.com/install**, has everything below (in English and Dutch), a `docker-compose.yml` to download, and a one-line installer for Linux:
+
+```bash
+curl -fsSL https://vidalune.com/get | sh
+```
+
+It asks where your movies and series are, writes the compose file in `~/vidalune` (or `VIDALUNE_DIR`), and starts Vidalune; run it again to update. To set it up by hand instead: create a folder on your server with this `docker-compose.yml`. Change the two media paths on the left of the `:` to where your movies and series are; everything else can stay as it is.
 
 ```yaml
 services:
@@ -164,7 +170,7 @@ These are **not needed** and deliberately not in the compose file. They exist fo
 | `SERVER_URL` | Public address shown to admins (normally set in Admin → Server). |
 | `SESSION_SECRET` | Fixed cookie-signing secret. When unset, one is generated once and stored in `data/.session-secret`. |
 | `VIDALUNE_CLOUD_URL` | The Vidalune account service (default `https://vidalune.com`). Only contacted after an administrator links the server. |
-| `VIDALUNE_UPDATE_REPO` | GitHub repository (`owner/name`) whose version tags announce updates (default `iitssjstn/velyx`; empty disables the check). The old name `VELYX_UPDATE_REPO` still works. |
+| `VIDALUNE_UPDATE_URL` | Where new versions are announced (default: `https://vidalune.com/api/releases/latest`); `off` disables the check. |
 
 
 ### Example with optional settings
@@ -249,7 +255,7 @@ Without a key Vidalune still works: titles come from the file names and a typogr
 - **Manual scans** per library or for all libraries look for new and changed files only. *Re-analyse every file* (in Admin → Libraries) probes every file again, for example after replacing files with the same size and date; it is slower and runs one file at a time like any scan.
 - Very large libraries can hit the Linux limit on watched folders. Vidalune then shows *Auto-update unavailable* and keeps using scheduled scans; raise the limit on the host with `sudo sysctl fs.inotify.max_user_watches=524288` (add it to `/etc/sysctl.conf` to keep it).
 - **Scan issues** lists files FFprobe could not read and episodes without a recognisable number.
-- **Replaced and upgraded media:** when Radarr, Sonarr or you swap a file for a better release, Vidalune keeps the watch progress, watched status, favorites, watchlist and collection entries:
+- **Replaced and upgraded media:** when your download software or you swap a file for a better release, Vidalune keeps the watch progress, watched status, favorites, watchlist and collection entries:
   - Swapped in one go (the usual upgrade), the movie or episode simply keeps everything and Vidalune records the change — the movie page shows *Replaced: 1080p · H.264 · WEB → 2160p · HEVC · HDR10 · Blu-ray*.
   - If the old file disappears first and the new one arrives later — even under a completely different name — Vidalune remembers what users had for 90 days and gives it back as soon as the same title (same name and year, or the same TMDB id) or episode (same show, season and number) returns. A drive that was briefly disconnected is recognised the same way.
   - This also works between libraries: a movie or series moved to another library (for example from *Movies* to *4K Movies* after an upgrade) keeps its history, whichever of the two libraries is scanned first.
@@ -344,7 +350,7 @@ Besides installing the website as an app, Vidalune has its own Android app (for 
 - **Subtitle style** (in the same menu): size (S, M, L, XL), colour (white or yellow), background (none, dimmed or solid), edge (shadow, outline or none) and position (bottom up to +20 %), as on the website. The style is kept on the device and applies to every movie and episode; subtitles move up while the controls are shown. **Sync** shifts subtitles in steps of half a second (+ shows them later, − earlier) for the current playback.
 - Your position is saved on the server while you watch, and when you pause or leave, so you can continue on any device. When the credits of an episode begin while you watch (or in its last seconds), a card offers the next episode with a 10-second countdown; *Watch credits* keeps watching. Jumping into the credits does not start the countdown; then the card comes at the end.
 
-**Installing:** every Vidalune release on GitHub (the *Releases* page of this repository) has the app attached as `vidalune-<version>.apk`. Open that file on your Android phone or tablet and allow installing apps from your browser when Android asks. A newer APK installs over the old one; you stay signed in. The app is not in the Play Store yet.
+**Installing:** download the app on your Android phone or tablet from **vidalune.com/download/app** (also linked from vidalune.com/install). Open the file and allow installing apps from your browser when Android asks. A newer APK installs over the old one; you stay signed in. The app is not in the Play Store yet.
 
 **Connecting:**
 
@@ -399,7 +405,7 @@ Optional, and off until an administrator switches it on in **Admin → Server �
 - **Storage:** total, used and free space on the data volume, and what Vidalune itself uses (database, artwork cache, subtitle cache, subtitles fetched online, avatars, backups). Folder sizes are recalculated at most every 10 minutes to keep disk I/O low.
 - **Low disk space:** below `LOW_DISK_GB` the dashboard warns; below `CRITICAL_DISK_GB` scans and scheduled backups pause automatically and resume when space is available again. Vidalune never deletes media.
 - **Cache clean-up:** remove artwork and extracted subtitles that nothing in the library uses any more (e.g. after deleting media). Artwork that is still needed is kept, and media files are never touched.
-- **Update notices:** Vidalune checks the project's version tags on GitHub at most once a day, only when an administrator opens the dashboard, and sends nothing about your server. Switch it off in Admin → Server.
+- **Update notices:** Vidalune asks vidalune.com for the latest version at most once a day, only when an administrator opens the dashboard, and sends nothing about your server. Switch it off in Admin → Server.
 
 ## Library health
 
@@ -768,9 +774,4 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 
 ## License
 
-Vidalune is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE).
-
-- **Allowed:** using Vidalune for yourself, your household and friends, studying and changing the code, and sharing it (with the license and its `Required Notice` line), all for noncommercial purposes. Charities, schools and other noncommercial organisations may use it too.
-- **Not allowed without written permission:** selling Vidalune, offering it as a paid service, or any other commercial use.
-
-For commercial use, contact the author through the GitHub repository. Versions up to 0.4.6 were published under the MIT license; this license applies from 0.4.7 on.
+Vidalune is proprietary software: all rights reserved (see [LICENSE](LICENSE)). You may install and run Vidalune as published on vidalune.com for yourself and the people you share your server with. Changing it, taking it apart, working around its limits (such as subscriptions and remote access), selling or redistributing it is not allowed without written permission.
