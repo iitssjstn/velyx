@@ -30,8 +30,8 @@ export interface AppConfig {
   scanIntervalMinutes: number;
   /** FFprobe processes allowed at once (scanner + on-demand analysis). 1–4, default 1. */
   scanConcurrency: number;
-  /** GitHub repository ("owner/name") whose tags announce new versions; empty disables the check. */
-  updateRepo: string;
+  /** Where new versions are announced (vidalune.com); empty disables the check. */
+  updateUrl: string;
   /** Free space (GB) on the data volume below which admins are warned. */
   lowDiskGb: number;
   /** Free space (GB) below which scans and scheduled backups pause. */
@@ -86,6 +86,14 @@ function resolveSessionSecret(dataDir: string, fromEnv: string | undefined): str
   return secret;
 }
 
+/** VIDALUNE_UPDATE_URL, else the account service's release announcement ("off": no checks). */
+function updateUrlFrom(env: NodeJS.ProcessEnv): string {
+  const set = env.VIDALUNE_UPDATE_URL?.trim();
+  if (set === 'off' || set === '') return '';
+  if (set) return /^https?:\/\/\S+$/.test(set) ? set : '';
+  return `${(env.VIDALUNE_CLOUD_URL || 'https://vidalune.com').replace(/\/+$/, '')}/api/releases/latest`;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Partial<AppConfig> = {}): AppConfig {
   const dataDir = path.resolve(overrides.dataDir ?? env.DATA_DIR ?? path.join(process.cwd(), 'data'));
   const cacheDir = path.join(dataDir, 'cache');
@@ -93,8 +101,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  // VELYX_UPDATE_REPO: the name before the rename to Vidalune, still honoured.
-  const updateRepo = env.VIDALUNE_UPDATE_REPO ?? env.VELYX_UPDATE_REPO ?? 'iitssjstn/velyx';
   const cookieSecureRaw = (env.COOKIE_SECURE ?? 'auto').toLowerCase();
   // Default: the monorepo layout (backend/dist or backend/src → ../../frontend/dist).
   const frontendCandidate = env.FRONTEND_DIR
@@ -125,7 +131,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
     scanIntervalMinutes: int(env.SCAN_INTERVAL_MINUTES, 360),
     scanConcurrency: Math.min(4, Math.max(1, int(env.SCAN_CONCURRENCY, 1))),
-    updateRepo: /^[\w.-]+\/[\w.-]+$/.test(updateRepo) ? updateRepo : '',
+    updateUrl: updateUrlFrom(env),
     lowDiskGb: Math.max(0, num(env.LOW_DISK_GB, 10)),
     criticalDiskGb: Math.max(0, num(env.CRITICAL_DISK_GB, 2)),
     ffprobePath: env.FFPROBE_PATH || 'ffprobe',

@@ -51,7 +51,7 @@ async function expectUserDataOn(movieId: number, collectionId: number) {
 }
 
 describe('media replacement', () => {
-  it('keeps everything when Radarr swaps the file within one scan, and records the upgrade', async () => {
+  it('keeps everything when download software swaps the file within one scan, and records the upgrade', async () => {
     const { lib, heat, col } = await watchHeat('Heat (1995) 1080p WEB-DL.mkv');
     fs.rmSync(path.join(movieDir(), 'Heat (1995) 1080p WEB-DL.mkv'));
     touch(path.join(movieDir(), 'Heat (1995) 2160p BluRay REMUX.mkv'), 'x'.repeat(5000));

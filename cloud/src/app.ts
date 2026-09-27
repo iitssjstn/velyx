@@ -13,6 +13,7 @@ import type { DB } from './db/client.js';
 import { accountSessions, accounts, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
 import { newSlug, Relay, type Rewrite } from './relay.js';
+import { composeFile, installPage, installScript, pickLanguage } from './install.js';
 
 const DAY = 86_400_000;
 export const SESSION_COOKIE = 'vl_session';
@@ -585,6 +586,57 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     // Taken away: its servers' tunnels close now, not at the next check.
     if (!hasRemote(row)) for (const s of db.select({ id: servers.id }).from(servers).where(eq(servers.accountId, id)).all()) relay.drop(s.id);
     return adminView(row);
+  });
+
+  // ---- installing Vidalune: the page, a compose file, the installer, the app and the latest version
+
+  /** This service is built with every Vidalune release, so its version is the latest one. */
+  const releaseVersion = String((JSON.parse(fs.readFileSync(path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'package.json'), 'utf8')) as { version: string }).version);
+  const APK = /^vidalune-(\d+\.\d+\.\d+)\.apk$/;
+  /** The newest Android app present (null: none in this image). */
+  const latestApk = () => {
+    let files: string[];
+    try {
+      files = fs.readdirSync(config.downloadDir).filter((f) => APK.test(f));
+    } catch {
+      return null;
+    }
+    const v = (f: string) => APK.exec(f)![1].split('.').map(Number);
+    return files.sort((a, b) => {
+      const [x, y] = [v(a), v(b)];
+      return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+    }).at(-1) ?? null;
+  };
+
+  app.get('/api/releases/latest', async (_request, reply) => {
+    reply.header('Cache-Control', 'public, max-age=3600');
+    return { version: releaseVersion, url: `${config.publicUrl}/install`, app: latestApk() ? `${config.publicUrl}/download/app` : null };
+  });
+
+  app.get('/install', async (request, reply) =>
+    reply.type('text/html').header('Cache-Control', 'no-cache').send(installPage(pickLanguage(request.query, request.headers['accept-language']), config.publicUrl, releaseVersion, !!latestApk())),
+  );
+  app.get('/install/docker-compose.yml', async (_request, reply) =>
+    reply.type('text/yaml; charset=utf-8').header('Content-Disposition', 'attachment; filename="docker-compose.yml"').send(composeFile()),
+  );
+  app.get('/get', async (_request, reply) => reply.type('text/plain; charset=utf-8').header('Cache-Control', 'no-cache').send(installScript(config.publicUrl)));
+
+  /** The newest Android app. */
+  app.get('/download/app', async (_request, reply) => {
+    const file = latestApk();
+    if (!file) throw new HttpError(404, 'The Android app is not available for download right now.');
+    return reply.header('Cache-Control', 'no-cache').redirect(`/download/${file}`);
+  });
+  app.get('/download/:file', async (request, reply) => {
+    const { file } = z.object({ file: z.string().regex(APK) }).parse(request.params);
+    const full = path.join(config.downloadDir, file);
+    if (!fs.existsSync(full)) throw new HttpError(404, 'Not found.');
+    return reply
+      .type('application/vnd.android.package-archive')
+      .header('Content-Disposition', `attachment; filename="${file}"`)
+      .header('Content-Length', String(fs.statSync(full).size))
+      .header('Cache-Control', 'public, max-age=86400')
+      .send(fs.createReadStream(full));
   });
 
   // ---- housekeeping and pages

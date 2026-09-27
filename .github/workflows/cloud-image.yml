@@ -8,6 +8,11 @@ on:
     paths: ['cloud/**', 'frontend/**', 'package-lock.json', '.github/workflows/cloud-image.yml']
   pull_request:
     paths: ['cloud/**', 'frontend/**', '.github/workflows/cloud-image.yml']
+  # Once the Android app of a release is built: again, so vidalune.com hands out that app.
+  workflow_run:
+    workflows: ['Android app']
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -20,6 +25,7 @@ concurrency:
 
 jobs:
   image:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +35,13 @@ jobs:
       - name: Version
         id: version
         run: echo "version=$(node -p "require('./cloud/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # The Android app of the newest release, handed out at vidalune.com/download/app.
+      - name: Android app
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download --repo "$GITHUB_REPOSITORY" --pattern 'vidalune-*.apk' --dir cloud/downloads || echo "No Android app released yet."
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
@@ -57,7 +70,7 @@ jobs:
         run: |
           docker run -d --name cloud -p 3100:3100 -e PUBLIC_URL=http://localhost:3100 ghcr.io/${{ github.repository_owner }}/vidalune-cloud:latest
           for i in $(seq 1 20); do
-            if curl -fsS http://localhost:3100/health && curl -fsS http://localhost:3100/ | grep -q account.js; then exit 0; fi
+            if curl -fsS http://localhost:3100/health && curl -fsS http://localhost:3100/ | grep -q account.js && curl -fsS http://localhost:3100/install | grep -q docker-compose; then exit 0; fi
             sleep 2
           done
           docker logs cloud

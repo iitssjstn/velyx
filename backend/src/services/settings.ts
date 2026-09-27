@@ -100,7 +100,7 @@ export interface ServerSettings {
   backupKeepDaily: number;
   backupKeepWeekly: number;
   backupKeepMonthly: number;
-  /** Look for new Vidalune versions (GitHub tags) at most once a day. */
+  /** Look for new Vidalune versions (vidalune.com) at most once a day. */
   updateCheck: boolean;
   /** Minutes between scheduled scans (0 = off); null = SCAN_INTERVAL_MINUTES from the environment. */
   scanIntervalMinutes: number | null;

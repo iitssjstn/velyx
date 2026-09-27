@@ -67,7 +67,7 @@ describe('playback decisions', () => {
   });
 });
 
-describe('audio options (Plex-style)', () => {
+describe('audio options', () => {
   it('keeps 5.1 surround when asked, never upmixes and folds 7.1 into 5.1', () => {
     expect(outputChannels(6, 'surround')).toBe(6);
     expect(outputChannels(8, 'surround')).toBe(6);

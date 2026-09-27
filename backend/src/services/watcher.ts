@@ -16,7 +16,7 @@ export interface WatchStatus {
 
 /**
  * Watches library folders and queues an incremental scan shortly after files change, so items that
- * Radarr/Sonarr (or you) add show up within a minute instead of at the next scheduled scan.
+ * download software (or you) add show up within a minute instead of at the next scheduled scan.
  *
  * Events are debounced per library: a large file that is still being copied keeps producing events,
  * and the scan only runs once the folder has been quiet for `debounceMs`. When the OS refuses a watch

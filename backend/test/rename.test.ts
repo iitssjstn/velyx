@@ -25,12 +25,13 @@ describe('the rename from Velyx', () => {
     expect(clientProfile('VidaluneApp/0.9.8 (Android 15; Pixel 8)')).toMatchObject({ family: 'app', browser: 'Vidalune app' });
   });
 
-  it('honours the old name of the update setting', () => {
+  it('asks vidalune.com for new versions (also with the old update setting still set)', () => {
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-config-'));
     try {
-      expect(loadConfig({ DATA_DIR: dataDir, VELYX_UPDATE_REPO: 'someone/old' }).updateRepo).toBe('someone/old');
-      expect(loadConfig({ DATA_DIR: dataDir, VIDALUNE_UPDATE_REPO: 'someone/new', VELYX_UPDATE_REPO: 'someone/old' }).updateRepo).toBe('someone/new');
-      expect(loadConfig({ DATA_DIR: dataDir }).updateRepo).toBe('iitssjstn/velyx');
+      expect(loadConfig({ DATA_DIR: dataDir, VELYX_UPDATE_REPO: 'someone/old' }).updateUrl).toBe('https://vidalune.com/api/releases/latest');
+      expect(loadConfig({ DATA_DIR: dataDir, VIDALUNE_CLOUD_URL: 'https://example.test/' }).updateUrl).toBe('https://example.test/api/releases/latest');
+      expect(loadConfig({ DATA_DIR: dataDir, VIDALUNE_UPDATE_URL: 'off' }).updateUrl).toBe('');
+      expect(loadConfig({ DATA_DIR: dataDir, VIDALUNE_UPDATE_URL: 'ftp://nope' }).updateUrl).toBe('');
     } finally {
       fs.rmSync(dataDir, { recursive: true, force: true });
     }
