@@ -32,8 +32,9 @@ networks:
 In Nginx Proxy Manager add a proxy host for `vidalune.com` → `vidalune-cloud`, port `3100`, with
 *Websockets support* on and an SSL certificate (Force SSL). The other domains (vidalune.nl, .online,
 .store, .site) can redirect to `https://vidalune.com` with a redirection host. `app.vidalune.com` and
-`www.vidalune.com` need nothing of their own: through the `*.vidalune.com` host below they show the
-same pages (sign in, your servers).
+`www.vidalune.com` need nothing of their own: they are reached through the `*.vidalune.com` host
+below. `www.vidalune.com` shows the same pages as `vidalune.com`; `app.vidalune.com` is the web
+interface (see *app.vidalune.com* below).
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -42,6 +43,7 @@ same pages (sign in, your servers).
 | `PORT` | `3100` | Port inside the container. |
 | `DATA_DIR` | `/data` | Folder of `cloud.db`. |
 | `RELAY_DOMAIN` | host of `PUBLIC_URL` | Relay addresses are `<name>.<RELAY_DOMAIN>`. |
+| `FRONTEND_DIR` | `frontend/dist` in the image | The web interface app.vidalune.com shows (built into the image). |
 | `ADMIN_EMAILS` | (none) | Accounts (email addresses, comma-separated) that may use the admin page. They always have remote access themselves. |
 
 ## Remote access and the admin page
@@ -80,5 +82,22 @@ In Nginx Proxy Manager:
 
    Hosts you set up yourself take precedence over the wildcard (remove an older redirect for
    `app.vidalune.com`: the service answers there itself).
+
+## app.vidalune.com
+
+app.vidalune.com shows the Vidalune web interface for a server you use, without going to that
+server's own address:
+
+- Its account pages (sign in, your servers) are under `app.vidalune.com/_vl/`. With one server it is
+  opened right away; with several you choose, and the choice is remembered (cookie `vl_server`).
+- The web interface itself (HTML, scripts, styles) always comes from this service, built into the
+  image: never from a server. Only `/api/…` and `/sso` are passed to the chosen server, through its
+  relay, and only while the account may open it and its owner has remote access.
+- Cookies a server sets there are kept per server (renamed with a prefix for that server), and a
+  server never receives the account service's cookies. Its answers get a policy that keeps them from
+  running as pages of their own (`Content-Security-Policy: default-src 'none'; sandbox`).
+
+So a server is shown on app.vidalune.com only when its relay is on. Servers without it open at their
+own address, as before.
 
 Migrations run on start. `GET /health` answers `{"status":"ok"}`.

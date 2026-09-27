@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Cloud } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
@@ -7,6 +7,7 @@ import type { User } from '../lib/types';
 import { Button } from '../components/Button';
 import { useT } from '../i18n';
 import { AuthShell } from './AuthShell';
+import { onVidaluneApp, openWithVidalune, serversPage, shouldAutoOpen } from '../lib/vidalune';
 
 export function LoginPage() {
   const { setUser, server } = useAuth();
@@ -18,6 +19,11 @@ export function LoginPage() {
   // Back from app.vidalune.com without being signed in: say why.
   const [params] = useSearchParams();
   const vidalune = params.get('vidalune');
+  // On app.vidalune.com: signed in with the Vidalune account right away (the server chosen there).
+  const onApp = onVidaluneApp(server?.vidalune?.appUrl);
+  useEffect(() => {
+    if (onApp && !vidalune && shouldAutoOpen()) openWithVidalune();
+  }, [onApp, vidalune]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -60,7 +66,14 @@ export function LoginPage() {
         </Button>
       </form>
       {server?.vidalune && (
-        <a href={`${server.vidalune.appUrl}/servers?choose`} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-raised text-sm font-medium hover:bg-raised/80">
+        <a
+          href={onApp ? '/_vl/open' : serversPage(server.vidalune.appUrl)}
+          onClick={(e) => {
+            if (!onApp) return;
+            e.preventDefault();
+            openWithVidalune();
+          }}
+          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-raised text-sm font-medium hover:bg-raised/80">
           <Cloud className="size-4 text-accent" aria-hidden="true" />
           {t('auth.withVidalune')}
         </a>

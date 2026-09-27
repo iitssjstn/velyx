@@ -12,10 +12,16 @@ import type { CloudConfig } from './config.js';
 import type { DB } from './db/client.js';
 import { accountSessions, accounts, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
-import { newSlug, Relay } from './relay.js';
+import { newSlug, Relay, type Rewrite } from './relay.js';
 
 const DAY = 86_400_000;
 export const SESSION_COOKIE = 'vl_session';
+/** app.vidalune.com: the server this browser chose (its pages and API are passed through to it). */
+export const SERVER_COOKIE = 'vl_server';
+/** app.vidalune.com's own account pages live under this path; everything else is the chosen server. */
+export const APP_PREFIX = '/_vl';
+/** The web interface on app.vidalune.com gets the same policy as on a Vidalune server itself. */
+const APP_CSP = "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'";
 const SESSION_DAYS = 30;
 /** The Vidalune app stays signed in longer than a browser. */
 const APP_SESSION_DAYS = 180;
@@ -83,6 +89,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const hasRemote = (a: typeof accounts.$inferSelect | undefined): boolean => !!a && (isAdmin(a) || (a.plan === 'remote' && (a.planUntil === null || a.planUntil > now())));
   const ownerHasRemote = (accountId: number | null): boolean => accountId !== null && hasRemote(db.select().from(accounts).where(eq(accounts.id, accountId)).get());
   const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops, allowed: ownerHasRemote });
+  /** app.vidalune.com: the Vidalune web interface for whichever server its visitor chose. */
+  const appHost = `app.${config.relayDomain}`;
+  const isAppHost = (req: http.IncomingMessage) => String(req.headers.host ?? '').toLowerCase().replace(/:\d+$/, '') === appHost;
   const app = Fastify({
     trustProxy: (_addr: string, hop: number) => hop < hops,
     bodyLimit: 64 * 1024,
@@ -91,21 +100,105 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     serverFactory: (handler) => {
       const server = http.createServer((req, res) => {
         const slug = relay.slugOf(req);
-        if (slug) relay.handleRequest(req, res, slug);
-        else handler(req, res);
+        if (slug) return relay.handleRequest(req, res, slug);
+        if (isAppHost(req) && config.frontendDir) {
+          const url = req.url ?? '/';
+          if (url === APP_PREFIX || url.startsWith(`${APP_PREFIX}?`)) {
+            res.writeHead(302, { Location: `${APP_PREFIX}/${url.slice(APP_PREFIX.length)}` }).end();
+            return;
+          }
+          // The account pages (sign in, choose a server) are this service itself…
+          if (url.startsWith(`${APP_PREFIX}/`)) req.url = url.slice(APP_PREFIX.length);
+          // …the chosen server's API goes through its tunnel…
+          else if (/^\/(api\/|sso(\?|$))/.test(url)) return proxyToChosen(req, res);
+          // …and the rest is the Vidalune web interface, from here (never a server's own files).
+          else req.url = `/_app${url}`;
+        }
+        handler(req, res);
       });
       server.on('upgrade', (req, socket, head) => relay.handleUpgrade(req, socket, head));
       return server;
     },
   });
   app.decorate('relay', relay);
+
+  /** The account signed in with a session token (null: none, or expired). */
+  const accountByToken = (token: string | undefined) => {
+    if (!token) return null;
+    const session = db.select().from(accountSessions).where(and(eq(accountSessions.tokenHash, sha256(token)), gt(accountSessions.expiresAt, now()))).get();
+    return session ? (db.select().from(accounts).where(eq(accounts.id, session.accountId)).get() ?? null) : null;
+  };
+
+  /** Cookies of a request not (yet) parsed by Fastify: those passed through app.vidalune.com. */
+  const cookiesOf = (req: http.IncomingMessage): Array<[string, string]> =>
+    String(req.headers.cookie ?? '')
+      .split(';')
+      .map((c) => c.trim())
+      .filter(Boolean)
+      .map((c) => {
+        const i = c.indexOf('=');
+        return i < 0 ? [c, ''] : [c.slice(0, i), c.slice(i + 1)];
+      });
+
+  /** Cookies a server sets on app.vidalune.com are kept apart per server under this prefix. */
+  const cookiePrefix = (serverId: string) => `s${serverId.replace(/[^a-z0-9]/gi, '').slice(0, 12)}_`;
+
+  /** app.vidalune.com: who is visiting, and the server they chose there, if they may open it through the relay. */
+  const chosenServer = (token: string | undefined, serverId: string | undefined) => {
+    const me = accountByToken(token);
+    if (!me || !serverId) return { me, server: null };
+    const server = accessible(me.id).find((s) => s.id === serverId && s.relayUrl) ?? null;
+    return { me, server };
+  };
+
+  /** Passes /api and /sso on app.vidalune.com to the chosen server, through its tunnel. */
+  function proxyToChosen(req: http.IncomingMessage, res: http.ServerResponse) {
+    const cookies = cookiesOf(req);
+    const get = (name: string) => cookies.find(([n]) => n === name)?.[1];
+    const { me, server } = chosenServer(get(SESSION_COOKIE), get(SERVER_COOKIE));
+    if (!server) {
+      if ((req.url ?? '').startsWith('/sso')) {
+        res.writeHead(302, { Location: `${APP_PREFIX}/servers${me ? '?choose' : ''}` }).end();
+      } else {
+        res.writeHead(401, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ error: 'Choose a server on app.vidalune.com first.' }));
+      }
+      return;
+    }
+    const prefix = cookiePrefix(server.id);
+    const rewrite: Rewrite = {
+      // Only this server's own cookies, under their own names; never the account service's.
+      request: (headers) => {
+        const own = cookies.filter(([n]) => n.startsWith(prefix)).map(([n, v]) => `${n.slice(prefix.length)}=${v}`);
+        if (own.length) headers.cookie = own.join('; ');
+        else delete headers.cookie;
+      },
+      response: (headers) => {
+        const set = headers['set-cookie'];
+        if (set) {
+          headers['set-cookie'] = (Array.isArray(set) ? set : [set]).map((c) =>
+            `${prefix}${c.trim()}`
+              .split(';')
+              // Kept to app.vidalune.com itself; "Secure" only where visitors come over https.
+              .filter((part) => !/^\s*domain=/i.test(part) && (secureCookie || !/^\s*secure\s*$/i.test(part)))
+              .join(';'),
+          );
+        }
+        // What a server answers is data for the web interface, never a page of its own here.
+        headers['content-security-policy'] = "default-src 'none'; sandbox";
+        headers['x-content-type-options'] = 'nosniff';
+      },
+    };
+    if (!relay.forwardTo(server.id, req, res, rewrite)) {
+      res.writeHead(502, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ error: 'This Vidalune server cannot be reached through the relay right now. It may be off or offline.' }));
+    }
+  }
   app.addHook('onClose', async () => relay.close());
   const limiter = new RateLimiter(10, 60_000);
   const secureCookie = config.publicUrl.startsWith('https://');
 
   await app.register(fastifyCookie);
   await app.register(fastifyHelmet, {
-    contentSecurityPolicy: { directives: { defaultSrc: ["'self'"], imgSrc: ["'self'", 'data:'], styleSrc: ["'self'"], scriptSrc: ["'self'"], connectSrc: ["'self'", 'https:', 'http:'], formAction: ["'self'"], frameAncestors: ["'none'"] } },
+    contentSecurityPolicy: { directives: { defaultSrc: ["'self'"], imgSrc: ["'self'", 'data:'], styleSrc: ["'self'"], scriptSrc: ["'self'"], connectSrc: ["'self'", 'https:', 'http:'], formAction: ["'self'"], frameAncestors: ["'none'"], upgradeInsecureRequests: secureCookie ? [] : null } },
   });
 
   // Browsers only: state-changing requests must come from our own pages (no form posts from elsewhere).
@@ -150,11 +243,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   };
 
   function account(request: FastifyRequest) {
-    const token = sessionToken(request);
-    if (!token) throw new HttpError(401, 'Sign in first.');
-    const session = db.select().from(accountSessions).where(and(eq(accountSessions.tokenHash, sha256(token)), gt(accountSessions.expiresAt, now()))).get();
-    if (!session) throw new HttpError(401, 'Sign in first.');
-    return db.select().from(accounts).where(eq(accounts.id, session.accountId)).get()!;
+    const me = accountByToken(sessionToken(request));
+    if (!me) throw new HttpError(401, 'Sign in first.');
+    return me;
   }
 
   app.post('/api/account', async (request, reply) => {
@@ -245,11 +336,32 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const { id } = z.object({ id: z.string().max(64) }).parse(request.params);
     const s = accessible(me.id).find((x) => x.id === id);
     if (!s) throw new HttpError(404, 'Not found.');
+    return { ticket: newTicket(id, me.id), addresses: [s.url, s.relayUrl].filter(Boolean) };
+  });
+
+  function newTicket(serverId: string, accountId: number): string {
     const ticket = newToken();
     const t = now();
     db.delete(tickets).where(lt(tickets.expiresAt, t)).run();
-    db.insert(tickets).values({ ticketHash: sha256(ticket), serverId: id, accountId: me.id, expiresAt: t + TICKET_MS }).run();
-    return { ticket, addresses: [s.url, s.relayUrl].filter(Boolean) };
+    db.insert(tickets).values({ ticketHash: sha256(ticket), serverId, accountId, expiresAt: t + TICKET_MS }).run();
+    return ticket;
+  }
+
+  /**
+   * app.vidalune.com/_vl/open?server=…: this browser uses that server from now on (remembered), and
+   * is signed in there with a ticket. Without a server: the one chosen before.
+   */
+  app.get('/open', async (request, reply) => {
+    if (!isAppHost(request.raw) || !config.frontendDir) throw new HttpError(404, 'Not found.');
+    const { server: wanted } = z.object({ server: z.string().max(64).optional() }).parse(request.query);
+    const me = accountByToken(sessionToken(request));
+    if (!me) return reply.redirect(`${APP_PREFIX}/`);
+    const id = wanted ?? request.cookies[SERVER_COOKIE];
+    const s = id ? accessible(me.id).find((x) => x.id === id) : undefined;
+    // Not (any more) theirs, or not reachable through the relay: choose again.
+    if (!s || !s.relayUrl || !relay.connected(s.id)) return reply.redirect(`${APP_PREFIX}/servers?choose${s ? `&offline=${encodeURIComponent(s.id)}` : ''}`);
+    reply.setCookie(SERVER_COOKIE, s.id, { path: '/', httpOnly: true, sameSite: 'lax', secure: secureCookie, maxAge: 365 * 86_400 });
+    return reply.header('Cache-Control', 'no-store').redirect(`/sso?ticket=${encodeURIComponent(newTicket(s.id, me.id))}`);
   });
 
   /** Someone who uses a server connects their Vidalune account with the code it showed them. */
@@ -504,7 +616,39 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     app.get('/join', page);
     app.get('/admin', page);
   }
-  app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: 'Not found.' }));
+  const frontendDir = config.frontendDir;
+  if (frontendDir) {
+    // app.vidalune.com's web interface (requests there are rewritten to /_app/…; see serverFactory).
+    await app.register(fastifyStatic, {
+      root: frontendDir,
+      prefix: '/_app/',
+      index: false,
+      wildcard: true,
+      decorateReply: !config.webDir,
+      preCompressed: true,
+      allowedPath: (pathName, _root, request) => isAppHost(request.raw) && pathName !== '/index.html',
+      setHeaders: (reply, file) => {
+        reply.header('Cache-Control', /[/\\]assets[/\\]/.test(file) ? 'public, max-age=31536000, immutable' : 'no-cache');
+        reply.header('Content-Security-Policy', APP_CSP);
+      },
+    });
+  }
+  /** A page of the web interface: the app itself, once there is a server to show; else choose one. */
+  const appPage = (request: FastifyRequest, reply: FastifyReply) => {
+    const { server } = chosenServer(request.cookies[SESSION_COOKIE], request.cookies[SERVER_COOKIE]);
+    if (!server) return reply.redirect(`${APP_PREFIX}/servers`);
+    return reply.type('text/html').header('Cache-Control', 'no-cache').header('Content-Security-Policy', APP_CSP).send(fs.readFileSync(path.join(frontendDir!, 'index.html')));
+  };
+  if (frontendDir) {
+    app.get('/_app/', async (request, reply) => {
+      if (!isAppHost(request.raw)) throw new HttpError(404, 'Not found.');
+      return appPage(request, reply);
+    });
+  }
+  app.setNotFoundHandler((request, reply) => {
+    if (frontendDir && request.method === 'GET' && request.url.startsWith('/_app/') && isAppHost(request.raw)) return appPage(request, reply);
+    return reply.code(404).send({ error: 'Not found.' });
+  });
 
   return app;
 }

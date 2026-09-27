@@ -7,7 +7,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
-import { buildCloudApp, SESSION_COOKIE } from '../src/app.js';
+import { buildCloudApp, SERVER_COOKIE, SESSION_COOKIE } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
 import { accounts, servers } from '../src/db/schema.js';
@@ -53,15 +53,18 @@ async function until(check: () => boolean, ms = 5000) {
 
 beforeEach(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-relay-'));
-  const config = loadConfig({ DATA_DIR: dir, PUBLIC_URL: 'http://relay.test', TRUST_PROXY: '1', ADMIN_EMAILS: 'boss@example.com' }, { webDir: null });
+  frontend = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-frontend-'));
+  fs.writeFileSync(path.join(frontend, 'index.html'), '<!doctype html><title>Vidalune</title>');
+  fs.writeFileSync(path.join(frontend, 'big.bin'), big);
+  fs.mkdirSync(path.join(frontend, 'assets'));
+  fs.writeFileSync(path.join(frontend, 'assets', 'app-1234.js'), 'console.log("vidalune")');
+  // The account pages (web/) and the web interface: app.relay.test serves both.
+  const config = loadConfig({ DATA_DIR: dir, PUBLIC_URL: 'http://relay.test', TRUST_PROXY: '1', ADMIN_EMAILS: 'boss@example.com', FRONTEND_DIR: frontend });
   db = openDatabase(config.dbPath);
   cloud = await buildCloudApp(config, db);
   await cloud.listen({ port: 0, host: '127.0.0.1' });
   cloudPort = (cloud.server.address() as AddressInfo).port;
 
-  frontend = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-frontend-'));
-  fs.writeFileSync(path.join(frontend, 'index.html'), '<!doctype html><title>Vidalune</title>');
-  fs.writeFileSync(path.join(frontend, 'big.bin'), big);
   env = await createTestEnv({ frontendDir: frontend });
   await env.app.listen({ port: 0, host: '127.0.0.1' });
   serverPort = (env.app.server.address() as AddressInfo).port;
@@ -199,5 +202,70 @@ describe('the relay', () => {
     // The server's addresses on vidalune.com no longer include the relay.
     const { addresses } = (await cloud.inject({ method: 'POST', url: `/api/servers/${s.id}/open`, headers: { cookie: s.cookie } })).json();
     expect(addresses).toEqual([]);
+  });
+
+  it('shows the web interface on app.<domain> for the chosen server, through its relay', async () => {
+    const s = await linkedServerWithRelay();
+    client.start(s.auth);
+    await until(() => cloud.relay.connected(s.id));
+    const app = 'app.relay.test';
+
+    // Nothing chosen (or not signed in): the account pages under /_vl, never a server's answer.
+    expect((await get(app, '/')).headers.location).toBe('/_vl/servers');
+    expect((await get(app, '/_vl')).headers.location).toBe('/_vl/');
+    const page = await get(app, '/_vl/servers');
+    expect(page.status).toBe(200);
+    expect(page.body.toString()).toContain('src="account.js"');
+    expect((await get(app, '/_vl/account.js')).status).toBe(200);
+    expect((await get(app, '/api/server/info')).status).toBe(401);
+    expect((await get(app, '/sso?ticket=x')).headers.location).toBe('/_vl/servers');
+    // The files of the web interface come from the account service itself.
+    const asset = await get(app, '/assets/app-1234.js');
+    expect(asset.body.toString()).toContain('vidalune');
+    expect(asset.headers['cache-control']).toContain('immutable');
+
+    // Choosing the server: remembered in a cookie, then signed in there with a ticket.
+    const opened = await get(app, `/_vl/open?server=${s.id}`, { cookie: s.cookie });
+    expect(opened.status).toBe(302);
+    expect(opened.headers.location).toMatch(/^\/sso\?ticket=[\w-]{20,}$/);
+    const chosen = String(opened.headers['set-cookie']).match(new RegExp(`${SERVER_COOKIE}=([^;]+)`))![1];
+    expect(chosen).toBe(s.id);
+    const cookies = `${s.cookie}; ${SERVER_COOKIE}=${s.id}`;
+    // Next time without naming it: the same server.
+    expect((await get(app, '/_vl/open', { cookie: cookies })).headers.location).toMatch(/^\/sso\?ticket=/);
+
+    // Now the app itself, and the server's API through the tunnel.
+    const home = await get(app, '/library/1', { cookie: cookies });
+    expect(home.body.toString()).toContain('<title>Vidalune</title>');
+    expect(home.headers['content-security-policy']).toContain("media-src 'self' blob:");
+    const info = await get(app, '/api/server/info', { cookie: cookies });
+    expect(info.status).toBe(200);
+    expect(JSON.parse(info.body.toString())).toMatchObject({ product: 'Vidalune' });
+    expect(info.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
+
+    // The server's cookies are kept under its own prefix, and it never sees the account service's.
+    const setup = await get(app, '/api/setup', { cookie: cookies, 'content-type': 'application/json', origin: 'http://app.relay.test' }, 'POST', JSON.stringify({ username: 'justin', password: 'correct-horse' }));
+    expect(setup.status).toBe(200);
+    const serverCookie = String(setup.headers['set-cookie']);
+    expect(serverCookie).toMatch(/^s[0-9a-f]{12}_\w+_session=/);
+    expect(serverCookie).not.toMatch(/domain=/i);
+    const own = serverCookie.split(';')[0];
+    const me = await get(app, '/api/auth/me', { cookie: `${cookies}; ${own}` });
+    expect(me.status).toBe(200);
+    expect((await get(app, '/api/auth/me', { cookie: cookies })).status).toBe(401);
+
+    // Someone else's server cannot be chosen; nor can one without remote access any more.
+    const other = await signUpAs('other@example.com');
+    expect((await get(app, `/_vl/open?server=${s.id}`, { cookie: other })).headers.location).toBe('/_vl/servers?choose');
+    expect((await get(app, '/api/server/info', { cookie: `${other}; ${SERVER_COOKIE}=${s.id}` })).status).toBe(401);
+    await cloud.inject({ method: 'PUT', url: `/api/admin/accounts/${s.accountId}/plan`, headers: { cookie: s.bossCookie }, payload: { plan: 'free' } });
+    expect((await get(app, '/api/server/info', { cookie: cookies })).status).toBe(401);
+    expect((await get(app, '/', { cookie: cookies })).headers.location).toBe('/_vl/servers');
+  });
+
+  it('keeps app.<domain> pages to that host', async () => {
+    expect((await get('relay.test', '/_app/index.html')).status).toBe(404);
+    expect((await get('relay.test', '/_app/assets/app-1234.js')).status).toBe(404);
+    expect((await get('relay.test', '/open?server=x')).status).toBe(404);
   });
 });
