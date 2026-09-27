@@ -2,7 +2,8 @@ import { FlatList, RefreshControl, Text } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { renderPoster, useGrid } from '../../components/media';
-import { ErrorState, Loading, styles } from '../../components/ui';
+import { GridSkeleton } from '../../components/Skeleton';
+import { ErrorState, styles } from '../../components/ui';
 import { useSession } from '../../lib/session';
 import { colors } from '../../lib/theme';
 import type { Card } from '../../lib/types';
@@ -19,7 +20,7 @@ export default function SavedList() {
     <>
       <Stack.Screen options={{ title }} />
       {q.isLoading ? (
-        <Loading />
+        <GridSkeleton />
       ) : q.error || !q.data ? (
         <ErrorState error={q.error} onRetry={() => void q.refetch()} />
       ) : (
