@@ -18,3 +18,7 @@ media/
 .idea/
 .vscode/
 *.swp
+
+# Local runs from a package folder
+**/data/*
+!data/.gitkeep
