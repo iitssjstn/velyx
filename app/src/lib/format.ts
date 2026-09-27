@@ -34,3 +34,13 @@ export function progressFraction(p: { positionSec: number; durationSec: number }
   if (!p || !p.durationSec) return 0;
   return Math.min(1, Math.max(0, p.positionSec / p.durationSec));
 }
+
+/** "5 min ago" as a message key and number, for a moment `ms` before `now`. */
+export function ago(ms: number, now: number): { key: 'time.justNow' | 'time.minutes' | 'time.hours' | 'time.days'; n: number } {
+  const minutes = Math.max(0, Math.floor((now - ms) / 60_000));
+  if (minutes < 1) return { key: 'time.justNow', n: 0 };
+  if (minutes < 60) return { key: 'time.minutes', n: minutes };
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return { key: 'time.hours', n: hours };
+  return { key: 'time.days', n: Math.floor(hours / 24) };
+}

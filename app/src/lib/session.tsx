@@ -36,6 +36,10 @@ interface SessionValue {
   setServer(url: string, info: ServerInfo): Promise<void>;
   forgetServer(): Promise<void>;
   signIn(token: string, user: User): Promise<void>;
+  /** The account after a change (name, language) — kept on the device too. */
+  updateUser(user: User): Promise<void>;
+  /** The server stopped accepting this device's sign-in (signed out elsewhere, password changed, account disabled). */
+  sessionEnded: boolean;
   /** Ends the session here (and on the server, when it can be reached). */
   signOut(): Promise<void>;
 }
@@ -49,6 +53,7 @@ const USER_AGENT = appUserAgent(APP_VERSION, Platform.OS === 'ios' ? 'iOS' : 'An
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [stored, setStored] = useState<Stored | null>(null);
+  const [sessionEnded, setSessionEnded] = useState(false);
 
   useEffect(() => {
     SecureStore.getItemAsync(STORE_KEY)
@@ -72,11 +77,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         baseUrl: stored?.serverUrl ?? '',
         token: stored?.token ?? null,
         userAgent: USER_AGENT,
-        // Signed out elsewhere (or the account was disabled): back to the sign-in screen.
-        onUnauthorized: () => void save(stored ? { ...stored, token: null, user: null } : null),
+        // Signed out elsewhere (or the account was disabled): back to the sign-in screen, which says so.
+        onUnauthorized: () => {
+          setSessionEnded(true);
+          void save(stored ? { ...stored, token: null, user: null } : null);
+        },
       }),
     [stored, save],
   );
+
+  // The account as the server knows it now (the name or language may have changed on the website).
+  const signedIn = Boolean(stored?.token && stored.user);
+  useEffect(() => {
+    if (!signedIn) return;
+    let alive = true;
+    api
+      .get<{ user: User }>('/api/auth/me')
+      .then(({ user }) => {
+        if (alive && stored && JSON.stringify(user) !== JSON.stringify(stored.user)) void save({ ...stored, user });
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+    // Once per sign-in (and app start), not after every change of the stored session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn, stored?.token]);
 
   const value: SessionValue = {
     ready,
@@ -84,7 +110,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     serverName: stored?.serverName ?? null,
     serverVersion: stored?.serverVersion ?? null,
     user: stored?.user ?? null,
-    signedIn: Boolean(stored?.token && stored.user),
+    signedIn,
+    sessionEnded,
     api,
     deviceName: DEVICE_NAME,
     appVersion: APP_VERSION,
@@ -92,7 +119,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     language,
     setServer: (url, info) => save({ serverUrl: url, serverName: info.name, serverVersion: info.version, token: null, user: null }),
     forgetServer: () => save(null),
-    signIn: (token, user) => save(stored ? { ...stored, token, user } : null),
+    signIn: (token, user) => {
+      setSessionEnded(false);
+      return save(stored ? { ...stored, token, user } : null);
+    },
+    updateUser: (user) => save(stored ? { ...stored, user } : null),
     signOut: async () => {
       try {
         await api.post('/api/auth/logout');

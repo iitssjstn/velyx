@@ -11,7 +11,7 @@ import { colors, radius } from '../lib/theme';
 type Mode = 'password' | 'code';
 
 export default function SignIn() {
-  const { t, serverName, serverUrl, forgetServer } = useSession();
+  const { t, serverName, serverUrl, forgetServer, sessionEnded } = useSession();
   const [mode, setMode] = useState<Mode>('password');
   return (
     <SafeAreaView style={styles.screen}>
@@ -22,6 +22,11 @@ export default function SignIn() {
             <Text style={styles.title} accessibilityRole="header">{t('signIn.title', { server: serverName ?? 'Velyx' })}</Text>
             <Text style={styles.muted}>{serverUrl}</Text>
           </View>
+          {sessionEnded && (
+            <Text style={[styles.body, { color: colors.ink, backgroundColor: colors.raised, borderRadius: radius.md, padding: 12 }]} accessibilityRole="alert">
+              {t('signIn.sessionEnded')}
+            </Text>
+          )}
           <View style={{ flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.pill, padding: 4 }} accessibilityRole="tablist">
             {(['password', 'code'] as const).map((m) => (
               <Pressable
