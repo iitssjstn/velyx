@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View, type TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Field, styles } from '../components/ui';
@@ -55,6 +55,7 @@ function PasswordForm() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const passwordRef = useRef<TextInput>(null);
   const submit = async () => {
     setBusy(true);
     setError(null);
@@ -70,8 +71,8 @@ function PasswordForm() {
   };
   return (
     <View style={{ gap: 16 }}>
-      <Field label={t('signIn.username')} value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} autoComplete="username" textContentType="username" returnKeyType="next" />
-      <Field label={t('signIn.password')} value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" textContentType="password" returnKeyType="go" onSubmitEditing={() => void submit()} />
+      <Field label={t('signIn.username')} value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} autoComplete="username" textContentType="username" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => passwordRef.current?.focus()} />
+      <Field ref={passwordRef} label={t('signIn.password')} value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" textContentType="password" returnKeyType="go" onSubmitEditing={() => void submit()} />
       {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
       <Button label={t('signIn.button')} onPress={() => void submit()} busy={busy} disabled={!username.trim() || !password} />
     </View>

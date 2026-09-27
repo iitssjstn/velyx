@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { PanResponder, View, type LayoutChangeEvent } from 'react-native';
+import { seekTarget } from '../lib/seek';
 import { colors } from '../lib/theme';
 
 /**
@@ -12,24 +13,30 @@ export function SeekBar({ position, duration, onScrub, onSeek, label }: { positi
   const latest = useRef({ duration, onScrub, onSeek });
   latest.current = { duration, onScrub, onSeek };
   // The responder below is created once, so it reads the current duration through the ref.
-  const at = (x: number) => Math.max(0, Math.min(1, x / width.current)) * latest.current.duration;
+  const at = (x: number) => seekTarget(x, 0, width.current, latest.current.duration);
 
+  // Where the finger went down; moves are added to it. (The touch's own x is measured against
+  // whichever view is under the finger, so it jumps while dragging over the thumb or the track.)
+  const startX = useRef(0);
   const responder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
+      // Keep the drag when the finger wanders off the bar.
+      onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (e) => {
-        const t = at(e.nativeEvent.locationX);
+        startX.current = e.nativeEvent.locationX;
+        const t = at(startX.current);
         setDrag(t);
         latest.current.onScrub(t);
       },
-      onPanResponderMove: (e) => {
-        const t = at(e.nativeEvent.locationX);
+      onPanResponderMove: (_e, g) => {
+        const t = at(startX.current + g.dx);
         setDrag(t);
         latest.current.onScrub(t);
       },
-      onPanResponderRelease: (e) => {
-        const t = at(e.nativeEvent.locationX);
+      onPanResponderRelease: (_e, g) => {
+        const t = at(startX.current + g.dx);
         setDrag(null);
         latest.current.onScrub(null);
         latest.current.onSeek(t);
@@ -54,7 +61,7 @@ export function SeekBar({ position, duration, onScrub, onSeek, label }: { positi
       style={{ height: 36, justifyContent: 'center' }}
       {...responder.panHandlers}
     >
-      <View style={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)' }}>
+      <View pointerEvents="none" style={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)' }}>
         <View style={{ height: 4, borderRadius: 2, width: `${fraction * 100}%`, backgroundColor: colors.accent }} />
       </View>
       <View

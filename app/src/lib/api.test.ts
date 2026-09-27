@@ -22,6 +22,8 @@ describe('API client', () => {
     expect(calls[0]!.init.body).toBe('{"movieId":3}');
     // Images and video get the same headers.
     expect(api.headers()).toEqual({ Authorization: 'Bearer abc', 'User-Agent': 'VelyxApp/0.8.1 (Android 15; Pixel 8)' });
+    // The same object every time, so images do not load again on every render.
+    expect(api.headers()).toBe(api.headers());
     expect(api.url('/api/images/w342/a.jpg')).toBe('http://velyx.local/api/images/w342/a.jpg');
   });
 
