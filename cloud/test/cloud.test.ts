@@ -90,6 +90,14 @@ describe('accounts', () => {
     expect((await app.inject({ method: 'POST', url: '/api/account', payload: { email: 'a@example.com', password: 'short' } })).statusCode).toBe(400);
     const cross = await app.inject({ method: 'POST', url: '/api/account', headers: { origin: 'https://evil.example' }, payload: { email: 'a@example.com', password: 'correct-horse' } });
     expect(cross.statusCode).toBe(403);
+    // A relay address is someone's server, not this service.
+    const relayed = await app.inject({ method: 'POST', url: '/api/account', headers: { origin: 'https://k7f3q9ma.vidalune.example' }, payload: { email: 'a@example.com', password: 'correct-horse' } });
+    expect(relayed.statusCode).toBe(403);
+    // app. and www. serve the same pages.
+    for (const origin of ['https://vidalune.example', 'https://app.vidalune.example', 'https://www.vidalune.example']) {
+      const res = await app.inject({ method: 'POST', url: '/api/login', headers: { origin }, payload: { email: 'nobody@example.com', password: 'wrong-password' } });
+      expect(res.statusCode, origin).toBe(401);
+    }
     const form = await app.inject({ method: 'POST', url: '/api/login', headers: { 'content-type': 'text/plain' }, payload: 'email=a@example.com' });
     expect(form.statusCode).toBe(415);
   });

@@ -30,8 +30,9 @@ networks:
 
 In Nginx Proxy Manager add a proxy host for `vidalune.com` → `vidalune-cloud`, port `3100`, with
 *Websockets support* on and an SSL certificate (Force SSL). The other domains (vidalune.nl, .online,
-.store, .site) and `www.vidalune.com` can redirect to `https://vidalune.com` with a redirection host,
-and `app.vidalune.com` to `https://vidalune.com/servers` (the list of your servers).
+.store, .site) can redirect to `https://vidalune.com` with a redirection host. `app.vidalune.com` and
+`www.vidalune.com` need nothing of their own: through the `*.vidalune.com` host below they show the
+same pages (sign in, your servers).
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -63,7 +64,7 @@ In Nginx Proxy Manager:
    proxy_read_timeout 1h;
    ```
 
-   Hosts you set up yourself (`app.vidalune.com`, `www.vidalune.com`) take precedence over the
-   wildcard.
+   Hosts you set up yourself take precedence over the wildcard (remove an older redirect for
+   `app.vidalune.com`: the service answers there itself).
 
 Migrations run on start. `GET /health` answers `{"status":"ok"}`.
