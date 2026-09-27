@@ -11,6 +11,7 @@ import { HealthPage } from './Health';
 import { SegmentsPage } from './Segments';
 import { ActivityPage } from './Activity';
 import { CleanupPage } from './Cleanup';
+import { NotificationsPage, useUnreadNotifications } from './Notifications';
 import { useT, type MessageKey } from '../../i18n';
 
 const TABS: Array<{ to: string; label: MessageKey }> = [
@@ -22,6 +23,7 @@ const TABS: Array<{ to: string; label: MessageKey }> = [
   { to: 'health', label: 'admin.tabs.health' },
   { to: 'intros', label: 'admin.tabs.intros' },
   { to: 'cleanup', label: 'admin.tabs.cleanup' },
+  { to: 'notifications', label: 'admin.tabs.notifications' },
   { to: 'server', label: 'admin.tabs.server' },
   { to: 'logs', label: 'admin.tabs.logs' },
   { to: 'audit', label: 'admin.tabs.audit' },
@@ -30,6 +32,7 @@ const TABS: Array<{ to: string; label: MessageKey }> = [
 
 export default function AdminLayout() {
   const { t } = useT();
+  const unread = useUnreadNotifications();
   return (
     <div className="mx-auto max-w-6xl px-4 pt-8 sm:px-8">
       <h1 className="font-display text-3xl font-semibold tracking-tight">{t('admin.title')}</h1>
@@ -41,6 +44,11 @@ export default function AdminLayout() {
             className={({ isActive }) => `-mb-px shrink-0 border-b-2 px-4 py-2.5 text-sm transition ${isActive ? 'border-accent text-ink' : 'border-transparent text-muted hover:text-ink'}`}
           >
             {t(tab.label)}
+            {tab.to === 'notifications' && unread > 0 && (
+              <span className="ml-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-ink" aria-label={t('notifications.unread', { count: unread })}>
+                {unread}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
@@ -54,6 +62,7 @@ export default function AdminLayout() {
         <Route path="health" element={<HealthPage />} />
         <Route path="intros" element={<SegmentsPage />} />
         <Route path="cleanup" element={<CleanupPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         {/* The compatibility overview became part of Library health in 0.4.2. */}
         <Route path="compatibility" element={<Navigate to="/admin/health" replace />} />
         <Route path="server" element={<ServerSettingsPanel />} />

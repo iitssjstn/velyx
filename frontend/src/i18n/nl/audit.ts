@@ -33,6 +33,8 @@ export const audit: Messages['audit'] = {
     cleanupDeleted: 'Bestand verwijderd bij opschonen',
     cleanupKept: 'Bestanden bewaard bij opschonen',
     cleanupSettings: 'Opschooninstellingen gewijzigd',
+    cleanupRules: 'Eigen opschoonregels gewijzigd',
+    notificationsSettings: 'Meldingsinstellingen gewijzigd',
     segmentsAnalyze: 'Herkenning van intro en aftiteling gestart voor',
     segmentsEdited: 'Intro en aftiteling bewerkt van',
     segmentsReset: 'Intro en aftiteling hersteld van',

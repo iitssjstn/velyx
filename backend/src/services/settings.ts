@@ -25,6 +25,48 @@ export const DEFAULT_CLEANUP_RULES: CleanupRules = {
   missingInfo: { enabled: true },
 };
 
+/**
+ * An administrator's own clean-up rule. Every condition that is set must hold (AND). A rule only
+ * suggests, unless `action` is 'delete': then matching files are planned for deletion `graceDays`
+ * later (they can be kept until then), and deleted only while the clean-up's "Allow deleting" is on.
+ */
+export interface CustomCleanupRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  /** null = every library. */
+  libraryId: number | null;
+  kind: 'all' | 'movie' | 'episode';
+  /** 'nobody' = never started; 'someone' = finished by at least one user; 'everyone' = finished by every user who can see it. */
+  watched: 'any' | 'nobody' | 'someone' | 'everyone';
+  /** Added at least this many days ago. */
+  addedDays: number | null;
+  /** Nobody played it for at least this many days (a file never played counts from when it was added). */
+  notPlayedDays: number | null;
+  /** Larger than this many gigabytes. */
+  minGb: number | null;
+  action: 'suggest' | 'delete';
+  graceDays: number;
+}
+
+export const NOTIFICATION_EVENTS = ['cleanupPlanned', 'cleanupDeleted', 'newMedia', 'scanFailed', 'backupFailed', 'newDevice', 'storageLow'] as const;
+export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
+
+/** Messages for administrators: which events, and optionally a Discord channel (a webhook URL). */
+export interface NotificationSettings {
+  events: Record<NotificationEvent, boolean>;
+  /** Discord webhook URL; empty = off. Only titles and reasons are sent, never paths or tokens. */
+  discordWebhook: string;
+  /** Language of the Discord messages (that of the administrator who set it up). */
+  discordLanguage: 'en' | 'nl';
+}
+
+export const DEFAULT_NOTIFICATIONS: NotificationSettings = {
+  events: { cleanupPlanned: true, cleanupDeleted: true, newMedia: false, scanFailed: true, backupFailed: true, newDevice: false, storageLow: true },
+  discordWebhook: '',
+  discordLanguage: 'en',
+};
+
 export interface ServerSettings {
   serverName: string;
   serverUrl: string;
@@ -58,6 +100,9 @@ export interface ServerSettings {
   cleanupRules: CleanupRules;
   /** Library clean-up may delete files (off by default; the library must also be mounted writable). */
   cleanupDeletion: boolean;
+  /** An administrator's own clean-up rules (on top of the built-in ones). */
+  cleanupCustomRules: CustomCleanupRule[];
+  notifications: NotificationSettings;
   /** OpenSubtitles.com API key; empty = searching subtitles online is off. */
   openSubtitlesApiKey: string;
   /** Optional OpenSubtitles account (more downloads per day than without one). */
@@ -86,6 +131,8 @@ const DEFAULTS: ServerSettings = {
   segmentVideo: true,
   cleanupRules: DEFAULT_CLEANUP_RULES,
   cleanupDeletion: false,
+  cleanupCustomRules: [],
+  notifications: DEFAULT_NOTIFICATIONS,
   openSubtitlesApiKey: '',
   openSubtitlesUsername: '',
   openSubtitlesPassword: '',

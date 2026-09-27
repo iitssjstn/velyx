@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import fs from 'node:fs';
 import path from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
@@ -36,6 +37,9 @@ import { createLogger } from './logger.js';
 import { HttpError } from './http-error.js';
 import { hasTranslation, requestLanguage, tr } from './i18n/index.js';
 import { registerRoutes } from './routes/index.js';
+import { NotificationService } from './services/notifications.js';
+import { CleanupScheduler } from './services/cleanup-scheduler.js';
+import { libraries } from './db/schema.js';
 
 const log = createLogger('http');
 const SLOW_REQUEST_MS = 2000;
@@ -78,6 +82,10 @@ export interface AppContext {
   segments: SegmentDetector;
   /** Subtitle search and download (OpenSubtitles.com), when an API key is set. */
   openSubtitles: OpenSubtitlesClient;
+  /** Messages for administrators (bell in the admin pages, optional Discord webhook). */
+  notifications: NotificationService;
+  /** Carries out own clean-up rules that plan deletions. */
+  cleanupScheduler: CleanupScheduler;
   startedAt: number;
 }
 
@@ -100,6 +108,8 @@ export interface BuildOptions {
 
 export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}): AppContext {
   const settings = new SettingsService(db, config);
+  const notifications = new NotificationService(db, settings, opts.fetchImpl);
+  const libraryName = (id: number) => db.select({ name: libraries.name }).from(libraries).where(eq(libraries.id, id)).get()?.name ?? `#${id}`;
   const sessions = new SessionService(db, config.sessionTtlDays);
   const tmdb = new TmdbClient({
     getApiKey: () => settings.tmdbKey(),
@@ -117,8 +127,15 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     playbackActive: () => streams.active().length > 0,
     deferWhilePlaying: () => settings.get().deferScansWhilePlaying,
     yieldMs: opts.scanYieldMs,
-    // New episodes are analysed once scanning is done.
-    onIdle: () => segments.enqueuePending(),
+    // New episodes are analysed once scanning is done; own clean-up rules look at the new state.
+    onIdle: () => {
+      segments.enqueuePending();
+      cleanupScheduler.run();
+    },
+    onScanDone: (libraryId, summary) => {
+      if (summary.added > 0) notifications.notify('newMedia', { library: libraryName(libraryId), count: summary.added });
+    },
+    onScanFailed: (libraryId, message) => notifications.notify('scanFailed', { library: libraryName(libraryId), reason: message }),
   });
   const segments: SegmentDetector = new SegmentDetector(db, opts.audioReader ?? ffmpegAudioReader(config.ffmpegPath), {
     enabled: () => settings.get().segmentDetection,
@@ -136,8 +153,27 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
   const storage = new StorageService(db, config);
   // Critically low disk space pauses scans (which write artwork and rows); they resume on their own.
-  const disk = new DiskMonitor(storage, (level) => (level === 'critical' ? scans.pause('low-disk') : scans.resume('low-disk')));
-  const backups = new BackupScheduler(db, config.backupDir, settings, () => (storage.dataDisk()?.level === 'critical' ? 'disk space is critically low' : null));
+  const disk = new DiskMonitor(storage, (level, info) => {
+    if (level === 'critical') scans.pause('low-disk');
+    else scans.resume('low-disk');
+    if (level !== 'ok') notifications.notify('storageLow', { disk: 'Velyx data', free: `${(info.free / 1024 ** 3).toFixed(1)} GB` });
+  });
+  const backups = new BackupScheduler(
+    db,
+    config.backupDir,
+    settings,
+    () => (storage.dataDisk()?.level === 'critical' ? 'disk space is critically low' : null),
+    (reason) => notifications.notify('backupFailed', { reason }),
+  );
+  const audit = new AuditLog(db);
+  const cleanupScheduler: CleanupScheduler = new CleanupScheduler({
+    db,
+    settings,
+    audit,
+    notifications,
+    playing: () => new Set(streams.active().map((s) => s.mediaFileId)),
+    rescan: (libraryId) => scans.enqueue(libraryId),
+  });
   const openSubtitles = new OpenSubtitlesClient({
     getCredentials: () => {
       const s = settings.get();
@@ -146,7 +182,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     fetchImpl: opts.fetchImpl,
     userAgent: `Velyx v${APP_VERSION}`,
   });
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit: new AuditLog(db), backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateRepo, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateRepo, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

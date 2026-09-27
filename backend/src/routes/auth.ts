@@ -194,6 +194,7 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     const { token } = ctx.sessions.create(user.id, request.headers['user-agent'], request.ip);
     setSessionCookie(ctx, request, reply, token);
     ctx.audit.record('login.success', { actor: user, ip: request.ip, detail: describeUserAgent(request.headers['user-agent']) });
+    ctx.notifications.notify('newDevice', { user: user.displayName || user.username, device: describeUserAgent(request.headers['user-agent']) });
     return { user: publicUser(user) };
   });
 
@@ -204,6 +205,7 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
   const appSignIn = (user: { id: number; username: string }, deviceName: string, request: FastifyRequest, how: string) => {
     const { token, expiresAt } = ctx.sessions.create(user.id, request.headers['user-agent'], request.ip, { deviceName });
     ctx.audit.record('login.success', { actor: user, ip: request.ip, detail: `Velyx app (${how}): ${deviceName}` });
+    ctx.notifications.notify('newDevice', { user: user.username, device: `Velyx app, ${deviceName}` });
     return { token, expiresAt };
   };
 

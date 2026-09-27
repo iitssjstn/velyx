@@ -42,6 +42,8 @@ export type AuditAction =
   | 'cleanup.settings'
   | 'cleanup.kept'
   | 'cleanup.deleted'
+  | 'cleanup.rules'
+  | 'notifications.settings'
   | 'subtitles.settings'
   | 'subtitles.downloaded'
   | 'subtitles.removed';

@@ -15,5 +15,6 @@ export const admin: Messages['admin'] = {
     logs: 'Logboek',
     audit: 'Auditlogboek',
     backup: 'Back-up',
+    notifications: 'Meldingen',
   },
 };
