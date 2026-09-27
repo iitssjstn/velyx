@@ -1,6 +1,6 @@
-import { FlatList, Pressable, Text, View } from 'react-native';
+import { FlatList, Pressable, Text, View, useWindowDimensions, type ListRenderItem } from 'react-native';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { imagePath, progressFraction, type ImageSize } from '../lib/format';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
@@ -42,11 +42,20 @@ export function PosterCard({ card, width = 120 }: { card: Card; width?: number }
   );
 }
 
-export function Shelf({ title, cards }: { title: string; cards: Card[] }) {
+export function Shelf({ title, cards, more }: { title: string; cards: Card[]; more?: { label: string; href: Href } }) {
   if (!cards.length) return null;
   return (
     <View style={{ marginBottom: 24 }}>
-      <Heading>{title}</Heading>
+      {more ? (
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingRight: 16 }}>
+          <Heading>{title}</Heading>
+          <Pressable accessibilityRole="link" accessibilityLabel={`${title}: ${more.label}`} hitSlop={10} onPress={() => router.push(more.href)}>
+            <Text style={{ color: colors.accent, fontWeight: '600' }}>{more.label}</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Heading>{title}</Heading>
+      )}
       <FlatList
         horizontal
         data={cards}
@@ -95,3 +104,14 @@ export function ContinueShelf({ title, items }: { title: string; items: Continue
     </View>
   );
 }
+
+/** Columns and poster width for a grid: three across on a phone, more on a tablet or in landscape. */
+export function useGrid() {
+  const { width } = useWindowDimensions();
+  const columns = Math.max(3, Math.floor((width - 16) / 130));
+  return { columns, itemWidth: (width - 32 - (columns - 1) * 12) / columns };
+}
+
+export const renderPoster =
+  (width: number): ListRenderItem<Card> =>
+  ({ item }) => <PosterCard card={item} width={width} />;

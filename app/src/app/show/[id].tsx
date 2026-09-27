@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { Toggle } from '../../components/actions';
 import { Artwork } from '../../components/media';
+import { savedRequest, watchedRequest } from '../../lib/lists';
 import { Button, ErrorState, Loading, ProgressLine, styles } from '../../components/ui';
 import { episodeCode, formatRuntime, progressFraction } from '../../lib/format';
 import { useSession } from '../../lib/session';
@@ -23,6 +25,7 @@ export default function Show() {
     enabled: current !== null,
     queryFn: () => api.get<SeasonDetail>(`/api/shows/${id}/seasons/${current}`),
   });
+  const currentSeason = seasons.find((x) => x.seasonNumber === current) ?? null;
   if (q.isLoading) return <Loading />;
   if (q.error || !s) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const regular = s.seasons.filter((x) => x.seasonNumber > 0).length || s.seasons.length;
@@ -45,6 +48,18 @@ export default function Show() {
             <Button label={t('show.continue', { code: episodeCode(s.upNext.seasonNumber, s.upNext.episodeNumber) })} onPress={() => router.push(`/play/episode/${s.upNext!.id}`)} />
           </View>
         )}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <Toggle active={s.watchlist} icon="bookmark" text={t('actions.watchlist')} label={t('actions.addWatchlist')} activeLabel={t('actions.removeWatchlist')} request={(on) => savedRequest('watchlist', 'show', s.id, on)} />
+          <Toggle active={s.favorite} icon="heart" text={t('actions.favorite')} label={t('actions.addFavorite')} activeLabel={t('actions.removeFavorite')} request={(on) => savedRequest('favorites', 'show', s.id, on)} />
+          <Toggle
+            active={s.episodeCount > 0 && s.watchedCount >= s.episodeCount}
+            icon="check"
+            text={t('actions.watched')}
+            label={t('actions.showWatched')}
+            activeLabel={t('actions.showUnwatched')}
+            request={(on) => watchedRequest({ showId: s.id }, on)}
+          />
+        </View>
         {s.overview ? <Text style={styles.body}>{s.overview}</Text> : null}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }} accessibilityRole="tablist">
@@ -61,6 +76,18 @@ export default function Show() {
         ))}
       </ScrollView>
       <View style={{ padding: 16, gap: 16 }}>
+        {currentSeason && (
+          <View style={{ flexDirection: 'row' }}>
+            <Toggle
+              active={currentSeason.episodeCount > 0 && currentSeason.watchedCount >= currentSeason.episodeCount}
+              icon="check"
+              text={t('actions.watched')}
+              label={t('actions.seasonWatched')}
+              activeLabel={t('actions.seasonUnwatched')}
+              request={(on) => watchedRequest({ seasonId: currentSeason.id }, on)}
+            />
+          </View>
+        )}
         {season.isLoading && <Loading />}
         {season.data?.episodes.map((e) => (
           <Pressable
@@ -85,9 +112,19 @@ export default function Show() {
                 {e.title ? ` · ${e.title}` : ''}
               </Text>
               <Text style={styles.muted}>
-                {[formatRuntime(e.runtime ?? (e.durationSec ? Math.round(e.durationSec / 60) : null)), e.progress?.completed ? '✓' : null].filter(Boolean).join(' · ')}
+                {formatRuntime(e.runtime ?? (e.durationSec ? Math.round(e.durationSec / 60) : null))}
               </Text>
               {e.overview ? <Text style={styles.muted} numberOfLines={2}>{e.overview}</Text> : null}
+            </View>
+            <View style={{ justifyContent: 'center' }}>
+              <Toggle
+                compact
+                active={Boolean(e.progress?.completed)}
+                icon="check"
+                label={t('actions.episodeWatched', { code: episodeCode(e.seasonNumber, e.episodeNumber) })}
+                activeLabel={t('actions.episodeUnwatched', { code: episodeCode(e.seasonNumber, e.episodeNumber) })}
+                request={(on) => watchedRequest({ episodeId: e.id }, on)}
+              />
             </View>
           </Pressable>
         ))}

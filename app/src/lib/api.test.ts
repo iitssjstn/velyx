@@ -42,6 +42,18 @@ describe('API client', () => {
     expect(err).toBeInstanceOf(ApiError);
     expect(err).toMatchObject({ status: 0 });
   });
+  it('lets a cancelled request stay cancelled instead of calling the server unreachable', async () => {
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      if (init.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      return new Response('{}');
+    }) as unknown as typeof fetch;
+    const api = createApi({ baseUrl: 'http://v', token: null, userAgent: 'x', fetchImpl });
+    const controller = new AbortController();
+    controller.abort();
+    const err = await api.get('/api/search?q=ab', { signal: controller.signal }).catch((e: unknown) => e);
+    expect((err as Error).name).toBe('AbortError');
+    expect((err as { status?: number }).status).toBeUndefined();
+  });
 });
 
 describe('signing in', () => {

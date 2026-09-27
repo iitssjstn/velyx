@@ -62,6 +62,8 @@ export interface ContinueItem {
 export interface HomeData {
   continueWatching: ContinueItem[];
   recentlyAdded: Card[];
+  watchlist: Card[];
+  favorites: Card[];
   movies: MovieCard[];
   shows: ShowCard[];
   counts: { movies: number; shows: number; libraries: number };
@@ -95,6 +97,8 @@ export interface MovieDetail {
   cast: Person[];
   files: { id: number; durationSec: number | null; width: number | null; height: number | null }[];
   progress: Progress | null;
+  favorite: boolean;
+  watchlist: boolean;
 }
 
 export interface SeasonSummary {
@@ -119,6 +123,8 @@ export interface ShowDetail {
   seasons: SeasonSummary[];
   episodeCount: number;
   watchedCount: number;
+  favorite: boolean;
+  watchlist: boolean;
   upNext: { id: number; seasonNumber: number; episodeNumber: number; title: string | null; progress: Progress | null } | null;
 }
 
@@ -139,4 +145,20 @@ export interface SeasonDetail {
   seasonNumber: number;
   name: string | null;
   episodes: EpisodeSummary[];
+}
+
+export interface SearchResults {
+  query: string;
+  movies: MovieCard[];
+  shows: ShowCard[];
+  episodes: {
+    id: number;
+    showId: number;
+    showTitle: string;
+    seasonNumber: number;
+    episodeNumber: number;
+    title: string | null;
+    stillPath: string | null;
+    progress: Progress | null;
+  }[];
 }

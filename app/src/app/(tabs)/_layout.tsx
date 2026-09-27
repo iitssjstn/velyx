@@ -27,6 +27,7 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="home" options={{ title: t('tabs.home'), headerShown: false, tabBarIcon: icon('home') }} />
+      <Tabs.Screen name="search" options={{ title: t('tabs.search'), headerShown: false, tabBarIcon: icon('search') }} />
       <Tabs.Screen name="movies" options={{ title: t('tabs.movies'), tabBarIcon: icon('film') }} />
       <Tabs.Screen name="shows" options={{ title: t('tabs.shows'), tabBarIcon: icon('tv') }} />
       <Tabs.Screen name="account" options={{ title: t('tabs.account'), tabBarIcon: icon('user') }} />
