@@ -117,7 +117,7 @@
                 el('div', { class: 'small' },
                   el('span', { class: s.online ? 'dot on' : 'dot' }),
                   s.online ? t('online') : t('offline', { when: when(s.lastSeenAt) }), ' · ', t('version', { v: s.version }),
-                  s.url ? [' · ', el('a', { href: s.url, rel: 'noopener' }, t('open'))] : null,
+                  s.url || s.relayUrl ? [' · ', el('a', { href: s.url || s.relayUrl, rel: 'noopener' }, t('open'))] : null,
                 ),
               ))),
       ),

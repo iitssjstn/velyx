@@ -2,6 +2,7 @@ import { HttpError } from '../http-error.js';
 import { createLogger } from '../logger.js';
 import type { FetchLike } from './tmdb.js';
 import type { SettingsService } from './settings.js';
+import { RelayClient, type RelayProblem } from './relay-client.js';
 
 const log = createLogger('cloud');
 const TIMEOUT_MS = 10_000;
@@ -17,6 +18,8 @@ export interface CloudStatus {
   code: { code: string; expiresAt: number; linkUrl: string } | null;
   /** Where the account pages are. */
   serviceUrl: string;
+  /** The relay: reachable at `url` without an open port (opt-in, only while linked). */
+  relay: { enabled: boolean; url: string | null; connected: boolean; error: RelayProblem | null };
 }
 
 /**
@@ -27,6 +30,7 @@ export interface CloudStatus {
 export class CloudService {
   private code: CloudStatus['code'] = null;
   private timer: NodeJS.Timeout | null = null;
+  private readonly relay: RelayClient;
 
   constructor(
     private readonly deps: {
@@ -35,8 +39,12 @@ export class CloudService {
       version: string;
       fetchImpl?: FetchLike;
       now?: () => number;
+      /** Where this server listens: relayed requests are passed there. */
+      localPort: number;
     },
-  ) {}
+  ) {
+    this.relay = new RelayClient({ cloudUrl: deps.baseUrl, localPort: deps.localPort });
+  }
 
   private now() {
     return this.deps.now?.() ?? Date.now();
@@ -45,7 +53,15 @@ export class CloudService {
   status(): CloudStatus {
     const link = this.deps.settings.get().cloud;
     const code = this.code && this.code.expiresAt > this.now() && !link?.account ? this.code : null;
-    return { enabled: !!link, account: link?.account ?? null, code, serviceUrl: this.deps.baseUrl };
+    const relayOn = !!(link?.account && link.relay);
+    const tunnel = this.relay.status();
+    return {
+      enabled: !!link,
+      account: link?.account ?? null,
+      code,
+      serviceUrl: this.deps.baseUrl,
+      relay: { enabled: relayOn, url: relayOn ? (link?.relayUrl ?? null) : null, connected: relayOn && tunnel.connected, error: relayOn && !tunnel.connected ? tunnel.error : null },
+    };
   }
 
   private about() {
@@ -92,11 +108,34 @@ export class CloudService {
   async check(): Promise<CloudStatus> {
     const link = this.deps.settings.get().cloud;
     if (!link) return this.status();
-    const r = await this.call<{ linked: boolean; account: string | null }>('POST', '/api/server/heartbeat', this.about());
+    const r = await this.call<{ linked: boolean; account: string | null; relay?: { enabled: boolean; url: string | null } }>('POST', '/api/server/heartbeat', this.about());
     const current = this.deps.settings.get().cloud;
-    if (current && current.account !== r.account) this.deps.settings.update({ cloud: { ...current, account: r.account } });
+    // The service decides: an unlinked server (unlinked on vidalune.com) has no relay any more.
+    const relay = !!r.relay?.enabled;
+    const relayUrl = r.relay?.url ?? null;
+    if (current && (current.account !== r.account || !!current.relay !== relay || (current.relayUrl ?? null) !== relayUrl)) {
+      this.deps.settings.update({ cloud: { ...current, account: r.account, relay, relayUrl } });
+    }
     if (r.account) this.code = null;
+    this.syncRelay();
     return this.status();
+  }
+
+  /** Turns the relay on or off (the server must be linked). */
+  async setRelay(enabled: boolean): Promise<CloudStatus> {
+    const link = this.deps.settings.get().cloud;
+    if (!link?.account) throw new HttpError(409, 'Link this server to a Vidalune account first.');
+    const r = await this.call<{ enabled: boolean; url: string | null }>('POST', '/api/server/relay', { enabled });
+    this.deps.settings.update({ cloud: { ...link, relay: r.enabled, relayUrl: r.url } });
+    this.syncRelay();
+    return this.status();
+  }
+
+  /** Opens or closes the tunnel to match the settings. */
+  private syncRelay() {
+    const link = this.deps.settings.get().cloud;
+    if (link?.account && link.relay) this.relay.start(`Server ${link.serverId}:${link.secret}`);
+    else this.relay.stop();
   }
 
   /** Turns linking off: the service forgets this server, and nothing is sent any more. */
@@ -112,12 +151,14 @@ export class CloudService {
     this.deps.settings.update({ cloud: null });
     this.code = null;
     this.stop();
+    this.relay.stop();
     return this.status();
   }
 
   /** Reports in every half hour while linking is on. */
   start(): void {
     if (this.timer || !this.deps.settings.get().cloud) return;
+    this.syncRelay();
     const beat = () => void this.check().catch(() => {});
     setTimeout(beat, 30_000).unref();
     this.timer = setInterval(beat, HEARTBEAT_MS);
@@ -127,5 +168,11 @@ export class CloudService {
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+  }
+
+  /** Server shutdown: also closes the relay tunnel. */
+  shutdown(): void {
+    this.stop();
+    this.relay.stop();
   }
 }

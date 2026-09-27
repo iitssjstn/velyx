@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Cloud, ExternalLink, RefreshCw, Unlink } from 'lucide-react';
+import { Cloud, ExternalLink, Radio, RefreshCw, Unlink } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/Modal';
@@ -13,6 +13,7 @@ export interface CloudStatus {
   account: string | null;
   code: { code: string; expiresAt: number; linkUrl: string } | null;
   serviceUrl: string;
+  relay: { enabled: boolean; url: string | null; connected: boolean; error: 'refused' | 'unreachable' | 'closed' | null };
 }
 
 const KEY = ['admin', 'cloud'];
@@ -39,6 +40,18 @@ export function CloudPage() {
   });
   const onDone = (s: CloudStatus) => qc.setQueryData(KEY, s);
   const link = useMutation({ mutationFn: () => api.post<CloudStatus>('/api/admin/cloud/link'), onSuccess: onDone, onError: (e) => toast.error(e) });
+  const relay = useMutation({ mutationFn: (enabled: boolean) => api.post<CloudStatus>('/api/admin/cloud/relay', { enabled }), onSuccess: onDone, onError: (e) => toast.error(e) });
+  // While the relay is on but not (yet) connected, look again every few seconds.
+  useQuery({
+    queryKey: [...KEY, 'relay'],
+    queryFn: async () => {
+      const s = await api.get<CloudStatus>('/api/admin/cloud');
+      qc.setQueryData(KEY, s);
+      return s;
+    },
+    enabled: !!q.data?.relay.enabled && !q.data.relay.connected,
+    refetchInterval: 3000,
+  });
   const unlink = useMutation({
     mutationFn: () => api.post<CloudStatus>('/api/admin/cloud/unlink'),
     onSuccess: (s) => {
@@ -97,6 +110,33 @@ export function CloudPage() {
           </>
         )}
       </section>
+
+      {s.account && (
+        <section className="panel space-y-3 p-5" aria-labelledby="relay-title">
+          <h2 id="relay-title" className="flex items-center gap-2 font-display text-lg font-semibold">
+            <Radio className="size-5 text-accent" aria-hidden="true" />
+            {t('cloud.relayTitle')}
+          </h2>
+          <p className="text-sm text-muted">{t('cloud.relayIntro')}</p>
+          <p className="text-xs text-faint">{t('cloud.relayPrivacy')}</p>
+          {s.relay.enabled && (
+            <div className="space-y-1 text-sm" aria-live="polite">
+              {s.relay.url && (
+                <p>
+                  {t('cloud.relayAddress', { url: '' })}
+                  <a className="text-accent underline-offset-2 hover:underline" href={s.relay.url} target="_blank" rel="noopener noreferrer">{s.relay.url}</a>
+                </p>
+              )}
+              <p className={s.relay.connected ? 'text-ok' : s.relay.error ? 'text-danger' : 'text-muted'}>
+                {s.relay.connected ? t('cloud.relayConnected') : s.relay.error ? t(`cloud.relayProblem.${s.relay.error}`) : t('cloud.relayConnecting')}
+              </p>
+            </div>
+          )}
+          <Button variant={s.relay.enabled ? 'secondary' : 'primary'} size="sm" loading={relay.isPending} onClick={() => relay.mutate(!s.relay.enabled)}>
+            {s.relay.enabled ? t('cloud.relayOff') : t('cloud.relayOn')}
+          </Button>
+        </section>
+      )}
 
       <ConfirmModal open={confirming} title={t('cloud.unlinkTitle')} confirmLabel={t('cloud.unlink')} danger loading={unlink.isPending} onConfirm={() => unlink.mutate()} onClose={() => setConfirming(false)}>
         {t('cloud.unlinkConfirm')}

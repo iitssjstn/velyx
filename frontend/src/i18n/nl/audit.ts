@@ -37,6 +37,8 @@ export const audit: Messages['audit'] = {
     notificationsSettings: 'Meldingsinstellingen gewijzigd',
     cloudLinking: 'Koppelen aan Vidalune-account gestart',
     cloudUnlinked: 'Ontkoppeld van het Vidalune-account',
+    cloudRelayOn: 'Vidalune-relay aangezet',
+    cloudRelayOff: 'Vidalune-relay uitgezet',
     segmentsAnalyze: 'Herkenning van intro en aftiteling gestart voor',
     segmentsEdited: 'Intro en aftiteling bewerkt van',
     segmentsReset: 'Intro en aftiteling hersteld van',

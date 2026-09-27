@@ -33,6 +33,10 @@ export const servers = sqliteTable(
     name: text('name').notNull(),
     version: text('version').notNull(),
     url: text('url'),
+    /** Its relay address: https://<relaySlug>.vidalune.com (assigned once, kept when turned off). */
+    relaySlug: text('relay_slug').unique(),
+    /** Reachable through the relay (the server's administrator turned it on). */
+    relayEnabled: integer('relay_enabled', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at').notNull(),
     lastSeenAt: integer('last_seen_at').notNull(),
   },

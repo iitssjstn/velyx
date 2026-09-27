@@ -83,7 +83,7 @@ async function main(): Promise<void> {
     ctx.backups.stop();
     ctx.disk.stop();
     ctx.cleanupScheduler.stop();
-    ctx.cloud.stop();
+    ctx.cloud.shutdown();
     (ctx.playback.get('remux') as RemuxEngine | undefined)?.stopAll();
     clearInterval(purgeTimer);
     try {

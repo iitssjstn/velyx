@@ -74,6 +74,10 @@ export interface CloudLink {
   secret: string;
   /** The account it is linked to (email), as the service last reported. */
   account: string | null;
+  /** Reachable through the Vidalune relay (opt-in, only while linked). */
+  relay?: boolean;
+  /** Its relay address (https://<name>.vidalune.com). */
+  relayUrl?: string | null;
 }
 
 export interface ServerSettings {

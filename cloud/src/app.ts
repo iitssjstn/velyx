@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
@@ -11,6 +12,7 @@ import type { CloudConfig } from './config.js';
 import type { DB } from './db/client.js';
 import { accountSessions, accounts, linkCodes, servers } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
+import { newSlug, Relay } from './relay.js';
 
 const DAY = 86_400_000;
 export const SESSION_COOKIE = 'vl_session';
@@ -68,7 +70,25 @@ export interface CloudAppOptions {
 export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppOptions = {}): Promise<FastifyInstance> {
   const now = opts.now ?? Date.now;
   const hops = config.trustProxy;
-  const app = Fastify({ trustProxy: (_addr: string, hop: number) => hop < hops, bodyLimit: 64 * 1024, logger: false });
+  const publicUrl = new URL(config.publicUrl);
+  const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops });
+  const app = Fastify({
+    trustProxy: (_addr: string, hop: number) => hop < hops,
+    bodyLimit: 64 * 1024,
+    logger: false,
+    // Requests for <slug>.<domain> go to the relay before anything else; the rest is this service.
+    serverFactory: (handler) => {
+      const server = http.createServer((req, res) => {
+        const slug = relay.slugOf(req);
+        if (slug) relay.handleRequest(req, res, slug);
+        else handler(req, res);
+      });
+      server.on('upgrade', (req, socket, head) => relay.handleUpgrade(req, socket, head));
+      return server;
+    },
+  });
+  app.decorate('relay', relay);
+  app.addHook('onClose', async () => relay.close());
   const limiter = new RateLimiter(10, 60_000);
   const secureCookie = config.publicUrl.startsWith('https://');
 
@@ -160,6 +180,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const me = account(request);
     const body = z.object({ password: z.string().max(256) }).parse(request.body);
     if (!(await verifyPassword(me.passwordHash, body.password))) throw new HttpError(401, 'Wrong password.');
+    for (const s of db.select({ id: servers.id }).from(servers).where(eq(servers.accountId, me.id)).all()) relay.drop(s.id);
+    db.update(servers).set({ relayEnabled: false }).where(eq(servers.accountId, me.id)).run();
     db.delete(accounts).where(eq(accounts.id, me.id)).run();
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     return { ok: true };
@@ -167,13 +189,18 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   // ---- servers, as seen by their owner
 
+  const relayUrl = (s: typeof servers.$inferSelect) => (s.relayEnabled && s.relaySlug ? relay.url(s.relaySlug) : null);
   const serverView = (s: typeof servers.$inferSelect) => ({
     id: s.id,
     name: s.name,
     version: s.version,
     url: s.url,
+    /** Its relay address while the relay is on (null: off). */
+    relayUrl: relayUrl(s),
+    /** The server's tunnel is open right now. */
+    relayConnected: relay.connected(s.id),
     lastSeenAt: s.lastSeenAt,
-    online: s.lastSeenAt > now() - ONLINE_WINDOW,
+    online: s.lastSeenAt > now() - ONLINE_WINDOW || relay.connected(s.id),
   });
 
   app.get('/api/servers', async (request) => {
@@ -197,8 +224,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   app.delete('/api/servers/:id', async (request) => {
     const me = account(request);
     const { id } = z.object({ id: z.string().max(64) }).parse(request.params);
-    const res = db.update(servers).set({ accountId: null }).where(and(eq(servers.id, id), eq(servers.accountId, me.id))).run();
+    const res = db.update(servers).set({ accountId: null, relayEnabled: false }).where(and(eq(servers.id, id), eq(servers.accountId, me.id))).run();
     if (!res.changes) throw new HttpError(404, 'Not found.');
+    relay.drop(id);
     return { ok: true };
   });
 
@@ -214,7 +242,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   const serverStatus = (s: typeof servers.$inferSelect) => {
     const owner = s.accountId ? db.select().from(accounts).where(eq(accounts.id, s.accountId)).get() : undefined;
-    return { linked: !!owner, account: owner?.email ?? null };
+    return { linked: !!owner, account: owner?.email ?? null, relay: { enabled: s.relayEnabled && !!owner, url: owner ? relayUrl(s) : null, connected: relay.connected(s.id) } };
   };
 
   app.post('/api/server/register', async (request) => {
@@ -241,12 +269,29 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const me = server(request);
     const body = z.object({ name: serverName, version, url: serverUrl }).parse(request.body);
     db.update(servers).set({ name: body.name, version: body.version, url: body.url ?? null, lastSeenAt: now() }).where(eq(servers.id, me.id)).run();
-    return serverStatus({ ...me, accountId: me.accountId });
+    return serverStatus(me);
+  });
+
+  /** The server's administrator turns the relay on or off (only for a linked server). */
+  app.post('/api/server/relay', async (request) => {
+    const me = server(request);
+    const { enabled } = z.object({ enabled: z.boolean() }).parse(request.body);
+    if (enabled && !me.accountId) throw new HttpError(409, 'Link this server to a Vidalune account first.');
+    let slug = me.relaySlug;
+    if (enabled && !slug) {
+      // A new, unused address (kept when the relay is turned off and on again).
+      do slug = newSlug();
+      while (db.select({ id: servers.id }).from(servers).where(eq(servers.relaySlug, slug)).get());
+    }
+    db.update(servers).set({ relayEnabled: enabled, relaySlug: slug }).where(eq(servers.id, me.id)).run();
+    if (!enabled) relay.drop(me.id);
+    return serverStatus(db.select().from(servers).where(eq(servers.id, me.id)).get()!).relay;
   });
 
   /** The server's administrator stops using the account service: everything about it is removed. */
   app.delete('/api/server', async (request) => {
     const me = server(request);
+    relay.drop(me.id);
     db.delete(servers).where(eq(servers.id, me.id)).run();
     return { ok: true };
   });
@@ -282,5 +327,6 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 declare module 'fastify' {
   interface FastifyInstance {
     prune: () => void;
+    relay: Relay;
   }
 }

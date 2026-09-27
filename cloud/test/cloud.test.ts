@@ -110,7 +110,7 @@ describe('accounts', () => {
     expect((await app.inject({ method: 'DELETE', url: '/api/account', headers: { cookie }, payload: { password: 'correct-horse' } })).statusCode).toBe(200);
     expect(db.select().from(accounts).all()).toEqual([]);
     expect(db.select().from(servers).get()!.accountId).toBeNull();
-    expect((await app.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: s.auth }, payload: { name: 'Thuis', version: '0.10.1' } })).json()).toEqual({ linked: false, account: null });
+    expect((await app.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: s.auth }, payload: { name: 'Thuis', version: '0.10.1' } })).json()).toMatchObject({ linked: false, account: null });
   });
 });
 
@@ -119,7 +119,7 @@ describe('linking a server', () => {
     const cookie = await signUp();
     const s = await register();
     const heartbeat = () => app.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: s.auth }, payload: { name: 'Thuis', version: '0.10.1', url: 'https://media.example.com' } });
-    expect((await heartbeat()).json()).toEqual({ linked: false, account: null });
+    expect((await heartbeat()).json()).toMatchObject({ linked: false, account: null });
 
     const issued = (await app.inject({ method: 'POST', url: '/api/server/code', headers: { authorization: s.auth } })).json();
     expect(issued).toMatchObject({ code: expect.any(String), linkUrl: 'https://vidalune.example/link' });
@@ -127,7 +127,7 @@ describe('linking a server', () => {
 
     const linked = await app.inject({ method: 'POST', url: '/api/link', headers: { cookie }, payload: { code: issued.code.toLowerCase() } });
     expect(linked.json()).toMatchObject({ id: s.id, name: 'Thuis', online: true });
-    expect((await heartbeat()).json()).toEqual({ linked: true, account: 'justin@example.com' });
+    expect((await heartbeat()).json()).toMatchObject({ linked: true, account: 'justin@example.com', relay: { enabled: false, url: null, connected: false } });
     expect((await app.inject({ url: '/api/servers', headers: { cookie } })).json()).toMatchObject([{ id: s.id, name: 'Thuis', version: '0.10.1', url: 'https://media.example.com', online: true }]);
     // Used up.
     expect((await app.inject({ method: 'POST', url: '/api/link', headers: { cookie }, payload: { code: issued.code } })).statusCode).toBe(400);

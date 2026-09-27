@@ -46,6 +46,8 @@ export type AuditAction =
   | 'notifications.settings'
   | 'cloud.linking'
   | 'cloud.unlinked'
+  | 'cloud.relay_on'
+  | 'cloud.relay_off'
   | 'subtitles.settings'
   | 'subtitles.downloaded'
   | 'subtitles.removed';

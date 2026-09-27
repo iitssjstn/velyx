@@ -41,6 +41,7 @@ import { registerRoutes } from './routes/index.js';
 import { NotificationService } from './services/notifications.js';
 import { CleanupScheduler } from './services/cleanup-scheduler.js';
 import { CloudService } from './services/cloud.js';
+import { isLoopback } from './services/relay-client.js';
 import { libraries } from './db/schema.js';
 
 const log = createLogger('http');
@@ -186,7 +187,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     fetchImpl: opts.fetchImpl,
     userAgent: `Vidalune v${APP_VERSION}`,
   });
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateRepo, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud: new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl }), startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateRepo, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud: new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port }), startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {
@@ -209,11 +210,22 @@ export function requireAdmin(request: FastifyRequest, reply: FastifyReply, done:
   done();
 }
 
+/**
+ * Which proxies in front of Vidalune are believed about the visitor's address and HTTPS. A hop count
+ * trusts exactly that many (e.g. 2 for Cloudflare + Nginx). Requests from this machine itself are
+ * always believed: that is the Vidalune relay client, passing on who really asked.
+ */
+export function trustProxy(setting: AppConfig['trustProxy']): ((addr: string, hop: number) => boolean) | string[] {
+  // A list of proxy addresses: Fastify's own "loopback" entry adds this machine.
+  if (Array.isArray(setting)) return [...setting, 'loopback'];
+  const configured = setting === true ? () => true : typeof setting === 'number' ? (_addr: string, hop: number) => hop < setting : () => false;
+  return (addr, hop) => (hop === 0 && isLoopback(addr)) || configured(addr, hop);
+}
+
 export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   const app = Fastify({
     logger: false,
-    // A hop count trusts exactly that many proxies in front of Vidalune (e.g. 2 for Cloudflare + Nginx).
-    trustProxy: typeof ctx.config.trustProxy === 'number' ? ((_addr: string, hop: number) => hop < (ctx.config.trustProxy as number)) : ctx.config.trustProxy,
+    trustProxy: trustProxy(ctx.config.trustProxy),
     bodyLimit: 4 * 1024 * 1024,
   });
 

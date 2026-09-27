@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import { Button, Field, styles } from '../components/ui';
 import { Logo } from '../components/Logo';
-import { CloudError, createCloud, sortServers, type CloudAccount, type CloudServer } from '../lib/cloud';
+import { CloudError, createCloud, serverAddresses, sortServers, type CloudAccount, type CloudServer } from '../lib/cloud';
 import { findServer, SERVER_PROBLEMS, ServerError } from '../lib/server';
 import { useSession } from '../lib/session';
 import { colors } from '../lib/theme';
@@ -69,19 +69,26 @@ export default function CloudAccountScreen() {
     }
   };
 
+  /** Its own address first (fastest at home), then the relay. */
   const open = async (s: CloudServer) => {
-    if (!s.url) return;
+    const addresses = serverAddresses(s);
+    if (!addresses.length) return;
     setBusy(s.id);
     setError(null);
-    try {
-      const { url, info } = await findServer(s.url, fetch);
-      await setServer(url, info);
-      router.replace('/sign-in');
-    } catch (err) {
-      setError(t(err instanceof ServerError ? SERVER_PROBLEMS[err.problem] : 'connect.unreachable'));
-    } finally {
-      setBusy(null);
+    let last: unknown = null;
+    for (const address of addresses) {
+      try {
+        const { url, info } = await findServer(address, fetch);
+        await setServer(url, info);
+        setBusy(null);
+        router.replace('/sign-in');
+        return;
+      } catch (err) {
+        last = err;
+      }
     }
+    setError(t(last instanceof ServerError ? SERVER_PROBLEMS[last.problem] : 'connect.unreachable'));
+    setBusy(null);
   };
 
   const signOut = async () => {
@@ -102,14 +109,14 @@ export default function CloudAccountScreen() {
                 <Pressable
                   key={s.id}
                   onPress={() => void open(s)}
-                  disabled={!s.url || busy !== null}
+                  disabled={!serverAddresses(s).length || busy !== null}
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: !s.url, busy: busy === s.id }}
-                  style={({ pressed }) => ({ padding: 16, borderRadius: 14, backgroundColor: colors.raised, opacity: !s.url ? 0.6 : pressed || busy === s.id ? 0.8 : 1, gap: 4 })}
+                  accessibilityState={{ disabled: !serverAddresses(s).length, busy: busy === s.id }}
+                  style={({ pressed }) => ({ padding: 16, borderRadius: 14, backgroundColor: colors.raised, opacity: !serverAddresses(s).length ? 0.6 : pressed || busy === s.id ? 0.8 : 1, gap: 4 })}
                 >
                   <Text style={[styles.body, { fontWeight: '600' }]}>{s.name}</Text>
                   <Text style={styles.muted}>
-                    {s.online ? t('cloud.online') : t('cloud.offline')} · {s.url ?? t('cloud.noAddress')}
+                    {s.online ? t('cloud.online') : t('cloud.offline')} · {s.url ?? s.relayUrl ?? t('cloud.noAddress')}
                   </Text>
                 </Pressable>
               ))}

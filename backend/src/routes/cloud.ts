@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../app.js';
 import { requireAdmin } from '../app.js';
+import { z } from 'zod';
 
 /** Admin → Vidalune account: link this server to an account (opt-in), check, unlink. */
 export async function cloudRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
@@ -14,6 +15,13 @@ export async function cloudRoutes(app: FastifyInstance, ctx: AppContext): Promis
   });
 
   app.post('/api/admin/cloud/check', { preHandler: requireAdmin }, async () => ctx.cloud.check());
+
+  app.post('/api/admin/cloud/relay', { preHandler: requireAdmin }, async (request) => {
+    const { enabled } = z.object({ enabled: z.boolean() }).parse(request.body);
+    const status = await ctx.cloud.setRelay(enabled);
+    ctx.audit.record(enabled ? 'cloud.relay_on' : 'cloud.relay_off', { actor: request.user, ip: request.ip, detail: status.relay.url });
+    return status;
+  });
 
   app.post('/api/admin/cloud/unlink', { preHandler: requireAdmin }, async (request) => {
     const was = ctx.cloud.status();
