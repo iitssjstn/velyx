@@ -2,6 +2,7 @@ import { FlatList, Pressable, Text, View, useWindowDimensions, type ListRenderIt
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import { imagePath, progressFraction, type ImageSize } from '../lib/format';
+import { gridLayout, isWide } from '../lib/layout';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 import type { Card, ContinueItem } from '../lib/types';
@@ -26,7 +27,9 @@ export function openCard(card: Pick<Card, 'type' | 'id'>) {
   router.push(card.type === 'movie' ? `/movie/${card.id}` : `/show/${card.id}`);
 }
 
-export function PosterCard({ card, width = 120 }: { card: Card; width?: number }) {
+export function PosterCard({ card, width }: { card: Card; width?: number }) {
+  const wide = useWide();
+  width = width ?? (wide ? 150 : 120);
   const progress = card.type === 'movie' ? progressFraction(card.progress) : 0;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={card.title} onPress={() => openCard(card)} style={{ width }}>
@@ -75,6 +78,7 @@ function openContinue(item: ContinueItem) {
 
 export function ContinueShelf({ title, items }: { title: string; items: ContinueItem[] }) {
   const { t } = useSession();
+  const cardWidth = useWide() ? 300 : 240;
   if (!items.length) return null;
   return (
     <View style={{ marginBottom: 24 }}>
@@ -86,8 +90,8 @@ export function ContinueShelf({ title, items }: { title: string; items: Continue
         contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
         showsHorizontalScrollIndicator={false}
         renderItem={({ item }) => (
-          <Pressable accessibilityRole="button" accessibilityLabel={item.title} onPress={() => openContinue(item)} style={{ width: 240 }}>
-            <Artwork path={item.imagePath ?? item.posterPath} size="w780" label={item.title} style={{ width: 240, height: 135, borderRadius: radius.md }} />
+          <Pressable accessibilityRole="button" accessibilityLabel={item.title} onPress={() => openContinue(item)} style={{ width: cardWidth }}>
+            <Artwork path={item.imagePath ?? item.posterPath} size="w780" label={item.title} style={{ width: cardWidth, height: cardWidth * 0.5625, borderRadius: radius.md }} />
             <View style={{ marginTop: 4 }}>
               <ProgressLine fraction={item.percent / 100} />
             </View>
@@ -107,11 +111,14 @@ export function ContinueShelf({ title, items }: { title: string; items: Continue
 
 /** Columns and poster width for a grid: three across on a phone, more on a tablet or in landscape. */
 export function useGrid() {
-  const { width } = useWindowDimensions();
-  const columns = Math.max(3, Math.floor((width - 16) / 130));
-  return { columns, itemWidth: (width - 32 - (columns - 1) * 12) / columns };
+  return gridLayout(useWindowDimensions().width);
 }
 
 export const renderPoster =
   (width: number): ListRenderItem<Card> =>
   ({ item }) => <PosterCard card={item} width={width} />;
+
+/** Tablets and phones in landscape: layouts use the width instead of stretching the phone layout. */
+export function useWide(): boolean {
+  return isWide(useWindowDimensions().width);
+}

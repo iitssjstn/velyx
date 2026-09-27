@@ -75,18 +75,23 @@ export default function Player() {
   });
   const prefs = useQuery({ queryKey: [serverUrl, 'account-prefs'], queryFn: () => api.get<Prefs>('/api/account/preferences') });
 
-  // Landscape and no status bar while watching; back to normal on leaving.
+  // Landscape, and no status or navigation bar while watching (a swipe from the edge shows the
+  // navigation bar briefly); back to normal on leaving. The navigation bar is switched directly:
+  // its <NavigationBar hidden /> component makes "hidden" the default, so the bar stayed away after
+  // playback and the tab bar moved down into its place.
   useEffect(() => {
     void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => undefined);
-    return () => void ScreenOrientation.unlockAsync().catch(() => undefined);
+    NavigationBar.setHidden(true);
+    return () => {
+      NavigationBar.setHidden(false);
+      void ScreenOrientation.unlockAsync().catch(() => undefined);
+    };
   }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <Stack.Screen options={{ headerShown: false, animation: 'fade' }} />
       <StatusBar hidden />
-      {/* Full screen: the system's navigation bar too (a swipe from the edge shows it briefly). */}
-      <NavigationBar hidden />
       {item.error ? (
         <Problem message={(item.error as Error).message} />
       ) : item.data && !prefs.isLoading ? (

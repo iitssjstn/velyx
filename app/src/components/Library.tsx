@@ -1,7 +1,8 @@
 import { FlatList, RefreshControl, Text } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { renderPoster, useGrid } from './media';
-import { ErrorState, Loading, styles } from './ui';
+import { GridSkeleton } from './Skeleton';
+import { ErrorState, styles } from './ui';
 import { useSession } from '../lib/session';
 import { colors } from '../lib/theme';
 import type { Card, Paged } from '../lib/types';
@@ -18,7 +19,7 @@ export function Library({ kind }: { kind: 'movies' | 'shows' }) {
     queryFn: ({ pageParam }) => api.get<Paged<Card>>(`/api/${kind}?page=${pageParam}&limit=${PAGE}&sort=title`),
     getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
   });
-  if (q.isLoading) return <Loading />;
+  if (q.isLoading) return <GridSkeleton />;
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const items = q.data.pages.flatMap((p) => p.items);
   return (

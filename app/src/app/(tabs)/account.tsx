@@ -12,7 +12,7 @@ export default function Account() {
   const [busy, setBusy] = useState(false);
   const name = user?.displayName || user?.username || '';
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+    <ScrollView contentContainerStyle={{ padding: 16, gap: 16, width: '100%', maxWidth: 640, alignSelf: 'center' }}>
       <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, padding: 16, gap: 6 }}>
         <Text style={styles.body}>{t('account.signedInAs', { name })}</Text>
         <Text style={styles.muted}>{t('account.server')}: {serverName} · {serverUrl}</Text>

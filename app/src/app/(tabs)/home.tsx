@@ -1,8 +1,9 @@
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ContinueShelf, Shelf } from '../../components/media';
-import { ErrorState, Loading, styles } from '../../components/ui';
+import { ContinueShelf, Shelf, useWide } from '../../components/media';
+import { ShelvesSkeleton } from '../../components/Skeleton';
+import { ErrorState, styles } from '../../components/ui';
 import { Logo } from '../../components/Logo';
 import { useSession } from '../../lib/session';
 import { colors } from '../../lib/theme';
@@ -11,7 +12,16 @@ import type { HomeData } from '../../lib/types';
 export default function Home() {
   const { api, t, serverUrl } = useSession();
   const q = useQuery({ queryKey: [serverUrl, 'home'], queryFn: () => api.get<HomeData>('/api/home') });
-  if (q.isLoading) return <Loading />;
+  const wide = useWide();
+  if (q.isLoading)
+    return (
+      <SafeAreaView edges={['top']} style={styles.screen}>
+        <View style={{ padding: 16, paddingBottom: 20 }}>
+          <Logo />
+        </View>
+        <ShelvesSkeleton poster={wide ? 150 : 120} />
+      </SafeAreaView>
+    );
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const d = q.data;
   const empty = !d.continueWatching.length && !d.recentlyAdded.length && !d.movies.length && !d.shows.length;

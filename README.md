@@ -319,6 +319,8 @@ Good to know:
 
 Besides installing the website as an app, Velyx has its own Android app (for phones and tablets). It connects to your server, signs in, and shows Home (Continue Watching, your watchlist, recently added, movies, shows and favorites), search, all movies and all TV shows, and the pages of movies and shows with their seasons and episodes — and it plays them with its own player.
 
+**Phones and tablets:** on a tablet (or a phone in landscape) movie and show pages put the poster beside the details instead of stretching the phone layout, posters and episode pictures are larger and grids show more columns. While a screen loads, grey placeholders show where the posters and details will appear. Pull down on Home, the lists and on movie and show pages to load them again.
+
 **Search and your lists in the app:**
 
 - **Search** (its own tab) looks through movies, shows and episode titles on your server while you type, after a short pause; a code such as `s02e04` finds that episode. A tap on an episode opens its show.
