@@ -40,6 +40,8 @@ export interface AppConfig {
   ffmpegPath: string;
   frontendDir: string | null;
   serverUrl: string;
+  /** The Vidalune account service (only contacted after an administrator links the server). */
+  cloudUrl: string;
 }
 
 function bool(v: string | undefined, fallback: boolean): boolean {
@@ -130,6 +132,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     ffmpegPath: env.FFMPEG_PATH || 'ffmpeg',
     frontendDir: frontendCandidate,
     serverUrl: env.SERVER_URL ?? '',
+    cloudUrl: (env.VIDALUNE_CLOUD_URL || 'https://vidalune.com').replace(/\/+$/, ''),
     ...overrides,
   };
   cfg.sessionSecret = overrides.sessionSecret ?? resolveSessionSecret(dataDir, env.SESSION_SECRET);

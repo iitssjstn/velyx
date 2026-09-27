@@ -4,7 +4,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', 'data/**', 'backend/drizzle/**', 'app/**'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', 'data/**', 'backend/drizzle/**', 'cloud/drizzle/**', 'app/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -15,11 +15,11 @@ export default tseslint.config(
     },
   },
   {
-    files: ['backend/**/*.ts', 'scripts/**/*.mjs', 'frontend/scripts/**/*.mjs'],
+    files: ['backend/**/*.ts', 'cloud/**/*.ts', 'scripts/**/*.mjs', 'frontend/scripts/**/*.mjs'],
     languageOptions: { globals: globals.node },
   },
   {
-    files: ['frontend/public/offline.js'],
+    files: ['frontend/public/offline.js', 'cloud/web/account.js'],
     languageOptions: { globals: globals.browser, sourceType: 'script' },
   },
   {

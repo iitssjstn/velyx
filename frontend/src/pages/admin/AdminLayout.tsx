@@ -12,6 +12,7 @@ import { SegmentsPage } from './Segments';
 import { ActivityPage } from './Activity';
 import { CleanupPage } from './Cleanup';
 import { NotificationsPage, useUnreadNotifications } from './Notifications';
+import { CloudPage } from './Cloud';
 import { useT, type MessageKey } from '../../i18n';
 
 const TABS: Array<{ to: string; label: MessageKey }> = [
@@ -24,6 +25,7 @@ const TABS: Array<{ to: string; label: MessageKey }> = [
   { to: 'intros', label: 'admin.tabs.intros' },
   { to: 'cleanup', label: 'admin.tabs.cleanup' },
   { to: 'notifications', label: 'admin.tabs.notifications' },
+  { to: 'cloud', label: 'admin.tabs.cloud' },
   { to: 'server', label: 'admin.tabs.server' },
   { to: 'logs', label: 'admin.tabs.logs' },
   { to: 'audit', label: 'admin.tabs.audit' },
@@ -63,6 +65,7 @@ export default function AdminLayout() {
         <Route path="intros" element={<SegmentsPage />} />
         <Route path="cleanup" element={<CleanupPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="cloud" element={<CloudPage />} />
         {/* The compatibility overview became part of Library health in 0.4.2. */}
         <Route path="compatibility" element={<Navigate to="/admin/health" replace />} />
         <Route path="server" element={<ServerSettingsPanel />} />

@@ -35,6 +35,8 @@ export const audit: Messages['audit'] = {
     cleanupSettings: 'Opschooninstellingen gewijzigd',
     cleanupRules: 'Eigen opschoonregels gewijzigd',
     notificationsSettings: 'Meldingsinstellingen gewijzigd',
+    cloudLinking: 'Koppelen aan Vidalune-account gestart',
+    cloudUnlinked: 'Ontkoppeld van het Vidalune-account',
     segmentsAnalyze: 'Herkenning van intro en aftiteling gestart voor',
     segmentsEdited: 'Intro en aftiteling bewerkt van',
     segmentsReset: 'Intro en aftiteling hersteld van',

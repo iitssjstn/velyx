@@ -30,6 +30,7 @@ import { metadata } from './metadata';
 import { nav } from './nav';
 import { notFound } from './notFound';
 import { notifications } from './notifications';
+import { cloud } from './cloud';
 import { onlineSubs } from './onlineSubs';
 import { playback } from './playback';
 import { player } from './player';
@@ -49,4 +50,4 @@ import { subtitleStyle } from './subtitleStyle';
 import { time } from './time';
 import { users } from './users';
 
-export const nl: Messages = { activity, admin, adminItem, audit, auth, backup, browse, cleanup, collections, common, continueWatching, dashboard, detail, device, errors, fixMatch, greeting, health, home, install, libraries, library, link, lists, logs, media, mediaInfo, metadata, nav, notFound, notifications, onlineSubs, playback, player, quickSearch, roles, schedule, search, searchPage, segments, series, server, sessions, settings, setup, smart, subtitleStyle, time, users };
+export const nl: Messages = { activity, admin, adminItem, audit, auth, backup, browse, cleanup, cloud, collections, common, continueWatching, dashboard, detail, device, errors, fixMatch, greeting, health, home, install, libraries, library, link, lists, logs, media, mediaInfo, metadata, nav, notFound, notifications, onlineSubs, playback, player, quickSearch, roles, schedule, search, searchPage, segments, series, server, sessions, settings, setup, smart, subtitleStyle, time, users };

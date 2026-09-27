@@ -313,4 +313,8 @@ export const nl: Record<string, string> = {
   'If this was not expected, sign the device out under Users.': 'Was dit niet de bedoeling? Meld het apparaat af onder Gebruikers.',
   'Disk space is running low': 'De schijfruimte raakt op',
   '{disk}: {free} free.': '{disk}: {free} vrij.',
+  // Vidalune account
+  'Could not reach the Vidalune account service. Try again later.': 'De Vidalune-accountdienst is niet bereikbaar. Probeer het later opnieuw.',
+  'The Vidalune account service could not handle the request. Try again later.': 'De Vidalune-accountdienst kon het verzoek niet verwerken. Probeer het later opnieuw.',
+  'The Vidalune account service no longer knows this server. Turn linking on again.': 'De Vidalune-accountdienst kent deze server niet meer. Zet koppelen opnieuw aan.',
 };

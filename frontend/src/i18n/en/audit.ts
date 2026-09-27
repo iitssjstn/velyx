@@ -34,6 +34,8 @@ export const audit = {
     cleanupSettings: 'Changed clean-up settings',
     cleanupRules: 'Changed own clean-up rules',
     notificationsSettings: 'Changed notification settings',
+    cloudLinking: 'Started linking to a Vidalune account',
+    cloudUnlinked: 'Unlinked from the Vidalune account',
     segmentsAnalyze: 'Started intro and credits detection for',
     segmentsEdited: 'Edited intro and credits of',
     segmentsReset: 'Reset intro and credits of',
