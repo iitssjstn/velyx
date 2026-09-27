@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View, type GestureResponderEvent } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEventListener } from 'expo';
@@ -11,10 +11,18 @@ import { deviceDecoders } from '../../../../modules/velyx-codecs';
 import { SeekBar } from '../../../components/SeekBar';
 import { Button, styles } from '../../../components/ui';
 import { episodeCode, formatClock } from '../../../lib/format';
-import { pickSubtitle, playbackCaps, playerAudioPosition, streamFrom, type PlaybackAnswer, type SubtitleOption } from '../../../lib/playback';
+import { fallbackCaps, pickSubtitle, playbackCaps, playerAudioPosition, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { useSession } from '../../../lib/session';
+import { skipAt, upNextStart, type EpisodeSegments, type SkipMode } from '../../../lib/skip';
 import { colors, radius } from '../../../lib/theme';
 import { cueTextAt, parseVtt, type Cue } from '../../../lib/vtt';
+
+interface NextEpisode {
+  id: number;
+  seasonNumber: number;
+  episodeNumber: number;
+  title: string | null;
+}
 
 interface Item {
   kind: 'movie' | 'episode';
@@ -23,17 +31,21 @@ interface Item {
   title: string;
   subtitle: string | null;
   progress: { positionSec: number; completed: boolean } | null;
-  next: { id: number; seasonNumber: number; episodeNumber: number; title: string | null } | null;
+  next: NextEpisode | null;
+  segments: EpisodeSegments | null;
 }
 
 interface Prefs {
   subtitleMode?: string;
   subtitleLanguage?: string | null;
+  skipIntro?: SkipMode;
+  skipCredits?: SkipMode;
 }
 
 const SAVE_EVERY_MS = 10_000;
 const HIDE_CONTROLS_MS = 4000;
 const NEXT_COUNTDOWN = 10;
+const DOUBLE_TAP_MS = 300;
 
 export default function Player() {
   const { kind, id, t: startParam } = useLocalSearchParams<{ kind: string; id: string; t?: string }>();
@@ -44,13 +56,13 @@ export default function Player() {
     queryKey: [serverUrl, 'play-item', kind, id],
     queryFn: async (): Promise<Item> => {
       if (kind === 'episode') {
-        const e = await api.get<{ id: number; showTitle: string; seasonNumber: number; episodeNumber: number; title: string | null; files: { id: number }[]; progress: Item['progress']; next: Item['next'] }>(`/api/episodes/${id}`);
+        const e = await api.get<{ id: number; showTitle: string; seasonNumber: number; episodeNumber: number; title: string | null; files: { id: number }[]; progress: Item['progress']; next: NextEpisode | null; segments?: EpisodeSegments | null }>(`/api/episodes/${id}`);
         if (!e.files[0]) throw new Error(t('player.cannotPlay'));
-        return { kind: 'episode', id: e.id, fileId: e.files[0].id, title: e.showTitle, subtitle: [episodeCode(e.seasonNumber, e.episodeNumber), e.title].filter(Boolean).join(' · '), progress: e.progress, next: e.next };
+        return { kind: 'episode', id: e.id, fileId: e.files[0].id, title: e.showTitle, subtitle: [episodeCode(e.seasonNumber, e.episodeNumber), e.title].filter(Boolean).join(' · '), progress: e.progress, next: e.next, segments: e.segments ?? null };
       }
       const m = await api.get<{ id: number; title: string; year: number | null; files: { id: number }[]; progress: Item['progress'] }>(`/api/movies/${id}`);
       if (!m.files[0]) throw new Error(t('player.cannotPlay'));
-      return { kind: 'movie', id: m.id, fileId: m.files[0].id, title: m.title, subtitle: m.year ? String(m.year) : null, progress: m.progress, next: null };
+      return { kind: 'movie', id: m.id, fileId: m.files[0].id, title: m.title, subtitle: m.year ? String(m.year) : null, progress: m.progress, next: null, segments: null };
     },
   });
   const prefs = useQuery({ queryKey: [serverUrl, 'account-prefs'], queryFn: () => api.get<Prefs>('/api/account/preferences') });
@@ -61,7 +73,7 @@ export default function Player() {
     return () => void ScreenOrientation.unlockAsync().catch(() => undefined);
   }, []);
 
-  // Everything the server needs to know is saved when leaving, so lists are fresh afterwards.
+  // Lists (progress, Continue Watching) are fresh after watching.
   useEffect(
     () => () => {
       void qc.invalidateQueries({ queryKey: [serverUrl] });
@@ -117,8 +129,14 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   const [cues, setCues] = useState<Cue[]>([]);
   const [ended, setEnded] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [nextDismissed, setNextDismissed] = useState(false);
+  const [seekFlash, setSeekFlash] = useState<'back' | 'forward' | null>(null);
   const pendingSeek = useRef<number | null>(null);
   const lastSave = useRef(0);
+  /** The caps of the current stream; after a failed first try, the safer second-try caps. */
+  const capsRef = useRef<PlaybackCaps>(playbackCaps(deviceDecoders()));
+  const triedFallback = useRef(false);
+  const autoSkipped = useRef(new Set<string>());
 
   const duration = answer?.file.durationSec ?? answer?.decision.durationSec ?? 0;
   const position = offset + time;
@@ -142,7 +160,8 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   const decide = useCallback(
     async (at: number, wantedAudio?: number) => {
       try {
-        const a = await api.post<PlaybackAnswer>(`/api/media/${item.fileId}/playback`, playbackCaps(deviceDecoders(), wantedAudio));
+        const caps = { ...capsRef.current, ...(wantedAudio !== undefined ? { audioIndex: wantedAudio } : {}) };
+        const a = await api.post<PlaybackAnswer>(`/api/media/${item.fileId}/playback`, caps);
         if (a.analysis.mode === 'unsupported') {
           setProblem([t('player.cannotPlay'), ...a.analysis.problems].join('\n\n'));
           return;
@@ -211,13 +230,22 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       const track = pos >= 0 ? player.availableAudioTracks[pos] : undefined;
       if (track && answer.decision.seek === 'range') player.audioTrack = track;
     }
-    if (status === 'error') setProblem(t('player.failed', { reason: error?.message ?? t('common.error') }));
+    if (status === 'error') {
+      // The original file did not play after all: once, ask the server for a repackaged stream.
+      if (answer?.decision.engine === 'direct' && !triedFallback.current) {
+        triedFallback.current = true;
+        capsRef.current = fallbackCaps(capsRef.current);
+        void decide(position, audioIndex ?? undefined);
+        return;
+      }
+      setProblem(t('player.failed', { reason: error?.message ?? t('common.error') }));
+    }
   });
   useEventListener(player, 'playToEnd', () => {
     void save(duration, true);
     setEnded(true);
     setControls(true);
-    if (item.next) setCountdown(NEXT_COUNTDOWN);
+    if (item.next && !nextDismissed && countdown === null) setCountdown(NEXT_COUNTDOWN);
   });
 
   // ---------------------------------------------------------------- progress
@@ -244,16 +272,34 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   }, [playing, answer]);
   useEffect(() => () => void saveRef.current(), []);
 
+  // ---------------------------------------------------------------- skip intro / credits
+  const modes = { intro: prefs?.skipIntro ?? 'ask', credits: prefs?.skipCredits ?? 'ask' };
+  const skip = answer && !loading ? skipAt(item.segments, item.fileId, position, modes) : null;
+  const goNext = useCallback(() => {
+    if (item.next) router.replace(`/play/episode/${item.next.id}?t=0`);
+  }, [item.next]);
+
   // ---------------------------------------------------------------- next episode
+  // Offered when the credits begin (or in the last seconds), with a countdown unless dismissed.
+  const upNextAt = item.next ? upNextStart(item.segments, item.fileId, duration, NEXT_COUNTDOWN) : null;
+  const nearEnd = upNextAt !== null && position >= upNextAt;
+  useEffect(() => {
+    if (!item.next || nextDismissed) return;
+    if (nearEnd && playing) setCountdown((c) => c ?? NEXT_COUNTDOWN);
+    // Seeking back out of the end cancels it.
+    if (!nearEnd && !ended) setCountdown(null);
+  }, [nearEnd, playing, ended, item.next, nextDismissed]);
   useEffect(() => {
     if (countdown === null) return;
     if (countdown <= 0) {
-      if (item.next) router.replace(`/play/episode/${item.next.id}?t=0`);
+      goNext();
       return;
     }
+    // Paused before the end: the countdown waits too.
+    if (!playing && !ended) return;
     const timer = setTimeout(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
     return () => clearTimeout(timer);
-  }, [countdown, item.next]);
+  }, [countdown, playing, ended, goNext]);
 
   // ---------------------------------------------------------------- controls
   useEffect(() => {
@@ -262,14 +308,26 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
     return () => clearTimeout(timer);
   }, [controls, playing, menu, scrub, time]);
 
-  const seekTo = (target: number) => {
-    if (!answer) return;
-    const tt = Math.max(0, Math.min(Math.max(0, duration - 1), target));
-    setEnded(false);
-    setCountdown(null);
-    if (answer.decision.seek === 'restart') void load(answer, tt);
-    else player.currentTime = tt;
-  };
+  const seekTo = useCallback(
+    (target: number) => {
+      if (!answer) return;
+      const tt = Math.max(0, Math.min(Math.max(0, duration - 1), target));
+      setEnded(false);
+      if (answer.decision.seek === 'restart') void load(answer, tt);
+      else player.currentTime = tt;
+    },
+    [answer, duration, load, player],
+  );
+
+  // Always-skip: once per part and item, as on the website; credits with nothing after them go
+  // straight to the next episode when there is one.
+  useEffect(() => {
+    if (!skip || skip.mode !== 'always' || autoSkipped.current.has(skip.kind)) return;
+    autoSkipped.current.add(skip.kind);
+    if (skip.kind === 'credits' && skip.toNext && item.next) goNext();
+    else seekTo(skip.to);
+  }, [skip, item.next, goNext, seekTo]);
+
   const toggle = () => {
     if (ended) {
       seekTo(0);
@@ -278,20 +336,54 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
     else player.play();
   };
 
+  // A tap shows or hides the controls; a double tap on the left or right third seeks 10 seconds.
+  const lastTap = useRef({ at: 0, x: 0 });
+  const onTap = (e: GestureResponderEvent) => {
+    const now = Date.now();
+    const x = e.nativeEvent.pageX;
+    const prev = lastTap.current;
+    lastTap.current = { at: now, x };
+    if (now - prev.at < DOUBLE_TAP_MS && Math.abs(x - prev.x) < 80 && screenWidth.current > 0) {
+      const side = x < screenWidth.current / 3 ? 'back' : x > (screenWidth.current * 2) / 3 ? 'forward' : null;
+      if (side) {
+        // Undo the first tap's show/hide and seek instead.
+        setControls((c) => !c);
+        seekTo(position + (side === 'back' ? -10 : 10));
+        setSeekFlash(side);
+        return;
+      }
+    }
+    setControls((c) => !c);
+  };
+  const screenWidth = useRef(0);
+  useEffect(() => {
+    if (!seekFlash) return;
+    const timer = setTimeout(() => setSeekFlash(null), 600);
+    return () => clearTimeout(timer);
+  }, [seekFlash]);
+
   if (problem) return <Problem message={problem} />;
 
   const text = cueTextAt(cues, position);
   const shown = scrub ?? position;
   const audioTracks = answer?.file.audioTracks ?? [];
+  const showNext = Boolean(item.next && countdown !== null && !nextDismissed);
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1 }} onLayout={(e) => (screenWidth.current = e.nativeEvent.layout.width)}>
       <VideoView player={player} style={{ flex: 1 }} nativeControls={false} contentFit="contain" allowsPictureInPicture={false} />
       {text ? (
         <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: controls ? 96 : 28, alignItems: 'center' }}>
           <Text style={{ color: '#fff', fontSize: 20, textAlign: 'center', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>{text}</Text>
         </View>
       ) : null}
-      <Pressable accessibilityLabel={t('player.tracks')} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={() => setControls((c) => !c)}>
+      {seekFlash && (
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, [seekFlash === 'back' ? 'left' : 'right']: 48, justifyContent: 'center' }}>
+          <View style={{ backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 999, padding: 16 }}>
+            <Feather name={seekFlash === 'back' ? 'rotate-ccw' : 'rotate-cw'} size={32} color="#fff" />
+          </View>
+        </View>
+      )}
+      <Pressable accessibilityLabel={t('player.tracks')} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={onTap}>
         {controls && (
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'space-between', padding: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -308,11 +400,6 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
               <IconButton name="rotate-cw" label={t('player.forward10')} onPress={() => seekTo(position + 10)} size={30} />
             </View>
             <View style={{ gap: 4 }}>
-              {countdown !== null && item.next && (
-                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
-                  <Button label={t('player.nextIn', { n: countdown })} onPress={() => router.replace(`/play/episode/${item.next!.id}?t=0`)} />
-                </View>
-              )}
               <SeekBar position={position} duration={duration} onScrub={setScrub} onSeek={seekTo} label={t('player.seek')} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ color: '#fff' }}>{formatClock(shown)}</Text>
@@ -322,6 +409,42 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
           </View>
         )}
       </Pressable>
+      {/* Skip intro / credits: visible with or without the controls, above them. */}
+      {skip?.mode === 'ask' && !showNext && (
+        <View style={{ position: 'absolute', right: 24, bottom: controls ? 110 : 32 }}>
+          <Button
+            label={skip.kind === 'intro' ? t('player.skipIntro') : t('player.skipCredits')}
+            onPress={() => {
+              if (skip.kind === 'credits' && skip.toNext && item.next) goNext();
+              else seekTo(skip.to);
+            }}
+          />
+        </View>
+      )}
+      {showNext && item.next && (
+        <View style={{ position: 'absolute', right: 24, bottom: controls ? 110 : 32, width: 300, maxWidth: '80%', backgroundColor: 'rgba(20,18,28,0.92)', borderRadius: radius.lg, padding: 14, gap: 10, borderWidth: 1, borderColor: colors.line }}>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>{t('player.next')}</Text>
+          <Text style={{ color: colors.ink, fontWeight: '700' }} numberOfLines={2}>
+            {episodeCode(item.next.seasonNumber, item.next.episodeNumber)}
+            {item.next.title ? ` · ${item.next.title}` : ''}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flex: 1 }}>
+              <Button label={t('player.playIn', { n: Math.max(0, countdown ?? 0) })} onPress={goNext} />
+            </View>
+            {!ended && (
+              <Button
+                label={t('player.watchCredits')}
+                variant="ghost"
+                onPress={() => {
+                  setNextDismissed(true);
+                  setCountdown(null);
+                }}
+              />
+            )}
+          </View>
+        </View>
+      )}
       <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)} supportedOrientations={['landscape', 'portrait']}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'flex-end' }} onPress={() => setMenu(false)} accessibilityLabel={t('player.close')}>
           <Pressable style={{ width: 320, maxWidth: '90%', height: '100%', backgroundColor: colors.surface, padding: 16 }} onPress={() => undefined}>
