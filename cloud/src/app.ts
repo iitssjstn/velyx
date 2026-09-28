@@ -90,7 +90,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   /** Whether an account's servers may be reached through Vidalune: an active plan (administrators always). */
   const hasRemote = (a: typeof accounts.$inferSelect | undefined): boolean => !!a && (isAdmin(a) || (a.plan === 'remote' && (a.planUntil === null || a.planUntil > now())));
   const ownerHasRemote = (accountId: number | null): boolean => accountId !== null && hasRemote(db.select().from(accounts).where(eq(accounts.id, accountId)).get());
-  const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops, allowed: ownerHasRemote });
+  const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops, allowed: ownerHasRemote, appUrl: config.frontendDir ? `${publicUrl.protocol}//app.${config.relayDomain}${publicUrl.port ? `:${publicUrl.port}` : ''}` : null });
   /** app.vidalune.com: the Vidalune web interface for whichever server its visitor chose. */
   const appHost = `app.${config.relayDomain}`;
   /** Where app.vidalune.com is (null: this service does not serve the web interface there). */

@@ -175,6 +175,16 @@ function unavailable(res: ServerResponse, status: number): void {
   res.end(text);
 }
 
+/** A browser opening a page (not the API, not a file the app or player asks for). */
+function isNavigation(req: IncomingMessage): boolean {
+  if (req.method !== 'GET') return false;
+  const path = req.url ?? '/';
+  if (path.startsWith('/api/') || path.startsWith('/sso')) return false;
+  const mode = req.headers['sec-fetch-mode'];
+  if (mode) return mode === 'navigate';
+  return String(req.headers.accept ?? '').includes('text/html');
+}
+
 /** The visitor's address: the socket, or the entries proxies in front of us added. */
 export function clientIp(req: IncomingMessage, hops: number): string {
   const chain = String(req.headers['x-forwarded-for'] ?? '')
@@ -204,6 +214,8 @@ export class Relay {
       trustProxy: number;
       /** Whether the owner (account id) of a server may use the relay: they have remote access. */
       allowed: (accountId: number | null) => boolean;
+      /** app.vidalune.com: browsers opening a relay address are sent there (null: not served). */
+      appUrl?: string | null;
     },
   ) {}
 
@@ -233,6 +245,12 @@ export class Relay {
     const row = this.opts.db.select({ id: servers.id, enabled: servers.relayEnabled, accountId: servers.accountId }).from(servers).where(eq(servers.relaySlug, slug)).get();
     const tunnel = row?.enabled && this.opts.allowed(row.accountId) ? this.tunnels.get(row.id) : undefined;
     if (!tunnel) return unavailable(res, 502);
+    // A person opening the relay address in a browser: the web interface is on app.vidalune.com, with
+    // this server chosen. Apps and the web interface's own requests (the API) pass through.
+    if (this.opts.appUrl && isNavigation(req)) {
+      res.writeHead(302, { Location: `${this.opts.appUrl}/_vl/open?server=${encodeURIComponent(row!.id)}`, 'Cache-Control': 'no-store' }).end();
+      return;
+    }
     tunnel.forward(req, res, clientIp(req, this.opts.trustProxy));
   }
 

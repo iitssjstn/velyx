@@ -64,7 +64,9 @@ Taking it away closes that account's tunnels at once; an end date takes effect b
 A Vidalune server whose administrator turns the relay on (Admin → Vidalune account, only while
 linked) keeps a WebSocket open to `wss://vidalune.com/api/server/tunnel` and gets the address
 `https://<name>.vidalune.com`. Visitors of that address are passed through the tunnel to the server;
-nothing is stored. Names like `www`, `app` and `api` are never given out.
+nothing is stored. Names like `www`, `app` and `api` are never given out. The address is not shown
+to people: a browser opening it is sent to app.vidalune.com with that server chosen; the API (the
+app, and app.vidalune.com's own requests) passes through.
 
 In Nginx Proxy Manager:
 

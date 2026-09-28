@@ -140,12 +140,7 @@ export function CloudPage() {
           )}
           {s.relay.enabled && (
             <div className="space-y-1 text-sm" aria-live="polite">
-              {s.relay.url && (
-                <p>
-                  {t('cloud.relayAddress', { url: '' })}
-                  <a className="text-accent underline-offset-2 hover:underline" href={s.relay.url} target="_blank" rel="noopener noreferrer">{s.relay.url}</a>
-                </p>
-              )}
+              {s.relay.url && <p>{t('cloud.relayReachable')}</p>}
               <p className={s.relay.connected ? 'text-ok' : s.relay.error ? 'text-danger' : 'text-muted'}>
                 {s.relay.connected ? t('cloud.relayConnected') : s.relay.error ? t(`cloud.relayProblem.${s.relay.error}`) : t('cloud.relayConnecting')}
               </p>

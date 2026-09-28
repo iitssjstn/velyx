@@ -150,6 +150,11 @@ describe('the relay', () => {
     // The account service lists the relay address and that it is connected.
     expect((await cloud.inject({ url: '/api/servers', headers: { cookie: s.cookie } })).json()).toMatchObject([{ relayUrl: `http://${s.host}`, relayConnected: true, online: true }]);
 
+    // A browser opening the relay address goes to app.<domain>, with this server chosen.
+    const page = await get(s.host, '/', { accept: 'text/html', 'sec-fetch-mode': 'navigate' });
+    expect(page.status).toBe(302);
+    expect(page.headers.location).toBe(`http://app.relay.test/_vl/open?server=${s.id}`);
+    expect((await get(s.host, '/api/server/info', { accept: 'text/html', 'sec-fetch-mode': 'navigate' })).status).toBe(200);
     const file = await get(s.host, '/big.bin');
     expect(file.status).toBe(200);
     expect(file.body.equals(big)).toBe(true);

@@ -16,7 +16,7 @@ export const cloud = {
   unlinked: 'This server is no longer linked.',
   linkedToast: 'Linked to {account}.',
   relayTitle: 'Reachable without an open port (relay)',
-  relayIntro: 'Your server keeps a connection open to vidalune.com and gets its own HTTPS address. The website and the app reach it there from anywhere, without port forwarding or your own domain.',
+  relayIntro: 'Your server keeps a connection open to vidalune.com. app.vidalune.com and the Vidalune app then reach it from anywhere, without port forwarding or your own domain.',
   relayPrivacy: 'Everything you watch and do then passes through vidalune.com (encrypted on the way, decrypted there to pass it on). Nothing is stored. A direct address is used first where it works.',
   relaySubscription: 'Remote access through Vidalune (the relay and app.vidalune.com) needs a subscription on the Vidalune account {account}. On your home network, and at an address of your own, the server keeps working as always.',
   relayOn: 'Turn the relay on',
@@ -28,7 +28,7 @@ export const cloud = {
   homeNetworksHint: 'One per line, for example a VPN between your own devices (100.64.0.0/10). Only add networks you control.',
   homeSaved: 'Home networks saved.',
   relayOff: 'Turn the relay off',
-  relayAddress: 'Address: {url}',
+  relayReachable: 'Reachable on app.vidalune.com and in the Vidalune app.',
   relayConnected: 'Connected.',
   relayConnecting: 'Connecting…',
   relayProblem: {
