@@ -31,6 +31,16 @@ export function LoginPage() {
     setBusy(true);
     try {
       const res = await api.post<{ user: User }>('/api/auth/login', { username: username.trim(), password });
+      // On app.vidalune.com, after the Vidalune account did not know this user: connect them now, so
+      // next time the Vidalune account alone is enough.
+      if (onApp && vidalune === 'unknown') {
+        try {
+          const { ticket } = await api.post<{ ticket: string }>('/_vl/api/app/ticket');
+          await api.post('/api/account/cloud/claim', { ticket });
+        } catch {
+          /* signing in worked; connecting can be done later in Settings */
+        }
+      }
       setUser(res.user);
     } catch (err) {
       setError(errorMessage(err));

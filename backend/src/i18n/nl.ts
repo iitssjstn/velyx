@@ -321,7 +321,7 @@ export const nl: Record<string, string> = {
   'Remote access through Vidalune needs a subscription.': 'Toegang op afstand via Vidalune vereist een abonnement.',
   'Not a network such as 192.168.50.0/24.': 'Geen netwerk zoals 192.168.50.0/24.',
   'Playing away from home needs Vidalune remote access. The administrator links this server to a Vidalune account with remote access (Admin → Vidalune account).': 'Buitenshuis afspelen vereist Vidalune-toegang op afstand. De beheerder koppelt deze server aan een Vidalune-account met toegang op afstand (Beheer → Vidalune-account).',
-  'Playing away from home needs Vidalune remote access, which the owner of this server does not have (yet). At home everything keeps working.': 'Buitenshuis afspelen vereist Vidalune-toegang op afstand, en die heeft de eigenaar van deze server (nog) niet. Thuis blijft alles gewoon werken.',
+  'Playing away from home needs Vidalune remote access. The owner of this server does not have it; you can take it for yourself on vidalune.com with your Vidalune account (Settings → Account). At home everything keeps working.': 'Buitenshuis afspelen vereist Vidalune-toegang op afstand. De eigenaar van deze server heeft die niet; je kunt hem zelf nemen op vidalune.com met je Vidalune-account (Instellingen → Account). Thuis blijft alles gewoon werken.',
   'This sign-in link is not valid (any more).': 'Deze inloglink is niet (meer) geldig.',
   'Your Vidalune account is not connected to a user on this server. Sign in with your username and password.': 'Je Vidalune-account is niet gekoppeld aan een gebruiker op deze server. Log in met je gebruikersnaam en wachtwoord.',
 };

@@ -53,7 +53,7 @@ describe('link codes', () => {
 describe('accounts', () => {
   it('signs up, signs in and out; passwords and tokens are stored as hashes only', async () => {
     const cookie = await signUp('Justin@Example.com');
-    expect((await app.inject({ url: '/api/account', headers: { cookie } })).json()).toEqual({ email: 'justin@example.com', remote: { active: false, until: null }, appUrl: null });
+    expect((await app.inject({ url: '/api/account', headers: { cookie } })).json()).toEqual({ email: 'justin@example.com', remote: { active: false, kind: null, until: null }, appUrl: null });
     const stored = db.select().from(accounts).get()!;
     expect(stored.passwordHash).toMatch(/^\$argon2id\$/);
     expect(db.select().from(accountSessions).get()!.tokenHash).not.toBe(cookie.split('=')[1]);
@@ -189,7 +189,7 @@ describe('remote access and the admin page', () => {
   it('only administrators (ADMIN_EMAILS) see accounts and give remote access', async () => {
     const user = await signUp('justin@example.com');
     const boss = await signUp('boss@example.com');
-    expect((await app.inject({ url: '/api/account', headers: { cookie: boss } })).json()).toEqual({ email: 'boss@example.com', remote: { active: true, until: null }, appUrl: null, admin: true });
+    expect((await app.inject({ url: '/api/account', headers: { cookie: boss } })).json()).toEqual({ email: 'boss@example.com', remote: { active: true, kind: 'remote', until: null }, appUrl: null, admin: true });
     expect((await app.inject({ url: '/api/admin/accounts', headers: { cookie: user } })).statusCode).toBe(403);
     expect((await app.inject({ url: '/api/admin/accounts' })).statusCode).toBe(401);
     const id = db.select().from(accounts).where(eq(accounts.email, 'justin@example.com')).get()!.id;
@@ -203,7 +203,7 @@ describe('remote access and the admin page', () => {
     expect((await app.inject({ method: 'PUT', url: `/api/admin/accounts/${id}/plan`, headers: { cookie: boss }, payload: { plan: 'remote', until: clock - 1 } })).statusCode).toBe(400);
     const given = await app.inject({ method: 'PUT', url: `/api/admin/accounts/${id}/plan`, headers: { cookie: boss }, payload: { plan: 'remote', until: clock + 20 * 86_400_000, note: 'paid by bank transfer' } });
     expect(given.json()).toMatchObject({ plan: 'remote', remote: true, planNote: 'paid by bank transfer', planChangedAt: clock });
-    expect((await app.inject({ url: '/api/account', headers: { cookie: user } })).json().remote).toEqual({ active: true, until: clock + 20 * 86_400_000 });
+    expect((await app.inject({ url: '/api/account', headers: { cookie: user } })).json().remote).toEqual({ active: true, kind: 'remote', until: clock + 20 * 86_400_000 });
     expect((await app.inject({ url: '/api/admin/accounts?filter=remote', headers: { cookie: boss } })).json().accounts).toHaveLength(2);
     clock += 21 * 86_400_000;
     expect((await app.inject({ url: '/api/account', headers: { cookie: user } })).json().remote.active).toBe(false);
@@ -224,5 +224,35 @@ describe('remote access and the admin page', () => {
     expect(off.json().error).toMatch(/subscription/);
     const beat = await app.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: s.auth }, payload: { name: 'Thuis', version: '0.10.6' } });
     expect(beat.json().relay).toMatchObject({ enabled: false, allowed: false });
+  });
+
+  it('gives a viewer remote access for themselves, on servers whose owner has none', async () => {
+    const owner = await signUp('justin@example.com');
+    const boss = await signUp('boss@example.com');
+    const viewer = await signUp('lisa@example.com');
+    const s = await register();
+    const { code } = (await app.inject({ method: 'POST', url: '/api/server/code', headers: { authorization: s.auth }, payload: { userRef: '1' } })).json();
+    await app.inject({ method: 'POST', url: '/api/link', headers: { cookie: owner }, payload: { code } });
+    const member = (await app.inject({ method: 'POST', url: '/api/server/member-code', headers: { authorization: s.auth }, payload: { userRef: '7' } })).json();
+    await app.inject({ method: 'POST', url: '/api/join', headers: { cookie: viewer }, payload: { code: member.code } });
+    const beat = async () => (await app.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: s.auth }, payload: { name: 'Thuis', version: '0.10.11' } })).json();
+    // Nobody pays: no relay, nobody watches away from home.
+    expect(await beat()).toMatchObject({ relay: { allowed: false, usable: false }, remoteUsers: [] });
+    expect((await app.inject({ method: 'POST', url: '/api/server/relay', headers: { authorization: s.auth }, payload: { enabled: true } })).statusCode).toBe(402);
+
+    // Lisa takes a viewer plan: only she may, and the relay may connect for her.
+    const lisa = db.select().from(accounts).where(eq(accounts.email, 'lisa@example.com')).get()!.id;
+    const given = await app.inject({ method: 'PUT', url: `/api/admin/accounts/${lisa}/plan`, headers: { cookie: boss }, payload: { plan: 'viewer', until: clock + 90 * 86_400_000 } });
+    expect(given.json()).toMatchObject({ plan: 'viewer', remote: true });
+    expect(await beat()).toMatchObject({ relay: { allowed: false, usable: true }, remoteUsers: ['7'] });
+    expect((await app.inject({ method: 'POST', url: '/api/server/relay', headers: { authorization: s.auth }, payload: { enabled: true } })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/account', headers: { cookie: viewer } })).json().remote).toEqual({ active: true, kind: 'viewer', until: clock + 90 * 86_400_000 });
+    expect((await app.inject({ url: '/api/admin/accounts', headers: { cookie: boss } })).json().stats).toMatchObject({ viewers: 1 });
+
+    // Lifetime: no end date.
+    await app.inject({ method: 'PUT', url: `/api/admin/accounts/${lisa}/plan`, headers: { cookie: boss }, payload: { plan: 'viewer', until: null, note: 'lifetime' } });
+    clock += 400 * 86_400_000;
+    const later = await app.inject({ method: 'POST', url: '/api/login', payload: { email: 'lisa@example.com', password: 'correct-horse' } });
+    expect((await app.inject({ url: '/api/account', headers: { cookie: cookieOf(later) } })).json().remote).toMatchObject({ active: true, kind: 'viewer', until: null });
   });
 });

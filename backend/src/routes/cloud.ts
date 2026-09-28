@@ -44,6 +44,14 @@ export async function cloudRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   app.post('/api/account/cloud/link', { preHandler: requireUser }, async (request) => ctx.cloud.memberCode(request.user!.id));
 
+  /** Signed in by password after the Vidalune account did not know this user: connect them now. */
+  app.post('/api/account/cloud/claim', { preHandler: requireUser }, async (request) => {
+    const { ticket } = z.object({ ticket: z.string().min(20).max(200) }).parse(request.body);
+    const email = await ctx.cloud.claim(ticket, request.user!.id);
+    ctx.audit.record('cloud.account_linked', { actor: request.user, ip: request.ip, detail: email ?? undefined });
+    return { email };
+  });
+
   app.post('/api/account/cloud/unlink', { preHandler: requireUser }, async (request) => {
     await ctx.cloud.removeMember(request.user!.id);
     ctx.audit.record('cloud.account_unlinked', { actor: request.user, ip: request.ip });

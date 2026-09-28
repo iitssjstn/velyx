@@ -112,13 +112,13 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
    */
   const remoteGate = async (request: FastifyRequest) => {
     if (isHomeAddress(request.ip, ctx.settings.get().homeNetworks)) return;
-    const access = await ctx.cloud.remoteAccess();
+    const access = await ctx.cloud.remoteAccess(request.user?.id);
     if (access === 'allowed') return;
     throw new HttpError(
       402,
       access === 'not_linked'
         ? 'Playing away from home needs Vidalune remote access. The administrator links this server to a Vidalune account with remote access (Admin → Vidalune account).'
-        : 'Playing away from home needs Vidalune remote access, which the owner of this server does not have (yet). At home everything keeps working.',
+        : 'Playing away from home needs Vidalune remote access. The owner of this server does not have it; you can take it for yourself on vidalune.com with your Vidalune account (Settings → Account). At home everything keeps working.',
     );
   };
 

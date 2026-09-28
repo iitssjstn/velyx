@@ -1,6 +1,38 @@
 /** The Vidalune account service: signing in with a Vidalune account and listing its servers. */
 export const CLOUD_URL = 'https://vidalune.com';
 
+/** Where the app keeps the Vidalune account it signed in with. */
+export const CLOUD_ACCOUNT_KEY = 'vidalune.cloudAccount';
+/** A server whose sign-in fell back to a password: once signed in, connect the Vidalune account there. */
+export const PENDING_CONNECT_KEY = 'vidalune.pendingConnect';
+
+/** Storage the helpers below use (SecureStore in the app, a map in tests). */
+export interface KeyStore {
+  getItemAsync(key: string): Promise<string | null>;
+  setItemAsync(key: string, value: string): Promise<void>;
+  deleteItemAsync(key: string): Promise<void>;
+}
+
+/**
+ * After signing in on a server by password because the Vidalune account did not know that user:
+ * connect them, so next time the Vidalune account alone is enough. Quietly does nothing when there
+ * is nothing to connect or it does not work.
+ */
+export async function connectPending(store: KeyStore, post: (path: string, body: unknown) => Promise<unknown>, cloud = createCloud()): Promise<boolean> {
+  const serverId = await store.getItemAsync(PENDING_CONNECT_KEY);
+  if (!serverId) return false;
+  await store.deleteItemAsync(PENDING_CONNECT_KEY);
+  try {
+    const account = JSON.parse((await store.getItemAsync(CLOUD_ACCOUNT_KEY)) ?? 'null') as CloudAccount | null;
+    if (!account) return false;
+    const { ticket } = await cloud.open(account.token, serverId);
+    await post('/api/account/cloud/claim', { ticket });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface CloudServer {
   id: string;
   name: string;

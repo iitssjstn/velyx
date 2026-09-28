@@ -6,7 +6,10 @@ import { Button, Field, styles } from '../components/ui';
 import { Logo } from '../components/Logo';
 import { checkPairing, signInWithPassword, startPairing, type Pairing } from '../lib/auth';
 import { errorMessage } from '../lib/connection';
-import { useSession } from '../lib/session';
+import { USER_AGENT, useSession } from '../lib/session';
+import { createApi } from '../lib/api';
+import * as SecureStore from 'expo-secure-store';
+import { connectPending } from '../lib/cloud';
 import { colors, radius } from '../lib/theme';
 
 type Mode = 'password' | 'code';
@@ -68,6 +71,9 @@ function PasswordForm() {
     try {
       const res = await signInWithPassword(api, username, password, deviceName);
       await signIn(res.token, res.user);
+      // Came here from the Vidalune account: connect it, so next time no password is needed.
+      const signedIn = createApi({ baseUrl: api.baseUrl, token: res.token, userAgent: USER_AGENT });
+      await connectPending(SecureStore, (path, body) => signedIn.post(path, body));
       router.replace('/home');
     } catch (err) {
       setError(errorMessage(err, t));

@@ -213,7 +213,7 @@ export class Relay {
       port: string;
       trustProxy: number;
       /** Whether the owner (account id) of a server may use the relay: they have remote access. */
-      allowed: (accountId: number | null) => boolean;
+      allowed: (serverId: string, accountId: number | null) => boolean;
       /** app.vidalune.com: browsers opening a relay address are sent there (null: not served). */
       appUrl?: string | null;
     },
@@ -243,7 +243,7 @@ export class Relay {
 
   handleRequest(req: IncomingMessage, res: ServerResponse, slug: string): void {
     const row = this.opts.db.select({ id: servers.id, enabled: servers.relayEnabled, accountId: servers.accountId }).from(servers).where(eq(servers.relaySlug, slug)).get();
-    const tunnel = row?.enabled && this.opts.allowed(row.accountId) ? this.tunnels.get(row.id) : undefined;
+    const tunnel = row?.enabled && this.opts.allowed(row.id, row.accountId) ? this.tunnels.get(row.id) : undefined;
     if (!tunnel) return unavailable(res, 502);
     // A person opening the relay address in a browser: the web interface is on app.vidalune.com, with
     // this server chosen. Apps and the web interface's own requests (the API) pass through.
@@ -278,7 +278,7 @@ export class Relay {
     if (!row || !m || !crypto.timingSafeEqual(Buffer.from(row.secretHash), Buffer.from(sha256(m[2])))) return deny(401);
     if (!row.relayEnabled || !row.accountId) return deny(403);
     // The owner has no remote access (any more): 402, so the server can say why.
-    if (!this.opts.allowed(row.accountId)) return deny(402);
+    if (!this.opts.allowed(row.id, row.accountId)) return deny(402);
     this.wss.handleUpgrade(req, socket, head, (ws) => {
       // One tunnel per server: a reconnect replaces the old one.
       this.tunnels.get(row.id)?.close();
@@ -299,7 +299,7 @@ export class Relay {
   dropUnallowed(): void {
     for (const id of [...this.tunnels.keys()]) {
       const row = this.opts.db.select({ accountId: servers.accountId, enabled: servers.relayEnabled }).from(servers).where(eq(servers.id, id)).get();
-      if (!row?.enabled || !this.opts.allowed(row.accountId)) this.drop(id);
+      if (!row?.enabled || !this.opts.allowed(id, row.accountId)) this.drop(id);
     }
   }
 

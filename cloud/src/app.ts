@@ -90,7 +90,22 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   /** Whether an account's servers may be reached through Vidalune: an active plan (administrators always). */
   const hasRemote = (a: typeof accounts.$inferSelect | undefined): boolean => !!a && (isAdmin(a) || (a.plan === 'remote' && (a.planUntil === null || a.planUntil > now())));
   const ownerHasRemote = (accountId: number | null): boolean => accountId !== null && hasRemote(db.select().from(accounts).where(eq(accounts.id, accountId)).get());
-  const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops, allowed: ownerHasRemote, appUrl: config.frontendDir ? `${publicUrl.protocol}//app.${config.relayDomain}${publicUrl.port ? `:${publicUrl.port}` : ''}` : null });
+  /** Remote access for this account itself: its own plan for its servers, or a viewer plan. */
+  const hasPersonal = (a: typeof accounts.$inferSelect | undefined): boolean =>
+    !!a && (hasRemote(a) || (a.plan === 'viewer' && (a.planUntil === null || a.planUntil > now())));
+  /** The server's users whose own Vidalune account has remote access (their server user ids). */
+  const remoteUsers = (serverId: string): string[] =>
+    db
+      .select({ userRef: memberships.userRef, account: accounts })
+      .from(memberships)
+      .innerJoin(accounts, eq(memberships.accountId, accounts.id))
+      .where(eq(memberships.serverId, serverId))
+      .all()
+      .filter((m) => hasPersonal(m.account))
+      .map((m) => m.userRef);
+  /** A server may use the relay when its owner has remote access, or someone who uses it has it for themselves. */
+  const relayUsable = (serverId: string, accountId: number | null): boolean => accountId !== null && (ownerHasRemote(accountId) || remoteUsers(serverId).length > 0);
+  const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops, allowed: relayUsable, appUrl: config.frontendDir ? `${publicUrl.protocol}//app.${config.relayDomain}${publicUrl.port ? `:${publicUrl.port}` : ''}` : null });
   /** app.vidalune.com: the Vidalune web interface for whichever server its visitor chose. */
   const appHost = `app.${config.relayDomain}`;
   /** Where app.vidalune.com is (null: this service does not serve the web interface there). */
@@ -279,7 +294,12 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     return { ok: true };
   });
 
-  const planView = (a: typeof accounts.$inferSelect) => ({ active: hasRemote(a), until: isAdmin(a) ? null : a.planUntil });
+  const planView = (a: typeof accounts.$inferSelect) => ({
+    active: hasPersonal(a),
+    /** "remote": everyone on this account's servers; "viewer": this account only. */
+    kind: hasRemote(a) ? ('remote' as const) : hasPersonal(a) ? ('viewer' as const) : null,
+    until: isAdmin(a) ? null : a.planUntil,
+  });
 
   app.get('/api/account', async (request) => {
     const me = account(request);
@@ -303,6 +323,15 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     for (const [k, v] of handoffs) if (v.expiresAt < t) handoffs.delete(k);
     handoffs.set(sha256(token), { accountId: me.id, serverId: s.id, expiresAt: t + TICKET_MS });
     return { url: `${appOrigin}${APP_PREFIX}/handoff?t=${encodeURIComponent(token)}` };
+  });
+
+  /** app.vidalune.com: a ticket for the server chosen there (to connect the user signed in there). */
+  app.post('/api/app/ticket', async (request) => {
+    if (!isAppHost(request.raw)) throw new HttpError(404, 'Not found.');
+    const me = account(request);
+    const s = accessible(me.id).find((x) => x.id === request.cookies[SERVER_COOKIE]);
+    if (!s) throw new HttpError(404, 'Not found.');
+    return { ticket: newTicket(s.id, me.id) };
   });
 
   app.get('/handoff', async (request, reply) => {
@@ -331,7 +360,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   // ---- servers, as seen by their owner
 
   /** A server's relay address while its relay is on and its owner has remote access (null: not reachable that way). */
-  const relayUrl = (s: typeof servers.$inferSelect) => (s.relayEnabled && s.relaySlug && ownerHasRemote(s.accountId) ? relay.url(s.relaySlug) : null);
+  const relayUrl = (s: typeof servers.$inferSelect) => (s.relayEnabled && s.relaySlug && relayUsable(s.id, s.accountId) ? relay.url(s.relaySlug) : null);
   const serverView = (s: typeof servers.$inferSelect) => ({
     id: s.id,
     name: s.name,
@@ -452,8 +481,15 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   const serverStatus = (s: typeof servers.$inferSelect) => {
     const owner = s.accountId ? db.select().from(accounts).where(eq(accounts.id, s.accountId)).get() : undefined;
-    // allowed: the owner has remote access (a plan); without it the relay does not connect.
-    return { linked: !!owner, account: owner?.email ?? null, relay: { enabled: s.relayEnabled && !!owner, allowed: hasRemote(owner), url: owner ? relayUrl(s) : null, connected: relay.connected(s.id) } };
+    // allowed: the owner has remote access (everyone may watch away from home); usable: the relay may
+    // connect (the owner, or someone using the server, has remote access); remoteUsers: the server's
+    // users with remote access of their own.
+    return {
+      linked: !!owner,
+      account: owner?.email ?? null,
+      relay: { enabled: s.relayEnabled && !!owner, allowed: hasRemote(owner), usable: relayUsable(s.id, s.accountId), url: owner ? relayUrl(s) : null, connected: relay.connected(s.id) },
+      remoteUsers: owner ? remoteUsers(s.id) : [],
+    };
   };
 
   app.post('/api/server/register', async (request) => {
@@ -489,7 +525,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const me = server(request);
     const { enabled } = z.object({ enabled: z.boolean() }).parse(request.body);
     if (enabled && !me.accountId) throw new HttpError(409, 'Link this server to a Vidalune account first.');
-    if (enabled && !ownerHasRemote(me.accountId)) throw new HttpError(402, 'Remote access through Vidalune needs a subscription.');
+    if (enabled && !relayUsable(me.id, me.accountId)) throw new HttpError(402, 'Remote access through Vidalune needs a subscription.');
     let slug = me.relaySlug;
     if (enabled && !slug) {
       // A new, unused address (kept when the relay is turned off and on again).
@@ -549,6 +585,24 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     return { email: who?.email ?? null, userRef: member?.userRef ?? null };
   });
 
+  /**
+   * After someone signed in on the server with a username and password (their Vidalune account did
+   * not know that user yet), the server connects that user to the account the ticket was for: from
+   * then on they sign in there with their Vidalune account alone.
+   */
+  app.post('/api/server/claim', async (request) => {
+    const me = server(request);
+    if (!me.accountId) throw new HttpError(409, 'Link this server to a Vidalune account first.');
+    const body = z.object({ ticket: z.string().min(20).max(200), userRef }).parse(request.body);
+    const row = db.select().from(tickets).where(and(eq(tickets.ticketHash, sha256(body.ticket)), eq(tickets.serverId, me.id))).get();
+    if (row) db.delete(tickets).where(eq(tickets.ticketHash, row.ticketHash)).run();
+    if (!row || row.expiresAt < now()) throw new HttpError(401, 'This sign-in link is not valid (any more).');
+    // One Vidalune account per user here: the account moves to this user if it had another one.
+    db.delete(memberships).where(and(eq(memberships.serverId, me.id), eq(memberships.accountId, row.accountId))).run();
+    db.insert(memberships).values({ serverId: me.id, userRef: body.userRef, accountId: row.accountId, createdAt: now() }).onConflictDoUpdate({ target: [memberships.serverId, memberships.userRef], set: { accountId: row.accountId, createdAt: now() } }).run();
+    return { email: db.select().from(accounts).where(eq(accounts.id, row.accountId)).get()?.email ?? null };
+  });
+
   /** The server's administrator stops using the account service: everything about it is removed. */
   app.delete('/api/server', async (request) => {
     const me = server(request);
@@ -576,7 +630,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       planUntil: a.planUntil,
       planNote: a.planNote,
       planChangedAt: a.planChangedAt,
-      remote: hasRemote(a),
+      remote: hasPersonal(a),
       servers: owned.map((s) => ({ ...s, relayConnected: relay.connected(s.id) })),
     };
   };
@@ -591,7 +645,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       .filter((a) => q.filter === 'all' || (q.filter === 'remote' ? a.remote : a.servers.length > 0));
     const linked = db.select({ id: servers.id }).from(servers).where(isNotNull(servers.accountId)).all().length;
     return {
-      stats: { accounts: all.length, remote: all.filter(hasRemote).length, servers: linked, tunnels: relay.count() },
+      stats: { accounts: all.length, remote: all.filter(hasRemote).length, viewers: all.filter((a) => !hasRemote(a) && hasPersonal(a)).length, servers: linked, tunnels: relay.count() },
       accounts: list.slice(0, 200),
       more: list.length > 200,
     };
@@ -603,21 +657,21 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const { id } = z.object({ id: z.coerce.number().int().positive() }).parse(request.params);
     const body = z
       .object({
-        plan: z.enum(['free', 'remote']),
+        plan: z.enum(['free', 'remote', 'viewer']),
         until: z.number().int().positive().nullable().default(null),
         note: z.string().trim().max(200).nullable().default(null),
       })
       .parse(request.body);
-    if (body.plan === 'remote' && body.until !== null && body.until <= now()) throw new HttpError(400, 'Choose an end date in the future.');
+    if (body.plan !== 'free' && body.until !== null && body.until <= now()) throw new HttpError(400, 'Choose an end date in the future.');
     const res = db
       .update(accounts)
-      .set({ plan: body.plan, planUntil: body.plan === 'remote' ? body.until : null, planNote: body.note || null, planChangedAt: now() })
+      .set({ plan: body.plan, planUntil: body.plan !== 'free' ? body.until : null, planNote: body.note || null, planChangedAt: now() })
       .where(eq(accounts.id, id))
       .run();
     if (!res.changes) throw new HttpError(404, 'Not found.');
     const row = db.select().from(accounts).where(eq(accounts.id, id)).get()!;
     // Taken away: its servers' tunnels close now, not at the next check.
-    if (!hasRemote(row)) for (const s of db.select({ id: servers.id }).from(servers).where(eq(servers.accountId, id)).all()) relay.drop(s.id);
+    relay.dropUnallowed();
     return adminView(row);
   });
 

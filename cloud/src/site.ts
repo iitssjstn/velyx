@@ -114,9 +114,10 @@ const HOME = {
     plansTitle: 'Free at home. Remote access when you want it.',
     plans: [
       ['At home', 'Free', ['Everything on your home network', 'Web interface and Android app', 'Unlimited users and libraries', 'Intros, credits, subtitles and more']],
-      ['Remote access', 'Subscription', ['Everything at home, plus:', 'Watch away from home', 'app.vidalune.com and the app from anywhere', 'The Vidalune relay: no port forwarding needed', 'Everyone you share with watches too']],
+      ['Viewer', '€ 2.50 a month', ['Watch away from home yourself', 'On every server you use, also when its owner has no subscription', 'app.vidalune.com and the app from anywhere']],
+      ['Remote access', '€ 5 a month', ['For the owner of a server:', 'Everyone on your servers watches away from home', 'app.vidalune.com and the app from anywhere', 'The Vidalune relay: no port forwarding needed']],
     ],
-    plansNote: 'Remote access is a subscription on the Vidalune account the server is linked to. Your media is never stored by Vidalune.',
+    plansNote: 'Also for 3 months, half a year, a year or a lifetime. A subscription belongs to your Vidalune account. Your media is never stored by Vidalune.',
     faqTitle: 'Questions',
     faq: [
       ['Does Vidalune see my media?', 'No. Your files stay on your server. Vidalune\'s services only know your email address and, per linked server, its name, version and address. With the relay, video passes through without being stored.'],
@@ -153,9 +154,10 @@ const HOME = {
     plansTitle: 'Gratis thuis. Toegang op afstand wanneer je wilt.',
     plans: [
       ['Thuis', 'Gratis', ['Alles in je thuisnetwerk', 'Webinterface en Android-app', 'Onbeperkt gebruikers en bibliotheken', 'Intro\'s, aftiteling, ondertitels en meer']],
-      ['Toegang op afstand', 'Abonnement', ['Alles van thuis, plus:', 'Kijken buitenshuis', 'app.vidalune.com en de app, overal', 'De Vidalune-relay: geen port forwarding nodig', 'Iedereen met wie je deelt kijkt mee']],
+      ['Kijker', '€ 2,50 per maand', ['Zelf buitenshuis kijken', 'Op elke server die je gebruikt, ook als de eigenaar geen abonnement heeft', 'app.vidalune.com en de app, overal']],
+      ['Toegang op afstand', '€ 5 per maand', ['Voor de eigenaar van een server:', 'Iedereen op jouw servers kijkt buitenshuis', 'app.vidalune.com en de app, overal', 'De Vidalune-relay: geen port forwarding nodig']],
     ],
-    plansNote: 'Toegang op afstand is een abonnement op het Vidalune-account waaraan de server gekoppeld is. Vidalune bewaart nooit je media.',
+    plansNote: 'Ook voor 3 maanden, een half jaar, een jaar of levenslang. Een abonnement hoort bij je Vidalune-account. Vidalune bewaart nooit je media.',
     faqTitle: 'Vragen',
     faq: [
       ['Ziet Vidalune mijn media?', 'Nee. Je bestanden blijven op je server. De diensten van Vidalune kennen alleen je e-mailadres en, per gekoppelde server, de naam, versie en het adres. Via de relay gaat video erdoorheen zonder bewaard te worden.'],

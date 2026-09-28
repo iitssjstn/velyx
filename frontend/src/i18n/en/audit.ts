@@ -39,6 +39,7 @@ export const audit = {
     cloudRelayOn: 'Turned the Vidalune relay on',
     cloudRelayOff: 'Turned the Vidalune relay off',
     cloudHomeNetworks: 'Changed the home networks',
+    cloudAccountLinked: 'Connected a Vidalune account',
     segmentsAnalyze: 'Started intro and credits detection for',
     segmentsEdited: 'Edited intro and credits of',
     segmentsReset: 'Reset intro and credits of',

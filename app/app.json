@@ -2,7 +2,7 @@
   "expo": {
     "name": "Vidalune",
     "slug": "vidalune",
-    "version": "0.10.10",
+    "version": "0.10.11",
     "scheme": "vidalune",
     "orientation": "default",
     "icon": "./assets/icon.png",
@@ -10,7 +10,7 @@
     "backgroundColor": "#14121c",
     "android": {
       "package": "com.vidalune.app",
-      "versionCode": 1010,
+      "versionCode": 1011,
       "adaptiveIcon": {
         "backgroundColor": "#14121c",
         "foregroundImage": "./assets/android-icon-foreground.png",
