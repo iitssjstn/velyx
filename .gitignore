@@ -22,3 +22,4 @@ media/
 # Local runs from a package folder
 **/data/*
 !data/.gitkeep
+*.tsbuildinfo
