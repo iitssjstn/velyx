@@ -18,10 +18,11 @@
         joined: '{name} staat nu in je lijst.', choose: 'Andere server kiezen',
         remoteOn: 'Toegang op afstand: actief', remoteUntil: 'Toegang op afstand: actief tot {date}', remoteOff: 'Toegang op afstand via Vidalune (relay en app.vidalune.com) is niet actief. Thuis, en op een eigen adres, werken je servers gewoon.',
         adminLink: 'Beheer', adminTitle: 'Beheer', adminOnly: 'Alleen voor beheerders van Vidalune.', back: 'Terug naar je servers',
-        stats: '{accounts} accounts · {remote} met toegang op afstand · {servers} gekoppelde servers · {tunnels} relays verbonden',
+        stats: '{accounts} accounts · {remote} met toegang op afstand · {viewers} kijkers · {servers} gekoppelde servers · {tunnels} relays verbonden',
         search: 'Zoeken op e-mailadres', filterAll: 'Alle accounts', filterRemote: 'Met toegang op afstand', filterServers: 'Met een server',
         adminTag: 'beheerder', since: 'sinds {date}', noServers: 'geen servers', relayOn: 'relay verbonden', planNone: 'Geen toegang op afstand',
-        planRemote: 'Toegang op afstand', planEnd: 'Tot en met (leeg: geen einddatum)', planNote: 'Notitie (bijv. hoe er betaald is)', change: 'Wijzigen', save: 'Opslaan',
+        planRemote: 'Toegang op afstand (iedereen op je servers, € 5 per maand)', planViewer: 'Kijker (alleen dit account, € 2,50 per maand)', viewerOn: 'Toegang op afstand als kijker: actief', viewerUntil: 'Toegang op afstand als kijker: actief tot {date}',
+        period: 'Looptijd', months1: '1 maand', months3: '3 maanden', months6: 'Half jaar', months12: '1 jaar', lifetime: 'Levenslang', planEnd: 'Tot en met (leeg: geen einddatum)', planNote: 'Notitie (bijv. hoe er betaald is)', change: 'Wijzigen', save: 'Opslaan',
         saved: 'Opgeslagen: {email}.', more: 'Er zijn meer accounts: zoek om te verfijnen.', empty: 'Geen accounts gevonden.', changed: 'gewijzigd {date}',
       }
     : {
@@ -39,10 +40,11 @@
         joined: '{name} is in your list now.', choose: 'Choose another server',
         remoteOn: 'Remote access: active', remoteUntil: 'Remote access: active until {date}', remoteOff: 'Remote access through Vidalune (relay and app.vidalune.com) is not active. At home, and at an address of your own, your servers work as always.',
         adminLink: 'Admin', adminTitle: 'Admin', adminOnly: 'Only for Vidalune administrators.', back: 'Back to your servers',
-        stats: '{accounts} accounts · {remote} with remote access · {servers} linked servers · {tunnels} relays connected',
+        stats: '{accounts} accounts · {remote} with remote access · {viewers} viewers · {servers} linked servers · {tunnels} relays connected',
         search: 'Search by email address', filterAll: 'All accounts', filterRemote: 'With remote access', filterServers: 'With a server',
         adminTag: 'administrator', since: 'since {date}', noServers: 'no servers', relayOn: 'relay connected', planNone: 'No remote access',
-        planRemote: 'Remote access', planEnd: 'Up to and including (empty: no end date)', planNote: 'Note (e.g. how it was paid)', change: 'Change', save: 'Save',
+        planRemote: 'Remote access (everyone on your servers, € 5 a month)', planViewer: 'Viewer (this account only, € 2.50 a month)', viewerOn: 'Remote access as a viewer: active', viewerUntil: 'Remote access as a viewer: active until {date}',
+        period: 'Period', months1: '1 month', months3: '3 months', months6: 'Half a year', months12: '1 year', lifetime: 'Lifetime', planEnd: 'Up to and including (empty: no end date)', planNote: 'Note (e.g. how it was paid)', change: 'Change', save: 'Save',
         saved: 'Saved: {email}.', more: 'There are more accounts: search to narrow down.', empty: 'No accounts found.', changed: 'changed {date}',
       };
   // On app.vidalune.com these pages live under /_vl (the rest of that site is the chosen server).
@@ -71,6 +73,12 @@
   // A code handed over in the address (/link#K7F3-Q9MA), kept until someone is signed in.
   const pendingCode = () => (location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : '');
   const when = (ms) => new Date(ms).toLocaleString(nl ? 'nl-NL' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+  /** "Remote access: active until …", "… as a viewer …", or not active. */
+  const planText = (remote) => {
+    if (!remote || !remote.active) return t('remoteOff');
+    const viewer = remote.kind === 'viewer';
+    return remote.until ? t(viewer ? 'viewerUntil' : 'remoteUntil', { date: day(remote.until) }) : t(viewer ? 'viewerOn' : 'remoteOn');
+  };
   const day = (ms) => new Date(ms).toLocaleDateString(nl ? 'nl-NL' : 'en-GB', { dateStyle: 'medium' });
   /** yyyy-mm-dd (local) for a date field, and back to the end of that day. */
   const isoDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -204,7 +212,7 @@
           el('button', { class: 'link', type: 'button', onclick: async () => { await api('POST', '/api/logout'); signIn(); } }, t('signOut')),
         ),
       ),
-      el('p', { class: 'small' }, me.remote && me.remote.active ? (me.remote.until ? t('remoteUntil', { date: day(me.remote.until) }) : t('remoteOn')) : t('remoteOff')),
+      el('p', { class: 'small' }, planText(me.remote)),
       message ? el('p', { class: 'ok', role: 'status' }, message) : null,
       warning ? el('p', { class: 'error', role: 'alert' }, warning) : null,
       el('div', { class: 'card' },
@@ -284,19 +292,39 @@
       ),
     );
     const planForm = (a) => {
-      const remote = a.plan === 'remote';
+      const paid = a.plan !== 'free';
+      const until = el('input', { type: 'date', name: 'until', value: paid && a.planUntil ? isoDay(a.planUntil) : '' });
+      // Quick periods from today (lifetime: no end date).
+      const periods = el('div', { class: 'actions wrap' },
+        [['months1', 1], ['months3', 3], ['months6', 6], ['months12', 12], ['lifetime', 0]].map(([key, months]) =>
+          el('button', {
+            type: 'button',
+            class: 'ghost',
+            onclick: () => {
+              if (!months) until.value = '';
+              else {
+                const d = new Date();
+                d.setMonth(d.getMonth() + months);
+                until.value = isoDay(d.getTime());
+              }
+            },
+          }, t(key))),
+      );
       return form([
-        el('label', {}, el('span', {}, t('planNone')), el('input', { type: 'radio', name: 'plan', value: 'free', checked: !remote, class: 'inline' })),
-        el('label', {}, el('span', {}, t('planRemote')), el('input', { type: 'radio', name: 'plan', value: 'remote', checked: remote, class: 'inline' })),
-        el('label', {}, t('planEnd'), el('input', { type: 'date', name: 'until', value: remote && a.planUntil ? isoDay(a.planUntil) : '' })),
+        el('label', {}, el('span', {}, t('planNone')), el('input', { type: 'radio', name: 'plan', value: 'free', checked: !paid, class: 'inline' })),
+        el('label', {}, el('span', {}, t('planRemote')), el('input', { type: 'radio', name: 'plan', value: 'remote', checked: a.plan === 'remote', class: 'inline' })),
+        el('label', {}, el('span', {}, t('planViewer')), el('input', { type: 'radio', name: 'plan', value: 'viewer', checked: a.plan === 'viewer', class: 'inline' })),
+        el('p', { class: 'small' }, t('period')),
+        periods,
+        el('label', {}, t('planEnd'), until),
         el('label', {}, t('planNote'), el('input', { name: 'note', maxlength: 200, value: a.planNote || '' })),
       ], t('save'), async (v) => {
-        await api('PUT', `/api/admin/accounts/${a.id}/plan`, { plan: v.plan, until: v.plan === 'remote' && v.until ? endOfDay(v.until) : null, note: v.note || null });
+        await api('PUT', `/api/admin/accounts/${a.id}/plan`, { plan: v.plan, until: v.plan !== 'free' && v.until ? endOfDay(v.until) : null, note: v.note || null });
         await adminPage(me, t('saved', { email: a.email }), query);
       });
     };
     const status = (a) =>
-      a.admin ? t('remoteOn') : a.remote ? (a.planUntil ? t('remoteUntil', { date: day(a.planUntil) }) : t('remoteOn')) : t('planNone');
+      a.admin ? t('remoteOn') : a.remote ? planText({ active: true, kind: a.plan, until: a.planUntil }) : t('planNone');
     show(
       el('div', { class: 'row' }, el('a', { href: `${BASE}/servers` }, t('back')), el('span', { class: 'small' }, me.email)),
       el('h1', {}, t('adminTitle')),

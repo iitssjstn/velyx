@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createTestEnv, setupAdmin, type TestEnv } from './helpers.js';
+import { createTestEnv, createUser, setupAdmin, type TestEnv } from './helpers.js';
 import { isHomeAddress, parseNetwork } from '../src/services/remote-access.js';
 import { REMOTE_GRACE_MS } from '../src/services/cloud.js';
 
@@ -19,6 +19,8 @@ describe('home or away', () => {
 let linked: boolean;
 let allowed: boolean;
 let reachable: boolean;
+/** Users here with a viewer subscription of their own. */
+let viewers: string[];
 let clock: number;
 const fakeService = async (url: string) => {
   if (!reachable) throw new Error('offline');
@@ -26,7 +28,7 @@ const fakeService = async (url: string) => {
   const json = (data: unknown) => new Response(JSON.stringify(data), { status: 200 });
   if (path === '/api/server/register') return json({ id: 'srv-1', secret: 'secret-secret-secret-secret' });
   if (path === '/api/server/code') return json({ code: 'K7F3-Q9MA', expiresAt: clock + 600_000, linkUrl: 'https://vidalune.com/link' });
-  if (path === '/api/server/heartbeat') return json({ linked, account: linked ? 'justin@example.com' : null, relay: { enabled: false, allowed, url: null } });
+  if (path === '/api/server/heartbeat') return json({ linked, account: linked ? 'justin@example.com' : null, relay: { enabled: false, allowed, usable: allowed || viewers.length > 0, url: null }, remoteUsers: viewers });
   return json({ ok: true });
 };
 
@@ -36,6 +38,7 @@ beforeEach(async () => {
   linked = false;
   allowed = false;
   reachable = true;
+  viewers = [];
   clock = Date.now();
   env = await createTestEnv({ fetchImpl: fakeService, cloudNow: () => clock });
   admin = await setupAdmin(env.app, 'justin');
@@ -104,5 +107,21 @@ describe('playing away from home', () => {
     // The relay client on this server passes the visitor's address from loopback.
     const res = await env.app.inject({ method: 'POST', url: '/api/media/999/playback', headers: { cookie: admin, 'x-forwarded-for': '203.0.113.7' }, remoteAddress: '127.0.0.1', payload: {} });
     expect(res.statusCode).toBe(402);
+  });
+
+  it('lets a viewer with remote access of their own play, when the owner has none', async () => {
+    await env.app.inject({ method: 'POST', url: '/api/admin/cloud/link', headers: { cookie: admin } });
+    linked = true;
+    const lisa = await createUser(env.app, admin, 'lisa');
+    const tom = await createUser(env.app, admin, 'tom');
+    viewers = [String(lisa.id)];
+    await env.app.inject({ method: 'POST', url: '/api/admin/cloud/check', headers: { cookie: admin } });
+    const as = (cookie: string) => env.app.inject({ method: 'POST', url: '/api/media/999/playback', headers: { cookie }, remoteAddress: '203.0.113.7', payload: {} });
+    expect((await as(lisa.cookie)).statusCode).toBe(404);
+    const other = await as(tom.cookie);
+    expect(other.statusCode).toBe(402);
+    expect(other.json().error).toMatch(/take it for yourself on vidalune\.com/);
+    // The relay may be on for her sake.
+    expect((await env.app.inject({ url: '/api/admin/cloud', headers: { cookie: admin } })).json().relay.allowed).toBe(true);
   });
 });

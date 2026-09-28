@@ -54,9 +54,15 @@ the relay — needs *remote access* on the Vidalune account that owns the server
 cannot be turned on, an open tunnel is closed, and relay addresses answer that the server cannot be
 reached. The server's own address (home network, port forwarding, own domain) is not affected.
 
+There are two kinds: **remote access** on the account that owns a server (everyone who uses that
+server may watch away from home) and **viewer** on anyone's account (only that account may, on every
+server it uses, also when the owner has no subscription). A server with a viewer among its users may
+use the relay too; the server itself decides per user whether they may play away from home.
+
 Administrators (`ADMIN_EMAILS`) open **vidalune.com/admin** (also linked from the account page): every
 account with its servers, filters for accounts with remote access or a server, and per account
-**Change**: remote access on or off, an optional last day, and a note (for instance how it was paid).
+**Change**: none, remote access or viewer, a period (1 month, 3 months, half a year, a year or lifetime —
+or any last day), and a note (for instance how it was paid).
 Taking it away closes that account's tunnels at once; an end date takes effect by itself.
 
 ## The relay

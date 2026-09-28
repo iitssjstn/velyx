@@ -6,8 +6,11 @@ export const accounts = sqliteTable('accounts', {
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   createdAt: integer('created_at').notNull(),
-  /** "remote": the servers this account owns may be reached through Vidalune (relay, app.vidalune.com). */
-  plan: text('plan', { enum: ['free', 'remote'] }).notNull().default('free'),
+  /**
+   * "remote": everyone on the servers this account owns may watch away from home (relay,
+   * app.vidalune.com). "viewer": only this account may, on any server it uses.
+   */
+  plan: text('plan', { enum: ['free', 'remote', 'viewer'] }).notNull().default('free'),
   /** When the plan ends (null: no end date). */
   planUntil: integer('plan_until'),
   /** A note by whoever set the plan (e.g. how it was paid). */

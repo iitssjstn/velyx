@@ -77,7 +77,8 @@ export class CloudService {
         connected: relayOn && tunnel.connected,
         error: relayOn && !tunnel.connected ? tunnel.error : null,
         // The owner's Vidalune account has remote access (unknown until the service said so: yes).
-        allowed: link?.relayAllowed !== false,
+        // Whether the relay may be on (the owner has remote access, or someone who uses this server).
+        allowed: (link?.relayUsable ?? link?.relayAllowed) !== false,
       },
       remoteAccess: !!link?.account && link.relayAllowed !== false && !!link.remoteConfirmedAt && this.now() - link.remoteConfirmedAt < REMOTE_GRACE_MS,
       homeNetworks: this.deps.settings.get().homeNetworks,
@@ -133,16 +134,18 @@ export class CloudService {
   async check(): Promise<CloudStatus> {
     const link = this.deps.settings.get().cloud;
     if (!link) return this.status();
-    const r = await this.call<{ linked: boolean; account: string | null; relay?: { enabled: boolean; url: string | null; allowed?: boolean } }>('POST', '/api/server/heartbeat', this.about());
+    const r = await this.call<{ linked: boolean; account: string | null; relay?: { enabled: boolean; url: string | null; allowed?: boolean; usable?: boolean }; remoteUsers?: unknown[] }>('POST', '/api/server/heartbeat', this.about());
     const current = this.deps.settings.get().cloud;
     // The service decides: an unlinked server (unlinked on vidalune.com) has no relay any more.
     const relay = !!r.relay?.enabled;
     const relayUrl = r.relay?.url ?? null;
     const relayAllowed = r.relay?.allowed !== false;
+    const relayUsable = r.relay?.usable ?? relayAllowed;
+    const remoteUsers = Array.isArray(r.remoteUsers) ? r.remoteUsers.filter((u): u is string => typeof u === 'string') : [];
     this.checkedAt = this.now();
     if (current) {
-      const confirmed = r.account && relayAllowed ? this.now() : current.remoteConfirmedAt;
-      this.deps.settings.update({ cloud: { ...current, account: r.account, relay, relayUrl, relayAllowed, remoteConfirmedAt: confirmed } });
+      const confirmed = r.account && (relayAllowed || remoteUsers.length > 0) ? this.now() : current.remoteConfirmedAt;
+      this.deps.settings.update({ cloud: { ...current, account: r.account, relay, relayUrl, relayAllowed, relayUsable, remoteUsers, remoteConfirmedAt: confirmed } });
     }
     if (r.account) this.code = null;
     this.syncRelay();
@@ -156,10 +159,12 @@ export class CloudService {
    * remote access. A "no" is checked again (at most every two minutes), since it may just have been
    * given; when vidalune.com cannot be reached, a recent "yes" keeps counting for a week.
    */
-  async remoteAccess(): Promise<RemoteAccess> {
+  async remoteAccess(userId?: number): Promise<RemoteAccess> {
     const before = this.deps.settings.get().cloud;
     if (!before?.account) return 'not_linked';
-    const fresh = (l: typeof before) => l.relayAllowed !== false && !!l.remoteConfirmedAt && this.now() - l.remoteConfirmedAt < RECHECK_MS * 15;
+    // Everyone, when the owner has remote access; else only users with a viewer subscription.
+    const may = (l: typeof before) => l.relayAllowed !== false || (userId !== undefined && (l.remoteUsers ?? []).includes(String(userId)));
+    const fresh = (l: typeof before) => may(l) && !!l.remoteConfirmedAt && this.now() - l.remoteConfirmedAt < RECHECK_MS * 15;
     if (fresh(before)) return 'allowed';
     if (this.now() - this.checkedAt >= RECHECK_MS) {
       try {
@@ -170,7 +175,7 @@ export class CloudService {
     }
     const link = this.deps.settings.get().cloud;
     if (!link?.account) return 'not_linked';
-    if (link.relayAllowed === false) return 'no_subscription';
+    if (!may(link)) return 'no_subscription';
     return link.remoteConfirmedAt && this.now() - link.remoteConfirmedAt < REMOTE_GRACE_MS ? 'allowed' : 'no_subscription';
   }
 
@@ -221,17 +226,17 @@ export class CloudService {
   async setRelay(enabled: boolean): Promise<CloudStatus> {
     const link = this.deps.settings.get().cloud;
     if (!link?.account) throw new HttpError(409, 'Link this server to a Vidalune account first.');
-    let r: { enabled: boolean; url: string | null; allowed?: boolean };
+    let r: { enabled: boolean; url: string | null; allowed?: boolean; usable?: boolean };
     try {
       r = await this.call('POST', '/api/server/relay', { enabled }, true, false, true);
     } catch (err) {
       if (err instanceof HttpError && err.statusCode === 402) {
-        this.deps.settings.update({ cloud: { ...link, relayAllowed: false } });
+        this.deps.settings.update({ cloud: { ...link, relayUsable: false } });
         throw new HttpError(402, 'Remote access through Vidalune needs a subscription.');
       }
       throw err;
     }
-    this.deps.settings.update({ cloud: { ...link, relay: r.enabled, relayUrl: r.url, relayAllowed: r.allowed !== false } });
+    this.deps.settings.update({ cloud: { ...link, relay: r.enabled, relayUrl: r.url, relayAllowed: r.allowed !== false, relayUsable: r.usable ?? r.allowed !== false } });
     this.syncRelay();
     return this.status();
   }

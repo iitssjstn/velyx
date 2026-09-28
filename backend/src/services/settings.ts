@@ -80,6 +80,10 @@ export interface CloudLink {
   relayUrl?: string | null;
   /** The owner's Vidalune account has remote access (false: the relay needs a subscription). */
   relayAllowed?: boolean;
+  /** The relay may connect: the owner, or someone who uses this server, has remote access. */
+  relayUsable?: boolean;
+  /** Users here (their ids) whose own Vidalune account has remote access (a viewer subscription). */
+  remoteUsers?: string[];
   /** When the account service last said so (remote access keeps working a while when it cannot be reached). */
   remoteConfirmedAt?: number;
 }
