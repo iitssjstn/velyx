@@ -10,7 +10,7 @@ import { and, desc, eq, gt, isNotNull, isNull, lt } from 'drizzle-orm';
 import { z, ZodError } from 'zod';
 import type { CloudConfig } from './config.js';
 import type { DB } from './db/client.js';
-import { accountSessions, accounts, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
+import { accountSessions, accounts, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
 import { newSlug, Relay, type Rewrite } from './relay.js';
 import { composeFile, installPage, installScript } from './install.js';
@@ -32,6 +32,12 @@ const CODE_MINUTES = 10;
 const TICKET_MS = 60_000;
 /** A server's own id for one of its users. */
 const userRef = z.string().trim().min(1).max(64);
+/** A server's own id for an invitation; accepted, it stands in for the user until the server makes one. */
+const inviteRef = z.string().regex(/^[\w-]{6,40}$/);
+/** How long an invitation can be accepted. */
+const INVITE_MS = 7 * DAY;
+/** The member placeholder for an accepted invitation. */
+const invitedRef = (ref: string) => `invite:${ref}`;
 /** A server that has not reported for this long is shown as offline. */
 export const ONLINE_WINDOW = 2 * 60 * 60 * 1000;
 
@@ -440,6 +446,32 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     return serverView(db.select().from(servers).where(eq(servers.id, row.serverId)).get()!);
   });
 
+  /** An invitation, before signing in: which server it is for (nothing else). */
+  const openInvite = (token: string) => {
+    const row = db.select().from(invites).where(and(eq(invites.tokenHash, sha256(token)), gt(invites.expiresAt, now()))).get();
+    const s = row ? db.select().from(servers).where(eq(servers.id, row.serverId)).get() : undefined;
+    if (!row || !s?.accountId) throw new HttpError(404, 'This invitation is not valid (any more). Ask for a new one.');
+    return { row, server: s };
+  };
+  const inviteToken = z.object({ token: z.string().min(20).max(200) });
+
+  app.post('/api/invite', async (request) => {
+    limiter.check(`invite:${request.ip}`, now());
+    const { server: s, row } = openInvite(inviteToken.parse(request.body).token);
+    return { server: s.name, expiresAt: row.expiresAt };
+  });
+
+  /** Accepting an invitation (once): the server is in this account's list, and makes a user for it on first open. */
+  app.post('/api/invite/accept', async (request) => {
+    const me = account(request);
+    limiter.check(`invite:${me.id}`, now());
+    const { row, server: s } = openInvite(inviteToken.parse(request.body).token);
+    if (accessible(me.id).some((x) => x.id === s.id)) throw new HttpError(409, `You already use ${s.name} with this account.`);
+    db.insert(memberships).values({ serverId: s.id, userRef: invitedRef(row.ref), accountId: me.id, createdAt: now() }).onConflictDoNothing().run();
+    db.delete(invites).where(eq(invites.tokenHash, row.tokenHash)).run();
+    return serverView(s);
+  });
+
   /** Entering the code a server shows links that server to this account. */
   app.post('/api/link', async (request) => {
     const me = account(request);
@@ -565,6 +597,41 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const me = server(request);
     const { userRef: ref } = z.object({ userRef }).parse(request.params);
     db.delete(memberships).where(and(eq(memberships.serverId, me.id), eq(memberships.userRef, ref))).run();
+    return { ok: true };
+  });
+
+  /** An invitation link for someone to use this server (seven days, once). */
+  app.post('/api/server/invites', async (request) => {
+    const me = server(request);
+    if (!me.accountId) throw new HttpError(409, 'Link this server to a Vidalune account first.');
+    limiter.check(`invites:${me.id}`, now());
+    const { ref } = z.object({ ref: inviteRef }).parse(request.body);
+    const token = newToken();
+    const t = now();
+    db.delete(invites).where(lt(invites.expiresAt, t)).run();
+    db.insert(invites).values({ tokenHash: sha256(token), serverId: me.id, ref, createdAt: t, expiresAt: t + INVITE_MS }).onConflictDoUpdate({ target: [invites.serverId, invites.ref], set: { tokenHash: sha256(token), createdAt: t, expiresAt: t + INVITE_MS } }).run();
+    // The token rides along after "#": it is not sent to the service in the page request.
+    return { url: `${config.publicUrl}/invite#${token}`, expiresAt: t + INVITE_MS };
+  });
+
+  /** Withdrawn: the link stops working, and whoever accepted it no longer has the server in their list. */
+  app.delete('/api/server/invites/:ref', async (request) => {
+    const me = server(request);
+    const { ref } = z.object({ ref: inviteRef }).parse(request.params);
+    db.delete(invites).where(and(eq(invites.serverId, me.id), eq(invites.ref, ref))).run();
+    db.delete(memberships).where(and(eq(memberships.serverId, me.id), eq(memberships.userRef, invitedRef(ref)))).run();
+    return { ok: true };
+  });
+
+  /** The server made a user for an accepted invitation: that account signs in as this user from now on. */
+  app.post('/api/server/invites/:ref/user', async (request) => {
+    const me = server(request);
+    const { ref } = z.object({ ref: inviteRef }).parse(request.params);
+    const { userRef: to } = z.object({ userRef }).parse(request.body);
+    const row = db.select().from(memberships).where(and(eq(memberships.serverId, me.id), eq(memberships.userRef, invitedRef(ref)))).get();
+    if (!row) throw new HttpError(404, 'Not found.');
+    db.delete(memberships).where(and(eq(memberships.serverId, me.id), eq(memberships.userRef, to))).run();
+    db.update(memberships).set({ userRef: to }).where(and(eq(memberships.serverId, me.id), eq(memberships.userRef, invitedRef(ref)))).run();
     return { ok: true };
   });
 
@@ -759,6 +826,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     app.get('/link', page);
     app.get('/servers', page);
     app.get('/join', page);
+    app.get('/invite', page);
     app.get('/admin', page);
   }
   const frontendDir = config.frontendDir;

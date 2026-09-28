@@ -256,3 +256,69 @@ describe('remote access and the admin page', () => {
     expect((await app.inject({ url: '/api/account', headers: { cookie: cookieOf(later) } })).json().remote).toMatchObject({ active: true, kind: 'viewer', until: null });
   });
 });
+
+describe('invitations', () => {
+  it('lets someone accept an invitation once, within seven days, after which the server knows their account', async () => {
+    const owner = await signUp('justin@example.com');
+    const s = await register();
+    const { code } = (await app.inject({ method: 'POST', url: '/api/server/code', headers: { authorization: s.auth }, payload: { userRef: '1' } })).json();
+    await app.inject({ method: 'POST', url: '/api/link', headers: { cookie: owner }, payload: { code } });
+
+    const made = await app.inject({ method: 'POST', url: '/api/server/invites', headers: { authorization: s.auth }, payload: { ref: 'inv-abc123' } });
+    expect(made.statusCode).toBe(200);
+    const { url } = made.json();
+    expect(url).toMatch(/^https:\/\/vidalune\.example\/invite#[\w-]{40,}$/);
+    const token = url.split('#')[1];
+
+    // Before signing in: only which server it is for.
+    expect((await app.inject({ method: 'POST', url: '/api/invite', payload: { token } })).json()).toMatchObject({ server: 'Thuis' });
+    expect((await app.inject({ method: 'POST', url: '/api/invite', payload: { token: 'x'.repeat(43) } })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'POST', url: '/api/invite/accept', payload: { token } })).statusCode).toBe(401);
+    // The owner already uses it.
+    expect((await app.inject({ method: 'POST', url: '/api/invite/accept', headers: { cookie: owner }, payload: { token } })).statusCode).toBe(409);
+
+    const lisa = await signUp('lisa@example.com');
+    const accepted = await app.inject({ method: 'POST', url: '/api/invite/accept', headers: { cookie: lisa }, payload: { token } });
+    expect(accepted.json()).toMatchObject({ id: s.id, name: 'Thuis' });
+    expect((await app.inject({ url: '/api/servers', headers: { cookie: lisa } })).json()).toMatchObject([{ id: s.id, role: 'member' }]);
+    // Used once.
+    const tom = await signUp('tom@example.com');
+    expect((await app.inject({ method: 'POST', url: '/api/invite/accept', headers: { cookie: tom }, payload: { token } })).statusCode).toBe(404);
+
+    // Opening it: the server learns who, as the invitation, and makes a user for them.
+    const { ticket } = (await app.inject({ method: 'POST', url: `/api/servers/${s.id}/open`, headers: { cookie: lisa } })).json();
+    expect((await app.inject({ method: 'POST', url: '/api/server/ticket', headers: { authorization: s.auth }, payload: { ticket } })).json()).toEqual({ email: 'lisa@example.com', userRef: 'invite:inv-abc123' });
+    expect((await app.inject({ method: 'POST', url: '/api/server/invites/inv-abc123/user', headers: { authorization: s.auth }, payload: { userRef: '9' } })).json()).toEqual({ ok: true });
+    const again = (await app.inject({ method: 'POST', url: `/api/servers/${s.id}/open`, headers: { cookie: lisa } })).json();
+    expect((await app.inject({ method: 'POST', url: '/api/server/ticket', headers: { authorization: s.auth }, payload: { ticket: again.ticket } })).json()).toEqual({ email: 'lisa@example.com', userRef: '9' });
+    expect((await app.inject({ url: '/api/server/members', headers: { authorization: s.auth } })).json()).toContainEqual({ userRef: '9', email: 'lisa@example.com' });
+
+    // Expired after seven days.
+    const late = (await app.inject({ method: 'POST', url: '/api/server/invites', headers: { authorization: s.auth }, payload: { ref: 'inv-late01' } })).json();
+    clock += 8 * 86_400_000;
+    expect((await app.inject({ method: 'POST', url: '/api/invite/accept', headers: { cookie: tom }, payload: { token: late.url.split('#')[1] } })).statusCode).toBe(404);
+  });
+
+  it('stops working when withdrawn, also after it was accepted', async () => {
+    const owner = await signUp('justin@example.com');
+    const s = await register();
+    // Not linked yet: no invitations.
+    expect((await app.inject({ method: 'POST', url: '/api/server/invites', headers: { authorization: s.auth }, payload: { ref: 'inv-abc123' } })).statusCode).toBe(409);
+    const { code } = (await app.inject({ method: 'POST', url: '/api/server/code', headers: { authorization: s.auth } })).json();
+    await app.inject({ method: 'POST', url: '/api/link', headers: { cookie: owner }, payload: { code } });
+    expect((await app.inject({ method: 'POST', url: '/api/server/invites', headers: { authorization: s.auth }, payload: { ref: 'bad ref' } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'POST', url: '/api/server/invites', payload: { ref: 'inv-abc123' } })).statusCode).toBe(401);
+
+    const first = (await app.inject({ method: 'POST', url: '/api/server/invites', headers: { authorization: s.auth }, payload: { ref: 'inv-abc123' } })).json();
+    await app.inject({ method: 'DELETE', url: '/api/server/invites/inv-abc123', headers: { authorization: s.auth } });
+    const lisa = await signUp('lisa@example.com');
+    expect((await app.inject({ method: 'POST', url: '/api/invite/accept', headers: { cookie: lisa }, payload: { token: first.url.split('#')[1] } })).statusCode).toBe(404);
+
+    const second = (await app.inject({ method: 'POST', url: '/api/server/invites', headers: { authorization: s.auth }, payload: { ref: 'inv-def456' } })).json();
+    await app.inject({ method: 'POST', url: '/api/invite/accept', headers: { cookie: lisa }, payload: { token: second.url.split('#')[1] } });
+    expect((await app.inject({ url: '/api/servers', headers: { cookie: lisa } })).json()).toHaveLength(1);
+    await app.inject({ method: 'DELETE', url: '/api/server/invites/inv-def456', headers: { authorization: s.auth } });
+    expect((await app.inject({ url: '/api/servers', headers: { cookie: lisa } })).json()).toEqual([]);
+    expect((await app.inject({ method: 'POST', url: '/api/server/invites/inv-def456/user', headers: { authorization: s.auth }, payload: { userRef: '9' } })).statusCode).toBe(404);
+  });
+});

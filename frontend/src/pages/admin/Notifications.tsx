@@ -8,7 +8,7 @@ import { EmptyState, ErrorState, PageLoader } from '../../components/States';
 import { toast } from '../../components/Toast';
 import { useT } from '../../i18n';
 
-export const NOTIFICATION_EVENTS = ['cleanupPlanned', 'cleanupDeleted', 'newMedia', 'scanFailed', 'backupFailed', 'newDevice', 'storageLow'] as const;
+export const NOTIFICATION_EVENTS = ['cleanupPlanned', 'cleanupDeleted', 'newMedia', 'scanFailed', 'backupFailed', 'newDevice', 'storageLow', 'inviteAccepted'] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
 export interface NotificationItem {

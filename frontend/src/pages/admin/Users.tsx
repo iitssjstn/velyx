@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MonitorSmartphone, Pencil, Trash2, UserPlus } from 'lucide-react';
+import { Copy, Mail, MonitorSmartphone, Pencil, Trash2, UserPlus } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { displayName, useAuth } from '../../lib/auth';
-import { formatRelative } from '../../lib/format';
-import type { AdminUser, Library } from '../../lib/types';
+import { formatDate, formatRelative } from '../../lib/format';
+import type { AdminUser, Invite, Library } from '../../lib/types';
 import { Avatar } from '../../components/Avatar';
 import { Button, IconButton } from '../../components/Button';
 import { ConfirmModal, Modal } from '../../components/Modal';
@@ -12,6 +13,158 @@ import { ErrorState, PageLoader } from '../../components/States';
 import { toast } from '../../components/Toast';
 import { SessionList } from '../../components/SessionList';
 import { useT } from '../../i18n';
+
+/** Which libraries someone may see: all (including ones added later), or a chosen few. */
+function LibraryPicker({ value, onChange }: { value: number[] | null; onChange: (libraryIds: number[] | null) => void }) {
+  const { t } = useT();
+  const libs = useQuery({ queryKey: ['libraries'], queryFn: () => api.get<{ libraries: Library[] }>('/api/libraries') });
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center gap-3 text-sm">
+        <input
+          type="checkbox"
+          className="size-4 accent-[var(--color-accent)]"
+          checked={value === null}
+          onChange={(e) => onChange(e.target.checked ? null : (libs.data?.libraries.map((l) => l.id) ?? []))}
+        />
+        {t('users.allLibraries')}
+      </label>
+      {value !== null && (
+        <div className="ml-7 space-y-2">
+          {libs.data?.libraries.map((l) => (
+            <label key={l.id} className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                className="size-4 accent-[var(--color-accent)]"
+                checked={value.includes(l.id)}
+                onChange={(e) => onChange(e.target.checked ? [...value, l.id] : value.filter((id) => id !== l.id))}
+              />
+              {l.name}
+              <span className="text-faint">{l.type === 'movies' ? t('nav.movies') : t('nav.tvShows')}</span>
+            </label>
+          ))}
+          {libs.data && !libs.data.libraries.length && <p className="text-sm text-faint">{t('home.noLibraries')}.</p>}
+          {value.length === 0 && <p className="text-xs text-faint">{t('users.noLibrariesSelected')}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const copyLink = async (url: string, done: string) => {
+  try {
+    await navigator.clipboard.writeText(url);
+    toast.success(done);
+  } catch {
+    window.prompt('', url);
+  }
+};
+
+/** A link for someone to use this server with their Vidalune account (once, seven days). */
+function InviteForm({ onDone }: { onDone: () => void }) {
+  const qc = useQueryClient();
+  const { t } = useT();
+  const [label, setLabel] = useState('');
+  const [libraryIds, setLibraryIds] = useState<number[] | null>(null);
+  const [made, setMade] = useState<Invite | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const m = useMutation({
+    mutationFn: () => api.post<Invite>('/api/admin/invites', { label: label.trim() || undefined, libraryIds }),
+    onSuccess: (invite) => {
+      setMade(invite);
+      void qc.invalidateQueries({ queryKey: ['invites'] });
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : String(err)),
+  });
+  if (made)
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted">{t('users.inviteReady', { date: formatDate(made.expiresAt) ?? '' })}</p>
+        <input className="input" readOnly value={made.url} aria-label={t('users.inviteLink')} onFocus={(e) => e.currentTarget.select()} />
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onDone}>{t('common.close')}</Button>
+          <Button icon={<Copy className="size-4" />} onClick={() => void copyLink(made.url, t('users.inviteCopied'))}>{t('users.inviteCopy')}</Button>
+        </div>
+      </div>
+    );
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setError(null);
+        m.mutate();
+      }}
+    >
+      <p className="text-sm text-muted">{t('users.inviteIntro')}</p>
+      <div>
+        <label className="label" htmlFor="i-label">{t('users.inviteName')}</label>
+        <input id="i-label" className="input" maxLength={60} value={label} placeholder={t('users.inviteNamePlaceholder')} onChange={(e) => setLabel(e.target.value)} />
+      </div>
+      <fieldset>
+        <legend className="label">{t('users.libraryAccess')}</legend>
+        <LibraryPicker value={libraryIds} onChange={setLibraryIds} />
+      </fieldset>
+      {error && <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={onDone}>{t('common.cancel')}</Button>
+        <Button type="submit" loading={m.isPending}>{t('users.inviteCreate')}</Button>
+      </div>
+    </form>
+  );
+}
+
+/** Open invitations: not yet used, and not withdrawn. */
+function InviteList() {
+  const qc = useQueryClient();
+  const { t } = useT();
+  const q = useQuery({ queryKey: ['invites'], queryFn: () => api.get<Invite[]>('/api/admin/invites') });
+  const revoke = useMutation({
+    mutationFn: (id: string) => api.del(`/api/admin/invites/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['invites'] });
+      toast.success(t('users.inviteRevoked'));
+    },
+    onError: (err) => toast.error(err),
+  });
+  if (!q.data?.length) return null;
+  return (
+    <section className="space-y-2">
+      <h2 className="text-sm font-medium text-muted">{t('users.invites')}</h2>
+      <ul className="panel divide-y divide-line/60">
+        {q.data.map((i) => {
+          const expired = !i.acceptedBy && i.expiresAt < Date.now();
+          return (
+            <li key={i.id} className="flex items-center gap-4 p-4">
+              <Mail className="size-5 text-faint" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{i.label || t('users.inviteUnnamed')}</p>
+                <p className="truncate text-sm text-muted">
+                  {i.acceptedBy
+                    ? t('users.inviteAccepted', { email: i.acceptedBy })
+                    : expired
+                      ? t('users.inviteExpired')
+                      : t('users.inviteOpen', { date: formatDate(i.expiresAt) ?? '' })}
+                  {i.libraryIds && <span className="ml-3 text-faint">{t('users.libraryCount', { count: i.libraryIds.length })}</span>}
+                </p>
+              </div>
+              <div className="flex">
+                {!expired && !i.acceptedBy && (
+                  <IconButton label={t('users.inviteCopy')} onClick={() => void copyLink(i.url, t('users.inviteCopied'))}>
+                    <Copy className="size-4" />
+                  </IconButton>
+                )}
+                <IconButton label={t('users.inviteRevoke')} onClick={() => revoke.mutate(i.id)} className="hover:!text-danger">
+                  <Trash2 className="size-4" />
+                </IconButton>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
 
 function UserForm({ user, isSelf, onDone }: { user?: AdminUser; isSelf: boolean; onDone: () => void }) {
   const qc = useQueryClient();
@@ -25,7 +178,6 @@ function UserForm({ user, isSelf, onDone }: { user?: AdminUser; isSelf: boolean;
     /** null = every library, including ones added later. */
     libraryIds: user?.libraryIds ?? null,
   });
-  const libs = useQuery({ queryKey: ['libraries'], queryFn: () => api.get<{ libraries: Library[] }>('/api/libraries') });
   const [error, setError] = useState<string | null>(null);
   const m = useMutation({
     mutationFn: () => {
@@ -103,40 +255,7 @@ function UserForm({ user, isSelf, onDone }: { user?: AdminUser; isSelf: boolean;
         {form.role === 'admin' ? (
           <p className="text-sm text-muted">{t('users.adminsSeeAll')}</p>
         ) : (
-          <div className="space-y-2">
-            <label className="flex items-center gap-3 text-sm">
-              <input
-                type="checkbox"
-                className="size-4 accent-[var(--color-accent)]"
-                checked={form.libraryIds === null}
-                onChange={(e) => setForm({ ...form, libraryIds: e.target.checked ? null : (libs.data?.libraries.map((l) => l.id) ?? []) })}
-              />
-              {t('users.allLibraries')}
-            </label>
-            {form.libraryIds !== null && (
-              <div className="ml-7 space-y-2">
-                {libs.data?.libraries.map((l) => (
-                  <label key={l.id} className="flex items-center gap-3 text-sm">
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-[var(--color-accent)]"
-                      checked={form.libraryIds!.includes(l.id)}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          libraryIds: e.target.checked ? [...form.libraryIds!, l.id] : form.libraryIds!.filter((id) => id !== l.id),
-                        })
-                      }
-                    />
-                    {l.name}
-                    <span className="text-faint">{l.type === 'movies' ? t('nav.movies') : t('nav.tvShows')}</span>
-                  </label>
-                ))}
-                {libs.data && !libs.data.libraries.length && <p className="text-sm text-faint">{t('home.noLibraries')}.</p>}
-                {form.libraryIds!.length === 0 && <p className="text-xs text-faint">{t('users.noLibrariesSelected')}</p>}
-              </div>
-            )}
-          </div>
+          <LibraryPicker value={form.libraryIds} onChange={(libraryIds) => setForm({ ...form, libraryIds })} />
         )}
       </fieldset>
       {error && <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
@@ -153,6 +272,8 @@ export function UsersPage() {
   const { t } = useT();
   const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const cloud = useQuery({ queryKey: ['cloud'], queryFn: () => api.get<{ account: string | null }>('/api/admin/cloud') });
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [deleting, setDeleting] = useState<AdminUser | null>(null);
   const [sessionsOf, setSessionsOf] = useState<AdminUser | null>(null);
@@ -174,7 +295,10 @@ export function UsersPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted">{t('users.intro')}</p>
-        <Button icon={<UserPlus className="size-4" />} onClick={() => setCreating(true)}>{t('users.add')}</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" icon={<Mail className="size-4" />} onClick={() => setInviting(true)}>{t('users.invite')}</Button>
+          <Button icon={<UserPlus className="size-4" />} onClick={() => setCreating(true)}>{t('users.add')}</Button>
+        </div>
       </div>
       <ul className="panel divide-y divide-line/60">
         {q.data.map((u) => (
@@ -213,6 +337,20 @@ export function UsersPage() {
           </li>
         ))}
       </ul>
+      <InviteList />
+      <Modal title={t('users.invite')} open={inviting} onClose={() => setInviting(false)}>
+        {inviting &&
+          (cloud.data && !cloud.data.account ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted">{t('users.inviteNeedsLink')}</p>
+              <div className="flex justify-end">
+                <Link className="inline-flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink hover:bg-accent-strong" to="/admin/cloud" onClick={() => setInviting(false)}>{t('users.inviteToCloud')}</Link>
+              </div>
+            </div>
+          ) : (
+            <InviteForm onDone={() => setInviting(false)} />
+          ))}
+      </Modal>
       <Modal title={t('users.add')} open={creating} onClose={() => setCreating(false)}>
         {creating && <UserForm isSelf={false} onDone={() => setCreating(false)} />}
       </Modal>

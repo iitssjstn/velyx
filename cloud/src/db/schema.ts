@@ -1,4 +1,4 @@
-import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 /** A Vidalune account: one person, any number of servers. */
 export const accounts = sqliteTable('accounts', {
@@ -105,3 +105,22 @@ export const tickets = sqliteTable('tickets', {
     .references(() => accounts.id, { onDelete: 'cascade' }),
   expiresAt: integer('expires_at').notNull(),
 });
+
+/**
+ * Invitations a server's administrator made (hashed, seven days, used once). Whoever accepts one
+ * gets the server in their list; the server makes a user for them the first time they open it.
+ */
+export const invites = sqliteTable(
+  'invites',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    serverId: text('server_id')
+      .notNull()
+      .references(() => servers.id, { onDelete: 'cascade' }),
+    /** The server's own name for the invitation. */
+    ref: text('ref').notNull(),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [uniqueIndex('invites_server_ref').on(t.serverId, t.ref)],
+);

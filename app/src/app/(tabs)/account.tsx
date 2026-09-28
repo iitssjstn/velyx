@@ -20,7 +20,7 @@ export default function Account() {
       await signOut();
       if (thenForget) await forgetServer();
       qc.clear();
-      router.replace(thenForget ? '/connect' : '/');
+      router.replace(thenForget ? '/cloud' : '/');
     } finally {
       setBusy(false);
     }

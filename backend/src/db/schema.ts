@@ -710,3 +710,25 @@ export const adminNotifications = sqliteTable(
   },
   (t) => [index('admin_notifications_created_idx').on(t.createdAt)],
 );
+
+/**
+ * Invitations to use this server, made by an administrator (Admin → Users). Whoever accepts one on
+ * vidalune.com gets a normal user here, with these libraries, the first time they open the server.
+ */
+export const invites = sqliteTable('invites', {
+  /** Random; the account service knows the invitation by it. */
+  id: text('id').primaryKey(),
+  /** A name to recognise it by ("Lisa"). */
+  label: text('label'),
+  /** JSON array of library ids, or null for every library. */
+  libraryIds: text('library_ids'),
+  /** The link to hand out (only administrators see it). */
+  url: text('url').notNull(),
+  createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+  expiresAt: integer('expires_at').notNull(),
+  revokedAt: integer('revoked_at'),
+  usedAt: integer('used_at'),
+  /** The user made for whoever accepted it. */
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+});

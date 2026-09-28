@@ -12,6 +12,7 @@ export const notifications = {
     backupFailed: 'A scheduled backup failed',
     newDevice: 'Someone signs in (browser or app)',
     storageLow: 'Disk space runs low',
+    inviteAccepted: 'Someone accepts an invitation',
   },
   saved: 'Notification settings saved.',
   discordTitle: 'Discord (optional)',

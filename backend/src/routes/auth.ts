@@ -20,6 +20,7 @@ import { HttpError } from '../http-error.js';
 import { createLogger } from '../logger.js';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from '../version.js';
 import { DEFAULT_LANGUAGE, isLanguage, languageSchema, requestLanguage, tr, type Language } from '../i18n/index.js';
+import { redeemInvite } from './invites.js';
 
 const log = createLogger('auth');
 
@@ -216,7 +217,13 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
   /** Who the ticket is for here: the user who connected that Vidalune account (enabled), or nobody. */
   const ticketUser = async (ticket: string, request: FastifyRequest) => {
     const who = await ctx.cloud.redeem(ticket);
-    const user = who.userRef && /^\d+$/.test(who.userRef) ? ctx.db.select().from(users).where(eq(users.id, Number(who.userRef))).get() : undefined;
+    // An invitation this account accepted: its user is made now, the first time.
+    const invited = /^invite:([\w-]{6,40})$/.exec(who.userRef ?? '')?.[1];
+    const user = invited
+      ? ((await redeemInvite(ctx, invited, who.email, request.ip)) ?? undefined)
+      : who.userRef && /^\d+$/.test(who.userRef)
+        ? ctx.db.select().from(users).where(eq(users.id, Number(who.userRef))).get()
+        : undefined;
     if (!user || user.disabled) {
       ctx.audit.record('login.failed', { actorName: who.email ?? 'Vidalune account', ip: request.ip, detail: user ? 'account disabled (Vidalune account)' : 'Vidalune account not connected to a user' });
       return null;
