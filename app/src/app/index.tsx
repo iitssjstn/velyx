@@ -1,12 +1,11 @@
 import { Redirect } from 'expo-router';
 import { Loading } from '../components/ui';
 import { useSession } from '../lib/session';
+import { startRoute } from '../lib/start';
 
-/** Where the app starts: choose a server, sign in, or straight to Home. */
+/** Where the app starts: the Vidalune account (an address is the other way in), sign in, or straight to Home. */
 export default function Start() {
   const { ready, serverUrl, signedIn } = useSession();
   if (!ready) return <Loading />;
-  if (!serverUrl) return <Redirect href="/connect" />;
-  if (!signedIn) return <Redirect href="/sign-in" />;
-  return <Redirect href="/home" />;
+  return <Redirect href={startRoute({ serverUrl, signedIn })} />;
 }

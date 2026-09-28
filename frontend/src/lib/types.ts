@@ -633,6 +633,19 @@ export interface AdminUser extends User {
   libraryIds: number[] | null;
 }
 
+/** An invitation to use this server (Admin → Users). */
+export interface Invite {
+  id: string;
+  label: string | null;
+  /** null = every library. */
+  libraryIds: number[] | null;
+  url: string;
+  createdAt: number;
+  expiresAt: number;
+  /** The Vidalune account that accepted it; their user is made when they first open the server. */
+  acceptedBy: string | null;
+}
+
 export interface Dashboard {
   version: string;
   serverName: string;

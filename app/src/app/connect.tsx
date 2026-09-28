@@ -51,7 +51,7 @@ export default function Connect() {
           <Button label={t('connect.button')} onPress={() => void connect()} busy={busy} disabled={!address.trim()} />
           <View style={{ gap: 8, marginTop: 8 }}>
             <Text style={styles.muted}>{t('connect.orAccount')}</Text>
-            <Button label={t('connect.withAccount')} variant="ghost" onPress={() => router.push('/cloud')} />
+            <Button label={t('connect.withAccount')} variant="ghost" onPress={() => router.replace('/cloud')} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

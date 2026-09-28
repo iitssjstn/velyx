@@ -23,6 +23,8 @@
         adminTag: 'beheerder', since: 'sinds {date}', noServers: 'geen servers', relayOn: 'relay verbonden', planNone: 'Geen toegang op afstand',
         planRemote: 'Toegang op afstand (iedereen op je servers, € 5 per maand)', planViewer: 'Kijker (alleen dit account, € 2,50 per maand)', viewerOn: 'Toegang op afstand als kijker: actief', viewerUntil: 'Toegang op afstand als kijker: actief tot {date}',
         period: 'Looptijd', months1: '1 maand', months3: '3 maanden', months6: 'Half jaar', months12: '1 jaar', lifetime: 'Levenslang', planEnd: 'Tot en met (leeg: geen einddatum)', planNote: 'Notitie (bijv. hoe er betaald is)', change: 'Wijzigen', save: 'Opslaan',
+        invited: 'Je bent uitgenodigd', invitedText: 'Je bent uitgenodigd om te kijken op {server}. Maak een Vidalune-account of log in om de uitnodiging aan te nemen.',
+        inviteGone: 'Deze uitnodiging is niet (meer) geldig. Vraag om een nieuwe.', accepted: 'Je kunt nu kijken op {name}. Open hem hieronder.',
         saved: 'Opgeslagen: {email}.', more: 'Er zijn meer accounts: zoek om te verfijnen.', empty: 'Geen accounts gevonden.', changed: 'gewijzigd {date}',
       }
     : {
@@ -45,6 +47,8 @@
         adminTag: 'administrator', since: 'since {date}', noServers: 'no servers', relayOn: 'relay connected', planNone: 'No remote access',
         planRemote: 'Remote access (everyone on your servers, € 5 a month)', planViewer: 'Viewer (this account only, € 2.50 a month)', viewerOn: 'Remote access as a viewer: active', viewerUntil: 'Remote access as a viewer: active until {date}',
         period: 'Period', months1: '1 month', months3: '3 months', months6: 'Half a year', months12: '1 year', lifetime: 'Lifetime', planEnd: 'Up to and including (empty: no end date)', planNote: 'Note (e.g. how it was paid)', change: 'Change', save: 'Save',
+        invited: 'You are invited', invitedText: 'You are invited to watch on {server}. Create a Vidalune account or sign in to accept.',
+        inviteGone: 'This invitation is not valid (any more). Ask for a new one.', accepted: 'You can watch on {name} now. Open it below.',
         saved: 'Saved: {email}.', more: 'There are more accounts: search to narrow down.', empty: 'No accounts found.', changed: 'changed {date}',
       };
   // On app.vidalune.com these pages live under /_vl (the rest of that site is the chosen server).
@@ -142,11 +146,22 @@
     return f;
   }
 
-  function signIn(mode = 'in') {
+  /** An invitation link (/invite#…): which server, then signing up or in to accept it. */
+  const inviting = () => page === '/invite' && pendingCode();
+  async function invitePage() {
+    let info;
+    try {
+      info = await api('POST', '/api/invite', { token: pendingCode() });
+    } catch {
+      return show(el('h1', {}, t('invited')), el('p', { class: 'error', role: 'alert' }, t('inviteGone')), el('a', { href: `${BASE}/account` }, t('title')));
+    }
+    signIn('up', [el('h1', {}, t('invited')), el('p', {}, t('invitedText', { server: info.server }))]);
+  }
+
+  function signIn(mode = 'in', header = null) {
     const up = mode === 'up';
     show(
-      el('h1', {}, t('title')),
-      el('p', {}, t('intro')),
+      header ?? [el('h1', {}, t('title')), el('p', {}, t('intro'))],
       el('div', { class: 'card' },
         form([
           el('label', {}, t('email'), el('input', { name: 'email', type: 'email', autocomplete: 'email', required: true })),
@@ -156,30 +171,48 @@
           await home();
         }),
       ),
-      el('button', { class: 'link', type: 'button', onclick: () => signIn(up ? 'in' : 'up') }, up ? t('toSignIn') : t('toSignUp')),
+      el('button', { class: 'link', type: 'button', onclick: () => signIn(up ? 'in' : 'up', header) }, up ? t('toSignIn') : t('toSignUp')),
       el('p', { class: 'small' }, t('privacy')),
     );
   }
 
-  async function home(message = '') {
+  async function home(message = '', problem = '') {
     let me;
     try {
       me = await api('GET', '/api/account');
     } catch {
+      if (inviting()) return invitePage();
       return signIn(pendingCode() || new URLSearchParams(location.search).has('new') ? 'up' : 'in');
     }
     if (page === '/admin') return adminPage(me);
+    if (inviting()) {
+      // Accepted: straight into the server (it makes a user for this account there).
+      let s;
+      try {
+        s = await api('POST', '/api/invite/accept', { token: pendingCode() });
+      } catch (err) {
+        history.replaceState(null, '', `${BASE}/servers`);
+        return home('', err.status === 404 ? t('inviteGone') : err.message);
+      }
+      history.replaceState(null, '', `${BASE}/servers`);
+      try {
+        if (s.url || s.relayUrl) return await openServer(s, me);
+      } catch {
+        /* the list, with the server in it */
+      }
+      return home(t('accepted', { name: s.name }));
+    }
     const list = await api('GET', '/api/servers');
     const joining = page === '/join';
     // Straight into the server used last time (app.vidalune.com), unless asked to choose.
     const params = new URLSearchParams(location.search);
     // Back from app.vidalune.com/_vl/open: the server chosen could not be reached through its relay.
     const offline = list.find((s) => s.id === params.get('offline'));
-    const warning = !message && offline ? t('unreachable', { name: offline.name }) : '';
+    const warning = problem || (!message && offline ? t('unreachable', { name: offline.name }) : '');
     // The server used last time; with only one server, that one.
     const openable = list.filter((s) => s.url || s.relayUrl);
     const last = openable.find((s) => s.id === lastServer()) ?? (list.length === 1 ? openable[0] : undefined);
-    if (!message && !offline && !joining && !pendingCode() && !params.has('choose') && location.hostname.startsWith('app.') && last) {
+    if (!message && !warning && !offline && !joining && !pendingCode() && !params.has('choose') && location.hostname.startsWith('app.') && last) {
       try {
         return await openServer(last, me);
       } catch {

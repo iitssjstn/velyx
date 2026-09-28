@@ -235,6 +235,25 @@ export class CloudService {
     }
   }
 
+  /** A link on vidalune.com for someone to accept an invitation to this server (seven days, once). */
+  async createInvite(ref: string): Promise<{ url: string; expiresAt: number }> {
+    if (!this.deps.settings.get().cloud?.account) throw new HttpError(409, 'Link this server to a Vidalune account first.');
+    return this.call<{ url: string; expiresAt: number }>('POST', '/api/server/invites', { ref });
+  }
+
+  /** Withdraws an invitation there (whoever accepted it loses the server from their list). */
+  async revokeInvite(ref: string): Promise<void> {
+    if (!this.deps.settings.get().cloud) return;
+    await this.call('DELETE', `/api/server/invites/${encodeURIComponent(ref)}`);
+    this.membersCache = null;
+  }
+
+  /** The user made for an accepted invitation: that Vidalune account signs in as them from now on. */
+  async inviteUser(ref: string, userId: number): Promise<void> {
+    await this.call('POST', `/api/server/invites/${encodeURIComponent(ref)}/user`, { userRef: String(userId) });
+    this.membersCache = null;
+  }
+
   /** Turns the relay on or off (the server must be linked). */
   async setRelay(enabled: boolean): Promise<CloudStatus> {
     const link = this.deps.settings.get().cloud;

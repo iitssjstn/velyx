@@ -313,6 +313,9 @@ export const nl: Record<string, string> = {
   'If this was not expected, sign the device out under Users.': 'Was dit niet de bedoeling? Meld het apparaat af onder Gebruikers.',
   'Disk space is running low': 'De schijfruimte raakt op',
   '{disk}: {free} free.': '{disk}: {free} vrij.',
+  '{user} accepted your invitation': '{user} heeft je uitnodiging aangenomen',
+  'Signed in with {email} as user {username}. You can change their libraries under Users.': 'Ingelogd met {email} als gebruiker {username}. Bibliotheken pas je aan onder Gebruikers.',
+  'Invitation not found.': 'Uitnodiging niet gevonden.',
   // Vidalune account
   'Could not reach the Vidalune account service. Try again later.': 'De Vidalune-accountdienst is niet bereikbaar. Probeer het later opnieuw.',
   'The Vidalune account service could not handle the request. Try again later.': 'De Vidalune-accountdienst kon het verzoek niet verwerken. Probeer het later opnieuw.',

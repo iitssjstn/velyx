@@ -26,6 +26,7 @@ export const MESSAGES: Record<NotificationEvent, { title: string; body: string }
   backupFailed: { title: 'The scheduled backup failed', body: '{reason}' },
   newDevice: { title: 'New sign-in: {user} on {device}', body: 'If this was not expected, sign the device out under Users.' },
   storageLow: { title: 'Disk space is running low', body: '{disk}: {free} free.' },
+  inviteAccepted: { title: '{user} accepted your invitation', body: 'Signed in with {email} as user {username}. You can change their libraries under Users.' },
 };
 
 export interface NotificationView {

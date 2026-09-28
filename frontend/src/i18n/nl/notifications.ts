@@ -13,6 +13,7 @@ export const notifications: Messages['notifications'] = {
     backupFailed: 'Een geplande back-up is mislukt',
     newDevice: 'Iemand meldt zich aan (browser of app)',
     storageLow: 'De schijfruimte raakt op',
+    inviteAccepted: 'Iemand neemt een uitnodiging aan',
   },
   saved: 'Meldingsinstellingen opgeslagen.',
   discordTitle: 'Discord (optioneel)',

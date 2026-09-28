@@ -49,7 +49,7 @@ export default function SignIn() {
             label={t('signIn.otherServer')}
             variant="ghost"
             onPress={() => {
-              void forgetServer().then(() => router.replace('/connect'));
+              void forgetServer().then(() => router.replace('/cloud'));
             }}
           />
         </ScrollView>
