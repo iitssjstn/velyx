@@ -222,6 +222,19 @@ export class CloudService {
     }
   }
 
+  /** Connects a user here to the Vidalune account a ticket was made for (after they signed in by password). */
+  async claim(ticket: string, userId: number): Promise<string | null> {
+    if (!this.deps.settings.get().cloud?.account) throw new HttpError(409, 'Link this server to a Vidalune account first.');
+    try {
+      const r = await this.call<{ email: string | null }>('POST', '/api/server/claim', { ticket, userRef: String(userId) }, true, true);
+      this.membersCache = null;
+      return r.email;
+    } catch (err) {
+      if (err instanceof HttpError && err.statusCode === 401) throw new HttpError(401, 'This sign-in link is not valid (any more).');
+      throw err;
+    }
+  }
+
   /** Turns the relay on or off (the server must be linked). */
   async setRelay(enabled: boolean): Promise<CloudStatus> {
     const link = this.deps.settings.get().cloud;

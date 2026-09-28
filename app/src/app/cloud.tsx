@@ -5,14 +5,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import { Button, Field, styles } from '../components/ui';
 import { Logo } from '../components/Logo';
-import { CloudError, createCloud, serverAddresses, signInWithTicket, sortServers, type CloudAccount, type CloudServer } from '../lib/cloud';
+import { CLOUD_ACCOUNT_KEY, CloudError, createCloud, PENDING_CONNECT_KEY, serverAddresses, signInWithTicket, sortServers, type CloudAccount, type CloudServer } from '../lib/cloud';
 import { findServer, SERVER_PROBLEMS, ServerError } from '../lib/server';
 import { USER_AGENT, useSession } from '../lib/session';
 import { colors } from '../lib/theme';
 import type { MessageKey } from '../lib/i18n';
 
 /** The Vidalune account the app signed in with (only to list servers; each server has its own sign-in). */
-const STORE_KEY = 'vidalune.cloudAccount';
+const STORE_KEY = CLOUD_ACCOUNT_KEY;
 const cloud = createCloud();
 
 const problemKey = (err: unknown): MessageKey => (err instanceof CloudError ? (`cloud.${err.problem}` as MessageKey) : 'cloud.failed');
@@ -91,6 +91,8 @@ export default function CloudAccountScreen() {
           await signIn(signedIn.token, signedIn.user);
           router.replace('/home');
         } else {
+          // Once signed in by password, this user gets connected to the Vidalune account (see sign-in).
+          if (opened) await SecureStore.setItemAsync(PENDING_CONNECT_KEY, s.id).catch(() => undefined);
           router.replace('/sign-in');
         }
         return;

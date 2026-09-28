@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CloudError, createCloud, serverAddresses, signInWithTicket, sortServers, type CloudServer } from './cloud';
+import { CLOUD_ACCOUNT_KEY, CloudError, connectPending, createCloud, PENDING_CONNECT_KEY, serverAddresses, signInWithTicket, sortServers, type CloudServer, type KeyStore } from './cloud';
 
 const answer = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
 
@@ -53,5 +53,38 @@ describe('Vidalune account service', () => {
   it('lists servers that can be opened first', () => {
     const s = (name: string, url: string | null, online: boolean): CloudServer => ({ id: name, name, version: '1', url, online, lastSeenAt: 0 });
     expect(sortServers([s('Zolder', null, true), s('Oud', 'https://b', false), s('Thuis', 'https://a', true)]).map((x) => x.name)).toEqual(['Thuis', 'Oud', 'Zolder']);
+  });
+});
+
+describe('connecting the Vidalune account after a sign-in by password', () => {
+  const store = (initial: Record<string, string>): KeyStore & { data: Record<string, string> } => {
+    const data = { ...initial };
+    return {
+      data,
+      getItemAsync: async (k) => data[k] ?? null,
+      setItemAsync: async (k, v) => void (data[k] = v),
+      deleteItemAsync: async (k) => void delete data[k],
+    };
+  };
+  const cloudAnswering = (ticket: string) => createCloud((async () => new Response(JSON.stringify({ ticket, addresses: [] }), { status: 200 })) as unknown as typeof fetch, 'https://vidalune.example');
+
+  it('connects once, with a fresh ticket, and forgets the server afterwards', async () => {
+    const keys = store({ [PENDING_CONNECT_KEY]: 'srv-1', [CLOUD_ACCOUNT_KEY]: JSON.stringify({ email: 'a@b.nl', token: 't'.repeat(43) }) });
+    const posts: Array<[string, unknown]> = [];
+    expect(await connectPending(keys, async (path, body) => void posts.push([path, body]), cloudAnswering('x'.repeat(43)))).toBe(true);
+    expect(posts).toEqual([['/api/account/cloud/claim', { ticket: 'x'.repeat(43) }]]);
+    expect(keys.data[PENDING_CONNECT_KEY]).toBeUndefined();
+    // Nothing pending: nothing sent.
+    expect(await connectPending(keys, async (path, body) => void posts.push([path, body]), cloudAnswering('y'.repeat(43)))).toBe(false);
+    expect(posts).toHaveLength(1);
+  });
+
+  it('never gets in the way when it does not work', async () => {
+    const keys = store({ [PENDING_CONNECT_KEY]: 'srv-1', [CLOUD_ACCOUNT_KEY]: JSON.stringify({ email: 'a@b.nl', token: 't'.repeat(43) }) });
+    const failing = async () => {
+      throw new Error('server said no');
+    };
+    expect(await connectPending(keys, failing, cloudAnswering('x'.repeat(43)))).toBe(false);
+    expect(keys.data[PENDING_CONNECT_KEY]).toBeUndefined();
   });
 });

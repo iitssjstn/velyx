@@ -325,6 +325,15 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     return { url: `${appOrigin}${APP_PREFIX}/handoff?t=${encodeURIComponent(token)}` };
   });
 
+  /** app.vidalune.com: a ticket for the server chosen there (to connect the user signed in there). */
+  app.post('/api/app/ticket', async (request) => {
+    if (!isAppHost(request.raw)) throw new HttpError(404, 'Not found.');
+    const me = account(request);
+    const s = accessible(me.id).find((x) => x.id === request.cookies[SERVER_COOKIE]);
+    if (!s) throw new HttpError(404, 'Not found.');
+    return { ticket: newTicket(s.id, me.id) };
+  });
+
   app.get('/handoff', async (request, reply) => {
     if (!isAppHost(request.raw) || !appOrigin) throw new HttpError(404, 'Not found.');
     const { t: token } = z.object({ t: z.string().min(20).max(200) }).parse(request.query);
@@ -574,6 +583,24 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       .orderBy(desc(memberships.createdAt))
       .get();
     return { email: who?.email ?? null, userRef: member?.userRef ?? null };
+  });
+
+  /**
+   * After someone signed in on the server with a username and password (their Vidalune account did
+   * not know that user yet), the server connects that user to the account the ticket was for: from
+   * then on they sign in there with their Vidalune account alone.
+   */
+  app.post('/api/server/claim', async (request) => {
+    const me = server(request);
+    if (!me.accountId) throw new HttpError(409, 'Link this server to a Vidalune account first.');
+    const body = z.object({ ticket: z.string().min(20).max(200), userRef }).parse(request.body);
+    const row = db.select().from(tickets).where(and(eq(tickets.ticketHash, sha256(body.ticket)), eq(tickets.serverId, me.id))).get();
+    if (row) db.delete(tickets).where(eq(tickets.ticketHash, row.ticketHash)).run();
+    if (!row || row.expiresAt < now()) throw new HttpError(401, 'This sign-in link is not valid (any more).');
+    // One Vidalune account per user here: the account moves to this user if it had another one.
+    db.delete(memberships).where(and(eq(memberships.serverId, me.id), eq(memberships.accountId, row.accountId))).run();
+    db.insert(memberships).values({ serverId: me.id, userRef: body.userRef, accountId: row.accountId, createdAt: now() }).onConflictDoUpdate({ target: [memberships.serverId, memberships.userRef], set: { accountId: row.accountId, createdAt: now() } }).run();
+    return { email: db.select().from(accounts).where(eq(accounts.id, row.accountId)).get()?.email ?? null };
   });
 
   /** The server's administrator stops using the account service: everything about it is removed. */

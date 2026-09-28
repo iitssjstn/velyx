@@ -49,6 +49,7 @@ const AUDIT_ACTIONS: Record<string, MessageKey> = {
   'cloud.relay_on': 'audit.actions.cloudRelayOn',
   'cloud.relay_off': 'audit.actions.cloudRelayOff',
   'cloud.home_networks': 'audit.actions.cloudHomeNetworks',
+  'cloud.account_linked': 'audit.actions.cloudAccountLinked',
   'segments.analyze': 'audit.actions.segmentsAnalyze',
   'segments.edited': 'audit.actions.segmentsEdited',
   'segments.reset': 'audit.actions.segmentsReset',

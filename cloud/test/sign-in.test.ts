@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import { buildCloudApp, SESSION_COOKIE } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
+import { memberships } from '../src/db/schema.js';
 import { createTestEnv, createUser, setupAdmin, type TestEnv } from '../../backend/test/helpers.js';
 import type {} from '../../backend/src/app.js';
 
@@ -99,5 +100,28 @@ describe('signing in with a Vidalune account', () => {
     await cloud.inject({ method: 'POST', url: '/api/join', headers: { cookie: lisa }, payload: { code: issued.code } });
     expect((await env.app.inject({ method: 'PUT', url: `/api/users/${family.id}`, headers: { cookie: admin }, payload: { disabled: true } })).statusCode).toBe(200);
     expect((await sso(await ticketFor(lisa))).headers.location).toBe('/login?vidalune=unknown');
+  });
+
+  it('connects a user after one sign-in by password, so the Vidalune account alone is enough from then on', async () => {
+    const { code } = (await env.app.inject({ method: 'POST', url: '/api/admin/cloud/link', headers: { cookie: admin } })).json().code;
+    const owner = await account('justin@example.com');
+    await cloud.inject({ method: 'POST', url: '/api/link', headers: { cookie: owner }, payload: { code } });
+    await env.app.inject({ method: 'POST', url: '/api/admin/cloud/check', headers: { cookie: admin } });
+    // As for servers linked before accounts knew their users: the owner's account knows no user here.
+    db.delete(memberships).run();
+    expect((await sso(await ticketFor(owner))).headers.location).toBe('/login?vidalune=unknown');
+
+    // Signed in by password: connect with a fresh ticket, then the Vidalune account alone is enough.
+    const claim = await env.app.inject({ method: 'POST', url: '/api/account/cloud/claim', headers: { cookie: admin }, payload: { ticket: await ticketFor(owner) } });
+    expect(claim.statusCode).toBe(200);
+    expect(claim.json().email).toBe('justin@example.com');
+    const res = await sso(await ticketFor(owner));
+    expect(res.headers.location).toBe('/');
+    const cookie = res.cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+    expect((await me(cookie)).json().user.username).toBe('justin');
+    // A ticket works once.
+    const used = await ticketFor(owner);
+    await env.app.inject({ method: 'POST', url: '/api/account/cloud/claim', headers: { cookie: admin }, payload: { ticket: used } });
+    expect((await env.app.inject({ method: 'POST', url: '/api/account/cloud/claim', headers: { cookie: admin }, payload: { ticket: used } })).statusCode).toBe(401);
   });
 });
