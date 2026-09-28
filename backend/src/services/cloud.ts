@@ -8,6 +8,13 @@ const log = createLogger('cloud');
 const TIMEOUT_MS = 10_000;
 /** How often a linked server tells the account service it is still there. */
 const HEARTBEAT_MS = 30 * 60_000;
+/** When vidalune.com cannot be reached, remote access it confirmed keeps working this long. */
+export const REMOTE_GRACE_MS = 7 * 24 * 60 * 60_000;
+/** A server without remote access asks again at most this often (it may just have been given). */
+const RECHECK_MS = 2 * 60_000;
+
+/** Whether playing away from home is allowed, and why not. */
+export type RemoteAccess = 'allowed' | 'not_linked' | 'no_subscription';
 
 export interface CloudStatus {
   /** Linking is on (the server is registered with the account service). */
@@ -20,6 +27,10 @@ export interface CloudStatus {
   serviceUrl: string;
   /** The relay: reachable at `url` without an open port (opt-in, only while linked). */
   relay: { enabled: boolean; url: string | null; connected: boolean; error: RelayProblem | null; allowed: boolean };
+  /** Playing away from home works (linked, and the owner has remote access as last confirmed). */
+  remoteAccess: boolean;
+  /** Networks that also count as home, on top of the private ranges. */
+  homeNetworks: string[];
 }
 
 /**
@@ -68,6 +79,8 @@ export class CloudService {
         // The owner's Vidalune account has remote access (unknown until the service said so: yes).
         allowed: link?.relayAllowed !== false,
       },
+      remoteAccess: !!link?.account && link.relayAllowed !== false && !!link.remoteConfirmedAt && this.now() - link.remoteConfirmedAt < REMOTE_GRACE_MS,
+      homeNetworks: this.deps.settings.get().homeNetworks,
     };
   }
 
@@ -126,12 +139,39 @@ export class CloudService {
     const relay = !!r.relay?.enabled;
     const relayUrl = r.relay?.url ?? null;
     const relayAllowed = r.relay?.allowed !== false;
-    if (current && (current.account !== r.account || !!current.relay !== relay || (current.relayUrl ?? null) !== relayUrl || (current.relayAllowed !== false) !== relayAllowed)) {
-      this.deps.settings.update({ cloud: { ...current, account: r.account, relay, relayUrl, relayAllowed } });
+    this.checkedAt = this.now();
+    if (current) {
+      const confirmed = r.account && relayAllowed ? this.now() : current.remoteConfirmedAt;
+      this.deps.settings.update({ cloud: { ...current, account: r.account, relay, relayUrl, relayAllowed, remoteConfirmedAt: confirmed } });
     }
     if (r.account) this.code = null;
     this.syncRelay();
     return this.status();
+  }
+
+  private checkedAt = 0;
+
+  /**
+   * Whether this server may be used away from home: linked to a Vidalune account whose owner has
+   * remote access. A "no" is checked again (at most every two minutes), since it may just have been
+   * given; when vidalune.com cannot be reached, a recent "yes" keeps counting for a week.
+   */
+  async remoteAccess(): Promise<RemoteAccess> {
+    const before = this.deps.settings.get().cloud;
+    if (!before?.account) return 'not_linked';
+    const fresh = (l: typeof before) => l.relayAllowed !== false && !!l.remoteConfirmedAt && this.now() - l.remoteConfirmedAt < RECHECK_MS * 15;
+    if (fresh(before)) return 'allowed';
+    if (this.now() - this.checkedAt >= RECHECK_MS) {
+      try {
+        await this.check();
+      } catch {
+        /* unreachable: decide on what was confirmed before */
+      }
+    }
+    const link = this.deps.settings.get().cloud;
+    if (!link?.account) return 'not_linked';
+    if (link.relayAllowed === false) return 'no_subscription';
+    return link.remoteConfirmedAt && this.now() - link.remoteConfirmedAt < REMOTE_GRACE_MS ? 'allowed' : 'no_subscription';
   }
 
   /** The site where people sign in with their Vidalune account and open their servers. */

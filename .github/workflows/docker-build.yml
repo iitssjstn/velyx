@@ -87,6 +87,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # The page on Docker Hub. Needs a token that may also change the repository ("Read, Write,
+      # Delete"); with a read/write token only the images are published and this step is skipped.
+      - name: Docker Hub description
+        if: env.DOCKERHUB_TOKEN != '' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+          repository: vidalune/vidalune
+          short-description: Your media. Your server. Self-hosted media server that never transcodes video.
+          readme-filepath: docker/DOCKERHUB.md
+
       # Tags pushed with GITHUB_TOKEN do not start this workflow again, so the image is built only once.
       - name: Tag the release
         if: steps.release.outputs.new == 'true'

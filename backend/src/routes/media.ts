@@ -18,6 +18,7 @@ import { canSee } from '../services/access.js';
 import { analyzePlayback } from '../playback/compatibility.js';
 import { clientProfile, deviceSupport, effectiveCapabilities, profileName } from '../playback/client-profile.js';
 import { requestLanguage } from '../i18n/index.js';
+import { isHomeAddress } from '../services/remote-access.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('playback');
@@ -105,12 +106,28 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     ];
   }
 
+  /**
+   * Playing at home is free; away from home it needs remote access on the Vidalune account that
+   * owns this server (like the relay). Browsing the library works everywhere.
+   */
+  const remoteGate = async (request: FastifyRequest) => {
+    if (isHomeAddress(request.ip, ctx.settings.get().homeNetworks)) return;
+    const access = await ctx.cloud.remoteAccess();
+    if (access === 'allowed') return;
+    throw new HttpError(
+      402,
+      access === 'not_linked'
+        ? 'Playing away from home needs Vidalune remote access. The administrator links this server to a Vidalune account with remote access (Admin → Vidalune account).'
+        : 'Playing away from home needs Vidalune remote access, which the owner of this server does not have (yet). At home everything keeps working.',
+    );
+  };
+
   // GET and HEAD share one handler; an explicit HEAD route keeps our Content-Length intact
   // (Fastify's auto-generated HEAD route would reset it to 0).
   app.route<{ Params: { id: string } }>({
     method: ['GET', 'HEAD'],
     url: '/api/media/:id/stream',
-    preHandler: requireUser,
+    preHandler: [requireUser, remoteGate],
     handler: async (request, reply) => {
       const { file, abs } = loadFile(request.params.id, request.user!);
       if (request.method === 'GET') ctx.streams.touch(request.user!, file.id, 'direct', deviceLabel(request));
@@ -142,7 +159,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     }
   }
 
-  app.post<{ Params: { id: string } }>('/api/media/:id/playback', { preHandler: requireUser }, async (request) => {
+  app.post<{ Params: { id: string } }>('/api/media/:id/playback', { preHandler: [requireUser, remoteGate] }, async (request) => {
     const loaded = loadFile(request.params.id, request.user!);
     const file = await ensureVideoDetails(loaded.file, loaded.abs);
     const { audioIndex, audioChannels, boostVoices, levelVolume, ...reportedCaps } = capsBody.parse(request.body ?? {});
@@ -174,7 +191,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   }
 
   // Live remux: video copied, audio converted when needed. Seeking = request again with ?start=.
-  app.get<{ Params: { id: string } }>('/api/media/:id/remux', { preHandler: requireUser }, async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/media/:id/remux', { preHandler: [requireUser, remoteGate] }, async (request, reply) => {
     const { file, abs } = loadFile(request.params.id, request.user!);
     // A HEAD request only asks whether the stream exists: never start FFmpeg for it.
     if (request.method === 'HEAD') return reply.code(200).header('Content-Type', 'video/mp4').header('Accept-Ranges', 'none').send();

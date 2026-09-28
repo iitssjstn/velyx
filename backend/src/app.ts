@@ -109,6 +109,8 @@ export interface BuildOptions {
   chapterReader?: ChapterReader | null;
   /** How often waiting intro/credits detection looks again (default 30 s). */
   segmentRetryMs?: number;
+  /** The clock of the account service link (tests move it on). */
+  cloudNow?: () => number;
 }
 
 export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}): AppContext {
@@ -187,7 +189,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     fetchImpl: opts.fetchImpl,
     userAgent: `Vidalune v${APP_VERSION}`,
   });
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud: new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port }), startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud: new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, now: opts.cloudNow }), startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {
