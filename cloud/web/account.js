@@ -48,6 +48,8 @@
   // On app.vidalune.com these pages live under /_vl (the rest of that site is the chosen server).
   const BASE = location.pathname === '/_vl' || location.pathname.startsWith('/_vl/') ? '/_vl' : '';
   const page = location.pathname.slice(BASE.length) || '/';
+  // The website's links (home, install) belong to vidalune.com, not to app.vidalune.com.
+  if (BASE) document.querySelector('.site-links')?.remove();
   const t = (key, vars = {}) => T[key].replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
   const view = document.getElementById('view');
   const show = (...nodes) => view.replaceChildren(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
@@ -97,10 +99,12 @@
    * remembered). Elsewhere, or without the relay: a one-time ticket, at its own address when this
    * browser reaches it, else at its relay address.
    */
-  async function openServer(s) {
-    if (BASE && s.relayUrl && s.relayConnected) {
+  async function openServer(s, me) {
+    if (s.relayUrl && s.relayConnected) {
       remember(s.id);
-      return location.assign(`${BASE}/open?server=${encodeURIComponent(s.id)}`);
+      if (BASE) return location.assign(`${BASE}/open?server=${encodeURIComponent(s.id)}`);
+      // From vidalune.com: on to app.vidalune.com, signed in there, with this server chosen.
+      if (me && me.appUrl) return location.assign((await api('POST', '/api/handoff', { server: s.id })).url);
     }
     const { ticket, addresses } = await api('POST', `/api/servers/${encodeURIComponent(s.id)}/open`);
     if (!addresses.length) throw new Error(t('noAddress'));
@@ -154,7 +158,7 @@
     try {
       me = await api('GET', '/api/account');
     } catch {
-      return signIn(pendingCode() ? 'up' : 'in');
+      return signIn(pendingCode() || new URLSearchParams(location.search).has('new') ? 'up' : 'in');
     }
     if (page === '/admin') return adminPage(me);
     const list = await api('GET', '/api/servers');
@@ -169,7 +173,7 @@
     const last = openable.find((s) => s.id === lastServer()) ?? (list.length === 1 ? openable[0] : undefined);
     if (!message && !offline && !joining && !pendingCode() && !params.has('choose') && location.hostname.startsWith('app.') && last) {
       try {
-        return await openServer(last);
+        return await openServer(last, me);
       } catch {
         /* show the list instead */
       }
@@ -220,7 +224,7 @@
                         b.disabled = true;
                         b.textContent = t('opening');
                         try {
-                          await openServer(s);
+                          await openServer(s, me);
                         } catch (err) {
                           b.disabled = false;
                           b.textContent = t('openServer');

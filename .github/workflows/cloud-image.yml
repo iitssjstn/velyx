@@ -71,7 +71,7 @@ jobs:
         run: |
           docker run -d --name cloud -p 3100:3100 -e PUBLIC_URL=http://localhost:3100 ghcr.io/${{ github.repository_owner }}/vidalune-cloud:latest
           for i in $(seq 1 20); do
-            if curl -fsS http://localhost:3100/health && curl -fsS http://localhost:3100/ | grep -q account.js && curl -fsS http://localhost:3100/install | grep -q docker-compose; then exit 0; fi
+            if curl -fsS http://localhost:3100/health && curl -fsS http://localhost:3100/ | grep -q 'href="/install"' && curl -fsS http://localhost:3100/account | grep -q account.js && curl -fsS http://localhost:3100/install | grep -q docker-compose; then exit 0; fi
             sleep 2
           done
           docker logs cloud

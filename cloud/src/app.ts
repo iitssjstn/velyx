@@ -13,7 +13,8 @@ import type { DB } from './db/client.js';
 import { accountSessions, accounts, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
 import { newSlug, Relay, type Rewrite } from './relay.js';
-import { composeFile, installPage, installScript, pickLanguage } from './install.js';
+import { composeFile, installPage, installScript } from './install.js';
+import { homePage, pickLanguage } from './site.js';
 
 const DAY = 86_400_000;
 export const SESSION_COOKIE = 'vl_session';
@@ -89,9 +90,11 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   /** Whether an account's servers may be reached through Vidalune: an active plan (administrators always). */
   const hasRemote = (a: typeof accounts.$inferSelect | undefined): boolean => !!a && (isAdmin(a) || (a.plan === 'remote' && (a.planUntil === null || a.planUntil > now())));
   const ownerHasRemote = (accountId: number | null): boolean => accountId !== null && hasRemote(db.select().from(accounts).where(eq(accounts.id, accountId)).get());
-  const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops, allowed: ownerHasRemote });
+  const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops, allowed: ownerHasRemote, appUrl: config.frontendDir ? `${publicUrl.protocol}//app.${config.relayDomain}${publicUrl.port ? `:${publicUrl.port}` : ''}` : null });
   /** app.vidalune.com: the Vidalune web interface for whichever server its visitor chose. */
   const appHost = `app.${config.relayDomain}`;
+  /** Where app.vidalune.com is (null: this service does not serve the web interface there). */
+  const appOrigin = config.frontendDir ? `${publicUrl.protocol}//${appHost}${publicUrl.port ? `:${publicUrl.port}` : ''}` : null;
   const isAppHost = (req: http.IncomingMessage) => String(req.headers.host ?? '').toLowerCase().replace(/:\d+$/, '') === appHost;
   const app = Fastify({
     trustProxy: (_addr: string, hop: number) => hop < hops,
@@ -280,7 +283,37 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   app.get('/api/account', async (request) => {
     const me = account(request);
-    return { email: me.email, remote: planView(me), ...(isAdmin(me) ? { admin: true } : {}) };
+    return { email: me.email, remote: planView(me), appUrl: appOrigin, ...(isAdmin(me) ? { admin: true } : {}) };
+  });
+
+  /**
+   * Opening a server from vidalune.com on app.vidalune.com: a one-time handoff (a minute, used once)
+   * signs this browser in there too, and that server is chosen. The session cookie itself never
+   * leaves vidalune.com, so relay addresses on *.vidalune.com never see it.
+   */
+  const handoffs = new Map<string, { accountId: number; serverId: string; expiresAt: number }>();
+  app.post('/api/handoff', async (request) => {
+    const me = account(request);
+    if (!appOrigin) throw new HttpError(404, 'Not found.');
+    const { server: id } = z.object({ server: z.string().max(64) }).parse(request.body);
+    const s = accessible(me.id).find((x) => x.id === id);
+    if (!s || !s.relayUrl) throw new HttpError(404, 'Not found.');
+    const token = newToken();
+    const t = now();
+    for (const [k, v] of handoffs) if (v.expiresAt < t) handoffs.delete(k);
+    handoffs.set(sha256(token), { accountId: me.id, serverId: s.id, expiresAt: t + TICKET_MS });
+    return { url: `${appOrigin}${APP_PREFIX}/handoff?t=${encodeURIComponent(token)}` };
+  });
+
+  app.get('/handoff', async (request, reply) => {
+    if (!isAppHost(request.raw) || !appOrigin) throw new HttpError(404, 'Not found.');
+    const { t: token } = z.object({ t: z.string().min(20).max(200) }).parse(request.query);
+    const key = sha256(token);
+    const h = handoffs.get(key);
+    handoffs.delete(key);
+    if (!h || h.expiresAt < now()) return reply.redirect(`${APP_PREFIX}/`);
+    startSession(reply, h.accountId, 'web');
+    return reply.redirect(`${APP_PREFIX}/open?server=${encodeURIComponent(h.serverId)}`);
   });
 
   /** Deleting an account signs out everywhere and unlinks its servers. */
@@ -614,7 +647,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   });
 
   app.get('/install', async (request, reply) =>
-    reply.type('text/html').header('Cache-Control', 'no-cache').send(installPage(pickLanguage(request.query, request.headers['accept-language']), config.publicUrl, releaseVersion, !!latestApk())),
+    reply.type('text/html').header('Cache-Control', 'no-cache').send(installPage(pickLanguage(request.query, request.headers['accept-language']), config.publicUrl, releaseVersion, !!latestApk(), !!accountByToken(request.cookies[SESSION_COOKIE]))),
   );
   app.get('/install/docker-compose.yml', async (_request, reply) =>
     reply.type('text/yaml; charset=utf-8').header('Content-Disposition', 'attachment; filename="docker-compose.yml"').send(composeFile()),
@@ -662,7 +695,13 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const webDir = config.webDir;
     await app.register(fastifyStatic, { root: webDir, prefix: '/', index: false, wildcard: false });
     const page = (_req: FastifyRequest, reply: FastifyReply) => reply.type('text/html').header('Cache-Control', 'no-cache').send(fs.readFileSync(path.join(webDir, 'index.html')));
-    app.get('/', page);
+    // The website's home page; on app.vidalune.com (reached as /_vl/) the account pages.
+    app.get('/', async (request, reply) => {
+      if (isAppHost(request.raw)) return page(request, reply);
+      const lang = pickLanguage(request.query, request.headers['accept-language']);
+      return reply.type('text/html').header('Cache-Control', 'no-cache').send(homePage(lang, !!accountByToken(request.cookies[SESSION_COOKIE])));
+    });
+    app.get('/account', page);
     app.get('/link', page);
     app.get('/servers', page);
     app.get('/join', page);

@@ -64,7 +64,9 @@ Taking it away closes that account's tunnels at once; an end date takes effect b
 A Vidalune server whose administrator turns the relay on (Admin → Vidalune account, only while
 linked) keeps a WebSocket open to `wss://vidalune.com/api/server/tunnel` and gets the address
 `https://<name>.vidalune.com`. Visitors of that address are passed through the tunnel to the server;
-nothing is stored. Names like `www`, `app` and `api` are never given out.
+nothing is stored. Names like `www`, `app` and `api` are never given out. The address is not shown
+to people: a browser opening it is sent to app.vidalune.com with that server chosen; the API (the
+app, and app.vidalune.com's own requests) passes through.
 
 In Nginx Proxy Manager:
 
@@ -88,6 +90,9 @@ In Nginx Proxy Manager:
 
 The service is also where people get Vidalune:
 
+- **`/`**: the home page (what Vidalune is, features, how it works, plans, questions), with a
+  header leading to installing, signing in or making an account; the account pages are at
+  **`/account`** (and `/servers`, `/link`, `/join`, `/admin`).
 - **`/install`**: the install page (English, or Dutch for browsers that ask for it; `?lang=nl|en`).
 - **`/install/docker-compose.yml`**: a ready compose file for the published image.
 - **`/get`**: the installer behind `curl -fsSL https://vidalune.com/get | sh` (asks the two media
@@ -102,7 +107,9 @@ The service is also where people get Vidalune:
 app.vidalune.com shows the Vidalune web interface for a server you use, without going to that
 server's own address:
 
-- Its account pages (sign in, your servers) are under `app.vidalune.com/_vl/`. With one server it is
+- Its account pages (sign in, your servers) are under `app.vidalune.com/_vl/`. **Open** on vidalune.com
+  continues there: a one-time handoff (a minute, used once) signs the browser in on app.vidalune.com
+  and chooses the server; the session cookie of vidalune.com itself never leaves that host. With one server it is
   opened right away; with several you choose, and the choice is remembered (cookie `vl_server`).
 - The web interface itself (HTML, scripts, styles) always comes from this service, built into the
   image: never from a server. Only `/api/…` and `/sso` are passed to the chosen server, through its

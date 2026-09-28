@@ -43,7 +43,8 @@ describe('Vidalune account page', () => {
     expect(await screen.findByText(/Nothing is stored/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Turn the relay on' }));
     expect(calls).toContain('POST /api/admin/cloud/relay');
-    expect(await screen.findByRole('link', { name: 'https://k7f3q9ma.vidalune.com' })).toBeTruthy();
+    expect(await screen.findByText('Reachable on app.vidalune.com and in the Vidalune app.')).toBeTruthy();
+    expect(screen.queryByText(/k7f3q9ma/)).toBeNull();
     expect(screen.getByText('Connected.')).toBeTruthy();
   });
 
