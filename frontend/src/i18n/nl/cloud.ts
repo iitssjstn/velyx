@@ -40,4 +40,17 @@ export const cloud: Messages['cloud'] = {
     closed: 'De verbinding werd verbroken. De server maakt opnieuw verbinding.',
   },
   relayNeedsLink: 'Koppel deze server eerst om de relay te gebruiken.',
+  upnpTitle: 'Poort openzetten op de router (UPnP)',
+  upnpIntro: 'Vraagt je router een poort door te sturen naar deze server, zodat hij van buitenaf bereikbaar is zonder relay en zonder dat je zelf port forwarding instelt. Daarvoor moet UPnP aan staan op de router; in Docker moet Vidalune het netwerk van de host gebruiken (network_mode: host). Buitenshuis afspelen blijft toegang op afstand nodig hebben (hierboven).',
+  upnpPort: 'Poort op de router',
+  upnpOn: 'Poort openzetten',
+  upnpOff: 'Poort sluiten',
+  upnpCheck: 'Opnieuw controleren',
+  upnpOpen: 'Open: van buitenaf bereikbaar op {address}. Stel dit in als serveradres onder Beheer → Server om het in de app te gebruiken.',
+  upnpOpenNoAddress: 'Open op poort {port}.',
+  upnpProblem: {
+    noRouter: 'Er antwoordde geen router met UPnP. Zet UPnP aan op de router, of gebruik (in Docker) network_mode: host.',
+    refused: 'De router weigerde: deze poort is misschien in gebruik door een ander apparaat. Kies een andere poort.',
+    failed: 'De router antwoordde niet zoals verwacht. Probeer het opnieuw, of stel zelf port forwarding in.',
+  },
 };

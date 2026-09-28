@@ -1,12 +1,13 @@
 import crypto from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Duplex } from 'node:stream';
-import { eq } from 'drizzle-orm';
+import { eq, lt, sql } from 'drizzle-orm';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { DB } from './db/client.js';
-import { servers } from './db/schema.js';
+import { relayTraffic, servers } from './db/schema.js';
 import { sha256 } from './crypto.js';
 import { CHUNK, decodeFrame, encodeFrame, FRAME, HOP_BY_HOP, INITIAL_WINDOW, windowPayload } from './tunnel-protocol.js';
+import { mbpsToBps, Shaper } from './shaper.js';
 
 /** Subdomains that are never given to a server. */
 export const RESERVED = new Set(['www', 'app', 'api', 'relay', 'admin', 'mail', 'status', 'docs', 'cloud', 'help', 'support', 'blog', 'account', 'login']);
@@ -18,6 +19,9 @@ const MAX_STREAMS = 64;
 /** Largest request body passed on (servers take JSON and small uploads). */
 const MAX_REQUEST_BODY = 8 * 1024 * 1024;
 const PING_MS = 25_000;
+/** How often the current speed is measured, and how often amounts are written down. */
+const SAMPLE_MS = 5000;
+const FLUSH_EVERY = 12;
 
 /** Changes made to what passes through (app.vidalune.com: cookies per server, a strict policy). */
 export interface Rewrite {
@@ -39,11 +43,21 @@ class Tunnel {
   private next = 1;
   private alive = true;
   private readonly ping: NodeJS.Timeout;
+  /** Not yet written down: bytes to visitors, from visitors, and requests. */
+  out = 0;
+  in = 0;
+  requests = 0;
+  /** Bytes to visitors since the last speed sample, and the speed then (bytes per second). */
+  sampled = 0;
+  bps = 0;
 
   constructor(
     readonly serverId: string,
     readonly ws: WebSocket,
     private readonly onClose: () => void,
+    private readonly shaper: Shaper,
+    /** This server's own limit in bytes per second (0: none). */
+    public capBps: number,
   ) {
     ws.on('message', (data: Buffer) => this.onFrame(data));
     ws.on('pong', () => (this.alive = true));
@@ -63,7 +77,8 @@ class Tunnel {
 
   /** Passes one visitor's request to the server and its answer back. */
   forward(req: IncomingMessage, res: ServerResponse, ip: string, rewrite: Rewrite = {}): void {
-    if (this.streams.size >= MAX_STREAMS) return unavailable(res, 503);
+    if (this.streams.size >= MAX_STREAMS) return unavailable(req, res, 'busy');
+    this.requests++;
     const id = this.next;
     this.next = this.next >= 0xfffffff0 ? 1 : this.next + 1;
     const stream: Stream = { req, res, started: false, owed: 0, rewrite };
@@ -78,9 +93,10 @@ class Tunnel {
     let size = 0;
     req.on('data', (chunk: Buffer) => {
       size += chunk.length;
+      this.in += chunk.length;
       if (size > MAX_REQUEST_BODY) {
         this.reset(id);
-        return unavailable(res, 413);
+        return unavailable(req, res, 'tooLarge');
       }
       for (let i = 0; i < chunk.length; i += CHUNK) this.send(FRAME.requestBody, id, chunk.subarray(i, i + CHUNK));
     });
@@ -89,6 +105,16 @@ class Tunnel {
     res.on('close', () => {
       if (this.streams.delete(id) && !res.writableFinished) this.send(FRAME.reset, id);
     });
+  }
+
+  /** Credit for bytes the visitor took, passed back no faster than this server's fair share. */
+  private credit(id: number, bytes: number) {
+    const go = () => {
+      if (this.streams.has(id)) this.send(FRAME.window, id, windowPayload(bytes));
+    };
+    const wait = this.shaper.delay(this.serverId, bytes, this.capBps);
+    if (wait <= 0) go();
+    else setTimeout(go, wait).unref();
   }
 
   private reset(id: number) {
@@ -119,18 +145,21 @@ class Tunnel {
       }
       case FRAME.responseBody: {
         // Credit goes back once the visitor has taken the bytes: a slow viewer slows the server down.
+        this.out += frame.payload.length;
+        this.sampled += frame.payload.length;
         const waiting = stream.owed > 0;
         stream.owed += frame.payload.length;
+        const pay = () => {
+          const owed = stream.owed;
+          stream.owed = 0;
+          this.credit(frame.stream, owed);
+        };
         if (waiting) {
           res.write(frame.payload);
         } else if (res.write(frame.payload)) {
-          this.send(FRAME.window, frame.stream, windowPayload(stream.owed));
-          stream.owed = 0;
+          pay();
         } else {
-          res.once('drain', () => {
-            this.send(FRAME.window, frame.stream, windowPayload(stream.owed));
-            stream.owed = 0;
-          });
+          res.once('drain', pay);
         }
         break;
       }
@@ -140,7 +169,7 @@ class Tunnel {
         break;
       case FRAME.reset:
         this.streams.delete(frame.stream);
-        if (!stream.started) unavailable(res, 502);
+        if (!stream.started) unavailable(stream.req, res, 'failed');
         else res.destroy();
         break;
     }
@@ -148,9 +177,9 @@ class Tunnel {
 
   private closed() {
     clearInterval(this.ping);
-    for (const { res, started } of this.streams.values()) {
+    for (const { req, res, started } of this.streams.values()) {
       if (started) res.destroy();
-      else unavailable(res, 502);
+      else unavailable(req, res, 'offline');
     }
     this.streams.clear();
     this.onClose();
@@ -161,18 +190,56 @@ class Tunnel {
   }
 }
 
-/** A short page for visitors when the relay cannot reach the server. */
-function unavailable(res: ServerResponse, status: number): void {
+/** Why the relay cannot pass a request on. */
+export type RelayProblem = 'offline' | 'off' | 'busy' | 'tooLarge' | 'failed';
+
+const PROBLEMS: Record<RelayProblem, { status: number; en: string; nl: string }> = {
+  offline: {
+    status: 502,
+    en: 'This Vidalune server cannot be reached through the relay right now: it is off, or has no internet connection. Try again later.',
+    nl: 'Deze Vidalune-server is nu niet bereikbaar via de relay: hij staat uit of heeft geen internetverbinding. Probeer het later opnieuw.',
+  },
+  off: {
+    status: 502,
+    en: 'This Vidalune server is not reachable through the relay: its relay is off, or remote access is not active on its Vidalune account.',
+    nl: 'Deze Vidalune-server is niet bereikbaar via de relay: de relay staat uit, of toegang op afstand is niet actief op het Vidalune-account.',
+  },
+  busy: {
+    status: 503,
+    en: 'This Vidalune server is busy with many requests through the relay. Try again in a moment.',
+    nl: 'Deze Vidalune-server heeft het druk met veel verzoeken via de relay. Probeer het zo opnieuw.',
+  },
+  tooLarge: { status: 413, en: 'This is too large to send through the Vidalune relay.', nl: 'Dit is te groot om via de Vidalune-relay te versturen.' },
+  failed: {
+    status: 502,
+    en: 'The Vidalune server stopped answering through the relay. Try again.',
+    nl: 'De Vidalune-server gaf via de relay geen antwoord meer. Probeer het opnieuw.',
+  },
+};
+
+/** The explanation, in the visitor's language (Dutch or English). */
+export function relayMessage(problem: RelayProblem, acceptLanguage: string | undefined): string {
+  const nl = /^\s*nl\b/i.test(acceptLanguage ?? '');
+  return nl ? PROBLEMS[problem].nl : PROBLEMS[problem].en;
+}
+
+/** Tells the visitor why: a short page for a browser, JSON ({ error }) for the web interface and the app. */
+function unavailable(req: IncomingMessage, res: ServerResponse, problem: RelayProblem): void {
   if (res.headersSent) {
     res.destroy();
     return;
   }
-  const text =
-    status === 413
-      ? 'Too large to send through the Vidalune relay.'
-      : 'This Vidalune server cannot be reached through the relay right now. It may be off or offline. / Deze Vidalune-server is nu niet bereikbaar via de relay. Misschien staat hij uit of is hij offline.';
-  res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
-  res.end(text);
+  const { status } = PROBLEMS[problem];
+  const text = relayMessage(problem, req.headers['accept-language']);
+  const headers = { 'Cache-Control': 'no-store', 'X-Vidalune-Relay': problem };
+  if (isNavigation(req)) {
+    const safe = text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+    res.writeHead(status, { ...headers, 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vidalune</title><body style="font-family:system-ui,sans-serif;background:#0b0d12;color:#e8eaf0;display:grid;place-items:center;min-height:100vh;margin:0"><p style="max-width:32rem;padding:1.5rem;line-height:1.5">${safe}</p></body>`);
+    return;
+  }
+  res.writeHead(status, { ...headers, 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify({ error: text, relay: problem }));
 }
 
 /** A browser opening a page (not the API, not a file the app or player asks for). */
@@ -202,6 +269,9 @@ export function clientIp(req: IncomingMessage, hops: number): string {
 export class Relay {
   private readonly tunnels = new Map<string, Tunnel>();
   private readonly wss = new WebSocketServer({ noServer: true, maxPayload: CHUNK + 1024 });
+  private readonly shaper: Shaper;
+  private readonly sampler: NodeJS.Timeout;
+  private samples = 0;
 
   constructor(
     private readonly opts: {
@@ -216,8 +286,68 @@ export class Relay {
       allowed: (serverId: string, accountId: number | null) => boolean;
       /** app.vidalune.com: browsers opening a relay address are sent there (null: not served). */
       appUrl?: string | null;
+      /** What the relay may send in total, in Mbit/s (0: no limit). */
+      maxMbps?: number;
+      /** A server's own limit in Mbit/s (0: none). */
+      limitMbps?: (serverId: string) => number;
+      now?: () => number;
     },
-  ) {}
+  ) {
+    this.shaper = new Shaper({ totalBps: () => mbpsToBps(this.opts.maxMbps ?? 0), now: opts.now });
+    this.sampler = setInterval(() => this.sample(), SAMPLE_MS);
+    this.sampler.unref();
+  }
+
+  private capOf(serverId: string) {
+    return mbpsToBps(this.opts.limitMbps?.(serverId) ?? 0);
+  }
+
+  /** A server's limit changed: it applies to its open tunnel at once. */
+  refreshLimit(serverId: string): void {
+    const t = this.tunnels.get(serverId);
+    if (t) t.capBps = this.capOf(serverId);
+  }
+
+  /** Measures the current speed of every tunnel; now and then writes the amounts down. */
+  sample(): void {
+    for (const t of this.tunnels.values()) {
+      t.bps = (t.sampled * 1000) / SAMPLE_MS;
+      t.sampled = 0;
+    }
+    if (++this.samples % FLUSH_EVERY === 0) this.flush();
+  }
+
+  /** Writes down what passed through each tunnel since last time (per server and UTC day). */
+  flush(): void {
+    for (const t of this.tunnels.values()) this.write(t);
+    // Kept for about a year.
+    const cutoff = new Date((this.opts.now?.() ?? Date.now()) - 400 * 86_400_000).toISOString().slice(0, 10);
+    this.opts.db.delete(relayTraffic).where(lt(relayTraffic.day, cutoff)).run();
+  }
+
+  private write(t: Tunnel) {
+    if (!t.out && !t.in && !t.requests) return;
+    const day = new Date(this.opts.now?.() ?? Date.now()).toISOString().slice(0, 10);
+    const row = { serverId: t.serverId, day, bytesOut: t.out, bytesIn: t.in, requests: t.requests };
+    t.out = t.in = t.requests = 0;
+    try {
+      this.opts.db
+        .insert(relayTraffic)
+        .values(row)
+        .onConflictDoUpdate({
+          target: [relayTraffic.serverId, relayTraffic.day],
+          set: { bytesOut: sql`${relayTraffic.bytesOut} + ${row.bytesOut}`, bytesIn: sql`${relayTraffic.bytesIn} + ${row.bytesIn}`, requests: sql`${relayTraffic.requests} + ${row.requests}` },
+        })
+        .run();
+    } catch {
+      /* the server was just removed */
+    }
+  }
+
+  /** Right now: open tunnels, servers sending, and each tunnel's speed (bytes per second). */
+  now(): { tunnels: number; active: number; bps: Map<string, number> } {
+    return { tunnels: this.tunnels.size, active: this.shaper.active(), bps: new Map([...this.tunnels].map(([id, t]) => [id, t.bps])) };
+  }
 
   url(slug: string): string {
     return `${this.opts.scheme}//${slug}.${this.opts.domain}${this.opts.port ? `:${this.opts.port}` : ''}`;
@@ -243,8 +373,9 @@ export class Relay {
 
   handleRequest(req: IncomingMessage, res: ServerResponse, slug: string): void {
     const row = this.opts.db.select({ id: servers.id, enabled: servers.relayEnabled, accountId: servers.accountId }).from(servers).where(eq(servers.relaySlug, slug)).get();
-    const tunnel = row?.enabled && this.opts.allowed(row.id, row.accountId) ? this.tunnels.get(row.id) : undefined;
-    if (!tunnel) return unavailable(res, 502);
+    if (!row?.enabled || !this.opts.allowed(row.id, row.accountId)) return unavailable(req, res, 'off');
+    const tunnel = this.tunnels.get(row.id);
+    if (!tunnel) return unavailable(req, res, 'offline');
     // A person opening the relay address in a browser: the web interface is on app.vidalune.com, with
     // this server chosen. Apps and the web interface's own requests (the API) pass through.
     if (this.opts.appUrl && isNavigation(req)) {
@@ -282,9 +413,19 @@ export class Relay {
     this.wss.handleUpgrade(req, socket, head, (ws) => {
       // One tunnel per server: a reconnect replaces the old one.
       this.tunnels.get(row.id)?.close();
-      const tunnel = new Tunnel(row.id, ws, () => {
-        if (this.tunnels.get(row.id) === tunnel) this.tunnels.delete(row.id);
-      });
+      const tunnel = new Tunnel(
+        row.id,
+        ws,
+        () => {
+          this.write(tunnel);
+          if (this.tunnels.get(row.id) === tunnel) {
+            this.tunnels.delete(row.id);
+            this.shaper.forget(row.id);
+          }
+        },
+        this.shaper,
+        this.capOf(row.id),
+      );
       this.tunnels.set(row.id, tunnel);
     });
   }
@@ -304,6 +445,8 @@ export class Relay {
   }
 
   close(): void {
+    clearInterval(this.sampler);
+    this.flush();
     for (const t of this.tunnels.values()) t.close();
     this.tunnels.clear();
     this.wss.close();

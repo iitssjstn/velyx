@@ -36,6 +36,13 @@
       "when": 1790564807133,
       "tag": "0004_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790567920003,
+      "tag": "0005_relay_traffic",
+      "breakpoints": true
     }
   ]
 }

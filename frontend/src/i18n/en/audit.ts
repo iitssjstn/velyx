@@ -39,6 +39,8 @@ export const audit = {
     cloudRelayOn: 'Turned the Vidalune relay on',
     cloudRelayOff: 'Turned the Vidalune relay off',
     cloudHomeNetworks: 'Changed the home networks',
+    upnpOn: 'Opened a port on the router (UPnP)',
+    upnpOff: 'Closed the port on the router (UPnP)',
     inviteCreated: 'Made an invitation',
     inviteRevoked: 'Withdrew an invitation',
     inviteUsed: 'Joined through an invitation',

@@ -6,13 +6,13 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import fastifyCookie from '@fastify/cookie';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyStatic from '@fastify/static';
-import { and, desc, eq, gt, isNotNull, isNull, lt } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { z, ZodError } from 'zod';
 import type { CloudConfig } from './config.js';
 import type { DB } from './db/client.js';
-import { accountSessions, accounts, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
+import { accountSessions, accounts, invites, linkCodes, memberCodes, memberships, relayTraffic, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
-import { newSlug, Relay, type Rewrite } from './relay.js';
+import { newSlug, Relay, relayMessage, type Rewrite } from './relay.js';
 import { composeFile, installPage, installScript } from './install.js';
 import { homePage, pickLanguage } from './site.js';
 
@@ -111,7 +111,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       .map((m) => m.userRef);
   /** A server may use the relay when its owner has remote access, or someone who uses it has it for themselves. */
   const relayUsable = (serverId: string, accountId: number | null): boolean => accountId !== null && (ownerHasRemote(accountId) || remoteUsers(serverId).length > 0);
-  const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops, allowed: relayUsable, appUrl: config.frontendDir ? `${publicUrl.protocol}//app.${config.relayDomain}${publicUrl.port ? `:${publicUrl.port}` : ''}` : null });
+  const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops, allowed: relayUsable, appUrl: config.frontendDir ? `${publicUrl.protocol}//app.${config.relayDomain}${publicUrl.port ? `:${publicUrl.port}` : ''}` : null, maxMbps: config.relayMaxMbps, limitMbps: (id) => db.select({ limit: servers.relayLimitMbps }).from(servers).where(eq(servers.id, id)).get()?.limit ?? config.relayServerMbps, now });
   /** app.vidalune.com: the Vidalune web interface for whichever server its visitor chose. */
   const appHost = `app.${config.relayDomain}`;
   /** Where app.vidalune.com is (null: this service does not serve the web interface there). */
@@ -214,7 +214,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       },
     };
     if (!relay.forwardTo(server.id, req, res, rewrite)) {
-      res.writeHead(502, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ error: 'This Vidalune server cannot be reached through the relay right now. It may be off or offline.' }));
+      res.writeHead(502, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Vidalune-Relay': 'offline' }).end(JSON.stringify({ error: relayMessage('offline', req.headers['accept-language']), relay: 'offline' }));
     }
   }
   app.addHook('onClose', async () => relay.close());
@@ -740,6 +740,65 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     // Taken away: its servers' tunnels close now, not at the next check.
     relay.dropUnallowed();
     return adminView(row);
+  });
+
+  /**
+   * The relay, for administrators: what passes through now (per server and in total), today and in
+   * the last 30 days, and each server's limit. Only amounts; never what is watched.
+   */
+  app.get('/api/admin/relay', async (request) => {
+    admin(request);
+    relay.flush();
+    const t = now();
+    const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+    const since = day(t - 29 * DAY);
+    const totals = db
+      .select({ serverId: relayTraffic.serverId, out: sql<number>`sum(${relayTraffic.bytesOut})`, in: sql<number>`sum(${relayTraffic.bytesIn})`, requests: sql<number>`sum(${relayTraffic.requests})` })
+      .from(relayTraffic)
+      .where(gte(relayTraffic.day, since))
+      .groupBy(relayTraffic.serverId)
+      .all();
+    const today = new Map(db.select().from(relayTraffic).where(eq(relayTraffic.day, day(t))).all().map((r) => [r.serverId, r]));
+    const live = relay.now();
+    const rows = db.select({ server: servers, owner: accounts.email }).from(servers).leftJoin(accounts, eq(servers.accountId, accounts.id)).where(isNotNull(servers.relaySlug)).all();
+    const month = new Map(totals.map((r) => [r.serverId, r]));
+    const list = rows
+      .map(({ server: s, owner }) => ({
+        id: s.id,
+        name: s.name,
+        owner,
+        relayOn: s.relayEnabled,
+        connected: relay.connected(s.id),
+        /** Mbit/s right now (the last five seconds). */
+        mbpsNow: Math.round(((live.bps.get(s.id) ?? 0) * 8) / 10_000) / 100,
+        limitMbps: s.relayLimitMbps,
+        today: { out: today.get(s.id)?.bytesOut ?? 0, in: today.get(s.id)?.bytesIn ?? 0, requests: today.get(s.id)?.requests ?? 0 },
+        month: { out: Number(month.get(s.id)?.out ?? 0), in: Number(month.get(s.id)?.in ?? 0), requests: Number(month.get(s.id)?.requests ?? 0) },
+      }))
+      .sort((a, b) => b.mbpsNow - a.mbpsNow || b.month.out - a.month.out)
+      .slice(0, 200);
+    const mbpsNow = Math.round(([...live.bps.values()].reduce((a, b) => a + b, 0) * 8) / 10_000) / 100;
+    return {
+      /** The relay's total and the default per server (Mbit/s; 0: no limit). */
+      maxMbps: config.relayMaxMbps,
+      serverMbps: config.relayServerMbps,
+      tunnels: live.tunnels,
+      /** Servers sending right now: they share maxMbps equally. */
+      active: live.active,
+      mbpsNow,
+      servers: list,
+    };
+  });
+
+  /** A server's own relay limit (Mbit/s; null: the default). */
+  app.put('/api/admin/servers/:id/relay-limit', async (request) => {
+    admin(request);
+    const { id } = z.object({ id: z.string().max(64) }).parse(request.params);
+    const { limitMbps } = z.object({ limitMbps: z.number().int().min(1).max(10_000).nullable() }).parse(request.body);
+    const res = db.update(servers).set({ relayLimitMbps: limitMbps }).where(eq(servers.id, id)).run();
+    if (!res.changes) throw new HttpError(404, 'Not found.');
+    relay.refreshLimit(id);
+    return { ok: true, limitMbps };
   });
 
   // ---- installing Vidalune: the page, a compose file, the installer, the app and the latest version

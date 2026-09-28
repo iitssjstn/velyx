@@ -34,6 +34,19 @@ export async function cloudRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return ctx.cloud.status();
   });
 
+  /** Opening a port on the router with UPnP (opt-in), so the server is reachable from outside. */
+  app.get('/api/admin/upnp', { preHandler: requireAdmin }, async () => ctx.upnp.status());
+
+  app.put('/api/admin/upnp', { preHandler: requireAdmin }, async (request) => {
+    const body = z.object({ enabled: z.boolean(), externalPort: z.number().int().min(1024).max(65535) }).parse(request.body);
+    const before = ctx.upnp.status();
+    const status = await ctx.upnp.configure(body.enabled, body.externalPort);
+    if (before.enabled !== body.enabled || before.externalPort !== body.externalPort) ctx.audit.record(body.enabled ? 'upnp.on' : 'upnp.off', { actor: request.user, ip: request.ip, detail: String(body.externalPort) });
+    return status;
+  });
+
+  app.post('/api/admin/upnp/check', { preHandler: requireAdmin }, async () => ctx.upnp.renew());
+
   // ---- every user: their own Vidalune account, to sign in here from app.vidalune.com and the app
   app.get('/api/account/cloud', { preHandler: requireUser }, async (request) => {
     const appUrl = ctx.cloud.appUrl();

@@ -97,6 +97,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         baseUrl: stored?.serverUrl ?? '',
         token: stored?.token ?? null,
         userAgent: USER_AGENT,
+        language,
         // Signed out elsewhere (or the account was disabled): back to the sign-in screen, which says so.
         onReachable: (reachable) => setServerReachable(reachable),
         onUnauthorized: () => {
@@ -104,7 +105,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           void save(stored ? { ...stored, token: null, user: null } : null);
         },
       }),
-    [stored, save],
+    [stored, save, language],
   );
 
   // The account as the server knows it now (the name or language may have changed on the website).
