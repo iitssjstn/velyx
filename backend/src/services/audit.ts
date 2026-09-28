@@ -49,6 +49,7 @@ export type AuditAction =
   | 'cloud.relay_on'
   | 'cloud.relay_off'
   | 'cloud.account_unlinked'
+  | 'cloud.home_networks'
   | 'subtitles.settings'
   | 'subtitles.downloaded'
   | 'subtitles.removed';

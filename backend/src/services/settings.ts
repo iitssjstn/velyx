@@ -80,6 +80,8 @@ export interface CloudLink {
   relayUrl?: string | null;
   /** The owner's Vidalune account has remote access (false: the relay needs a subscription). */
   relayAllowed?: boolean;
+  /** When the account service last said so (remote access keeps working a while when it cannot be reached). */
+  remoteConfirmedAt?: number;
 }
 
 export interface ServerSettings {
@@ -125,6 +127,8 @@ export interface ServerSettings {
   openSubtitlesPassword: string;
   /** Linked to a Vidalune account (opt-in; null: never contacts the account service). */
   cloud: CloudLink | null;
+  /** Networks that also count as home ("100.64.0.0/10"), on top of the private ranges. */
+  homeNetworks: string[];
 }
 
 const DEFAULTS: ServerSettings = {
@@ -154,6 +158,7 @@ const DEFAULTS: ServerSettings = {
   openSubtitlesUsername: '',
   openSubtitlesPassword: '',
   cloud: null,
+  homeNetworks: [],
 };
 
 export class SettingsService {

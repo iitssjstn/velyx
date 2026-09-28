@@ -4,7 +4,7 @@
  */
 
 /** The published Vidalune image (public, so anyone can pull it). */
-export const IMAGE = 'ghcr.io/iitssjstn/vidalune:latest';
+export const IMAGE = 'vidalune/vidalune:latest';
 
 /** A docker-compose.yml for Vidalune: the media folders on the left of the `:` are the only things to change. */
 export function composeFile(opts: { movies?: string; tv?: string; puid?: string; pgid?: string; tz?: string } = {}): string {

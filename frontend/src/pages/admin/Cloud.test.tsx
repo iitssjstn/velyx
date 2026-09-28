@@ -7,9 +7,9 @@ import { CloudPage, type CloudStatus } from './Cloud';
 afterEach(() => vi.unstubAllGlobals());
 
 const noRelay = { enabled: false, url: null, connected: false, error: null, allowed: true };
-const off: CloudStatus = { enabled: false, account: null, code: null, serviceUrl: 'https://vidalune.com', relay: noRelay };
-const waiting: CloudStatus = { enabled: true, account: null, code: { code: 'K7F3-Q9MA', expiresAt: Date.now() + 600_000, linkUrl: 'https://vidalune.com/link#K7F3-Q9MA' }, serviceUrl: 'https://vidalune.com', relay: noRelay };
-const linked: CloudStatus = { enabled: true, account: 'justin@example.com', code: null, serviceUrl: 'https://vidalune.com', relay: noRelay };
+const off: CloudStatus = { enabled: false, account: null, code: null, serviceUrl: 'https://vidalune.com', relay: noRelay, remoteAccess: false, homeNetworks: [] };
+const waiting: CloudStatus = { enabled: true, account: null, code: { code: 'K7F3-Q9MA', expiresAt: Date.now() + 600_000, linkUrl: 'https://vidalune.com/link#K7F3-Q9MA' }, serviceUrl: 'https://vidalune.com', relay: noRelay, remoteAccess: false, homeNetworks: [] };
+const linked: CloudStatus = { enabled: true, account: 'justin@example.com', code: null, serviceUrl: 'https://vidalune.com', relay: noRelay, remoteAccess: false, homeNetworks: [] };
 const relayed: CloudStatus = { ...linked, relay: { enabled: true, url: 'https://k7f3q9ma.vidalune.com', connected: true, error: null, allowed: true } };
 
 function setup(initial: CloudStatus, answers: Record<string, CloudStatus>) {
@@ -52,6 +52,16 @@ describe('Vidalune account page', () => {
     expect(await screen.findByText(/needs a subscription on the Vidalune account justin@example.com/)).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Turn the relay on' }) as HTMLButtonElement).disabled).toBe(true);
     expect(calls).toEqual(['GET /api/admin/cloud']);
+  });
+
+  it('says whether playing away from home works, and saves home networks', async () => {
+    const saved = { ...linked, remoteAccess: true, homeNetworks: ['100.64.0.0/10'] };
+    const calls = setup({ ...linked }, { '/api/admin/cloud/home-networks': saved });
+    expect(await screen.findByText(/Playing away from home needs remote access/)).toBeTruthy();
+    await userEvent.type(screen.getByLabelText('Other networks that count as home'), '100.64.0.0/10');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(calls).toContain('PUT /api/admin/cloud/home-networks');
+    expect(await screen.findByText(/Playing away from home works/)).toBeTruthy();
   });
 
   it('shows the linked account and unlinks after confirming', async () => {

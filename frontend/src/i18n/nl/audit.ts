@@ -39,6 +39,7 @@ export const audit: Messages['audit'] = {
     cloudUnlinked: 'Ontkoppeld van het Vidalune-account',
     cloudRelayOn: 'Vidalune-relay aangezet',
     cloudRelayOff: 'Vidalune-relay uitgezet',
+    cloudHomeNetworks: 'Thuisnetwerken gewijzigd',
     segmentsAnalyze: 'Herkenning van intro en aftiteling gestart voor',
     segmentsEdited: 'Intro en aftiteling bewerkt van',
     segmentsReset: 'Intro en aftiteling hersteld van',

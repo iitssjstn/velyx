@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Cloud, ExternalLink, Radio, RefreshCw, Unlink } from 'lucide-react';
+import { Cloud, ExternalLink, House, Radio, RefreshCw, Unlink } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/Modal';
@@ -14,6 +14,10 @@ export interface CloudStatus {
   code: { code: string; expiresAt: number; linkUrl: string } | null;
   serviceUrl: string;
   relay: { enabled: boolean; url: string | null; connected: boolean; error: 'refused' | 'subscription' | 'unreachable' | 'closed' | null; allowed: boolean };
+  /** Playing away from home works (linked, and the owner has remote access). */
+  remoteAccess: boolean;
+  /** Networks that also count as home. */
+  homeNetworks: string[];
 }
 
 const KEY = ['admin', 'cloud'];
@@ -51,6 +55,16 @@ export function CloudPage() {
     },
     enabled: !!q.data?.relay.enabled && !q.data.relay.connected,
     refetchInterval: 3000,
+  });
+  const [networks, setNetworks] = useState<string | null>(null);
+  const saveNetworks = useMutation({
+    mutationFn: (list: string[]) => api.put<CloudStatus>('/api/admin/cloud/home-networks', { networks: list }),
+    onSuccess: (s) => {
+      onDone(s);
+      setNetworks(null);
+      toast.success(t('cloud.homeSaved'));
+    },
+    onError: (e) => toast.error(e),
   });
   const unlink = useMutation({
     mutationFn: () => api.post<CloudStatus>('/api/admin/cloud/unlink'),
@@ -142,6 +156,35 @@ export function CloudPage() {
           </Button>
         </section>
       )}
+
+      <section className="panel space-y-3 p-5" aria-labelledby="remote-title">
+        <h2 id="remote-title" className="flex items-center gap-2 font-display text-lg font-semibold">
+          <House className="size-5 text-accent" aria-hidden="true" />
+          {t('cloud.remoteTitle')}
+        </h2>
+        <p className={s.remoteAccess ? 'text-sm text-ok' : 'text-sm text-muted'} role="status">
+          {s.remoteAccess ? t('cloud.remoteOn') : t('cloud.remoteOff')}
+        </p>
+        <p className="text-xs text-faint">{t('cloud.remoteHint')}</p>
+        <form
+          className="space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveNetworks.mutate((networks ?? '').split(/[\s,]+/).map((n) => n.trim()).filter(Boolean));
+          }}
+        >
+          <label className="label" htmlFor="home-networks">{t('cloud.homeNetworks')}</label>
+          <textarea
+            id="home-networks"
+            className="input min-h-20 font-mono text-sm"
+            placeholder="100.64.0.0/10"
+            value={networks ?? s.homeNetworks.join('\n')}
+            onChange={(e) => setNetworks(e.target.value)}
+          />
+          <p className="text-xs text-faint">{t('cloud.homeNetworksHint')}</p>
+          <Button type="submit" size="sm" variant="secondary" loading={saveNetworks.isPending} disabled={networks === null}>{t('common.save')}</Button>
+        </form>
+      </section>
 
       <ConfirmModal open={confirming} title={t('cloud.unlinkTitle')} confirmLabel={t('cloud.unlink')} danger loading={unlink.isPending} onConfirm={() => unlink.mutate()} onClose={() => setConfirming(false)}>
         {t('cloud.unlinkConfirm')}
