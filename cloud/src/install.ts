@@ -1,3 +1,5 @@
+import { escape, layout, type Lang } from './site.js';
+
 /**
  * What vidalune.com hands out to install Vidalune: the install page, a ready docker-compose.yml, a
  * one-line installer for Linux, and the Android app. All public; nothing is personal.
@@ -85,8 +87,6 @@ say "Vidalune is running. Open http://\${ADDRESS:-this-server}:3000 in your brow
 `;
 }
 
-type Lang = 'nl' | 'en';
-
 const TEXT = {
   en: {
     title: 'Install Vidalune',
@@ -132,38 +132,14 @@ const TEXT = {
   },
 } satisfies Record<Lang, unknown>;
 
-/** Dutch for visitors whose browser asks for it (or ?lang=nl), English otherwise. */
-export function pickLanguage(query: unknown, acceptLanguage: string | undefined): Lang {
-  const asked = (query as { lang?: unknown } | undefined)?.lang;
-  if (asked === 'nl' || asked === 'en') return asked;
-  return /^\s*nl\b/i.test(acceptLanguage ?? '') ? 'nl' : 'en';
-}
-
-const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-
 /** The install page (no scripts: it is plain HTML with the account pages' style). */
-export function installPage(lang: Lang, publicUrl: string, version: string, hasApp: boolean): string {
+export function installPage(lang: Lang, publicUrl: string, version: string, hasApp: boolean, signedIn = false): string {
   const t = TEXT[lang];
   const code = (s: string) => `<pre><code>${escape(s)}</code></pre>`;
-  return `<!doctype html>
-<html lang="${lang}">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
-    <title>${escape(t.title)}</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/style.css" />
-  </head>
-  <body>
-    <main class="wide">
-      <header>
-        <img src="/favicon.svg" alt="" width="36" height="36" />
-        <span class="brand">vidalune</span>
-        <span class="small">${escape(version)}</span>
-      </header>
-      <h1>${escape(t.title)}</h1>
-      <p>${escape(t.intro)}</p>
+  const body = `
+    <main class="site-main narrow">
+      <h1>${escape(t.title)} <span class="small">${escape(version)}</span></h1>
+      <p class="lead">${escape(t.intro)}</p>
       <div class="card">
         <h2>${escape(t.needs)}</h2>
         <ul>${t.needsList.map((i) => `<li>${escape(i)}</li>`).join('')}</ul>
@@ -187,17 +163,15 @@ export function installPage(lang: Lang, publicUrl: string, version: string, hasA
         <p>${escape(t.updateText)}</p>
         ${code('docker compose pull\ndocker compose up -d')}
       </div>
-      <div class="card">
+      <div class="card" id="app">
         <h2>${escape(t.app)}</h2>
         ${hasApp ? `<p>${escape(t.appText)}</p><p><a class="button" href="/download/app">${escape(t.appButton)}</a></p>` : `<p>${escape(t.appNone)}</p>`}
       </div>
       <div class="card">
         <h2>${escape(t.account)}</h2>
-        <p>${escape(t.accountText)} <a href="/">vidalune.com</a></p>
+        <p>${escape(t.accountText)} <a href="/account">vidalune.com/account</a></p>
       </div>
       <p class="small">${escape(t.license)}</p>
-    </main>
-  </body>
-</html>
-`;
+    </main>`;
+  return layout(lang, { title: t.title, signedIn, path: '/install' }, body);
 }

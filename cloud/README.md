@@ -88,6 +88,9 @@ In Nginx Proxy Manager:
 
 The service is also where people get Vidalune:
 
+- **`/`**: the home page (what Vidalune is, features, how it works, plans, questions), with a
+  header leading to installing, signing in or making an account; the account pages are at
+  **`/account`** (and `/servers`, `/link`, `/join`, `/admin`).
 - **`/install`**: the install page (English, or Dutch for browsers that ask for it; `?lang=nl|en`).
 - **`/install/docker-compose.yml`**: a ready compose file for the published image.
 - **`/get`**: the installer behind `curl -fsSL https://vidalune.com/get | sh` (asks the two media
@@ -102,7 +105,9 @@ The service is also where people get Vidalune:
 app.vidalune.com shows the Vidalune web interface for a server you use, without going to that
 server's own address:
 
-- Its account pages (sign in, your servers) are under `app.vidalune.com/_vl/`. With one server it is
+- Its account pages (sign in, your servers) are under `app.vidalune.com/_vl/`. **Open** on vidalune.com
+  continues there: a one-time handoff (a minute, used once) signs the browser in on app.vidalune.com
+  and chooses the server; the session cookie of vidalune.com itself never leaves that host. With one server it is
   opened right away; with several you choose, and the choice is remembered (cookie `vl_server`).
 - The web interface itself (HTML, scripts, styles) always comes from this service, built into the
   image: never from a server. Only `/api/…` and `/sso` are passed to the chosen server, through its

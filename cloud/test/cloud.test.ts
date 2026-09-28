@@ -17,7 +17,7 @@ let clock: number;
 
 beforeEach(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-cloud-'));
-  const config = loadConfig({ DATA_DIR: dir, PUBLIC_URL: 'https://vidalune.example', ADMIN_EMAILS: 'Boss@Example.com, other@example.com' }, { webDir: null });
+  const config = loadConfig({ DATA_DIR: dir, PUBLIC_URL: 'https://vidalune.example', ADMIN_EMAILS: 'Boss@Example.com, other@example.com' }, { webDir: null, frontendDir: null });
   db = openDatabase(config.dbPath);
   clock = Date.now();
   app = await buildCloudApp(config, db, { now: () => clock });
@@ -53,7 +53,7 @@ describe('link codes', () => {
 describe('accounts', () => {
   it('signs up, signs in and out; passwords and tokens are stored as hashes only', async () => {
     const cookie = await signUp('Justin@Example.com');
-    expect((await app.inject({ url: '/api/account', headers: { cookie } })).json()).toEqual({ email: 'justin@example.com', remote: { active: false, until: null } });
+    expect((await app.inject({ url: '/api/account', headers: { cookie } })).json()).toEqual({ email: 'justin@example.com', remote: { active: false, until: null }, appUrl: null });
     const stored = db.select().from(accounts).get()!;
     expect(stored.passwordHash).toMatch(/^\$argon2id\$/);
     expect(db.select().from(accountSessions).get()!.tokenHash).not.toBe(cookie.split('=')[1]);
@@ -189,7 +189,7 @@ describe('remote access and the admin page', () => {
   it('only administrators (ADMIN_EMAILS) see accounts and give remote access', async () => {
     const user = await signUp('justin@example.com');
     const boss = await signUp('boss@example.com');
-    expect((await app.inject({ url: '/api/account', headers: { cookie: boss } })).json()).toEqual({ email: 'boss@example.com', remote: { active: true, until: null }, admin: true });
+    expect((await app.inject({ url: '/api/account', headers: { cookie: boss } })).json()).toEqual({ email: 'boss@example.com', remote: { active: true, until: null }, appUrl: null, admin: true });
     expect((await app.inject({ url: '/api/admin/accounts', headers: { cookie: user } })).statusCode).toBe(403);
     expect((await app.inject({ url: '/api/admin/accounts' })).statusCode).toBe(401);
     const id = db.select().from(accounts).where(eq(accounts.email, 'justin@example.com')).get()!.id;

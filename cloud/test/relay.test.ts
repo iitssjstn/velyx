@@ -263,6 +263,27 @@ describe('the relay', () => {
     expect((await get(app, '/', { cookie: cookies })).headers.location).toBe('/_vl/servers');
   });
 
+  it('hands a browser over from vidalune.com to app.<domain>, signed in, with the server chosen', async () => {
+    const s = await linkedServerWithRelay();
+    client.start(s.auth);
+    await until(() => cloud.relay.connected(s.id));
+    expect((await cloud.inject({ url: '/api/account', headers: { cookie: s.cookie } })).json().appUrl).toBe('http://app.relay.test');
+    const other = await signUpAs('other@example.com');
+    expect((await cloud.inject({ method: 'POST', url: '/api/handoff', headers: { cookie: other }, payload: { server: s.id } })).statusCode).toBe(404);
+    const { url } = (await cloud.inject({ method: 'POST', url: '/api/handoff', headers: { cookie: s.cookie }, payload: { server: s.id } })).json();
+    expect(url).toMatch(/^http:\/\/app\.relay\.test\/_vl\/handoff\?t=[\w-]{20,}$/);
+    const path = url.slice('http://app.relay.test'.length);
+    // Only on app.<domain>.
+    expect((await get('relay.test', path.replace('/_vl', ''))).status).toBe(404);
+    const landed = await get('app.relay.test', path);
+    expect(landed.headers.location).toBe(`/_vl/open?server=${s.id}`);
+    const session = String(landed.headers['set-cookie']).match(new RegExp(`${SESSION_COOKIE}=([^;]+)`))![1];
+    const opened = await get('app.relay.test', `/_vl/open?server=${s.id}`, { cookie: `${SESSION_COOKIE}=${session}` });
+    expect(opened.headers.location).toMatch(/^\/sso\?ticket=/);
+    // Used once.
+    expect((await get('app.relay.test', path)).headers.location).toBe('/_vl/');
+  });
+
   it('keeps app.<domain> pages to that host', async () => {
     expect((await get('relay.test', '/_app/index.html')).status).toBe(404);
     expect((await get('relay.test', '/_app/assets/app-1234.js')).status).toBe(404);

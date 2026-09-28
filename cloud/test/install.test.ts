@@ -19,7 +19,7 @@ beforeEach(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-install-'));
   downloads = path.join(dir, 'downloads');
   fs.mkdirSync(downloads);
-  const config = loadConfig({ DATA_DIR: dir, PUBLIC_URL: 'https://vidalune.example', DOWNLOAD_DIR: downloads });
+  const config = loadConfig({ DATA_DIR: dir, PUBLIC_URL: 'https://vidalune.example', DOWNLOAD_DIR: downloads }, { frontendDir: null });
   db = openDatabase(config.dbPath);
   app = await buildCloudApp(config, db);
 });
@@ -87,5 +87,24 @@ describe('installing Vidalune from vidalune.com', () => {
     expect(written).toContain('TZ: Europe/Amsterdam');
     expect(fs.readFileSync(path.join(dir, 'docker.log'), 'utf8')).toMatch(/compose pull\ncompose up -d/);
     expect(run.stdout).toContain(':3000');
+  });
+
+  it('has a home page that explains Vidalune and leads to signing in, an account or installing', async () => {
+    const en = await app.inject({ url: '/' });
+    expect(en.headers['content-type']).toContain('text/html');
+    for (const text of ['Your media. Your server.', 'href="/install"', 'href="/account?new"', 'Create account', 'id="features"', 'id="plans"']) expect(en.body).toContain(text);
+    const nl = await app.inject({ url: '/', headers: { 'accept-language': 'nl-NL,nl' } });
+    expect(nl.body).toContain('Jouw media. Jouw server.');
+    expect(nl.body).toContain('Account maken');
+    // Signed in: straight to your servers.
+    const signUp = await app.inject({ method: 'POST', url: '/api/account', payload: { email: 'justin@example.com', password: 'correct-horse' } });
+    const cookie = `vl_session=${signUp.cookies.find((c) => c.name === 'vl_session')!.value}`;
+    const signedIn = await app.inject({ url: '/', headers: { cookie } });
+    expect(signedIn.body).toContain('My servers');
+    expect(signedIn.body).not.toContain('Create account');
+    expect((await app.inject({ url: '/install', headers: { cookie } })).body).toContain('My servers');
+    // The account pages themselves live at /account.
+    const account = await app.inject({ url: '/account' });
+    expect(account.body).toContain('account.js');
   });
 });
