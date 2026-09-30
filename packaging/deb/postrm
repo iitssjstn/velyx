@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+
+if [ -d /run/systemd/system ]; then
+  systemctl daemon-reload > /dev/null || true
+fi
+
+if [ "$1" = "remove" ] && command -v deb-systemd-helper > /dev/null; then
+  deb-systemd-helper mask vidalune.service > /dev/null || true
+fi
+
+if [ "$1" = "purge" ]; then
+  if command -v deb-systemd-helper > /dev/null; then
+    deb-systemd-helper purge vidalune.service > /dev/null || true
+    deb-systemd-helper unmask vidalune.service > /dev/null || true
+  fi
+  rm -rf /etc/vidalune
+  # The library database, backups and artwork stay: they are yours.
+  if [ -d /var/lib/vidalune ]; then
+    echo "Vidalune's data was kept in /var/lib/vidalune. Delete that folder yourself if you no longer need it."
+  fi
+fi
+
+exit 0

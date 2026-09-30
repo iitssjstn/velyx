@@ -1,0 +1,29 @@
+[Unit]
+Description=Vidalune media server
+Documentation=https://vidalune.com
+After=network-online.target local-fs.target remote-fs.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vidalune
+Group=vidalune
+# Defaults; /etc/vidalune/vidalune.env overrides them.
+Environment=NODE_ENV=production HOST=0.0.0.0 PORT=3000 DATA_DIR=/var/lib/vidalune MEDIA_ROOTS=/media,/mnt,/srv FRONTEND_DIR=/opt/vidalune/app/frontend/dist
+EnvironmentFile=-/etc/vidalune/vidalune.env
+WorkingDirectory=/opt/vidalune/app
+ExecStart=/opt/vidalune/node/bin/node /opt/vidalune/app/backend/dist/index.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+LimitNOFILE=65536
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

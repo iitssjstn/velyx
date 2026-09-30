@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+# On upgrade the new version's postinst restarts the service; only stop it when removing.
+if [ "$1" = "remove" ] && [ -d /run/systemd/system ]; then
+  systemctl stop vidalune.service || true
+fi
+
+exit 0
