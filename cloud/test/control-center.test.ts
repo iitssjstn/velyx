@@ -237,7 +237,7 @@ describe('Control Center: relays', () => {
     const fra = (await call(ceo, 'POST', '/api/ceo/relays', { name: 'Frankfurt', url: 'https://fra.relay.example', capacityMbps: 1000 })).json();
     const anna = accountId('anna@example.com');
     expect((await call(ceo, 'POST', `/api/ceo/relays/${fra.id}/assign`, { accountId: anna })).json()).toEqual({ ok: true, moved: 2 });
-    let detail = (await call(ceo, 'GET', `/api/ceo/relays/${fra.id}`)).json();
+    const detail = (await call(ceo, 'GET', `/api/ceo/relays/${fra.id}`)).json();
     expect(detail.customerList.map((c: { email: string }) => c.email)).toEqual(['anna@example.com']);
     expect(detail.serverList.map((s: { name: string }) => s.name).sort()).toEqual(['Hut', 'Thuis']);
     // A server added later follows its customer's relay.

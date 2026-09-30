@@ -864,6 +864,8 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): { monitor: () =>
     const customerIds = [...new Set([...s.assigned.map((x) => x.accountId).filter((x): x is number => x !== null), ...db.select({ id: accounts.id }).from(accounts).where(eq(accounts.relayNodeId, node.id)).all().map((a) => a.id)])];
     return {
       ...nodeView(node, s, main.id, samplesOf([node.id], t - 30 * DAY)),
+      /** A server's limit when it has none of its own (Mbit/s; 0: none). */
+      serverDefaultMbps: deps.defaultServerMbps,
       days: daysBetween(t - 29 * DAY, t).map((d) => ({ day: d, out: Number(byDay.get(d)?.out ?? 0), requests: Number(byDay.get(d)?.requests ?? 0), errors: Number(byDay.get(d)?.errors ?? 0) })),
       serverList: s.assigned.map((x) => ({
         id: x.id,
