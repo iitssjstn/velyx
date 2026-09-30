@@ -18,7 +18,7 @@ import { canSee } from '../services/access.js';
 import { analyzePlayback } from '../playback/compatibility.js';
 import { clientProfile, deviceSupport, effectiveCapabilities, profileName } from '../playback/client-profile.js';
 import { requestLanguage } from '../i18n/index.js';
-import { isHomeAddress } from '../services/remote-access.js';
+import { isHomeRequest } from '../services/remote-access.js';
 import { CAST_TOKEN_MS, CHROMECAST_CAPS, signCastToken } from '../services/cast.js';
 import { createLogger } from '../logger.js';
 
@@ -112,7 +112,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
    * owns this server (like the relay). Browsing the library works everywhere.
    */
   const remoteGate = async (request: FastifyRequest) => {
-    if (isHomeAddress(request.ip, ctx.settings.get().homeNetworks)) return;
+    if (isHomeRequest(request, ctx.settings.get().homeNetworks)) return;
     const access = await ctx.cloud.remoteAccess(request.user?.id);
     if (access === 'allowed') return;
     throw new HttpError(

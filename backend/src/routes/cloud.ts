@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../app.js';
 import { requireAdmin, requireUser } from '../app.js';
 import { z } from 'zod';
-import { parseNetwork } from '../services/remote-access.js';
+import { isPrivateNetwork, parseNetwork } from '../services/remote-access.js';
 
 /** Admin → Vidalune account: link this server to an account (opt-in), check, unlink. */
 export async function cloudRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
@@ -27,7 +27,7 @@ export async function cloudRoutes(app: FastifyInstance, ctx: AppContext): Promis
   /** Networks that also count as home (for example a VPN between your own devices). */
   app.put('/api/admin/cloud/home-networks', { preHandler: requireAdmin }, async (request) => {
     const { networks } = z
-      .object({ networks: z.array(z.string().trim().max(64).refine((n) => parseNetwork(n) !== null, 'Not a network such as 192.168.50.0/24.')).max(20) })
+      .object({ networks: z.array(z.string().trim().max(64).refine((n) => parseNetwork(n) !== null, 'Not a network such as 192.168.50.0/24.').refine((n) => parseNetwork(n) === null || isPrivateNetwork(n), 'Only private networks can count as home (such as 192.168.50.0/24, 10.8.0.0/24 or a VPN in 100.64.0.0/10).')).max(20) })
       .parse(request.body);
     ctx.settings.update({ homeNetworks: [...new Set(networks)] });
     ctx.audit.record('cloud.home_networks', { actor: request.user, ip: request.ip, detail: networks.join(', ') || '—' });
