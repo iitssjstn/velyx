@@ -697,6 +697,8 @@ export interface ServerSettings {
   deferScansWhilePlaying: boolean;
   segmentDetection: boolean;
   segmentVideo: boolean;
+  /** Shared detection with other Vidalune servers (through vidalune.com). */
+  sharedDetection: boolean;
 }
 
 export interface ReviewItem {

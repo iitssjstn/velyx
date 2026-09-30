@@ -22,6 +22,8 @@ const show = {
         { id: 10, episodeNumber: 1, title: 'Good News About Hell', duration: 3420, eligible: true, segments: { status: 'analyzed', error: null, intro: { start: 212, end: 272, confidence: 'high' }, credits: { start: 3300, end: 3420, confidence: 'medium' }, postCredits: null, manual: false, detectedAt: 1 } },
         { id: 11, episodeNumber: 2, title: 'Half Loop', duration: 3300, eligible: true, segments: { status: 'analyzed', error: null, intro: { start: 30, end: 90, confidence: null }, credits: null, postCredits: { start: 3250, end: 3300, confidence: null }, manual: true, detectedAt: 1 } },
         { id: 12, episodeNumber: 3, title: 'In Perpetuity', duration: 3000, eligible: true, segments: null },
+        { id: 13, episodeNumber: 4, title: 'The You You Are', duration: 3100, eligible: true, segments: { status: 'analyzed', error: null, intro: { start: 40, end: 100, confidence: 'high', source: 'shared' }, credits: { start: 3000, end: 3100, confidence: 'high', source: 'audio' }, postCredits: null, manual: false, detectedAt: 1, shareState: 'verified' } },
+        { id: 14, episodeNumber: 5, title: 'The Grim Barbarity', duration: 3100, eligible: true, segments: { status: 'analyzed', error: null, intro: { start: 40, end: 100, confidence: 'high', source: 'audio' }, credits: null, postCredits: null, manual: false, detectedAt: 1, shareState: 'pending' } },
       ],
     },
   ],
@@ -91,5 +93,15 @@ describe('Intros & credits admin page', () => {
     await userEvent.clear(within(dialog).getByLabelText('Credits end'));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
     expect(calls.find((c) => c.method === 'PUT')).toMatchObject({ url: '/api/admin/segments/episodes/10', body: { intro: { start: 212, end: 280 }, credits: null, postCredits: null } });
+  });
+
+  it('shows what came from other servers and how many agree (shared detection)', async () => {
+    setup('/admin/intros?show=3');
+    expect(await screen.findByText('The You You Are')).toBeTruthy();
+    expect(screen.getByText('other servers')).toBeTruthy();
+    expect(screen.getByText('Verified').getAttribute('title')).toBe('Three or more Vidalune servers found the same.');
+    expect(screen.getByText('Pending')).toBeTruthy();
+    // Without shared detection, no labels.
+    expect(screen.getAllByText(/^(Verified|Shared|Pending)$/)).toHaveLength(2);
   });
 });

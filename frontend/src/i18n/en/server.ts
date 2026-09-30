@@ -22,6 +22,8 @@ export const server = {
   segments: 'Detect intros and credits',
   segmentsHint: 'Compares the sound at the start and end of episodes in the background (never while someone watches or a scan runs), so viewers can skip them. See Intros & credits.',
   segmentVideo: 'Recognise end credits in the picture',
+  sharedDetection: 'Share detection with other Vidalune servers',
+  sharedDetectionHint: 'Through vidalune.com: where recaps, intros and credits are (by TMDB show, season and episode, with the episode’s length) and short audio fingerprints of intros and credits — no titles, files, users or what anyone watches. What other servers agree on fills what was not found here, and results show how many servers agree. Works on with local detection when vidalune.com cannot be reached.',
   segmentVideoHint: 'Looks at keyframes of the last minutes (small and at low priority), which also finds credits whose music changes every episode. Uses more CPU than sound alone.',
   mediaRoots: 'Media roots (MEDIA_ROOTS)',
   tmdbTitle: 'TMDB metadata',

@@ -72,6 +72,9 @@ async function main(): Promise<void> {
     void pruneOnlineSubtitleFiles(db, ctx.config.onlineSubtitleDir);
   }, 6 * 60 * 60 * 1000);
   purgeTimer.unref();
+  // Shared detection (when on): what other servers found since, now and then (never at start-up itself).
+  setTimeout(() => void ctx.sharedDetection.syncAll(), 10 * 60 * 1000).unref();
+  setInterval(() => void ctx.sharedDetection.syncAll(), 24 * 60 * 60 * 1000).unref();
 
   let shuttingDown = false;
   const shutdown = async (signal: string) => {

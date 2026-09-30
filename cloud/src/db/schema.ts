@@ -1,4 +1,4 @@
-import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { blob, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 /** A Vidalune account: one person, any number of servers. */
 export const accounts = sqliteTable('accounts', {
@@ -143,4 +143,49 @@ export const relayTraffic = sqliteTable(
     requests: integer('requests').notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.serverId, t.day] }), index('relay_traffic_day').on(t.day)],
+);
+
+/**
+ * Shared intro/recap/credits detection (servers that turned it on): where each server found a
+ * part in an episode, by TMDB show id, season and episode number, with the episode's length.
+ * Only timings — no files, users or what anyone watches. Removed with the server.
+ */
+export const detectionReports = sqliteTable(
+  'detection_reports',
+  {
+    serverId: text('server_id')
+      .notNull()
+      .references(() => servers.id, { onDelete: 'cascade' }),
+    tmdbShow: integer('tmdb_show').notNull(),
+    season: integer('season').notNull(),
+    episode: integer('episode').notNull(),
+    kind: text('kind', { enum: ['recap', 'intro', 'credits'] }).notNull(),
+    /** The episode's length in seconds (different cuts of an episode are kept apart). */
+    duration: real('duration').notNull(),
+    start: real('start').notNull(),
+    end: real('end').notNull(),
+    source: text('source', { enum: ['audio', 'chapters', 'video', 'manual'] }).notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.serverId, t.tmdbShow, t.season, t.episode, t.kind] }), index('detection_reports_season').on(t.tmdbShow, t.season)],
+);
+
+/**
+ * Audio fingerprints of a season's intro or credits (a few seconds of 32-bit hashes per ~0.1 s,
+ * not audio): another server matches them against its own episodes.
+ */
+export const detectionPrints = sqliteTable(
+  'detection_prints',
+  {
+    serverId: text('server_id')
+      .notNull()
+      .references(() => servers.id, { onDelete: 'cascade' }),
+    tmdbShow: integer('tmdb_show').notNull(),
+    season: integer('season').notNull(),
+    kind: text('kind', { enum: ['intro', 'credits'] }).notNull(),
+    slot: integer('slot').notNull(),
+    words: blob('words', { mode: 'buffer' }).notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.serverId, t.tmdbShow, t.season, t.kind, t.slot] }), index('detection_prints_season').on(t.tmdbShow, t.season)],
 );

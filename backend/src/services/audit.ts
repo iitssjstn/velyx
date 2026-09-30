@@ -53,6 +53,7 @@ export type AuditAction =
   | 'cloud.home_networks'
   | 'seerr.settings'
   | 'seerr.requested'
+  | 'seerr.cancelled'
   | 'upnp.on'
   | 'upnp.off'
   | 'invite.created'

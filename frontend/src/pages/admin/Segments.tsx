@@ -18,7 +18,7 @@ export interface SegmentStatus {
   waitingFor: 'playback' | 'scan' | null;
   running: { showId: number; showTitle: string; seasonNumber: number; done: number; total: number } | null;
   queuedSeasons: number;
-  counts: { episodes: number; analyzed: number; recaps?: number; intros: number; credits: number; pending: number; errors: number; manual: number; lowConfidence: number };
+  counts: { episodes: number; analyzed: number; recaps?: number; intros: number; credits: number; pending: number; errors: number; manual: number; lowConfidence: number; fromShared?: number; confirmed?: number };
 }
 
 export interface SegmentOverview {
@@ -32,10 +32,10 @@ interface Part {
   end: number;
   confidence: Confidence | null;
   /** Where it was found: chapter markers, the picture, recurring audio or by hand. */
-  source?: 'chapters' | 'video' | 'audio' | 'manual' | null;
+  source?: 'chapters' | 'video' | 'audio' | 'manual' | 'shared' | null;
 }
 
-const SOURCE_LABEL: Record<NonNullable<Part['source']>, MessageKey> = { chapters: 'segments.sources.chapters', video: 'segments.sources.video', audio: 'segments.sources.audio', manual: 'segments.sources.manual' };
+const SOURCE_LABEL: Record<NonNullable<Part['source']>, MessageKey> = { chapters: 'segments.sources.chapters', video: 'segments.sources.video', audio: 'segments.sources.audio', manual: 'segments.sources.manual', shared: 'segments.sources.shared' };
 
 interface EpisodeSegmentsView {
   status: 'analyzed' | 'error';
@@ -46,12 +46,17 @@ interface EpisodeSegmentsView {
   postCredits: Part | null;
   manual: boolean;
   detectedAt: number;
+  /** Shared detection: how many servers agree (null: this server only). */
+  shareState?: 'pending' | 'shared' | 'verified' | null;
 }
 
 interface ShowSegments {
   show: { id: number; title: string };
   seasons: { seasonNumber: number; episodes: { id: number; episodeNumber: number; title: string | null; duration: number | null; eligible: boolean; segments: EpisodeSegmentsView | null }[] }[];
 }
+
+/** Shared detection labels: only here so far, another server agrees, three or more agree. */
+const SHARE_TONE = { pending: 'bg-raised text-muted', shared: 'bg-accent/15 text-accent', verified: 'bg-ok/15 text-ok' } as const;
 
 const CONFIDENCE_LABEL: Record<Confidence, MessageKey> = { high: 'segments.confidence.high', medium: 'segments.confidence.medium', low: 'segments.confidence.lowNotUsed' };
 
@@ -217,6 +222,7 @@ function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) 
                       <td className="py-2 pr-3">
                         <span className="tabular-nums text-muted">E{String(e.episodeNumber).padStart(2, '0')}</span> <span className="ml-1">{e.title ?? ''}</span>
                         {s?.manual && <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-xs text-accent">{t('segments.manual')}</span>}
+                        {s?.shareState && <span className={`ml-2 rounded px-1.5 py-0.5 text-xs ${SHARE_TONE[s.shareState]}`} title={t(`segments.share.${s.shareState}Hint`)}>{t(`segments.share.${s.shareState}`)}</span>}
                       </td>
                       {!s ? (
                         <td colSpan={4} className="py-2 pr-3 text-faint">{e.eligible ? t('segments.notAnalysedYet') : t('segments.noFile')}</td>
@@ -310,6 +316,8 @@ export function SegmentsPage() {
         <Stat label={t('segments.stats.errors')} value={c.errors} tone="amber" />
         <Stat label={t('segments.stats.lowConfidence')} value={c.lowConfidence} />
         <Stat label={t('segments.stats.manual')} value={c.manual} />
+        {(c.fromShared ?? 0) + (c.confirmed ?? 0) > 0 && <Stat label={t('segments.stats.fromShared')} value={c.fromShared ?? 0} />}
+        {(c.fromShared ?? 0) + (c.confirmed ?? 0) > 0 && <Stat label={t('segments.stats.confirmed')} value={c.confirmed ?? 0} />}
       </div>
 
       {shows.length === 0 ? (

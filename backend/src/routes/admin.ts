@@ -68,6 +68,7 @@ const settingsBody = z.object({
   deferScansWhilePlaying: z.boolean().optional(),
   segmentDetection: z.boolean().optional(),
   segmentVideo: z.boolean().optional(),
+  sharedDetection: z.boolean().optional(),
   updateCheck: z.boolean().optional(),
 });
 
@@ -510,6 +511,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       deferScansWhilePlaying: s.deferScansWhilePlaying,
       segmentDetection: s.segmentDetection,
       segmentVideo: s.segmentVideo,
+      sharedDetection: s.sharedDetection,
     };
   };
 
@@ -528,6 +530,8 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       if (!valid) throw new HttpError(400, 'TMDB rejected this API key.');
     }
     const { tmdbApiKey, ...rest } = body;
+    // Shared detection needs this server to be known to vidalune.com (registered once; not linked).
+    if (rest.sharedDetection === true && !ctx.settings.get().sharedDetection) await ctx.cloud.ensureRegistered();
     ctx.settings.update(rest);
     if (tmdbApiKey !== undefined) {
       if (tmdbApiKey === '') ctx.settings.delete('tmdbApiKey');
@@ -537,10 +541,12 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (rest.scanIntervalMinutes !== undefined) ctx.scans.configureSchedule(ctx.settings.scanIntervalMinutes());
     if (rest.segmentDetection === true) ctx.segments.enqueuePending();
     if (rest.segmentDetection !== undefined) ctx.segments.poke();
+    if (rest.sharedDetection === true) void ctx.sharedDetection.syncAll();
+    if (rest.sharedDetection === false) ctx.sharedDetection.clearLabels();
     // Names of what changed only — never the values of keys.
     const tmdbChanges = [tmdbApiKey !== undefined ? (tmdbApiKey === '' ? 'API key removed' : 'API key changed') : null, rest.tmdbLanguage !== undefined ? `language ${rest.tmdbLanguage || 'default'}` : null, rest.includeAdult !== undefined ? `adult titles ${rest.includeAdult ? 'on' : 'off'}` : null].filter(Boolean);
     if (tmdbChanges.length) ctx.audit.record('tmdb.updated', { actor: request.user, ip: request.ip, detail: tmdbChanges.join('; ') });
-    const serverChanges = (['serverName', 'serverUrl', 'watchFolders', 'updateCheck', 'scanIntervalMinutes', 'scanOnStartup', 'deferScansWhilePlaying', 'segmentDetection', 'segmentVideo'] as const).filter((k) => rest[k] !== undefined);
+    const serverChanges = (['serverName', 'serverUrl', 'watchFolders', 'updateCheck', 'scanIntervalMinutes', 'scanOnStartup', 'deferScansWhilePlaying', 'segmentDetection', 'segmentVideo', 'sharedDetection'] as const).filter((k) => rest[k] !== undefined);
     if (serverChanges.length) ctx.audit.record('settings.updated', { actor: request.user, ip: request.ip, detail: serverChanges.join(', ') });
     if (!wasConfigured && ctx.tmdb.configured) {
       log.info('TMDB configured — fetching metadata for existing libraries');

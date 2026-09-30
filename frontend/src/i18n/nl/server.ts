@@ -23,6 +23,8 @@ export const server: Messages['server'] = {
   segments: 'Intro\'s en aftitelingen herkennen',
   segmentsHint: 'Vergelijkt op de achtergrond het geluid aan het begin en einde van afleveringen (nooit als iemand kijkt of er een scan loopt), zodat kijkers ze kunnen overslaan. Zie Intro\'s en aftiteling.',
   segmentVideo: 'Aftitelingen in beeld herkennen',
+  sharedDetection: 'Detectie delen met andere Vidalune-servers',
+  sharedDetectionHint: 'Via vidalune.com: waar recaps, intro’s en aftitelingen zitten (per TMDB-serie, seizoen en aflevering, met de lengte van de aflevering) en korte audio-vingerafdrukken van intro’s en aftitelingen — geen titels, bestanden, gebruikers of kijkgedrag. Wat andere servers eens zijn vult aan wat hier niet werd gevonden, en bij resultaten staat hoeveel servers het eens zijn. Werkt gewoon door met eigen detectie als vidalune.com niet bereikbaar is.',
   segmentVideoHint: 'Bekijkt keyframes van de laatste minuten (klein en met lage prioriteit), waardoor ook aftitelingen worden gevonden waarvan de muziek per aflevering verschilt. Kost meer CPU dan alleen geluid.',
   mediaRoots: 'Mediamappen (MEDIA_ROOTS)',
   tmdbTitle: 'TMDB-metadata',

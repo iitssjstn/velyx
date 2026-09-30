@@ -320,6 +320,8 @@ export const nl: Record<string, string> = {
   'Invitation not found.': 'Uitnodiging niet gevonden.',
   // Seerr
   'Seerr is not set up on this server.': 'Seerr is niet ingesteld op deze server.',
+  'Request not found.': 'Aanvraag niet gevonden.',
+  'Only movies and shows have genres.': 'Alleen films en series hebben genres.',
   'Seerr did not answer in time. Try again later.': 'Seerr antwoordde niet op tijd. Probeer het later opnieuw.',
   'Could not reach Seerr. Check its address.': 'Seerr is niet bereikbaar. Controleer het adres.',
   'Seerr refused the API key. Check it under Admin → Server.': 'Seerr weigert de API-sleutel. Controleer hem onder Beheer → Server.',

@@ -109,6 +109,10 @@ In Nginx Proxy Manager:
    Hosts you set up yourself take precedence over the wildcard (remove an older redirect for
    `app.vidalune.com`: the service answers there itself).
 
+## Shared detection
+
+Vidalune servers that turn on *Share detection with other Vidalune servers* report, per episode (TMDB show id, season, episode number and the file's length), where they found the recap, intro and credits, and a few short audio fingerprints of a season's intro and credits (`detection_reports`, `detection_prints`; nothing else). `GET /api/detection/:tmdbShow/:season` gives a registered server the season's profile: per episode, part and cut (lengths within two seconds) the timing most servers agree on, with how many agree, and other servers' fingerprints. `POST /api/detection/reports` replaces what that server said before about those episodes and answers with the new profile. Both need the server's own secret and are limited to a few hundred calls an hour per server. Deleting a server removes what it shared.
+
 ## Installing Vidalune
 
 The service is also where people get Vidalune:
