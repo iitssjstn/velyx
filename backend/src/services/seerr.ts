@@ -109,6 +109,8 @@ export class SeerrService {
       log.warn(`Seerr answered ${res.status} to ${method} ${path}`);
       throw new HttpError(502, 'Seerr could not handle the request. Try again later.');
     }
+    // DELETE answers 204 without a body.
+    if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
   }
 
@@ -193,6 +195,17 @@ export class SeerrService {
     const body = mediaType === 'movie' ? { mediaType, mediaId: tmdbId } : { mediaType, mediaId: tmdbId, seasons: seasons ?? 'all' };
     const r = await this.call<{ id: number; status?: number; media?: RawMedia }>('POST', '/request', body);
     return { id: r.id, state: requestState(r.status, r.media?.status) ?? 'requested' };
+  }
+
+  /** Removes a request in Seerr (true: removed, false: Seerr no longer had it). Media already added stays. */
+  async cancel(id: number): Promise<boolean> {
+    try {
+      await this.call('DELETE', `/request/${id}`);
+      return true;
+    } catch (err) {
+      if (err instanceof HttpError && err.statusCode === 404) return false;
+      throw err;
+    }
   }
 
   /** Where a request stands now (null: Seerr no longer has it). */

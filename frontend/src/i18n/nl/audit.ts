@@ -42,6 +42,7 @@ export const audit: Messages['audit'] = {
     cloudHomeNetworks: 'Thuisnetwerken gewijzigd',
     seerrSettings: 'Seerr-koppeling gewijzigd',
     seerrRequested: 'Aangevraagd via Seerr',
+    seerrCancelled: 'Seerr-aanvraag geannuleerd',
     upnpOn: 'Poort op de router opengezet (UPnP)',
     upnpOff: 'Poort op de router gesloten (UPnP)',
     inviteCreated: 'Uitnodiging gemaakt',

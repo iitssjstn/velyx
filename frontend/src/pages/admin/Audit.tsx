@@ -51,6 +51,7 @@ const AUDIT_ACTIONS: Record<string, MessageKey> = {
   'cloud.home_networks': 'audit.actions.cloudHomeNetworks',
   'seerr.settings': 'audit.actions.seerrSettings',
   'seerr.requested': 'audit.actions.seerrRequested',
+  'seerr.cancelled': 'audit.actions.seerrCancelled',
   'upnp.on': 'audit.actions.upnpOn',
   'upnp.off': 'audit.actions.upnpOff',
   'invite.created': 'audit.actions.inviteCreated',

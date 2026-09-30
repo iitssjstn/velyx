@@ -41,6 +41,7 @@ export const audit = {
     cloudHomeNetworks: 'Changed the home networks',
     seerrSettings: 'Changed the Seerr connection',
     seerrRequested: 'Requested through Seerr',
+    seerrCancelled: 'Cancelled a Seerr request',
     upnpOn: 'Opened a port on the router (UPnP)',
     upnpOff: 'Closed the port on the router (UPnP)',
     inviteCreated: 'Made an invitation',

@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Search as SearchIcon } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Search as SearchIcon, X } from 'lucide-react';
+import { useAuth } from '../lib/auth';
+import { ConfirmModal } from '../components/Modal';
+import { toast } from '../components/Toast';
 import { api } from '../lib/api';
 import { Button } from '../components/Button';
 import { DetailModal, DiscoverCard, Poster, StateBadge, useOpenLocal, type MyRequest, type SeerrResult } from '../components/Discover';
@@ -9,9 +12,72 @@ import { useT } from '../i18n';
 
 export type { RequestState, SeerrResult } from '../components/Discover';
 
+type AdminRequest = MyRequest & { user: string | null };
+
+/** Administrators: everyone's requests, and cancelling one (in Seerr and here). */
+function AllRequests() {
+  const { t } = useT();
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['seerr', 'admin-requests'], queryFn: () => api.get<AdminRequest[]>('/api/admin/seerr/requests') });
+  const [cancelling, setCancelling] = useState<AdminRequest | null>(null);
+  const cancel = useMutation({
+    mutationFn: (r: AdminRequest) => api.del<{ ok: boolean; inSeerr: boolean }>(`/api/admin/seerr/requests/${r.id}`),
+    onSuccess: (res, r) => {
+      toast.success(res.inSeerr ? t('requests.cancelled', { title: r.title }) : t('requests.cancelledHere', { title: r.title }));
+      setCancelling(null);
+      void qc.invalidateQueries({ queryKey: ['seerr'] });
+    },
+    onError: (e) => toast.error(e),
+  });
+  if (!q.data) return null;
+  return (
+    <section aria-labelledby="all-requests" className="space-y-3">
+      <div>
+        <h2 id="all-requests" className="font-display text-xl font-semibold">{t('requests.all')}</h2>
+        <p className="text-sm text-muted">{t('requests.allHint')}</p>
+      </div>
+      {q.data.length === 0 ? (
+        <p className="text-sm text-muted">{t('requests.noneAll')}</p>
+      ) : (
+        <ul className="panel divide-y divide-line/60">
+          {q.data.map((r) => (
+            <li key={r.id} className="flex items-center gap-4 p-3">
+              <div className="w-10 shrink-0">
+                <Poster path={r.posterPath} title={r.title} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{r.title}</p>
+                <p className="text-xs text-muted">
+                  {r.mediaType === 'movie' ? t('requests.movie') : t('requests.tv')} · {r.user ?? t('requests.unknownUser')} · {new Date(r.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+              <StateBadge state={r.state} />
+              <Button variant="ghost" icon={<X className="size-4" />} onClick={() => setCancelling(r)} aria-label={t('requests.cancelOf', { title: r.title })}>
+                <span className="hidden sm:inline">{t('requests.cancel')}</span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <ConfirmModal
+        open={!!cancelling}
+        title={t('requests.cancelTitle')}
+        confirmLabel={t('requests.cancel')}
+        danger
+        loading={cancel.isPending}
+        onConfirm={() => cancelling && cancel.mutate(cancelling)}
+        onClose={() => setCancelling(null)}
+      >
+        {cancelling && t('requests.cancelText', { title: cancelling.title, user: cancelling.user ?? t('requests.unknownUser') })}
+      </ConfirmModal>
+    </section>
+  );
+}
+
 /** Requests: search Seerr for what is not in the library, request it, and follow your requests. */
 export function RequestsPage() {
   const { t } = useT();
+  const { user } = useAuth();
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<SeerrResult | null>(null);
@@ -79,6 +145,7 @@ export function RequestsPage() {
           </ul>
         )}
       </section>
+      {user?.role === 'admin' && <AllRequests />}
       {open && <DetailModal item={open} onClose={() => setOpen(null)} />}
     </div>
   );

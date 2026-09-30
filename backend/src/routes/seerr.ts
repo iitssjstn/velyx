@@ -3,8 +3,8 @@ import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireAdmin, requireUser } from '../app.js';
-import { movies, seerrRequests, shows } from '../db/schema.js';
-import { HttpError } from '../http-error.js';
+import { movies, seerrRequests, shows, users } from '../db/schema.js';
+import { HttpError, parseId } from '../http-error.js';
 import type { RequestState } from '../services/seerr.js';
 import { canSee } from '../services/access.js';
 import type { SessionUser } from '../auth/sessions.js';
@@ -161,5 +161,33 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
       }),
     );
     return rows.map(view);
+  });
+
+  // ---- administrators: everyone's requests, and cancelling one
+
+  app.get('/api/admin/seerr/requests', { preHandler: requireAdmin }, async () => {
+    const rows = db
+      .select({ r: seerrRequests, username: users.username, displayName: users.displayName })
+      .from(seerrRequests)
+      .leftJoin(users, eq(users.id, seerrRequests.userId))
+      .orderBy(desc(seerrRequests.createdAt))
+      .limit(200)
+      .all();
+    return rows.map((x) => ({ ...view(x.r), user: x.displayName || x.username || null }));
+  });
+
+  /**
+   * Cancels a request: removed in Seerr (it may still be waiting for approval or being added) and
+   * here. What Seerr already added to the library stays; nothing in the library is touched.
+   */
+  app.delete<{ Params: { id: string } }>('/api/admin/seerr/requests/:id', { preHandler: requireAdmin }, async (request) => {
+    const id = parseId(request.params.id);
+    const row = db.select().from(seerrRequests).where(eq(seerrRequests.id, id)).get();
+    if (!row) throw new HttpError(404, 'Request not found.');
+    // Seerr no longer having it is fine: it is removed here too.
+    const inSeerr = await ctx.seerr.cancel(row.seerrId);
+    db.delete(seerrRequests).where(eq(seerrRequests.id, id)).run();
+    ctx.audit.record('seerr.cancelled', { actor: request.user, ip: request.ip, target: row.title, detail: inSeerr ? undefined : 'no longer at Seerr' });
+    return { ok: true, inSeerr };
   });
 }

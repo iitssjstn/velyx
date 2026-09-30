@@ -55,6 +55,10 @@ const fakeSeerr = async (url: string, init?: RequestInit) => {
     return json({ id, status: 1, media: { status: 2 } }, 201);
   }
   const m = /^\/request\/(\d+)$/.exec(path);
+  if (m && method === 'DELETE') {
+    if (!states.delete(Number(m[1]))) return json({ message: 'Not found' }, 404);
+    return new Response(null, { status: 204 });
+  }
   if (m) {
     const s = states.get(Number(m[1]));
     return s ? json({ id: Number(m[1]), status: s[0], media: { status: s[1] } }) : json({ message: 'Not found' }, 404);
@@ -208,5 +212,32 @@ describe('Seerr', () => {
   it('shows no catalog without Seerr', async () => {
     expect((await env.app.inject({ url: '/api/seerr/discover?row=trending', headers: { cookie: admin } })).statusCode).toBe(409);
     expect(calls).toEqual([]);
+  });
+
+  it('lets administrators see and cancel everyone’s requests (in Seerr and here)', async () => {
+    await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
+    const viewer = await createUser(env.app, admin, 'viewer');
+    const made = await env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: viewer.cookie }, payload: { mediaType: 'movie', tmdbId: 603 } });
+    const other = await env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: viewer.cookie }, payload: { mediaType: 'tv', tmdbId: 1399 } });
+    // Only administrators.
+    expect((await env.app.inject({ url: '/api/admin/seerr/requests', headers: { cookie: viewer.cookie } })).statusCode).toBe(403);
+    expect((await env.app.inject({ method: 'DELETE', url: `/api/admin/seerr/requests/${made.json().id}`, headers: { cookie: viewer.cookie } })).statusCode).toBe(403);
+
+    const all = (await env.app.inject({ url: '/api/admin/seerr/requests', headers: { cookie: admin } })).json();
+    expect(all.map((r: { title: string; user: string }) => [r.title, r.user])).toEqual([['A Show', 'viewer'], ['The Matrix', 'viewer']]);
+
+    const res = await env.app.inject({ method: 'DELETE', url: `/api/admin/seerr/requests/${made.json().id}`, headers: { cookie: admin } });
+    expect(res.json()).toEqual({ ok: true, inSeerr: true });
+    expect(calls.find((c) => c.method === 'DELETE')?.path).toBe('/request/100');
+    expect(states.has(100)).toBe(false);
+    expect((await env.app.inject({ url: '/api/seerr/requests', headers: { cookie: viewer.cookie } })).json().map((r: { title: string }) => r.title)).toEqual(['A Show']);
+    expect((await env.app.inject({ method: 'DELETE', url: `/api/admin/seerr/requests/${made.json().id}`, headers: { cookie: admin } })).statusCode).toBe(404);
+
+    // Already gone at Seerr: removed here all the same.
+    states.clear();
+    expect((await env.app.inject({ method: 'DELETE', url: `/api/admin/seerr/requests/${other.json().id}`, headers: { cookie: admin } })).json()).toEqual({ ok: true, inSeerr: false });
+    expect((await env.app.inject({ url: '/api/admin/seerr/requests', headers: { cookie: admin } })).json()).toEqual([]);
+    const audit = (await env.app.inject({ url: '/api/admin/audit?action=seerr.cancelled', headers: { cookie: admin } })).json();
+    expect(JSON.stringify(audit)).toContain('The Matrix');
   });
 });
