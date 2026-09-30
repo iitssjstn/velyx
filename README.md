@@ -56,6 +56,7 @@ Vidalune is a lightweight, Docker-first, self-hosted media server for movies and
 - **Fix Match** — items Vidalune cannot identify confidently are listed for review; pick the right title with a confidence score per candidate.
 - **Incremental scanning** — only new or changed files (path, size, modification time) are analysed with FFprobe. Removed files disappear, and a library whose drive is not mounted is never wiped.
 - **Custom video player** — resume, seeking, subtitles (external `.srt`/`.vtt` and embedded text tracks), subtitle size, playback speed, audio track switching in every browser, auto-play next episode with countdown, fullscreen and keyboard shortcuts.
+- **Cast to a TV** — from the player in Chrome or the Android app, send what you are watching to a Chromecast or a TV with Chromecast built in; it continues where you were and the player becomes its remote (see [Casting to a TV](#casting-to-a-tv)).
 - **Automatic audio conversion** — files with audio the browser cannot decode (EAC3, AC3, DTS, TrueHD) play anyway: the video is passed through untouched and only the audio is converted to AAC on the fly (stereo or 5.1 surround). Light enough for low-end CPUs.
 - **Skip recaps, intros and credits** — Vidalune recognises the intro of TV episodes by its recurring sound (per season), a recap ("previously on") by its clips of earlier episodes, and the end credits by the text in the picture — also when the credits music changes every episode — all on your own server. Chapters named Recap, Intro or Credits are used when a file has them. A *Skip recap* / *Skip intro* / *Skip credits* button appears while they play (or they are skipped automatically, if you prefer), and again when you go back into them; a scene after the credits is never skipped.
 - **Audio options** — *Boost voices* (clearer dialogue) and *Level volume* (night mode), switchable from the player.
@@ -312,6 +313,15 @@ Boost voices and Level volume always convert the audio.
 **Settings → Playback** also shows what the current browser supports.
 
 **Keyboard shortcuts in the player:** `Space`/`K` play/pause, `←`/`→` or `J`/`L` seek 10 s, `↑`/`↓` volume, `M` mute, `F` fullscreen, `C` cycle subtitles, `S` skip intro/credits, `N` next episode, `0`–`9` jump to 0–90 %, `Esc` back.
+
+### Casting to a TV
+
+The player can send what you are watching to a **Chromecast** or a TV with **Chromecast built in** (Google TV, Android TV and many other TVs): in the web player in **Chrome** (browsers without Google Cast show no cast button) and in the **Android app**. The TV continues where you were, and the player on your phone or computer becomes its remote control: play/pause, back and forward, the seek bar, audio track and subtitles all act on the TV, and your progress is saved as usual. Stop casting with the same button; playback continues on the device where you left the TV, paused.
+
+- The Chromecast fetches the video itself, straight from your server, with a short-lived link that opens only that one file (its video, subtitles and artwork) for about eight hours; nothing else on the server can be reached with it. The Chromecast must be able to reach the server: at home on the same network, or through the Vidalune relay or your own HTTPS address. On `localhost` the web player gives it the server address set under **Admin → Server**.
+- What the TV plays follows the same rules as everywhere in Vidalune: files a Chromecast can play go as they are, MKV files and audio it cannot play are repackaged (audio converted to AAC stereo), and **video is never transcoded**: a file whose video the Chromecast cannot decode (for example MPEG-2) is not cast, and the player says so.
+- Subtitles are shown by the TV (text subtitles: separate files and the ones inside the video); image-based subtitles and subtitles from OpenSubtitles are not cast.
+- Seeking in a repackaged stream starts it again from the new spot (a second or two), as in the browser.
 
 ## Installing Vidalune as an app
 
@@ -804,7 +814,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 - Full video transcoding with hardware acceleration (NVENC, Quick Sync, VAAPI/AMF) and HLS output.
 - Burn-in or OCR for image-based subtitles.
 - Trickplay thumbnails on the seek bar.
-- Apps for TV and mobile, Chromecast support.
+- An app for TV (Android TV).
 
 ## License
 
