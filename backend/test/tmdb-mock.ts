@@ -36,6 +36,15 @@ export function createMockTmdb(validKey = 'test-key'): MockTmdb {
         const all = [{ id: 1396, name: 'Breaking Bad', original_name: 'Breaking Bad', first_air_date: '2008-01-20', popularity: 99, poster_path: '/bb.jpg' }];
         return json({ results: all.filter((r) => r.name.toLowerCase().includes(q)) });
       }
+      // Translations (the interface languages): Dutch for Interstellar and Breaking Bad.
+      const dutch: Record<string, { title?: string; name?: string; overview: string; tagline?: string }> = {
+        'movie/157336': { title: 'Interstellar', overview: 'Een groep ontdekkingsreizigers reist door een wormgat.', tagline: 'De mensheid werd op aarde geboren.' },
+        'tv/1396': { name: 'Breaking Bad', overview: 'Een scheikundeleraar begint een drugsimperium.' },
+      };
+      const translations = (key: string) => ({ translations: dutch[key] ? [{ iso_639_1: 'de', iso_3166_1: 'DE', data: { overview: 'Deutsch' } }, { iso_639_1: 'nl', iso_3166_1: 'BE', data: { overview: 'Vlaams' } }, { iso_639_1: 'nl', iso_3166_1: 'NL', data: dutch[key] }] : [] });
+      const onlyTranslations = /^\/(movie|tv)\/(\d+)\/translations$/.exec(p);
+      if (onlyTranslations) return json(translations(`${onlyTranslations[1]}/${onlyTranslations[2]}`));
+      const withTranslations = (url.searchParams.get('append_to_response') ?? '').includes('translations');
       const movie = /^\/movie\/(\d+)$/.exec(p);
       if (movie) {
         const id = Number(movie[1]);
@@ -62,6 +71,7 @@ export function createMockTmdb(validKey = 'test-key'): MockTmdb {
           imdb_id: `tt${id}`,
           genres: m.genres.map((name, i) => ({ id: i + 1, name })),
           belongs_to_collection: m.collection ?? null,
+          ...(withTranslations ? { translations: translations(`movie/${id}`) } : {}),
           credits: {
             cast: [
               { id: 10297, name: 'Matthew McConaughey', character: 'Cooper', profile_path: '/mm.jpg', order: 0 },
@@ -87,10 +97,19 @@ export function createMockTmdb(validKey = 'test-key'): MockTmdb {
           episode_run_time: [47],
           credits: { cast: [{ id: 17419, name: 'Bryan Cranston', character: 'Walter White', profile_path: null, order: 0 }], crew: [] },
           external_ids: { imdb_id: 'tt0903747', tvdb_id: 81189 },
+          ...(withTranslations ? { translations: translations('tv/1396') } : {}),
         });
       const season = /^\/tv\/1396\/season\/(\d+)$/.exec(p);
       if (season) {
         const n = Number(season[1]);
+        // In Dutch: TMDB's placeholder for an untranslated name ("Aflevering 1"), real names for the others.
+        if (url.searchParams.get('language')?.startsWith('nl'))
+          return json({
+            season_number: n,
+            name: `Seizoen ${n}`,
+            overview: `Seizoen ${n} beschrijving`,
+            episodes: [1, 2, 3].map((e) => ({ episode_number: e, season_number: n, name: e === 1 ? 'Aflevering 1' : `Nederlandse titel ${n}x${e}`, overview: e === 3 ? '' : 'Nederlandse afleveringsbeschrijving' })),
+          });
         return json({
           season_number: n,
           name: `Season ${n}`,

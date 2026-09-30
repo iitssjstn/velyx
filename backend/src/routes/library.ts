@@ -22,6 +22,7 @@ import {
 } from '../db/schema.js';
 import { ReplacementTracker } from '../services/replacements.js';
 import { Catalog } from '../services/catalog.js';
+import { localized } from '../services/localize.js';
 import { playbackSegments } from '../services/segments/store.js';
 import { notFound, parseId } from '../http-error.js';
 import { languageName } from '../services/parser.js';
@@ -378,11 +379,10 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     return {
       id: m.id,
       type: 'movie',
-      title: m.title,
+      // In the viewer's interface language when TMDB has it.
+      ...(({ title, overview, tagline }) => ({ title: title ?? m.title, overview, tagline }))(localized(m, request.user!.language)),
       originalTitle: m.originalTitle,
       year: m.year,
-      overview: m.overview,
-      tagline: m.tagline,
       runtime: m.runtime ?? (files[0]?.durationSec ? Math.round(files[0].durationSec / 60) : null),
       releaseDate: m.releaseDate,
       rating: m.rating,
@@ -513,7 +513,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
           id: se.id,
           seasonNumber: se.seasonNumber,
           name: se.name ?? (se.seasonNumber === 0 ? 'Specials' : `Season ${se.seasonNumber}`),
-          overview: se.overview,
+          overview: localized(se, request.user!.language).overview,
           airDate: se.airDate,
           posterPath: se.posterPath,
           episodeCount: inSeason.length,
@@ -527,10 +527,10 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     return {
       id: s.id,
       type: 'show',
-      title: s.title,
+      title: localized(s, request.user!.language).title ?? s.title,
       originalTitle: s.originalTitle,
       year: s.year,
-      overview: s.overview,
+      overview: localized(s, request.user!.language).overview,
       firstAirDate: s.firstAirDate,
       status: s.status,
       network: s.network,
@@ -581,7 +581,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       id: season.id,
       seasonNumber: season.seasonNumber,
       name: season.name,
-      overview: season.overview,
+      overview: localized(season, request.user!.language).overview,
       posterPath: season.posterPath,
       episodes: eps.map((e) => {
         const f = files.find((x) => x.episodeId === e.id);
@@ -589,8 +589,8 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
           id: e.id,
           seasonNumber: e.seasonNumber,
           episodeNumber: e.episodeNumber,
-          title: e.title,
-          overview: e.overview,
+          title: localized(e, request.user!.language).title,
+          overview: localized(e, request.user!.language).overview,
           airDate: e.airDate,
           runtime: e.runtime ?? (f?.durationSec ? Math.round(f.durationSec / 60) : null),
           rating: e.rating,
@@ -615,13 +615,13 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       id: row.e.id,
       type: 'episode',
       showId: row.s.id,
-      showTitle: row.s.title,
+      showTitle: localized(row.s, request.user!.language).title ?? row.s.title,
       showPosterPath: row.s.posterPath,
       showBackdropPath: row.s.backdropPath,
       seasonNumber: row.e.seasonNumber,
       episodeNumber: row.e.episodeNumber,
-      title: row.e.title,
-      overview: row.e.overview,
+      title: localized(row.e, request.user!.language).title,
+      overview: localized(row.e, request.user!.language).overview,
       airDate: row.e.airDate,
       runtime: row.e.runtime,
       rating: row.e.rating,
@@ -634,9 +634,9 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
             id: next.id,
             seasonNumber: next.seasonNumber,
             episodeNumber: next.episodeNumber,
-            title: next.title,
+            title: localized(next, request.user!.language).title,
             stillPath: next.stillPath,
-            overview: next.overview,
+            overview: localized(next, request.user!.language).overview,
             runtime: next.runtime,
             durationSec: db.select({ d: mediaFiles.durationSec }).from(mediaFiles).where(eq(mediaFiles.episodeId, next.id)).orderBy(desc(mediaFiles.height)).limit(1).get()?.d ?? null,
           }

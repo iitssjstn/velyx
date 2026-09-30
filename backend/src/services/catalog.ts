@@ -1,7 +1,8 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
-import { episodes, favorites, genres, mediaFiles, movieGenres, movies, showGenres, shows, watchlist, watchProgress } from '../db/schema.js';
+import { episodes, favorites, genres, mediaFiles, movieGenres, movies, showGenres, shows, users, watchlist, watchProgress } from '../db/schema.js';
 import { scopeCondition, type LibraryScope } from './access.js';
+import { localized } from './localize.js';
 
 export interface ProgressInfo {
   positionSec: number;
@@ -112,20 +113,26 @@ export class Catalog {
     };
   }
 
+  /** A user's interface language (titles and descriptions in it where TMDB has them). */
+  private languageOf(userId: number): string | null {
+    return this.db.select({ l: users.language }).from(users).where(eq(users.id, userId)).get()?.l ?? null;
+  }
+
   movieCards(userId: number, rows: MovieRow[]): MovieCard[] {
+    const lang = this.languageOf(userId);
     const progress = this.movieProgress(userId, rows.map((r) => r.id));
     const genreMap = this.cardGenres('movie', rows.map((r) => r.id));
     const favs = this.favoriteIds(userId);
     return rows.map((m) => ({
       type: 'movie',
       id: m.id,
-      title: m.title,
+      title: localized(m, lang).title ?? m.title,
       year: m.year,
       posterPath: m.posterPath,
       backdropPath: m.backdropPath,
       rating: m.rating,
       runtime: m.runtime,
-      overview: m.overview,
+      overview: localized(m, lang).overview,
       genres: genreMap.get(m.id) ?? [],
       addedAt: m.addedAt,
       progress: progress.get(m.id) ?? null,
@@ -135,6 +142,7 @@ export class Catalog {
 
   showCards(userId: number, rows: ShowRow[]): ShowCard[] {
     if (!rows.length) return [];
+    const lang = this.languageOf(userId);
     const ids = rows.map((r) => r.id);
     const counts = this.db
       .select({
@@ -161,12 +169,12 @@ export class Catalog {
     return rows.map((s) => ({
       type: 'show',
       id: s.id,
-      title: s.title,
+      title: localized(s, lang).title ?? s.title,
       year: s.year,
       posterPath: s.posterPath,
       backdropPath: s.backdropPath,
       rating: s.rating,
-      overview: s.overview,
+      overview: localized(s, lang).overview,
       genres: genreMap.get(s.id) ?? [],
       addedAt: s.lastEpisodeAddedAt,
       seasonCount: seasonMap.get(s.id) ?? 0,

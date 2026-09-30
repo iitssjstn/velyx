@@ -19,7 +19,7 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   {
-    files: ['frontend/public/offline.js', 'cloud/web/account.js'],
+    files: ['frontend/public/offline.js', 'cloud/web/account.js', 'cloud/web/ceo.js'],
     languageOptions: { globals: globals.browser, sourceType: 'script' },
   },
   {

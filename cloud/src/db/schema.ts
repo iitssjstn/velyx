@@ -49,6 +49,8 @@ export const servers = sqliteTable(
     relayEnabled: integer('relay_enabled', { mode: 'boolean' }).notNull().default(false),
     /** What this server may send through the relay, in Mbit/s (null: the service's default). */
     relayLimitMbps: integer('relay_limit_mbps'),
+    /** The relay this server is assigned to (null: the main relay, vidalune.com itself). */
+    relayNodeId: integer('relay_node_id').references(() => relayNodes.id, { onDelete: 'set null' }),
     createdAt: integer('created_at').notNull(),
     lastSeenAt: integer('last_seen_at').notNull(),
   },
@@ -141,6 +143,8 @@ export const relayTraffic = sqliteTable(
     /** Bytes visitors sent (requests, uploads). */
     bytesIn: integer('bytes_in').notNull().default(0),
     requests: integer('requests').notNull().default(0),
+    /** Visitors who got an error instead of reaching the server (off, offline, busy, too large, cut off). */
+    errors: integer('errors').notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.serverId, t.day] }), index('relay_traffic_day').on(t.day)],
 );
@@ -188,4 +192,72 @@ export const detectionPrints = sqliteTable(
     updatedAt: integer('updated_at').notNull(),
   },
   (t) => [primaryKey({ columns: [t.serverId, t.tmdbShow, t.season, t.kind, t.slot] }), index('detection_prints_season').on(t.tmdbShow, t.season)],
+);
+
+/**
+ * Relays: the main one is vidalune.com itself (id 1). Others can be registered with their capacity
+ * and servers assigned to them, so customers can be spread out as more relays are added.
+ */
+export const relayNodes = sqliteTable('relay_nodes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  region: text('region'),
+  /** Where it is reached (null for the main relay: this service). */
+  url: text('url'),
+  /** What it can send in total, in Mbit/s. */
+  capacityMbps: integer('capacity_mbps').notNull(),
+  /**
+   * The hosting's traffic allowance per month in GB (null: unlimited, as with OVH in Europe and
+   * North America), and the speed it drops to beyond it (OVH Asia-Pacific: 1 TB, then 10 Mbit/s).
+   */
+  monthlyQuotaGb: integer('monthly_quota_gb'),
+  overQuotaMbps: integer('over_quota_mbps'),
+  note: text('note'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at').notNull(),
+});
+
+/**
+ * Access given to an account: remote access (for everyone on its servers) or a viewer plan, why
+ * (a paying customer, a beta or test account, or free), from when until when, and by whom. The
+ * account's current plan follows its active grant. Ready for billing: a price and a reference to a
+ * payment can be kept per grant (empty while access is given by hand).
+ */
+export const accessGrants = sqliteTable(
+  'access_grants',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    accountId: integer('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    type: text('type', { enum: ['customer', 'beta', 'test', 'free'] }).notNull(),
+    plan: text('plan', { enum: ['remote', 'viewer'] }).notNull(),
+    startsAt: integer('starts_at').notNull(),
+    /** Null: no end. */
+    endsAt: integer('ends_at'),
+    note: text('note'),
+    grantedBy: text('granted_by').notNull(),
+    createdAt: integer('created_at').notNull(),
+    revokedAt: integer('revoked_at'),
+    revokedBy: text('revoked_by'),
+    /** Where it came from: by hand now; a payment later. */
+    source: text('source', { enum: ['manual', 'billing'] }).notNull().default('manual'),
+    priceCents: integer('price_cents'),
+    currency: text('currency'),
+    billingRef: text('billing_ref'),
+  },
+  (t) => [index('access_grants_account').on(t.accountId), index('access_grants_ends').on(t.endsAt)],
+);
+
+/** On which days an account used Vidalune (signed in on the website or in the app): for "active" over time. */
+export const accountActivity = sqliteTable(
+  'account_activity',
+  {
+    accountId: integer('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    /** YYYY-MM-DD (UTC) */
+    day: text('day').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.day] }), index('account_activity_day').on(t.day)],
 );

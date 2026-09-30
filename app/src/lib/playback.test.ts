@@ -139,3 +139,15 @@ describe('retryAt', () => {
     expect(first).toEqual({ retries: { at: 1800, count: 1 }, allowed: true });
   });
 });
+
+describe('the loading spinner', () => {
+  it('goes once the picture moves, whatever the player’s status says', async () => {
+    const { stillLoading } = await import('./playback');
+    expect(stillLoading(false, 10, 10, false)).toBe(false);
+    // Still loading: paused, or the time did not move.
+    expect(stillLoading(true, 10, 10, true)).toBe(true);
+    expect(stillLoading(true, 10, 10.5, false)).toBe(true);
+    // Playing and moving on: not loading.
+    expect(stillLoading(true, 10, 10.5, true)).toBe(false);
+  });
+});
