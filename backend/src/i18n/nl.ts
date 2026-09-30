@@ -183,6 +183,8 @@ export const nl: Record<string, string> = {
   'The credits end after the episode ({seconds} s).': 'De aftiteling eindigt na de aflevering ({seconds} s).',
   'The post-credits scene ends after the episode ({seconds} s).': 'De scène na de aftiteling eindigt na de aflevering ({seconds} s).',
   'The intro must end before the credits start.': 'De intro moet eindigen voordat de aftiteling begint.',
+  'The recap ends after the episode ({seconds} s).': 'De terugblik eindigt na de aflevering ({seconds} s).',
+  'The recap must end before the intro starts.': 'De terugblik moet eindigen voordat de intro begint.',
   'The post-credits scene must start after the credits.': 'De scène na de aftiteling moet na de aftiteling beginnen.',
 
   // ---- library health
@@ -316,6 +318,18 @@ export const nl: Record<string, string> = {
   '{user} accepted your invitation': '{user} heeft je uitnodiging aangenomen',
   'Signed in with {email} as user {username}. You can change their libraries under Users.': 'Ingelogd met {email} als gebruiker {username}. Bibliotheken pas je aan onder Gebruikers.',
   'Invitation not found.': 'Uitnodiging niet gevonden.',
+  // Seerr
+  'Seerr is not set up on this server.': 'Seerr is niet ingesteld op deze server.',
+  'Seerr did not answer in time. Try again later.': 'Seerr antwoordde niet op tijd. Probeer het later opnieuw.',
+  'Could not reach Seerr. Check its address.': 'Seerr is niet bereikbaar. Controleer het adres.',
+  'Seerr refused the API key. Check it under Admin → Server.': 'Seerr weigert de API-sleutel. Controleer hem onder Beheer → Server.',
+  'Seerr does not know this title.': 'Seerr kent deze titel niet.',
+  'This has already been requested.': 'Dit is al aangevraagd.',
+  'Seerr could not handle the request. Try again later.': 'Seerr kon het verzoek niet verwerken. Probeer het later opnieuw.',
+  'Enter the address Seerr is opened at, such as http://192.168.1.10:5055.': 'Vul het adres in waarop Seerr opent, bijvoorbeeld http://192.168.1.10:5055.',
+  'Enter the API key from Seerr (Settings → General).': 'Vul de API-sleutel van Seerr in (Settings → General).',
+  'You made many requests in the last hour. Try again later.': 'Je hebt het afgelopen uur veel aanvragen gedaan. Probeer het later opnieuw.',
+  'This is already in the library.': 'Dit staat al in de bibliotheek.',
   // Vidalune account
   'Could not reach the Vidalune account service. Try again later.': 'De Vidalune-accountdienst is niet bereikbaar. Probeer het later opnieuw.',
   'The Vidalune account service could not handle the request. Try again later.': 'De Vidalune-accountdienst kon het verzoek niet verwerken. Probeer het later opnieuw.',

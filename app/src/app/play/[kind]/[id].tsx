@@ -13,12 +13,12 @@ import { playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
 import { episodeCode, formatClock } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
-import { rememberSubtitle, rememberedSubtitle, storeSubtitleStyle, storedSubtitleStyle } from '../../../lib/remember';
+import { rememberSubtitle, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
 import { DEFAULT_SUBTITLE_STYLE, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
 import { errorMessage } from '../../../lib/connection';
 import { useSession } from '../../../lib/session';
-import { skipAt, upNextStart, type EpisodeSegments, type SkipMode } from '../../../lib/skip';
+import { addSeek, SEEK_COMBINE_MS, SEEK_STEPS, skipAt, upNextStart, type EpisodeSegments, type PendingSeek, type SeekStep, type SkipMode } from '../../../lib/skip';
 import { colors, radius } from '../../../lib/theme';
 import { cueTextAt, parseVtt, type Cue } from '../../../lib/vtt';
 
@@ -43,6 +43,7 @@ interface Item {
 interface Prefs extends SubtitlePrefs {
   skipIntro?: SkipMode;
   skipCredits?: SkipMode;
+  skipRecap?: SkipMode;
 }
 
 const SAVE_EVERY_MS = 10_000;
@@ -150,7 +151,17 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   const [ended, setEnded] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [nextDismissed, setNextDismissed] = useState(false);
-  const [seekFlash, setSeekFlash] = useState<'back' | 'forward' | null>(null);
+  /** Quick taps back/forward add up ("+30"); the step is kept on this device. */
+  const [seekFlash, setSeekFlash] = useState<{ side: 'back' | 'forward'; total: number; at: number } | null>(null);
+  const [seekStep, setSeekStep] = useState<SeekStep>(10);
+  const seekRun = useRef<PendingSeek | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void storedSeekStep().then((s) => alive && setSeekStep(s));
+    return () => {
+      alive = false;
+    };
+  }, []);
   const pendingSeek = useRef<number | null>(null);
   const tracksSet = useRef(false);
   /** A stream is loaded and ready (the player exists before that, without a video). */
@@ -336,8 +347,10 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   );
 
   // ---------------------------------------------------------------- skip intro / credits
-  const modes = { intro: prefs?.skipIntro ?? 'ask', credits: prefs?.skipCredits ?? 'ask' };
+  const modes = { recap: prefs?.skipRecap ?? prefs?.skipIntro ?? 'ask', intro: prefs?.skipIntro ?? 'ask', credits: prefs?.skipCredits ?? 'ask' };
   const skip = answer && !loading ? skipAt(item.segments, item.fileId, position, modes) : null;
+  // Skipped automatically once, then watched again (seeked back into it): offer the button instead.
+  const askSkip = skip && (skip.mode === 'ask' || autoSkipped.current.has(skip.kind)) ? skip : null;
   const goNext = useCallback(() => {
     if (item.next) router.replace(`/play/episode/${item.next.id}?t=0`);
   }, [item.next]);
@@ -427,7 +440,16 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
     else player.play();
   };
 
-  // A tap shows or hides the controls; a double tap on the left or right third seeks 10 seconds.
+  /** Back or forward by the step; quick taps add up from where the previous one aimed. */
+  const seekBy = (side: 'back' | 'forward') => {
+    const p = addSeek(seekRun.current, Date.now(), position, side === 'back' ? -seekStep : seekStep, duration);
+    seekRun.current = p;
+    seekTo(p.target);
+    setSeekFlash({ side, total: p.total, at: p.at });
+  };
+
+  // A tap shows or hides the controls; a double tap on the left or right third seeks by the step
+  // (every further tap there adds another step).
   const lastTap = useRef({ at: 0, x: 0 });
   const onTap = (e: GestureResponderEvent) => {
     const now = Date.now();
@@ -440,8 +462,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       if (side) {
         // Undo the first tap's show/hide and seek instead.
         setControls((c) => !c);
-        seekTo(position + (side === 'back' ? -10 : 10));
-        setSeekFlash(side);
+        seekBy(side);
         return;
       }
     }
@@ -450,7 +471,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   const screenWidth = useRef(0);
   useEffect(() => {
     if (!seekFlash) return;
-    const timer = setTimeout(() => setSeekFlash(null), 600);
+    const timer = setTimeout(() => setSeekFlash(null), SEEK_COMBINE_MS);
     return () => clearTimeout(timer);
   }, [seekFlash]);
 
@@ -472,9 +493,10 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
         </View>
       ) : null}
       {seekFlash && (
-        <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, [seekFlash === 'back' ? 'left' : 'right']: 48, justifyContent: 'center' }}>
-          <View style={{ backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 999, padding: 16 }}>
-            <Feather name={seekFlash === 'back' ? 'rotate-ccw' : 'rotate-cw'} size={32} color="#fff" />
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, [seekFlash.side === 'back' ? 'left' : 'right']: 48, justifyContent: 'center' }}>
+          <View style={{ backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 999, paddingVertical: 14, paddingHorizontal: 18, alignItems: 'center', gap: 4 }}>
+            <Feather name={seekFlash.side === 'back' ? 'rotate-ccw' : 'rotate-cw'} size={28} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{seekFlash.total > 0 ? `+${seekFlash.total}` : `−${Math.abs(seekFlash.total)}`}</Text>
           </View>
         </View>
       )}
@@ -490,9 +512,9 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
               <IconButton name="message-square" label={t('player.tracks')} onPress={() => setMenu(true)} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 40 }}>
-              <IconButton name="rotate-ccw" label={t('player.back10')} onPress={() => seekTo(position - 10)} size={30} />
+              <IconButton name="rotate-ccw" label={t('player.backSeconds', { n: seekStep })} onPress={() => seekBy('back')} size={30} />
               {loading ? <ActivityIndicator color="#fff" size="large" /> : <IconButton name={playing ? 'pause' : ended ? 'rotate-cw' : 'play'} label={playing ? t('player.pause') : t('player.play')} onPress={toggle} size={44} />}
-              <IconButton name="rotate-cw" label={t('player.forward10')} onPress={() => seekTo(position + 10)} size={30} />
+              <IconButton name="rotate-cw" label={t('player.forwardSeconds', { n: seekStep })} onPress={() => seekBy('forward')} size={30} />
             </View>
             <View style={{ gap: 4 }}>
               <SeekBar position={position} duration={duration} onScrub={setScrub} onSeek={seekTo} label={t('player.seek')} />
@@ -505,13 +527,13 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
         )}
       </Pressable>
       {/* Skip intro / credits: visible with or without the controls, above them. */}
-      {skip?.mode === 'ask' && !showNext && (
+      {askSkip && !showNext && (
         <View style={{ position: 'absolute', right: 24 + insets.right, bottom: (controls ? 110 : 32) + insets.bottom }}>
           <Button
-            label={skip.kind === 'intro' ? t('player.skipIntro') : t('player.skipCredits')}
+            label={askSkip.kind === 'recap' ? t('player.skipRecap') : askSkip.kind === 'intro' ? t('player.skipIntro') : t('player.skipCredits')}
             onPress={() => {
-              if (skip.kind === 'credits' && skip.toNext && item.next) goNext();
-              else seekTo(skip.to);
+              if (askSkip.kind === 'credits' && askSkip.toNext && item.next) goNext();
+              else seekTo(askSkip.to);
             }}
           />
         </View>
@@ -561,6 +583,17 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
               {(answer?.subtitles ?? []).map((s) => (
                 <Choice key={s.key} label={[s.languageName || s.label, s.title && s.title !== s.languageName ? s.title : null, s.forced ? 'Forced' : null].filter(Boolean).join(' · ')} selected={subtitle?.key === s.key} onPress={() => chooseSubtitle(s)} />
               ))}
+              <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('player.seekStep')}</Text>
+              <Segmented
+                label={t('player.seekStepHint')}
+                value={String(seekStep)}
+                onChange={(v) => {
+                  const step = Number(v) as SeekStep;
+                  setSeekStep(step);
+                  void storeSeekStep(step);
+                }}
+                options={SEEK_STEPS.map((s) => [String(s), `${s} s`] as [string, string])}
+              />
               <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('subtitleStyle.title')}</Text>
               <Segmented label={t('subtitleStyle.size')} value={subStyle.size} onChange={(v) => changeStyle({ size: v })} options={[['small', 'S'], ['medium', 'M'], ['large', 'L'], ['xlarge', 'XL']]} />
               <Segmented label={t('subtitleStyle.color')} value={subStyle.color} onChange={(v) => changeStyle({ color: v })} options={[['white', t('subtitleStyle.white')], ['yellow', t('subtitleStyle.yellow')]]} />

@@ -8,6 +8,7 @@ import { Button } from '../../components/Button';
 import { ErrorState, PageLoader } from '../../components/States';
 import { toast } from '../../components/Toast';
 import { useT } from '../../i18n';
+import { SeerrSettings } from './SeerrSettings';
 
 /** Server name/URL and TMDB configuration. The TMDB key is write-only: the API never returns it. */
 export function ServerSettingsPanel() {
@@ -192,6 +193,7 @@ export function ServerSettingsPanel() {
       </section>
 
       <OnlineSubtitlesSettings />
+      <SeerrSettings />
     </div>
   );
 }

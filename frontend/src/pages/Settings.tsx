@@ -5,7 +5,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import type { LanguagePreferences, SkipMode, SubtitleMode } from '../lib/player';
 import { api, errorMessage } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
-import { setPrefs, usePrefs } from '../lib/prefs';
+import { SEEK_STEPS, setPrefs, usePrefs, type SeekStep } from '../lib/prefs';
 import { subtitleLineStyle } from '../lib/subtitles';
 import { detectCapabilities } from '../lib/codecs';
 import type { DeviceFormat, DeviceReport, HistoryEntry, User } from '../lib/types';
@@ -301,7 +301,7 @@ export function SkipSettings() {
     onError: (err) => toast.error(err),
   });
   const p = q.data;
-  const row = (id: string, label: string, hint: string, value: SkipMode, key: 'skipIntro' | 'skipCredits') => (
+  const row = (id: string, label: string, hint: string, value: SkipMode, key: 'skipRecap' | 'skipIntro' | 'skipCredits') => (
     <div className="flex flex-wrap items-center justify-between gap-3 py-3">
       <label htmlFor={id}>
         {label}
@@ -317,6 +317,7 @@ export function SkipSettings() {
   return (
     <Section title={t('settings.skip.title')} description={t('settings.skip.description')}>
       <div className="divide-y divide-line/50">
+        {row('pref-skip-recap', t('settings.skip.recaps'), t('settings.skip.recapsHint'), p?.skipRecap ?? p?.skipIntro ?? 'ask', 'skipRecap')}
         {row('pref-skip-intro', t('settings.skip.intros'), t('settings.skip.introsHint'), p?.skipIntro ?? 'ask', 'skipIntro')}
         {row('pref-skip-credits', t('settings.skip.credits'), t('settings.skip.creditsHint'), p?.skipCredits ?? 'ask', 'skipCredits')}
       </div>
@@ -338,6 +339,17 @@ function PlaybackSettings() {
             <span>{t('settings.playback.countdown')}</span>
             <select className="input w-28" value={prefs.autoplayCountdown} onChange={(e) => setPrefs({ autoplayCountdown: Number(e.target.value) })} disabled={!prefs.autoplayNext}>
               {[5, 10, 15, 20, 30].map((s) => (
+                <option key={s} value={s}>{t('time.seconds', { n: s })}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center justify-between gap-6 py-3">
+            <label htmlFor="seek-step">
+              {t('settings.playback.seekStep')}
+              <span className="block text-sm text-muted">{t('settings.playback.seekStepHint')}</span>
+            </label>
+            <select id="seek-step" className="input w-28" value={prefs.seekStep} onChange={(e) => setPrefs({ seekStep: Number(e.target.value) as SeekStep })}>
+              {SEEK_STEPS.map((s) => (
                 <option key={s} value={s}>{t('time.seconds', { n: s })}</option>
               ))}
             </select>

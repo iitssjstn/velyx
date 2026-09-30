@@ -8,6 +8,7 @@ export const nav: Messages['nav'] = {
   watchlist: 'Kijklijst',
   favorites: 'Favorieten',
   settings: 'Instellingen',
+  requests: 'Aanvragen',
   admin: 'Beheer',
   searchVidalune: 'Zoeken in Vidalune',
   servers: 'Servers',

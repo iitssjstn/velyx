@@ -7,6 +7,7 @@ export interface Chapter {
 }
 
 export interface ChapterSegments {
+  recap: { start: number; end: number } | null;
   intro: { start: number; end: number } | null;
   credits: { start: number; end: number } | null;
   postCredits: { start: number; end: number } | null;
@@ -14,17 +15,19 @@ export interface ChapterSegments {
 
 const INTRO = /^(intro|introduction|opening|opening (credits|titles|theme)|title sequence|main titles|op)$/i;
 const CREDITS = /^(credits|end credits|closing credits|ending( credits)?|end titles|closing|outro|ed)$/i;
+const RECAP = /^(recap|previously( on.*)?|previously|last time( on.*)?|terugblik|eerder( in| bij)?.*)$/i;
 const POST = /(post|after|mid)[ -]?credits?|stinger|end scene|bonus scene/i;
 
 const clean = (title: string) => title.replace(/^\s*(chapter\s*)?\d+\s*[-.:]\s*/i, '').trim();
 
 export function chapterSegments(chapters: Chapter[], duration: number): ChapterSegments {
-  const out: ChapterSegments = { intro: null, credits: null, postCredits: null };
+  const out: ChapterSegments = { recap: null, intro: null, credits: null, postCredits: null };
   for (const c of chapters) {
     const title = clean(c.title);
     if (!title || c.end <= c.start) continue;
     const span = { start: c.start, end: Math.min(c.end, duration) };
     if (POST.test(title)) out.postCredits ??= span;
+    else if (RECAP.test(title) && c.start < duration * 0.3) out.recap ??= span;
     else if (INTRO.test(title) && c.start < duration * 0.5) out.intro ??= span;
     else if (CREDITS.test(title) && c.start > duration * 0.5) out.credits = span;
   }

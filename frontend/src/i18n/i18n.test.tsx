@@ -29,6 +29,7 @@ const SAME_IN_DUTCH = new Set([
   'mediaInfo.media', 'home.details', 'home.greeting', 'browse.genre', 'browse.filtersTitle', 'smart.builtIn.hdr', 'admin.tabs.dashboard',
   'admin.tabs.metadata', 'admin.tabs.server', 'dashboard.scanner', 'dashboard.phase.metadata', 'dashboard.database', 'dashboard.cpuVidalune',
   'dashboard.runtime', 'server.status', 'audit.groups.tmdb', 'segments.intro',
+  'requests.minutes', 'requests.admin.urlPlaceholder',
   'onlineSubs.hearingImpaired', 'onlineSubs.downloads.one', 'onlineSubs.downloads.other', 'onlineSubs.tag', 'link.code', 'playback.bitrate',
 ]);
 

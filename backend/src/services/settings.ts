@@ -135,6 +135,8 @@ export interface ServerSettings {
   homeNetworks: string[];
   /** Open a port on the router with UPnP (opt-in), and which one outside. */
   upnp: { enabled: boolean; externalPort: number };
+  /** Seerr (optional): its address and API key; empty = not used. The key never leaves the server. */
+  seerr: { url: string; apiKey: string };
 }
 
 const DEFAULTS: ServerSettings = {
@@ -166,6 +168,7 @@ const DEFAULTS: ServerSettings = {
   cloud: null,
   homeNetworks: [],
   upnp: { enabled: false, externalPort: 3000 },
+  seerr: { url: '', apiKey: '' },
 };
 
 export class SettingsService {

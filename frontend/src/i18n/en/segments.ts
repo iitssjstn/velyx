@@ -42,6 +42,7 @@ export const segments = {
   editHint: 'Times as minutes:seconds. Leave both fields empty for “none”. A post-credits scene is never skipped.',
   editHintLength: 'Times as minutes:seconds (the episode is {length} long). Leave both fields empty for “none”. A post-credits scene is never skipped.',
   intro: 'Intro',
+  recap: 'Recap',
   credits: 'Credits',
   postCredits: 'Post-credits',
   queuedAgain: {
@@ -72,6 +73,7 @@ export const segments = {
   stats: {
     analysed: 'Analysed',
     intros: 'Intros found',
+    recaps: 'Recaps found',
     credits: 'Credits found',
     waiting: 'Waiting',
     errors: 'Errors',

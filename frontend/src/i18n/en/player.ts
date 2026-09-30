@@ -29,6 +29,10 @@ export const player = {
   },
   introSkipped: 'Intro skipped',
   creditsSkipped: 'Credits skipped',
+  recapSkipped: 'Recap skipped',
+  skipRecap: 'Skip recap',
+  backSeconds: 'Back {seconds} seconds (←)',
+  forwardSeconds: 'Forward {seconds} seconds (→)',
   errors: {
     interrupted: 'The connection to the server was interrupted.',
     cannotPlay: 'Your browser cannot play this file: {reasons}.',

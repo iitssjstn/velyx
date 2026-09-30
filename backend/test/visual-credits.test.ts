@@ -80,8 +80,9 @@ describe('chapters', () => {
       { start_time: '2500', end_time: '2580', tags: { title: 'End Credits' } },
       { start_time: '2580', end_time: '2640', tags: { title: 'Post-credits scene' } },
     ] }));
-    expect(chapterSegments(chapters, 2640)).toEqual({ intro: { start: 62.5, end: 120 }, credits: { start: 2500, end: 2580 }, postCredits: { start: 2580, end: 2640 } });
-    expect(chapterSegments(parseChapters('{"chapters":[{"start_time":"0","end_time":"600","tags":{"title":"Chapter 1"}}]}'), 2640)).toEqual({ intro: null, credits: null, postCredits: null });
+    // "Previously" is the recap.
+    expect(chapterSegments(chapters, 2640)).toEqual({ recap: { start: 0, end: 62.5 }, intro: { start: 62.5, end: 120 }, credits: { start: 2500, end: 2580 }, postCredits: { start: 2580, end: 2640 } });
+    expect(chapterSegments(parseChapters('{"chapters":[{"start_time":"0","end_time":"600","tags":{"title":"Chapter 1"}}]}'), 2640)).toEqual({ recap: null, intro: null, credits: null, postCredits: null });
     expect(parseChapters('not json')).toEqual([]);
   });
 });
@@ -105,7 +106,7 @@ describe('choosing between sources', () => {
     const byPicture = detectEpisode({ ...a, visual }, [b], { intro: [], credits: [] });
     expect(byPicture.credits).toMatchObject({ start: visual.start, source: 'video', confidence: 'high' });
     expect(byPicture.intro?.source).toBe('audio');
-    const chapters = { intro: { start: 19, end: 50 }, credits: { start: a.duration - 42, end: a.duration }, postCredits: null };
+    const chapters = { recap: null, intro: { start: 19, end: 50 }, credits: { start: a.duration - 42, end: a.duration }, postCredits: null };
     const byChapters = detectEpisode({ ...a, visual, chapters }, [b], { intro: [], credits: [] });
     expect(byChapters.intro).toMatchObject({ start: 19, end: 50, source: 'chapters', confidence: 'high' });
     expect(byChapters.credits).toMatchObject({ start: Math.round((a.duration - 42) * 10) / 10, source: 'chapters' });

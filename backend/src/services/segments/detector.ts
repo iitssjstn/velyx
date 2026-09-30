@@ -1,14 +1,14 @@
 import os from 'node:os';
 import { spawn } from 'node:child_process';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { DB } from '../../db/client.js';
-import { episodes, episodeSegments, libraries, mediaFiles, segmentReferences, shows } from '../../db/schema.js';
+import { episodes, episodeSegments, libraries, mediaFiles, segmentFingerprints, segmentReferences, shows } from '../../db/schema.js';
 import { createLogger } from '../../logger.js';
 import { fingerprint, longestCommonSegment, SAMPLE_RATE, type Fingerprint } from './fingerprint.js';
 import { DETECTION_VERSION, detectSeason, headWindow, tailWindow, type Detection, type EpisodeAudio } from './detect.js';
 import { diagnoseSeason, type SeasonDiagnosis } from './diagnose.js';
-import { chapterSegments } from './chapters.js';
-import { findCredits, refineStart } from './visual.js';
+import { chapterSegments, type ChapterSegments } from './chapters.js';
+import { findCredits, refineStart, type VisualCredits } from './visual.js';
 import type { ChapterReader, FrameReader } from './readers.js';
 
 const log = createLogger('segments');
@@ -54,8 +54,13 @@ export interface DetectorHooks {
   enabled: () => boolean;
   /** Also look at the picture for end credits (decodes keyframes of the last minutes). */
   video?: () => boolean;
-  /** Someone is watching or a scan runs: detection waits (it never competes with either). */
+  /**
+   * Detection waits while this says so: a scan runs, or people are watching and the machine is
+   * busy. Watching alone does not stop it: it then goes slower (see `pace`).
+   */
   busy: () => 'playback' | 'scan' | null;
+  /** A pause (ms) after each file read, so playback always comes first (e.g. while someone watches). */
+  pace?: () => number;
   /** How often a waiting job looks again (default 30 s). */
   retryMs?: number;
 }
@@ -73,7 +78,7 @@ export interface DetectorStatus {
   waitingFor: 'playback' | 'scan' | null;
   running: { showId: number; showTitle: string; seasonNumber: number; done: number; total: number } | null;
   queuedSeasons: number;
-  counts: { episodes: number; analyzed: number; intros: number; credits: number; pending: number; errors: number; manual: number; lowConfidence: number };
+  counts: { episodes: number; analyzed: number; recaps: number; intros: number; credits: number; pending: number; errors: number; manual: number; lowConfidence: number };
   version: number;
 }
 
@@ -89,6 +94,11 @@ interface EpisodeFile {
 }
 
 const MAX_REFERENCES = 3;
+/** Format of the stored fingerprints (bump when the fingerprint itself changes). */
+const FINGERPRINT_VERSION = 1;
+
+const toWords = (buf: Buffer): Fingerprint => ({ words: new Uint32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)) });
+const toBlob = (fp: Fingerprint) => Buffer.from(fp.words.buffer, fp.words.byteOffset, fp.words.byteLength);
 
 /**
  * Finds intros and credits in the background, one season at a time. It only reads audio (a few
@@ -261,6 +271,7 @@ export class SegmentDetector {
       counts: {
         episodes: files.length,
         analyzed: current.filter((r) => r.status === 'analyzed').length,
+        recaps: current.filter((r) => r.recapStart !== null && usable(r.recapConfidence, r.manual)).length,
         intros: current.filter((r) => r.introStart !== null && usable(r.introConfidence, r.manual)).length,
         credits: current.filter((r) => r.creditsStart !== null && usable(r.creditsConfidence, r.manual)).length,
         pending: this.pending(files).length,
@@ -357,13 +368,19 @@ export class SegmentDetector {
     this.running = { showId: job.showId, showTitle: title, seasonNumber: job.seasonNumber, done: 0, total: order.length };
     log.info(`Looking for intros and credits: ${title} season ${job.seasonNumber} (${pendingIds.size} episode${pendingIds.size === 1 ? '' : 's'})`);
 
+    // Whole episodes are read for the one or two before each episode analysed (their recap clips).
+    const wholeIds = new Set<number>();
+    for (const id of pendingIds) {
+      const i = indexOf.get(id)!;
+      for (const k of [i - 1, i - 2]) if (files[k]) wholeIds.add(files[k].episodeId);
+    }
     const audio: EpisodeAudio[] = [];
     const failed = new Map<number, string>();
     for (const i of order) {
       if (!(await this.gate())) return;
       const f = files[i];
       try {
-        audio.push(await this.readEpisode(f));
+        audio.push(await this.readEpisode(f, wholeIds.has(f.episodeId)));
       } catch (err) {
         failed.set(f.episodeId, ((err as Error).message || 'Could not read the audio').slice(0, 500));
       }
@@ -372,7 +389,22 @@ export class SegmentDetector {
     if (this.stopped) return;
 
     const refs = this.references(job.showId, job.seasonNumber);
-    const results = detectSeason(audio, refs, pendingIds);
+    const known = new Map(
+      this.db
+        .select()
+        .from(episodeSegments)
+        .where(inArray(episodeSegments.episodeId, files.map((f) => f.episodeId)))
+        .all()
+        .map((r) => [
+          r.episodeId,
+          {
+            intro: r.introStart !== null && r.introEnd !== null ? { start: r.introStart, end: r.introEnd, confidence: r.introConfidence ?? 'low', source: 'audio' as const } : null,
+            credits: r.creditsStart !== null && r.creditsEnd !== null ? { start: r.creditsStart, end: r.creditsEnd, confidence: r.creditsConfidence ?? 'low', source: 'audio' as const } : null,
+            recap: r.recapStart !== null && r.recapEnd !== null ? { start: r.recapStart, end: r.recapEnd, confidence: r.recapConfidence ?? 'low', source: 'audio' as const } : null,
+          },
+        ]),
+    );
+    const results = detectSeason(audio, refs, pendingIds, known);
     const byId = new Map(files.map((f) => [f.episodeId, f]));
     const now = Date.now();
     for (const id of pendingIds) {
@@ -383,8 +415,15 @@ export class SegmentDetector {
       else this.store(f, d, null, now);
     }
     this.learnReferences(job, audio, results);
+    // The whole-episode fingerprints are kept only for the season's last episode (its successor may come later).
+    const last = files[files.length - 1]?.episodeId ?? -1;
+    this.db
+      .update(segmentFingerprints)
+      .set({ full: null })
+      .where(and(inArray(segmentFingerprints.episodeId, files.map((f) => f.episodeId)), sql`${segmentFingerprints.episodeId} <> ${last}`))
+      .run();
     const found = [...results.values()];
-    log.info(`${title} season ${job.seasonNumber}: ${found.filter((d) => d.intro && d.intro.confidence !== 'low').length} intro(s), ${found.filter((d) => d.credits && d.credits.confidence !== 'low').length} credits found`);
+    log.info(`${title} season ${job.seasonNumber}: ${found.filter((d) => d.recap && d.recap.confidence !== 'low').length} recap(s), ${found.filter((d) => d.intro && d.intro.confidence !== 'low').length} intro(s), ${found.filter((d) => d.credits && d.credits.confidence !== 'low').length} credits found`);
   }
 
   /**
@@ -422,16 +461,48 @@ export class SegmentDetector {
     );
   }
 
-  private async readEpisode(f: EpisodeFile): Promise<EpisodeAudio> {
+  /**
+   * An episode's fingerprints and what else was found in its file: from the cache when this same
+   * file was read before, otherwise read now (and cached, so an interrupted run continues here).
+   * `whole`: also the whole episode (a later episode may quote it in its recap).
+   */
+  private async readEpisode(f: EpisodeFile, whole = false): Promise<EpisodeAudio> {
     const head = headWindow(f.duration);
     const tail = tailWindow(f.duration);
-    const headPcm = await this.readAudio(f.path, head.start, head.end - head.start);
-    if (!(await this.gate())) throw new Error('Stopped');
-    const tailPcm = await this.readAudio(f.path, tail.start, tail.end - tail.start);
+    const cached = this.db.select().from(segmentFingerprints).where(eq(segmentFingerprints.episodeId, f.episodeId)).get();
+    if (cached && cached.mediaFileId === f.fileId && cached.fileSize === f.size && cached.version === FINGERPRINT_VERSION && (!whole || cached.full)) {
+      const extras = cached.extras ? (JSON.parse(cached.extras) as { chapters: ChapterSegments | null; visual: VisualCredits | null }) : { chapters: null, visual: null };
+      return { id: f.episodeId, duration: f.duration, head: toWords(cached.head), tail: toWords(cached.tail), tailStart: cached.tailStart, chapters: extras.chapters, visual: extras.visual, full: cached.full ? toWords(cached.full) : null };
+    }
+    let headPcm: Int16Array;
+    let tailPcm: Int16Array;
+    let full: Fingerprint | null = null;
+    if (whole) {
+      // One read of the whole audio gives the opening and closing parts too.
+      const pcm = await this.readAudio(f.path, 0, f.duration);
+      headPcm = pcm.subarray(0, Math.round(head.end * SAMPLE_RATE));
+      tailPcm = pcm.subarray(Math.round(tail.start * SAMPLE_RATE), Math.round(tail.end * SAMPLE_RATE));
+      full = fingerprint(pcm);
+    } else {
+      headPcm = await this.readAudio(f.path, head.start, head.end - head.start);
+      await this.rest();
+      if (!(await this.gate())) throw new Error('Stopped');
+      tailPcm = await this.readAudio(f.path, tail.start, tail.end - tail.start);
+    }
+    await this.rest();
     if (headPcm.length < SAMPLE_RATE * 5 || tailPcm.length < SAMPLE_RATE * 5) throw new Error('The file has no readable audio');
     const chapters = this.readers.chapters ? chapterSegments(await this.readers.chapters(f.path).catch(() => []), f.duration) : null;
     const visual = await this.readVisualCredits(f, tail.start);
-    return { id: f.episodeId, duration: f.duration, head: fingerprint(headPcm), tail: fingerprint(tailPcm), tailStart: tail.start, chapters, visual };
+    const out: EpisodeAudio = { id: f.episodeId, duration: f.duration, head: fingerprint(headPcm), tail: fingerprint(tailPcm), tailStart: tail.start, chapters, visual, full };
+    const row = { episodeId: f.episodeId, mediaFileId: f.fileId, fileSize: f.size, version: FINGERPRINT_VERSION, head: toBlob(out.head), tail: toBlob(out.tail), tailStart: tail.start, full: full ? toBlob(full) : null, extras: JSON.stringify({ chapters, visual }), createdAt: Date.now() };
+    this.db.insert(segmentFingerprints).values(row).onConflictDoUpdate({ target: segmentFingerprints.episodeId, set: row }).run();
+    return out;
+  }
+
+  /** A short pause between reads while someone watches, so their stream always comes first. */
+  private async rest(): Promise<void> {
+    const ms = this.hooks.pace?.() ?? 0;
+    if (ms > 0) await new Promise((r) => setTimeout(r, ms).unref?.());
   }
 
   /**
@@ -460,6 +531,10 @@ export class SegmentDetector {
       episodeId: f.episodeId,
       mediaFileId: f.fileId,
       fileSize: f.size,
+      recapStart: d?.recap?.start ?? null,
+      recapEnd: d?.recap?.end ?? null,
+      recapConfidence: d?.recap?.confidence ?? null,
+      recapSource: d?.recap?.source ?? null,
       introStart: d?.intro?.start ?? null,
       introEnd: d?.intro?.end ?? null,
       introConfidence: d?.intro?.confidence ?? null,
@@ -487,8 +562,7 @@ export class SegmentDetector {
       .from(segmentReferences)
       .where(and(eq(segmentReferences.showId, showId), eq(segmentReferences.seasonNumber, seasonNumber), eq(segmentReferences.version, DETECTION_VERSION)))
       .all();
-    const toFp = (buf: Buffer): Fingerprint => ({ words: new Uint32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)) });
-    return { intro: rows.filter((r) => r.kind === 'intro').map((r) => toFp(r.words)), credits: rows.filter((r) => r.kind === 'credits').map((r) => toFp(r.words)) };
+    return { intro: rows.filter((r) => r.kind === 'intro').map((r) => toWords(r.words)), credits: rows.filter((r) => r.kind === 'credits').map((r) => toWords(r.words)) };
   }
 
   /**

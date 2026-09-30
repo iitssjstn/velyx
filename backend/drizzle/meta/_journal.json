@@ -155,6 +155,20 @@
       "when": 1790564905253,
       "tag": "0021_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1790748316206,
+      "tag": "0022_recap_fingerprints",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1790749374931,
+      "tag": "0023_seerr_requests",
+      "breakpoints": true
     }
   ]
 }

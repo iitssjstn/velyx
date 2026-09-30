@@ -12,6 +12,7 @@ import { MoviePage } from './pages/MovieDetail';
 import { ShowPage } from './pages/ShowDetail';
 import { FavoritesPage, WatchlistPage } from './pages/Favorites';
 import { SearchPage } from './pages/Search';
+import { RequestsPage } from './pages/Requests';
 import { SettingsPage } from './pages/Settings';
 import { NotFoundPage } from './pages/NotFound';
 import { CollectionPage, CollectionsPage } from './pages/Collections';
@@ -75,6 +76,7 @@ export function App() {
           <Route path="/watchlist" element={<WatchlistPage />} />
           <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/search" element={<SearchPage />} />
+          <Route path="/requests" element={<RequestsPage />} />
           <Route path="/link" element={<LinkDevicePage />} />
           <Route path="/settings/*" element={<SettingsPage />} />
           <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />

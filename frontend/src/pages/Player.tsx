@@ -27,7 +27,7 @@ import { api, ApiError, errorMessage } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
 import { getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
-import { creditsPlaying, initialSubtitle, isTyping, preferredAudioIndex, skipAt, startPosition, subtitleName, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type SkipAction } from '../lib/player';
+import { addSeek, creditsPlaying, initialSubtitle, isTyping, preferredAudioIndex, SEEK_COMBINE_MS, skipAt, startPosition, subtitleName, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type PendingSeek, type SkipAction } from '../lib/player';
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo, SubtitleOption } from '../lib/types';
 import { defaultOnlineLanguage } from '../lib/online-subtitles';
 import { OnlineSubtitles } from '../components/OnlineSubtitles';
@@ -214,7 +214,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // Parts skipped automatically in this playback (each only once, so seeking back replays them),
   // and the short "Skipped" notice with a way back.
   const autoSkipped = useRef(new Set<string>());
-  const [skipNotice, setSkipNotice] = useState<{ kind: 'intro' | 'credits'; back: number } | null>(null);
+  const [skipNotice, setSkipNotice] = useState<{ kind: 'recap' | 'intro' | 'credits'; back: number } | null>(null);
   const [audioTracks, setAudioTracks] = useState<BrowserAudioTrack[]>([]);
   const [seekHover, setSeekHover] = useState<{ x: number; w: number; t: number } | null>(null);
   // The stream to load: `base` is the decision's URL. Live (restart) streams are requested with
@@ -334,7 +334,28 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     else v.pause();
   }, []);
 
-  const seekBy = useCallback((delta: number) => seekTo(currentTime() + delta), [seekTo, currentTime]);
+  // Quick presses add up ("+30"); a converted stream restarts once, after the last press.
+  const pendingSeek = useRef<PendingSeek | null>(null);
+  const seekTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [seekFlash, setSeekFlash] = useState<{ total: number; at: number } | null>(null);
+  const seekBy = useCallback(
+    (delta: number) => {
+      const p = addSeek(pendingSeek.current, Date.now(), currentTime(), delta, totalDuration || videoRef.current?.duration || 0);
+      pendingSeek.current = p;
+      setSeekFlash({ total: p.total, at: p.at });
+      clearTimeout(seekTimer.current);
+      if (live) seekTimer.current = setTimeout(() => seekTo(p.target), 450);
+      else seekTo(p.target);
+    },
+    [seekTo, currentTime, totalDuration, live],
+  );
+  useEffect(() => () => clearTimeout(seekTimer.current), []);
+  useEffect(() => {
+    if (!seekFlash) return;
+    const t = setTimeout(() => setSeekFlash(null), SEEK_COMBINE_MS);
+    return () => clearTimeout(t);
+  }, [seekFlash]);
+  const seekStep = prefs.seekStep;
 
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
@@ -651,8 +672,10 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   }, [nearEnd, upNextDismissed, next, ended]);
 
   // ---------------------------------------------------------------- skip intro / credits
-  const skipModes = { intro: accountPrefs.data?.skipIntro ?? 'ask', credits: accountPrefs.data?.skipCredits ?? 'ask' };
+  const skipModes = { recap: accountPrefs.data?.skipRecap ?? accountPrefs.data?.skipIntro ?? 'ask', intro: accountPrefs.data?.skipIntro ?? 'ask', credits: accountPrefs.data?.skipCredits ?? 'ask' };
   const skip = streamSrc && !askResume && !error ? skipAt(item.data?.segments, file?.id, time, skipModes) : null;
+  // Skipped automatically once, then watched again (seeked back into it): offer the button instead.
+  const askSkip = skip && (skip.mode === 'ask' || autoSkipped.current.has(skip.kind)) ? skip : null;
   const doSkip = useCallback(
     (s: SkipAction, automatic: boolean) => {
       // Always skipping credits that end the episode: straight on to the next one when autoplay is on.
@@ -734,12 +757,12 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         case 'ArrowLeft':
         case 'j':
           e.preventDefault();
-          seekBy(-10);
+          seekBy(-seekStep);
           break;
         case 'ArrowRight':
         case 'l':
           e.preventDefault();
-          seekBy(10);
+          seekBy(seekStep);
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -790,7 +813,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [mini, poke, togglePlay, seekBy, seekTo, applyVolume, toggleFullscreen, minimize, chooseSubtitle, goNext, exit, subs, subKey, next, menu, showHelp, volume, muted, totalDuration, skip, doSkip]);
+  }, [mini, poke, togglePlay, seekBy, seekStep, seekTo, applyVolume, toggleFullscreen, minimize, chooseSubtitle, goNext, exit, subs, subKey, next, menu, showHelp, volume, muted, totalDuration, skip, doSkip]);
 
 
   // ---------------------------------------------------------------- render
@@ -965,21 +988,26 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       )}
 
       {/* Skip intro / credits: bottom right, clear of centred subtitles; shown while the part plays. */}
-      {!mini && skip && skip.mode === 'ask' && !showUpNext && !showUnavailable && (
+      {!mini && seekFlash && (
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center" aria-live="polite">
+          <span className="rounded-full bg-black/60 px-5 py-2 font-display text-2xl font-semibold tabular-nums backdrop-blur sm:text-3xl">{seekFlash.total > 0 ? `+${seekFlash.total}` : `−${Math.abs(seekFlash.total)}`}</span>
+        </div>
+      )}
+      {!mini && askSkip && !showUpNext && !showUnavailable && (
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            doSkip(skip, false);
+            doSkip(askSkip, false);
           }}
           className="absolute right-4 bottom-40 z-20 sm:right-8 flex h-11 items-center gap-2 rounded-lg border border-white/25 bg-black/70 px-4 font-semibold backdrop-blur sm:h-14 sm:px-6 sm:text-lg transition hover:bg-white hover:text-black"
         >
-          <SkipForward className="size-4" /> {skip.kind === 'intro' ? t('player.skipIntro') : t('player.skipCredits')}
+          <SkipForward className="size-4" /> {askSkip.kind === 'recap' ? t('player.skipRecap') : askSkip.kind === 'intro' ? t('player.skipIntro') : t('player.skipCredits')}
         </button>
       )}
       {!mini && skipNotice && !showUpNext && (
         <div className="absolute right-4 bottom-40 z-20 sm:right-8 flex items-center gap-3 rounded-lg bg-black/70 px-4 py-2.5 text-sm backdrop-blur" role="status">
-          <span>{skipNotice.kind === 'intro' ? t('player.introSkipped') : t('player.creditsSkipped')}</span>
+          <span>{skipNotice.kind === 'recap' ? t('player.recapSkipped') : skipNotice.kind === 'intro' ? t('player.introSkipped') : t('player.creditsSkipped')}</span>
           <button
             type="button"
             onClick={() => {
@@ -1121,11 +1149,13 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           <button type="button" onClick={togglePlay} className="grid size-11 place-items-center rounded-full hover:bg-white/10 sm:size-14" aria-label={playing ? t('player.pause') : t('player.play')}>
             {playing ? <Pause className="size-6 fill-current sm:size-9" /> : <Play className="size-6 fill-current sm:size-9" />}
           </button>
-          <button type="button" onClick={() => seekBy(-10)} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={t('player.shortcuts.back')} title={t('player.backTitle')}>
+          <button type="button" onClick={() => seekBy(-seekStep)} className="relative grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={t('player.backSeconds', { seconds: seekStep })} title={t('player.backSeconds', { seconds: seekStep })}>
             <RotateCcw className="size-5 sm:size-7" />
+            <span className="pointer-events-none absolute text-[9px] font-semibold sm:text-[10px]" aria-hidden="true">{seekStep}</span>
           </button>
-          <button type="button" onClick={() => seekBy(10)} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={t('player.shortcuts.forward')} title={t('player.forwardTitle')}>
+          <button type="button" onClick={() => seekBy(seekStep)} className="relative grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={t('player.forwardSeconds', { seconds: seekStep })} title={t('player.forwardSeconds', { seconds: seekStep })}>
             <RotateCw className="size-5 sm:size-7" />
+            <span className="pointer-events-none absolute text-[9px] font-semibold sm:text-[10px]" aria-hidden="true">{seekStep}</span>
           </button>
           <div className="group/vol hidden items-center sm:flex">
             <button type="button" onClick={() => applyVolume(volume, !muted)} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={muted ? t('player.unmute') : t('player.shortcuts.mute')}>

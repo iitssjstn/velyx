@@ -264,3 +264,76 @@ export function soundRatio(fp: Fingerprint, start: number, end: number): number 
   for (let i = s; i < e; i++) if (fp.words[i] !== 0) n++;
   return n / (e - s);
 }
+
+export interface Fragment {
+  /** Frame range (end exclusive) in the query. */
+  start: number;
+  end: number;
+  /** Where it was found in the reference (frame of `start`). */
+  refStart: number;
+}
+
+/**
+ * Short pieces of the query that also occur somewhere in the reference, each at its own offset
+ * (the clips of a "previously on" come from all over an earlier episode). The query is cut into
+ * windows of about two seconds; each is compared with every position in the reference, and a
+ * window counts when its mean bit difference is well below that of unrelated audio. Neighbouring
+ * windows found at the same offset are joined into one fragment.
+ */
+export function matchFragments(query: Fingerprint, ref: Fingerprint, opts: { window?: number; step?: number; maxMeanBits?: number; minWindows?: number; skip?: (refFrame: number) => boolean } = {}): Fragment[] {
+  const Q = query.words;
+  const R = ref.words;
+  const W = opts.window ?? 22;
+  const step = opts.step ?? 11;
+  const maxMean = opts.maxMeanBits ?? 10.5;
+  const minWindows = opts.minWindows ?? 3;
+  const found: Array<{ q: number; r: number }> = [];
+  for (let q = 0; q + W <= Q.length; q += step) {
+    let silent = 0;
+    for (let k = 0; k < W; k++) if (Q[q + k] === 0) silent++;
+    if (silent > W / 3) continue;
+    let best = Number.POSITIVE_INFINITY;
+    let bestR = -1;
+    for (let r = 0; r + W <= R.length; r++) {
+      let sum = 0;
+      let miss = 0;
+      for (let k = 0; k < W; k++) {
+        const x = Q[q + k];
+        const y = R[r + k];
+        if (x === 0 || y === 0) {
+          if (++miss > W / 3) break;
+          continue;
+        }
+        sum += popcount((x ^ y) >>> 0);
+        // Already worse than the best so far: stop early.
+        if (sum > best * (W - miss) + 1) break;
+      }
+      if (miss > W / 3) continue;
+      const mean = sum / Math.max(1, W - miss);
+      if (mean < best) {
+        best = mean;
+        bestR = r;
+      }
+    }
+    if (bestR >= 0 && best <= maxMean && !opts.skip?.(bestR)) found.push({ q, r: bestR });
+  }
+  // Join windows that continue at the same offset (within two frames).
+  const out: Fragment[] = [];
+  let run: { start: number; end: number; refStart: number; offset: number; windows: number } | null = null;
+  const close = () => {
+    if (run && run.windows >= minWindows) out.push({ start: run.start, end: run.end, refStart: run.refStart });
+    run = null;
+  };
+  for (const f of found) {
+    const offset = f.r - f.q;
+    if (run && f.q <= run.end && Math.abs(offset - run.offset) <= 2) {
+      run.end = f.q + W;
+      run.windows++;
+    } else {
+      close();
+      run = { start: f.q, end: f.q + W, refStart: f.r, offset, windows: 1 };
+    }
+  }
+  close();
+  return out;
+}

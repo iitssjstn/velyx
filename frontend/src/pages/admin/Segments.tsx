@@ -18,12 +18,12 @@ export interface SegmentStatus {
   waitingFor: 'playback' | 'scan' | null;
   running: { showId: number; showTitle: string; seasonNumber: number; done: number; total: number } | null;
   queuedSeasons: number;
-  counts: { episodes: number; analyzed: number; intros: number; credits: number; pending: number; errors: number; manual: number; lowConfidence: number };
+  counts: { episodes: number; analyzed: number; recaps?: number; intros: number; credits: number; pending: number; errors: number; manual: number; lowConfidence: number };
 }
 
 export interface SegmentOverview {
   status: SegmentStatus;
-  shows: { id: number; title: string; episodes: number; analyzed: number; intros: number; credits: number; errors: number; manual: number; low: number }[];
+  shows: { id: number; title: string; episodes: number; analyzed: number; recaps?: number; intros: number; credits: number; errors: number; manual: number; low: number }[];
   errors: { episodeId: number; error: string | null; detectedAt: number; showId: number; showTitle: string; seasonNumber: number; episodeNumber: number }[];
 }
 
@@ -40,6 +40,7 @@ const SOURCE_LABEL: Record<NonNullable<Part['source']>, MessageKey> = { chapters
 interface EpisodeSegmentsView {
   status: 'analyzed' | 'error';
   error: string | null;
+  recap?: Part | null;
   intro: Part | null;
   credits: Part | null;
   postCredits: Part | null;
@@ -99,7 +100,7 @@ function EditModal({ episode, onClose }: { episode: ShowSegments['seasons'][numb
   const { t } = useT();
   const s = episode.segments;
   const init = (p: Part | null | undefined) => ({ start: p ? formatClock(p.start) : '', end: p ? formatClock(p.end) : '' });
-  const [values, setValues] = useState({ intro: init(s?.intro), credits: init(s?.credits), postCredits: init(s?.postCredits) });
+  const [values, setValues] = useState({ recap: init(s?.recap), intro: init(s?.intro), credits: init(s?.credits), postCredits: init(s?.postCredits) });
   const [problem, setProblem] = useState<string | null>(null);
   const save = useMutation({
     mutationFn: (body: Record<string, { start: number; end: number } | null>) => api.put(`/api/admin/segments/episodes/${episode.id}`, body),
@@ -112,7 +113,7 @@ function EditModal({ episode, onClose }: { episode: ShowSegments['seasons'][numb
   });
   const submit = () => {
     const body: Record<string, { start: number; end: number } | null> = {};
-    for (const key of ['intro', 'credits', 'postCredits'] as const) {
+    for (const key of ['recap', 'intro', 'credits', 'postCredits'] as const) {
       const v = values[key];
       if (!v.start.trim() && !v.end.trim()) {
         body[key] = null;
@@ -127,7 +128,7 @@ function EditModal({ episode, onClose }: { episode: ShowSegments['seasons'][numb
     setProblem(null);
     save.mutate(body);
   };
-  const row = (key: 'intro' | 'credits' | 'postCredits', label: string) => (
+  const row = (key: 'recap' | 'intro' | 'credits' | 'postCredits', label: string) => (
     <fieldset className="grid grid-cols-[8rem_1fr_1fr] items-center gap-2">
       <legend className="sr-only">{label}</legend>
       <span className="text-sm">{label}</span>
@@ -139,6 +140,7 @@ function EditModal({ episode, onClose }: { episode: ShowSegments['seasons'][numb
     <Modal title={`${t('series.episode', { n: episode.episodeNumber })}${episode.title ? ` — ${episode.title}` : ''}`} open onClose={onClose}>
       <div className="space-y-3">
         <p className="text-sm text-muted">{episode.duration ? t('segments.editHintLength', { length: formatClock(episode.duration) }) : t('segments.editHint')}</p>
+        {row('recap', t('segments.recap'))}
         {row('intro', t('segments.intro'))}
         {row('credits', t('segments.credits'))}
         {row('postCredits', t('segments.postCredits'))}
@@ -200,6 +202,7 @@ function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) 
               <thead className="text-left text-xs text-muted">
                 <tr>
                   <th className="py-2 pr-3 font-normal">{t('segments.episode')}</th>
+                  <th className="py-2 pr-3 font-normal">{t('segments.recap')}</th>
                   <th className="py-2 pr-3 font-normal">{t('segments.intro')}</th>
                   <th className="py-2 pr-3 font-normal">{t('segments.credits')}</th>
                   <th className="py-2 pr-3 font-normal">{t('segments.afterCredits')}</th>
@@ -216,11 +219,12 @@ function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) 
                         {s?.manual && <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-xs text-accent">{t('segments.manual')}</span>}
                       </td>
                       {!s ? (
-                        <td colSpan={3} className="py-2 pr-3 text-faint">{e.eligible ? t('segments.notAnalysedYet') : t('segments.noFile')}</td>
+                        <td colSpan={4} className="py-2 pr-3 text-faint">{e.eligible ? t('segments.notAnalysedYet') : t('segments.noFile')}</td>
                       ) : s.status === 'error' ? (
-                        <td colSpan={3} className="py-2 pr-3 text-danger">{errorText(s.error) ?? t('segments.couldNotAnalyse')}</td>
+                        <td colSpan={4} className="py-2 pr-3 text-danger">{errorText(s.error) ?? t('segments.couldNotAnalyse')}</td>
                       ) : (
                         <>
+                          <td className="py-2 pr-3"><PartLabel part={s.recap ?? null} /></td>
                           <td className="py-2 pr-3"><PartLabel part={s.intro} empty={t('segments.noneFound')} /></td>
                           <td className="py-2 pr-3"><PartLabel part={s.credits} empty={t('segments.noneFound')} /></td>
                           <td className="py-2 pr-3"><PartLabel part={s.postCredits} /></td>
@@ -299,6 +303,7 @@ export function SegmentsPage() {
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label={t('series.episodes')} value={c.episodes} />
         <Stat label={t('segments.stats.analysed')} value={c.analyzed} />
+        <Stat label={t('segments.stats.recaps')} value={c.recaps ?? 0} />
         <Stat label={t('segments.stats.intros')} value={c.intros} />
         <Stat label={t('segments.stats.credits')} value={c.credits} />
         <Stat label={t('segments.stats.waiting')} value={c.pending} />

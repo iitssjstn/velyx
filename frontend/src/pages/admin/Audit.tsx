@@ -49,6 +49,8 @@ const AUDIT_ACTIONS: Record<string, MessageKey> = {
   'cloud.relay_on': 'audit.actions.cloudRelayOn',
   'cloud.relay_off': 'audit.actions.cloudRelayOff',
   'cloud.home_networks': 'audit.actions.cloudHomeNetworks',
+  'seerr.settings': 'audit.actions.seerrSettings',
+  'seerr.requested': 'audit.actions.seerrRequested',
   'upnp.on': 'audit.actions.upnpOn',
   'upnp.off': 'audit.actions.upnpOff',
   'invite.created': 'audit.actions.inviteCreated',

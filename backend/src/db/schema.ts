@@ -31,6 +31,8 @@ export const users = sqliteTable('users', {
   /** Skipping detected intros / credits: never offer, offer a button (ask), or skip automatically. */
   prefSkipIntro: text('pref_skip_intro', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
   prefSkipCredits: text('pref_skip_credits', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
+  /** Skipping a detected recap ("previously on"). */
+  prefSkipRecap: text('pref_skip_recap', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
   /** Interface language (en, nl, …); independent of the audio/subtitle languages above. */
   language: text('language').notNull().default('en'),
   createdAt: integer('created_at').notNull().default(now),
@@ -589,6 +591,11 @@ export const episodeSegments = sqliteTable('episode_segments', {
   /** The file that was analysed; a different file (or size) means analyse again. */
   mediaFileId: integer('media_file_id').references(() => mediaFiles.id, { onDelete: 'set null' }),
   fileSize: integer('file_size'),
+  /** A recap ("previously on") before the intro: clips of earlier episodes. */
+  recapStart: real('recap_start'),
+  recapEnd: real('recap_end'),
+  recapConfidence: text('recap_confidence', { enum: ['high', 'medium', 'low'] }),
+  recapSource: text('recap_source', { enum: ['chapters', 'audio', 'manual'] }),
   introStart: real('intro_start'),
   introEnd: real('intro_end'),
   introConfidence: text('intro_confidence', { enum: ['high', 'medium', 'low'] }),
@@ -606,6 +613,28 @@ export const episodeSegments = sqliteTable('episode_segments', {
   version: integer('version').notNull(),
   manual: integer('manual', { mode: 'boolean' }).notNull().default(false),
   detectedAt: integer('detected_at').notNull().default(now),
+});
+
+/**
+ * What was read of an episode's audio (fingerprints) and file (chapters, credits in the picture),
+ * so an interrupted analysis continues where it was instead of reading everything again. The whole
+ * episode's fingerprint is only kept while the next episode may still need it for its recap.
+ */
+export const segmentFingerprints = sqliteTable('segment_fingerprints', {
+  episodeId: integer('episode_id')
+    .primaryKey()
+    .references(() => episodes.id, { onDelete: 'cascade' }),
+  mediaFileId: integer('media_file_id').notNull(),
+  fileSize: integer('file_size').notNull(),
+  /** Format of what is stored; another format is read again. */
+  version: integer('version').notNull(),
+  head: blob('head', { mode: 'buffer' }).notNull(),
+  tail: blob('tail', { mode: 'buffer' }).notNull(),
+  tailStart: real('tail_start').notNull(),
+  full: blob('full', { mode: 'buffer' }),
+  /** Chapters and credits in the picture, as found (JSON). */
+  extras: text('extras'),
+  createdAt: integer('created_at').notNull().default(now),
 });
 
 /**
@@ -732,3 +761,27 @@ export const invites = sqliteTable('invites', {
   /** The user made for whoever accepted it. */
   userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
 });
+
+/**
+ * Requests made through Seerr from Vidalune: who asked for what, so everyone sees their own
+ * requests and where they stand (the state is Seerr's, last seen).
+ */
+export const seerrRequests = sqliteTable(
+  'seerr_requests',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Seerr's own id of the request. */
+    seerrId: integer('seerr_id').notNull(),
+    mediaType: text('media_type', { enum: ['movie', 'tv'] }).notNull(),
+    tmdbId: integer('tmdb_id').notNull(),
+    title: text('title').notNull(),
+    posterPath: text('poster_path'),
+    state: text('state').notNull(),
+    createdAt: integer('created_at').notNull().default(now),
+    updatedAt: integer('updated_at').notNull().default(now),
+  },
+  (t) => [index('seerr_requests_user_idx').on(t.userId, t.createdAt)],
+);

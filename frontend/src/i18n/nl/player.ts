@@ -30,6 +30,10 @@ export const player: Messages['player'] = {
   },
   introSkipped: 'Intro overgeslagen',
   creditsSkipped: 'Aftiteling overgeslagen',
+  recapSkipped: 'Terugblik overgeslagen',
+  skipRecap: 'Terugblik overslaan',
+  backSeconds: '{seconds} seconden terug (←)',
+  forwardSeconds: '{seconds} seconden vooruit (→)',
   errors: {
     interrupted: 'De verbinding met de server is verbroken.',
     cannotPlay: 'Je browser kan dit bestand niet afspelen: {reasons}.',

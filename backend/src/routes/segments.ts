@@ -11,7 +11,7 @@ const span = z
   .object({ start: z.number().min(0).max(86_400), end: z.number().min(0).max(86_400) })
   .refine((s) => s.end > s.start, 'The end must be after the start')
   .nullable();
-const manualBody = z.object({ intro: span, credits: span, postCredits: span });
+const manualBody = z.object({ recap: span.optional().default(null), intro: span, credits: span, postCredits: span });
 const analyzeBody = z.discriminatedUnion('scope', [
   z.object({ scope: z.literal('episode'), episodeId: z.number().int().positive() }),
   z.object({ scope: z.literal('season'), showId: z.number().int().positive(), seasonNumber: z.number().int().min(0).max(10_000) }),
@@ -27,6 +27,7 @@ function segmentView(row: Row | undefined) {
   return {
     status: row.status,
     error: row.error,
+    recap: part(row.recapStart, row.recapEnd, row.recapConfidence, row.recapSource === 'chapters' || row.recapSource === 'manual' ? row.recapSource : row.recapSource ? 'audio' : null),
     intro: part(row.introStart, row.introEnd, row.introConfidence, row.introSource),
     credits: part(row.creditsStart, row.creditsEnd, row.creditsConfidence, row.creditsSource),
     postCredits: part(row.postCreditsStart, row.postCreditsEnd, null),
@@ -55,17 +56,18 @@ export async function segmentRoutes(app: FastifyInstance, ctx: AppContext): Prom
       .leftJoin(episodeSegments, eq(episodeSegments.episodeId, episodes.id))
       .where(eq(libraries.type, 'shows'))
       .all();
-    const byShow = new Map<number, { id: number; title: string; posterPath: string | null; episodes: number; analyzed: number; intros: number; credits: number; errors: number; manual: number; low: number }>();
+    const byShow = new Map<number, { id: number; title: string; posterPath: string | null; episodes: number; analyzed: number; recaps: number; intros: number; credits: number; errors: number; manual: number; low: number }>();
     for (const r of rows) {
       if (!eligible.has(r.episodeId)) continue;
       let s = byShow.get(r.showId);
-      if (!s) byShow.set(r.showId, (s = { id: r.showId, title: r.title, posterPath: r.posterPath, episodes: 0, analyzed: 0, intros: 0, credits: 0, errors: 0, manual: 0, low: 0 }));
+      if (!s) byShow.set(r.showId, (s = { id: r.showId, title: r.title, posterPath: r.posterPath, episodes: 0, analyzed: 0, recaps: 0, intros: 0, credits: 0, errors: 0, manual: 0, low: 0 }));
       s.episodes++;
       const g = r.seg;
       if (!g) continue;
       if (g.status === 'error') s.errors++;
       else s.analyzed++;
       const ok = (c: Row['introConfidence']) => g.manual || c === 'high' || c === 'medium';
+      if (g.recapStart !== null && ok(g.recapConfidence)) s.recaps++;
       if (g.introStart !== null && ok(g.introConfidence)) s.intros++;
       if (g.creditsStart !== null && ok(g.creditsConfidence)) s.credits++;
       if (g.manual) s.manual++;
@@ -112,12 +114,13 @@ export async function segmentRoutes(app: FastifyInstance, ctx: AppContext): Prom
     const file = db.select({ id: mediaFiles.id, size: mediaFiles.size, duration: mediaFiles.durationSec }).from(mediaFiles).where(eq(mediaFiles.episodeId, id)).orderBy(desc(mediaFiles.height), mediaFiles.id).get();
     const duration = file?.duration ?? null;
     for (const [name, s] of Object.entries(body)) {
-      if (s && duration && s.end > duration + 1) throw new HttpError(400, name === 'intro' ? 'The intro ends after the episode ({seconds} s).' : name === 'credits' ? 'The credits end after the episode ({seconds} s).' : 'The post-credits scene ends after the episode ({seconds} s).', { seconds: Math.round(duration) });
+      if (s && duration && s.end > duration + 1) throw new HttpError(400, name === 'recap' ? 'The recap ends after the episode ({seconds} s).' : name === 'intro' ? 'The intro ends after the episode ({seconds} s).' : name === 'credits' ? 'The credits end after the episode ({seconds} s).' : 'The post-credits scene ends after the episode ({seconds} s).', { seconds: Math.round(duration) });
     }
+    if (body.recap && body.intro && body.recap.end > body.intro.start + 1) throw new HttpError(400, 'The recap must end before the intro starts.');
     if (body.intro && body.credits && body.intro.end > body.credits.start) throw new HttpError(400, 'The intro must end before the credits start.');
     if (body.credits && body.postCredits && body.postCredits.start < body.credits.end) throw new HttpError(400, 'The post-credits scene must start after the credits.');
     saveManualSegments(db, id, file ? { id: file.id, size: file.size } : null, body);
-    const parts = [body.intro ? 'intro' : null, body.credits ? 'credits' : null, body.postCredits ? 'post-credits' : null].filter(Boolean);
+    const parts = [body.recap ? 'recap' : null, body.intro ? 'intro' : null, body.credits ? 'credits' : null, body.postCredits ? 'post-credits' : null].filter(Boolean);
     ctx.audit.record('segments.edited', { actor: request.user, ip: request.ip, target: `episode ${id} (S${ep.seasonNumber}E${ep.episodeNumber})`, detail: parts.length ? parts.join(', ') : 'none' });
     return segmentView(db.select().from(episodeSegments).where(eq(episodeSegments.episodeId, id)).get());
   });

@@ -48,7 +48,7 @@ afterEach(async () => {
   env = null;
 });
 
-async function setup(files = Object.keys(LAYOUT), opts: { enabled?: boolean } = {}): Promise<Harness> {
+async function setup(files = Object.keys(LAYOUT), opts: { enabled?: boolean; machineBusy?: boolean } = {}): Promise<Harness> {
   const reads: string[] = [];
   const broken = new Set<string>();
   const reader: AudioReader = async (file, start, duration) => {
@@ -60,6 +60,7 @@ async function setup(files = Object.keys(LAYOUT), opts: { enabled?: boolean } = 
   env = await createTestEnv({
     audioReader: reader,
     segmentRetryMs: 20,
+    machineBusy: () => !!opts.machineBusy,
     prober: async (file) => fakeProbe({ durationSec: audioOf(file).length / SAMPLE_RATE }),
   });
   if (opts.enabled === false) env.ctx.settings.update({ segmentDetection: false });
@@ -110,8 +111,18 @@ describe('intro and credits detection service', () => {
     expect(h.env.ctx.db.select().from(episodeSegments).where(eq(episodeSegments.episodeId, id)).get()!.fileSize).toBe(999);
   }, 60_000);
 
-  it('waits while someone is watching and continues afterwards', async () => {
+  it('keeps going (slower) while someone watches on a quiet machine', async () => {
     const h = await setup(['S01E01.mkv', 'S01E02.mkv'], { enabled: false });
+    const file = h.env.ctx.db.select().from(mediaFiles).get()!;
+    h.env.ctx.streams.touch({ id: 1, username: 'viewer' }, file.id, 'direct', null, null, Date.now());
+    h.env.ctx.settings.update({ segmentDetection: true });
+    h.env.ctx.segments.enqueuePending();
+    await h.env.ctx.segments.whenIdle();
+    expect(h.env.ctx.segments.status().counts.analyzed).toBe(2);
+  }, 60_000);
+
+  it('waits while someone is watching on a busy machine and continues afterwards', async () => {
+    const h = await setup(['S01E01.mkv', 'S01E02.mkv'], { enabled: false, machineBusy: true });
     const file = h.env.ctx.db.select().from(mediaFiles).get()!;
     // A stream that stops counting as active after half a second.
     h.env.ctx.streams.touch({ id: 1, username: 'viewer' }, file.id, 'direct', null, null, Date.now() - 59_500);
@@ -243,6 +254,10 @@ describe('intro and credits detection service', () => {
     expect(put.statusCode).toBe(200);
     expect(await get()).toMatchObject({ skipIntro: 'always', skipCredits: 'never' });
     expect((await h.env.app.inject({ method: 'PUT', url: '/api/account/preferences', headers: { cookie: h.admin }, payload: { skipIntro: 'sometimes' } })).statusCode).toBe(400);
+    // Recaps have their own preference.
+    await h.env.app.inject({ method: 'PUT', url: '/api/account/preferences', headers: { cookie: h.admin }, payload: { skipRecap: 'always' } });
+    expect(await get()).toMatchObject({ skipRecap: 'always', skipIntro: 'always' });
+    expect((await h.env.app.inject({ method: 'PUT', url: '/api/account/preferences', headers: { cookie: h.admin }, payload: { skipRecap: 'maybe' } })).statusCode).toBe(400);
   });
 });
 

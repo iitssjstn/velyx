@@ -43,6 +43,7 @@ export const segments: Messages['segments'] = {
   editHint: 'Tijden als minuten:seconden. Laat beide velden leeg voor “geen”. Een scène na de aftiteling wordt nooit overgeslagen.',
   editHintLength: 'Tijden als minuten:seconden (de aflevering duurt {length}). Laat beide velden leeg voor “geen”. Een scène na de aftiteling wordt nooit overgeslagen.',
   intro: 'Intro',
+  recap: 'Terugblik',
   credits: 'Aftiteling',
   postCredits: 'Na de aftiteling',
   queuedAgain: {
@@ -73,6 +74,7 @@ export const segments: Messages['segments'] = {
   stats: {
     analysed: 'Geanalyseerd',
     intros: 'Intro\'s gevonden',
+    recaps: 'Terugblikken gevonden',
     credits: 'Aftitelingen gevonden',
     waiting: 'Wachtend',
     errors: 'Fouten',
