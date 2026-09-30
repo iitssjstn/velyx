@@ -145,10 +145,11 @@ Open `http://<your-server>:3000`, create your administrator account and, optiona
 
 ## Installing without Docker (Debian/Ubuntu)
 
-Every release has a `.deb` package next to the Android app: `vidalune_<version>_amd64.deb` for regular PCs and servers, `vidalune_<version>_arm64.deb` for ARM boards such as a Raspberry Pi 4/5 (64-bit OS). It contains Vidalune and the Node runtime it needs; FFmpeg comes from your distribution. It is tested on Debian 12 and Ubuntu 24.04 (each release installs, runs, upgrades and removes it there in CI); other recent Debian-based systems should work too.
+Every release has a `.deb` package next to the Android app, also to download from **vidalune.com/install** (`vidalune.com/download/deb/amd64` or `/arm64` always gives the newest): `vidalune_<version>_amd64.deb` for regular PCs and servers, `vidalune_<version>_arm64.deb` for ARM boards such as a Raspberry Pi 4/5 (64-bit OS). It contains Vidalune and the Node runtime it needs; FFmpeg comes from your distribution. It is tested on Debian 12 and Ubuntu 24.04 (each release installs, runs, upgrades and removes it there in CI); other recent Debian-based systems should work too.
 
 ```bash
-sudo apt install ./vidalune_<version>_amd64.deb
+curl -fLo vidalune.deb https://vidalune.com/download/deb/amd64
+sudo apt install ./vidalune.deb
 ```
 
 Then open `http://<your-server>:3000` and create your administrator account.
