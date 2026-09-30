@@ -425,7 +425,7 @@ Click a category to see the affected movies and episodes, each with its format (
 
 ## Recaps, intros and credits
 
-Vidalune finds recaps, intros and credits itself, without an online service or fixed timestamps. It combines several sources, most reliable first:
+Vidalune finds recaps, intros and credits itself, without an online service or fixed timestamps (servers can also share what they found; see [Shared detection](#shared-detection-optional)). It combines several sources, most reliable first:
 
 1. **Chapters** — chapters named *Recap*, *Previously*, *Intro*, *Opening*, *Credits*, *End Credits* (and *Post-credits*) in the file itself.
 2. **The picture (credits)** — keyframes of the last minutes are decoded small (320×180, grayscale) and checked for what end credits look like: mostly dark frames with lines of small bright text, still or scrolling. The start is then placed precisely with two frames per second around it. This finds credits whose music changes every episode, and a scene after them. Only keyframes are decoded, a fraction of the work of playing the video; nothing is transcoded.
@@ -440,6 +440,17 @@ The admin page shows for every result where it was found.
 - **Post-credits scenes:** a scene after the credits (picture or sound after the credits music) is never skipped; black, silence or a few seconds of logos after the credits count as part of them.
 - **Admin → Intros & credits** shows the progress (analysed, recaps, intros and credits found, waiting, errors), the results per show, season and episode, and the errors. Administrators can correct the times of an episode (recap, intro, credits, post-credits scene) (a manual correction always wins over automatic detection), remove a correction, and analyse an episode, season, show or everything again.
 - Detection can be switched off in **Admin → Server**, and so can the picture analysis on its own (it uses more CPU than sound alone). It needs at least two episodes of a season that share the same intro or credits; a season with a single episode gets no skip buttons.
+
+### Shared detection (optional)
+
+Off by default. **Admin → Server → Share detection with other Vidalune servers** lets servers help each other through vidalune.com:
+
+- **What is sent:** for each episode with a TMDB match, its TMDB show id, season and episode number, the length of the analysed file, and where its recap, intro and credits are (start, end, and how they were found); plus a few short audio fingerprints of the season's intro and credits (32-bit hashes, not audio). Never titles, file names, paths, users or what anyone watches. Only this server's own results are sent — never what it took from others. Turning it on registers the server with vidalune.com once (like linking does, without an account); from then on it reports its name, version and address like a linked server.
+- **Agreement:** vidalune.com keeps, per episode, part and cut (files within two seconds of each other in length), the timing most servers agree on and how many do. A correction by hand counts double.
+- **Using it:** where this server found nothing (or nothing sure) — also for a file whose audio cannot be read — it takes what two or more servers agree on for the same cut: *medium* confidence with two servers, *high* with three or more or a correction by hand. Other servers' fingerprints also count as references, so a single episode or a new season can be recognised straight away in its own audio. Local results always come first, and corrections by hand are never replaced.
+- **Labels:** Admin → Intros & credits shows *other servers* as the source of a part taken from them, and per episode *Pending* (only this server so far), *Shared* (another server found the same) or *Verified* (three or more).
+- **Without vidalune.com:** season profiles are kept on the server (asked again after twelve hours); when vidalune.com cannot be reached, the last one is used, or only local detection. Detection never waits for it. Results are shared after each season is analysed, after a correction by hand, and once a day.
+- Turning it off stops all of this; results already found stay (the labels go). Removing the server on vidalune.com removes what it shared.
 
 ## Activity and statistics
 
