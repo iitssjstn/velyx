@@ -21,6 +21,8 @@ export interface CloudConfig {
   relayDomain: string;
   /** Accounts that may use the admin page (/admin); they always have remote access themselves. */
   adminEmails: string[];
+  /** Who may open the CEO panel (/ceo): customers, access, relays and growth. Separate from administrators. */
+  ceoEmails: string[];
   /** What the relay may send in total, in Mbit/s (shared fairly between servers; 0: no limit). */
   relayMaxMbps: number;
   /** What one server may send through the relay, in Mbit/s, unless set per server (0: no limit). */
@@ -41,6 +43,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
   const publicUrl = (env.PUBLIC_URL ?? 'https://vidalune.com').replace(/\/+$/, '');
   return {
     adminEmails: (env.ADMIN_EMAILS ?? '')
+      .split(/[\s,;]+/)
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+    ceoEmails: (env.CEO_EMAILS ?? '')
       .split(/[\s,;]+/)
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean),

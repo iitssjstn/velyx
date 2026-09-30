@@ -10,12 +10,13 @@ import { and, desc, eq, gt, gte, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import { z, ZodError } from 'zod';
 import type { CloudConfig } from './config.js';
 import type { DB } from './db/client.js';
-import { accountSessions, accounts, invites, linkCodes, memberCodes, memberships, relayTraffic, servers, tickets } from './db/schema.js';
+import { accountActivity, accountSessions, accounts, invites, linkCodes, memberCodes, memberships, relayTraffic, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
 import { newSlug, Relay, relayMessage, type Rewrite } from './relay.js';
 import { composeFile, installPage, installScript } from './install.js';
 import { homePage, pickLanguage } from './site.js';
 import { detectionRoutes } from './detection.js';
+import { CeoError, ceoRoutes } from './ceo.js';
 
 const DAY = 86_400_000;
 export const SESSION_COOKIE = 'vl_session';
@@ -94,6 +95,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const ownOrigins = new Set([config.publicUrl, ...['app', 'www'].map((n) => `${publicUrl.protocol}//${n}.${config.relayDomain}${publicUrl.port ? `:${publicUrl.port}` : ''}`)]);
   const admins = new Set(config.adminEmails);
   const isAdmin = (a: { email: string }) => admins.has(a.email);
+  const ceos = new Set(config.ceoEmails);
+  const isCeo = (a: { email: string }) => ceos.has(a.email);
   /** Whether an account's servers may be reached through Vidalune: an active plan (administrators always). */
   const hasRemote = (a: typeof accounts.$inferSelect | undefined): boolean => !!a && (isAdmin(a) || (a.plan === 'remote' && (a.planUntil === null || a.planUntil > now())));
   const ownerHasRemote = (accountId: number | null): boolean => accountId !== null && hasRemote(db.select().from(accounts).where(eq(accounts.id, accountId)).get());
@@ -215,6 +218,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       },
     };
     if (!relay.forwardTo(server.id, req, res, rewrite)) {
+      relay.recordError(server.id);
       res.writeHead(502, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Vidalune-Relay': 'offline' }).end(JSON.stringify({ error: relayMessage('offline', req.headers['accept-language']), relay: 'offline' }));
     }
   }
@@ -242,7 +246,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) return reply.code(400).send({ error: error.issues[0]?.message ?? 'Invalid input.' });
-    if (error instanceof HttpError) return reply.code(error.statusCode).send({ error: error.message });
+    if (error instanceof HttpError || error instanceof CeoError) return reply.code(error.statusCode).send({ error: error.message });
     const status = (error as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) return reply.code(status).send({ error: 'Invalid request.' });
     app.log.error(error);
@@ -268,9 +272,17 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     return bearer ?? request.cookies[SESSION_COOKIE];
   };
 
+  /** Days an account was seen (at most one write per account and day): "active" for the CEO panel. */
+  const seen = new Map<number, string>();
   function account(request: FastifyRequest) {
     const me = accountByToken(sessionToken(request));
     if (!me) throw new HttpError(401, 'Sign in first.');
+    const day = new Date(now()).toISOString().slice(0, 10);
+    if (seen.get(me.id) !== day) {
+      seen.set(me.id, day);
+      if (seen.size > 100_000) seen.clear();
+      db.insert(accountActivity).values({ accountId: me.id, day }).onConflictDoNothing().run();
+    }
     return me;
   }
 
@@ -310,7 +322,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   app.get('/api/account', async (request) => {
     const me = account(request);
-    return { email: me.email, remote: planView(me), appUrl: appOrigin, ...(isAdmin(me) ? { admin: true } : {}) };
+    return { email: me.email, remote: planView(me), appUrl: appOrigin, ...(isAdmin(me) ? { admin: true } : {}), ...(isCeo(me) ? { ceo: true } : {}) };
   });
 
   /**
@@ -682,6 +694,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     db.delete(servers).where(eq(servers.id, me.id)).run();
     return { ok: true };
   });
+
+  // ---- the CEO panel (/ceo): customers, access, relays and figures over time
+  ceoRoutes(app, { db, account, isCeo, now, mainCapacityMbps: config.relayMaxMbps, relay, accessChanged: () => relay.dropUnallowed() });
 
   // ---- the admin page: who has remote access
 

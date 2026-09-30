@@ -47,6 +47,8 @@ class Tunnel {
   out = 0;
   in = 0;
   requests = 0;
+  /** Visitors who got an error instead of an answer (busy, too large, failed, cut off). */
+  errors = 0;
   /** Bytes to visitors since the last speed sample, and the speed then (bytes per second). */
   sampled = 0;
   bps = 0;
@@ -77,7 +79,10 @@ class Tunnel {
 
   /** Passes one visitor's request to the server and its answer back. */
   forward(req: IncomingMessage, res: ServerResponse, ip: string, rewrite: Rewrite = {}): void {
-    if (this.streams.size >= MAX_STREAMS) return unavailable(req, res, 'busy');
+    if (this.streams.size >= MAX_STREAMS) {
+      this.errors++;
+      return unavailable(req, res, 'busy');
+    }
     this.requests++;
     const id = this.next;
     this.next = this.next >= 0xfffffff0 ? 1 : this.next + 1;
@@ -96,6 +101,7 @@ class Tunnel {
       this.in += chunk.length;
       if (size > MAX_REQUEST_BODY) {
         this.reset(id);
+        this.errors++;
         return unavailable(req, res, 'tooLarge');
       }
       for (let i = 0; i < chunk.length; i += CHUNK) this.send(FRAME.requestBody, id, chunk.subarray(i, i + CHUNK));
@@ -169,7 +175,10 @@ class Tunnel {
         break;
       case FRAME.reset:
         this.streams.delete(frame.stream);
-        if (!stream.started) unavailable(stream.req, res, 'failed');
+        if (!stream.started) {
+          this.errors++;
+          unavailable(stream.req, res, 'failed');
+        }
         else res.destroy();
         break;
     }
@@ -178,6 +187,7 @@ class Tunnel {
   private closed() {
     clearInterval(this.ping);
     for (const { req, res, started } of this.streams.values()) {
+      this.errors++;
       if (started) res.destroy();
       else unavailable(req, res, 'offline');
     }
@@ -326,17 +336,17 @@ export class Relay {
   }
 
   private write(t: Tunnel) {
-    if (!t.out && !t.in && !t.requests) return;
+    if (!t.out && !t.in && !t.requests && !t.errors) return;
     const day = new Date(this.opts.now?.() ?? Date.now()).toISOString().slice(0, 10);
-    const row = { serverId: t.serverId, day, bytesOut: t.out, bytesIn: t.in, requests: t.requests };
-    t.out = t.in = t.requests = 0;
+    const row = { serverId: t.serverId, day, bytesOut: t.out, bytesIn: t.in, requests: t.requests, errors: t.errors };
+    t.out = t.in = t.requests = t.errors = 0;
     try {
       this.opts.db
         .insert(relayTraffic)
         .values(row)
         .onConflictDoUpdate({
           target: [relayTraffic.serverId, relayTraffic.day],
-          set: { bytesOut: sql`${relayTraffic.bytesOut} + ${row.bytesOut}`, bytesIn: sql`${relayTraffic.bytesIn} + ${row.bytesIn}`, requests: sql`${relayTraffic.requests} + ${row.requests}` },
+          set: { bytesOut: sql`${relayTraffic.bytesOut} + ${row.bytesOut}`, bytesIn: sql`${relayTraffic.bytesIn} + ${row.bytesIn}`, requests: sql`${relayTraffic.requests} + ${row.requests}`, errors: sql`${relayTraffic.errors} + ${row.errors}` },
         })
         .run();
     } catch {
@@ -373,9 +383,15 @@ export class Relay {
 
   handleRequest(req: IncomingMessage, res: ServerResponse, slug: string): void {
     const row = this.opts.db.select({ id: servers.id, enabled: servers.relayEnabled, accountId: servers.accountId }).from(servers).where(eq(servers.relaySlug, slug)).get();
-    if (!row?.enabled || !this.opts.allowed(row.id, row.accountId)) return unavailable(req, res, 'off');
+    if (!row?.enabled || !this.opts.allowed(row.id, row.accountId)) {
+      if (row) this.recordError(row.id);
+      return unavailable(req, res, 'off');
+    }
     const tunnel = this.tunnels.get(row.id);
-    if (!tunnel) return unavailable(req, res, 'offline');
+    if (!tunnel) {
+      this.recordError(row.id);
+      return unavailable(req, res, 'offline');
+    }
     // A person opening the relay address in a browser: the web interface is on app.vidalune.com, with
     // this server chosen. Apps and the web interface's own requests (the API) pass through.
     if (this.opts.appUrl && isNavigation(req)) {
@@ -383,6 +399,25 @@ export class Relay {
       return;
     }
     tunnel.forward(req, res, clientIp(req, this.opts.trustProxy));
+  }
+
+  /** A visitor of a server got an error before reaching it (relay off, server offline): counted per day. */
+  recordError(serverId: string): void {
+    const t = this.tunnels.get(serverId);
+    if (t) {
+      t.errors++;
+      return;
+    }
+    const day = new Date(this.opts.now?.() ?? Date.now()).toISOString().slice(0, 10);
+    try {
+      this.opts.db
+        .insert(relayTraffic)
+        .values({ serverId, day, errors: 1 })
+        .onConflictDoUpdate({ target: [relayTraffic.serverId, relayTraffic.day], set: { errors: sql`${relayTraffic.errors} + 1` } })
+        .run();
+    } catch {
+      /* the server was just removed */
+    }
   }
 
   /**
