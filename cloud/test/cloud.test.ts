@@ -291,10 +291,10 @@ describe('invitations', () => {
 
     // Opening it: the server learns who, as the invitation, and makes a user for them.
     const { ticket } = (await app.inject({ method: 'POST', url: `/api/servers/${s.id}/open`, headers: { cookie: lisa } })).json();
-    expect((await app.inject({ method: 'POST', url: '/api/server/ticket', headers: { authorization: s.auth }, payload: { ticket } })).json()).toEqual({ email: 'lisa@example.com', userRef: 'invite:inv-abc123' });
+    expect((await app.inject({ method: 'POST', url: '/api/server/ticket', headers: { authorization: s.auth }, payload: { ticket } })).json()).toEqual({ email: 'lisa@example.com', userRef: 'invite:inv-abc123', owner: false });
     expect((await app.inject({ method: 'POST', url: '/api/server/invites/inv-abc123/user', headers: { authorization: s.auth }, payload: { userRef: '9' } })).json()).toEqual({ ok: true });
     const again = (await app.inject({ method: 'POST', url: `/api/servers/${s.id}/open`, headers: { cookie: lisa } })).json();
-    expect((await app.inject({ method: 'POST', url: '/api/server/ticket', headers: { authorization: s.auth }, payload: { ticket: again.ticket } })).json()).toEqual({ email: 'lisa@example.com', userRef: '9' });
+    expect((await app.inject({ method: 'POST', url: '/api/server/ticket', headers: { authorization: s.auth }, payload: { ticket: again.ticket } })).json()).toEqual({ email: 'lisa@example.com', userRef: '9', owner: false });
     expect((await app.inject({ url: '/api/server/members', headers: { authorization: s.auth } })).json()).toContainEqual({ userRef: '9', email: 'lisa@example.com' });
 
     // Expired after seven days.

@@ -21,6 +21,8 @@ interface Stored {
   serverVersion: string;
   token: string | null;
   user: User | null;
+  /** The server as the Vidalune account knows it, when it was opened with that account. */
+  cloudServerId?: string | null;
 }
 
 interface SessionValue {
@@ -30,13 +32,15 @@ interface SessionValue {
   serverVersion: string | null;
   user: User | null;
   signedIn: boolean;
+  /** Opened with the Vidalune account (its id there): signed in to with that account alone. */
+  cloudServerId: string | null;
   api: Api;
   /** This device's name as the server lists it ("Pixel 8"). */
   deviceName: string;
   appVersion: string;
   t: Translate;
   language: Language;
-  setServer(url: string, info: ServerInfo): Promise<void>;
+  setServer(url: string, info: ServerInfo, cloudServerId?: string | null): Promise<void>;
   forgetServer(): Promise<void>;
   signIn(token: string, user: User): Promise<void>;
   /** The account after a change (name, language) — kept on the device too. */
@@ -133,6 +137,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     serverVersion: stored?.serverVersion ?? null,
     user: stored?.user ?? null,
     signedIn,
+    cloudServerId: stored?.cloudServerId ?? null,
     sessionEnded,
     connection: connectionState(deviceOnline, serverReachable),
     api,
@@ -140,7 +145,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     appVersion: APP_VERSION,
     t: translator(language),
     language,
-    setServer: (url, info) => save({ serverUrl: url, serverName: info.name, serverVersion: info.version, token: null, user: null }),
+    setServer: (url, info, cloudServerId = null) => save({ serverUrl: url, serverName: info.name, serverVersion: info.version, token: null, user: null, cloudServerId }),
     forgetServer: () => save(null),
     signIn: (token, user) => {
       setSessionEnded(false);
@@ -153,7 +158,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       } catch {
         /* the token simply expires on the server */
       }
-      await save(stored ? { ...stored, token: null, user: null } : null);
+      // Opened with the Vidalune account: back to its list of servers (not signed straight back in).
+      await save(stored && !stored.cloudServerId ? { ...stored, token: null, user: null } : null);
     },
   };
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

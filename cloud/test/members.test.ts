@@ -49,7 +49,7 @@ describe('signing in on a server with a Vidalune account', () => {
     const s = await linkedServer();
     const opened = (await open(s.owner, s.id)).json();
     expect(opened).toMatchObject({ ticket: expect.any(String), addresses: ['https://media.example.com'] });
-    expect((await redeem(s.auth, opened.ticket)).json()).toEqual({ email: 'owner@example.com', userRef: '1' });
+    expect((await redeem(s.auth, opened.ticket)).json()).toEqual({ email: 'owner@example.com', userRef: '1', owner: true });
     // Once only.
     expect((await redeem(s.auth, opened.ticket)).statusCode).toBe(401);
   });
@@ -81,7 +81,7 @@ describe('signing in on a server with a Vidalune account', () => {
       expect.arrayContaining([{ userRef: '1', email: 'owner@example.com' }, { userRef: '7', email: 'family@example.com' }]),
     );
     const { ticket } = (await open(family, s.id)).json();
-    expect((await redeem(s.auth, ticket)).json()).toEqual({ email: 'family@example.com', userRef: '7' });
+    expect((await redeem(s.auth, ticket)).json()).toEqual({ email: 'family@example.com', userRef: '7', owner: false });
     // Leaving does not unlink the server for its owner.
     expect((await app.inject({ method: 'DELETE', url: `/api/servers/${s.id}`, headers: { cookie: family } })).statusCode).toBe(200);
     expect((await app.inject({ url: '/api/servers', headers: { cookie: family } })).json()).toEqual([]);
@@ -93,7 +93,7 @@ describe('signing in on a server with a Vidalune account', () => {
     await app.inject({ method: 'DELETE', url: '/api/server/members/1', headers: { authorization: s.auth } });
     const { ticket } = (await open(s.owner, s.id)).json();
     // Still the owner, but no user there any more: the server asks for a password instead.
-    expect((await redeem(s.auth, ticket)).json()).toEqual({ email: 'owner@example.com', userRef: null });
+    expect((await redeem(s.auth, ticket)).json()).toEqual({ email: 'owner@example.com', userRef: null, owner: true });
     const lone = (await app.inject({ method: 'POST', url: '/api/server/register', payload: { name: 'Los', version: '0.10.5' } })).json();
     expect((await app.inject({ method: 'POST', url: '/api/server/member-code', headers: { authorization: `Server ${lone.id}:${lone.secret}` }, payload: { userRef: '1' } })).statusCode).toBe(409);
   });

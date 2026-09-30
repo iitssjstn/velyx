@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { and, count, eq, sql } from 'drizzle-orm';
+import { and, asc, count, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireUser } from '../app.js';
@@ -220,11 +220,21 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     const who = await ctx.cloud.redeem(ticket);
     // An invitation this account accepted: its user is made now, the first time.
     const invited = /^invite:([\w-]{6,40})$/.exec(who.userRef ?? '')?.[1];
-    const user = invited
+    let user = invited
       ? ((await redeemInvite(ctx, invited, who.email, request.ip)) ?? undefined)
       : who.userRef && /^\d+$/.test(who.userRef)
         ? ctx.db.select().from(users).where(eq(users.id, Number(who.userRef))).get()
         : undefined;
+    // The server's owner without a user of their own here yet (linked before accounts were connected
+    // per user): they are its administrator. Connected now, so it stays that way.
+    if (!user && !who.userRef && who.owner) {
+      user = ctx.db.select().from(users).where(and(eq(users.role, 'admin'), eq(users.disabled, false))).orderBy(asc(users.id)).get();
+      if (user) {
+        const owner = user;
+        await ctx.cloud.connectOwner(owner.id).catch((err: Error) => log.warn(`Connecting the owner's Vidalune account failed: ${err.message}`));
+        ctx.audit.record('cloud.account_linked', { actor: owner, ip: request.ip, detail: who.email ?? undefined });
+      }
+    }
     if (!user || user.disabled) {
       ctx.audit.record('login.failed', { actorName: who.email ?? 'Vidalune account', ip: request.ip, detail: user ? 'account disabled (Vidalune account)' : 'Vidalune account not connected to a user' });
       return null;
@@ -255,7 +265,7 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
   app.post('/api/auth/app/ticket', async (request) => {
     const body = ticketBody.extend({ deviceName: deviceNameSchema }).parse(request.body);
     const user = await ticketUser(body.ticket, request);
-    if (!user) throw new HttpError(403, 'Your Vidalune account is not connected to a user on this server. Sign in with your username and password.');
+    if (!user) throw new HttpError(403, 'Your Vidalune account has no user on this server (any more). Ask its administrator to invite you again.');
     return { ...appSignIn(user, body.deviceName, request, 'Vidalune account'), user: publicUser(user) };
   });
 

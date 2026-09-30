@@ -1,24 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import { Button, Field, styles } from '../components/ui';
 import { Logo } from '../components/Logo';
-import { CLOUD_ACCOUNT_KEY, CloudError, createCloud, PENDING_CONNECT_KEY, serverAddresses, signInWithTicket, sortServers, type CloudAccount, type CloudServer } from '../lib/cloud';
+import { CLOUD_ACCOUNT_KEY, CloudError, createCloud, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudAccount, type CloudServer } from '../lib/cloud';
 import { findServer, SERVER_PROBLEMS, ServerError } from '../lib/server';
 import { USER_AGENT, useSession } from '../lib/session';
 import { colors } from '../lib/theme';
 import type { MessageKey } from '../lib/i18n';
 
-/** The Vidalune account the app signed in with (only to list servers; each server has its own sign-in). */
+/** The Vidalune account the app signed in with: the only sign-in, for every server it opens. */
 const STORE_KEY = CLOUD_ACCOUNT_KEY;
 const cloud = createCloud();
 
 const problemKey = (err: unknown): MessageKey => (err instanceof CloudError ? (`cloud.${err.problem}` as MessageKey) : 'cloud.failed');
 
 export default function CloudAccountScreen() {
-  const { t, setServer, signIn, deviceName } = useSession();
+  const { t, setServer, signIn, deviceName, cloudServerId, signedIn, forgetServer } = useSession();
+  // "Choose another server": show the list, do not open the last one again.
+  const { choose } = useLocalSearchParams<{ choose?: string }>();
+  const autoOpened = useRef(false);
   const [account, setAccount] = useState<CloudAccount | null | undefined>(undefined);
   const [servers, setServers] = useState<CloudServer[] | null>(null);
   const [mode, setMode] = useState<'in' | 'up'>('in');
@@ -69,40 +72,60 @@ export default function CloudAccountScreen() {
     }
   };
 
-  /** Its own address first (fastest at home), then the relay; signed in with a ticket when it can. */
+  /**
+   * Its own address first (fastest at home), then the relay; signed in with the Vidalune account
+   * (a one-time ticket) — never with a second password. When that does not work, the reason.
+   */
   const open = async (s: CloudServer) => {
     if (!account || !serverAddresses(s).length) return;
     setBusy(s.id);
     setError(null);
-    let last: unknown = null;
-    let opened: { ticket: string; addresses: string[] } | null = null;
+    let opened: { ticket: string; addresses: string[] };
     try {
       opened = await cloud.open(account.token, s.id);
-    } catch {
-      // No ticket (older account service): the addresses from the list, and a password.
+    } catch (err) {
+      setError(t(problemKey(err)));
+      setBusy(null);
+      return;
     }
-    for (const address of opened?.addresses ?? serverAddresses(s)) {
+    let last: unknown = null;
+    for (const address of opened.addresses) {
+      let url: string;
       try {
-        const { url, info } = await findServer(address, fetch);
-        await setServer(url, info);
-        const signedIn = opened ? await signInWithTicket(url, opened.ticket, deviceName, USER_AGENT).catch(() => null) : null;
-        setBusy(null);
-        if (signedIn) {
-          await signIn(signedIn.token, signedIn.user);
-          router.replace('/home');
-        } else {
-          // Once signed in by password, this user gets connected to the Vidalune account (see sign-in).
-          if (opened) await SecureStore.setItemAsync(PENDING_CONNECT_KEY, s.id).catch(() => undefined);
-          router.replace('/sign-in');
-        }
-        return;
+        const found = await findServer(address, fetch);
+        url = found.url;
+        await setServer(url, found.info, s.id);
       } catch (err) {
         last = err;
+        continue;
       }
+      try {
+        const done = await signInWithTicket(url, opened.ticket, deviceName, USER_AGENT);
+        await signIn(done.token, done.user);
+        setBusy(null);
+        router.replace('/home');
+      } catch (err) {
+        // The server was reached but did not let this account in: say why, and stay on the list.
+        await forgetServer();
+        setError(err instanceof TicketError && err.message ? err.message : t('cloud.notConnected'));
+        setBusy(null);
+      }
+      return;
     }
+    await forgetServer();
     setError(t(last instanceof ServerError ? SERVER_PROBLEMS[last.problem] : 'connect.unreachable'));
     setBusy(null);
   };
+
+  // Signed out by the server (a session ended) while it was opened with this account: straight back in.
+  useEffect(() => {
+    if (autoOpened.current || choose || signedIn || !cloudServerId || !servers) return;
+    const s = servers.find((x) => x.id === cloudServerId);
+    if (!s) return;
+    autoOpened.current = true;
+    void open(s);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servers, cloudServerId, signedIn, choose]);
 
   const signOut = async () => {
     if (account) await cloud.signOut(account.token);

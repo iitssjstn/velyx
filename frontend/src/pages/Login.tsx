@@ -21,6 +21,9 @@ export function LoginPage() {
   const vidalune = params.get('vidalune');
   // On app.vidalune.com: signed in with the Vidalune account right away (the server chosen there).
   const onApp = onVidaluneApp(server?.vidalune?.appUrl);
+  // Linked to Vidalune: the Vidalune account is the way in; a username and password only on request.
+  const [passwordAsked, setWithPassword] = useState(false);
+  const withPassword = passwordAsked || !server?.vidalune;
   useEffect(() => {
     if (onApp && !vidalune && shouldAutoOpen()) openWithVidalune();
   }, [onApp, vidalune]);
@@ -52,29 +55,11 @@ export function LoginPage() {
     <AuthShell>
       <h1 className="font-display text-3xl font-semibold tracking-tight">{t('auth.signIn')}</h1>
       <p className="mt-2 text-muted">{server?.name && server.name !== 'Vidalune' ? t('auth.toServer', { name: server.name }) : t('auth.toYourServer')}</p>
-      <form onSubmit={submit} className="mt-8 space-y-4">
-        <div>
-          <label className="label" htmlFor="username">{t('auth.username')}</label>
-          <input id="username" className="input" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} required autoFocus value={username} onChange={(e) => setUsername(e.target.value)} />
-        </div>
-        <div>
-          <label className="label" htmlFor="password">{t('auth.password')}</label>
-          <input id="password" type="password" className="input" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-        </div>
-        {!error && (vidalune === 'unknown' || vidalune === 'failed') && (
-          <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
-            {t(vidalune === 'unknown' ? 'auth.vidaluneUnknown' : 'auth.vidaluneFailed')}
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
-            {error}
-          </p>
-        )}
-        <Button type="submit" size="lg" className="w-full" loading={busy}>
-          {t('auth.signIn')}
-        </Button>
-      </form>
+      {!withPassword && (vidalune === 'unknown' || vidalune === 'failed') && (
+        <p role="alert" className="mt-6 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+          {t(vidalune === 'unknown' ? 'auth.vidaluneUnknown' : 'auth.vidaluneFailed')}
+        </p>
+      )}
       {server?.vidalune && (
         <a
           href={onApp ? '/_vl/open' : serversPage(server.vidalune.appUrl)}
@@ -83,12 +68,41 @@ export function LoginPage() {
             e.preventDefault();
             openWithVidalune();
           }}
-          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-raised text-sm font-medium hover:bg-raised/80">
-          <Cloud className="size-4 text-accent" aria-hidden="true" />
+          className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-accent font-semibold text-accent-ink hover:brightness-110">
+          <Cloud className="size-5" aria-hidden="true" />
           {t('auth.withVidalune')}
         </a>
       )}
-      <p className="mt-8 text-xs text-faint">{tRich('auth.forgotPassword', { command: <code className="text-muted">vidalune reset-password</code> })}</p>
+      {withPassword ? (
+        <form onSubmit={submit} className={server?.vidalune ? 'mt-6 space-y-4' : 'mt-8 space-y-4'}>
+          <div>
+            <label className="label" htmlFor="username">{t('auth.username')}</label>
+            <input id="username" className="input" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} required autoFocus value={username} onChange={(e) => setUsername(e.target.value)} />
+          </div>
+          <div>
+            <label className="label" htmlFor="password">{t('auth.password')}</label>
+            <input id="password" type="password" className="input" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          </div>
+          {!error && (vidalune === 'unknown' || vidalune === 'failed') && (
+            <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+              {t(vidalune === 'unknown' ? 'auth.vidaluneUnknown' : 'auth.vidaluneFailed')}
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+              {error}
+            </p>
+          )}
+          <Button type="submit" size="lg" className="w-full" loading={busy}>
+            {t('auth.signIn')}
+          </Button>
+        </form>
+      ) : (
+        <button type="button" onClick={() => setWithPassword(true)} className="mt-4 w-full text-center text-sm text-muted underline decoration-line underline-offset-4 hover:text-ink">
+          {t('auth.withPasswordInstead')}
+        </button>
+      )}
+      {withPassword && <p className="mt-8 text-xs text-faint">{tRich('auth.forgotPassword', { command: <code className="text-muted">vidalune reset-password</code> })}</p>}
     </AuthShell>
   );
 }

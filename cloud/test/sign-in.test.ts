@@ -102,16 +102,47 @@ describe('signing in with a Vidalune account', () => {
     expect((await sso(await ticketFor(lisa))).headers.location).toBe('/login?vidalune=unknown');
   });
 
-  it('connects a user after one sign-in by password, so the Vidalune account alone is enough from then on', async () => {
+  it('signs the owner in as the administrator also when their account knew no user here, and connects it', async () => {
     const { code } = (await env.app.inject({ method: 'POST', url: '/api/admin/cloud/link', headers: { cookie: admin } })).json().code;
     const owner = await account('justin@example.com');
     await cloud.inject({ method: 'POST', url: '/api/link', headers: { cookie: owner }, payload: { code } });
     await env.app.inject({ method: 'POST', url: '/api/admin/cloud/check', headers: { cookie: admin } });
     // As for servers linked before accounts knew their users: the owner's account knows no user here.
     db.delete(memberships).run();
-    expect((await sso(await ticketFor(owner))).headers.location).toBe('/login?vidalune=unknown');
+    // No second sign-in: the owner is the administrator, in the browser and in the app…
+    const res = await sso(await ticketFor(owner));
+    expect(res.headers.location).toBe('/');
+    expect((await me(res.cookies.map((c) => `${c.name}=${c.value}`).join('; '))).json().user.username).toBe('justin');
+    const app = await env.app.inject({ method: 'POST', url: '/api/auth/app/ticket', payload: { ticket: await ticketFor(owner), deviceName: 'Pixel 8' } });
+    expect(app.json()).toMatchObject({ user: { username: 'justin', role: 'admin' } });
+    // …and connected for good.
+    expect(db.select().from(memberships).all()).toMatchObject([{ userRef: '1' }]);
+  });
 
-    // Signed in by password: connect with a fresh ticket, then the Vidalune account alone is enough.
+  it('never signs someone else in as the administrator', async () => {
+    const { code } = (await env.app.inject({ method: 'POST', url: '/api/admin/cloud/link', headers: { cookie: admin } })).json().code;
+    await cloud.inject({ method: 'POST', url: '/api/link', headers: { cookie: await account('justin@example.com') }, payload: { code } });
+    await env.app.inject({ method: 'POST', url: '/api/admin/cloud/check', headers: { cookie: admin } });
+    const family = await createUser(env.app, admin, 'lisa');
+    const issued = (await env.app.inject({ method: 'POST', url: '/api/account/cloud/link', headers: { cookie: family.cookie } })).json();
+    const lisa = await account('lisa@example.com');
+    await cloud.inject({ method: 'POST', url: '/api/join', headers: { cookie: lisa }, payload: { code: issued.code } });
+    // Lisa's user was removed here: she is told to ask for a new invitation — not signed in as anyone else.
+    await env.app.inject({ method: 'DELETE', url: `/api/users/${family.id}`, headers: { cookie: admin } });
+    const app = await env.app.inject({ method: 'POST', url: '/api/auth/app/ticket', payload: { ticket: await ticketFor(lisa), deviceName: 'Pixel 8' } });
+    expect(app.statusCode).toBe(403);
+    expect(app.json().error).toMatch(/invite you again/);
+    expect((await sso(await ticketFor(lisa))).headers.location).toBe('/login?vidalune=unknown');
+  });
+
+  it('connects a user after one sign-in by password, so the Vidalune account alone is enough from then on', async () => {
+    const { code } = (await env.app.inject({ method: 'POST', url: '/api/admin/cloud/link', headers: { cookie: admin } })).json().code;
+    const owner = await account('justin@example.com');
+    await cloud.inject({ method: 'POST', url: '/api/link', headers: { cookie: owner }, payload: { code } });
+    await env.app.inject({ method: 'POST', url: '/api/admin/cloud/check', headers: { cookie: admin } });
+    db.delete(memberships).run();
+
+    // Connected by hand (Settings → Vidalune account, or after a password sign-in) with a fresh ticket.
     const claim = await env.app.inject({ method: 'POST', url: '/api/account/cloud/claim', headers: { cookie: admin }, payload: { ticket: await ticketFor(owner) } });
     expect(claim.statusCode).toBe(200);
     expect(claim.json().email).toBe('justin@example.com');
