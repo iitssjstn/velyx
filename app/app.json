@@ -43,6 +43,13 @@
             ]
           }
         }
+      ],
+      [
+        "react-native-google-cast",
+        {
+          "receiverAppId": "CC1AD845",
+          "expandedController": false
+        }
       ]
     ]
   }

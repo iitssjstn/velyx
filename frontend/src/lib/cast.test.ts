@@ -122,7 +122,7 @@ describe('casting from the player', () => {
     expect(posts[0]).toMatchObject({ url: '/api/cast/session', body: { fileId: 5, audioIndex: 1 } });
     expect(locate).toHaveBeenCalledWith(600);
     expect(sdk.loaded[0]).toMatchObject({ url: `${location.origin}/api/media/5/remux?audio=aac&start=598.000&cast=tok`, type: 'video/mp4', currentTime: 2, active: [1] });
-    expect(sdk.loaded[0].tracks[0].trackContentId).toBe(`${location.origin}/api/media/5/subtitles/3.vtt?cast=tok`);
+    expect(sdk.loaded[0].tracks[0].trackContentId).toBe(`${location.origin}/api/media/5/subtitles/3.vtt?offset=598.000&cast=tok`);
     expect(result.current).toMatchObject({ active: true, device: 'Woonkamer', time: 600 });
 
     // The TV's position counts from where its stream started.

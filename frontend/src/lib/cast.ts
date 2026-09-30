@@ -171,7 +171,9 @@ export function useCast(item: CastItem | null) {
       media.duration = s.decision.durationSec ?? undefined;
       media.tracks = s.subtitles.map((sub, i) => {
         const track = new chromeCast.media.Track(i + 1, chromeCast.media.TrackType.TEXT);
-        track.trackContentId = castUrl(base, sub.url, s.token);
+        // The same clock as the stream (a repackaged one counts from its start).
+        const path = offset.current > 0 ? `${sub.url}${sub.url.includes('?') ? '&' : '?'}offset=${offset.current.toFixed(3)}` : sub.url;
+        track.trackContentId = castUrl(base, path, s.token);
         track.trackContentType = 'text/vtt';
         track.subtype = chromeCast.media.TextTrackType.SUBTITLES;
         track.name = sub.label;

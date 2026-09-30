@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View, type GestureResponderEvent } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, View, type GestureResponderEvent } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,11 +7,13 @@ import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
+import { CastButton, CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, useMediaStatus, useRemoteMediaClient, useStreamPosition } from 'react-native-google-cast';
 import { deviceDecoders } from '../../../../modules/vidalune-codecs';
 import { SeekBar } from '../../../components/SeekBar';
 import { playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
-import { episodeCode, formatClock } from '../../../lib/format';
+import { castLoadRequest, castTrackIds, sessionUsable, type CastSession } from '../../../lib/cast';
+import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { rememberSubtitle, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
 import { DEFAULT_SUBTITLE_STYLE, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
@@ -35,6 +37,8 @@ interface Item {
   fileId: number;
   title: string;
   subtitle: string | null;
+  /** Artwork shown on the TV while casting. */
+  artwork: string | null;
   progress: { positionSec: number; durationSec: number; completed: boolean } | null;
   next: NextEpisode | null;
   segments: EpisodeSegments | null;
@@ -65,13 +69,13 @@ export default function Player() {
     refetchOnReconnect: false,
     queryFn: async (): Promise<Item> => {
       if (kind === 'episode') {
-        const e = await api.get<{ id: number; showTitle: string; seasonNumber: number; episodeNumber: number; title: string | null; files: { id: number }[]; progress: Item['progress']; next: NextEpisode | null; segments?: EpisodeSegments | null }>(`/api/episodes/${id}`);
+        const e = await api.get<{ id: number; showTitle: string; seasonNumber: number; episodeNumber: number; title: string | null; stillPath?: string | null; showBackdropPath?: string | null; files: { id: number }[]; progress: Item['progress']; next: NextEpisode | null; segments?: EpisodeSegments | null }>(`/api/episodes/${id}`);
         if (!e.files[0]) throw new Error(t('player.cannotPlay'));
-        return { kind: 'episode', id: e.id, fileId: e.files[0].id, title: e.showTitle, subtitle: [episodeCode(e.seasonNumber, e.episodeNumber), e.title].filter(Boolean).join(' · '), progress: e.progress, next: e.next, segments: e.segments ?? null };
+        return { kind: 'episode', id: e.id, fileId: e.files[0].id, title: e.showTitle, subtitle: [episodeCode(e.seasonNumber, e.episodeNumber), e.title].filter(Boolean).join(' · '), artwork: e.stillPath ?? e.showBackdropPath ?? null, progress: e.progress, next: e.next, segments: e.segments ?? null };
       }
-      const m = await api.get<{ id: number; title: string; year: number | null; files: { id: number }[]; progress: Item['progress'] }>(`/api/movies/${id}`);
+      const m = await api.get<{ id: number; title: string; year: number | null; backdropPath?: string | null; posterPath?: string | null; files: { id: number }[]; progress: Item['progress'] }>(`/api/movies/${id}`);
       if (!m.files[0]) throw new Error(t('player.cannotPlay'));
-      return { kind: 'movie', id: m.id, fileId: m.files[0].id, title: m.title, subtitle: m.year ? String(m.year) : null, progress: m.progress, next: null, segments: null };
+      return { kind: 'movie', id: m.id, fileId: m.files[0].id, title: m.title, subtitle: m.year ? String(m.year) : null, artwork: m.backdropPath ?? m.posterPath ?? null, progress: m.progress, next: null, segments: null };
     },
   });
   const prefs = useQuery({ queryKey: [serverUrl, 'account-prefs'], queryFn: () => api.get<Prefs>('/api/account/preferences') });
@@ -177,7 +181,9 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
 
   /** Loads the stream (again) for `at` seconds into the file. */
   const load = useCallback(
-    async (a: PlaybackAnswer, at: number) => {
+    async (a: PlaybackAnswer, at: number, autoplay = true) => {
+      // Playing on a Chromecast: the phone stays quiet.
+      if (castingRef.current) return;
       setLoading(true);
       const s = await streamFrom(api, a, at);
       setOffset(s.offset);
@@ -188,15 +194,62 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       streamReady.current = false;
       setEnded(false);
       await player.replaceAsync({ uri: s.uri, headers: api.headers(), metadata: { title: item.title, artist: item.subtitle ?? undefined } });
-      player.play();
+      if (autoplay && !castingRef.current) player.play();
+      else setLoading(false);
     },
     [api, player, item.title, item.subtitle],
+  );
+
+  // ---------------------------------------------------------------- casting
+  // A Chromecast picked with the cast button: the video continues there (the Chromecast fetches
+  // it itself with a short-lived token for this file) and this player becomes its remote control.
+  const client = useRemoteMediaClient();
+  const castDevice = useCastDevice();
+  const mediaStatus = useMediaStatus();
+  const streamPosition = useStreamPosition(0.5);
+  const [casting, setCasting] = useState(false);
+  const castingRef = useRef(false);
+  const castSession = useRef<{ session: CastSession; audio: number | null } | null>(null);
+  const subtitleRef = useRef<SubtitleOption | null>(null);
+  subtitleRef.current = subtitle;
+
+  /** Loads the file on the Chromecast from `at` seconds (for an audio track). */
+  const castLoad = useCallback(
+    async (at: number, audio: number | null) => {
+      if (!client) return;
+      setLoading(true);
+      let s = castSession.current;
+      if (!s || !sessionUsable(s.session, audio, s.audio)) {
+        const session = await api.post<CastSession>('/api/cast/session', { fileId: item.fileId, ...(audio !== null ? { audioIndex: audio } : {}) });
+        s = castSession.current = { session, audio };
+      }
+      // A repackaged stream starts at the keyframe before `at`.
+      const keyframe = s.session.decision.seek === 'restart' && at > 0 ? await api.get<{ start: number; seek: number }>(`/api/media/${item.fileId}/keyframe?t=${at.toFixed(3)}`).then((r) => ({ offset: r.start, seek: r.seek })) : null;
+      const { request, offset: from } = castLoadRequest({ session: s.session, url: (path) => api.url(path), title: item.title, subtitle: item.subtitle, artwork: imagePath(item.artwork, 'w780'), at, keyframe, subtitleKey: subtitleRef.current?.key ?? null });
+      setOffset(from);
+      setTime(Math.max(0, at - from));
+      setEnded(false);
+      await client.loadMedia(request);
+    },
+    [api, client, item.fileId, item.title, item.subtitle, item.artwork],
+  );
+  const castFailed = useCallback(
+    (err: unknown) => {
+      Alert.alert(t('player.castFailed'), errorMessage(err, t));
+      void CastContext.getSessionManager().endCurrentSession(true);
+    },
+    [t],
   );
 
   /** Asks the server how to play the file on this device (for an audio track), then plays from `at`. */
   const decide = useCallback(
     async (at: number, wantedAudio?: number) => {
       try {
+        if (castingRef.current && wantedAudio !== undefined) {
+          setAudioIndex(wantedAudio);
+          await castLoad(at, wantedAudio);
+          return;
+        }
         const caps = { ...capsRef.current, ...(wantedAudio !== undefined ? { audioIndex: wantedAudio } : {}) };
         const a = await api.post<PlaybackAnswer>(`/api/media/${item.fileId}/playback`, caps);
         if (a.analysis.mode === 'unsupported') {
@@ -218,7 +271,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
         setProblem(errorMessage(err, t));
       }
     },
-    [api, item.fileId, answer, load, player, t],
+    [api, item.fileId, answer, load, castLoad, player, t],
   );
 
   // Start: resume where the viewer stopped (unless asked to start elsewhere).
@@ -259,13 +312,15 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
 
   const lastTime = useRef(0);
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    if (castingRef.current) return;
     // Playing on: the spinner goes, also when the player's status did not say so (some devices).
     setLoading((l) => stillLoading(l, lastTime.current, currentTime, player.playing));
     lastTime.current = currentTime;
     setTime(currentTime);
   });
-  useEventListener(player, 'playingChange', ({ isPlaying }) => setPlaying(isPlaying));
+  useEventListener(player, 'playingChange', ({ isPlaying }) => !castingRef.current && setPlaying(isPlaying));
   useEventListener(player, 'statusChange', ({ status, error }) => {
+    if (castingRef.current) return;
     setLoading(status === 'loading');
     if (status === 'readyToPlay') streamReady.current = true;
     if (status === 'readyToPlay' && pendingSeek.current !== null) {
@@ -308,6 +363,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
     return true;
   };
   useEventListener(player, 'playToEnd', () => {
+    if (castingRef.current) return;
     const kind = answer ? endOfStream(streamReady.current, position, duration) : 'ignore';
     if (kind === 'ignore') return;
     if (kind === 'resume') {
@@ -316,11 +372,50 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       setProblem(t('player.interrupted'));
       return;
     }
+    finished();
+  });
+  /** Played to the end (on the phone or the TV). */
+  const finished = () => {
     void save(duration, true);
     setEnded(true);
     setControls(true);
     if (item.next && !nextDismissed && countdown === null) setCountdown(NEXT_COUNTDOWN);
-  });
+  };
+
+  // Connected to a Chromecast: continue there from here (also when the next episode opens while
+  // casting). Disconnected: back on the phone where the TV was, paused.
+  useEffect(() => {
+    if (client && answer && !castingRef.current) {
+      castingRef.current = true;
+      setCasting(true);
+      player.pause();
+      void castLoad(position, audioIndex).catch(castFailed);
+    } else if (!client && castingRef.current) {
+      castingRef.current = false;
+      setCasting(false);
+      setPlaying(false);
+      if (answer && !ended) void load(answer, position, false).catch((err: unknown) => setProblem(errorMessage(err, t)));
+    }
+    // On connecting and disconnecting only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, answer !== null]);
+  // The TV's position, playing state and end.
+  useEffect(() => {
+    if (casting && streamPosition !== null) setTime(streamPosition);
+  }, [casting, streamPosition]);
+  const castState = mediaStatus?.playerState ?? null;
+  const castIdle = mediaStatus?.idleReason ?? null;
+  useEffect(() => {
+    if (!casting || castState === null) return;
+    setPlaying(castState === MediaPlayerState.PLAYING);
+    setLoading(castState === MediaPlayerState.LOADING || castState === MediaPlayerState.BUFFERING);
+    if (castState === MediaPlayerState.IDLE && castIdle === MediaPlayerIdleReason.FINISHED && !ended) finished();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [casting, castState, castIdle]);
+  // Another subtitle picked while casting: shown on the TV.
+  useEffect(() => {
+    if (casting && client) void client.setActiveTrackIds(castTrackIds(castSession.current?.session ?? null, subtitle?.key ?? null)).catch(() => undefined);
+  }, [casting, client, subtitle]);
 
   // ---------------------------------------------------------------- progress
   const save = useCallback(
@@ -411,6 +506,15 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       const tt = Math.max(0, Math.min(Math.max(0, duration - 1), target));
       setEnded(false);
       setTouched((n) => n + 1);
+      if (castingRef.current) {
+        // A repackaged stream is loaded again from there; a file as it is seeks on the TV.
+        if (castSession.current?.session.decision.seek === 'restart') void castLoad(tt, castSession.current.audio).catch(castFailed);
+        else {
+          void client?.seek({ position: tt, resumeState: 'play' });
+          setTime(tt);
+        }
+        return;
+      }
       if (answer.decision.seek === 'restart') void load(answer, tt);
       else {
         player.currentTime = tt;
@@ -418,7 +522,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
         setTime(tt);
       }
     },
-    [answer, duration, load, player],
+    [answer, duration, load, player, client, castLoad, castFailed],
   );
 
   // Always-skip: once per part and item, as on the website; credits with nothing after them go
@@ -439,6 +543,12 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
 
   const toggle = () => {
     poke();
+    if (castingRef.current) {
+      if (ended) seekTo(0);
+      else if (playing) void client?.pause();
+      else void client?.play();
+      return;
+    }
     if (ended) {
       seekTo(0);
       player.play();
@@ -483,7 +593,8 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
 
   if (problem) return <Problem message={problem} />;
 
-  const text = cueTextAt(cues, position - subDelay);
+  // While casting the TV shows the subtitles.
+  const text = casting ? null : cueTextAt(cues, position - subDelay);
   const shown = scrub ?? position;
   const audioTracks = answer?.file.audioTracks ?? [];
   const showNext = Boolean(item.next && countdown !== null && !nextDismissed);
@@ -493,6 +604,13 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
         setScreenHeight(e.nativeEvent.layout.height);
       }}>
       <VideoView player={player} style={{ flex: 1 }} nativeControls={false} contentFit="contain" allowsPictureInPicture={false} />
+      {casting && (
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+          <Feather name="cast" size={48} color={colors.accent} />
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>{castDevice?.friendlyName ? t('player.castingTo', { device: castDevice.friendlyName }) : t('player.casting')}</Text>
+          <Text style={{ color: colors.muted, textAlign: 'center' }}>{t('player.castingHint')}</Text>
+        </View>
+      )}
       {text ? (
         <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleBottom(subStyle, screenHeight, controls) + insets.bottom, alignItems: 'center' }}>
           <Text style={subtitleTextStyle(subStyle, screenHeight)}>{text}</Text>
@@ -515,6 +633,8 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
                 <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }} numberOfLines={1}>{item.title}</Text>
                 {item.subtitle ? <Text style={{ color: colors.muted }} numberOfLines={1}>{item.subtitle}</Text> : null}
               </View>
+              {/* Shows when a Chromecast is around; opens the list of them (and "stop casting"). */}
+              <CastButton accessibilityLabel={t('player.cast')} style={{ width: 36, height: 36, tintColor: '#fff' }} />
               <IconButton name="message-square" label={t('player.tracks')} onPress={() => setMenu(true)} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 40 }}>
