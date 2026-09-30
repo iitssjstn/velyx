@@ -52,6 +52,16 @@ export const requests: Messages['requests'] = {
       fantasy: 'Sciencefiction & fantasy',
     },
   },
+  page: {
+    requestHint: 'De beheerder van de server beslist wat er met een aanvraag gebeurt.',
+    seasonsCount: '{n} seizoenen',
+    allRequested: 'Alles van deze serie is al aangevraagd.',
+    similar: 'Dit vind je misschien ook leuk',
+    reset: 'Weer aanvraagbaar maken',
+    resetTitle: 'Weer aanvraagbaar maken?',
+    resetText: 'Alle aanvragen voor “{title}” worden in Seerr geannuleerd (ook die buiten Vidalune om zijn gedaan) en Seerr vergeet de titel, zodat hij opnieuw kan worden aangevraagd. Er verandert niets in de bibliotheek.',
+    resetDone: '“{title}” kan weer worden aangevraagd.',
+  },
   states: {
     requested: 'Aangevraagd',
     approved: 'Goedgekeurd',

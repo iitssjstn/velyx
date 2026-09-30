@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Check, Play, Send } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { api } from '../lib/api';
 import { imageUrl } from '../lib/format';
 import { seriesContinue } from '../lib/series';
 import type { ShowDetail } from '../lib/types';
-import { Button } from './Button';
-import { Modal } from './Modal';
 import { Shelf } from './Shelf';
 import { toast } from './Toast';
 import { useT, type MessageKey } from '../i18n';
@@ -25,12 +23,6 @@ export interface SeerrResult {
   inLibrary: boolean;
   /** Where it is on this server (only libraries you may see). */
   local: { type: 'movie' | 'show'; id: number } | null;
-}
-
-interface SeerrDetails extends SeerrResult {
-  genres: string[];
-  runtime: number | null;
-  seasons: Array<{ seasonNumber: number; episodeCount: number }>;
 }
 
 export interface MyRequest {
@@ -90,78 +82,6 @@ export function useOpenLocal() {
     [navigate],
   );
   return { open, busy };
-}
-
-/** One title from Seerr: what it is, and requesting it (all or some seasons of a show) — or playing it when it is here. */
-export function DetailModal({ item, onClose }: { item: SeerrResult; onClose: () => void }) {
-  const { t } = useT();
-  const qc = useQueryClient();
-  const { open, busy } = useOpenLocal();
-  const q = useQuery({ queryKey: ['seerr', 'details', item.mediaType, item.tmdbId], queryFn: () => api.get<SeerrDetails>(`/api/seerr/${item.mediaType}/${item.tmdbId}`) });
-  const [chosen, setChosen] = useState<number[] | null>(null);
-  const request = useMutation({
-    mutationFn: () => api.post<MyRequest>('/api/seerr/requests', { mediaType: item.mediaType, tmdbId: item.tmdbId, seasons: item.mediaType === 'tv' ? chosen : null }),
-    onSuccess: (r) => {
-      toast.success(t('requests.requested', { title: r.title }));
-      void qc.invalidateQueries({ queryKey: ['seerr'] });
-      onClose();
-    },
-    onError: (e) => toast.error(e),
-  });
-  const d = q.data ?? { ...item, genres: [], runtime: null, seasons: [] };
-  const canRequest = !d.inLibrary && (!d.state || d.state === 'declined' || d.state === 'failed');
-  return (
-    <Modal title={`${d.title}${d.year ? ` (${d.year})` : ''}`} open onClose={onClose}>
-      <div className="grid gap-4 sm:grid-cols-[9rem_1fr]">
-        <div className="hidden sm:block">
-          <Poster path={d.posterPath} title={d.title} />
-        </div>
-        <div className="space-y-3 text-sm">
-          <p className="flex flex-wrap items-center gap-2 text-muted">
-            <span>{d.mediaType === 'movie' ? t('requests.movie') : t('requests.tv')}</span>
-            {d.genres.length > 0 && <span>· {d.genres.join(', ')}</span>}
-            {d.runtime ? <span>· {t('requests.minutes', { n: d.runtime })}</span> : null}
-            {d.inLibrary ? <span className="rounded-full bg-ok/15 px-2.5 py-0.5 text-xs text-ok">{t('requests.inLibrary')}</span> : d.state ? <StateBadge state={d.state} /> : null}
-          </p>
-          {d.overview && <p className="leading-relaxed">{d.overview}</p>}
-          {d.mediaType === 'tv' && d.seasons.length > 0 && canRequest && (
-            <fieldset className="space-y-1.5">
-              <legend className="label">{t('requests.seasons')}</legend>
-              {d.seasons.map((s) => (
-                <label key={s.seasonNumber} className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    className="size-4 accent-[var(--color-accent)]"
-                    checked={chosen === null || chosen.includes(s.seasonNumber)}
-                    onChange={(e) => {
-                      const all = d.seasons.map((x) => x.seasonNumber);
-                      const now = chosen ?? all;
-                      const next = e.target.checked ? [...now, s.seasonNumber] : now.filter((n) => n !== s.seasonNumber);
-                      setChosen(next.length === all.length ? null : next);
-                    }}
-                  />
-                  {t('requests.season', { n: s.seasonNumber, count: s.episodeCount })}
-                </label>
-              ))}
-            </fieldset>
-          )}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={onClose}>{t('common.close')}</Button>
-            {d.local && (
-              <Button icon={<Play className="size-4 fill-current" />} loading={busy} onClick={() => void open(d.local!)}>
-                {t('requests.play')}
-              </Button>
-            )}
-            {canRequest && (
-              <Button icon={<Send className="size-4" />} loading={request.isPending} disabled={chosen !== null && chosen.length === 0} onClick={() => request.mutate()}>
-                {d.mediaType === 'movie' ? t('requests.request') : chosen === null ? t('requests.requestAll') : t('requests.requestSeasons', { count: chosen.length })}
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-    </Modal>
-  );
 }
 
 /** A poster from Seerr: a check when it is here, the request's state when it is on its way. */
@@ -283,16 +203,15 @@ function useNearEnd() {
  */
 export function DiscoverShelves() {
   const status = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
-  const [selected, setSelected] = useState<SeerrResult | null>(null);
+  const navigate = useNavigate();
   const { open } = useOpenLocal();
   if (!status.data?.enabled) return null;
-  const select = (item: SeerrResult) => (item.local ? void open(item.local) : setSelected(item));
+  const select = (item: SeerrResult) => (item.local ? void open(item.local) : navigate(`/request/${item.mediaType}/${item.tmdbId}`));
   return (
     <div>
       {DISCOVER_ROWS.map((spec) => (
         <DiscoverShelf key={`${spec.row}-${spec.genre ?? ''}`} spec={spec} onSelect={select} />
       ))}
-      {selected && <DetailModal item={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }

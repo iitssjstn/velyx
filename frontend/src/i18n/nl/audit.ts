@@ -43,6 +43,7 @@ export const audit: Messages['audit'] = {
     seerrSettings: 'Seerr-koppeling gewijzigd',
     seerrRequested: 'Aangevraagd via Seerr',
     seerrCancelled: 'Seerr-aanvraag geannuleerd',
+    seerrReset: 'Titel opnieuw aanvraagbaar gemaakt (Seerr)',
     upnpOn: 'Poort op de router opengezet (UPnP)',
     upnpOff: 'Poort op de router gesloten (UPnP)',
     inviteCreated: 'Uitnodiging gemaakt',

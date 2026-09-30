@@ -10,24 +10,17 @@
         linkIntro: 'Zet op je server “Koppelen aan Vidalune-account” aan (Beheer → Vidalune-account) en vul de code in die je server toont.',
         code: 'Code', linkButton: 'Koppelen', linked: 'Gekoppeld: {name}.', online: 'online', offline: 'offline — laatst gezien {when}', unlink: 'Ontkoppelen',
         unlinkConfirm: '{name} ontkoppelen van je account?', signOut: 'Uitloggen', delete: 'Account verwijderen', deleteConfirm: 'Vul je wachtwoord in om je account te verwijderen. Je servers worden ontkoppeld.',
-        deleteButton: 'Definitief verwijderen', cancel: 'Annuleren', version: 'versie {v}', open: 'Openen', privacy: 'Vidalune bewaart alleen je e-mailadres, een versleuteld wachtwoord en per server de naam, versie en het adres. Nooit je media of wat je kijkt.',
+        deleteButton: 'Definitief verwijderen', version: 'versie {v}', privacy: 'Vidalune bewaart alleen je e-mailadres, een versleuteld wachtwoord en per server de naam, versie en het adres. Nooit je media of wat je kijkt.',
         failed: 'Dat lukte niet. Probeer het opnieuw.',
         openServer: 'Openen', opening: 'Openen…', leave: 'Verlaten', leaveConfirm: '{name} uit je lijst halen? Je kunt dan niet meer met je Vidalune-account op deze server inloggen.',
         member: 'gedeeld met jou', unreachable: '{name} is nu niet bereikbaar. Staat hij aan?', noAddress: 'Deze server heeft nog geen adres: zet op de server de relay aan of stel zijn adres in.',
         join: 'Server toevoegen', joinIntro: 'Gebruik je de server van iemand anders? Ga daar naar Instellingen → Account → Vidalune-account en vul de code in die je daar krijgt.',
         joined: '{name} staat nu in je lijst.', choose: 'Andere server kiezen',
         remoteOn: 'Toegang op afstand: actief', remoteUntil: 'Toegang op afstand: actief tot {date}', remoteOff: 'Toegang op afstand via Vidalune (relay en app.vidalune.com) is niet actief. Thuis, en op een eigen adres, werken je servers gewoon.',
-        adminLink: 'Beheer', adminTitle: 'Beheer', adminOnly: 'Alleen voor beheerders van Vidalune.', back: 'Terug naar je servers',
-        stats: '{accounts} accounts · {remote} met toegang op afstand · {viewers} kijkers · {servers} gekoppelde servers · {tunnels} relays verbonden',
-        search: 'Zoeken op e-mailadres', filterAll: 'Alle accounts', filterRemote: 'Met toegang op afstand', filterServers: 'Met een server',
-        adminTag: 'beheerder', since: 'sinds {date}', noServers: 'geen servers', relayOn: 'relay verbonden', planNone: 'Geen toegang op afstand',
-        planRemote: 'Toegang op afstand (iedereen op je servers, € 5 per maand)', planViewer: 'Kijker (alleen dit account, € 2,50 per maand)', viewerOn: 'Toegang op afstand als kijker: actief', viewerUntil: 'Toegang op afstand als kijker: actief tot {date}',
-        period: 'Looptijd', months1: '1 maand', months3: '3 maanden', months6: 'Half jaar', months12: '1 jaar', lifetime: 'Levenslang', planEnd: 'Tot en met (leeg: geen einddatum)', planNote: 'Notitie (bijv. hoe er betaald is)', change: 'Wijzigen', save: 'Opslaan',
+        adminLink: 'Beheer',
+        viewerOn: 'Toegang op afstand als kijker: actief', viewerUntil: 'Toegang op afstand als kijker: actief tot {date}',
         invited: 'Je bent uitgenodigd', invitedText: 'Je bent uitgenodigd om te kijken op {server}. Maak een Vidalune-account of log in om de uitnodiging aan te nemen.',
         inviteGone: 'Deze uitnodiging is niet (meer) geldig. Vraag om een nieuwe.', accepted: 'Je kunt nu kijken op {name}. Open hem hieronder.',
-        relayTitle: 'Relay', relayNow: 'Nu {mbps} Mbit/s van {max} · {active} servers sturen · {tunnels} verbonden', relayNoMax: 'geen limiet',
-        relayRow: 'nu {now} Mbit/s · vandaag {today} · 30 dagen {month}', relayLimit: 'Limiet (Mbit/s, leeg: standaard {def})', relayNone: 'Nog geen servers met de relay.', relayOff: 'relay uit', limitSaved: 'Limiet opgeslagen: {name}.',
-        saved: 'Opgeslagen: {email}.', more: 'Er zijn meer accounts: zoek om te verfijnen.', empty: 'Geen accounts gevonden.', changed: 'gewijzigd {date}',
       }
     : {
         title: 'Vidalune account', intro: 'With a Vidalune account you find your own servers again, also outside your home network.',
@@ -36,24 +29,17 @@
         linkIntro: 'On your server, turn on “Link to a Vidalune account” (Admin → Vidalune account) and enter the code it shows.',
         code: 'Code', linkButton: 'Link', linked: 'Linked: {name}.', online: 'online', offline: 'offline — last seen {when}', unlink: 'Unlink',
         unlinkConfirm: 'Unlink {name} from your account?', signOut: 'Sign out', delete: 'Delete account', deleteConfirm: 'Enter your password to delete your account. Your servers are unlinked.',
-        deleteButton: 'Delete for good', cancel: 'Cancel', version: 'version {v}', open: 'Open', privacy: 'Vidalune keeps only your email address, an encrypted password and, per server, its name, version and address. Never your media or what you watch.',
+        deleteButton: 'Delete for good', version: 'version {v}', privacy: 'Vidalune keeps only your email address, an encrypted password and, per server, its name, version and address. Never your media or what you watch.',
         failed: 'That did not work. Try again.',
         openServer: 'Open', opening: 'Opening…', leave: 'Leave', leaveConfirm: 'Remove {name} from your list? You can then no longer sign in there with your Vidalune account.',
         member: 'shared with you', unreachable: '{name} cannot be reached right now. Is it on?', noAddress: 'This server has no address yet: turn the relay on or set its address on the server.',
         join: 'Add a server', joinIntro: 'Using someone else\'s server? There, go to Settings → Account → Vidalune account and enter the code you get.',
         joined: '{name} is in your list now.', choose: 'Choose another server',
         remoteOn: 'Remote access: active', remoteUntil: 'Remote access: active until {date}', remoteOff: 'Remote access through Vidalune (relay and app.vidalune.com) is not active. At home, and at an address of your own, your servers work as always.',
-        adminLink: 'Admin', adminTitle: 'Admin', adminOnly: 'Only for Vidalune administrators.', back: 'Back to your servers',
-        stats: '{accounts} accounts · {remote} with remote access · {viewers} viewers · {servers} linked servers · {tunnels} relays connected',
-        search: 'Search by email address', filterAll: 'All accounts', filterRemote: 'With remote access', filterServers: 'With a server',
-        adminTag: 'administrator', since: 'since {date}', noServers: 'no servers', relayOn: 'relay connected', planNone: 'No remote access',
-        planRemote: 'Remote access (everyone on your servers, € 5 a month)', planViewer: 'Viewer (this account only, € 2.50 a month)', viewerOn: 'Remote access as a viewer: active', viewerUntil: 'Remote access as a viewer: active until {date}',
-        period: 'Period', months1: '1 month', months3: '3 months', months6: 'Half a year', months12: '1 year', lifetime: 'Lifetime', planEnd: 'Up to and including (empty: no end date)', planNote: 'Note (e.g. how it was paid)', change: 'Change', save: 'Save',
+        adminLink: 'Admin',
+        viewerOn: 'Remote access as a viewer: active', viewerUntil: 'Remote access as a viewer: active until {date}',
         invited: 'You are invited', invitedText: 'You are invited to watch on {server}. Create a Vidalune account or sign in to accept.',
         inviteGone: 'This invitation is not valid (any more). Ask for a new one.', accepted: 'You can watch on {name} now. Open it below.',
-        relayTitle: 'Relay', relayNow: 'Now {mbps} Mbit/s of {max} · {active} servers sending · {tunnels} connected', relayNoMax: 'no limit',
-        relayRow: 'now {now} Mbit/s · today {today} · 30 days {month}', relayLimit: 'Limit (Mbit/s, empty: default {def})', relayNone: 'No servers with the relay yet.', relayOff: 'relay off', limitSaved: 'Limit saved: {name}.',
-        saved: 'Saved: {email}.', more: 'There are more accounts: search to narrow down.', empty: 'No accounts found.', changed: 'changed {date}',
       };
   // On app.vidalune.com these pages live under /_vl (the rest of that site is the chosen server).
   const BASE = location.pathname === '/_vl' || location.pathname.startsWith('/_vl/') ? '/_vl' : '';
@@ -88,9 +74,6 @@
     return remote.until ? t(viewer ? 'viewerUntil' : 'remoteUntil', { date: day(remote.until) }) : t(viewer ? 'viewerOn' : 'remoteOn');
   };
   const day = (ms) => new Date(ms).toLocaleDateString(nl ? 'nl-NL' : 'en-GB', { dateStyle: 'medium' });
-  /** yyyy-mm-dd (local) for a date field, and back to the end of that day. */
-  const isoDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-  const endOfDay = (value) => { const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d, 23, 59, 59).getTime(); };
 
   const LAST = 'vidalune.lastServer';
   const remember = (id) => { try { localStorage.setItem(LAST, id); } catch { /* private window */ } };
@@ -188,7 +171,6 @@
       if (inviting()) return invitePage();
       return signIn(pendingCode() || new URLSearchParams(location.search).has('new') ? 'up' : 'in');
     }
-    if (page === '/admin') return adminPage(me);
     if (inviting()) {
       // Accepted: straight into the server (it makes a user for this account there).
       let s;
@@ -245,8 +227,7 @@
       el('div', { class: 'row' },
         el('span', { class: 'small' }, me.email),
         el('span', { class: 'actions' },
-          me.admin ? el('a', { href: `${BASE}/admin` }, t('adminLink')) : null,
-          me.ceo && !BASE ? el('a', { href: '/ceo' }, 'CEO') : null,
+          me.ceo && !BASE ? el('a', { href: '/admin' }, t('adminLink')) : null,
           el('button', { class: 'link', type: 'button', onclick: async () => { await api('POST', '/api/logout'); signIn(); } }, t('signOut')),
         ),
       ),
@@ -309,103 +290,6 @@
           }),
         ),
       ),
-    );
-  }
-
-  /** For Vidalune administrators: every account, and who has remote access (until when). */
-  async function adminPage(me, message = '', query = { q: '', filter: 'all' }) {
-    if (!me.admin) return show(el('p', {}, t('adminOnly')), el('a', { href: `${BASE}/servers` }, t('back')));
-    const [data, relay] = await Promise.all([api('GET', `/api/admin/accounts?${new URLSearchParams(query)}`), api('GET', '/api/admin/relay')]);
-    const size = (b) => (b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`);
-    const relayCard = el('details', {},
-      el('summary', {}, t('relayTitle'), ' · ', `${relay.mbpsNow} Mbit/s`),
-      el('div', { class: 'card' },
-        el('p', { class: 'small' }, t('relayNow', { mbps: relay.mbpsNow, max: relay.maxMbps || t('relayNoMax'), active: relay.active, tunnels: relay.tunnels })),
-        relay.servers.length === 0 ? el('p', {}, t('relayNone')) : null,
-        el('ul', { class: 'servers' }, relay.servers.map((s) =>
-          el('li', {},
-            el('div', { class: 'row' },
-              el('strong', {}, s.name, s.owner ? el('span', { class: 'small' }, ` · ${s.owner}`) : null),
-              el('span', { class: 'small' }, el('span', { class: s.connected ? 'dot on' : 'dot' }), s.relayOn ? '' : t('relayOff')),
-            ),
-            el('div', { class: 'small' }, t('relayRow', { now: s.mbpsNow, today: size(s.today.out), month: size(s.month.out) })),
-            form([el('label', {}, t('relayLimit', { def: relay.serverMbps || t('relayNoMax') }), el('input', { name: 'limit', type: 'number', min: 1, max: 10000, value: s.limitMbps ?? '' }))], t('save'), async (v) => {
-              await api('PUT', `/api/admin/servers/${encodeURIComponent(s.id)}/relay-limit`, { limitMbps: v.limit ? Number(v.limit) : null });
-              await adminPage(me, t('limitSaved', { name: s.name }), query);
-            }),
-          ))),
-      ),
-    );
-    const search = el('form', {
-      class: 'row',
-      onsubmit: (e) => {
-        e.preventDefault();
-        const v = Object.fromEntries(new FormData(e.currentTarget));
-        void adminPage(me, '', { q: v.q, filter: v.filter });
-      },
-    },
-      el('input', { name: 'q', type: 'search', placeholder: t('search'), 'aria-label': t('search'), value: query.q }),
-      el('select', { name: 'filter', 'aria-label': t('filterAll'), onchange: (e) => e.currentTarget.form.requestSubmit() },
-        ['all', 'remote', 'servers'].map((f) => el('option', { value: f, selected: query.filter === f }, t(`filter${f[0].toUpperCase()}${f.slice(1)}`))),
-      ),
-    );
-    const planForm = (a) => {
-      const paid = a.plan !== 'free';
-      const until = el('input', { type: 'date', name: 'until', value: paid && a.planUntil ? isoDay(a.planUntil) : '' });
-      // Quick periods from today (lifetime: no end date).
-      const periods = el('div', { class: 'actions wrap' },
-        [['months1', 1], ['months3', 3], ['months6', 6], ['months12', 12], ['lifetime', 0]].map(([key, months]) =>
-          el('button', {
-            type: 'button',
-            class: 'ghost',
-            onclick: () => {
-              if (!months) until.value = '';
-              else {
-                const d = new Date();
-                d.setMonth(d.getMonth() + months);
-                until.value = isoDay(d.getTime());
-              }
-            },
-          }, t(key))),
-      );
-      return form([
-        el('label', {}, el('span', {}, t('planNone')), el('input', { type: 'radio', name: 'plan', value: 'free', checked: !paid, class: 'inline' })),
-        el('label', {}, el('span', {}, t('planRemote')), el('input', { type: 'radio', name: 'plan', value: 'remote', checked: a.plan === 'remote', class: 'inline' })),
-        el('label', {}, el('span', {}, t('planViewer')), el('input', { type: 'radio', name: 'plan', value: 'viewer', checked: a.plan === 'viewer', class: 'inline' })),
-        el('p', { class: 'small' }, t('period')),
-        periods,
-        el('label', {}, t('planEnd'), until),
-        el('label', {}, t('planNote'), el('input', { name: 'note', maxlength: 200, value: a.planNote || '' })),
-      ], t('save'), async (v) => {
-        await api('PUT', `/api/admin/accounts/${a.id}/plan`, { plan: v.plan, until: v.plan !== 'free' && v.until ? endOfDay(v.until) : null, note: v.note || null });
-        await adminPage(me, t('saved', { email: a.email }), query);
-      });
-    };
-    const status = (a) =>
-      a.admin ? t('remoteOn') : a.remote ? planText({ active: true, kind: a.plan, until: a.planUntil }) : t('planNone');
-    show(
-      el('div', { class: 'row' }, el('a', { href: `${BASE}/servers` }, t('back')), el('span', { class: 'small' }, me.email)),
-      el('h1', {}, t('adminTitle')),
-      el('p', { class: 'small' }, t('stats', data.stats)),
-      message ? el('p', { class: 'ok', role: 'status' }, message) : null,
-      relayCard,
-      search,
-      data.accounts.length === 0 ? el('p', {}, t('empty')) : null,
-      el('ul', { class: 'servers' }, data.accounts.map((a) =>
-        el('li', {},
-          el('div', { class: 'row' },
-            el('strong', {}, a.email, a.admin ? el('span', { class: 'small' }, ` · ${t('adminTag')}`) : null),
-            el('span', { class: 'small' }, t('since', { date: day(a.createdAt) })),
-          ),
-          el('div', { class: 'small' }, el('span', { class: a.remote ? 'dot on' : 'dot' }), status(a), a.planNote ? ` · ${a.planNote}` : '', a.planChangedAt ? ` · ${t('changed', { date: day(a.planChangedAt) })}` : ''),
-          el('div', { class: 'small' },
-            a.servers.length === 0
-              ? t('noServers')
-              : a.servers.map((s, i) => [i ? ', ' : '', s.name, s.relayConnected ? ` (${t('relayOn')})` : '']),
-          ),
-          a.admin ? null : el('details', {}, el('summary', { class: 'small' }, t('change')), el('div', { class: 'card' }, planForm(a))),
-        ))),
-      data.more ? el('p', { class: 'small' }, t('more')) : null,
     );
   }
 

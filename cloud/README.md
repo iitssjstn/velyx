@@ -20,8 +20,7 @@ services:
     environment:
       PUBLIC_URL: https://vidalune.com   # where people open it
       TRUST_PROXY: "1"                   # one proxy (Nginx Proxy Manager) in front
-      ADMIN_EMAILS: you@example.com      # accounts that may open /admin
-      CEO_EMAILS: you@example.com        # accounts that may open /ceo (the CEO panel)
+      CEO_EMAILS: you@example.com        # accounts that may open the Control Center (/admin)
     volumes:
       - ./cloud-data:/data               # cloud.db lives here: back it up
     networks: [npm]                      # the network Nginx Proxy Manager is on
@@ -46,12 +45,12 @@ interface (see *app.vidalune.com* below).
 | `RELAY_DOMAIN` | host of `PUBLIC_URL` | Relay addresses are `<name>.<RELAY_DOMAIN>`. |
 | `FRONTEND_DIR` | `frontend/dist` in the image | The web interface app.vidalune.com shows (built into the image). |
 | `DOWNLOAD_DIR` | `cloud/downloads` in the image | Where the Android app (`vidalune-<version>.apk`) is handed out from; the image carries the newest release's app. |
-| `CEO_EMAILS` | (none) | Accounts (email addresses, comma-separated) that may open the CEO panel (/ceo). Separate from administrators. |
-| `ADMIN_EMAILS` | (none) | Accounts (email addresses, comma-separated) that may use the admin page. They always have remote access themselves. |
+| `CEO_EMAILS` | (none) | Accounts (email addresses, comma-separated) that may open the Control Center (/admin). |
+| `ADMIN_EMAILS` | (none) | Also open the Control Center, with the same rights, and always have remote access themselves. Kept for existing installations; `CEO_EMAILS` is enough. |
 | `RELAY_MAX_MBPS` | `900` | What the relay may send in total, in Mbit/s, shared equally between the servers sending at that moment (`0`: no limit). Keep it a little under the VPS's line (1 Gbit/s: 900). |
-| `RELAY_SERVER_MBPS` | `0` | What one server may send through the relay, in Mbit/s, unless set per server on the admin page (`0`: no limit of its own). |
+| `RELAY_SERVER_MBPS` | `0` | What one server may send through the relay, in Mbit/s, unless set per server in the Control Center (`0`: no limit of its own). |
 
-## Remote access and the admin page
+## Remote access
 
 Reaching a server through Vidalune — its relay address, and opening it from app.vidalune.com over
 the relay — needs *remote access* on the Vidalune account that owns the server. Without it the relay
@@ -61,25 +60,68 @@ reached. The server's own address (home network, port forwarding, own domain) is
 There are two kinds: **remote access** on the account that owns a server (everyone who uses that
 server may watch away from home) and **viewer** on anyone's account (only that account may, on every
 server it uses, also when the owner has no subscription). A server with a viewer among its users may
-use the relay too; the server itself decides per user whether they may play away from home.
+use the relay too; the server itself decides per user whether they may play away from home. Remote
+access is given in the Control Center (below).
 
-Administrators (`ADMIN_EMAILS`) open **vidalune.com/admin** (also linked from the account page): every
-account with its servers, filters for accounts with remote access or a server, and per account
-**Change**: none, remote access or viewer, a period (1 month, 3 months, half a year, a year or lifetime —
-or any last day), and a note (for instance how it was paid).
-Taking it away closes that account's tunnels at once; an end date takes effect by itself.
+## The Control Center (/admin)
 
-## The CEO panel
+Accounts in `CEO_EMAILS` (and `ADMIN_EMAILS`) open **vidalune.com/admin** (also linked as *Admin* on
+their account page; `/ceo` leads there too). The service checks it on every call; customers get
+nothing. It shows only real data from this service: no revenue or payments until payments go
+through Vidalune (customer access is given by hand for now), and *N/A* or *No historical data
+available* where there is nothing to show yet. One navigation, on the left (on phones behind the menu
+button): **Overview**, **Customers** and **Access** (General), **Relays** and **Statistics**
+(Infrastructure), with **Account** and **Sign out** at the bottom.
 
-Accounts in `CEO_EMAILS` open **vidalune.com/ceo** (also linked from their account page). The service checks it on every call; administrators and customers get nothing. It shows only real data from this service — no revenue until payments go through Vidalune, and no technical monitoring:
+- **Overview:** how Vidalune is doing at a glance. Customers (total, active in the last 30 days — who
+  signed in or used the website or app —, new in 7 and 30 days, growth against the 30 days before),
+  access (with access, per type, expiring within 14 days, expired), relay infrastructure (relays on and
+  online, connected clients and servers, total capacity, bandwidth now, what is still available, load),
+  relay health (per relay: online, degraded, offline — with when it was last seen —, speed against
+  capacity, clients and uptime) and the most recent activity. Figures open the page behind them.
+- **Customers:** search by name or email address, filter (active, inactive, expiring soon, without
+  access, per type, suspended, awaiting sign-up) and sort (created, last active, expiration, name).
+  **Add customer** makes an account by hand — name, email address, access (type, plan, start, end),
+  relay and notes; the customer chooses a password by signing up on vidalune.com with that address.
+  A customer's page shows the account (created, last active, active days, signed-in devices, relay),
+  current and planned access, servers, the history of access and what happened, and lets you
+  **grant**, **change**, **extend** or **revoke** access, change name, relay and notes, and
+  **suspend** a customer (signed out everywhere, cannot sign in, servers not reachable through
+  Vidalune) or lift that again. Destructive actions ask first and say what they do.
+- **Access:** the numbers (with access, per type, expiring within 7 and 14 days, expired) and every
+  grant — active, expiring, scheduled (a start date later), expired or revoked — with its customer,
+  type (customer, beta, test or free), plan (remote access or viewer), start, end and actions. The
+  account's plan follows its access at once (planned access starts by itself), and revoking closes its
+  tunnels. Every grant is kept with who gave or took it back, and has room for a price and a payment
+  reference, so billing can be added later without changing it.
+- **Relays:** total capacity, what is in use and what is available, and per relay its status, region,
+  capacity and load, clients, servers, uptime (30 days) and last health check. **Add relay** registers
+  one (name, region, https address, capacity, the hosting's monthly traffic allowance — for example
+  1 TB and then 10 Mbit/s; empty for unlimited). A relay's page: capacity, bandwidth now and at its
+  peak, clients, servers, uptime, charts of bandwidth, clients and load over 1 hour to 30 days, traffic
+  and errors per day; the **connected clients** (viewers' devices by kind only — *Chrome on Windows*,
+  *Vidalune app (Android)*, *Chromecast* — with their customer, server, since when and how much they
+  received; nothing identifying is kept); the **customers** on it (**Add customer** moves all their
+  servers, also ones linked later) and its **servers** (**Add server** moves one; each with its own
+  speed limit). **Edit**, **Disable** (its servers and customers go back to the main relay) and
+  **Remove** (the same, and its measurements go) ask first. The main relay is vidalune.com itself.
+- **Statistics:** over 24 hours, 7, 30 or 90 days or a year: customers (total, active and new in the
+  period, growth against the period before), access per type and expired, and relays (online and
+  offline, capacity, bandwidth now and at its peak, average load, uptime, clients and servers), and
+  charts per day (accounts, new and active accounts, accounts with access, relay traffic and errors)
+  and, for 24 hours, per hour (bandwidth and clients).
 
-- **Overview:** customers (total, active in the last 30 days — who signed in or used the website or app —, new in 7 and 30 days, growth against the 30 days before), access (with access, per type, ending within 14 days) and relays (capacity, speed now, load, connected servers, relays close to their monthly traffic allowance).
-- **Customers:** every account with its access, when it was last active and its servers; search and filter by type (customer, beta, test, free, without access) and status (active, not active, new).
-- **Access:** give an account remote access or a viewer plan, with a type (customer, beta, test or free), for a number of days or without an end, with a note; extend it (+30 days, +1 year) or take it back. The account's plan follows its access at once, and taking it back closes its tunnels. Every grant is kept with who gave or took it back, and has room for a price and a payment reference, so billing can be added later without changing it.
-- **Relays:** the main relay (vidalune.com itself) and others you register with their region, address, capacity and the hosting's monthly traffic allowance (for example 1 TB and then 10 Mbit/s; empty for unlimited). Per relay: its servers and customers, speed now, traffic, requests and errors in the last 30 days, and this month's traffic against the allowance. Assign or move a customer (all their servers) to a relay, take a server off it, or turn a relay off (its servers go back to the main relay). For now the main relay carries all traffic; assignments are kept for when other relays run.
-- **Statistics:** per day over 30 or 90 days or a year: accounts in total, new accounts, active accounts, accounts with access, relay traffic and relay errors — each as a chart with a table view.
+Every five minutes the service checks the other relays (`<address>/health`) and writes down per relay
+whether it was up, its average and peak speed and how many clients and servers were connected (kept
+35 days): uptime and the charts come from these. Every change in the Control Center — and a relay
+going offline or coming back — is written to the activity list with who, what, on what and the
+details before and after.
 
-Endpoints: `GET /api/ceo/dashboard`, `GET /api/ceo/customers`, `GET/POST /api/ceo/access`, `PUT/DELETE /api/ceo/access/:id`, `GET/POST /api/ceo/relays`, `GET/PUT /api/ceo/relays/:id`, `POST /api/ceo/relays/:id/assign`, `DELETE /api/ceo/relays/:id/servers/:serverId`, `GET /api/ceo/statistics`.
+Endpoints (all `/api/ceo/…`): `GET dashboard`, `GET activity`, `GET/POST customers`,
+`GET/PUT customers/:id`, `POST customers/:id/suspend`, `POST customers/:id/unsuspend`,
+`GET/POST access`, `PUT/DELETE access/:id`, `GET/POST relays`, `GET/PUT/DELETE relays/:id`,
+`GET relays/:id/history`, `POST relays/:id/assign`, `DELETE relays/:id/servers/:serverId`,
+`DELETE relays/:id/customers/:accountId`, `PUT servers/:id/relay-limit`, `GET statistics`.
 
 ## The relay
 
@@ -92,13 +134,13 @@ app, and app.vidalune.com's own requests) passes through.
 
 **Fair sharing and limits:** the relay passes a server's answers on only as fast as its share allows:
 every server that is sending gets an equal part of `RELAY_MAX_MBPS`, and never more than its own
-limit (`RELAY_SERVER_MBPS`, or the limit set for it on the admin page). A busy server slows down;
+limit (`RELAY_SERVER_MBPS`, or the limit set for it in the Control Center). A busy server slows down;
 it does not crowd out the others. A server gets at most 64 requests at once.
 
-**Traffic on the admin page:** the admin page shows the relay's speed right now, how many servers are
-sending and connected, and per server its speed now, what it sent today and in the last 30 days, and
-its limit (**Save** with an empty field goes back to the default). Only amounts are kept (per server
-and day, for about a year) — never what passed through.
+**Traffic** is shown in the Control Center (Relays): the relay's speed right now, per server its speed
+now and its limit (**Save** with an empty field goes back to the default), and traffic, requests and
+errors per day. Only amounts are kept (per server and day, for about a year) — never what passed
+through.
 
 **When a server cannot be reached**, a relay address answers with the reason, in Dutch or English
 (the visitor's language): offline (the server is off or has no internet), the relay is off or remote
@@ -133,7 +175,7 @@ The service is also where people get Vidalune:
 
 - **`/`**: the home page (what Vidalune is, features, how it works, plans, questions), with a
   header leading to installing, signing in or making an account; the account pages are at
-  **`/account`** (and `/servers`, `/link`, `/join`, `/admin`).
+  **`/account`** (and `/servers`, `/link`, `/join`); the Control Center is at **`/admin`**.
 - **`/install`**: the install page (English, or Dutch for browsers that ask for it; `?lang=nl|en`).
 - **`/install/docker-compose.yml`**: a ready compose file for the published image.
 - **`/get`**: the installer behind `curl -fsSL https://vidalune.com/get | sh` (asks the two media

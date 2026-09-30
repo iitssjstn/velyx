@@ -18,7 +18,12 @@ export interface SeerrResult {
 export interface SeerrDetails extends SeerrResult {
   genres: string[];
   runtime: number | null;
-  seasons: Array<{ seasonNumber: number; episodeCount: number }>;
+  /** Each season, with where it stands when it was requested before (older servers: no state). */
+  seasons: Array<{ seasonNumber: number; episodeCount: number; state?: RequestState | null }>;
+  backdropPath?: string | null;
+  tagline?: string | null;
+  rating?: number | null;
+  cast?: Array<{ id: number; name: string; character: string | null; profilePath: string | null }>;
 }
 
 export interface DiscoverPage {
@@ -86,6 +91,17 @@ export function discoverTarget(item: Pick<SeerrResult, 'mediaType' | 'tmdbId' | 
 /** Whether a title can be requested: not here, and not requested already (or turned down / failed). */
 export function canRequest(item: Pick<SeerrResult, 'inLibrary' | 'state'>): boolean {
   return !item.inLibrary && (!item.state || item.state === 'declined' || item.state === 'failed');
+}
+
+/** The seasons of a show that can still be requested (never asked for, or turned down / failed). */
+export function openSeasons(d: Pick<SeerrDetails, 'seasons'>): number[] {
+  return d.seasons.filter((s) => !s.state || s.state === 'declined' || s.state === 'failed').map((s) => s.seasonNumber);
+}
+
+/** Whether a title can be requested: a movie as a whole; a show while some season is still open. */
+export function canRequestTitle(d: Pick<SeerrDetails, 'mediaType' | 'inLibrary' | 'state' | 'seasons'>): boolean {
+  if (d.mediaType === 'movie' || d.seasons.length === 0) return canRequest(d);
+  return !d.inLibrary && openSeasons(d).length > 0;
 }
 
 /** The seasons ticked after one tap: null means all of them. */

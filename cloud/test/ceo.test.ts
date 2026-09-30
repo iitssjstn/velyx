@@ -45,14 +45,14 @@ async function registerFor(accountEmail: string, name: string) {
 const call = (cookie: string, method: string, url: string, payload?: object) => app.inject({ method: method as 'GET', url, headers: { cookie }, payload });
 
 describe('CEO panel', () => {
-  it('is only for the CEO, checked on every call (not for administrators or customers)', async () => {
+  it('is only for the CEO and administrators, checked on every call (never for customers)', async () => {
     const ceo = await signUp('ceo@example.com');
     const admin = await signUp('admin@example.com');
     const customer = await signUp('anna@example.com');
     const urls = ['/api/ceo/dashboard', '/api/ceo/customers', '/api/ceo/access', '/api/ceo/relays', '/api/ceo/relays/1', '/api/ceo/statistics'];
     for (const url of urls) {
       expect((await app.inject({ url })).statusCode, url).toBe(401);
-      expect((await call(admin, 'GET', url)).statusCode, url).toBe(403);
+      expect((await call(admin, 'GET', url)).statusCode, url).toBe(200);
       expect((await call(customer, 'GET', url)).statusCode, url).toBe(403);
       expect((await call(ceo, 'GET', url)).statusCode, url).toBe(200);
     }
@@ -60,7 +60,8 @@ describe('CEO panel', () => {
     expect((await call(customer, 'POST', '/api/ceo/relays', { name: 'X', url: 'https://x.example', capacityMbps: 10 })).statusCode).toBe(403);
     // The website knows whom to show the link to.
     expect((await call(ceo, 'GET', '/api/account')).json().ceo).toBe(true);
-    expect((await call(admin, 'GET', '/api/account')).json().ceo).toBeUndefined();
+    expect((await call(admin, 'GET', '/api/account')).json().ceo).toBe(true);
+    expect((await call(customer, 'GET', '/api/account')).json().ceo).toBeUndefined();
   });
 
   it('counts customers: total, active, new and growth — from real data only', async () => {
@@ -151,7 +152,8 @@ describe('CEO panel', () => {
 
     // One server back to the main relay; a relay turned off sends the rest back too.
     expect((await call(ceo, 'DELETE', `/api/ceo/relays/${asia.id}/servers/${a2}`)).statusCode).toBe(200);
-    expect(db.select().from(servers).where(eq(servers.id, a2)).get()?.relayNodeId).toBeNull();
+    // Anna as a whole is on Singapore: this one server now names the main relay itself.
+    expect(db.select().from(servers).where(eq(servers.id, a2)).get()?.relayNodeId).toBe(relays[0].id);
     await call(ceo, 'PUT', `/api/ceo/relays/${asia.id}`, { active: false });
     expect(db.select().from(servers).where(eq(servers.id, a1)).get()?.relayNodeId).toBeNull();
     relays = (await call(ceo, 'GET', '/api/ceo/relays')).json().relays;
@@ -175,7 +177,7 @@ describe('CEO panel', () => {
     expect(twoDaysAgo).toMatchObject({ newAccounts: 1, activeAccounts: 2, withAccess: 1, grants: 1 });
     expect(s.days.at(-1)).toMatchObject({ accounts: 2, withAccess: 1 });
     expect(s.days[0].accounts).toBe(0);
-    expect((await call(ceo, 'GET', '/api/ceo/statistics?days=7')).statusCode).toBe(400);
+    expect((await call(ceo, 'GET', '/api/ceo/statistics?days=14')).statusCode).toBe(400);
   });
 });
 

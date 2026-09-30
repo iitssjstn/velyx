@@ -40,12 +40,21 @@ export interface DiscoverRow {
 export interface SeerrDetails extends SeerrResult {
   genres: string[];
   runtime: number | null;
-  seasons: Array<{ seasonNumber: number; episodeCount: number }>;
+  /** Each season, with where it stands when (part of) the show was requested before. */
+  seasons: Array<{ seasonNumber: number; episodeCount: number; name: string | null; state: RequestState | null }>;
+  backdropPath: string | null;
+  tagline: string | null;
+  /** TMDB's rating (0–10), null when there are too few votes. */
+  rating: number | null;
+  releaseDate: string | null;
+  cast: Array<{ id: number; name: string; character: string | null; profilePath: string | null }>;
 }
 
 interface RawMedia {
+  id?: number;
   status?: number;
-  requests?: Array<{ status?: number }>;
+  requests?: Array<{ id?: number; status?: number }>;
+  seasons?: Array<{ seasonNumber?: number; status?: number }>;
 }
 
 /**
@@ -175,7 +184,16 @@ export class SeerrService {
 
   async details(mediaType: 'movie' | 'tv', tmdbId: number, language: string): Promise<SeerrDetails> {
     const x = await this.call<Record<string, unknown>>('GET', `/${mediaType}/${tmdbId}?language=${encodeURIComponent(language)}`);
-    const seasons = Array.isArray(x.seasons) ? (x.seasons as Array<{ seasonNumber?: number; episodeCount?: number }>) : [];
+    const seasons = Array.isArray(x.seasons) ? (x.seasons as Array<{ seasonNumber?: number; episodeCount?: number; name?: string }>) : [];
+    const media = x.mediaInfo as RawMedia | undefined;
+    const seasonState = (n: number): RequestState | null => {
+      const st = media?.seasons?.find((m) => m.seasonNumber === n)?.status;
+      // Seasons carry the media numbers: 2 pending, 3 processing, 4 partly, 5 available.
+      return st === 5 ? 'available' : st === 4 ? 'partiallyAvailable' : st === 3 ? 'processing' : st === 2 ? 'requested' : null;
+    };
+    const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null);
+    const credits = (x.credits as { cast?: Array<Record<string, unknown>> } | undefined)?.cast ?? [];
+    const votes = typeof x.voteCount === 'number' ? x.voteCount : 0;
     return {
       mediaType,
       tmdbId,
@@ -186,14 +204,71 @@ export class SeerrService {
       state: mediaState(x.mediaInfo as RawMedia | undefined),
       genres: Array.isArray(x.genres) ? (x.genres as Array<{ name?: string }>).map((g) => String(g.name ?? '')).filter(Boolean) : [],
       runtime: typeof x.runtime === 'number' ? x.runtime : null,
-      seasons: seasons.filter((s) => (s.seasonNumber ?? 0) > 0).map((s) => ({ seasonNumber: Number(s.seasonNumber), episodeCount: Number(s.episodeCount ?? 0) })),
+      seasons: seasons.filter((s) => (s.seasonNumber ?? 0) > 0).map((s) => ({ seasonNumber: Number(s.seasonNumber), episodeCount: Number(s.episodeCount ?? 0), name: str(s.name), state: seasonState(Number(s.seasonNumber)) })),
+      backdropPath: str(x.backdropPath),
+      tagline: str(x.tagline),
+      rating: typeof x.voteAverage === 'number' && x.voteAverage > 0 && votes >= 10 ? Math.round(x.voteAverage * 10) / 10 : null,
+      releaseDate: str(x.releaseDate) ?? str(x.firstAirDate),
+      cast: credits.slice(0, 20).map((c) => ({ id: Number(c.id), name: String(c.name ?? ''), character: str(c.character), profilePath: str(c.profilePath) })).filter((c) => c.name),
     };
+  }
+
+  /** Titles like this one (TMDB's recommendations, through Seerr). */
+  async recommendations(mediaType: 'movie' | 'tv', tmdbId: number, language: string): Promise<SeerrPage> {
+    return this.list(`/${mediaType}/${tmdbId}/recommendations?page=1&language=${encodeURIComponent(language)}`, 1, mediaType);
+  }
+
+  /** Seerr's own record of a title: its id there, where it stands, and its requests (null: none). */
+  private async media(mediaType: 'movie' | 'tv', tmdbId: number): Promise<RawMedia | null> {
+    const x = await this.call<{ mediaInfo?: RawMedia }>('GET', `/${mediaType}/${tmdbId}`);
+    return x.mediaInfo ?? null;
+  }
+
+  /**
+   * Makes a title requestable again after its requests were cancelled: Seerr keeps it marked as
+   * requested or being added until its record is removed. Only when no request is left and nothing
+   * of it is available (what is in the library is never touched). True when it was reset.
+   */
+  async resetIfUnrequested(mediaType: 'movie' | 'tv', tmdbId: number): Promise<boolean> {
+    const media = await this.media(mediaType, tmdbId);
+    if (!media?.id || media.status === 4 || media.status === 5 || (media.requests?.length ?? 0) > 0) return false;
+    await this.removeMedia(media.id);
+    return true;
+  }
+
+  /**
+   * Cancels every request for a title and makes it requestable again (administrators). Refused
+   * when (part of) it is already available: that is removed in the library, not here.
+   */
+  async reset(mediaType: 'movie' | 'tv', tmdbId: number): Promise<{ requests: number }> {
+    const media = await this.media(mediaType, tmdbId);
+    if (!media?.id) return { requests: 0 };
+    if (media.status === 4 || media.status === 5) throw new HttpError(409, 'This is (partly) available already; it stays.');
+    let n = 0;
+    for (const r of media.requests ?? []) if (r.id && (await this.cancel(r.id))) n++;
+    await this.removeMedia(media.id);
+    return { requests: n };
+  }
+
+  private async removeMedia(mediaId: number): Promise<void> {
+    try {
+      await this.call('DELETE', `/media/${mediaId}`);
+    } catch (err) {
+      if (!(err instanceof HttpError && err.statusCode === 404)) throw err;
+    }
+    this.forget();
+  }
+
+  /** Something was requested or cancelled: the catalog rows show it at once, not in half an hour. */
+  forget(): void {
+    this.cache.clear();
   }
 
   /** Requests a movie, or (all or some) seasons of a show. Returns Seerr's request id and its state. */
   async request(mediaType: 'movie' | 'tv', tmdbId: number, seasons: number[] | null): Promise<{ id: number; state: RequestState }> {
     const body = mediaType === 'movie' ? { mediaType, mediaId: tmdbId } : { mediaType, mediaId: tmdbId, seasons: seasons ?? 'all' };
     const r = await this.call<{ id: number; status?: number; media?: RawMedia }>('POST', '/request', body);
+    this.forget();
     return { id: r.id, state: requestState(r.status, r.media?.status) ?? 'requested' };
   }
 
@@ -201,6 +276,7 @@ export class SeerrService {
   async cancel(id: number): Promise<boolean> {
     try {
       await this.call('DELETE', `/request/${id}`);
+      this.forget();
       return true;
     } catch (err) {
       if (err instanceof HttpError && err.statusCode === 404) return false;

@@ -10,6 +10,8 @@ let slow: boolean;
 let calls: Array<{ method: string; path: string; key: string | null; body: unknown }>;
 /** Request id → [request status, media status]. */
 let states: Map<number, [number, number]>;
+/** Seerr's own record per title ("movie/603"): its id, status, requests and seasons. */
+let media: Map<string, { id: number; status: number; requests: Array<{ id: number; status: number }>; seasons?: Array<{ seasonNumber: number; status: number }> }>;
 const fakeSeerr = async (url: string, init?: RequestInit) => {
   const u = new URL(url);
   if (u.host !== 'seerr.local:5055') throw new Error('network disabled in tests');
@@ -46,17 +48,30 @@ const fakeSeerr = async (url: string, init?: RequestInit) => {
     if (path === '/discover/movies/genre/28') return json({ page, totalPages: 400, results: [{ id: 603, title: 'The Matrix', releaseDate: '1999-03-30', posterPath: '/matrix.jpg' }] });
     if (path === '/discover/tv/upcoming') return json({ page, totalPages: 1, results: [{ id: 1400, name: 'Coming Soon', firstAirDate: '2027-01-01', posterPath: null }] });
   }
-  if (path === '/movie/603') return json({ id: 603, title: 'The Matrix', releaseDate: '1999-03-30', overview: 'A hacker learns…', posterPath: '/matrix.jpg', runtime: 136, genres: [{ name: 'Action' }, { name: 'Science Fiction' }] });
+  const info = (key: string) => (media.has(key) ? { mediaInfo: media.get(key) } : {});
+  if (path === '/movie/603/recommendations') return json({ page: 1, totalPages: 1, results: [{ id: 604, title: 'The Matrix Reloaded', releaseDate: '2003-05-15', posterPath: '/r.jpg' }, { id: 550, title: 'Already Here', releaseDate: '1999-10-15', posterPath: null }] });
+  const mm = /^\/media\/(\d+)$/.exec(path);
+  if (mm && method === 'DELETE') {
+    for (const [k, v] of media) if (v.id === Number(mm[1])) media.delete(k);
+    return new Response(null, { status: 204 });
+  }
+  if (path === '/movie/603') return json({ ...info('movie/603'), id: 603, title: 'The Matrix', releaseDate: '1999-03-30', overview: 'A hacker learns…', posterPath: '/matrix.jpg', runtime: 136, genres: [{ name: 'Action' }, { name: 'Science Fiction' }] });
   if (path === '/movie/550') return json({ id: 550, title: 'Already Here', releaseDate: '1999-10-15', overview: '', posterPath: null, genres: [] });
-  if (path === '/tv/1399') return json({ id: 1399, name: 'A Show', firstAirDate: '2011-04-17', overview: 'Families fight…', posterPath: '/show.jpg', genres: [{ name: 'Drama' }], seasons: [{ seasonNumber: 0, episodeCount: 5 }, { seasonNumber: 1, episodeCount: 10 }, { seasonNumber: 2, episodeCount: 10 }] });
+  if (path === '/tv/1399') return json({ ...info('tv/1399'), id: 1399, name: 'A Show', firstAirDate: '2011-04-17', overview: 'Families fight…', posterPath: '/show.jpg', genres: [{ name: 'Drama' }], seasons: [{ seasonNumber: 0, episodeCount: 5 }, { seasonNumber: 1, episodeCount: 10 }, { seasonNumber: 2, episodeCount: 10 }] });
   if (path === '/request' && method === 'POST') {
     const id = states.size + 100;
     states.set(id, [1, 2]);
+    const key = `${body.mediaType}/${body.mediaId}`;
+    const m = media.get(key) ?? { id: 900 + media.size, status: 2, requests: [] };
+    m.requests.push({ id, status: 1 });
+    if (Array.isArray(body.seasons)) m.seasons = [...(m.seasons ?? []), ...body.seasons.map((n: number) => ({ seasonNumber: n, status: 2 }))];
+    media.set(key, m);
     return json({ id, status: 1, media: { status: 2 } }, 201);
   }
   const m = /^\/request\/(\d+)$/.exec(path);
   if (m && method === 'DELETE') {
     if (!states.delete(Number(m[1]))) return json({ message: 'Not found' }, 404);
+    for (const v of media.values()) v.requests = v.requests.filter((r) => r.id !== Number(m[1]));
     return new Response(null, { status: 204 });
   }
   if (m) {
@@ -73,6 +88,7 @@ beforeEach(async () => {
   slow = false;
   calls = [];
   states = new Map();
+  media = new Map();
   env = await createTestEnv({ fetchImpl: fakeSeerr });
   admin = await setupAdmin(env.app, 'justin');
 });
@@ -239,5 +255,66 @@ describe('Seerr', () => {
     expect((await env.app.inject({ url: '/api/admin/seerr/requests', headers: { cookie: admin } })).json()).toEqual([]);
     const audit = (await env.app.inject({ url: '/api/admin/audit?action=seerr.cancelled', headers: { cookie: admin } })).json();
     expect(JSON.stringify(audit)).toContain('The Matrix');
+  });
+
+  it('makes a cancelled title requestable again (not while someone else still wants it, never what is here)', async () => {
+    await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
+    const viewer = await createUser(env.app, admin, 'viewer');
+    const other = await createUser(env.app, admin, 'other');
+    const ask = (cookie: string) => env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie }, payload: { mediaType: 'movie', tmdbId: 603 } });
+    const mine = (await ask(viewer.cookie)).json();
+    const theirs = (await ask(other.cookie)).json();
+    const state = async () => (await env.app.inject({ url: '/api/seerr/movie/603', headers: { cookie: viewer.cookie } })).json().state;
+    expect(await state()).toBe('requested');
+    // One of two requests cancelled: the title stays requested (the other one still counts).
+    await env.app.inject({ method: 'DELETE', url: `/api/admin/seerr/requests/${mine.id}`, headers: { cookie: admin } });
+    expect(media.has('movie/603')).toBe(true);
+    // The last one cancelled: Seerr forgets it, and it can be requested again.
+    await env.app.inject({ method: 'DELETE', url: `/api/admin/seerr/requests/${theirs.id}`, headers: { cookie: admin } });
+    expect(media.has('movie/603')).toBe(false);
+    expect(await state()).toBeNull();
+    expect(calls.some((c) => c.method === 'DELETE' && /^\/media\/\d+$/.test(c.path))).toBe(true);
+  });
+
+  it('lets administrators reset a title stuck as requested, whoever asked for it', async () => {
+    await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
+    const viewer = await createUser(env.app, admin, 'viewer');
+    await env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: viewer.cookie }, payload: { mediaType: 'movie', tmdbId: 603 } });
+    // Requested outside Vidalune too.
+    media.get('movie/603')!.requests.push({ id: 555, status: 2 });
+    states.set(555, [2, 3]);
+    media.get('movie/603')!.status = 3;
+    expect((await env.app.inject({ method: 'DELETE', url: '/api/admin/seerr/media/movie/603', headers: { cookie: viewer.cookie } })).statusCode).toBe(403);
+    const res = await env.app.inject({ method: 'DELETE', url: '/api/admin/seerr/media/movie/603', headers: { cookie: admin } });
+    expect(res.json()).toEqual({ ok: true, requests: 2 });
+    expect(media.has('movie/603')).toBe(false);
+    expect((await env.app.inject({ url: '/api/seerr/requests', headers: { cookie: viewer.cookie } })).json()).toEqual([]);
+    expect(JSON.stringify((await env.app.inject({ url: '/api/admin/audit?action=seerr.reset', headers: { cookie: admin } })).json())).toContain('The Matrix');
+    // What is available already stays.
+    media.set('movie/603', { id: 950, status: 5, requests: [] });
+    expect((await env.app.inject({ method: 'DELETE', url: '/api/admin/seerr/media/movie/603', headers: { cookie: admin } })).statusCode).toBe(409);
+    expect(media.has('movie/603')).toBe(true);
+  });
+
+  it('requests only the seasons of a show that are still open, and shows similar titles', async () => {
+    await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
+    const viewer = await createUser(env.app, admin, 'viewer');
+    const ask = (seasons: number[] | null) => env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: viewer.cookie }, payload: { mediaType: 'tv', tmdbId: 1399, seasons } });
+    expect((await ask([1])).statusCode).toBe(200);
+    const d = (await env.app.inject({ url: '/api/seerr/tv/1399', headers: { cookie: viewer.cookie } })).json();
+    expect(d.seasons.map((x: { seasonNumber: number; state: string | null }) => [x.seasonNumber, x.state])).toEqual([
+      [1, 'requested'],
+      [2, null],
+    ]);
+    // "All" now means the ones left.
+    expect((await ask(null)).statusCode).toBe(200);
+    expect(calls.filter((c) => c.path === '/request' && c.method === 'POST').at(-1)?.body).toMatchObject({ seasons: [2] });
+    expect((await ask([1, 2])).statusCode).toBe(409);
+
+    const similar = (await env.app.inject({ url: '/api/seerr/movie/603/recommendations', headers: { cookie: viewer.cookie } })).json();
+    expect(similar.results.map((r: { title: string; mediaType: string }) => [r.title, r.mediaType])).toEqual([
+      ['The Matrix Reloaded', 'movie'],
+      ['Already Here', 'movie'],
+    ]);
   });
 });

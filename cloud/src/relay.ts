@@ -22,6 +22,27 @@ const PING_MS = 25_000;
 /** How often the current speed is measured, and how often amounts are written down. */
 const SAMPLE_MS = 5000;
 const FLUSH_EVERY = 12;
+/** A client (a viewer's device) counts as connected while it asked something this recently. */
+export const CLIENT_WINDOW_MS = 5 * 60_000;
+
+/** What kind of device a request comes from, for the CEO panel (from its user agent; nothing else is kept). */
+export function deviceLabel(ua: string | undefined): string {
+  const u = String(ua ?? '');
+  if (/CrKey/i.test(u)) return 'Chromecast';
+  if (/Vidalune|okhttp|Expo|ReactNative/i.test(u)) return /iPhone|iPad|iOS/i.test(u) ? 'Vidalune app (iOS)' : 'Vidalune app (Android)';
+  const os = /Android/i.test(u) ? 'Android' : /iPhone|iPad/i.test(u) ? 'iOS' : /Windows/i.test(u) ? 'Windows' : /Mac OS X|Macintosh/i.test(u) ? 'macOS' : /CrOS/i.test(u) ? 'ChromeOS' : /Linux/i.test(u) ? 'Linux' : null;
+  const browser = /Edg\//.test(u) ? 'Edge' : /Firefox\//.test(u) ? 'Firefox' : /Chrome\//.test(u) ? 'Chrome' : /Safari\//.test(u) ? 'Safari' : null;
+  if (browser && os) return `${browser} on ${os}`;
+  return browser ?? os ?? 'Other device';
+}
+
+/** A client of a server right now: its kind of device, since when, and what it received. */
+export interface RelayClient {
+  device: string;
+  since: number;
+  lastSeen: number;
+  bytes: number;
+}
 
 /** Changes made to what passes through (app.vidalune.com: cookies per server, a strict policy). */
 export interface Rewrite {
@@ -36,6 +57,8 @@ interface Stream {
   /** Bytes written to the visitor but not yet credited back (waiting for "drain"). */
   owed: number;
   rewrite: Rewrite;
+  /** The client it is for (see Tunnel.clients). */
+  client: RelayClient;
 }
 
 class Tunnel {
@@ -52,6 +75,13 @@ class Tunnel {
   /** Bytes to visitors since the last speed sample, and the speed then (bytes per second). */
   sampled = 0;
   bps = 0;
+  /** When the tunnel opened. */
+  readonly since = Date.now();
+  /**
+   * Clients seen recently, by a hash of their address and user agent (neither is kept): how many
+   * devices watch through this server, and on what.
+   */
+  readonly clients = new Map<string, RelayClient>();
 
   constructor(
     readonly serverId: string,
@@ -86,7 +116,7 @@ class Tunnel {
     this.requests++;
     const id = this.next;
     this.next = this.next >= 0xfffffff0 ? 1 : this.next + 1;
-    const stream: Stream = { req, res, started: false, owed: 0, rewrite };
+    const stream: Stream = { req, res, started: false, owed: 0, rewrite, client: this.clientOf(ip, req.headers['user-agent']) };
     this.streams.set(id, stream);
     const headers: Record<string, string | string[]> = {};
     for (const [k, v] of Object.entries(req.headers)) {
@@ -111,6 +141,29 @@ class Tunnel {
     res.on('close', () => {
       if (this.streams.delete(id) && !res.writableFinished) this.send(FRAME.reset, id);
     });
+  }
+
+  private clientOf(ip: string, ua: string | undefined): RelayClient {
+    const key = sha256(`${ip}|${ua ?? ''}`).slice(0, 24);
+    const t = Date.now();
+    let c = this.clients.get(key);
+    if (!c || c.lastSeen < t - CLIENT_WINDOW_MS) {
+      c = { device: deviceLabel(ua), since: t, lastSeen: t, bytes: 0 };
+      this.clients.set(key, c);
+    }
+    c.lastSeen = t;
+    if (this.clients.size > 500) for (const [k, v] of this.clients) if (v.lastSeen < t - CLIENT_WINDOW_MS) this.clients.delete(k);
+    return c;
+  }
+
+  /** Clients that asked something in the last few minutes. */
+  recentClients(now = Date.now()): RelayClient[] {
+    const out: RelayClient[] = [];
+    for (const [k, c] of this.clients) {
+      if (c.lastSeen < now - CLIENT_WINDOW_MS && ![...this.streams.values()].some((s) => s.client === c)) this.clients.delete(k);
+      else out.push(c);
+    }
+    return out;
   }
 
   /** Credit for bytes the visitor took, passed back no faster than this server's fair share. */
@@ -153,6 +206,8 @@ class Tunnel {
         // Credit goes back once the visitor has taken the bytes: a slow viewer slows the server down.
         this.out += frame.payload.length;
         this.sampled += frame.payload.length;
+        stream.client.bytes += frame.payload.length;
+        stream.client.lastSeen = Date.now();
         const waiting = stream.owed > 0;
         stream.owed += frame.payload.length;
         const pay = () => {
@@ -282,6 +337,8 @@ export class Relay {
   private readonly shaper: Shaper;
   private readonly sampler: NodeJS.Timeout;
   private samples = 0;
+  /** Each tunnel's speed at every sample of the last five minutes (for averages and peaks). */
+  private readonly recent: Array<Map<string, number>> = [];
 
   constructor(
     private readonly opts: {
@@ -324,6 +381,8 @@ export class Relay {
       t.bps = (t.sampled * 1000) / SAMPLE_MS;
       t.sampled = 0;
     }
+    this.recent.push(new Map([...this.tunnels].map(([id, t]) => [id, t.bps])));
+    if (this.recent.length > CLIENT_WINDOW_MS / SAMPLE_MS) this.recent.shift();
     if (++this.samples % FLUSH_EVERY === 0) this.flush();
   }
 
@@ -359,12 +418,27 @@ export class Relay {
     return { tunnels: this.tunnels.size, active: this.shaper.active(), bps: new Map([...this.tunnels].map(([id, t]) => [id, t.bps])) };
   }
 
+  /** The speed samples of the last five minutes (bytes per second per server), oldest first. */
+  snapshots(): Array<Map<string, number>> {
+    return [...this.recent];
+  }
+
   url(slug: string): string {
     return `${this.opts.scheme}//${slug}.${this.opts.domain}${this.opts.port ? `:${this.opts.port}` : ''}`;
   }
 
   connected(serverId: string): boolean {
     return this.tunnels.has(serverId);
+  }
+
+  /** Since when a server's tunnel is open (null: not connected). */
+  connectedSince(serverId: string): number | null {
+    return this.tunnels.get(serverId)?.since ?? null;
+  }
+
+  /** The clients watching through a server right now (see CLIENT_WINDOW_MS). */
+  clients(serverId: string): RelayClient[] {
+    return this.tunnels.get(serverId)?.recentClients() ?? [];
   }
 
   /** Open tunnels right now. */

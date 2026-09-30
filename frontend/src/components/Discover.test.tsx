@@ -84,10 +84,9 @@ describe('Discover rows on the home screen', () => {
     expect((await screen.findByTestId('where')).textContent).toBe('/play/episode/77?t=0');
   });
 
-  it('opens the request for what is not here', async () => {
+  it('opens the page of what is not here, to request it', async () => {
     setup(true);
     await userEvent.click((await screen.findAllByText('Wanted'))[0]);
-    expect(await screen.findByRole('button', { name: 'Request' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Play' })).toBeNull();
+    expect((await screen.findByTestId('where')).textContent).toBe('/request/movie/4');
   });
 });

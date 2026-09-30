@@ -5,21 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
     <meta name="robots" content="noindex" />
-    <title>Vidalune CEO</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="style.css" />
-    <script src="ceo.js" defer></script>
+    <title>Vidalune Control Center</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/ceo.js" defer></script>
   </head>
-  <body>
-    <main class="ceo">
-      <header>
-        <img src="favicon.svg" alt="" width="36" height="36" />
-        <span class="brand">vidalune</span>
-        <nav class="site-links"><a href="/servers">Account</a></nav>
-      </header>
-      <nav class="ceo-tabs" id="tabs" aria-label="CEO"></nav>
-      <section id="view" aria-live="polite"></section>
-      <div id="tip" class="chart-tip" role="status" hidden></div>
-    </main>
+  <body class="cc">
+    <div class="cc-shell">
+      <aside class="cc-side" id="side" aria-label="Control Center">
+        <div class="cc-brand">
+          <img src="/favicon.svg" alt="" width="28" height="28" />
+          <span class="brand">Vidalune</span>
+          <button type="button" class="cc-icon-button cc-close" id="close-nav" aria-label="Close menu"></button>
+        </div>
+        <nav id="nav"></nav>
+        <div class="cc-account" id="account"></div>
+      </aside>
+      <div class="cc-scrim" id="scrim" hidden></div>
+      <div class="cc-main">
+        <header class="cc-top">
+          <button type="button" class="cc-icon-button cc-menu" id="open-nav" aria-label="Menu" aria-controls="side" aria-expanded="false"></button>
+          <div id="crumbs" class="cc-crumbs"></div>
+          <span id="who" class="cc-who"></span>
+        </header>
+        <main id="view" class="cc-view" aria-live="polite"></main>
+      </div>
+    </div>
+    <div id="tip" class="chart-tip" role="status" hidden></div>
+    <div id="toast" class="cc-toast" role="status" aria-live="polite" hidden></div>
+    <dialog id="dialog" class="cc-dialog"></dialog>
   </body>
 </html>

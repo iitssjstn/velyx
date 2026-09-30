@@ -94,12 +94,13 @@ async function linkedServerWithRelay() {
   expect(refused.statusCode).toBe(402);
   const accountId = db.select().from(accounts).where(eq(accounts.email, 'justin@example.com')).get()!.id;
   const bossCookie = await signUpAs('boss@example.com');
-  const granted = await cloud.inject({ method: 'PUT', url: `/api/admin/accounts/${accountId}/plan`, headers: { cookie: bossCookie }, payload: { plan: 'remote', until: null, note: 'test' } });
-  expect(granted.json()).toMatchObject({ remote: true, plan: 'remote' });
+  const granted = await cloud.inject({ method: 'POST', url: '/api/ceo/access', headers: { cookie: bossCookie }, payload: { accountId, type: 'test', plan: 'remote', until: null, note: 'test' } });
+  expect(granted.json()).toMatchObject({ status: 'active', plan: 'remote' });
+  const grantId = granted.json().id as number;
   const relay = (await cloud.inject({ method: 'POST', url: '/api/server/relay', headers: { authorization: auth }, payload: { enabled: true } })).json();
   expect(relay).toMatchObject({ enabled: true, url: expect.stringMatching(/^http:\/\/[a-z0-9]{8}\.relay\.test$/) });
   const slug = new URL(relay.url).hostname.split('.')[0];
-  return { id: reg.id as string, auth, cookie, slug, host: `${slug}.relay.test`, accountId, bossCookie };
+  return { id: reg.id as string, auth, cookie, slug, host: `${slug}.relay.test`, accountId, bossCookie, grantId };
 }
 
 async function signUpAs(email: string) {
@@ -183,26 +184,30 @@ describe('the relay', () => {
     client.start(s.auth);
     await until(() => cloud.relay.connected(s.id));
     expect((await get(s.host, '/big.bin')).body.length).toBe(big.length);
-    // Only Vidalune administrators.
-    expect((await cloud.inject({ url: '/api/admin/relay', headers: { cookie: s.cookie } })).statusCode).toBe(403);
-    const stats = (await cloud.inject({ url: '/api/admin/relay', headers: { cookie: s.bossCookie } })).json();
-    expect(stats).toMatchObject({ maxMbps: 900, serverMbps: 0, tunnels: 1 });
-    const mine = stats.servers.find((x: { id: string }) => x.id === s.id);
-    expect(mine).toMatchObject({ name: 'Thuis', owner: 'justin@example.com', connected: true, limitMbps: null });
-    expect(mine.today.out).toBeGreaterThanOrEqual(big.length);
-    expect(mine.today.requests).toBe(1);
-    expect(mine.month.out).toBe(mine.today.out);
+    // Only Vidalune administrators (the Control Center).
+    expect((await cloud.inject({ url: '/api/ceo/relays', headers: { cookie: s.cookie } })).statusCode).toBe(403);
+    const stats = (await cloud.inject({ url: '/api/ceo/relays', headers: { cookie: s.bossCookie } })).json();
+    expect(stats.defaults).toEqual({ maxMbps: 900, serverMbps: 0 });
+    expect((await cloud.inject({ url: '/api/ceo/dashboard', headers: { cookie: s.bossCookie } })).json().servers).toMatchObject({ connected: 1 });
+    const detail = async () => (await cloud.inject({ url: `/api/ceo/relays/${stats.relays[0].id}`, headers: { cookie: s.bossCookie } })).json();
+    const d = await detail();
+    expect(d.serverList.find((x: { id: string }) => x.id === s.id)).toMatchObject({ name: 'Thuis', owner: 'justin@example.com', connected: true, limitMbps: null });
+    expect(d.days.at(-1).out).toBeGreaterThanOrEqual(big.length);
+    expect(d.days.at(-1).requests).toBe(1);
+    expect(d.month.out).toBe(d.days.at(-1).out);
 
     // A limit of 16 Mbit/s (2 MB/s): the same file now takes a while.
-    expect((await cloud.inject({ method: 'PUT', url: `/api/admin/servers/${s.id}/relay-limit`, headers: { cookie: s.bossCookie }, payload: { limitMbps: 0 } })).statusCode).toBe(400);
-    expect((await cloud.inject({ method: 'PUT', url: `/api/admin/servers/${s.id}/relay-limit`, headers: { cookie: s.cookie }, payload: { limitMbps: 16 } })).statusCode).toBe(403);
-    expect((await cloud.inject({ method: 'PUT', url: `/api/admin/servers/${s.id}/relay-limit`, headers: { cookie: s.bossCookie }, payload: { limitMbps: 16 } })).json()).toEqual({ ok: true, limitMbps: 16 });
+    const limit = (cookie: string, limitMbps: number | null) => cloud.inject({ method: 'PUT', url: `/api/ceo/servers/${s.id}/relay-limit`, headers: { cookie }, payload: { limitMbps } });
+    expect((await limit(s.bossCookie, 0)).statusCode).toBe(400);
+    expect((await limit(s.cookie, 16)).statusCode).toBe(403);
+    expect((await limit(s.bossCookie, 16)).json()).toEqual({ ok: true, limitMbps: 16 });
     const started = Date.now();
     expect((await get(s.host, '/big.bin')).body.equals(big)).toBe(true);
     expect(Date.now() - started).toBeGreaterThan(500);
-    const after = (await cloud.inject({ url: '/api/admin/relay', headers: { cookie: s.bossCookie } })).json();
-    expect(after.servers.find((x: { id: string }) => x.id === s.id)).toMatchObject({ limitMbps: 16, today: { requests: 2 } });
-    await cloud.inject({ method: 'PUT', url: `/api/admin/servers/${s.id}/relay-limit`, headers: { cookie: s.bossCookie }, payload: { limitMbps: null } });
+    const after = await detail();
+    expect(after.serverList.find((x: { id: string }) => x.id === s.id)).toMatchObject({ limitMbps: 16 });
+    expect(after.days.at(-1).requests).toBe(2);
+    await limit(s.bossCookie, null);
   });
 
   it('explains in the visitor\'s language why a server cannot be reached', async () => {
@@ -239,8 +244,8 @@ describe('the relay', () => {
     const s = await linkedServerWithRelay();
     client.start(s.auth);
     await until(() => cloud.relay.connected(s.id));
-    const taken = await cloud.inject({ method: 'PUT', url: `/api/admin/accounts/${s.accountId}/plan`, headers: { cookie: s.bossCookie }, payload: { plan: 'free' } });
-    expect(taken.json()).toMatchObject({ remote: false });
+    const taken = await cloud.inject({ method: 'DELETE', url: `/api/ceo/access/${s.grantId}`, headers: { cookie: s.bossCookie } });
+    expect(taken.json()).toEqual({ ok: true });
     await until(() => !cloud.relay.connected(s.id));
     expect((await get(s.host, '/api/server/info')).status).toBe(502);
     await until(() => client.status().error === 'subscription', 10_000);
@@ -305,7 +310,7 @@ describe('the relay', () => {
     const other = await signUpAs('other@example.com');
     expect((await get(app, `/_vl/open?server=${s.id}`, { cookie: other })).headers.location).toBe('/_vl/servers?choose');
     expect((await get(app, '/api/server/info', { cookie: `${other}; ${SERVER_COOKIE}=${s.id}` })).status).toBe(401);
-    await cloud.inject({ method: 'PUT', url: `/api/admin/accounts/${s.accountId}/plan`, headers: { cookie: s.bossCookie }, payload: { plan: 'free' } });
+    await cloud.inject({ method: 'DELETE', url: `/api/ceo/access/${s.grantId}`, headers: { cookie: s.bossCookie } });
     expect((await get(app, '/api/server/info', { cookie: cookies })).status).toBe(401);
     expect((await get(app, '/', { cookie: cookies })).headers.location).toBe('/_vl/servers');
   });
