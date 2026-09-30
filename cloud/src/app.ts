@@ -678,7 +678,22 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       .where(and(eq(memberships.serverId, me.id), eq(memberships.accountId, row.accountId)))
       .orderBy(desc(memberships.createdAt))
       .get();
-    return { email: who?.email ?? null, userRef: member?.userRef ?? null };
+    // The server's owner (the account it is linked to) is known without a user of their own yet:
+    // the server then signs them in as its administrator and connects them (see owner-member).
+    return { email: who?.email ?? null, userRef: member?.userRef ?? null, owner: me.accountId !== null && row.accountId === me.accountId };
+  });
+
+  /**
+   * The server connects its owner's Vidalune account to a user there (its administrator), so the
+   * owner signs in with that account alone. Only ever for the account the server is linked to.
+   */
+  app.post('/api/server/owner-member', async (request) => {
+    const me = server(request);
+    if (!me.accountId) throw new HttpError(409, 'Link this server to a Vidalune account first.');
+    const body = z.object({ userRef }).parse(request.body);
+    db.delete(memberships).where(and(eq(memberships.serverId, me.id), eq(memberships.accountId, me.accountId))).run();
+    db.insert(memberships).values({ serverId: me.id, userRef: body.userRef, accountId: me.accountId, createdAt: now() }).onConflictDoUpdate({ target: [memberships.serverId, memberships.userRef], set: { accountId: me.accountId, createdAt: now() } }).run();
+    return { email: db.select().from(accounts).where(eq(accounts.id, me.accountId)).get()?.email ?? null };
   });
 
   /**

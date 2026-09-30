@@ -94,9 +94,12 @@ export function createCloud(fetchImpl: typeof fetch = fetch, baseUrl = CLOUD_URL
   };
 }
 
+/** Signing in on a server with the Vidalune account did not work: why, as the server said it. */
+export class TicketError extends Error {}
+
 /**
- * Signs in on a server with a ticket from the account service. Null when the server does not know
- * this Vidalune account (the app then asks for a username and password).
+ * Signs in on a server with a ticket from the account service: the Vidalune account is the only
+ * sign-in. When the server refuses, the reason it gives (already in the account's language).
  */
 export async function signInWithTicket(serverUrl: string, ticket: string, deviceName: string, userAgent: string, fetchImpl: typeof fetch = fetch) {
   const res = await fetchImpl(`${serverUrl}/api/auth/app/ticket`, {
@@ -104,7 +107,10 @@ export async function signInWithTicket(serverUrl: string, ticket: string, device
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': userAgent },
     body: JSON.stringify({ ticket, deviceName }),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new TicketError(typeof body.error === 'string' && body.error ? body.error : '');
+  }
   return (await res.json()) as { token: string; user: import('./types').User };
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLOUD_ACCOUNT_KEY, CloudError, connectPending, createCloud, PENDING_CONNECT_KEY, serverAddresses, signInWithTicket, sortServers, type CloudServer, type KeyStore } from './cloud';
+import { CLOUD_ACCOUNT_KEY, CloudError, connectPending, createCloud, PENDING_CONNECT_KEY, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudServer, type KeyStore } from './cloud';
 
 const answer = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
 
@@ -40,8 +40,11 @@ describe('Vidalune account service', () => {
     expect(r?.user).toMatchObject({ username: 'lisa' });
     expect(calls[0]!.url).toBe('https://k7f3q9ma.vidalune.com/api/auth/app/ticket');
     expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ ticket: 'ticket-ticket-ticket-ticket', deviceName: 'Pixel 8' });
-    const refused = (async () => new Response('{}', { status: 403 })) as unknown as typeof fetch;
-    expect(await signInWithTicket('https://x', 'ticket-ticket-ticket-ticket', 'Pixel 8', 'ua', refused)).toBeNull();
+    // Refused: the server's own reason (never a second sign-in).
+    const refused = (async () => new Response(JSON.stringify({ error: 'Ask its administrator to invite you again.' }), { status: 403 })) as unknown as typeof fetch;
+    await expect(signInWithTicket('https://x', 'ticket-ticket-ticket-ticket', 'Pixel 8', 'ua', refused)).rejects.toThrow(new TicketError('Ask its administrator to invite you again.'));
+    const empty = (async () => new Response('oops', { status: 502 })) as unknown as typeof fetch;
+    await expect(signInWithTicket('https://x', 'ticket-ticket-ticket-ticket', 'Pixel 8', 'ua', empty)).rejects.toBeInstanceOf(TicketError);
   });
 
   it('tries the server\'s own address before the relay', () => {

@@ -7,4 +7,9 @@ describe('where the app starts', () => {
     expect(startRoute({ serverUrl: 'https://media.example.com', signedIn: false })).toBe('/sign-in');
     expect(startRoute({ serverUrl: 'https://media.example.com', signedIn: true })).toBe('/home');
   });
+
+  it('signs in again with the Vidalune account when the server was opened with it — no second sign-in', () => {
+    expect(startRoute({ serverUrl: 'https://media.example.com', signedIn: false, viaAccount: true })).toBe('/cloud');
+    expect(startRoute({ serverUrl: 'https://media.example.com', signedIn: true, viaAccount: true })).toBe('/home');
+  });
 });

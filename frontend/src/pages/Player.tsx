@@ -43,6 +43,8 @@ import { currentLanguage, intlLocale, languageLabel, t, useT, type MessageKey } 
 const SAVE_INTERVAL_MS = 10_000;
 const HIDE_CONTROLS_MS = 3000;
 const STALL_HINT_MS = 20_000;
+/** HTMLMediaElement.HAVE_FUTURE_DATA: enough is loaded to play on. */
+const HAVE_FUTURE_DATA = 3;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const SHORTCUTS: Array<[string, MessageKey]> = [
   ['Space / K', 'player.shortcuts.playPause'],
@@ -614,12 +616,13 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
 
   const onTimeUpdate = () => {
     const v = videoRef.current;
-    if (!v || !item.data) return;
-    const t = offset + v.currentTime;
+    if (!v) return;
     // The picture is moving, so nothing is loading. Some browsers (notably with live remux
     // streams) fire "waiting" but never a matching "playing", which left the spinner up.
     if (!v.paused && v.currentTime !== lastTickRef.current) setBuffering(false);
     lastTickRef.current = v.currentTime;
+    if (!item.data) return;
+    const t = offset + v.currentTime;
     setTime(t);
     if (v.buffered.length) setBuffered(offset + v.buffered.end(v.buffered.length - 1));
     const now = Date.now();
@@ -689,6 +692,22 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       setReloadKey((k) => k + 1);
     }
   }, [time, live, restartAt]);
+
+  // The spinner follows the video itself: while it is shown, the element is checked twice a second
+  // and the spinner goes as soon as the picture really moves (or stands ready while paused). Events
+  // alone were not enough: around a change of stream (the next episode starting) a "waiting" could
+  // come after the last "playing", and nothing cleared it again.
+  useEffect(() => {
+    if (!buffering || !streamSrc) return;
+    let last = videoRef.current?.currentTime ?? -1;
+    const check = setInterval(() => {
+      const v = videoRef.current;
+      if (!v || v.readyState < HAVE_FUTURE_DATA) return;
+      if (v.paused || v.currentTime !== last) setBuffering(false);
+      last = v.currentTime;
+    }, 500);
+    return () => clearInterval(check);
+  }, [buffering, streamSrc]);
 
   useEffect(() => {
     if (!buffering || error || ended) {
@@ -966,7 +985,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             poke();
           }}
           onPause={onPause}
-          onWaiting={() => setBuffering(true)}
+          onWaiting={() => (videoRef.current?.readyState ?? 0) < HAVE_FUTURE_DATA && setBuffering(true)}
           onPlaying={() => setBuffering(false)}
           onCanPlay={() => setBuffering(false)}
           onSeeked={() => {

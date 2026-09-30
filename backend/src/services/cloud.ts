@@ -235,10 +235,10 @@ export class CloudService {
   }
 
   /** Exchanges a one-time ticket from vidalune.com for who is opening this server. */
-  async redeem(ticket: string): Promise<{ email: string | null; userRef: string | null }> {
+  async redeem(ticket: string): Promise<{ email: string | null; userRef: string | null; owner?: boolean }> {
     if (!this.deps.settings.get().cloud?.account) throw new HttpError(401, 'This sign-in link is not valid (any more).');
     try {
-      return await this.call<{ email: string | null; userRef: string | null }>('POST', '/api/server/ticket', { ticket }, true, true);
+      return await this.call<{ email: string | null; userRef: string | null; owner?: boolean }>('POST', '/api/server/ticket', { ticket }, true, true);
     } catch (err) {
       if (err instanceof HttpError && err.statusCode === 401) throw new HttpError(401, 'This sign-in link is not valid (any more).');
       throw err;
@@ -256,6 +256,12 @@ export class CloudService {
       if (err instanceof HttpError && err.statusCode === 401) throw new HttpError(401, 'This sign-in link is not valid (any more).');
       throw err;
     }
+  }
+
+  /** Connects the owner's Vidalune account (the one this server is linked to) to a user here. */
+  async connectOwner(userId: number): Promise<void> {
+    await this.call('POST', '/api/server/owner-member', { userRef: String(userId) }, true, true);
+    this.membersCache = null;
   }
 
   /** A link on vidalune.com for someone to accept an invitation to this server (seven days, once). */

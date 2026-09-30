@@ -5,7 +5,7 @@ import { startRoute } from '../lib/start';
 
 /** Where the app starts: the Vidalune account (an address is the other way in), sign in, or straight to Home. */
 export default function Start() {
-  const { ready, serverUrl, signedIn } = useSession();
+  const { ready, serverUrl, signedIn, cloudServerId } = useSession();
   if (!ready) return <Loading />;
-  return <Redirect href={startRoute({ serverUrl, signedIn })} />;
+  return <Redirect href={startRoute({ serverUrl, signedIn, viaAccount: cloudServerId !== null })} />;
 }
