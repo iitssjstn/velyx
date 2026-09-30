@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTestEnv, createUser, setupAdmin, type TestEnv } from './helpers.js';
-import { libraries, movies } from '../src/db/schema.js';
+import { libraries, movies, shows } from '../src/db/schema.js';
 import { requestState } from '../src/services/seerr.js';
 
 // A stand-in for Seerr: its API, its key, and whether it answers at all.
@@ -38,6 +38,13 @@ const fakeSeerr = async (url: string, init?: RequestInit) => {
         { id: 17419, mediaType: 'person', name: 'Somebody' },
       ],
     });
+  }
+  if (path.startsWith('/discover/')) {
+    // Discover rows leave out mediaType for movie and tv lists (as Seerr does for some of them).
+    const page = Number(u.searchParams.get('page'));
+    if (path === '/discover/trending') return json({ page, totalPages: 3, results: [{ id: 550, mediaType: 'movie', title: 'Already Here', releaseDate: '1999-10-15', posterPath: null }, { id: 1399, mediaType: 'tv', name: 'A Show', firstAirDate: '2011-04-17', posterPath: '/show.jpg' }, { id: 1, mediaType: 'person', name: 'Somebody' }] });
+    if (path === '/discover/movies/genre/28') return json({ page, totalPages: 400, results: [{ id: 603, title: 'The Matrix', releaseDate: '1999-03-30', posterPath: '/matrix.jpg' }] });
+    if (path === '/discover/tv/upcoming') return json({ page, totalPages: 1, results: [{ id: 1400, name: 'Coming Soon', firstAirDate: '2027-01-01', posterPath: null }] });
   }
   if (path === '/movie/603') return json({ id: 603, title: 'The Matrix', releaseDate: '1999-03-30', overview: 'A hacker learns…', posterPath: '/matrix.jpg', runtime: 136, genres: [{ name: 'Action' }, { name: 'Science Fiction' }] });
   if (path === '/movie/550') return json({ id: 550, title: 'Already Here', releaseDate: '1999-10-15', overview: '', posterPath: null, genres: [] });
@@ -117,8 +124,8 @@ describe('Seerr', () => {
 
     const found = await env.app.inject({ url: '/api/seerr/search?q=matrix', headers: { cookie: viewer.cookie } });
     expect(found.json().results).toEqual([
-      { mediaType: 'movie', tmdbId: 603, title: 'The Matrix', year: 1999, overview: 'A hacker learns…', posterPath: '/matrix.jpg', state: null, inLibrary: false },
-      { mediaType: 'tv', tmdbId: 1399, title: 'A Show', year: 2011, overview: 'Families fight…', posterPath: '/show.jpg', state: 'processing', inLibrary: false },
+      { mediaType: 'movie', tmdbId: 603, title: 'The Matrix', year: 1999, overview: 'A hacker learns…', posterPath: '/matrix.jpg', state: null, inLibrary: false, local: null },
+      { mediaType: 'tv', tmdbId: 1399, title: 'A Show', year: 2011, overview: 'Families fight…', posterPath: '/show.jpg', state: 'processing', inLibrary: false, local: null },
     ]);
     expect(calls.at(-1)).toMatchObject({ key: KEY, path: '/search?query=matrix&page=1&language=en' });
     const show = await env.app.inject({ url: '/api/seerr/tv/1399', headers: { cookie: viewer.cookie } });
@@ -159,5 +166,47 @@ describe('Seerr', () => {
     // The requests list shows what was known.
     expect((await env.app.inject({ url: '/api/seerr/requests', headers: { cookie: admin } })).statusCode).toBe(200);
     expect((await env.app.inject({ url: '/api/home', headers: { cookie: admin } })).statusCode).toBe(200);
+  });
+
+  it('shows the catalog in rows, with what is already here opening the player', async () => {
+    await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
+    const lib = env.ctx.db.insert(libraries).values({ name: 'Films', type: 'movies', path: env.mediaDir }).returning().get();
+    const hidden = env.ctx.db.insert(libraries).values({ name: 'Kids', type: 'movies', path: `${env.mediaDir}/kids` }).returning().get();
+    const movie = env.ctx.db.insert(movies).values({ libraryId: lib.id, groupKey: 'already-here', title: 'Already Here', sortTitle: 'already here', parsedTitle: 'Already Here', tmdbId: 550 }).returning().get();
+    env.ctx.db.insert(movies).values({ libraryId: hidden.id, groupKey: 'matrix', title: 'The Matrix', sortTitle: 'matrix', parsedTitle: 'The Matrix', tmdbId: 603 }).run();
+    const show = env.ctx.db.insert(shows).values({ libraryId: lib.id, groupKey: 'a-show', title: 'A Show', sortTitle: 'a show', parsedTitle: 'A Show', tmdbId: 1399 }).returning().get();
+
+    const row = async (query: string, cookie = admin) => env.app.inject({ url: `/api/seerr/discover?${query}`, headers: { cookie } });
+    const trending = (await row('row=trending')).json();
+    expect(trending.totalPages).toBe(3);
+    expect(trending.results).toMatchObject([
+      { mediaType: 'movie', tmdbId: 550, inLibrary: true, local: { type: 'movie', id: movie.id } },
+      { mediaType: 'tv', tmdbId: 1399, inLibrary: true, local: { type: 'show', id: show.id } },
+    ]);
+    // Rows are kept for a while: the same row again does not ask Seerr.
+    const asked = calls.length;
+    await row('row=trending');
+    expect(calls.length).toBe(asked);
+    // A genre (the type comes from the row), in the interface language.
+    const action = (await row('row=movies&genre=28&page=2')).json();
+    expect(calls.at(-1)?.path).toBe('/discover/movies/genre/28?page=2&language=en');
+    expect(action.totalPages).toBe(20);
+    expect(action.results).toMatchObject([{ mediaType: 'movie', tmdbId: 603, title: 'The Matrix', inLibrary: true }]);
+    expect((await row('row=upcomingTv')).json().results).toMatchObject([{ mediaType: 'tv', tmdbId: 1400, year: 2027, inLibrary: false, local: null }]);
+
+    // Someone who may not see the Kids library: The Matrix is not "here" for them.
+    const viewer = await createUser(env.app, admin, 'viewer');
+    env.ctx.access.setGrants(viewer.id, [lib.id]);
+    expect((await row('row=movies&genre=28&page=2', viewer.cookie)).json().results[0]).toMatchObject({ inLibrary: false, local: null });
+
+    expect((await row('row=everything')).statusCode).toBe(400);
+    expect((await row('row=trending&genre=28')).statusCode).toBe(400);
+    expect((await row('row=trending&page=99')).statusCode).toBe(400);
+    expect((await env.app.inject({ url: '/api/seerr/discover?row=trending' })).statusCode).toBe(401);
+  });
+
+  it('shows no catalog without Seerr', async () => {
+    expect((await env.app.inject({ url: '/api/seerr/discover?row=trending', headers: { cookie: admin } })).statusCode).toBe(409);
+    expect(calls).toEqual([]);
   });
 });

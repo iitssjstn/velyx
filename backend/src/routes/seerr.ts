@@ -6,6 +6,8 @@ import { requireAdmin, requireUser } from '../app.js';
 import { movies, seerrRequests, shows } from '../db/schema.js';
 import { HttpError } from '../http-error.js';
 import type { RequestState } from '../services/seerr.js';
+import { canSee } from '../services/access.js';
+import type { SessionUser } from '../auth/sessions.js';
 
 const mediaType = z.enum(['movie', 'tv']);
 const tmdbId = z.coerce.number().int().positive().max(100_000_000);
@@ -60,27 +62,60 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
   // ---- everyone signed in
   app.get('/api/seerr', { preHandler: requireUser }, async () => ({ enabled: ctx.seerr.configured() }));
 
-  /** Which of these are in the library already (by TMDB id). */
-  const inLibrary = (items: Array<{ mediaType: 'movie' | 'tv'; tmdbId: number }>) => {
-    const ids = (t: 'movie' | 'tv') => items.filter((i) => i.mediaType === t).map((i) => i.tmdbId);
+  /**
+   * Which of these are in the library already (by TMDB id), and where: a movie opens its player,
+   * a show its next episode. Several copies of one title: the first one added. With a user, only
+   * the libraries that user may see count.
+   */
+  const inLibrary = (items: Array<{ mediaType: 'movie' | 'tv'; tmdbId: number }>, user?: SessionUser) => {
+    const scope = user ? ctx.access.scope(user) : null;
+    const ids = (t: 'movie' | 'tv') => [...new Set(items.filter((i) => i.mediaType === t).map((i) => i.tmdbId))];
     const m = ids('movie');
     const s = ids('tv');
-    const haveMovies = new Set(m.length ? db.select({ id: movies.tmdbId }).from(movies).where(and(isNotNull(movies.tmdbId), inArray(movies.tmdbId, m))).all().map((r) => r.id) : []);
-    const haveShows = new Set(s.length ? db.select({ id: shows.tmdbId }).from(shows).where(and(isNotNull(shows.tmdbId), inArray(shows.tmdbId, s))).all().map((r) => r.id) : []);
-    return (i: { mediaType: 'movie' | 'tv'; tmdbId: number }) => (i.mediaType === 'movie' ? haveMovies : haveShows).has(i.tmdbId);
+    const byTmdb = (rows: Array<{ id: number; tmdbId: number | null; libraryId: number }>) => {
+      const map = new Map<number, number>();
+      for (const r of rows) if (r.tmdbId !== null && (!scope || canSee(scope, r.libraryId)) && (!map.has(r.tmdbId) || r.id < map.get(r.tmdbId)!)) map.set(r.tmdbId, r.id);
+      return map;
+    };
+    const haveMovies = byTmdb(m.length ? db.select({ id: movies.id, tmdbId: movies.tmdbId, libraryId: movies.libraryId }).from(movies).where(and(isNotNull(movies.tmdbId), inArray(movies.tmdbId, m))).all() : []);
+    const haveShows = byTmdb(s.length ? db.select({ id: shows.id, tmdbId: shows.tmdbId, libraryId: shows.libraryId }).from(shows).where(and(isNotNull(shows.tmdbId), inArray(shows.tmdbId, s))).all() : []);
+    return (i: { mediaType: 'movie' | 'tv'; tmdbId: number }): { type: 'movie' | 'show'; id: number } | null => {
+      const id = (i.mediaType === 'movie' ? haveMovies : haveShows).get(i.tmdbId);
+      return id === undefined ? null : { type: i.mediaType === 'movie' ? 'movie' : 'show', id };
+    };
+  };
+  const withLibrary = <T extends { mediaType: 'movie' | 'tv'; tmdbId: number }>(items: T[], user: SessionUser) => {
+    const local = inLibrary(items, user);
+    return items.map((x) => {
+      const l = local(x);
+      return { ...x, inLibrary: l !== null, local: l };
+    });
   };
 
   app.get('/api/seerr/search', { preHandler: requireUser }, async (request) => {
-    const q = z.object({ q: z.string().trim().min(1).max(100), page: z.coerce.number().int().min(1).max(50).default(1) }).parse(request.query);
+    const q = z.object({ q: z.string().trim().min(1).max(100), page: z.coerce.number().int().min(1).max(20).default(1) }).parse(request.query);
     const r = await ctx.seerr.search(q.q, q.page, lang(request.user!.language));
-    const have = inLibrary(r.results);
-    return { ...r, results: r.results.map((x) => ({ ...x, inLibrary: have(x) })) };
+    return { ...r, results: withLibrary(r.results, request.user!) };
+  });
+
+  /** One row of the catalog for the home screen: trending, popular, a genre, coming soon. */
+  app.get('/api/seerr/discover', { preHandler: requireUser }, async (request) => {
+    const q = z
+      .object({
+        row: z.enum(['trending', 'movies', 'tv', 'upcomingMovies', 'upcomingTv']),
+        genre: z.coerce.number().int().positive().max(100_000).optional(),
+        page: z.coerce.number().int().min(1).max(20).default(1),
+      })
+      .refine((x) => x.genre === undefined || x.row === 'movies' || x.row === 'tv', 'Only movies and shows have genres.')
+      .parse(request.query);
+    const r = await ctx.seerr.discover({ kind: q.row, genre: q.genre }, q.page, lang(request.user!.language));
+    return { ...r, results: withLibrary(r.results, request.user!) };
   });
 
   app.get('/api/seerr/:type/:id', { preHandler: requireUser }, async (request) => {
     const p = z.object({ type: mediaType, id: tmdbId }).parse(request.params);
     const d = await ctx.seerr.details(p.type, p.id, lang(request.user!.language));
-    return { ...d, inLibrary: inLibrary([d])(d) };
+    return withLibrary([d], request.user!)[0];
   });
 
   const recent = new Map<number, number[]>();
@@ -92,7 +127,7 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (mine.length >= REQUESTS_PER_HOUR) throw new HttpError(429, 'You made many requests in the last hour. Try again later.');
     // Title and poster from Seerr itself (never taken from the browser).
     const d = await ctx.seerr.details(body.mediaType, body.tmdbId, lang(user.language));
-    if (inLibrary([d])(d)) throw new HttpError(409, 'This is already in the library.');
+    if (inLibrary([d])(d) !== null) throw new HttpError(409, 'This is already in the library.');
     const r = await ctx.seerr.request(body.mediaType, body.tmdbId, body.mediaType === 'tv' ? body.seasons : null);
     mine.push(now);
     recent.set(user.id, mine);

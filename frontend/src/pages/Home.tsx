@@ -8,6 +8,7 @@ import { greeting, imageUrl, progressFraction } from '../lib/format';
 import type { Card, ContinueItem, HomeData } from '../lib/types';
 import { toast } from '../components/Toast';
 import { ContinueCard, PosterCard } from '../components/Cards';
+import { DiscoverShelves } from '../components/Discover';
 import { Shelf } from '../components/Shelf';
 import { EmptyState, ErrorState, ShelfSkeleton } from '../components/States';
 import { ProgressBar } from '../components/ProgressBar';
@@ -182,6 +183,8 @@ export function HomePage() {
           )}
         </>
       )}
+      {/* With Seerr: everything else there is, under the library (also when the library is still empty). */}
+      <DiscoverShelves />
     </div>
   );
 }

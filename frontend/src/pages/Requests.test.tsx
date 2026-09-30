@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { RequestsPage } from './Requests';
 import { SeerrSettings } from './admin/SeerrSettings';
 
@@ -16,7 +17,7 @@ function setup(ui: React.ReactNode, answer: (method: string, url: string, body: 
     const r = answer(method, url, body);
     return new Response(JSON.stringify(r ?? {}), { status: 200 });
   }));
-  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>);
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter>{ui}</MemoryRouter></QueryClientProvider>);
   return calls;
 }
 

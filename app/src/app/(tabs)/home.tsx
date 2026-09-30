@@ -1,7 +1,9 @@
-import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { useState } from 'react';
+import { RefreshControl, ScrollView, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ContinueShelf, Shelf, useWide } from '../../components/media';
+import { DiscoverShelves } from '../../components/Discover';
 import { ShelvesSkeleton } from '../../components/Skeleton';
 import { ErrorState, styles } from '../../components/ui';
 import { Logo } from '../../components/Logo';
@@ -13,6 +15,12 @@ export default function Home() {
   const { api, t, serverUrl } = useSession();
   const q = useQuery({ queryKey: [serverUrl, 'home'], queryFn: () => api.get<HomeData>('/api/home') });
   const wide = useWide();
+  // Catalog rows (with Seerr) load a few at a time, as the screen is scrolled down.
+  const [rows, setRows] = useState(4);
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    if (layoutMeasurement.height + contentOffset.y > contentSize.height - 800) setRows((n) => n + 3);
+  };
   if (q.isLoading)
     return (
       <SafeAreaView edges={['top']} style={styles.screen}>
@@ -27,7 +35,7 @@ export default function Home() {
   const empty = !d.continueWatching.length && !d.recentlyAdded.length && !d.movies.length && !d.shows.length;
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      <ScrollView refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => void q.refetch()} tintColor={colors.accent} colors={[colors.accent]} />} contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScrollView onScroll={onScroll} scrollEventThrottle={250} refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => void q.refetch()} tintColor={colors.accent} colors={[colors.accent]} />} contentContainerStyle={{ paddingBottom: 24 }}>
         <View style={{ padding: 16, paddingBottom: 20 }}>
           <Logo />
         </View>
@@ -38,6 +46,7 @@ export default function Home() {
         <Shelf title={t('home.movies')} cards={d.movies} />
         <Shelf title={t('home.shows')} cards={d.shows} />
         <Shelf title={t('home.favorites')} cards={d.favorites ?? []} more={{ label: t('home.seeAll'), href: '/list/favorites' }} />
+        <DiscoverShelves rows={rows} />
       </ScrollView>
     </SafeAreaView>
   );

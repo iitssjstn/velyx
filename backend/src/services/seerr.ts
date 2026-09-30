@@ -5,6 +5,10 @@ import type { FetchLike } from './tmdb.js';
 
 const log = createLogger('seerr');
 const TIMEOUT_MS = 8000;
+/** How long a catalog row is kept before Seerr is asked again. */
+const DISCOVER_FRESH_MS = 30 * 60_000;
+/** Rows scroll on, but not without end. */
+const MAX_PAGES = 20;
 
 /** Where a request stands, as Vidalune shows it. */
 export type RequestState = 'requested' | 'approved' | 'processing' | 'available' | 'partiallyAvailable' | 'declined' | 'failed';
@@ -18,6 +22,19 @@ export interface SeerrResult {
   posterPath: string | null;
   /** What Seerr knows of it: already requested, being downloaded, available (null: nothing yet). */
   state: RequestState | null;
+}
+
+export interface SeerrPage {
+  page: number;
+  totalPages: number;
+  results: SeerrResult[];
+}
+
+/** The rows of the catalog: trending, popular movies/shows (optionally one genre), coming soon. */
+export interface DiscoverRow {
+  kind: 'trending' | 'movies' | 'tv' | 'upcomingMovies' | 'upcomingTv';
+  /** A TMDB genre id (movies and tv only). */
+  genre?: number;
 }
 
 export interface SeerrDetails extends SeerrResult {
@@ -103,13 +120,46 @@ export class SeerrService {
     return { version: status.version ?? null };
   }
 
-  async search(query: string, page: number, language: string): Promise<{ page: number; totalPages: number; results: SeerrResult[] }> {
-    const r = await this.call<{ page: number; totalPages: number; results: Array<Record<string, unknown>> }>('GET', `/search?query=${encodeURIComponent(query)}&page=${page}&language=${encodeURIComponent(language)}`);
+  async search(query: string, page: number, language: string): Promise<SeerrPage> {
+    return this.list(`/search?query=${encodeURIComponent(query)}&page=${page}&language=${encodeURIComponent(language)}`, page);
+  }
+
+  /**
+   * One row of the catalog (trending, popular, upcoming, a genre), one page at a time. Rows are
+   * the same for everyone, so they are kept for a while: opening the home screen does not ask
+   * Seerr again every time.
+   */
+  async discover(row: DiscoverRow, page: number, language: string): Promise<SeerrPage> {
+    const key = `${this.deps.settings.get().seerr.url}|${row.kind}|${row.genre ?? ''}|${page}|${language}`;
+    const now = Date.now();
+    const hit = this.cache.get(key);
+    if (hit && hit.until > now) return hit.page;
+    const q = `page=${page}&language=${encodeURIComponent(language)}`;
+    const path = {
+      trending: `/discover/trending?${q}`,
+      movies: row.genre ? `/discover/movies/genre/${row.genre}?${q}` : `/discover/movies?${q}`,
+      tv: row.genre ? `/discover/tv/genre/${row.genre}?${q}` : `/discover/tv?${q}`,
+      upcomingMovies: `/discover/movies/upcoming?${q}`,
+      upcomingTv: `/discover/tv/upcoming?${q}`,
+    }[row.kind];
+    const fallback = row.kind === 'movies' || row.kind === 'upcomingMovies' ? 'movie' : row.kind === 'tv' || row.kind === 'upcomingTv' ? 'tv' : undefined;
+    const result = await this.list(path, page, fallback);
+    if (this.cache.size > 500) this.cache.clear();
+    this.cache.set(key, { until: now + DISCOVER_FRESH_MS, page: result });
+    return result;
+  }
+
+  private readonly cache = new Map<string, { until: number; page: SeerrPage }>();
+
+  /** A page of titles (people and anything else are left out). */
+  private async list(path: string, page: number, mediaType?: 'movie' | 'tv'): Promise<SeerrPage> {
+    const r = await this.call<{ page?: number; totalPages?: number; results?: Array<Record<string, unknown>> }>('GET', path);
     const results: SeerrResult[] = [];
     for (const x of r.results ?? []) {
-      if (x.mediaType !== 'movie' && x.mediaType !== 'tv') continue;
+      const type = x.mediaType ?? mediaType;
+      if (type !== 'movie' && type !== 'tv') continue;
       results.push({
-        mediaType: x.mediaType,
+        mediaType: type,
         tmdbId: Number(x.id),
         title: String(x.title ?? x.name ?? ''),
         year: yearOf(x.releaseDate ?? x.firstAirDate),
@@ -118,7 +168,7 @@ export class SeerrService {
         state: mediaState(x.mediaInfo as RawMedia | undefined),
       });
     }
-    return { page: r.page ?? page, totalPages: r.totalPages ?? 1, results };
+    return { page: r.page ?? page, totalPages: Math.min(r.totalPages ?? 1, MAX_PAGES), results };
   }
 
   async details(mediaType: 'movie' | 'tv', tmdbId: number, language: string): Promise<SeerrDetails> {
