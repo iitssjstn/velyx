@@ -12,7 +12,7 @@ import { SeekBar } from '../../../components/SeekBar';
 import { playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
 import { episodeCode, formatClock } from '../../../lib/format';
-import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { rememberSubtitle, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
 import { DEFAULT_SUBTITLE_STYLE, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
@@ -257,7 +257,13 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
     };
   }, [subtitle, api]);
 
-  useEventListener(player, 'timeUpdate', ({ currentTime }) => setTime(currentTime));
+  const lastTime = useRef(0);
+  useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    // Playing on: the spinner goes, also when the player's status did not say so (some devices).
+    setLoading((l) => stillLoading(l, lastTime.current, currentTime, player.playing));
+    lastTime.current = currentTime;
+    setTime(currentTime);
+  });
   useEventListener(player, 'playingChange', ({ isPlaying }) => setPlaying(isPlaying));
   useEventListener(player, 'statusChange', ({ status, error }) => {
     setLoading(status === 'loading');

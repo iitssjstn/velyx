@@ -171,3 +171,13 @@ export function retryAt(previous: Retries, position: number): { retries: Retries
   const count = Math.abs(position - previous.at) < 10 ? previous.count + 1 : 1;
   return { retries: { at: position, count }, allowed: count <= 3 };
 }
+
+/**
+ * Whether the picture is still loading. The player's own status can stay on "loading" after a
+ * buffering pause or a seek on some Android devices while the video already plays again: time that
+ * moves forward while playing means it is not loading, whatever the status says.
+ */
+export function stillLoading(statusLoading: boolean, previousTime: number, time: number, playing: boolean): boolean {
+  if (!statusLoading) return false;
+  return !(playing && time > previousTime + 0.05);
+}

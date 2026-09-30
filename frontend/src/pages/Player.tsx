@@ -220,6 +220,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // The stream to load: `base` is the decision's URL. Live (restart) streams are requested with
   // &start=`seek` and really begin at `offset` seconds into the file (the keyframe FFmpeg lands on).
   const [stream, setStream] = useState<{ base: string; offset: number; seek: number } | null>(null);
+  const streamRef = useRef(stream);
+  streamRef.current = stream;
   const startedRef = useRef(false);
   const lastSaveRef = useRef(0);
   const lastTickRef = useRef(-1);
@@ -289,6 +291,15 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         playAfterLoadRef.current = v ? !v.paused || !startedRef.current : true;
         setBuffering(true);
         const r = await locateStart(info.file.id, target);
+        const cur = streamRef.current;
+        // The same stream as now (a seek near where it started): the address does not change, so
+        // nothing would load and the spinner would stay. Seek in what is there instead.
+        if (v && cur && cur.base === info.decision.streamUrl && cur.offset === r.offset && cur.seek === r.seek) {
+          v.currentTime = Math.max(0, target - cur.offset);
+          setBuffering(false);
+          if (playAfterLoadRef.current && v.paused) void v.play().catch(() => setPlaying(false));
+          return;
+        }
         pendingSeekRef.current = target;
         setStream({ base: info.decision.streamUrl, ...r });
       }, 250);
