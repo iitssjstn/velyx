@@ -8,7 +8,7 @@ import type { AppContext } from '../app.js';
 import { requireAdmin } from '../app.js';
 import { episodes, libraries, mediaFiles, movies, seasons, shows, users } from '../db/schema.js';
 import { hashPassword, validatePassword, validateUsername } from '../auth/password.js';
-import { validateLibraryPath } from '../services/paths.js';
+import { listFolders, validateLibraryPath } from '../services/paths.js';
 import { ReplacementTracker } from '../services/replacements.js';
 import { checkBinary } from '../services/probe.js';
 import { recentLogs } from '../logger.js';
@@ -248,6 +248,14 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     libraries: db.select().from(libraries).orderBy(libraries.name).all().map(libraryView),
     mediaRoots: ctx.config.mediaRoots,
   }));
+
+  /** Folders to choose a library from (inside MEDIA_ROOTS only). */
+  app.get('/api/libraries/folders', { preHandler: requireAdmin }, async (request) => {
+    const q = z.object({ path: z.string().max(4096).optional() }).parse(request.query);
+    const list = listFolders(q.path || undefined, ctx.config.mediaRoots);
+    if ('error' in list) throw new HttpError(400, list.error, list.params);
+    return list;
+  });
 
   app.post('/api/libraries', { preHandler: requireAdmin }, async (request) => {
     const body = libraryBody.parse(request.body);

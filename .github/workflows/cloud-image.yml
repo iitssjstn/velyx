@@ -8,9 +8,10 @@ on:
     paths: ['cloud/**', 'frontend/**', 'package-lock.json', '.github/workflows/cloud-image.yml']
   pull_request:
     paths: ['cloud/**', 'frontend/**', '.github/workflows/cloud-image.yml']
-  # Once the Android app of a release is built: again, so vidalune.com hands out that app.
+  # Once the Android app or the Debian packages of a release are built: again, so vidalune.com hands
+  # them out.
   workflow_run:
-    workflows: ['Android app']
+    workflows: ['Android app', 'Debian package']
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -36,12 +37,13 @@ jobs:
         id: version
         run: echo "version=$(node -p "require('./cloud/package.json').version")" >> "$GITHUB_OUTPUT"
 
-      # The Android app of the newest release, handed out at vidalune.com/download/app.
-      - name: Android app
+      # The Android app and Debian packages of the newest release, handed out at
+      # vidalune.com/download/app and /download/deb/<arch>.
+      - name: Android app and Debian packages
         if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download --repo "$GITHUB_REPOSITORY" --pattern 'vidalune-*.apk' --dir cloud/downloads || echo "No Android app released yet."
+        run: gh release download --repo "$GITHUB_REPOSITORY" --pattern 'vidalune-*.apk' --pattern 'vidalune_*.deb' --dir cloud/downloads || echo "Nothing released yet."
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'

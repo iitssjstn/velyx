@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { CircleAlert, FileSearch, Film, FolderPlus, Pencil, RefreshCw, ScanSearch, Trash2, Tv } from 'lucide-react';
+import { ChevronUp, CircleAlert, FileSearch, Film, Folder, FolderOpen, FolderPlus, Lock, Pencil, RefreshCw, ScanSearch, Trash2, Tv } from 'lucide-react';
 import { api } from '../../lib/api';
 import { formatRelative, scheduleLabel } from '../../lib/format';
 import type { Library, ScanState } from '../../lib/types';
@@ -39,6 +39,68 @@ export function scanSummary(message: string): string {
     .join(', ');
 }
 
+interface FolderList {
+  path: string | null;
+  parent: string | null;
+  folders: { name: string; path: string; readable: boolean }[];
+}
+
+/** Walks the folders inside MEDIA_ROOTS on the server to pick a library folder. */
+function FolderBrowser({ start, onChoose }: { start: string; onChoose: (path: string) => void }) {
+  const { t } = useT();
+  const [at, setAt] = useState<string | null>(start.replace(/\/+$/, '') || null);
+  const q = useQuery({
+    queryKey: ['library-folders', at],
+    queryFn: () => api.get<FolderList>(`/api/libraries/folders${at ? `?path=${encodeURIComponent(at)}` : ''}`),
+    retry: false,
+  });
+  const shown = q.data;
+  return (
+    <div className="mt-2 rounded-xl border border-line bg-bg/40">
+      <div className="flex items-center gap-2 border-b border-line px-3 py-2">
+        <button type="button" onClick={() => setAt(shown?.parent ?? null)} disabled={!at} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted hover:bg-raised disabled:opacity-40">
+          <ChevronUp className="size-3.5" />
+          {t('libraries.up')}
+        </button>
+        <p className="min-w-0 flex-1 truncate font-mono text-xs text-faint">{at ?? t('libraries.roots')}</p>
+        {shown?.path && (
+          <Button type="button" size="sm" onClick={() => onChoose(shown.path!)}>
+            {t('libraries.choose')}
+          </Button>
+        )}
+      </div>
+      <div className="max-h-64 overflow-y-auto p-1">
+        {q.isLoading ? (
+          <div className="grid place-items-center py-6"><Spinner className="size-5" /></div>
+        ) : q.error ? (
+          <div className="space-y-2 p-2">
+            <p role="alert" className="text-sm break-words text-danger">{q.error instanceof Error ? q.error.message : String(q.error)}</p>
+            <button type="button" onClick={() => setAt(null)} className="text-xs text-muted underline">{t('libraries.roots')}</button>
+          </div>
+        ) : shown && shown.folders.length === 0 ? (
+          <p className="p-3 text-sm text-faint">{t('libraries.noFolders')}</p>
+        ) : (
+          <ul>
+            {shown?.folders.map((f) => (
+              <li key={f.path}>
+                <button
+                  type="button"
+                  onClick={() => setAt(f.path)}
+                  title={f.readable ? f.path : t('libraries.noAccess')}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-raised"
+                >
+                  {f.readable ? <Folder className="size-4 shrink-0 text-accent" /> : <Lock className="size-4 shrink-0 text-amber" aria-label={t('libraries.noAccess')} />}
+                  <span className={`truncate ${shown.path === null ? 'font-mono text-xs' : ''} ${f.readable ? '' : 'text-muted'}`}>{f.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LibraryForm({ initial, mediaRoots, onDone }: { initial?: Library; mediaRoots: string[]; onDone: () => void }) {
   const qc = useQueryClient();
   const { t, tRich } = useT();
@@ -46,6 +108,7 @@ function LibraryForm({ initial, mediaRoots, onDone }: { initial?: Library; media
   const [type, setType] = useState<'movies' | 'shows'>(initial?.type ?? 'movies');
   const [path, setPath] = useState(initial?.path ?? (mediaRoots[0] ? `${mediaRoots[0].replace(/\/$/, '')}/` : ''));
   const [error, setError] = useState<string | null>(null);
+  const [browsing, setBrowsing] = useState(false);
   const m = useMutation({
     mutationFn: () => (initial ? api.put(`/api/libraries/${initial.id}`, { name: name.trim(), path: path.trim() }) : api.post('/api/libraries', { name: name.trim(), type, path: path.trim() })),
     onSuccess: () => {
@@ -94,7 +157,22 @@ function LibraryForm({ initial, mediaRoots, onDone }: { initial?: Library; media
       </div>
       <div>
         <label className="label" htmlFor="lpath">{t('libraries.folder')}</label>
-        <input id="lpath" className="input font-mono text-sm" required value={path} onChange={(e) => setPath(e.target.value)} placeholder="/media/movies" spellCheck={false} />
+        <div className="flex gap-2">
+          <input id="lpath" className="input font-mono text-sm" required value={path} onChange={(e) => setPath(e.target.value)} placeholder="/media/movies" spellCheck={false} />
+          <Button type="button" variant="ghost" icon={<FolderOpen className="size-4" />} onClick={() => setBrowsing((b) => !b)} aria-expanded={browsing}>
+            {browsing ? t('libraries.browseHide') : t('libraries.browse')}
+          </Button>
+        </div>
+        {browsing && (
+          <FolderBrowser
+            start={path}
+            onChoose={(p) => {
+              setPath(p);
+              setBrowsing(false);
+              setError(null);
+            }}
+          />
+        )}
         <p className="mt-1.5 text-xs text-faint">
           {tRich('libraries.folderHint', { roots: mediaRoots.join(', '), movies: <code>/media/movies</code>, tv: <code>/media/tv</code> })}
         </p>

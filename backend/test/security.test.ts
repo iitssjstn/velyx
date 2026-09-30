@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { isInside, resolveMediaPath, validateLibraryPath } from '../src/services/paths.js';
+import { accessCommand, isInside, listFolders, resolveMediaPath, validateLibraryPath } from '../src/services/paths.js';
 import { isValidImageRequest } from '../src/services/images.js';
 import { addLibrary, createTestEnv, setupAdmin, touch, type TestEnv } from './helpers.js';
 
@@ -31,6 +31,35 @@ describe('path helpers', () => {
     expect(validateLibraryPath('media/movies', roots).ok).toBe(false);
     expect(validateLibraryPath(path.join(tmp, 'media', '..', 'secret'), roots).ok).toBe(false);
     expect(validateLibraryPath(path.join(tmp, 'media', 'movies\0'), roots).ok).toBe(false);
+  });
+
+  it('lists only folders inside MEDIA_ROOTS to choose a library from', () => {
+    const roots = [path.join(tmp, 'media')];
+    fs.mkdirSync(path.join(tmp, 'media', 'series'));
+    fs.mkdirSync(path.join(tmp, 'media', '.hidden'));
+    fs.writeFileSync(path.join(tmp, 'media', 'file.mkv'), 'x');
+    expect(listFolders(undefined, roots)).toEqual({ path: null, parent: null, folders: [{ name: roots[0], path: roots[0], readable: true }] });
+    expect(listFolders(roots[0], roots)).toEqual({
+      path: roots[0],
+      parent: null,
+      folders: [
+        { name: 'movies', path: path.join(roots[0], 'movies'), readable: true },
+        { name: 'series', path: path.join(roots[0], 'series'), readable: true },
+      ],
+    });
+    expect(listFolders(path.join(roots[0], 'movies'), roots)).toMatchObject({ parent: roots[0], folders: [] });
+    expect(listFolders(path.join(tmp, 'secret'), roots)).toHaveProperty('error');
+    expect(listFolders(path.join(roots[0], '..', 'secret'), roots)).toHaveProperty('error');
+    expect(listFolders('media', roots)).toHaveProperty('error');
+    fs.symlinkSync(path.join(tmp, 'secret'), path.join(tmp, 'media', 'link'));
+    expect(listFolders(path.join(tmp, 'media', 'link'), roots)).toHaveProperty('error');
+  });
+
+  it('names the command that lets the service read a folder, also through the folders above it', () => {
+    expect(accessCommand('/srv/media/movies', '/srv/media/movies')).toBe("sudo setfacl -R -m u:vidalune:rX '/srv/media/movies' && sudo setfacl -R -d -m u:vidalune:rX '/srv/media/movies'");
+    expect(accessCommand("/home/jan/Jan's films", '/home/jan')).toBe(
+      "sudo setfacl -m u:vidalune:x '/home/jan' && sudo setfacl -R -m u:vidalune:rX '/home/jan/Jan'\\''s films' && sudo setfacl -R -d -m u:vidalune:rX '/home/jan/Jan'\\''s films'",
+    );
   });
 
   it('validateLibraryPath rejects symlinks that point outside MEDIA_ROOTS', () => {

@@ -1,0 +1,44 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "configure" ]; then
+  if ! getent group vidalune > /dev/null; then
+    addgroup --system --quiet vidalune
+  fi
+  if ! getent passwd vidalune > /dev/null; then
+    adduser --system --quiet --ingroup vidalune --home /var/lib/vidalune --no-create-home --shell /usr/sbin/nologin --gecos "Vidalune media server" vidalune
+  fi
+  mkdir -p /var/lib/vidalune
+  chown vidalune:vidalune /var/lib/vidalune
+  chmod 0750 /var/lib/vidalune
+  chown root:vidalune /etc/vidalune/vidalune.env
+  chmod 0640 /etc/vidalune/vidalune.env
+fi
+
+if [ -d /run/systemd/system ]; then
+  systemctl daemon-reload > /dev/null || true
+fi
+
+if [ "$1" = "configure" ]; then
+  if command -v deb-systemd-helper > /dev/null; then
+    deb-systemd-helper enable vidalune.service > /dev/null || true
+  else
+    systemctl enable vidalune.service > /dev/null 2>&1 || true
+  fi
+  if [ -d /run/systemd/system ]; then
+    # A new install starts; an upgrade restarts with the new version (the database is copied
+    # to the backups folder before it is upgraded).
+    if [ -z "${2:-}" ]; then
+      systemctl start vidalune.service || true
+    else
+      systemctl restart vidalune.service || true
+    fi
+  fi
+  if [ -z "${2:-}" ]; then
+    port=$(sed -n 's/^PORT=\([0-9]*\).*/\1/p' /etc/vidalune/vidalune.env | tail -n 1)
+    echo "Vidalune is installed. Open http://$(hostname):${port:-3000} to create your administrator account."
+    echo "Settings: /etc/vidalune/vidalune.env (then: sudo systemctl restart vidalune)"
+  fi
+fi
+
+exit 0

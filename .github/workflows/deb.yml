@@ -1,0 +1,112 @@
+name: Debian package
+
+# Builds the Vidalune .deb (amd64 and arm64) and tests installing, running, upgrading and removing
+# it on Debian and Ubuntu: on pull requests that touch the server or the packaging, and after every
+# release build on main, where the packages are attached to the GitHub release of that version.
+on:
+  pull_request:
+    paths: ['backend/**', 'frontend/**', 'packaging/**', 'package.json', 'package-lock.json', '.github/workflows/deb.yml']
+  workflow_run:
+    workflows: ['Docker image']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # attach the packages to the release
+
+concurrency:
+  group: deb-${{ github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build the web interface and server
+        run: npm run build --workspace frontend && npm run build:release --workspace backend
+
+      - name: Build the packages
+        run: |
+          sh packaging/deb/build.sh amd64 out
+          sh packaging/deb/build.sh arm64 out
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: out/*.deb
+          retention-days: 30
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: 'debian:12', arch: amd64 }
+          - { image: 'ubuntu:24.04', arch: amd64 }
+          - { image: 'debian:12', arch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: deb
+          path: out
+
+      - uses: docker/setup-qemu-action@v3
+        if: matrix.arch == 'arm64'
+
+      - name: Install, run, upgrade and remove on ${{ matrix.image }} (${{ matrix.arch }})
+        run: |
+          deb=$(ls out/*_${{ matrix.arch }}.deb)
+          docker run --rm --platform linux/${{ matrix.arch }} -v "$PWD:/w" -w /w ${{ matrix.image }} sh packaging/deb/test-install.sh "$deb"
+
+  release:
+    needs: test
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: deb
+          path: out
+
+      # Attach the packages to the release of this exact commit (created here if the app build has
+      # not created it yet).
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tag="v$version"
+          if ! git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then git fetch --tags --quiet; fi
+          if [ "$(git rev-list -n 1 "$tag" 2>/dev/null)" != "$SHA" ]; then
+            echo "$tag does not point at this commit; nothing to attach."
+            exit 0
+          fi
+          gh release view "$tag" > /dev/null 2>&1 || gh release create "$tag" --verify-tag --title "Vidalune $version" --notes "Vidalune $version. The Android app is attached as vidalune-$version.apk (install it on an Android phone or tablet; see the README)." || gh release view "$tag" > /dev/null
+          gh release upload "$tag" out/*.deb --clobber

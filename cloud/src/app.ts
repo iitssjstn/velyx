@@ -13,7 +13,7 @@ import type { DB } from './db/client.js';
 import { accountActivity, accountSessions, accounts, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
 import { newSlug, Relay, relayMessage, type Rewrite } from './relay.js';
-import { composeFile, installPage, installScript } from './install.js';
+import { composeFile, installPage, debInstallScript, installScript } from './install.js';
 import { homePage, pickLanguage } from './site.js';
 import { detectionRoutes } from './detection.js';
 import { CeoError, ceoRoutes } from './ceo.js';
@@ -757,18 +757,35 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     }).at(-1) ?? null;
   };
 
+  const DEB = /^vidalune_(\d+\.\d+\.\d+)_(amd64|arm64)\.deb$/;
+  /** The newest Debian/Ubuntu package present for an architecture (null: none in this image). */
+  const latestDeb = (arch: 'amd64' | 'arm64') => {
+    let files: string[];
+    try {
+      files = fs.readdirSync(config.downloadDir).filter((f) => DEB.exec(f)?.[2] === arch);
+    } catch {
+      return null;
+    }
+    const v = (f: string) => DEB.exec(f)![1].split('.').map(Number);
+    return files.sort((a, b) => {
+      const [x, y] = [v(a), v(b)];
+      return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+    }).at(-1) ?? null;
+  };
+
   app.get('/api/releases/latest', async (_request, reply) => {
     reply.header('Cache-Control', 'public, max-age=3600');
     return { version: releaseVersion, url: `${config.publicUrl}/install`, app: latestApk() ? `${config.publicUrl}/download/app` : null };
   });
 
   app.get('/install', async (request, reply) =>
-    reply.type('text/html').header('Cache-Control', 'no-cache').send(installPage(pickLanguage(request.query, request.headers['accept-language']), config.publicUrl, releaseVersion, !!latestApk(), !!accountByToken(request.cookies[SESSION_COOKIE]))),
+    reply.type('text/html').header('Cache-Control', 'no-cache').send(installPage(pickLanguage(request.query, request.headers['accept-language']), config.publicUrl, releaseVersion, !!latestApk(), !!accountByToken(request.cookies[SESSION_COOKIE]), !!latestDeb('amd64'))),
   );
   app.get('/install/docker-compose.yml', async (_request, reply) =>
     reply.type('text/yaml; charset=utf-8').header('Content-Disposition', 'attachment; filename="docker-compose.yml"').send(composeFile()),
   );
   app.get('/get', async (_request, reply) => reply.type('text/plain; charset=utf-8').header('Cache-Control', 'no-cache').send(installScript(config.publicUrl)));
+  app.get('/get-deb', async (_request, reply) => reply.type('text/plain; charset=utf-8').header('Cache-Control', 'no-cache').send(debInstallScript(config.publicUrl)));
 
   /** The newest Android app. */
   app.get('/download/app', async (_request, reply) => {
@@ -776,12 +793,19 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     if (!file) throw new HttpError(404, 'The Android app is not available for download right now.');
     return reply.header('Cache-Control', 'no-cache').redirect(`/download/${file}`);
   });
+  /** The newest Debian/Ubuntu package for amd64 or arm64. */
+  app.get('/download/deb/:arch', async (request, reply) => {
+    const { arch } = z.object({ arch: z.enum(['amd64', 'arm64']) }).parse(request.params);
+    const file = latestDeb(arch);
+    if (!file) throw new HttpError(404, 'The package is not available for download right now.');
+    return reply.header('Cache-Control', 'no-cache').redirect(`/download/${file}`);
+  });
   app.get('/download/:file', async (request, reply) => {
-    const { file } = z.object({ file: z.string().regex(APK) }).parse(request.params);
+    const { file } = z.object({ file: z.string().refine((f) => APK.test(f) || DEB.test(f)) }).parse(request.params);
     const full = path.join(config.downloadDir, file);
     if (!fs.existsSync(full)) throw new HttpError(404, 'Not found.');
     return reply
-      .type('application/vnd.android.package-archive')
+      .type(DEB.test(file) ? 'application/vnd.debian.binary-package' : 'application/vnd.android.package-archive')
       .header('Content-Disposition', `attachment; filename="${file}"`)
       .header('Content-Length', String(fs.statSync(full).size))
       .header('Cache-Control', 'public, max-age=86400')

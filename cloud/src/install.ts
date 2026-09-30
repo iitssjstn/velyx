@@ -87,18 +87,73 @@ say "Vidalune is running. Open http://\${ADDRESS:-this-server}:3000 in your brow
 `;
 }
 
+/** The installer behind `curl -fsSL https://vidalune.com/get-deb | sudo sh`: the package for this computer, installed with apt (FFmpeg comes along). */
+export function debInstallScript(publicUrl: string): string {
+  return `#!/bin/sh
+# Vidalune installer for Debian and Ubuntu — ${publicUrl}/install
+# Downloads the Vidalune package for this computer and installs it with apt, which also installs
+# FFmpeg. Run it again to update; your settings and data stay.
+set -eu
+
+say() { printf '%s\\n' "$*"; }
+
+if [ "$(id -u)" != "0" ]; then
+  say "Run this as root: curl -fsSL ${publicUrl}/get-deb | sudo sh"
+  exit 1
+fi
+if ! command -v apt-get > /dev/null 2>&1 || ! command -v dpkg > /dev/null 2>&1; then
+  say "This installer is for Debian and Ubuntu. On other systems, install Vidalune with Docker: ${publicUrl}/install"
+  exit 1
+fi
+ARCH=$(dpkg --print-architecture)
+case "$ARCH" in
+  amd64|arm64) ;;
+  *) say "There is no Vidalune package for $ARCH (only amd64 and arm64). Install Vidalune with Docker instead: ${publicUrl}/install"; exit 1 ;;
+esac
+
+export DEBIAN_FRONTEND=noninteractive
+say "Updating the package lists…"
+apt-get update -qq
+if ! command -v curl > /dev/null 2>&1; then
+  apt-get install -y -qq curl > /dev/null
+fi
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+chmod 0755 "$TMP"
+say "Downloading Vidalune for $ARCH…"
+curl -fsSL -o "$TMP/vidalune.deb" "${publicUrl}/download/deb/$ARCH"
+chmod 0644 "$TMP/vidalune.deb"
+say "Installing Vidalune and FFmpeg…"
+apt-get install -y -qq "$TMP/vidalune.deb"
+
+PORT=$(sed -n 's/^PORT=\\([0-9]*\\).*/\\1/p' /etc/vidalune/vidalune.env 2> /dev/null | tail -n 1)
+ADDRESS=$(hostname -I 2> /dev/null | awk '{print $1}')
+say ""
+say "Vidalune is running. Open http://\${ADDRESS:-this-computer}:\${PORT:-3000} in your browser to create your administrator account,"
+say "then add your media folders under Admin → Libraries (Browse)."
+`;
+}
+
 const TEXT = {
   en: {
     title: 'Install Vidalune',
-    intro: 'Vidalune runs on your own computer or server, with Docker. Your media stays where it is; Vidalune only reads it.',
+    intro: 'Vidalune runs on your own computer or server, with Docker or as a package for Debian and Ubuntu. Your media stays where it is; Vidalune only reads it.',
     needs: 'You need',
-    needsList: ['A computer or server that is always on (Linux, a NAS, or Windows/macOS with Docker Desktop).', 'Docker with Docker Compose v2.', 'Your movies and series in folders on that machine.'],
+    needsList: ['A computer or server that is always on (Linux, a NAS, or Windows/macOS with Docker Desktop).', 'Docker with Docker Compose v2 — or Debian/Ubuntu for the package without Docker.', 'Your movies and series in folders on that machine.'],
     quick: 'Quick install (Linux)',
     quickText: 'Run this on your server. It asks where your movies and series are, sets everything up in ~/vidalune and starts Vidalune:',
     manual: 'Install with a compose file',
     manualSteps: ['Make a folder, for example vidalune, and save this file in it as docker-compose.yml:', 'Change the two media folders (left of the ":") to where your movies and series are.', 'Start Vidalune in that folder:'],
     download: 'Download docker-compose.yml',
     first: 'Then open http://<your-server>:3000 and create your administrator account. Metadata, users and libraries are set up there.',
+    deb: 'Without Docker (Debian/Ubuntu)',
+    debText: 'A package for Debian 12+ and Ubuntu 22.04+ that installs Vidalune as a service (it starts by itself with the computer). Choose the one for your processor: `uname -m` says x86_64 (amd64: most PCs and servers) or aarch64 (arm64: for example a Raspberry Pi 4/5 with a 64-bit system).',
+    debQuick: 'Quickest: run this on the computer. It picks the right package, installs it together with FFmpeg and starts Vidalune (run it again to update):',
+    debManual: 'Or by hand: download the package and install it with apt (apt also installs FFmpeg; with dpkg -i, run sudo apt-get install -f afterwards):',
+    debFolders: 'Then open http://<your-server>:3000, create your administrator account and add your movies and series under Admin → Libraries: Browse to the folder and choose it. If Vidalune may not read a folder, it shows the one command that gives it access; run it and add the folder again.',
+    debNone: 'The package is not available for download right now.',
+    debUpdate: 'To update, run the installer again (or install the new package the same way); your settings (/etc/vidalune/vidalune.env) and data (/var/lib/vidalune) stay.',
     update: 'Updating',
     updateText: 'Vidalune tells administrators when there is a new version. To update, run in the same folder:',
     app: 'Android app',
@@ -111,15 +166,22 @@ const TEXT = {
   },
   nl: {
     title: 'Vidalune installeren',
-    intro: 'Vidalune draait op je eigen computer of server, met Docker. Je media blijft waar hij staat; Vidalune leest hem alleen.',
+    intro: 'Vidalune draait op je eigen computer of server, met Docker of als pakket voor Debian en Ubuntu. Je media blijft waar hij staat; Vidalune leest hem alleen.',
     needs: 'Wat je nodig hebt',
-    needsList: ['Een computer of server die altijd aan staat (Linux, een NAS, of Windows/macOS met Docker Desktop).', 'Docker met Docker Compose v2.', 'Je films en series in mappen op die computer.'],
+    needsList: ['Een computer of server die altijd aan staat (Linux, een NAS, of Windows/macOS met Docker Desktop).', 'Docker met Docker Compose v2 — of Debian/Ubuntu voor het pakket zonder Docker.', 'Je films en series in mappen op die computer.'],
     quick: 'Snel installeren (Linux)',
     quickText: 'Voer dit uit op je server. Het vraagt waar je films en series staan, zet alles klaar in ~/vidalune en start Vidalune:',
     manual: 'Installeren met een compose-bestand',
     manualSteps: ['Maak een map, bijvoorbeeld vidalune, en sla dit bestand daarin op als docker-compose.yml:', 'Verander de twee mediamappen (links van de ":") in de mappen waar je films en series staan.', 'Start Vidalune in die map:'],
     download: 'docker-compose.yml downloaden',
     first: 'Open daarna http://<je-server>:3000 en maak je beheerdersaccount. Metadata, gebruikers en bibliotheken stel je daar in.',
+    deb: 'Zonder Docker (Debian/Ubuntu)',
+    debText: 'Een pakket voor Debian 12+ en Ubuntu 22.04+ dat Vidalune als dienst installeert (hij start vanzelf met de computer). Kies het pakket voor je processor: `uname -m` zegt x86_64 (amd64: de meeste pc\'s en servers) of aarch64 (arm64: bijvoorbeeld een Raspberry Pi 4/5 met een 64-bits systeem).',
+    debQuick: 'Het snelst: voer dit uit op de computer. Het kiest het juiste pakket, installeert het samen met FFmpeg en start Vidalune (nog eens uitvoeren werkt het bij):',
+    debManual: 'Of met de hand: download het pakket en installeer het met apt (apt installeert FFmpeg ook; met dpkg -i voer je daarna sudo apt-get install -f uit):',
+    debFolders: 'Open daarna http://<je-server>:3000, maak je beheerdersaccount en voeg je films en series toe onder Beheer → Bibliotheken: blader naar de map en kies hem. Mag Vidalune een map niet lezen, dan laat hij het ene commando zien dat toegang geeft; voer het uit en voeg de map opnieuw toe.',
+    debNone: 'Het pakket is nu niet te downloaden.',
+    debUpdate: 'Bijwerken: voer het installatiecommando nog eens uit (of installeer het nieuwe pakket op dezelfde manier); je instellingen (/etc/vidalune/vidalune.env) en data (/var/lib/vidalune) blijven staan.',
     update: 'Bijwerken',
     updateText: 'Vidalune laat beheerders weten wanneer er een nieuwe versie is. Bijwerken doe je in dezelfde map met:',
     app: 'Android-app',
@@ -133,7 +195,7 @@ const TEXT = {
 } satisfies Record<Lang, unknown>;
 
 /** The install page (no scripts: it is plain HTML with the account pages' style). */
-export function installPage(lang: Lang, publicUrl: string, version: string, hasApp: boolean, signedIn = false): string {
+export function installPage(lang: Lang, publicUrl: string, version: string, hasApp: boolean, signedIn = false, hasDeb = false): string {
   const t = TEXT[lang];
   const code = (s: string) => `<pre><code>${escape(s)}</code></pre>`;
   const body = `
@@ -157,6 +219,18 @@ export function installPage(lang: Lang, publicUrl: string, version: string, hasA
           <li>${escape(t.manualSteps[2])}${code('docker compose up -d')}</li>
         </ol>
         <p>${escape(t.first)}</p>
+      </div>
+      <div class="card" id="deb">
+        <h2>${escape(t.deb)}</h2>
+        <p>${escape(t.debText)}</p>
+        ${
+          hasDeb
+            ? `<p>${escape(t.debQuick)}</p>${code(`curl -fsSL ${publicUrl}/get-deb | sudo sh`)}
+        <p>${escape(t.debManual)}</p>${code(`curl -fLo vidalune.deb ${publicUrl}/download/deb/amd64\nsudo apt install ./vidalune.deb`)}<p class="small">arm64: ${escape(`${publicUrl}/download/deb/arm64`)}</p>
+        <p>${escape(t.debFolders)}</p>
+        <p>${escape(t.debUpdate)}</p>`
+            : `<p>${escape(t.debNone)}</p>`
+        }
       </div>
       <div class="card">
         <h2>${escape(t.update)}</h2>

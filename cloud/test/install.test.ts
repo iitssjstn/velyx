@@ -68,6 +68,67 @@ describe('installing Vidalune from vidalune.com', () => {
     expect(compose.body).toContain('/media/movies:ro');
   });
 
+  it('hands out the newest Debian/Ubuntu package per processor, and explains it on the install page', async () => {
+    expect((await app.inject({ url: '/download/deb/amd64' })).statusCode).toBe(404);
+    expect((await app.inject({ url: '/install' })).body).toContain('The package is not available for download right now.');
+
+    fs.writeFileSync(path.join(downloads, 'vidalune_0.9.10_amd64.deb'), 'old');
+    fs.writeFileSync(path.join(downloads, 'vidalune_0.16.0_amd64.deb'), 'new amd64');
+    fs.writeFileSync(path.join(downloads, 'vidalune_0.16.0_arm64.deb'), 'new arm64');
+    expect((await app.inject({ url: '/download/deb/amd64' })).headers.location).toBe('/download/vidalune_0.16.0_amd64.deb');
+    expect((await app.inject({ url: '/download/deb/arm64' })).headers.location).toBe('/download/vidalune_0.16.0_arm64.deb');
+    expect((await app.inject({ url: '/download/deb/i386' })).statusCode).toBe(400);
+    const deb = await app.inject({ url: '/download/vidalune_0.16.0_arm64.deb' });
+    expect(deb.headers['content-type']).toBe('application/vnd.debian.binary-package');
+    expect(deb.body).toBe('new arm64');
+    expect((await app.inject({ url: '/download/vidalune_0.16.0_i386.deb' })).statusCode).toBe(400);
+
+    const page = (await app.inject({ url: '/install' })).body;
+    expect(page).toContain('Without Docker (Debian/Ubuntu)');
+    expect(page).toContain('curl -fLo vidalune.deb https://vidalune.example/download/deb/amd64');
+    expect(page).toContain('curl -fsSL https://vidalune.example/get-deb | sudo sh');
+    expect(page).toContain('Admin → Libraries');
+    const nl = (await app.inject({ url: '/install?lang=nl' })).body;
+    expect(nl).toContain('Zonder Docker (Debian/Ubuntu)');
+    expect(nl).toContain('Beheer → Bibliotheken');
+  });
+
+  it('hands out a Debian/Ubuntu installer that installs the right package with apt (so FFmpeg comes along)', async () => {
+    const res = await app.inject({ url: '/get-deb' });
+    expect(res.headers['content-type']).toContain('text/plain');
+    const script = res.body;
+    expect(spawnSync('sh', ['-n'], { input: script }).status).toBe(0);
+
+    // Stand-ins that record what they were asked: root, an arm64 Debian with apt and curl.
+    const bin = path.join(dir, 'bin');
+    fs.mkdirSync(bin);
+    const fake = (name: string, body: string) => fs.writeFileSync(path.join(bin, name), `#!/bin/sh\necho "${name} $@" >> "${dir}/calls.log"\n${body}\n`, { mode: 0o755 });
+    fake('id', 'echo 0');
+    fake('dpkg', 'echo arm64');
+    fake('apt-get', '');
+    fake('curl', 'while [ $# -gt 0 ]; do [ "$1" = -o ] && { shift; echo deb > "$1"; }; shift; done');
+    fake('hostname', 'echo 192.168.1.20');
+    const run = spawnSync('sh', [], { input: script, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8' });
+    expect(run.status, run.stderr).toBe(0);
+    const calls = fs.readFileSync(path.join(dir, 'calls.log'), 'utf8');
+    expect(calls).toContain('apt-get update -qq');
+    expect(calls).toContain('https://vidalune.example/download/deb/arm64');
+    expect(calls).toMatch(/apt-get install -y -qq \S+\/vidalune\.deb/);
+    expect(run.stdout).toContain('http://192.168.1.20:3000');
+
+    // Not as root: it says how, and changes nothing.
+    fake('id', 'echo 1000');
+    const user = spawnSync('sh', [], { input: script, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8' });
+    expect(user.status).toBe(1);
+    expect(user.stdout).toContain('| sudo sh');
+    // Another processor: it points to Docker.
+    fake('id', 'echo 0');
+    fake('dpkg', 'echo armhf');
+    const armhf = spawnSync('sh', [], { input: script, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8' });
+    expect(armhf.status).toBe(1);
+    expect(armhf.stdout).toContain('Docker');
+  });
+
   it('hands out an installer that writes the compose file and starts Vidalune', async () => {
     const script = (await app.inject({ url: '/get' })).body;
     expect(spawnSync('sh', ['-n'], { input: script }).status).toBe(0);
