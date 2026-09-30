@@ -120,10 +120,13 @@ export function relayStatus(n: Pick<Node, 'active' | 'lastCheckAt' | 'lastSeenAt
  * since the first sample (a relay added later is not counted down for before). Null without samples.
  */
 export function uptime(samples: Array<{ at: number; up: boolean }>, from: number, to: number): number | null {
-  const inRange = samples.filter((s) => s.at >= from - SAMPLE_MS && s.at <= to);
+  // The samples whose five minutes fall in the range.
+  const inRange = samples.filter((s) => s.at > from - SAMPLE_MS && s.at <= to);
   if (!inRange.length) return null;
   const start = Math.max(from, Math.min(...inRange.map((s) => s.at)));
-  const expected = Math.max(1, Math.floor((to - start) / SAMPLE_MS) + 1);
+  // Every five minutes since then; the current five minutes only once they were sampled.
+  const current = to - (to % SAMPLE_MS);
+  const expected = Math.max(1, Math.floor((to - start) / SAMPLE_MS) + (inRange.some((s) => s.at >= current) ? 1 : 0));
   const up = inRange.filter((s) => s.up).length;
   return Math.round(Math.min(1, up / expected) * 10_000) / 100;
 }
