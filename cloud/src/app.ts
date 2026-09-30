@@ -25,7 +25,7 @@ export const SERVER_COOKIE = 'vl_server';
 /** app.vidalune.com's own account pages live under this path; everything else is the chosen server. */
 export const APP_PREFIX = '/_vl';
 /** The web interface on app.vidalune.com gets the same policy as on a Vidalune server itself. */
-const APP_CSP = "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'";
+const APP_CSP = "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self' https://www.gstatic.com; connect-src 'self'; object-src 'none'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'";
 const SESSION_DAYS = 30;
 /** The Vidalune app stays signed in longer than a browser. */
 const APP_SESSION_DAYS = 180;

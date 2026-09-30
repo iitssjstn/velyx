@@ -109,6 +109,7 @@ export const nl: Record<string, string> = {
   'Media file is no longer available. Try rescanning the library.': 'Het mediabestand is niet meer beschikbaar. Scan de bibliotheek opnieuw.',
   'This file cannot be played.': 'Dit bestand kan niet worden afgespeeld.',
   'Unknown audio track.': 'Onbekend audiospoor.',
+  'This file cannot be played on a Chromecast without converting the video, which Vidalune does not do.': 'Dit bestand kan niet op een Chromecast worden afgespeeld zonder de video om te zetten, en dat doet Vidalune niet.',
   'Invalid start position.': 'Ongeldige startpositie.',
   'Invalid channel count.': 'Ongeldig aantal kanalen.',
   'Invalid subtitle offset.': 'Ongeldige verschuiving van de ondertiteling.',

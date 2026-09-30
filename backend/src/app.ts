@@ -38,7 +38,7 @@ import { DirectPlayEngine } from './playback/direct-play.js';
 import { RemuxEngine } from './playback/remux.js';
 import { createLogger } from './logger.js';
 import { HttpError } from './http-error.js';
-import { hasTranslation, requestLanguage, tr } from './i18n/index.js';
+import { DEFAULT_LANGUAGE, hasTranslation, isLanguage, requestLanguage, tr } from './i18n/index.js';
 import { registerRoutes } from './routes/index.js';
 import { NotificationService } from './services/notifications.js';
 import { CleanupScheduler } from './services/cleanup-scheduler.js';
@@ -46,7 +46,8 @@ import { CloudService } from './services/cloud.js';
 import { UpnpService } from './services/upnp.js';
 import { SeerrService } from './services/seerr.js';
 import { isLoopback } from './services/relay-client.js';
-import { libraries } from './db/schema.js';
+import { libraries, subtitles as subtitleRows, users } from './db/schema.js';
+import { castPath, verifyCastToken } from './services/cast.js';
 
 const log = createLogger('http');
 const SLOW_REQUEST_MS = 2000;
@@ -59,6 +60,8 @@ declare module 'fastify' {
     sessionToken: string | undefined;
     /** The device name of a Vidalune app session ("Pixel 8"); null for browsers. */
     appDevice: string | null;
+    /** A Chromecast fetching with a cast token: the one file it may open. */
+    castFile: number | null;
   }
 }
 
@@ -264,7 +267,8 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
         mediaSrc: ["'self'", 'blob:'],
         styleSrc: ["'self'", "'unsafe-inline'"],
         fontSrc: ["'self'", 'data:'],
-        scriptSrc: ["'self'"],
+        // Google's Cast SDK (casting to a Chromecast from Chrome), loaded only when a player opens.
+        scriptSrc: ["'self'", 'https://www.gstatic.com'],
         connectSrc: ["'self'"],
         objectSrc: ["'none'"],
         frameAncestors: ["'self'"],
@@ -280,10 +284,30 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   app.decorateRequest('user', null);
   app.decorateRequest('sessionToken', undefined);
   app.decorateRequest('appDevice', null);
+  app.decorateRequest('castFile', null);
 
   // Resolve the session for every API request.
   app.addHook('onRequest', async (request, reply) => {
     if (!request.url.startsWith('/api/')) return;
+    // A Chromecast (it cannot sign in): a short-lived token that opens one file's stream,
+    // subtitles and artwork, for the user who cast it — never anything else, never with a cookie.
+    const castToken = (request.query as { cast?: unknown } | undefined)?.cast;
+    if (castToken !== undefined) {
+      const claims = typeof castToken === 'string' ? verifyCastToken(ctx.config.sessionSecret, castToken) : null;
+      const target = castPath(request.url.split('?')[0]);
+      if (!claims || !target || (request.method !== 'GET' && request.method !== 'HEAD')) return;
+      const allowed =
+        target === 'image' ||
+        ('fileId' in target && target.fileId === claims.fileId) ||
+        ('subtitleId' in target && ctx.db.select({ file: subtitleRows.mediaFileId }).from(subtitleRows).where(eq(subtitleRows.id, target.subtitleId)).get()?.file === claims.fileId);
+      if (!allowed) return;
+      const u = ctx.db.select().from(users).where(eq(users.id, claims.userId)).get();
+      if (!u || u.disabled) return;
+      request.user = { id: u.id, username: u.username, displayName: u.displayName, role: u.role, avatarFile: u.avatarFile, language: isLanguage(u.language) ? u.language : DEFAULT_LANGUAGE };
+      request.castFile = claims.fileId;
+      request.appDevice = 'Chromecast';
+      return;
+    }
     // The Vidalune app sends its token as "Authorization: Bearer …" instead of a cookie. Only tokens
     // handed out to the app are accepted this way, never a browser's session.
     const auth = request.headers.authorization;
@@ -308,6 +332,14 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     // The session was extended on the server: renew the cookie too, or the browser would still
     // drop it when the original sign-in expires, however often Vidalune is used.
     if (resolved?.extended) reply.setCookie(SESSION_COOKIE, unsigned.value, sessionCookieOptions(ctx.config.cookieSecure, request.protocol, ctx.sessions.ttlMs));
+  });
+
+  // A Chromecast loads the stream and subtitles from its own page (another origin): allowed for
+  // requests opened by a cast token only.
+  app.addHook('onSend', async (request, reply) => {
+    if (request.castFile === null) return;
+    reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
+    reply.header('Access-Control-Allow-Origin', '*');
   });
 
   // CSRF defence: state-changing API calls must come from our own origin. Combined with SameSite=Lax

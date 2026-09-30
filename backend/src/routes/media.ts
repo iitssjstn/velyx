@@ -19,6 +19,7 @@ import { analyzePlayback } from '../playback/compatibility.js';
 import { clientProfile, deviceSupport, effectiveCapabilities, profileName } from '../playback/client-profile.js';
 import { requestLanguage } from '../i18n/index.js';
 import { isHomeAddress } from '../services/remote-access.js';
+import { CAST_TOKEN_MS, CHROMECAST_CAPS, signCastToken } from '../services/cast.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('playback');
@@ -173,6 +174,38 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, file.id)).all();
     const analysis = analyzePlayback(file, caps, decision, ua, confidence, lang, request.appDevice);
     return { decision: { ...decision, mode: analysis.mode }, analysis, file: fileInfo(file, external), subtitles: subtitleList(file, request.user!), onlineSubtitles: ctx.openSubtitles.configured };
+  });
+
+  /**
+   * Casting: what a Chromecast plays of this file (as it is, or repackaged; never transcoded), and a
+   * short-lived token that lets the Chromecast fetch just this file's stream, subtitles and artwork.
+   * The sender (the app or the browser) builds the addresses with the token and its own server
+   * address; the Chromecast itself is checked like any viewer (home network or remote access).
+   */
+  app.post('/api/cast/session', { preHandler: requireUser }, async (request) => {
+    const body = z.object({ fileId: z.number().int().positive(), audioIndex: z.number().int().min(0).max(1000).optional() }).parse(request.body);
+    const loaded = loadFile(String(body.fileId), request.user!);
+    const file = await ensureVideoDetails(loaded.file, loaded.abs);
+    if (body.audioIndex !== undefined && !(file.audioTracks ?? []).some((t) => t.index === body.audioIndex)) throw new HttpError(400, 'Unknown audio track.');
+    const lang = requestLanguage(request);
+    const decision = ctx.playback.decide(file, CHROMECAST_CAPS, { audioIndex: body.audioIndex, audioChannels: 'stereo', lang });
+    if (!decision || decision.compatible === false) throw new HttpError(415, 'This file cannot be played on a Chromecast without converting the video, which Vidalune does not do.');
+    const expiresAt = Date.now() + CAST_TOKEN_MS;
+    const token = signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt });
+    const cloud = ctx.settings.get().cloud;
+    return {
+      token,
+      expiresAt,
+      // Where the Chromecast can reach this server when the page it was cast from cannot tell
+      // (app.vidalune.com works only with the browser's own sign-in): the relay, or the address
+      // set under Admin → Server.
+      relayUrl: cloud?.account && cloud.relay ? (cloud.relayUrl ?? null) : null,
+      serverUrl: ctx.settings.serverUrl() || null,
+      decision,
+      contentType: decision.engine === 'direct' ? (file.container === 'webm' ? 'video/webm' : 'video/mp4') : 'video/mp4',
+      // Text subtitles only (a Chromecast shows WebVTT), from this file.
+      subtitles: subtitleList(file, request.user!).filter((s) => s.kind === 'external' || s.kind === 'embedded'),
+    };
   });
 
   /** The current device: its name and what it plays, from the formats the browser reports. */
