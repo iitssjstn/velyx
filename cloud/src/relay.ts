@@ -116,7 +116,7 @@ class Tunnel {
     this.requests++;
     const id = this.next;
     this.next = this.next >= 0xfffffff0 ? 1 : this.next + 1;
-    const stream: Stream = { req, res, started: false, owed: 0, rewrite, client: this.clientOf(ip, req.headers['user-agent']) };
+    const stream: Stream = { req, res, started: false, owed: 0, rewrite, client: this.clientOf(viewerAddress(req, ip), req.headers['user-agent']) };
     this.streams.set(id, stream);
     const headers: Record<string, string | string[]> = {};
     for (const [k, v] of Object.entries(req.headers)) {
@@ -315,6 +315,17 @@ function isNavigation(req: IncomingMessage): boolean {
   const mode = req.headers['sec-fetch-mode'];
   if (mode) return mode === 'navigate';
   return String(req.headers.accept ?? '').includes('text/html');
+}
+
+/**
+ * The address to tell a viewer's devices apart by (for counting clients only): Cloudflare's own
+ * header when it is in front (its edge addresses change from request to request), else the address
+ * of the request. Nothing depends on it but that count, so a made-up header changes nothing else.
+ */
+export function viewerAddress(req: Pick<IncomingMessage, 'headers'>, ip: string): string {
+  const cf = req.headers['cf-connecting-ip'];
+  const v = (Array.isArray(cf) ? cf[0] : cf)?.trim();
+  return v && v.length <= 64 ? v : ip;
 }
 
 /** The visitor's address: the socket, or the entries proxies in front of us added. */
