@@ -349,6 +349,7 @@ Off by default. With **Admin → Server → Video conversion** an administrator 
 
 - **Encoder:** *Automatic* uses the fastest one that works on the server: NVIDIA graphics (NVENC), Intel or AMD graphics (VAAPI, including Intel Quick Sync), or the processor (software, which needs a strong processor). The page shows which ones work — each is tried on a second of test picture — and *Check hardware again* tries again after adding hardware.
 - **At most at once:** empty means no limit; on a small server a limit keeps it from getting stuck (a viewer beyond the limit is told to try again in a moment). A viewer who seeks replaces their own stream and never counts twice.
+- **Docker, set up with the installer** (`curl -fsSL https://vidalune.com/get | sh`): it finds the graphics and adds the lines below to the `docker-compose.yml` it wrote (running it again updates and adds them once; a compose file you wrote yourself is never changed). For NVIDIA it needs the NVIDIA Container Toolkit on the host and says so when that is missing.
 - **Docker, Intel/AMD:** pass the graphics device to the container; Vidalune keeps its group, so nothing else is needed:
   ```yaml
       devices:
@@ -357,10 +358,13 @@ Off by default. With **Admin → Server → Video conversion** an administrator 
   The image (amd64) contains the VAAPI drivers for Intel and AMD.
 - **Docker, NVIDIA:** install the NVIDIA Container Toolkit on the host and add:
   ```yaml
-      runtime: nvidia
-      environment:
-        NVIDIA_VISIBLE_DEVICES: all
-        NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
+      deploy:
+        resources:
+          reservations:
+            devices:
+              - driver: nvidia
+                count: all
+                capabilities: [gpu, video, compute, utility]
   ```
 - **Debian/Ubuntu package:** the user `vidalune` is added to the `render` and `video` groups. For Intel graphics install `intel-media-va-driver-non-free` (or `intel-media-va-driver`), for AMD `mesa-va-drivers`; NVIDIA needs its own driver.
 - The player's badge shows *Transcode*, and so does the stream in Admin → Dashboard. A Chromecast gets the converted stream too.

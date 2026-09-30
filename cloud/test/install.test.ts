@@ -168,6 +168,40 @@ describe('installing Vidalune from vidalune.com', () => {
     expect(run.stdout).toContain(':3000');
   });
 
+  it('passes the graphics of the server to the container for video conversion, once', async () => {
+    const script = (await app.inject({ url: '/get' })).body;
+    const bin = path.join(dir, 'bin');
+    fs.mkdirSync(bin);
+    fs.writeFileSync(path.join(bin, 'docker'), `#!/bin/sh\n[ "$1" = info ] && echo "Runtimes: io.containerd.runc.v2 nvidia runc"\nexit 0\n`, { mode: 0o755 });
+    const install = (target: string, extra: Record<string, string>) =>
+      spawnSync('sh', [], { input: script, env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, VIDALUNE_DIR: target, ...extra }, encoding: 'utf8' });
+
+    // Intel/AMD: the graphics device is passed in; running the installer again does not add it twice.
+    const dri = path.join(dir, 'dri');
+    fs.mkdirSync(dri);
+    const intel = path.join(dir, 'intel');
+    expect(install(intel, { VIDALUNE_DRI: dri }).stdout).toContain('Intel/AMD graphics found');
+    install(intel, { VIDALUNE_DRI: dri });
+    const withDri = fs.readFileSync(path.join(intel, 'docker-compose.yml'), 'utf8');
+    expect(withDri.match(/devices:/g)).toHaveLength(1);
+    expect(withDri).toContain(`      - ${dri}:/dev/dri`);
+
+    // NVIDIA with the container toolkit: the GPU is reserved for the container.
+    fs.writeFileSync(path.join(bin, 'nvidia-smi'), '#!/bin/sh\necho "GPU 0: NVIDIA GeForce"\n', { mode: 0o755 });
+    const nvidia = path.join(dir, 'nvidia');
+    expect(install(nvidia, { VIDALUNE_DRI: path.join(dir, 'none') }).stdout).toContain('NVIDIA graphics found');
+    const withNvidia = fs.readFileSync(path.join(nvidia, 'docker-compose.yml'), 'utf8');
+    expect(withNvidia).toContain('- driver: nvidia');
+    expect(withNvidia).toContain('capabilities: [gpu, video, compute, utility]');
+
+    // A compose file someone wrote themselves is never changed.
+    const own = path.join(dir, 'own');
+    fs.mkdirSync(own);
+    fs.writeFileSync(path.join(own, 'docker-compose.yml'), 'services:\n  vidalune:\n    image: x\n');
+    install(own, { VIDALUNE_DRI: dri });
+    expect(fs.readFileSync(path.join(own, 'docker-compose.yml'), 'utf8')).toBe('services:\n  vidalune:\n    image: x\n');
+  });
+
   it('has a home page that explains Vidalune and leads to signing in, an account or installing', async () => {
     const en = await app.inject({ url: '/' });
     expect(en.headers['content-type']).toContain('text/html');

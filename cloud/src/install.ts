@@ -62,6 +62,26 @@ if ! docker compose version > /dev/null 2>&1; then
   exit 1
 fi
 
+# Graphics for video conversion, found on this server and passed to the container (only in a file
+# this installer wrote, with only Vidalune in it, and only once).
+DRI="\${VIDALUNE_DRI:-/dev/dri}"
+add_gpu() {
+  grep -q '^# Vidalune — ' docker-compose.yml || return 0
+  if grep -q 'dev/dri\\|driver: nvidia' docker-compose.yml; then return 0; fi
+  [ "$(grep -c '^  [A-Za-z0-9_-]*:$' docker-compose.yml)" = "1" ] || return 0
+  if command -v nvidia-smi > /dev/null 2>&1 && nvidia-smi -L > /dev/null 2>&1; then
+    if docker info 2> /dev/null | grep -qi nvidia; then
+      printf '%s\\n' '    # NVIDIA graphics for video conversion (added by the installer)' '    deploy:' '      resources:' '        reservations:' '          devices:' '            - driver: nvidia' '              count: all' '              capabilities: [gpu, video, compute, utility]' >> docker-compose.yml
+      say "NVIDIA graphics found: added to docker-compose.yml, for video conversion."
+    else
+      say "NVIDIA graphics found, but Docker cannot use it yet. For video conversion with it, install the NVIDIA Container Toolkit and run this installer again: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html"
+    fi
+  elif [ -e "$DRI" ]; then
+    printf '%s\\n' '    # Intel/AMD graphics for video conversion (added by the installer)' '    devices:' "      - $DRI:/dev/dri" >> docker-compose.yml
+    say "Intel/AMD graphics found: added to docker-compose.yml, for video conversion."
+  fi
+}
+
 mkdir -p "$DIR"
 cd "$DIR"
 
@@ -77,6 +97,7 @@ else
 ${compose}VIDALUNE_COMPOSE
   say "Wrote $DIR/docker-compose.yml"
 fi
+add_gpu
 
 docker compose pull
 docker compose up -d
@@ -144,7 +165,7 @@ const TEXT = {
     needs: 'You need',
     needsList: ['A computer or server that is always on (Linux, a NAS, or Windows/macOS with Docker Desktop).', 'Docker with Docker Compose v2 — or Debian/Ubuntu for the package without Docker.', 'Your movies and series in folders on that machine.'],
     quick: 'Quick install (Linux)',
-    quickText: 'Run this on your server. It asks where your movies and series are, sets everything up in ~/vidalune and starts Vidalune:',
+    quickText: 'Run this on your server. It asks where your movies and series are, sets everything up in ~/vidalune (with the graphics of the server, for video conversion) and starts Vidalune:',
     manual: 'Install with a compose file',
     manualSteps: ['Make a folder, for example vidalune, and save this file in it as docker-compose.yml:', 'Change the two media folders (left of the ":") to where your movies and series are.', 'Start Vidalune in that folder:'],
     download: 'Download docker-compose.yml',
@@ -172,7 +193,7 @@ const TEXT = {
     needs: 'Wat je nodig hebt',
     needsList: ['Een computer of server die altijd aan staat (Linux, een NAS, of Windows/macOS met Docker Desktop).', 'Docker met Docker Compose v2 — of Debian/Ubuntu voor het pakket zonder Docker.', 'Je films en series in mappen op die computer.'],
     quick: 'Snel installeren (Linux)',
-    quickText: 'Voer dit uit op je server. Het vraagt waar je films en series staan, zet alles klaar in ~/vidalune en start Vidalune:',
+    quickText: 'Voer dit uit op je server. Het vraagt waar je films en series staan, zet alles klaar in ~/vidalune (met de graphics van de server, voor video omzetten) en start Vidalune:',
     manual: 'Installeren met een compose-bestand',
     manualSteps: ['Maak een map, bijvoorbeeld vidalune, en sla dit bestand daarin op als docker-compose.yml:', 'Verander de twee mediamappen (links van de ":") in de mappen waar je films en series staan.', 'Start Vidalune in die map:'],
     download: 'docker-compose.yml downloaden',
