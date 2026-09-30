@@ -14,6 +14,8 @@ export interface ApiConfig {
   token: string | null;
   /** "VidaluneApp/0.8.1 (Android 15; Pixel 8)": tells the server this is the app. */
   userAgent: string;
+  /** The app's language ("nl"): messages that do not come from Vidalune itself, such as the relay's, follow it. */
+  language?: string;
   fetchImpl?: Fetch;
   /** Called when the server no longer accepts the token (signed out elsewhere, account disabled). */
   onUnauthorized?: () => void;
@@ -45,6 +47,7 @@ export function createApi(config: ApiConfig): Api {
   // render would make them load again.
   const fixedHeaders: Record<string, string> = Object.freeze({
     'User-Agent': config.userAgent,
+    ...(config.language ? { 'Accept-Language': config.language } : {}),
     ...(config.token ? { Authorization: `Bearer ${config.token}` } : {}),
   }) as Record<string, string>;
   const headers = (): Record<string, string> => fixedHeaders;

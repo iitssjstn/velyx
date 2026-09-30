@@ -58,6 +58,8 @@ async function main(): Promise<void> {
   ctx.disk.start();
   ctx.cleanupScheduler.start();
   ctx.cloud.start();
+  // Opens the port on the router again after a restart (the lease may have run out).
+  if (ctx.settings.get().upnp.enabled) void ctx.upnp.renew().then(() => ctx.upnp.start());
   // A backup missed while Vidalune was off runs shortly after start, not in the middle of it.
   setTimeout(() => ctx.backups.tick(), 2 * 60 * 1000).unref();
   ctx.streams.closeInterrupted();
@@ -84,6 +86,7 @@ async function main(): Promise<void> {
     ctx.disk.stop();
     ctx.cleanupScheduler.stop();
     ctx.cloud.shutdown();
+    ctx.upnp.stop();
     (ctx.playback.get('remux') as RemuxEngine | undefined)?.stopAll();
     clearInterval(purgeTimer);
     try {

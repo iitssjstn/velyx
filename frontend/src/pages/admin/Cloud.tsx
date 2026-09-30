@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Cloud, ExternalLink, House, Radio, RefreshCw, Unlink } from 'lucide-react';
+import { Cloud, ExternalLink, House, Network, Radio, RefreshCw, Unlink } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/Modal';
@@ -20,7 +20,63 @@ export interface CloudStatus {
   homeNetworks: string[];
 }
 
+export interface UpnpStatus {
+  enabled: boolean;
+  externalPort: number;
+  open: boolean;
+  address: string | null;
+  problem: 'noRouter' | 'refused' | 'failed' | null;
+  checkedAt: number | null;
+}
+
 const KEY = ['admin', 'cloud'];
+
+/** Opening a port on the router with UPnP (opt-in). */
+function UpnpSection() {
+  const { t } = useT();
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['admin', 'upnp'], queryFn: () => api.get<UpnpStatus>('/api/admin/upnp') });
+  const [port, setPort] = useState<string | null>(null);
+  const done = (s: UpnpStatus) => {
+    qc.setQueryData(['admin', 'upnp'], s);
+    setPort(null);
+  };
+  const save = useMutation({ mutationFn: (body: { enabled: boolean; externalPort: number }) => api.put<UpnpStatus>('/api/admin/upnp', body), onSuccess: done, onError: (e) => toast.error(e) });
+  const check = useMutation({ mutationFn: () => api.post<UpnpStatus>('/api/admin/upnp/check'), onSuccess: done, onError: (e) => toast.error(e) });
+  if (!q.data) return null;
+  const u = q.data;
+  const chosen = Number(port ?? u.externalPort);
+  const valid = Number.isInteger(chosen) && chosen >= 1024 && chosen <= 65535;
+  return (
+    <section className="panel space-y-3 p-5" aria-labelledby="upnp-title">
+      <h2 id="upnp-title" className="flex items-center gap-2 font-display text-lg font-semibold">
+        <Network className="size-5 text-accent" aria-hidden="true" />
+        {t('cloud.upnpTitle')}
+      </h2>
+      <p className="text-sm text-muted">{t('cloud.upnpIntro')}</p>
+      {u.enabled && (
+        <p className={u.open ? 'text-sm text-ok' : 'text-sm text-danger'} role="status">
+          {u.open ? (u.address ? t('cloud.upnpOpen', { address: u.address }) : t('cloud.upnpOpenNoAddress', { port: u.externalPort })) : u.problem ? t(`cloud.upnpProblem.${u.problem}`) : null}
+        </p>
+      )}
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label className="label" htmlFor="upnp-port">{t('cloud.upnpPort')}</label>
+          <input id="upnp-port" className="input w-32" type="number" min={1024} max={65535} value={port ?? String(u.externalPort)} onChange={(e) => setPort(e.target.value)} />
+        </div>
+        {u.enabled && port !== null && (
+          <Button size="sm" variant="secondary" disabled={!valid} loading={save.isPending} onClick={() => save.mutate({ enabled: true, externalPort: chosen })}>{t('common.save')}</Button>
+        )}
+        <Button size="sm" variant={u.enabled ? 'secondary' : 'primary'} disabled={!valid} loading={save.isPending} onClick={() => save.mutate({ enabled: !u.enabled, externalPort: chosen })}>
+          {u.enabled ? t('cloud.upnpOff') : t('cloud.upnpOn')}
+        </Button>
+        {u.enabled && (
+          <Button size="sm" variant="ghost" icon={<RefreshCw className="size-4" />} loading={check.isPending} onClick={() => check.mutate()}>{t('cloud.upnpCheck')}</Button>
+        )}
+      </div>
+    </section>
+  );
+}
 
 /** Admin → Vidalune account: link this server to an account (opt-in). */
 export function CloudPage() {
@@ -180,6 +236,8 @@ export function CloudPage() {
           <Button type="submit" size="sm" variant="secondary" loading={saveNetworks.isPending} disabled={networks === null}>{t('common.save')}</Button>
         </form>
       </section>
+
+      <UpnpSection />
 
       <ConfirmModal open={confirming} title={t('cloud.unlinkTitle')} confirmLabel={t('cloud.unlink')} danger loading={unlink.isPending} onConfirm={() => unlink.mutate()} onClose={() => setConfirming(false)}>
         {t('cloud.unlinkConfirm')}

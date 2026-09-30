@@ -178,6 +178,48 @@ describe('the relay', () => {
     expect(entry?.ip).toBe('203.0.113.7');
   });
 
+  it('counts what passes through, shows it to administrators, and keeps a server to its limit', async () => {
+    const s = await linkedServerWithRelay();
+    client.start(s.auth);
+    await until(() => cloud.relay.connected(s.id));
+    expect((await get(s.host, '/big.bin')).body.length).toBe(big.length);
+    // Only Vidalune administrators.
+    expect((await cloud.inject({ url: '/api/admin/relay', headers: { cookie: s.cookie } })).statusCode).toBe(403);
+    const stats = (await cloud.inject({ url: '/api/admin/relay', headers: { cookie: s.bossCookie } })).json();
+    expect(stats).toMatchObject({ maxMbps: 900, serverMbps: 0, tunnels: 1 });
+    const mine = stats.servers.find((x: { id: string }) => x.id === s.id);
+    expect(mine).toMatchObject({ name: 'Thuis', owner: 'justin@example.com', connected: true, limitMbps: null });
+    expect(mine.today.out).toBeGreaterThanOrEqual(big.length);
+    expect(mine.today.requests).toBe(1);
+    expect(mine.month.out).toBe(mine.today.out);
+
+    // A limit of 16 Mbit/s (2 MB/s): the same file now takes a while.
+    expect((await cloud.inject({ method: 'PUT', url: `/api/admin/servers/${s.id}/relay-limit`, headers: { cookie: s.bossCookie }, payload: { limitMbps: 0 } })).statusCode).toBe(400);
+    expect((await cloud.inject({ method: 'PUT', url: `/api/admin/servers/${s.id}/relay-limit`, headers: { cookie: s.cookie }, payload: { limitMbps: 16 } })).statusCode).toBe(403);
+    expect((await cloud.inject({ method: 'PUT', url: `/api/admin/servers/${s.id}/relay-limit`, headers: { cookie: s.bossCookie }, payload: { limitMbps: 16 } })).json()).toEqual({ ok: true, limitMbps: 16 });
+    const started = Date.now();
+    expect((await get(s.host, '/big.bin')).body.equals(big)).toBe(true);
+    expect(Date.now() - started).toBeGreaterThan(500);
+    const after = (await cloud.inject({ url: '/api/admin/relay', headers: { cookie: s.bossCookie } })).json();
+    expect(after.servers.find((x: { id: string }) => x.id === s.id)).toMatchObject({ limitMbps: 16, today: { requests: 2 } });
+    await cloud.inject({ method: 'PUT', url: `/api/admin/servers/${s.id}/relay-limit`, headers: { cookie: s.bossCookie }, payload: { limitMbps: null } });
+  });
+
+  it('explains in the visitor\'s language why a server cannot be reached', async () => {
+    const s = await linkedServerWithRelay();
+    // Relay on, tunnel not open: offline. The web interface and the app get JSON.
+    const offline = await get(s.host, '/api/server/info', { 'accept-language': 'nl-NL,nl;q=0.9' });
+    expect(offline.status).toBe(502);
+    expect(offline.headers['x-vidalune-relay']).toBe('offline');
+    expect(JSON.parse(offline.body.toString())).toMatchObject({ relay: 'offline', error: expect.stringMatching(/staat uit of heeft geen internetverbinding/) });
+    // Relay turned off: a page for a browser.
+    await cloud.inject({ method: 'POST', url: '/api/server/relay', headers: { authorization: s.auth }, payload: { enabled: false } });
+    const off = await get(s.host, '/', { accept: 'text/html', 'sec-fetch-mode': 'navigate' });
+    expect(off.status).toBe(502);
+    expect(off.headers['content-type']).toContain('text/html');
+    expect(off.body.toString()).toMatch(/its relay is off, or remote access is not active/);
+  });
+
   it('closes the tunnel when the relay is turned off or the server unlinked', async () => {
     const s = await linkedServerWithRelay();
     client.start(s.auth);

@@ -25,6 +25,8 @@
         period: 'Looptijd', months1: '1 maand', months3: '3 maanden', months6: 'Half jaar', months12: '1 jaar', lifetime: 'Levenslang', planEnd: 'Tot en met (leeg: geen einddatum)', planNote: 'Notitie (bijv. hoe er betaald is)', change: 'Wijzigen', save: 'Opslaan',
         invited: 'Je bent uitgenodigd', invitedText: 'Je bent uitgenodigd om te kijken op {server}. Maak een Vidalune-account of log in om de uitnodiging aan te nemen.',
         inviteGone: 'Deze uitnodiging is niet (meer) geldig. Vraag om een nieuwe.', accepted: 'Je kunt nu kijken op {name}. Open hem hieronder.',
+        relayTitle: 'Relay', relayNow: 'Nu {mbps} Mbit/s van {max} · {active} servers sturen · {tunnels} verbonden', relayNoMax: 'geen limiet',
+        relayRow: 'nu {now} Mbit/s · vandaag {today} · 30 dagen {month}', relayLimit: 'Limiet (Mbit/s, leeg: standaard {def})', relayNone: 'Nog geen servers met de relay.', relayOff: 'relay uit', limitSaved: 'Limiet opgeslagen: {name}.',
         saved: 'Opgeslagen: {email}.', more: 'Er zijn meer accounts: zoek om te verfijnen.', empty: 'Geen accounts gevonden.', changed: 'gewijzigd {date}',
       }
     : {
@@ -49,6 +51,8 @@
         period: 'Period', months1: '1 month', months3: '3 months', months6: 'Half a year', months12: '1 year', lifetime: 'Lifetime', planEnd: 'Up to and including (empty: no end date)', planNote: 'Note (e.g. how it was paid)', change: 'Change', save: 'Save',
         invited: 'You are invited', invitedText: 'You are invited to watch on {server}. Create a Vidalune account or sign in to accept.',
         inviteGone: 'This invitation is not valid (any more). Ask for a new one.', accepted: 'You can watch on {name} now. Open it below.',
+        relayTitle: 'Relay', relayNow: 'Now {mbps} Mbit/s of {max} · {active} servers sending · {tunnels} connected', relayNoMax: 'no limit',
+        relayRow: 'now {now} Mbit/s · today {today} · 30 days {month}', relayLimit: 'Limit (Mbit/s, empty: default {def})', relayNone: 'No servers with the relay yet.', relayOff: 'relay off', limitSaved: 'Limit saved: {name}.',
         saved: 'Saved: {email}.', more: 'There are more accounts: search to narrow down.', empty: 'No accounts found.', changed: 'changed {date}',
       };
   // On app.vidalune.com these pages live under /_vl (the rest of that site is the chosen server).
@@ -310,7 +314,27 @@
   /** For Vidalune administrators: every account, and who has remote access (until when). */
   async function adminPage(me, message = '', query = { q: '', filter: 'all' }) {
     if (!me.admin) return show(el('p', {}, t('adminOnly')), el('a', { href: `${BASE}/servers` }, t('back')));
-    const data = await api('GET', `/api/admin/accounts?${new URLSearchParams(query)}`);
+    const [data, relay] = await Promise.all([api('GET', `/api/admin/accounts?${new URLSearchParams(query)}`), api('GET', '/api/admin/relay')]);
+    const size = (b) => (b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`);
+    const relayCard = el('details', {},
+      el('summary', {}, t('relayTitle'), ' · ', `${relay.mbpsNow} Mbit/s`),
+      el('div', { class: 'card' },
+        el('p', { class: 'small' }, t('relayNow', { mbps: relay.mbpsNow, max: relay.maxMbps || t('relayNoMax'), active: relay.active, tunnels: relay.tunnels })),
+        relay.servers.length === 0 ? el('p', {}, t('relayNone')) : null,
+        el('ul', { class: 'servers' }, relay.servers.map((s) =>
+          el('li', {},
+            el('div', { class: 'row' },
+              el('strong', {}, s.name, s.owner ? el('span', { class: 'small' }, ` · ${s.owner}`) : null),
+              el('span', { class: 'small' }, el('span', { class: s.connected ? 'dot on' : 'dot' }), s.relayOn ? '' : t('relayOff')),
+            ),
+            el('div', { class: 'small' }, t('relayRow', { now: s.mbpsNow, today: size(s.today.out), month: size(s.month.out) })),
+            form([el('label', {}, t('relayLimit', { def: relay.serverMbps || t('relayNoMax') }), el('input', { name: 'limit', type: 'number', min: 1, max: 10000, value: s.limitMbps ?? '' }))], t('save'), async (v) => {
+              await api('PUT', `/api/admin/servers/${encodeURIComponent(s.id)}/relay-limit`, { limitMbps: v.limit ? Number(v.limit) : null });
+              await adminPage(me, t('limitSaved', { name: s.name }), query);
+            }),
+          ))),
+      ),
+    );
     const search = el('form', {
       class: 'row',
       onsubmit: (e) => {
@@ -363,6 +387,7 @@
       el('h1', {}, t('adminTitle')),
       el('p', { class: 'small' }, t('stats', data.stats)),
       message ? el('p', { class: 'ok', role: 'status' }, message) : null,
+      relayCard,
       search,
       data.accounts.length === 0 ? el('p', {}, t('empty')) : null,
       el('ul', { class: 'servers' }, data.accounts.map((a) =>

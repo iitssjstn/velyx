@@ -46,6 +46,8 @@ interface (see *app.vidalune.com* below).
 | `FRONTEND_DIR` | `frontend/dist` in the image | The web interface app.vidalune.com shows (built into the image). |
 | `DOWNLOAD_DIR` | `cloud/downloads` in the image | Where the Android app (`vidalune-<version>.apk`) is handed out from; the image carries the newest release's app. |
 | `ADMIN_EMAILS` | (none) | Accounts (email addresses, comma-separated) that may use the admin page. They always have remote access themselves. |
+| `RELAY_MAX_MBPS` | `900` | What the relay may send in total, in Mbit/s, shared equally between the servers sending at that moment (`0`: no limit). Keep it a little under the VPS's line (1 Gbit/s: 900). |
+| `RELAY_SERVER_MBPS` | `0` | What one server may send through the relay, in Mbit/s, unless set per server on the admin page (`0`: no limit of its own). |
 
 ## Remote access and the admin page
 
@@ -73,6 +75,21 @@ linked) keeps a WebSocket open to `wss://vidalune.com/api/server/tunnel` and get
 nothing is stored. Names like `www`, `app` and `api` are never given out. The address is not shown
 to people: a browser opening it is sent to app.vidalune.com with that server chosen; the API (the
 app, and app.vidalune.com's own requests) passes through.
+
+**Fair sharing and limits:** the relay passes a server's answers on only as fast as its share allows:
+every server that is sending gets an equal part of `RELAY_MAX_MBPS`, and never more than its own
+limit (`RELAY_SERVER_MBPS`, or the limit set for it on the admin page). A busy server slows down;
+it does not crowd out the others. A server gets at most 64 requests at once.
+
+**Traffic on the admin page:** the admin page shows the relay's speed right now, how many servers are
+sending and connected, and per server its speed now, what it sent today and in the last 30 days, and
+its limit (**Save** with an empty field goes back to the default). Only amounts are kept (per server
+and day, for about a year) — never what passed through.
+
+**When a server cannot be reached**, a relay address answers with the reason, in Dutch or English
+(the visitor's language): offline (the server is off or has no internet), the relay is off or remote
+access is not active, busy, or too large. Browsers get a short page; the web interface and the app
+get JSON (`{ "error": "…", "relay": "offline" }`) and show the message.
 
 In Nginx Proxy Manager:
 

@@ -41,6 +41,7 @@ import { registerRoutes } from './routes/index.js';
 import { NotificationService } from './services/notifications.js';
 import { CleanupScheduler } from './services/cleanup-scheduler.js';
 import { CloudService } from './services/cloud.js';
+import { UpnpService } from './services/upnp.js';
 import { isLoopback } from './services/relay-client.js';
 import { libraries } from './db/schema.js';
 
@@ -91,10 +92,14 @@ export interface AppContext {
   cleanupScheduler: CleanupScheduler;
   /** Link to a Vidalune account (opt-in). */
   cloud: CloudService;
+  /** Opening a port on the router (opt-in). */
+  upnp: UpnpService;
   startedAt: number;
 }
 
 export interface BuildOptions {
+  /** Where UPnP searches for the router (tests: a stand-in on localhost). */
+  ssdp?: { host: string; port: number };
   prober?: Prober;
   fetchImpl?: FetchLike;
   tmdbMinIntervalMs?: number;
@@ -189,7 +194,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     fetchImpl: opts.fetchImpl,
     userAgent: `Vidalune v${APP_VERSION}`,
   });
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud: new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, now: opts.cloudNow }), startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud: new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, now: opts.cloudNow }), upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

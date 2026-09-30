@@ -47,6 +47,8 @@ export const servers = sqliteTable(
     relaySlug: text('relay_slug').unique(),
     /** Reachable through the relay (the server's administrator turned it on). */
     relayEnabled: integer('relay_enabled', { mode: 'boolean' }).notNull().default(false),
+    /** What this server may send through the relay, in Mbit/s (null: the service's default). */
+    relayLimitMbps: integer('relay_limit_mbps'),
     createdAt: integer('created_at').notNull(),
     lastSeenAt: integer('last_seen_at').notNull(),
   },
@@ -123,4 +125,22 @@ export const invites = sqliteTable(
     expiresAt: integer('expires_at').notNull(),
   },
   (t) => [uniqueIndex('invites_server_ref').on(t.serverId, t.ref)],
+);
+
+/** What passed through the relay, per server and day (UTC): only amounts, never content. */
+export const relayTraffic = sqliteTable(
+  'relay_traffic',
+  {
+    serverId: text('server_id')
+      .notNull()
+      .references(() => servers.id, { onDelete: 'cascade' }),
+    /** YYYY-MM-DD */
+    day: text('day').notNull(),
+    /** Bytes sent to visitors (the server's answers). */
+    bytesOut: integer('bytes_out').notNull().default(0),
+    /** Bytes visitors sent (requests, uploads). */
+    bytesIn: integer('bytes_in').notNull().default(0),
+    requests: integer('requests').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.serverId, t.day] }), index('relay_traffic_day').on(t.day)],
 );

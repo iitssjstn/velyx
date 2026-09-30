@@ -133,6 +133,8 @@ export interface ServerSettings {
   cloud: CloudLink | null;
   /** Networks that also count as home ("100.64.0.0/10"), on top of the private ranges. */
   homeNetworks: string[];
+  /** Open a port on the router with UPnP (opt-in), and which one outside. */
+  upnp: { enabled: boolean; externalPort: number };
 }
 
 const DEFAULTS: ServerSettings = {
@@ -163,6 +165,7 @@ const DEFAULTS: ServerSettings = {
   openSubtitlesPassword: '',
   cloud: null,
   homeNetworks: [],
+  upnp: { enabled: false, externalPort: 3000 },
 };
 
 export class SettingsService {

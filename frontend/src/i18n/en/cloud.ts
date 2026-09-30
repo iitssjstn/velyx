@@ -38,4 +38,17 @@ export const cloud = {
     closed: 'The connection closed. The server is reconnecting.',
   },
   relayNeedsLink: 'Link this server first to use the relay.',
+  upnpTitle: 'Open a port on the router (UPnP)',
+  upnpIntro: 'Asks your router to forward a port to this server, so it can be reached from outside without the relay and without setting up port forwarding yourself. Needs a router with UPnP turned on; in Docker, Vidalune must use the host network (network_mode: host). Playing away from home still needs remote access (above).',
+  upnpPort: 'Port on the router',
+  upnpOn: 'Open the port',
+  upnpOff: 'Close the port',
+  upnpCheck: 'Check again',
+  upnpOpen: 'Open: reachable from outside at {address}. Set it as the server address under Admin → Server to use it in the app.',
+  upnpOpenNoAddress: 'Open on port {port}.',
+  upnpProblem: {
+    noRouter: 'No router with UPnP answered. Turn UPnP on in the router, or (in Docker) use network_mode: host.',
+    refused: 'The router refused: this port may be in use by another device. Choose another port.',
+    failed: 'The router did not answer as expected. Try again, or set up port forwarding yourself.',
+  },
 };

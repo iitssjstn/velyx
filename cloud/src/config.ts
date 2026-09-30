@@ -21,6 +21,10 @@ export interface CloudConfig {
   relayDomain: string;
   /** Accounts that may use the admin page (/admin); they always have remote access themselves. */
   adminEmails: string[];
+  /** What the relay may send in total, in Mbit/s (shared fairly between servers; 0: no limit). */
+  relayMaxMbps: number;
+  /** What one server may send through the relay, in Mbit/s, unless set per server (0: no limit). */
+  relayServerMbps: number;
 }
 
 const int = (v: string | undefined, fallback: number) => {
@@ -47,6 +51,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     dbPath: path.join(dataDir, 'cloud.db'),
     publicUrl,
     trustProxy: Math.max(0, int(env.TRUST_PROXY, 1)),
+    relayMaxMbps: Math.max(0, int(env.RELAY_MAX_MBPS, 900)),
+    relayServerMbps: Math.max(0, int(env.RELAY_SERVER_MBPS, 0)),
     webDir: fs.existsSync(defaultWeb) ? defaultWeb : null,
     downloadDir: path.resolve(env.DOWNLOAD_DIR ?? path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'downloads')),
     frontendDir: fs.existsSync(path.join(frontendDir, 'index.html')) ? frontendDir : null,
