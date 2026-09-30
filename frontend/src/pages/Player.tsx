@@ -901,6 +901,9 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           key={`${streamSrc}#${reloadKey}`}
           ref={videoRef}
           src={streamSrc}
+          // Chrome on Android puts its own cast button over every video (it cannot be pressed in
+          // this player and does not go away): off. Casting gets Vidalune's own button.
+          disableRemotePlayback
           className={
             mini
               ? 'h-full w-28 shrink-0 cursor-pointer bg-black object-cover sm:w-full sm:object-contain'
