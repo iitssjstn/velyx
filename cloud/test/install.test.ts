@@ -93,6 +93,24 @@ describe('installing Vidalune from vidalune.com', () => {
     expect(nl).toContain('Beheer → Bibliotheken');
   });
 
+  it('serves the signed apt repository, and nothing else from it', async () => {
+    expect((await app.inject({ url: '/apt/InRelease' })).statusCode).toBe(404);
+    fs.mkdirSync(path.join(downloads, 'apt'));
+    fs.writeFileSync(path.join(downloads, 'apt', 'InRelease'), 'signed');
+    fs.writeFileSync(path.join(downloads, 'apt', 'Packages.gz'), 'gz');
+    fs.writeFileSync(path.join(downloads, 'apt', 'vidalune_0.16.1_amd64.deb'), 'deb');
+    fs.writeFileSync(path.join(downloads, 'apt', 'secret.txt'), 'no');
+    const inRelease = await app.inject({ url: '/apt/InRelease' });
+    expect(inRelease.body).toBe('signed');
+    expect(inRelease.headers['cache-control']).toBe('no-cache');
+    expect((await app.inject({ url: '/apt/Packages.gz' })).headers['content-type']).toBe('application/gzip');
+    const deb = await app.inject({ url: '/apt/vidalune_0.16.1_amd64.deb' });
+    expect(deb.body).toBe('deb');
+    expect(deb.headers['content-type']).toBe('application/vnd.debian.binary-package');
+    expect((await app.inject({ url: '/apt/secret.txt' })).statusCode).toBe(400);
+    expect((await app.inject({ url: '/apt/..%2Fcloud.db' })).statusCode).toBe(400);
+  });
+
   it('hands out a Debian/Ubuntu installer that installs the right package with apt (so FFmpeg comes along)', async () => {
     const res = await app.inject({ url: '/get-deb' });
     expect(res.headers['content-type']).toContain('text/plain');

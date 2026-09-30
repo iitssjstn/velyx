@@ -1,0 +1,5 @@
+# Vidalune updates: sudo apt update && sudo apt upgrade
+Types: deb
+URIs: https://vidalune.com/apt/
+Suites: ./
+Signed-By: /usr/share/keyrings/vidalune.gpg

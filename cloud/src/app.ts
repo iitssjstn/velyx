@@ -793,6 +793,28 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     if (!file) throw new HttpError(404, 'The Android app is not available for download right now.');
     return reply.header('Cache-Control', 'no-cache').redirect(`/download/${file}`);
   });
+  /** The signed apt repository Debian/Ubuntu installations update from (built into the image with the packages). */
+  const APT_INDEX: Record<string, string> = {
+    Packages: 'text/plain; charset=utf-8',
+    'Packages.gz': 'application/gzip',
+    Release: 'text/plain; charset=utf-8',
+    InRelease: 'text/plain; charset=utf-8',
+    'Release.gpg': 'application/pgp-signature',
+    'vidalune.gpg': 'application/pgp-keys',
+    'vidalune.asc': 'application/pgp-keys',
+  };
+  app.get('/apt/:file', async (request, reply) => {
+    const { file } = z.object({ file: z.string().refine((f) => f in APT_INDEX || DEB.test(f)) }).parse(request.params);
+    const full = path.join(config.downloadDir, 'apt', file);
+    if (!fs.existsSync(full)) throw new HttpError(404, 'Not found.');
+    const deb = DEB.test(file);
+    return reply
+      .type(deb ? 'application/vnd.debian.binary-package' : APT_INDEX[file])
+      .header('Content-Length', String(fs.statSync(full).size))
+      .header('Cache-Control', deb ? 'public, max-age=86400' : 'no-cache')
+      .send(fs.createReadStream(full));
+  });
+
   /** The newest Debian/Ubuntu package for amd64 or arm64. */
   app.get('/download/deb/:arch', async (request, reply) => {
     const { arch } = z.object({ arch: z.enum(['amd64', 'arm64']) }).parse(request.params);

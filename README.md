@@ -147,7 +147,7 @@ Open `http://<your-server>:3000`, create your administrator account and, optiona
 
 Every release has a `.deb` package next to the Android app: `vidalune_<version>_amd64.deb` for regular PCs and servers, `vidalune_<version>_arm64.deb` for ARM boards such as a Raspberry Pi 4/5 (64-bit OS). It contains Vidalune and the Node runtime it needs; FFmpeg comes from your distribution. It is tested on Debian 12 and Ubuntu 24.04 (each release installs, runs, upgrades and removes it there in CI); other recent Debian-based systems should work too.
 
-The quickest way, also to update later — it picks the package for your processor and installs it with apt, so FFmpeg comes along:
+The quickest way — it picks the package for your processor and installs it with apt, so FFmpeg comes along:
 
 ```bash
 curl -fsSL https://vidalune.com/get-deb | sudo sh
@@ -166,7 +166,7 @@ Install it with `apt` (as above), which also installs FFmpeg; after `sudo dpkg -
 - **Settings:** `/etc/vidalune/vidalune.env` (port, `TRUST_PROXY`, `MEDIA_ROOTS`, … — the same options as under [Configuration](#configuration)); after a change `sudo systemctl restart vidalune`. The file is kept when you update.
 - **Media folders:** choose them in the web interface: **Admin → Libraries → Add library → Browse** walks the folders of the computer (`MEDIA_ROOTS` is `/` for the package; set it to limit where libraries may be). Vidalune runs as the user `vidalune`, so it can only use folders that user may read — a private home folder, for example, is closed to it. Browse marks such folders with a lock, and adding one shows the single command that gives Vidalune read access to that folder (and passage through the folders above it), for example `sudo setfacl -m u:vidalune:x '/home/jan' && sudo setfacl -R -m u:vidalune:rX '/home/jan/Films' && sudo setfacl -R -d -m u:vidalune:rX '/home/jan/Films'` (the last part also covers files added later). Run it on the server and add the folder again. Nothing else changes: your files keep their owner and permissions.
 - **Data:** database, artwork cache and backups are in `/var/lib/vidalune` (`DATA_DIR`).
-- **Updating:** run the installer again (or install the new package the same way); the service restarts with the new version, and the database is copied to the backups folder before it is upgraded.
+- **Updating:** the package adds the Vidalune apt repository (`/etc/apt/sources.list.d/vidalune.sources`, signed; key in `/usr/share/keyrings/vidalune.gpg`), so Vidalune updates with the rest of the system: `sudo apt update && sudo apt upgrade`. The service restarts with the new version, and the database is copied to the backups folder before it is upgraded. Installed 0.16.0? Run the installer (or install the package) once more to add the repository.
 - **Maintenance CLI:** `sudo vidalune backup`, `sudo vidalune reset-password <user> <password>` and the other [commands](#maintenance-cli) run as the service's user with its settings.
 - **Removing:** `sudo apt remove vidalune` removes the program and keeps your settings and data; `sudo apt purge vidalune` also removes the settings. `/var/lib/vidalune` is never deleted by the package: remove it yourself if you no longer need it.
 
@@ -780,7 +780,7 @@ The Android app (in `app/`) has its own checks: `cd app && npm ci && npm run typ
 
 - `.github/workflows/ci.yml` runs on every push and pull request: install, lint, typecheck, tests (with FFmpeg), build, then builds the Docker image and checks `/health`.
 - `.github/workflows/docker-build.yml` publishes `ghcr.io/<owner>/vidalune` (and, for installations from before the rename, the same image as `ghcr.io/<owner>/velyx`) for `linux/amd64` and `linux/arm64` on pushes to `main` (`latest`) and on version tags (`v0.4.0` → `0.4.0`, `0.4`). When a push to `main` carries a version in `package.json` that has no `v<version>` tag yet, the workflow also publishes the version tags and then creates the git tag itself. It authenticates with the built-in `GITHUB_TOKEN` — no extra secrets needed.
-- `.github/workflows/deb.yml` builds the `.deb` packages (amd64, arm64) with `packaging/deb/build.sh`, installs, runs, upgrades and removes them on Debian 12 and Ubuntu 24.04 (arm64 through QEMU) with `packaging/deb/test-install.sh`, and attaches them to the release.
+- `.github/workflows/deb.yml` builds the `.deb` packages (amd64, arm64) with `packaging/deb/build.sh` and the signed apt repository with `packaging/apt/build-repo.sh`, installs, runs, upgrades and removes them on Debian 12 and Ubuntu 24.04 (arm64 through QEMU) with `packaging/deb/test-install.sh` (including `apt update` against that repository), and attaches them to the release. The account service image carries the repository and serves it at `vidalune.com/apt`. Signing needs the repository secret `APT_SIGNING_KEY` (an ASCII-armored private key); without it the packages are built without the repository.
 
 After the first publish, make the package public under **GitHub → Packages → vidalune → Package settings** if you want to pull it without logging in. To release a version: bump `version` in `package.json`, `backend/package.json` and `frontend/package.json` and merge to `main` — the tag and the versioned image follow automatically. Pushing a `v*` tag by hand still works too.
 

@@ -9,6 +9,22 @@ NODE=/opt/vidalune/node/bin/node
 apt-get update -qq
 apt-get install -y -qq "$DEB" > /dev/null
 id vidalune
+# Updates come through apt (when the package was built with the signing key).
+if [ -n "${EXPECT_APT_SOURCE:-}" ]; then
+  test -s /usr/share/keyrings/vidalune.gpg
+  grep -q '^URIs: https://vidalune.com/apt/' /etc/apt/sources.list.d/vidalune.sources
+fi
+# The signed repository (packaging/apt/build-repo.sh) is accepted by apt with the package's key.
+if [ -n "${REPO_DIR:-}" ]; then
+  $NODE -e "const fs=require('fs'),p=require('path');require('http').createServer((q,r)=>{const f=p.join('$REPO_DIR',p.basename(q.url));fs.existsSync(f)?fs.createReadStream(f).pipe(r):(r.statusCode=404,r.end())}).listen(8089)" &
+  REPO_PID=$!
+  sleep 1
+  sed 's#https://vidalune.com/apt/#http://127.0.0.1:8089/#' /etc/apt/sources.list.d/vidalune.sources > /etc/apt/sources.list.d/vidalune.sources.tmp
+  mv /etc/apt/sources.list.d/vidalune.sources.tmp /etc/apt/sources.list.d/vidalune.sources
+  apt-get update -qq -o APT::Update::Error-Mode=any
+  apt-cache policy vidalune | grep -q '127.0.0.1:8089'
+  kill "$REPO_PID"
+fi
 test "$(stat -c %U /var/lib/vidalune)" = vidalune
 test "$(stat -c %G:%a /etc/vidalune/vidalune.env)" = vidalune:640
 
@@ -51,6 +67,7 @@ kill "$PID"; wait "$PID" || true
 
 apt-get remove -y -qq vidalune > /dev/null
 test ! -e /opt/vidalune/app
+test ! -e /etc/apt/sources.list.d/vidalune.sources
 test -f /etc/vidalune/vidalune.env
 test -f /var/lib/vidalune/velyx.db
 apt-get purge -y -qq vidalune > /dev/null
