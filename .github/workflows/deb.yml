@@ -40,10 +40,26 @@ jobs:
         run: npm run build --workspace frontend && npm run build:release --workspace backend
 
       - name: Build the packages
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
         run: |
           sh packaging/deb/build.sh amd64 out
           sh packaging/deb/build.sh arm64 out
           ls -la out
+
+      # The signed apt repository they are updated from (checked with apt in the tests below).
+      - name: Build the apt repository
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          command -v apt-ftparchive > /dev/null || sudo apt-get install -y -qq apt-utils
+          if [ -n "$APT_SIGNING_KEY" ]; then sh packaging/apt/build-repo.sh out repo; else mkdir repo; fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apt-repo
+          path: repo
+          retention-days: 7
 
       - uses: actions/upload-artifact@v4
         with:
@@ -71,13 +87,20 @@ jobs:
           name: deb
           path: out
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: apt-repo
+          path: repo
+
       - uses: docker/setup-qemu-action@v3
         if: matrix.arch == 'arm64'
 
       - name: Install, run, upgrade and remove on ${{ matrix.image }} (${{ matrix.arch }})
         run: |
           deb=$(ls out/*_${{ matrix.arch }}.deb)
-          docker run --rm --platform linux/${{ matrix.arch }} -v "$PWD:/w" -w /w ${{ matrix.image }} sh packaging/deb/test-install.sh "$deb"
+          flags=""
+          if [ -f repo/InRelease ]; then flags="-e EXPECT_APT_SOURCE=1 -e REPO_DIR=/w/repo"; fi
+          docker run --rm --platform linux/${{ matrix.arch }} $flags -v "$PWD:/w" -w /w ${{ matrix.image }} sh packaging/deb/test-install.sh "$deb"
 
   release:
     needs: test

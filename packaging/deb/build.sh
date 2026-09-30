@@ -58,6 +58,20 @@ install -m 0644 "$HERE/vidalune.service" "$PKG/lib/systemd/system/vidalune.servi
 install -m 0755 "$HERE/vidalune" "$PKG/usr/bin/vidalune"
 install -m 0755 "$HERE/postinst" "$HERE/prerm" "$HERE/postrm" "$PKG/DEBIAN/"
 echo /etc/vidalune/vidalune.env > "$PKG/DEBIAN/conffiles"
+
+# Updates through apt: the Vidalune repository and the public half of its signing key. Not a
+# conffile, so removing the package also removes the source (never a source without its key).
+if [ -n "${APT_SIGNING_KEY:-}" ]; then
+  GNUPGHOME="$WORK/gnupg"
+  mkdir -m 0700 "$GNUPGHOME"
+  printf '%s\n' "$APT_SIGNING_KEY" | GNUPGHOME="$GNUPGHOME" gpg --batch --quiet --import
+  mkdir -p "$PKG/usr/share/keyrings" "$PKG/etc/apt/sources.list.d"
+  GNUPGHOME="$GNUPGHOME" gpg --batch --export > "$PKG/usr/share/keyrings/vidalune.gpg"
+  chmod 0644 "$PKG/usr/share/keyrings/vidalune.gpg"
+  install -m 0644 "$ROOT/packaging/apt/vidalune.sources" "$PKG/etc/apt/sources.list.d/vidalune.sources"
+else
+  echo "APT_SIGNING_KEY not set: this package does not add the Vidalune apt repository." >&2
+fi
 cat > "$PKG/DEBIAN/control" <<CONTROL
 Package: vidalune
 Version: $VERSION

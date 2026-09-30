@@ -921,7 +921,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   return (
     <div
       ref={wrapRef}
-      className={mini ? `${MINI_CLASSES} select-none` : `fixed inset-0 z-50 bg-black text-ink select-none [--player-controls:10rem] ${showUi ? '' : 'cursor-none'}`}
+      className={mini ? `${MINI_CLASSES} select-none` : `fixed inset-0 z-50 bg-black text-ink select-none [--player-controls:10rem] ${showUi || postPlay ? '' : 'cursor-none'}`}
       onMouseMove={mini ? undefined : poke}
       onTouchStart={mini ? undefined : poke}
       role={mini ? 'region' : undefined}
