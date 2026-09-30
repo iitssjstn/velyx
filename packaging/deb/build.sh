@@ -79,6 +79,7 @@ Architecture: $ARCH
 Maintainer: Vidalune <support@vidalune.com>
 Installed-Size: $(du -sk "$PKG" | cut -f1)
 Depends: ffmpeg, acl, adduser, libc6 (>= 2.28), libstdc++6
+Suggests: intel-media-va-driver-non-free | intel-media-va-driver, mesa-va-drivers
 Section: video
 Priority: optional
 Homepage: https://vidalune.com

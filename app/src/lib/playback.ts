@@ -78,7 +78,7 @@ export interface SubtitleOption {
 export interface PlaybackAnswer {
   decision: {
     engine: string;
-    mode: 'direct' | 'remux' | 'unsupported';
+    mode: 'direct' | 'remux' | 'transcode' | 'unsupported';
     streamUrl: string;
     compatible: boolean | 'unknown';
     /** 'range': seek in the file; 'restart': ask for a new stream from the new position. */
@@ -86,7 +86,7 @@ export interface PlaybackAnswer {
     audioIndex: number | null;
     durationSec: number | null;
   };
-  analysis: { mode: 'direct' | 'remux' | 'unsupported'; problems: string[]; summary: string[] };
+  analysis: { mode: 'direct' | 'remux' | 'transcode' | 'unsupported'; problems: string[]; summary: string[] };
   file: { id: number; durationSec: number | null; audioTracks: AudioTrackInfo[] };
   subtitles: SubtitleOption[];
 }

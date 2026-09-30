@@ -9,6 +9,7 @@ import { ErrorState, PageLoader } from '../../components/States';
 import { toast } from '../../components/Toast';
 import { useT } from '../../i18n';
 import { SeerrSettings } from './SeerrSettings';
+import { TranscodingSettings } from './TranscodingSettings';
 
 /** Server name/URL and TMDB configuration. The TMDB key is write-only: the API never returns it. */
 export function ServerSettingsPanel() {
@@ -199,6 +200,7 @@ export function ServerSettingsPanel() {
         {s.tmdb.source === 'environment' && <p className="text-xs text-faint">{t('server.keyPriority')}</p>}
       </section>
 
+      <TranscodingSettings />
       <OnlineSubtitlesSettings />
       <SeerrSettings />
     </div>

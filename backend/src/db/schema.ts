@@ -702,7 +702,7 @@ export const playbackSessions = sqliteTable(
     mediaFileId: integer('media_file_id').references(() => mediaFiles.id, { onDelete: 'set null' }),
     title: text('title').notNull(),
     subtitle: text('subtitle'),
-    mode: text('mode', { enum: ['direct', 'remux'] }).notNull(),
+    mode: text('mode', { enum: ['direct', 'remux', 'transcode'] }).notNull(),
     /** What the remux did with the audio, e.g. "AAC 5.1"; null = passed through. */
     audioConversion: text('audio_conversion'),
     container: text('container'),

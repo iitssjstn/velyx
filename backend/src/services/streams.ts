@@ -21,7 +21,7 @@ export interface ActiveStream {
   showId: number | null;
   title: string;
   subtitle: string | null;
-  mode: 'direct' | 'remux';
+  mode: 'direct' | 'remux' | 'transcode';
   /** What the remux does with the audio (e.g. "AAC 5.1"); null = passed through. */
   audioConversion: string | null;
   container: string | null;
@@ -85,7 +85,7 @@ export class StreamTracker {
   }
 
   /** Called for every stream request (direct range requests and remux starts). */
-  touch(user: { id: number; username: string }, fileId: number, mode: 'direct' | 'remux', device: string | null, audioConversion: string | null = null, now = Date.now()): ActiveStream | null {
+  touch(user: { id: number; username: string }, fileId: number, mode: 'direct' | 'remux' | 'transcode', device: string | null, audioConversion: string | null = null, now = Date.now()): ActiveStream | null {
     const key = `${user.id}:${fileId}`;
     const existing = this.streams.get(key);
     if (existing && now - existing.lastSeenAt < ACTIVE_MS) {

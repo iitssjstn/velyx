@@ -141,7 +141,7 @@ describe('statistics', () => {
     const ids = seed(now);
     const s = activityStats(env.ctx.db, 7, now);
     expect(s.totals).toEqual({ plays: 5, watchSec: 3600 + 3600 + 1200 + 2400 + 2400 + 20, movies: 2, episodes: 2, users: 2 });
-    expect(s.modes).toEqual({ direct: { plays: 4, watchSec: 3600 + 1200 + 4800 + 20 }, remux: { plays: 1, watchSec: 3600 }, audioConverted: 1 });
+    expect(s.modes).toEqual({ direct: { plays: 4, watchSec: 3600 + 1200 + 4800 + 20 }, remux: { plays: 1, watchSec: 3600 }, transcode: { plays: 0, watchSec: 0 }, audioConverted: 1 });
     expect(s.topMovies[0]).toMatchObject({ id: ids.heat, title: 'Heat', plays: 2 });
     expect(s.topMovies[1]).toMatchObject({ id: ids.alien, plays: 1 });
     expect(s.topShows[0]).toMatchObject({ id: ids.show, title: 'Severance', plays: 2, watchSec: 4800 });

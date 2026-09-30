@@ -40,9 +40,13 @@ LABEL org.opencontainers.image.title="Vidalune" \
       org.opencontainers.image.description="Your media. Your server. A lightweight self-hosted media server." \
       org.opencontainers.image.licenses="LicenseRef-Vidalune-EULA"
 
-# FFmpeg provides ffprobe (media analysis) and ffmpeg (embedded subtitle extraction).
-RUN apt-get update \
+# FFmpeg provides ffprobe (media analysis) and ffmpeg (subtitles, remuxing, optional video
+# conversion). On amd64 also the VAAPI drivers for converting video with Intel (Quick Sync) and AMD
+# graphics; NVIDIA's are passed in by the NVIDIA container toolkit.
+RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then sed -i 's/^Components: main$/Components: main non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources; fi \
+ && apt-get update \
  && apt-get install -y --no-install-recommends ffmpeg tini \
+ && if [ "$(dpkg --print-architecture)" = "amd64" ]; then apt-get install -y --no-install-recommends intel-media-va-driver-non-free i965-va-driver mesa-va-drivers; fi \
  && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \

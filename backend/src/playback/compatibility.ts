@@ -8,7 +8,7 @@ import { tr, type Language } from '../i18n/index.js';
  * applies it to whole libraries (with a reference browser profile) using cached FFprobe data only.
  */
 
-export type PlaybackMode = 'direct' | 'remux' | 'unsupported';
+export type PlaybackMode = 'direct' | 'remux' | 'transcode' | 'unsupported';
 
 /** Video codecs FFmpeg can copy into fragmented MP4 without re-encoding. */
 export const COPYABLE_VIDEO = new Set(['h264', 'hevc', 'av1', 'vp9']);
@@ -113,7 +113,7 @@ export interface PlaybackAnalysis {
     bitDepth: number | null;
     range: string | null;
     /** direct = the browser reads the original file; copy = remuxed without re-encoding. */
-    action: 'direct' | 'copy' | 'unsupported';
+    action: 'direct' | 'copy' | 'transcode' | 'unsupported';
   };
   audio: {
     codec: string | null;
@@ -130,12 +130,12 @@ export interface PlaybackAnalysis {
   problems: string[];
   /** Things that work but are worth knowing (HDR, image subtitles, …). */
   warnings: string[];
-  /** Playing this would need video transcoding, which Vidalune does not do. */
+  /** Playing this would need video transcoding, which is turned off (or no encoder works). */
   transcodeRequired: boolean;
-  /** Vidalune never re-encodes video in this version. */
-  serverTranscoding: false;
+  /** The server converts the video for this stream. */
+  serverTranscoding: boolean;
   /** Rough server load for this stream. */
-  serverLoad: 'none' | 'low';
+  serverLoad: 'none' | 'low' | 'high';
   /** "Chrome on Windows"; null when the device cannot be recognised. */
   device: string | null;
   /**
@@ -185,24 +185,27 @@ export function analyzePlayback(
   const warnings: string[] = [];
 
   let mode: PlaybackMode;
-  if (video.ok === false) mode = 'unsupported';
+  if (decision.engine === 'transcode') mode = 'transcode';
+  else if (video.ok === false) mode = 'unsupported';
   else if (decision.engine === 'remux') mode = 'remux';
   else if (decision.compatible === false) mode = 'unsupported';
   else mode = 'direct';
 
-  if (video.problem) (video.ok === false ? problems : warnings).push(video.problem);
+  if (video.problem && mode !== 'transcode') (video.ok === false ? problems : warnings).push(video.problem);
   if (mode === 'unsupported' && !problems.length) {
     if (file.videoCodec && !COPYABLE_VIDEO.has(file.videoCodec)) problems.push(T('{codec} video cannot be played in browsers without transcoding.', { codec: codecLabel(file.videoCodec, lang) }));
     else problems.push(T('This browser reported that it cannot play this file.'));
   }
 
-  const converting = mode === 'remux' && decision.audioIndex !== null && !decision.streamUrl.includes('copy=1');
+  const repackaged = mode === 'remux' || mode === 'transcode';
+  const converting = repackaged && decision.audioIndex !== null && !decision.streamUrl.includes('copy=1');
   const channels = /&ch=6/.test(decision.streamUrl) ? '5.1' : T('stereo');
   const audioAction: PlaybackAnalysis['audio']['action'] =
-    decision.audioIndex === null && !audioCodec ? 'none' : mode === 'remux' ? (converting ? 'convert' : 'copy') : 'direct';
+    decision.audioIndex === null && !audioCodec ? 'none' : repackaged ? (converting ? 'convert' : 'copy') : 'direct';
 
-  const hdr = hdrWarning(file.videoRange, caps, lang);
+  const hdr = mode === 'transcode' ? null : hdrWarning(file.videoRange, caps, lang);
   if (hdr) warnings.push(hdr);
+  if (mode === 'transcode' && file.videoRange && file.videoRange !== 'SDR') warnings.push(T('HDR video is converted to SDR without tone mapping, so colours may look flat.'));
   const imageSubs = (file.subtitleTracks ?? []).filter((s) => !s.textBased);
   // The Vidalune app shows them itself when it plays the original file.
   if (imageSubs.length && !(caps.imageSubtitles && mode === 'direct')) {
@@ -217,7 +220,7 @@ export function analyzePlayback(
   const containerSupported = !file.container || (caps.containers ?? REFERENCE_CAPS.containers).includes(file.container);
   const target = audioAction === 'convert' ? `AAC ${channels}` : null;
   const components: PlaybackAnalysis['components'] = {
-    video:
+    video: mode === 'transcode' ? { status: 'warn', note: T('Converted to H.264 on the server') } :
       mode === 'unsupported' && video.ok !== true
         ? { status: video.ok === 'unknown' ? 'unknown' : 'fail', note: problems[0] ?? video.problem ?? T('This device cannot decode this video.') }
         : mode === 'unsupported'
@@ -238,7 +241,7 @@ export function analyzePlayback(
                 : { status: 'warn', note: T('Would be converted to AAC') }
             : { status: 'ok', note: audioAction === 'copy' ? T('Copied as-is') : T('Plays as-is') },
     container: containerSupported
-      ? { status: 'ok', note: mode === 'remux' ? T('Supported; streamed as MP4 while remuxing') : T('Supported') }
+      ? { status: 'ok', note: repackaged ? T('Supported; streamed as MP4 while remuxing') : T('Supported') }
       : { status: 'warn', note: mode === 'unsupported' ? T('Would be repackaged as MP4') : T('Repackaged as MP4') },
   };
   const summary: string[] = [];
@@ -246,9 +249,11 @@ export function analyzePlayback(
   else if (mode === 'remux') {
     summary.push(T('The video does not need transcoding.'));
     summary.push(audioAction === 'convert' ? T('Vidalune remuxes the file and converts the audio to {target}, which uses little CPU.', { target: target! }) : T('Vidalune will remux the media for compatibility, which uses little CPU.'));
+  } else if (mode === 'transcode') {
+    summary.push(T('This device cannot play the video as it is, so the server converts it to H.264 while you watch. That takes more processing power than the other ways.'));
   } else {
     summary.push(components.video.status === 'unknown' ? T('This device may not be able to play this video format.') : T('Your current browser/device cannot play this video format.'));
-    summary.push(T('Server transcoding: No. Vidalune does not convert video.'));
+    summary.push(T('Server transcoding is off. An administrator can turn on video conversion (Admin → Server).'));
   }
   if (mode !== 'unsupported' && components.video.status === 'unknown') summary.push(T('Vidalune cannot confirm that this device decodes the video. If it does not start, try another browser or device.'));
   if (confidence !== 'reported') summary.push(T('This is an estimate: the device did not report which formats it supports.'));
@@ -263,7 +268,7 @@ export function analyzePlayback(
       height: file.height,
       bitDepth: file.videoBitDepth,
       range: file.videoRange,
-      action: mode === 'unsupported' ? 'unsupported' : mode === 'remux' ? 'copy' : 'direct',
+      action: mode === 'unsupported' ? 'unsupported' : mode === 'transcode' ? 'transcode' : mode === 'remux' ? 'copy' : 'direct',
     },
     audio: {
       codec: audioCodec,
@@ -272,13 +277,13 @@ export function analyzePlayback(
       action: audioAction,
       target,
     },
-    container: { name: file.container, action: mode === 'remux' ? 'remux' : 'direct' },
+    container: { name: file.container, action: repackaged ? 'remux' : 'direct' },
     bitrate: file.bitrate ?? null,
     problems,
     warnings,
     transcodeRequired: mode === 'unsupported',
-    serverTranscoding: false,
-    serverLoad: mode === 'remux' ? 'low' : 'none',
+    serverTranscoding: mode === 'transcode',
+    serverLoad: mode === 'transcode' ? 'high' : mode === 'remux' ? 'low' : 'none',
     device: appDevice ? profileName({ browser: tr(lang, 'Vidalune app'), os: appDevice }, lang) : profile.family === 'unknown' && !profile.browser ? null : profileName(profile, lang),
     confidence,
     components,
