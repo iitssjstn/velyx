@@ -33,6 +33,8 @@ CREATE TABLE `relay_nodes` (
 	`region` text,
 	`url` text,
 	`capacity_mbps` integer NOT NULL,
+	`monthly_quota_gb` integer,
+	`over_quota_mbps` integer,
 	`note` text,
 	`active` integer DEFAULT true NOT NULL,
 	`created_at` integer NOT NULL

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "1a495648-3bf3-448d-841b-c5d9b79e5ef0",
+  "id": "9c9827a9-a686-42a8-afc2-813800664f17",
   "prevId": "46d0ad42-d4ec-47a9-b504-ea05c2456604",
   "tables": {
     "access_grants": {
@@ -842,6 +842,20 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "monthly_quota_gb": {
+          "name": "monthly_quota_gb",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "over_quota_mbps": {
+          "name": "over_quota_mbps",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "note": {

@@ -206,6 +206,12 @@ export const relayNodes = sqliteTable('relay_nodes', {
   url: text('url'),
   /** What it can send in total, in Mbit/s. */
   capacityMbps: integer('capacity_mbps').notNull(),
+  /**
+   * The hosting's traffic allowance per month in GB (null: unlimited, as with OVH in Europe and
+   * North America), and the speed it drops to beyond it (OVH Asia-Pacific: 1 TB, then 10 Mbit/s).
+   */
+  monthlyQuotaGb: integer('monthly_quota_gb'),
+  overQuotaMbps: integer('over_quota_mbps'),
   note: text('note'),
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('created_at').notNull(),

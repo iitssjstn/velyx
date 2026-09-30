@@ -178,7 +178,21 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): void {
         growth30: growth(created(t - 30 * DAY, t + 1), created(t - 60 * DAY, t - 30 * DAY)),
       },
       access: { total: withAccess, byType, expiringIn14Days: Number(expiring?.n ?? 0) },
-      relays: { nodes: nodes.length || 1, capacityMbps: capacity, mbpsNow, usage: capacity ? Math.round((mbpsNow / capacity) * 1000) / 10 : 0, tunnels: live.tunnels, sending: live.active },
+      relays: {
+        nodes: nodes.length || 1,
+        capacityMbps: capacity,
+        mbpsNow,
+        usage: capacity ? Math.round((mbpsNow / capacity) * 1000) / 10 : 0,
+        tunnels: live.tunnels,
+        sending: live.active,
+        /** Relays that used 80 % or more of their hosting's monthly traffic allowance. */
+        nearQuota: (() => {
+          const stats = relayStats(nodes.map((n) => n.id));
+          return nodes
+            .filter((n) => n.monthlyQuotaGb && stats.get(n.id)!.thisMonthOut >= n.monthlyQuotaGb * 1e9 * 0.8)
+            .map((n) => ({ id: n.id, name: n.name, usedGb: Math.round((stats.get(n.id)!.thisMonthOut / 1e9) * 10) / 10, monthlyGb: n.monthlyQuotaGb, overQuotaMbps: n.overQuotaMbps }));
+        })(),
+      },
       servers: {
         total: Number(db.select({ n: sql<number>`count(*)` }).from(servers).where(isNotNull(servers.accountId)).get()?.n ?? 0),
         online: Number(db.select({ n: sql<number>`count(*)` }).from(servers).where(and(isNotNull(servers.accountId), gte(servers.lastSeenAt, t - 2 * 3_600_000))).get()?.n ?? 0),
@@ -320,6 +334,17 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): void {
         .all()
         .map((r) => [r.serverId, r]),
     );
+    // This calendar month (UTC): what counts against a hosting's monthly traffic allowance.
+    const monthStart = dayOf(t).slice(0, 8) + '01';
+    const calendar = new Map(
+      db
+        .select({ serverId: relayTraffic.serverId, out: sql<number>`sum(${relayTraffic.bytesOut})` })
+        .from(relayTraffic)
+        .where(gte(relayTraffic.day, monthStart))
+        .groupBy(relayTraffic.serverId)
+        .all()
+        .map((r) => [r.serverId, Number(r.out)]),
+    );
     const live = deps.relay.now();
     return new Map(
       nodeIds.map((nid) => {
@@ -337,6 +362,7 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): void {
               requests: assigned.reduce((n, s) => n + Number(month.get(s.id)?.requests ?? 0), 0),
               errors: assigned.reduce((n, s) => n + Number(month.get(s.id)?.errors ?? 0), 0),
             },
+            thisMonthOut: assigned.reduce((n, s) => n + (calendar.get(s.id) ?? 0), 0),
             assigned,
           },
         ] as const;
@@ -360,6 +386,13 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): void {
     mbpsNow: s.mbpsNow,
     usage: n.capacityMbps ? Math.round((s.mbpsNow / n.capacityMbps) * 1000) / 10 : 0,
     month: s.month,
+    /** The hosting's monthly allowance: used this calendar month (GB), and what happens beyond it. */
+    quota: {
+      monthlyGb: n.monthlyQuotaGb,
+      overQuotaMbps: n.overQuotaMbps,
+      usedGb: Math.round((s.thisMonthOut / 1e9) * 10) / 10,
+      usedPercent: n.monthlyQuotaGb ? Math.round((s.thisMonthOut / (n.monthlyQuotaGb * 1e9)) * 1000) / 10 : null,
+    },
   });
 
   app.get('/api/ceo/relays', async (request) => {
@@ -379,6 +412,9 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): void {
       .max(300)
       .refine((u) => /^https:\/\/[^\s/]+(\/[^\s]*)?$/i.test(u), 'Enter the relay’s https address.'),
     capacityMbps: z.number().int().min(1).max(1_000_000),
+    /** Null: unlimited traffic. */
+    monthlyQuotaGb: z.number().int().min(1).max(10_000_000).nullable().default(null),
+    overQuotaMbps: z.number().int().min(1).max(100_000).nullable().default(null),
     note,
   });
 
