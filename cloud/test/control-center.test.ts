@@ -9,7 +9,7 @@ import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
 import { accountSessions, accounts, relayNodes, relaySamples, servers } from '../src/db/schema.js';
 import { grantStatus, relayStatus, SAMPLE_MS, uptime } from '../src/ceo.js';
-import { deviceLabel } from '../src/relay.js';
+import { deviceLabel, viewerAddress } from '../src/relay.js';
 
 const DAY = 86_400_000;
 let dir: string;
@@ -312,5 +312,14 @@ describe('Control Center: the sums', () => {
     expect(deviceLabel('Vidalune/0.15.0 (Android 14)')).toBe('Vidalune app (Android)');
     expect(deviceLabel('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 Edg/130.0')).toBe('Edge on Windows');
     expect(deviceLabel(undefined)).toBe('Other device');
+  });
+
+  it('tells devices apart by the viewer’s own address, also behind Cloudflare', () => {
+    const req = (h: Record<string, string>) => ({ headers: h });
+    // Cloudflare's edge address changes per request; its header keeps the viewer's own.
+    expect(viewerAddress(req({ 'cf-connecting-ip': '203.0.113.7' }), '172.68.1.1')).toBe('203.0.113.7');
+    expect(viewerAddress(req({ 'cf-connecting-ip': '203.0.113.7' }), '172.68.9.9')).toBe('203.0.113.7');
+    expect(viewerAddress(req({}), '198.51.100.4')).toBe('198.51.100.4');
+    expect(viewerAddress(req({ 'cf-connecting-ip': 'x'.repeat(100) }), '198.51.100.4')).toBe('198.51.100.4');
   });
 });
