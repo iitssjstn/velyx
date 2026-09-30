@@ -1,4 +1,5 @@
 import { createLogger } from '../logger.js';
+import type { TmdbTranslations } from './localize.js';
 
 const log = createLogger('tmdb');
 const API_BASE = 'https://api.themoviedb.org/3';
@@ -58,6 +59,7 @@ export interface TmdbMovieDetails {
   credits?: { cast?: TmdbCast[]; crew?: TmdbCrew[] };
   external_ids?: { imdb_id?: string | null };
   belongs_to_collection?: { id: number; name: string; poster_path?: string | null; backdrop_path?: string | null } | null;
+  translations?: TmdbTranslations;
 }
 
 export interface TmdbTvDetails {
@@ -77,6 +79,7 @@ export interface TmdbTvDetails {
   credits?: { cast?: TmdbCast[]; crew?: TmdbCrew[] };
   external_ids?: { imdb_id?: string | null; tvdb_id?: number | null };
   seasons?: { season_number: number; name?: string; overview?: string; air_date?: string; poster_path?: string | null }[];
+  translations?: TmdbTranslations;
 }
 
 export interface TmdbSeasonDetails {
@@ -221,15 +224,26 @@ export class TmdbClient {
   }
 
   movie(id: number): Promise<TmdbMovieDetails> {
-    return this.request(`/movie/${id}`, { append_to_response: 'credits,external_ids', language: this.opts.getLanguage() });
+    return this.request(`/movie/${id}`, { append_to_response: 'credits,external_ids,translations', language: this.opts.getLanguage() });
   }
 
   show(id: number): Promise<TmdbTvDetails> {
-    return this.request(`/tv/${id}`, { append_to_response: 'credits,external_ids', language: this.opts.getLanguage() });
+    return this.request(`/tv/${id}`, { append_to_response: 'credits,external_ids,translations', language: this.opts.getLanguage() });
   }
 
-  season(showId: number, seasonNumber: number): Promise<TmdbSeasonDetails> {
-    return this.request(`/tv/${showId}/season/${seasonNumber}`, { language: this.opts.getLanguage() });
+  /** A season; `language` overrides the metadata language (its episodes in another interface language). */
+  season(showId: number, seasonNumber: number, language?: string): Promise<TmdbSeasonDetails> {
+    return this.request(`/tv/${showId}/season/${seasonNumber}`, { language: language ?? this.opts.getLanguage() });
+  }
+
+  /** Only a movie's or show's translations (for items matched before translations were kept). */
+  translations(kind: 'movie' | 'tv', id: number): Promise<TmdbTranslations> {
+    return this.request(`/${kind}/${id}/translations`, {});
+  }
+
+  /** The metadata language setting ("en-US"). */
+  language(): string {
+    return this.opts.getLanguage();
   }
 }
 

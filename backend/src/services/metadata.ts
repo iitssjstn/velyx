@@ -5,6 +5,7 @@ import { createLogger } from '../logger.js';
 import { pickBest, rankCandidates, type ScoredCandidate } from './matcher.js';
 import { sortTitle } from './parser.js';
 import type { ImageCache } from './images.js';
+import { fromTmdb, mergeTranslations, parseTranslations, UI_LANGUAGES, uiLanguageOf, type Translations } from './localize.js';
 import { TmdbClient, TmdbError, yearOf, type TmdbCast, type TmdbCrew, type TmdbGenre, type TmdbMovieDetails } from './tmdb.js';
 
 const log = createLogger('metadata');
@@ -103,6 +104,7 @@ export class MetadataService {
           year: yearOf(d.release_date) ?? current.parsedYear,
           overview: d.overview || null,
           tagline: d.tagline || null,
+          translations: JSON.stringify(mergeTranslations(parseTranslations(current.translations), fromTmdb(d.translations))),
           runtime: d.runtime ?? null,
           releaseDate: d.release_date || null,
           rating: d.vote_average ?? null,
@@ -205,6 +207,7 @@ export class MetadataService {
           originalTitle: d.original_name ?? null,
           year: yearOf(d.first_air_date) ?? current.parsedYear,
           overview: d.overview || null,
+          translations: JSON.stringify(mergeTranslations(parseTranslations(current.translations), fromTmdb(d.translations))),
           firstAirDate: d.first_air_date || null,
           status: d.status ?? null,
           network: d.networks?.[0]?.name ?? null,
@@ -272,7 +275,68 @@ export class MetadataService {
         stills.push(['w300', meta.still_path ?? null]);
       }
       await this.images.prefetch([['w342', s.poster_path ?? null], ...stills]);
+      await this.translateSeason(tmdbId, n, seasonRow.id);
     }
+  }
+
+  /** Interface languages the metadata is not fetched in: their titles and descriptions are kept as translations. */
+  private otherLanguages() {
+    const primary = uiLanguageOf(this.tmdb.language());
+    return UI_LANGUAGES.filter((l) => l !== primary);
+  }
+
+  /**
+   * A season's episodes in the other interface language(s): one more request per season and
+   * language. TMDB's placeholder names ("Episode 3") and empty descriptions are not kept.
+   */
+  async translateSeason(tmdbId: number, seasonNumber: number, seasonId: number): Promise<void> {
+    for (const lang of this.otherLanguages()) {
+      let s;
+      try {
+        s = await this.tmdb.season(tmdbId, seasonNumber, lang === 'nl' ? 'nl-NL' : 'en-US');
+      } catch (err) {
+        log.debug(`No ${lang} translation of season ${seasonNumber}: ${(err as Error).message}`);
+        continue;
+      }
+      const placeholder = /^(episode|aflevering)\s+\d+$/i;
+      const season = this.db.select({ translations: seasons.translations }).from(seasons).where(eq(seasons.id, seasonId)).get();
+      const seasonT: Translations = { [lang]: { ...(s.overview?.trim() ? { overview: s.overview.trim() } : {}) } };
+      if (Object.keys(seasonT[lang]!).length) this.db.update(seasons).set({ translations: JSON.stringify(mergeTranslations(parseTranslations(season?.translations), seasonT)) }).where(eq(seasons.id, seasonId)).run();
+      for (const ep of this.db.select().from(episodes).where(eq(episodes.seasonId, seasonId)).all()) {
+        const meta = s.episodes?.find((e) => e.episode_number === ep.episodeNumber);
+        if (!meta) continue;
+        const entry = { ...(meta.name?.trim() && !placeholder.test(meta.name.trim()) ? { title: meta.name.trim() } : {}), ...(meta.overview?.trim() ? { overview: meta.overview.trim() } : {}) };
+        if (!Object.keys(entry).length) continue;
+        this.db.update(episodes).set({ translations: JSON.stringify(mergeTranslations(parseTranslations(ep.translations), { [lang]: entry })) }).where(eq(episodes.id, ep.id)).run();
+      }
+    }
+  }
+
+  /**
+   * Items matched before translations were kept: their translations only (a request per movie,
+   * show and season, at TMDB's pace). Nothing else is changed. Returns how many items were done;
+   * stops (to try again later) when TMDB cannot be reached.
+   */
+  async backfillTranslations(limit = 200): Promise<number> {
+    if (!this.enabled) return 0;
+    let done = 0;
+    try {
+      for (const m of this.db.select({ id: movies.id, tmdbId: movies.tmdbId, translations: movies.translations }).from(movies).where(and(isNotNull(movies.tmdbId), inArray(movies.matchStatus, ['matched', 'manual']), sql`${movies.translations} is null`)).limit(limit).all()) {
+        const t = await this.tmdb.translations('movie', m.tmdbId!).catch((err) => (err instanceof TmdbError && err.status !== null ? {} : Promise.reject(err)));
+        this.db.update(movies).set({ translations: JSON.stringify(mergeTranslations(parseTranslations(m.translations), fromTmdb(t))) }).where(eq(movies.id, m.id)).run();
+        done++;
+      }
+      for (const s of this.db.select({ id: shows.id, tmdbId: shows.tmdbId, translations: shows.translations }).from(shows).where(and(isNotNull(shows.tmdbId), inArray(shows.matchStatus, ['matched', 'manual']), sql`${shows.translations} is null`)).limit(Math.max(0, limit - done)).all()) {
+        const t = await this.tmdb.translations('tv', s.tmdbId!).catch((err) => (err instanceof TmdbError && err.status !== null ? {} : Promise.reject(err)));
+        this.db.update(shows).set({ translations: JSON.stringify(mergeTranslations(parseTranslations(s.translations), fromTmdb(t))) }).where(eq(shows.id, s.id)).run();
+        for (const season of this.db.select({ id: seasons.id, n: seasons.seasonNumber }).from(seasons).where(eq(seasons.showId, s.id)).all()) await this.translateSeason(s.tmdbId!, season.n, season.id);
+        done++;
+      }
+    } catch (err) {
+      log.warn('Looking up translations stopped — TMDB is unreachable; will try again later', err);
+    }
+    if (done) log.info(`Translations looked up for ${done} item${done === 1 ? '' : 's'}`);
+    return done;
   }
 
   /** Called by the scanner when new episodes appear for an already matched show. */

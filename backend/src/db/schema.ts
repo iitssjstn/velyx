@@ -108,6 +108,8 @@ export const movies = sqliteTable(
     originalTitle: text('original_title'),
     year: integer('year'),
     overview: text('overview'),
+  /** Titles and descriptions in the interface languages (JSON: {en, nl}), next to the stored ones. */
+  translations: text('translations'),
     tagline: text('tagline'),
     runtime: integer('runtime'),
     releaseDate: text('release_date'),
@@ -151,6 +153,8 @@ export const shows = sqliteTable(
     originalTitle: text('original_title'),
     year: integer('year'),
     overview: text('overview'),
+  /** Titles and descriptions in the interface languages (JSON: {en, nl}), next to the stored ones. */
+  translations: text('translations'),
     firstAirDate: text('first_air_date'),
     status: text('status'),
     network: text('network'),
@@ -187,6 +191,8 @@ export const seasons = sqliteTable(
     seasonNumber: integer('season_number').notNull(),
     name: text('name'),
     overview: text('overview'),
+  /** Titles and descriptions in the interface languages (JSON: {en, nl}), next to the stored ones. */
+  translations: text('translations'),
     airDate: text('air_date'),
     posterPath: text('poster_path'),
   },
@@ -207,6 +213,8 @@ export const episodes = sqliteTable(
     episodeNumber: integer('episode_number').notNull(),
     title: text('title'),
     overview: text('overview'),
+  /** Titles and descriptions in the interface languages (JSON: {en, nl}), next to the stored ones. */
+  translations: text('translations'),
     airDate: text('air_date'),
     runtime: integer('runtime'),
     rating: real('rating'),

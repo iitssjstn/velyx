@@ -51,6 +51,13 @@ async function main(): Promise<void> {
       if (done) ctx.settings.update({ collectionsBackfilled: true });
     });
   }
+  // Titles and descriptions in the other interface language for items matched before 0.13 (a few
+  // hundred at a time, never during a scan; nothing to do once all have them).
+  const translate = () => {
+    if (ctx.tmdb.configured && !ctx.scans.active) void ctx.metadata.backfillTranslations();
+  };
+  setTimeout(translate, 5 * 60 * 1000).unref();
+  setInterval(translate, 30 * 60 * 1000).unref();
   // Episodes added while Vidalune was off (or never analysed) get their intros/credits found later on.
   setTimeout(() => ctx.segments.enqueuePending(), 3 * 60 * 1000).unref();
   ctx.watcher.sync(ctx.settings.get().watchFolders);
