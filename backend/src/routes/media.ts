@@ -192,9 +192,15 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (!decision || decision.compatible === false) throw new HttpError(415, 'This file cannot be played on a Chromecast without converting the video, which Vidalune does not do.');
     const expiresAt = Date.now() + CAST_TOKEN_MS;
     const token = signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt });
+    const cloud = ctx.settings.get().cloud;
     return {
       token,
       expiresAt,
+      // Where the Chromecast can reach this server when the page it was cast from cannot tell
+      // (app.vidalune.com works only with the browser's own sign-in): the relay, or the address
+      // set under Admin → Server.
+      relayUrl: cloud?.account && cloud.relay ? (cloud.relayUrl ?? null) : null,
+      serverUrl: ctx.settings.serverUrl() || null,
       decision,
       contentType: decision.engine === 'direct' ? (file.container === 'webm' ? 'video/webm' : 'video/mp4') : 'video/mp4',
       // Text subtitles only (a Chromecast shows WebVTT), from this file.

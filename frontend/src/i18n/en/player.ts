@@ -31,6 +31,12 @@ export const player = {
   creditsSkipped: 'Credits skipped',
   recapSkipped: 'Recap skipped',
   skipRecap: 'Skip recap',
+  cast: 'Play on a TV (Chromecast)',
+  castStop: 'Stop playing on the TV',
+  casting: 'Playing on the TV',
+  castingTo: 'Playing on {device}',
+  castingHint: 'Use the buttons here to control it: play, pause, skip and seek.',
+  castFailed: 'Could not play on the TV: {reason}',
   backSeconds: 'Back {seconds} seconds (←)',
   forwardSeconds: 'Forward {seconds} seconds (→)',
   errors: {

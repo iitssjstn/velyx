@@ -267,7 +267,8 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
         mediaSrc: ["'self'", 'blob:'],
         styleSrc: ["'self'", "'unsafe-inline'"],
         fontSrc: ["'self'", 'data:'],
-        scriptSrc: ["'self'"],
+        // Google's Cast SDK (casting to a Chromecast from Chrome), loaded only when a player opens.
+        scriptSrc: ["'self'", 'https://www.gstatic.com'],
         connectSrc: ["'self'"],
         objectSrc: ["'none'"],
         frameAncestors: ["'self'"],

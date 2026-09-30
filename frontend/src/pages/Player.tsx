@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   AudioLines,
   Captions,
+  Cast,
   Check,
   Keyboard,
   Maximize,
@@ -36,6 +37,7 @@ import { Spinner } from '../components/States';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { PlaybackBadge, PlaybackUnavailable } from '../components/PlaybackDetails';
 import { UpNext } from '../components/UpNext';
+import { useCast } from '../lib/cast';
 import { currentLanguage, intlLocale, languageLabel, t, useT, type MessageKey } from '../i18n';
 
 const SAVE_INTERVAL_MS = 10_000;
@@ -252,6 +254,17 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   /** Current position in the file (not in the current stream). */
   const currentTime = useCallback(() => offset + (videoRef.current?.currentTime ?? 0), [offset]);
 
+  // ---------------------------------------------------------------- casting (Chromecast)
+  const cast = useCast(
+    file && item.data
+      ? { fileId: file.id, audioIndex: info?.decision.audioIndex ?? null, title: item.data.title, subtitle: item.data.subtitle, posterPath: item.data.backdrop, subtitleKey: subKey, locate: (target) => locateStart(file.id, target) }
+      : null,
+  );
+  const castingRef = useRef(false);
+  // Stable for the callbacks below (the hook's object changes with every position update).
+  const castRef = useRef(cast);
+  castRef.current = cast;
+
   // ---------------------------------------------------------------- stream (re)initialisation
   // Decide where the stream starts whenever a new playback decision arrives (first load or audio switch).
   useEffect(() => {
@@ -310,6 +323,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
 
   const seekTo = useCallback(
     (target: number) => {
+      if (castingRef.current) return castRef.current.seek(target);
       const v = videoRef.current;
       if (!v) return;
       const max = Math.max(0, (totalDuration || v.duration || 0) - 0.5);
@@ -322,6 +336,31 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     },
     [live, totalDuration, restartAt],
   );
+
+  // While casting: the page shows the TV's position and state, pauses its own picture, and saves
+  // progress; when casting ends, the page stays paused at the TV's position.
+  useEffect(() => {
+    const was = castingRef.current;
+    castingRef.current = cast.active;
+    const v = videoRef.current;
+    if (cast.active && !was) v?.pause();
+    if (!cast.active && was) seekTo(cast.time);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cast.active]);
+  useEffect(() => {
+    if (!cast.active) return;
+    setTime(cast.time);
+    setPlaying(cast.playing);
+  }, [cast.active, cast.time, cast.playing]);
+  const castSaved = useRef(0);
+  useEffect(() => {
+    if (!cast.active || !item.data || Date.now() - castSaved.current < SAVE_INTERVAL_MS) return;
+    castSaved.current = Date.now();
+    void saveProgress(item.data, cast.time, totalDuration);
+  }, [cast.active, cast.time, item.data, totalDuration]);
+  useEffect(() => {
+    if (cast.error) toast.error(t('player.castFailed', { reason: cast.error }));
+  }, [cast.error]);
 
   // ---------------------------------------------------------------- controls visibility
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -339,6 +378,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
 
   // ---------------------------------------------------------------- actions
   const togglePlay = useCallback(() => {
+    if (castingRef.current) return castRef.current.togglePlay();
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) void v.play().catch(() => undefined);
@@ -954,7 +994,16 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       {/* The chosen subtitle stays selected while minimized; it is only not drawn on the small video. */}
       {!mini && !postPlay && <SubtitleOverlay video={activeTrack?.video ?? null} track={activeTrack?.track ?? null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />}
 
-      {!mini && !askResume && (buffering || !streamSrc) && !error && !showUnavailable && (
+      {!mini && cast.active && (
+        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-bg/80" role="status">
+          <div className="flex flex-col items-center gap-3 px-6 text-center">
+            <Cast className="size-12 text-accent" />
+            <p className="text-lg font-semibold">{cast.device ? t('player.castingTo', { device: cast.device }) : t('player.casting')}</p>
+            <p className="max-w-sm text-sm text-muted">{t('player.castingHint')}</p>
+          </div>
+        </div>
+      )}
+      {!mini && !cast.active && !askResume && (buffering || !streamSrc) && !error && !showUnavailable && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <div className="flex flex-col items-center gap-4">
             <Spinner className="size-10" />
@@ -1207,6 +1256,18 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             <button type="button" onClick={() => setMenu(menu === 'settings' ? null : 'settings')} className={`grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${speed !== 1 ? 'text-accent' : ''}`} aria-label={t('player.settings')} title={t('player.settings')}>
               <Settings2 className="size-5 sm:size-7" />
             </button>
+            {(cast.available || cast.active) && (
+              <button
+                type="button"
+                onClick={() => (cast.active ? cast.stop() : void cast.start(currentTime()))}
+                className={`grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${cast.active ? 'text-accent' : ''}`}
+                aria-label={cast.active ? t('player.castStop') : t('player.cast')}
+                aria-pressed={cast.active}
+                title={cast.active ? t('player.castStop') : t('player.cast')}
+              >
+                <Cast className="size-5 sm:size-7" />
+              </button>
+            )}
             <button type="button" onClick={minimize} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={t('player.shortcuts.minimize')} title={t('player.minimizeTitle')}>
               <PictureInPicture2 className="size-5 sm:size-7" />
             </button>

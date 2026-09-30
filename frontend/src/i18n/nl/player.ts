@@ -32,6 +32,12 @@ export const player: Messages['player'] = {
   creditsSkipped: 'Aftiteling overgeslagen',
   recapSkipped: 'Terugblik overgeslagen',
   skipRecap: 'Terugblik overslaan',
+  cast: 'Afspelen op een tv (Chromecast)',
+  castStop: 'Stoppen met afspelen op de tv',
+  casting: 'Speelt af op de tv',
+  castingTo: 'Speelt af op {device}',
+  castingHint: 'Bedien hem met de knoppen hier: afspelen, pauzeren, skippen en spoelen.',
+  castFailed: 'Afspelen op de tv lukte niet: {reason}',
   backSeconds: '{seconds} seconden terug (←)',
   forwardSeconds: '{seconds} seconden vooruit (→)',
   errors: {
