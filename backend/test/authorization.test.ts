@@ -20,6 +20,7 @@ const ADMIN_ROUTES: Array<[string, string]> = [
   ['GET', '/api/admin/backup'],
   ['GET', '/api/libraries'],
   ['POST', '/api/libraries'],
+  ['GET', '/api/libraries/folders'],
   ['POST', '/api/libraries/scan-all'],
   ['GET', '/api/users'],
   ['POST', '/api/users'],

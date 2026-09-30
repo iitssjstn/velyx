@@ -9,7 +9,7 @@ Type=simple
 User=vidalune
 Group=vidalune
 # Defaults; /etc/vidalune/vidalune.env overrides them.
-Environment=NODE_ENV=production HOST=0.0.0.0 PORT=3000 DATA_DIR=/var/lib/vidalune MEDIA_ROOTS=/media,/mnt,/srv FRONTEND_DIR=/opt/vidalune/app/frontend/dist
+Environment=NODE_ENV=production HOST=0.0.0.0 PORT=3000 DATA_DIR=/var/lib/vidalune MEDIA_ROOTS=/ FRONTEND_DIR=/opt/vidalune/app/frontend/dist VIDALUNE_PACKAGE=deb
 EnvironmentFile=-/etc/vidalune/vidalune.env
 WorkingDirectory=/opt/vidalune/app
 ExecStart=/opt/vidalune/node/bin/node /opt/vidalune/app/backend/dist/index.js

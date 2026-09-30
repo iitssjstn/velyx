@@ -145,20 +145,28 @@ Open `http://<your-server>:3000`, create your administrator account and, optiona
 
 ## Installing without Docker (Debian/Ubuntu)
 
-Every release has a `.deb` package next to the Android app, also to download from **vidalune.com/install** (`vidalune.com/download/deb/amd64` or `/arm64` always gives the newest): `vidalune_<version>_amd64.deb` for regular PCs and servers, `vidalune_<version>_arm64.deb` for ARM boards such as a Raspberry Pi 4/5 (64-bit OS). It contains Vidalune and the Node runtime it needs; FFmpeg comes from your distribution. It is tested on Debian 12 and Ubuntu 24.04 (each release installs, runs, upgrades and removes it there in CI); other recent Debian-based systems should work too.
+Every release has a `.deb` package next to the Android app: `vidalune_<version>_amd64.deb` for regular PCs and servers, `vidalune_<version>_arm64.deb` for ARM boards such as a Raspberry Pi 4/5 (64-bit OS). It contains Vidalune and the Node runtime it needs; FFmpeg comes from your distribution. It is tested on Debian 12 and Ubuntu 24.04 (each release installs, runs, upgrades and removes it there in CI); other recent Debian-based systems should work too.
+
+The quickest way, also to update later — it picks the package for your processor and installs it with apt, so FFmpeg comes along:
+
+```bash
+curl -fsSL https://vidalune.com/get-deb | sudo sh
+```
+
+Or by hand (`vidalune.com/download/deb/amd64` or `/arm64` always gives the newest package, also linked from **vidalune.com/install**):
 
 ```bash
 curl -fLo vidalune.deb https://vidalune.com/download/deb/amd64
 sudo apt install ./vidalune.deb
 ```
 
-Then open `http://<your-server>:3000` and create your administrator account.
+Install it with `apt` (as above), which also installs FFmpeg; after `sudo dpkg -i vidalune.deb`, run `sudo apt-get install -f` to add what is missing. Then open `http://<your-server>:3000`, create your administrator account and add your media under **Admin → Libraries** (see *Media folders* below).
 
 - **Service:** Vidalune runs as the systemd service `vidalune` under its own user `vidalune`, starts at boot and restarts after a crash. `sudo systemctl status vidalune`, `sudo journalctl -u vidalune -f` for its log.
-- **Settings:** `/etc/vidalune/vidalune.env` (port, `MEDIA_ROOTS`, `TRUST_PROXY`, … — the same options as under [Configuration](#configuration)); after a change `sudo systemctl restart vidalune`. The file is kept when you update.
-- **Media folders:** libraries can be added from the folders in `MEDIA_ROOTS` (by default `/media`, `/mnt` and `/srv`). The user `vidalune` must be able to read your media: give it the group that owns the files (`sudo usermod -aG <group> vidalune`, then restart the service), or run the service as your own user with `sudo systemctl edit vidalune` (`[Service]` `User=you` `Group=you`) and `sudo chown -R you: /var/lib/vidalune`.
+- **Settings:** `/etc/vidalune/vidalune.env` (port, `TRUST_PROXY`, `MEDIA_ROOTS`, … — the same options as under [Configuration](#configuration)); after a change `sudo systemctl restart vidalune`. The file is kept when you update.
+- **Media folders:** choose them in the web interface: **Admin → Libraries → Add library → Browse** walks the folders of the computer (`MEDIA_ROOTS` is `/` for the package; set it to limit where libraries may be). Vidalune runs as the user `vidalune`, so it can only use folders that user may read — a private home folder, for example, is closed to it. Browse marks such folders with a lock, and adding one shows the single command that gives Vidalune read access to that folder (and passage through the folders above it), for example `sudo setfacl -m u:vidalune:x '/home/jan' && sudo setfacl -R -m u:vidalune:rX '/home/jan/Films' && sudo setfacl -R -d -m u:vidalune:rX '/home/jan/Films'` (the last part also covers files added later). Run it on the server and add the folder again. Nothing else changes: your files keep their owner and permissions.
 - **Data:** database, artwork cache and backups are in `/var/lib/vidalune` (`DATA_DIR`).
-- **Updating:** download the new package and install it the same way; the service restarts with the new version, and the database is copied to the backups folder before it is upgraded.
+- **Updating:** run the installer again (or install the new package the same way); the service restarts with the new version, and the database is copied to the backups folder before it is upgraded.
 - **Maintenance CLI:** `sudo vidalune backup`, `sudo vidalune reset-password <user> <password>` and the other [commands](#maintenance-cli) run as the service's user with its settings.
 - **Removing:** `sudo apt remove vidalune` removes the program and keeps your settings and data; `sudo apt purge vidalune` also removes the settings. `/var/lib/vidalune` is never deleted by the package: remove it yourself if you no longer need it.
 
@@ -252,7 +260,7 @@ Samples, trailers, extras and system folders (`@eaDir`, `#recycle`, …) are ign
 
 ## First-run setup
 
-The first visit opens a setup wizard where you create the administrator account, name the server and — optionally — enter your TMDB API key (it is checked with TMDB before it is saved; you can also add it later). The wizard can only run once — as soon as an administrator exists it is closed. Next, add your libraries: **Admin → Libraries → Add library**, choose Movies or TV Shows and enter the folder inside the container (for example `/media/movies`). The first scan starts immediately.
+The first visit opens a setup wizard where you create the administrator account, name the server and — optionally — enter your TMDB API key (it is checked with TMDB before it is saved; you can also add it later). The wizard can only run once — as soon as an administrator exists it is closed. Next, add your libraries: **Admin → Libraries → Add library**, choose Movies or TV Shows and pick the folder with **Browse** (only folders inside `MEDIA_ROOTS` are shown; with Docker these are the folders inside the container, for example `/media/movies`) or type its path. When Vidalune may not read a folder, it says so; with the Debian package it also shows the command that gives access. The first scan starts immediately.
 
 ## TMDB metadata
 

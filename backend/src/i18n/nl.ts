@@ -87,6 +87,8 @@ export const nl: Record<string, string> = {
   'Folder {path} does not exist inside the container. Check your volume mounts.': 'De map {path} bestaat niet in de container. Controleer je volume-koppelingen.',
   '{path} is not a folder.': '{path} is geen map.',
   'Libraries must be inside {roots} (MEDIA_ROOTS).': 'Bibliotheken moeten binnen {roots} (MEDIA_ROOTS) liggen.',
+  'Vidalune may not read {path}. Give it access on the server with: {command}': 'Vidalune mag {path} niet lezen. Geef toegang op de server met: {command}',
+  'Vidalune (user {user}) may not read {path}. Give that user read access to it (with Docker: set PUID and PGID to the owner of your media).': 'Vidalune (gebruiker {user}) mag {path} niet lezen. Geef die gebruiker leesrechten (met Docker: zet PUID en PGID op de eigenaar van je media).',
   'This folder overlaps with the library "{name}".': 'Deze map overlapt met de bibliotheek "{name}".',
   'This library is being scanned. Try again when the scan finishes.': 'Deze bibliotheek wordt gescand. Probeer het opnieuw als de scan klaar is.',
   'Wait for the current scan to finish before changing the folder.': 'Wacht tot de huidige scan klaar is voordat je de map wijzigt.',

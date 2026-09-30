@@ -64,7 +64,7 @@ Version: $VERSION
 Architecture: $ARCH
 Maintainer: Vidalune <support@vidalune.com>
 Installed-Size: $(du -sk "$PKG" | cut -f1)
-Depends: ffmpeg, adduser, libc6 (>= 2.28), libstdc++6
+Depends: ffmpeg, acl, adduser, libc6 (>= 2.28), libstdc++6
 Section: video
 Priority: optional
 Homepage: https://vidalune.com

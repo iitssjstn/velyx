@@ -86,11 +86,47 @@ describe('installing Vidalune from vidalune.com', () => {
     const page = (await app.inject({ url: '/install' })).body;
     expect(page).toContain('Without Docker (Debian/Ubuntu)');
     expect(page).toContain('curl -fLo vidalune.deb https://vidalune.example/download/deb/amd64');
-    expect(page).toContain('sudo usermod -aG &lt;group&gt; vidalune');
-    expect(page).toContain('MEDIA_ROOTS');
+    expect(page).toContain('curl -fsSL https://vidalune.example/get-deb | sudo sh');
+    expect(page).toContain('Admin → Libraries');
     const nl = (await app.inject({ url: '/install?lang=nl' })).body;
     expect(nl).toContain('Zonder Docker (Debian/Ubuntu)');
     expect(nl).toContain('Beheer → Bibliotheken');
+  });
+
+  it('hands out a Debian/Ubuntu installer that installs the right package with apt (so FFmpeg comes along)', async () => {
+    const res = await app.inject({ url: '/get-deb' });
+    expect(res.headers['content-type']).toContain('text/plain');
+    const script = res.body;
+    expect(spawnSync('sh', ['-n'], { input: script }).status).toBe(0);
+
+    // Stand-ins that record what they were asked: root, an arm64 Debian with apt and curl.
+    const bin = path.join(dir, 'bin');
+    fs.mkdirSync(bin);
+    const fake = (name: string, body: string) => fs.writeFileSync(path.join(bin, name), `#!/bin/sh\necho "${name} $@" >> "${dir}/calls.log"\n${body}\n`, { mode: 0o755 });
+    fake('id', 'echo 0');
+    fake('dpkg', 'echo arm64');
+    fake('apt-get', '');
+    fake('curl', 'while [ $# -gt 0 ]; do [ "$1" = -o ] && { shift; echo deb > "$1"; }; shift; done');
+    fake('hostname', 'echo 192.168.1.20');
+    const run = spawnSync('sh', [], { input: script, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8' });
+    expect(run.status, run.stderr).toBe(0);
+    const calls = fs.readFileSync(path.join(dir, 'calls.log'), 'utf8');
+    expect(calls).toContain('apt-get update -qq');
+    expect(calls).toContain('https://vidalune.example/download/deb/arm64');
+    expect(calls).toMatch(/apt-get install -y -qq \S+\/vidalune\.deb/);
+    expect(run.stdout).toContain('http://192.168.1.20:3000');
+
+    // Not as root: it says how, and changes nothing.
+    fake('id', 'echo 1000');
+    const user = spawnSync('sh', [], { input: script, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8' });
+    expect(user.status).toBe(1);
+    expect(user.stdout).toContain('| sudo sh');
+    // Another processor: it points to Docker.
+    fake('id', 'echo 0');
+    fake('dpkg', 'echo armhf');
+    const armhf = spawnSync('sh', [], { input: script, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8' });
+    expect(armhf.status).toBe(1);
+    expect(armhf.stdout).toContain('Docker');
   });
 
   it('hands out an installer that writes the compose file and starts Vidalune', async () => {

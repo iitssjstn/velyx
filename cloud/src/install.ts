@@ -87,6 +87,54 @@ say "Vidalune is running. Open http://\${ADDRESS:-this-server}:3000 in your brow
 `;
 }
 
+/** The installer behind `curl -fsSL https://vidalune.com/get-deb | sudo sh`: the package for this computer, installed with apt (FFmpeg comes along). */
+export function debInstallScript(publicUrl: string): string {
+  return `#!/bin/sh
+# Vidalune installer for Debian and Ubuntu — ${publicUrl}/install
+# Downloads the Vidalune package for this computer and installs it with apt, which also installs
+# FFmpeg. Run it again to update; your settings and data stay.
+set -eu
+
+say() { printf '%s\\n' "$*"; }
+
+if [ "$(id -u)" != "0" ]; then
+  say "Run this as root: curl -fsSL ${publicUrl}/get-deb | sudo sh"
+  exit 1
+fi
+if ! command -v apt-get > /dev/null 2>&1 || ! command -v dpkg > /dev/null 2>&1; then
+  say "This installer is for Debian and Ubuntu. On other systems, install Vidalune with Docker: ${publicUrl}/install"
+  exit 1
+fi
+ARCH=$(dpkg --print-architecture)
+case "$ARCH" in
+  amd64|arm64) ;;
+  *) say "There is no Vidalune package for $ARCH (only amd64 and arm64). Install Vidalune with Docker instead: ${publicUrl}/install"; exit 1 ;;
+esac
+
+export DEBIAN_FRONTEND=noninteractive
+say "Updating the package lists…"
+apt-get update -qq
+if ! command -v curl > /dev/null 2>&1; then
+  apt-get install -y -qq curl > /dev/null
+fi
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+chmod 0755 "$TMP"
+say "Downloading Vidalune for $ARCH…"
+curl -fsSL -o "$TMP/vidalune.deb" "${publicUrl}/download/deb/$ARCH"
+chmod 0644 "$TMP/vidalune.deb"
+say "Installing Vidalune and FFmpeg…"
+apt-get install -y -qq "$TMP/vidalune.deb"
+
+PORT=$(sed -n 's/^PORT=\\([0-9]*\\).*/\\1/p' /etc/vidalune/vidalune.env 2> /dev/null | tail -n 1)
+ADDRESS=$(hostname -I 2> /dev/null | awk '{print $1}')
+say ""
+say "Vidalune is running. Open http://\${ADDRESS:-this-computer}:\${PORT:-3000} in your browser to create your administrator account,"
+say "then add your media folders under Admin → Libraries (Browse)."
+`;
+}
+
 const TEXT = {
   en: {
     title: 'Install Vidalune',
@@ -101,9 +149,11 @@ const TEXT = {
     first: 'Then open http://<your-server>:3000 and create your administrator account. Metadata, users and libraries are set up there.',
     deb: 'Without Docker (Debian/Ubuntu)',
     debText: 'A package for Debian 12+ and Ubuntu 22.04+ that installs Vidalune as a service (it starts by itself with the computer). Choose the one for your processor: `uname -m` says x86_64 (amd64: most PCs and servers) or aarch64 (arm64: for example a Raspberry Pi 4/5 with a 64-bit system).',
-    debSteps: ['Download and install the package:', 'Put your movies and series in folders under /media, /mnt or /srv (for example /srv/media/movies and /srv/media/series), and let Vidalune read them. Vidalune runs as the user "vidalune": give it the group that owns your media (ls -ld shows it), then restart it:', 'Media in another folder, for example in your home folder? Add that folder to MEDIA_ROOTS in the settings, run Vidalune as your own user, and restart:', 'Open http://<your-server>:3000, create your administrator account and add your folders under Admin → Libraries.'],
+    debQuick: 'Quickest: run this on the computer. It picks the right package, installs it together with FFmpeg and starts Vidalune (run it again to update):',
+    debManual: 'Or by hand: download the package and install it with apt (apt also installs FFmpeg; with dpkg -i, run sudo apt-get install -f afterwards):',
+    debFolders: 'Then open http://<your-server>:3000, create your administrator account and add your movies and series under Admin → Libraries: Browse to the folder and choose it. If Vidalune may not read a folder, it shows the one command that gives it access; run it and add the folder again.',
     debNone: 'The package is not available for download right now.',
-    debUpdate: 'To update, download the new package and install it the same way; your settings (/etc/vidalune/vidalune.env) and data (/var/lib/vidalune) stay.',
+    debUpdate: 'To update, run the installer again (or install the new package the same way); your settings (/etc/vidalune/vidalune.env) and data (/var/lib/vidalune) stay.',
     update: 'Updating',
     updateText: 'Vidalune tells administrators when there is a new version. To update, run in the same folder:',
     app: 'Android app',
@@ -127,9 +177,11 @@ const TEXT = {
     first: 'Open daarna http://<je-server>:3000 en maak je beheerdersaccount. Metadata, gebruikers en bibliotheken stel je daar in.',
     deb: 'Zonder Docker (Debian/Ubuntu)',
     debText: 'Een pakket voor Debian 12+ en Ubuntu 22.04+ dat Vidalune als dienst installeert (hij start vanzelf met de computer). Kies het pakket voor je processor: `uname -m` zegt x86_64 (amd64: de meeste pc\'s en servers) of aarch64 (arm64: bijvoorbeeld een Raspberry Pi 4/5 met een 64-bits systeem).',
-    debSteps: ['Download en installeer het pakket:', 'Zet je films en series in mappen onder /media, /mnt of /srv (bijvoorbeeld /srv/media/films en /srv/media/series) en laat Vidalune ze lezen. Vidalune draait als gebruiker "vidalune": geef die de groep die eigenaar is van je media (ls -ld laat hem zien) en herstart hem:', 'Staat je media in een andere map, bijvoorbeeld in je thuismap? Zet die map bij MEDIA_ROOTS in de instellingen, laat Vidalune als je eigen gebruiker draaien en herstart:', 'Open http://<je-server>:3000, maak je beheerdersaccount en voeg je mappen toe onder Beheer → Bibliotheken.'],
+    debQuick: 'Het snelst: voer dit uit op de computer. Het kiest het juiste pakket, installeert het samen met FFmpeg en start Vidalune (nog eens uitvoeren werkt het bij):',
+    debManual: 'Of met de hand: download het pakket en installeer het met apt (apt installeert FFmpeg ook; met dpkg -i voer je daarna sudo apt-get install -f uit):',
+    debFolders: 'Open daarna http://<je-server>:3000, maak je beheerdersaccount en voeg je films en series toe onder Beheer → Bibliotheken: blader naar de map en kies hem. Mag Vidalune een map niet lezen, dan laat hij het ene commando zien dat toegang geeft; voer het uit en voeg de map opnieuw toe.',
     debNone: 'Het pakket is nu niet te downloaden.',
-    debUpdate: 'Bijwerken: download het nieuwe pakket en installeer het op dezelfde manier; je instellingen (/etc/vidalune/vidalune.env) en data (/var/lib/vidalune) blijven staan.',
+    debUpdate: 'Bijwerken: voer het installatiecommando nog eens uit (of installeer het nieuwe pakket op dezelfde manier); je instellingen (/etc/vidalune/vidalune.env) en data (/var/lib/vidalune) blijven staan.',
     update: 'Bijwerken',
     updateText: 'Vidalune laat beheerders weten wanneer er een nieuwe versie is. Bijwerken doe je in dezelfde map met:',
     app: 'Android-app',
@@ -173,12 +225,9 @@ export function installPage(lang: Lang, publicUrl: string, version: string, hasA
         <p>${escape(t.debText)}</p>
         ${
           hasDeb
-            ? `<ol>
-          <li>${escape(t.debSteps[0])}${code(`curl -fLo vidalune.deb ${publicUrl}/download/deb/amd64\nsudo apt install ./vidalune.deb`)}<p class="small">arm64: ${escape(`${publicUrl}/download/deb/arm64`)}</p></li>
-          <li>${escape(t.debSteps[1])}${code('ls -ld /srv/media/movies\nsudo usermod -aG <group> vidalune\nsudo systemctl restart vidalune')}</li>
-          <li>${escape(t.debSteps[2])}${code('sudo nano /etc/vidalune/vidalune.env      # MEDIA_ROOTS=/media,/mnt,/srv,/home/<you>/Media\nsudo systemctl edit vidalune               # [Service] User=<you> Group=<you>\nsudo chown -R <you>: /var/lib/vidalune\nsudo systemctl restart vidalune')}</li>
-          <li>${escape(t.debSteps[3])}</li>
-        </ol>
+            ? `<p>${escape(t.debQuick)}</p>${code(`curl -fsSL ${publicUrl}/get-deb | sudo sh`)}
+        <p>${escape(t.debManual)}</p>${code(`curl -fLo vidalune.deb ${publicUrl}/download/deb/amd64\nsudo apt install ./vidalune.deb`)}<p class="small">arm64: ${escape(`${publicUrl}/download/deb/arm64`)}</p>
+        <p>${escape(t.debFolders)}</p>
         <p>${escape(t.debUpdate)}</p>`
             : `<p>${escape(t.debNone)}</p>`
         }

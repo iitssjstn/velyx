@@ -13,7 +13,7 @@ import type { DB } from './db/client.js';
 import { accountActivity, accountSessions, accounts, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
 import { newSlug, Relay, relayMessage, type Rewrite } from './relay.js';
-import { composeFile, installPage, installScript } from './install.js';
+import { composeFile, installPage, debInstallScript, installScript } from './install.js';
 import { homePage, pickLanguage } from './site.js';
 import { detectionRoutes } from './detection.js';
 import { CeoError, ceoRoutes } from './ceo.js';
@@ -785,6 +785,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     reply.type('text/yaml; charset=utf-8').header('Content-Disposition', 'attachment; filename="docker-compose.yml"').send(composeFile()),
   );
   app.get('/get', async (_request, reply) => reply.type('text/plain; charset=utf-8').header('Cache-Control', 'no-cache').send(installScript(config.publicUrl)));
+  app.get('/get-deb', async (_request, reply) => reply.type('text/plain; charset=utf-8').header('Cache-Control', 'no-cache').send(debInstallScript(config.publicUrl)));
 
   /** The newest Android app. */
   app.get('/download/app', async (_request, reply) => {

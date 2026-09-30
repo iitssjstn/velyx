@@ -3,13 +3,13 @@
 # Uses the settings of the service and runs as its user, so files in the data folder keep the right owner.
 set -eu
 DATA_DIR=/var/lib/vidalune
-MEDIA_ROOTS=/media,/mnt,/srv
+MEDIA_ROOTS=/
 if [ -r /etc/vidalune/vidalune.env ]; then
   set -a
   . /etc/vidalune/vidalune.env
   set +a
 fi
-export DATA_DIR MEDIA_ROOTS NODE_ENV=production
+export DATA_DIR MEDIA_ROOTS NODE_ENV=production VIDALUNE_PACKAGE=deb
 NODE=/opt/vidalune/node/bin/node
 CLI=/opt/vidalune/app/backend/dist/cli.js
 if [ "$(id -u)" = "0" ]; then
