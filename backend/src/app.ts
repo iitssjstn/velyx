@@ -31,6 +31,7 @@ import { StreamTracker } from './services/streams.js';
 import { DetailAnalyzer } from './services/compatibility-report.js';
 import { UpdateChecker } from './services/updates.js';
 import { ffmpegAudioReader, SegmentDetector, type AudioReader } from './services/segments/detector.js';
+import { SharedDetection } from './services/segments/shared.js';
 import { ffmpegFrameReader, ffprobeChapterReader, type ChapterReader, type FrameReader } from './services/segments/readers.js';
 import { PlaybackRegistry } from './playback/engine.js';
 import { DirectPlayEngine } from './playback/direct-play.js';
@@ -94,6 +95,7 @@ export interface AppContext {
   cleanupScheduler: CleanupScheduler;
   /** Link to a Vidalune account (opt-in). */
   cloud: CloudService;
+  sharedDetection: SharedDetection;
   /** Opening a port on the router (opt-in). */
   upnp: UpnpService;
   /** Requests through Seerr (optional). */
@@ -162,6 +164,8 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     },
     onScanFailed: (libraryId, message) => notifications.notify('scanFailed', { library: libraryName(libraryId), reason: message }),
   });
+  const cloud = new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, now: opts.cloudNow });
+  const sharedDetection = new SharedDetection(db, cloud, () => settings.get().sharedDetection);
   const segments: SegmentDetector = new SegmentDetector(db, opts.audioReader ?? ffmpegAudioReader(config.ffmpegPath), {
     enabled: () => settings.get().segmentDetection,
     // Watching does not stop detection: it goes slower, and waits only when the machine is busy.
@@ -169,6 +173,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     pace: () => (streams.active().length > 0 ? (opts.segmentPaceMs ?? 3000) : 0),
     video: () => settings.get().segmentVideo,
     retryMs: opts.segmentRetryMs,
+    shared: sharedDetection,
   }, {
     frames: opts.frameReader === null ? undefined : (opts.frameReader ?? ffmpegFrameReader(config.ffmpegPath)),
     chapters: opts.chapterReader === null ? undefined : (opts.chapterReader ?? ffprobeChapterReader(config.ffprobePath)),
@@ -209,7 +214,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     fetchImpl: opts.fetchImpl,
     userAgent: `Vidalune v${APP_VERSION}`,
   });
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud: new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, now: opts.cloudNow }), upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr: new SeerrService({ settings, fetchImpl: opts.fetchImpl }), startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr: new SeerrService({ settings, fetchImpl: opts.fetchImpl }), startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

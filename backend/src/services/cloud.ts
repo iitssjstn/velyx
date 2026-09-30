@@ -116,6 +116,29 @@ export class CloudService {
     return (await res.json()) as T;
   }
 
+  /** Registers this server with the account service once (for shared detection; linking not needed). */
+  async ensureRegistered(): Promise<void> {
+    if (this.deps.settings.get().cloud) return;
+    const reg = await this.call<{ id: string; secret: string }>('POST', '/api/server/register', this.about(), false);
+    this.deps.settings.update({ cloud: { serverId: reg.id, secret: reg.secret, account: null } });
+    this.start();
+  }
+
+  /** Whether this server is known to the account service (registered). */
+  registered(): boolean {
+    return !!this.deps.settings.get().cloud;
+  }
+
+  /** Shared detection: a season's profile (what servers agree on, fingerprints). */
+  detectionProfile<T>(tmdbShow: number, season: number): Promise<T> {
+    return this.call<T>('GET', `/api/detection/${tmdbShow}/${season}`);
+  }
+
+  /** Shared detection: reports what this server found in a season; answers with the new profile. */
+  reportDetection<T>(body: unknown): Promise<T> {
+    return this.call<T>('POST', '/api/detection/reports', body);
+  }
+
   /** Turns linking on (registering once) and returns a fresh code to enter on the account page. */
   async link(userId?: number): Promise<CloudStatus> {
     if (!this.deps.settings.get().cloud) {

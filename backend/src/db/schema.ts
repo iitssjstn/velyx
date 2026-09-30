@@ -595,7 +595,7 @@ export const episodeSegments = sqliteTable('episode_segments', {
   recapStart: real('recap_start'),
   recapEnd: real('recap_end'),
   recapConfidence: text('recap_confidence', { enum: ['high', 'medium', 'low'] }),
-  recapSource: text('recap_source', { enum: ['chapters', 'audio', 'manual'] }),
+  recapSource: text('recap_source', { enum: ['chapters', 'audio', 'manual', 'shared'] }),
   introStart: real('intro_start'),
   introEnd: real('intro_end'),
   introConfidence: text('intro_confidence', { enum: ['high', 'medium', 'low'] }),
@@ -603,8 +603,8 @@ export const episodeSegments = sqliteTable('episode_segments', {
   creditsEnd: real('credits_end'),
   creditsConfidence: text('credits_confidence', { enum: ['high', 'medium', 'low'] }),
   /** Where each part was found: chapter markers, the picture, recurring audio or by hand. */
-  introSource: text('intro_source', { enum: ['chapters', 'video', 'audio', 'manual'] }),
-  creditsSource: text('credits_source', { enum: ['chapters', 'video', 'audio', 'manual'] }),
+  introSource: text('intro_source', { enum: ['chapters', 'video', 'audio', 'manual', 'shared'] }),
+  creditsSource: text('credits_source', { enum: ['chapters', 'video', 'audio', 'manual', 'shared'] }),
   postCreditsStart: real('post_credits_start'),
   postCreditsEnd: real('post_credits_end'),
   status: text('status', { enum: ['analyzed', 'error'] }).notNull(),
@@ -613,7 +613,27 @@ export const episodeSegments = sqliteTable('episode_segments', {
   version: integer('version').notNull(),
   manual: integer('manual', { mode: 'boolean' }).notNull().default(false),
   detectedAt: integer('detected_at').notNull().default(now),
+  /**
+   * Shared detection (when on): pending = only this server found it so far, shared = another
+   * server agrees, verified = three or more agree. Null: found here only (sharing off).
+   */
+  shareState: text('share_state', { enum: ['pending', 'shared', 'verified'] }),
 });
+
+/**
+ * Shared detection profiles from vidalune.com (a season: timings servers agree on, fingerprints),
+ * kept so detection works the same when vidalune.com cannot be reached.
+ */
+export const sharedDetectionCache = sqliteTable(
+  'shared_detection_cache',
+  {
+    tmdbShow: integer('tmdb_show').notNull(),
+    season: integer('season').notNull(),
+    profile: text('profile').notNull(),
+    fetchedAt: integer('fetched_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.tmdbShow, t.season] })],
+);
 
 /**
  * What was read of an episode's audio (fingerprints) and file (chapters, credits in the picture),

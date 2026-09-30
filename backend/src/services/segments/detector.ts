@@ -10,6 +10,7 @@ import { diagnoseSeason, type SeasonDiagnosis } from './diagnose.js';
 import { chapterSegments, type ChapterSegments } from './chapters.js';
 import { findCredits, refineStart, type VisualCredits } from './visual.js';
 import type { ChapterReader, FrameReader } from './readers.js';
+import { sharedFor, sharedReferences, type SharedProfile } from './shared.js';
 
 const log = createLogger('segments');
 
@@ -63,6 +64,11 @@ export interface DetectorHooks {
   pace?: () => number;
   /** How often a waiting job looks again (default 30 s). */
   retryMs?: number;
+  /** Shared detection (optional): other servers' results for a season, and reporting ours. */
+  shared?: {
+    profile(showId: number, seasonNumber: number): Promise<SharedProfile | null>;
+    report(showId: number, seasonNumber: number): Promise<void>;
+  };
 }
 
 interface SeasonJob {
@@ -78,7 +84,20 @@ export interface DetectorStatus {
   waitingFor: 'playback' | 'scan' | null;
   running: { showId: number; showTitle: string; seasonNumber: number; done: number; total: number } | null;
   queuedSeasons: number;
-  counts: { episodes: number; analyzed: number; recaps: number; intros: number; credits: number; pending: number; errors: number; manual: number; lowConfidence: number };
+  counts: {
+    episodes: number;
+    analyzed: number;
+    recaps: number;
+    intros: number;
+    credits: number;
+    pending: number;
+    errors: number;
+    manual: number;
+    lowConfidence: number;
+    /** Shared detection: episodes with a part taken from other servers, and results others agree with. */
+    fromShared: number;
+    confirmed: number;
+  };
   version: number;
 }
 
@@ -278,6 +297,8 @@ export class SegmentDetector {
         errors: current.filter((r) => r.status === 'error').length,
         manual: current.filter((r) => r.manual).length,
         lowConfidence: current.filter((r) => !r.manual && (r.introConfidence === 'low' || r.creditsConfidence === 'low')).length,
+        fromShared: current.filter((r) => r.recapSource === 'shared' || r.introSource === 'shared' || r.creditsSource === 'shared').length,
+        confirmed: current.filter((r) => r.shareState === 'shared' || r.shareState === 'verified').length,
       },
       version: DETECTION_VERSION,
     };
@@ -388,7 +409,11 @@ export class SegmentDetector {
     }
     if (this.stopped) return;
 
-    const refs = this.references(job.showId, job.seasonNumber);
+    // Other servers' fingerprints of this season's intro and credits count as references too.
+    const shared = (await this.hooks.shared?.profile(job.showId, job.seasonNumber).catch(() => null)) ?? null;
+    const local = this.references(job.showId, job.seasonNumber);
+    const extra = sharedReferences(shared);
+    const refs = { intro: [...local.intro, ...extra.intro], credits: [...local.credits, ...extra.credits] };
     const known = new Map(
       this.db
         .select()
@@ -410,11 +435,28 @@ export class SegmentDetector {
     for (const id of pendingIds) {
       const f = byId.get(id)!;
       const error = failed.get(id);
-      const d = results.get(id);
-      if (error || !d) this.store(f, null, error ?? 'Not analysed', now);
+      let d = results.get(id);
+      // What was not found here (or not surely) comes from what other servers agree on, when they
+      // looked at the same cut of the episode — also for a file whose audio could not be read.
+      if (shared) {
+        const theirs = sharedFor(shared, f.episodeNumber, f.duration);
+        const base: Detection = d ?? { recap: null, intro: null, credits: null, postCredits: null, introFrames: null, creditsFrames: null };
+        let used = false;
+        for (const kind of ['recap', 'intro', 'credits'] as const) {
+          const t = theirs[kind];
+          const mine = base[kind];
+          if (!t || (mine && mine.confidence !== 'low')) continue;
+          base[kind] = { start: t.start, end: t.end, confidence: t.confidence, source: 'shared' };
+          used = true;
+        }
+        if (used) d = base;
+      }
+      if (!d || (error && !d.recap && !d.intro && !d.credits)) this.store(f, null, error ?? 'Not analysed', now);
       else this.store(f, d, null, now);
     }
     this.learnReferences(job, audio, results);
+    // Shared detection: report what was found here (in the background; never holds detection up).
+    void this.hooks.shared?.report(job.showId, job.seasonNumber).catch(() => undefined);
     // The whole-episode fingerprints are kept only for the season's last episode (its successor may come later).
     const last = files[files.length - 1]?.episodeId ?? -1;
     this.db

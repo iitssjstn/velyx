@@ -15,6 +15,7 @@ import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sh
 import { newSlug, Relay, relayMessage, type Rewrite } from './relay.js';
 import { composeFile, installPage, installScript } from './install.js';
 import { homePage, pickLanguage } from './site.js';
+import { detectionRoutes } from './detection.js';
 
 const DAY = 86_400_000;
 export const SESSION_COOKIE = 'vl_session';
@@ -510,6 +511,10 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     if (!row || !m || !crypto.timingSafeEqual(Buffer.from(row.secretHash), Buffer.from(sha256(m[2])))) throw new HttpError(401, 'Unknown server.');
     return row;
   }
+
+  // Shared detection: a few hundred calls an hour per server (a whole library the first time).
+  const detectionLimiter = new RateLimiter(600, 3_600_000);
+  detectionRoutes(app, { db, server, now, limit: (key) => detectionLimiter.check(key, now()) });
 
   const serverStatus = (s: typeof servers.$inferSelect) => {
     const owner = s.accountId ? db.select().from(accounts).where(eq(accounts.id, s.accountId)).get() : undefined;

@@ -27,7 +27,7 @@ function segmentView(row: Row | undefined) {
   return {
     status: row.status,
     error: row.error,
-    recap: part(row.recapStart, row.recapEnd, row.recapConfidence, row.recapSource === 'chapters' || row.recapSource === 'manual' ? row.recapSource : row.recapSource ? 'audio' : null),
+    recap: part(row.recapStart, row.recapEnd, row.recapConfidence, row.recapSource),
     intro: part(row.introStart, row.introEnd, row.introConfidence, row.introSource),
     credits: part(row.creditsStart, row.creditsEnd, row.creditsConfidence, row.creditsSource),
     postCredits: part(row.postCreditsStart, row.postCreditsEnd, null),
@@ -36,6 +36,8 @@ function segmentView(row: Row | undefined) {
     version: row.version,
     detectedAt: row.detectedAt,
     fileId: row.mediaFileId,
+    /** Shared detection: pending (only here so far), shared (another server agrees), verified (three or more); null: local only. */
+    shareState: row.shareState,
   };
 }
 
@@ -120,6 +122,8 @@ export async function segmentRoutes(app: FastifyInstance, ctx: AppContext): Prom
     if (body.intro && body.credits && body.intro.end > body.credits.start) throw new HttpError(400, 'The intro must end before the credits start.');
     if (body.credits && body.postCredits && body.postCredits.start < body.credits.end) throw new HttpError(400, 'The post-credits scene must start after the credits.');
     saveManualSegments(db, id, file ? { id: file.id, size: file.size } : null, body);
+    // Shared detection (when on): a correction by hand helps other servers too.
+    void ctx.sharedDetection.report(ep.showId, ep.seasonNumber);
     const parts = [body.recap ? 'recap' : null, body.intro ? 'intro' : null, body.credits ? 'credits' : null, body.postCredits ? 'post-credits' : null].filter(Boolean);
     ctx.audit.record('segments.edited', { actor: request.user, ip: request.ip, target: `episode ${id} (S${ep.seasonNumber}E${ep.episodeNumber})`, detail: parts.length ? parts.join(', ') : 'none' });
     return segmentView(db.select().from(episodeSegments).where(eq(episodeSegments.episodeId, id)).get());
