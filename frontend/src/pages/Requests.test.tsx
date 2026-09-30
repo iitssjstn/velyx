@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { RequestsPage } from './Requests';
+import { RequestPage } from './RequestDetail';
 import { SeerrSettings } from './admin/SeerrSettings';
 
 let role: 'admin' | 'user' = 'user';
@@ -22,7 +23,7 @@ function setup(ui: React.ReactNode, answer: (method: string, url: string, body: 
     const r = answer(method, url, body);
     return new Response(JSON.stringify(r ?? {}), { status: 200 });
   }));
-  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter>{ui}</MemoryRouter></QueryClientProvider>);
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><Routes><Route path="/" element={ui} /><Route path="/request/:type/:id" element={<RequestPage />} /></Routes></MemoryRouter></QueryClientProvider>);
   return calls;
 }
 
@@ -35,7 +36,7 @@ describe('requests through Seerr', () => {
       if (url === '/api/seerr') return { enabled: true };
       if (url === '/api/seerr/requests' && method === 'GET') return [{ id: 1, mediaType: 'movie', tmdbId: 1, title: 'Old Request', posterPath: null, state: 'declined', createdAt: 0 }];
       if (url.startsWith('/api/seerr/search')) return { results: [matrix, show, { ...matrix, tmdbId: 550, title: 'Already Here', inLibrary: true }] };
-      if (url === '/api/seerr/tv/1399') return { ...show, state: null, genres: ['Drama'], runtime: null, seasons: [{ seasonNumber: 1, episodeCount: 10 }, { seasonNumber: 2, episodeCount: 8 }] };
+      if (url === '/api/seerr/tv/1399') return { ...show, state: null, genres: ['Drama'], runtime: null, seasons: [{ seasonNumber: 1, episodeCount: 10, name: null, state: null }, { seasonNumber: 2, episodeCount: 8, name: null, state: null }], backdropPath: null, tagline: null, rating: null, releaseDate: null, cast: [] };
       if (url === '/api/seerr/requests' && method === 'POST') return { id: 2, title: 'A Show', state: 'requested' };
       return {};
     });
@@ -47,12 +48,13 @@ describe('requests through Seerr', () => {
     expect(screen.getByText('Being added')).toBeTruthy();
     expect(screen.getByTitle('In the library')).toBeTruthy();
 
+    // Its own page, with the seasons to choose from.
     await userEvent.click(screen.getByRole('button', { name: /A Show/ }));
-    const dialog = await screen.findByRole('dialog');
-    expect(await within(dialog).findByText('Season 2 · 8 episodes')).toBeTruthy();
-    await userEvent.click(within(dialog).getByLabelText('Season 2 · 8 episodes'));
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Request 1 season(s)' }));
-    expect(calls.find((c) => c.call === 'POST /api/seerr/requests')?.body).toEqual({ mediaType: 'tv', tmdbId: 1399, seasons: [1] });
+    expect(await screen.findByRole('heading', { name: 'A Show' })).toBeTruthy();
+    expect(await screen.findByText('Season 2 · 8 episodes')).toBeTruthy();
+    await userEvent.click(screen.getByLabelText('Season 2 · 8 episodes'));
+    await userEvent.click(screen.getByRole('button', { name: 'Request 1 season(s)' }));
+    await vi.waitFor(() => expect(calls.find((c) => c.call === 'POST /api/seerr/requests')?.body).toEqual({ mediaType: 'tv', tmdbId: 1399, seasons: [1] }));
   });
 
   it('says when Seerr is not set up', async () => {

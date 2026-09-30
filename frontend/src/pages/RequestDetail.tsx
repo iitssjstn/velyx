@@ -71,7 +71,7 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
 
   if (q.isLoading) return <DetailSkeleton />;
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
-  const d = q.data;
+  const d = { ...q.data, cast: q.data.cast ?? [], seasons: q.data.seasons ?? [], genres: q.data.genres ?? [] };
   const openSeasons = d.seasons.filter((s) => open(s.state));
   const canRequest = !d.inLibrary && (d.mediaType === 'movie' ? open(d.state) : openSeasons.length > 0);
   // A show: the seasons still open are chosen by default (null: all of them).
@@ -167,7 +167,7 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
 
       <div className="px-4 sm:px-8">
         <CastRow cast={d.cast.map((c) => ({ id: c.id, name: c.name, role: c.character, profilePath: c.profilePath }))} />
-        {(similar.data?.results.length ?? 0) > 0 && (
+        {(similar.data?.results?.length ?? 0) > 0 && (
           <div className="mt-12">
             <Shelf title={t('requests.page.similar')}>
               {similar.data!.results.map((r) => (

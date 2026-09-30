@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canRequest, DISCOVER_ROWS, discoverPath, discoverTarget, mergePages, toggleSeason, type SeerrResult } from './discover';
+import { canRequest, canRequestTitle, DISCOVER_ROWS, openSeasons, discoverPath, discoverTarget, mergePages, toggleSeason, type SeerrResult } from './discover';
 
 const r = (over: Partial<SeerrResult>): SeerrResult => ({ mediaType: 'movie', tmdbId: 1, title: 'X', year: null, overview: '', posterPath: null, state: null, inLibrary: false, local: null, ...over });
 
@@ -36,5 +36,15 @@ describe('discover', () => {
     expect(toggleSeason(null, [1, 2, 3], 3, false)).toEqual([1, 2]);
     expect(toggleSeason([1, 2], [1, 2, 3], 3, true)).toBeNull();
     expect(toggleSeason([1], [1, 2, 3], 1, false)).toEqual([]);
+  });
+
+  it('requests only the seasons of a show still open', () => {
+    const show = { mediaType: 'tv' as const, inLibrary: false, state: 'partiallyAvailable' as const, seasons: [{ seasonNumber: 1, episodeCount: 8, state: 'available' as const }, { seasonNumber: 2, episodeCount: 8, state: 'declined' as const }, { seasonNumber: 3, episodeCount: 8, state: null }] };
+    expect(openSeasons(show)).toEqual([2, 3]);
+    expect(canRequestTitle(show)).toBe(true);
+    expect(canRequestTitle({ ...show, seasons: show.seasons.map((s) => ({ ...s, state: 'processing' as const })) })).toBe(false);
+    // A movie, or a server that does not tell seasons apart: the title as a whole.
+    expect(canRequestTitle({ mediaType: 'movie', inLibrary: false, state: 'processing', seasons: [] })).toBe(false);
+    expect(canRequestTitle({ mediaType: 'tv', inLibrary: false, state: null, seasons: [] })).toBe(true);
   });
 });
