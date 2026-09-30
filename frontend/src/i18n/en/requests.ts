@@ -50,6 +50,16 @@ export const requests = {
       fantasy: 'Sci-fi & fantasy',
     },
   },
+  page: {
+    requestHint: 'The server’s administrator decides what happens with a request.',
+    seasonsCount: '{n} seasons',
+    allRequested: 'Everything of this show has been requested.',
+    similar: 'You may also like',
+    reset: 'Make requestable again',
+    resetTitle: 'Make this requestable again?',
+    resetText: 'Every request for “{title}” is cancelled in Seerr (also ones made outside Vidalune) and Seerr forgets it, so it can be requested again. Nothing in the library is touched.',
+    resetDone: '“{title}” can be requested again.',
+  },
   states: {
     requested: 'Requested',
     approved: 'Approved',

@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router-dom';
 import { Search as SearchIcon, X } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { ConfirmModal } from '../components/Modal';
 import { toast } from '../components/Toast';
 import { api } from '../lib/api';
 import { Button } from '../components/Button';
-import { DetailModal, DiscoverCard, Poster, StateBadge, useOpenLocal, type MyRequest, type SeerrResult } from '../components/Discover';
+import { DiscoverCard, Poster, StateBadge, useOpenLocal, type MyRequest, type SeerrResult } from '../components/Discover';
 import { ErrorState, PageLoader } from '../components/States';
 import { useT } from '../i18n';
 
@@ -80,10 +81,10 @@ export function RequestsPage() {
   const { user } = useAuth();
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
-  const [open, setOpen] = useState<SeerrResult | null>(null);
   const openLocal = useOpenLocal();
-  // What is here plays; the rest opens its details with the request button.
-  const select = (r: SeerrResult) => (r.local ? void openLocal.open(r.local) : setOpen(r));
+  const navigate = useNavigate();
+  // What is here plays; the rest opens its own page with the request button.
+  const select = (r: SeerrResult) => (r.local ? void openLocal.open(r.local) : navigate(`/request/${r.mediaType}/${r.tmdbId}`));
   const status = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr') });
   const results = useQuery({
     queryKey: ['seerr', 'search', query],
@@ -136,7 +137,9 @@ export function RequestsPage() {
                   <Poster path={r.posterPath} title={r.title} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{r.title}</p>
+                  <Link to={`/request/${r.mediaType}/${r.tmdbId}`} className="block truncate font-medium hover:text-accent">
+                    {r.title}
+                  </Link>
                   <p className="text-xs text-muted">{r.mediaType === 'movie' ? t('requests.movie') : t('requests.tv')} · {new Date(r.createdAt).toLocaleDateString()}</p>
                 </div>
                 <StateBadge state={r.state} />
@@ -146,7 +149,6 @@ export function RequestsPage() {
         )}
       </section>
       {user?.role === 'admin' && <AllRequests />}
-      {open && <DetailModal item={open} onClose={() => setOpen(null)} />}
     </div>
   );
 }

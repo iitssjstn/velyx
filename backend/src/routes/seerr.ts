@@ -118,6 +118,13 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return withLibrary([d], request.user!)[0];
   });
 
+  /** Titles like this one, for its page (what is here opens straight away). */
+  app.get('/api/seerr/:type/:id/recommendations', { preHandler: requireUser }, async (request) => {
+    const p = z.object({ type: mediaType, id: tmdbId }).parse(request.params);
+    const r = await ctx.seerr.recommendations(p.type, p.id, lang(request.user!.language));
+    return { ...r, results: withLibrary(r.results, request.user!) };
+  });
+
   const recent = new Map<number, number[]>();
   app.post('/api/seerr/requests', { preHandler: requireUser }, async (request) => {
     const body = z.object({ mediaType, tmdbId, seasons: z.array(z.number().int().min(1).max(1000)).max(200).nullable().default(null) }).parse(request.body);
@@ -128,7 +135,15 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     // Title and poster from Seerr itself (never taken from the browser).
     const d = await ctx.seerr.details(body.mediaType, body.tmdbId, lang(user.language));
     if (inLibrary([d])(d) !== null) throw new HttpError(409, 'This is already in the library.');
-    const r = await ctx.seerr.request(body.mediaType, body.tmdbId, body.mediaType === 'tv' ? body.seasons : null);
+    // A show with seasons requested before: only the others can be asked for.
+    let seasons = body.seasons;
+    if (body.mediaType === 'tv') {
+      const open = d.seasons.filter((s) => s.state === null || s.state === 'declined' || s.state === 'failed').map((s) => s.seasonNumber);
+      if (seasons) seasons = seasons.filter((n) => open.includes(n));
+      else if (open.length < d.seasons.length) seasons = open;
+      if (seasons && seasons.length === 0) throw new HttpError(409, 'This has already been requested.');
+    }
+    const r = await ctx.seerr.request(body.mediaType, body.tmdbId, body.mediaType === 'tv' ? seasons : null);
     mine.push(now);
     recent.set(user.id, mine);
     const row = db
@@ -187,7 +202,26 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     // Seerr no longer having it is fine: it is removed here too.
     const inSeerr = await ctx.seerr.cancel(row.seerrId);
     db.delete(seerrRequests).where(eq(seerrRequests.id, id)).run();
+    // No other request left for it: requestable again (instead of "being added" for good).
+    try {
+      await ctx.seerr.resetIfUnrequested(row.mediaType as 'movie' | 'tv', row.tmdbId);
+    } catch {
+      /* Seerr away: the request itself is gone; resetting the title is possible from its page */
+    }
     ctx.audit.record('seerr.cancelled', { actor: request.user, ip: request.ip, target: row.title, detail: inSeerr ? undefined : 'no longer at Seerr' });
     return { ok: true, inSeerr };
+  });
+
+  /**
+   * Makes a title requestable again: every request for it is cancelled in Seerr (whoever made it,
+   * also outside Vidalune) and Seerr forgets it. Not for what is (partly) available already.
+   */
+  app.delete('/api/admin/seerr/media/:type/:id', { preHandler: requireAdmin }, async (request) => {
+    const p = z.object({ type: mediaType, id: tmdbId }).parse(request.params);
+    const r = await ctx.seerr.reset(p.type, p.id);
+    const mine = db.select().from(seerrRequests).where(and(eq(seerrRequests.mediaType, p.type), eq(seerrRequests.tmdbId, p.id))).all();
+    db.delete(seerrRequests).where(and(eq(seerrRequests.mediaType, p.type), eq(seerrRequests.tmdbId, p.id))).run();
+    ctx.audit.record('seerr.reset', { actor: request.user, ip: request.ip, target: mine[0]?.title ?? `${p.type} ${p.id}`, detail: `${r.requests} request(s)` });
+    return { ok: true, requests: r.requests };
   });
 }

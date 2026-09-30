@@ -52,6 +52,7 @@ const AUDIT_ACTIONS: Record<string, MessageKey> = {
   'seerr.settings': 'audit.actions.seerrSettings',
   'seerr.requested': 'audit.actions.seerrRequested',
   'seerr.cancelled': 'audit.actions.seerrCancelled',
+  'seerr.reset': 'audit.actions.seerrReset',
   'upnp.on': 'audit.actions.upnpOn',
   'upnp.off': 'audit.actions.upnpOff',
   'invite.created': 'audit.actions.inviteCreated',

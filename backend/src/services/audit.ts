@@ -54,6 +54,7 @@ export type AuditAction =
   | 'seerr.settings'
   | 'seerr.requested'
   | 'seerr.cancelled'
+  | 'seerr.reset'
   | 'upnp.on'
   | 'upnp.off'
   | 'invite.created'

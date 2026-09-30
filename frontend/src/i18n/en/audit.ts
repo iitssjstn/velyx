@@ -42,6 +42,7 @@ export const audit = {
     seerrSettings: 'Changed the Seerr connection',
     seerrRequested: 'Requested through Seerr',
     seerrCancelled: 'Cancelled a Seerr request',
+    seerrReset: 'Made a title requestable again (Seerr)',
     upnpOn: 'Opened a port on the router (UPnP)',
     upnpOff: 'Closed the port on the router (UPnP)',
     inviteCreated: 'Made an invitation',
