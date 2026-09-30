@@ -77,3 +77,36 @@ header .site-links a { color: var(--muted); text-decoration: none; }
 @media (max-width: 640px) { .site-header nav { order: 3; width: 100%; } .hero { padding: 40px 0 32px; } }
 .actions.wrap { flex-wrap: wrap; margin-bottom: 12px; }
 .actions.wrap button { padding: 6px 10px; font-size: 14px; }
+
+/* ---- the CEO panel (/ceo) */
+main.ceo { max-width: 1080px; }
+.ceo-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 24px; border-bottom: 1px solid var(--line); }
+.ceo-tabs a { color: var(--muted); text-decoration: none; padding: 8px 12px; border-bottom: 2px solid transparent; }
+.ceo-tabs a[aria-current='page'] { color: var(--ink); border-bottom-color: var(--accent); }
+.ceo h2 { font-size: 18px; margin: 24px 0 12px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 8px; }
+.tile { background: var(--raised); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+.tile strong { font-size: 24px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.filters input { width: auto; flex: 1 1 220px; margin: 0; }
+.ceo .row { gap: 12px; flex-wrap: wrap; }
+.ceo .row label { flex: 1 1 160px; }
+.ceo .actions { justify-content: flex-start; margin-top: 8px; }
+.badge { font-size: 12px; border-radius: 999px; padding: 2px 10px; border: 1px solid var(--line); color: var(--muted); }
+.badge.customer { color: var(--accent); border-color: var(--accent); }
+button.danger { color: var(--danger); border-color: var(--danger); }
+.notice { color: var(--ink); }
+.charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 16px; }
+.chart-card { margin: 0; }
+.chart-card figcaption { color: var(--ink); font-weight: 600; margin-bottom: 8px; }
+svg.chart { width: 100%; height: auto; display: block; }
+svg.chart .grid { stroke: var(--line); stroke-width: 1; }
+svg.chart .axis { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+svg.chart .bar { fill: var(--accent); }
+svg.chart .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+svg.chart .hit { fill: transparent; }
+svg.chart .hit:hover, svg.chart .hit:focus { fill: rgba(255, 255, 255, 0.06); outline: none; }
+.chart-tip { position: absolute; z-index: 10; background: var(--ink); color: var(--bg); font-size: 13px; padding: 4px 8px; border-radius: 6px; pointer-events: none; white-space: nowrap; }
+table.data { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--muted); }
+table.data th, table.data td { text-align: left; padding: 4px 8px; border-top: 1px solid var(--line); }
+table.data td:last-child, table.data th:last-child { text-align: right; font-variant-numeric: tabular-nums; }

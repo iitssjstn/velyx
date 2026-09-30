@@ -260,6 +260,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const token = newToken();
     const t = now();
     const days = client === 'app' ? APP_SESSION_DAYS : SESSION_DAYS;
+    // Signing up or in counts as using Vidalune that day (the CEO panel's "active").
+    db.insert(accountActivity).values({ accountId, day: new Date(t).toISOString().slice(0, 10) }).onConflictDoNothing().run();
     db.insert(accountSessions).values({ tokenHash: sha256(token), accountId, createdAt: t, expiresAt: t + days * DAY }).run();
     if (client === 'app') return token;
     reply.setCookie(SESSION_COOKIE, token, { path: '/', httpOnly: true, sameSite: 'lax', secure: secureCookie, maxAge: days * 86_400 });
@@ -907,6 +909,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     app.get('/join', page);
     app.get('/invite', page);
     app.get('/admin', page);
+    // The CEO panel: the page for everyone, its data only for the CEO (checked by /api/ceo).
+    app.get('/ceo', (_req, reply) => reply.type('text/html').header('Cache-Control', 'no-cache').send(fs.readFileSync(path.join(webDir, 'ceo.html'))));
   }
   const frontendDir = config.frontendDir;
   if (frontendDir) {

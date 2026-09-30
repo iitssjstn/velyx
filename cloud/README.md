@@ -21,6 +21,7 @@ services:
       PUBLIC_URL: https://vidalune.com   # where people open it
       TRUST_PROXY: "1"                   # one proxy (Nginx Proxy Manager) in front
       ADMIN_EMAILS: you@example.com      # accounts that may open /admin
+      CEO_EMAILS: you@example.com        # accounts that may open /ceo (the CEO panel)
     volumes:
       - ./cloud-data:/data               # cloud.db lives here: back it up
     networks: [npm]                      # the network Nginx Proxy Manager is on
@@ -45,6 +46,7 @@ interface (see *app.vidalune.com* below).
 | `RELAY_DOMAIN` | host of `PUBLIC_URL` | Relay addresses are `<name>.<RELAY_DOMAIN>`. |
 | `FRONTEND_DIR` | `frontend/dist` in the image | The web interface app.vidalune.com shows (built into the image). |
 | `DOWNLOAD_DIR` | `cloud/downloads` in the image | Where the Android app (`vidalune-<version>.apk`) is handed out from; the image carries the newest release's app. |
+| `CEO_EMAILS` | (none) | Accounts (email addresses, comma-separated) that may open the CEO panel (/ceo). Separate from administrators. |
 | `ADMIN_EMAILS` | (none) | Accounts (email addresses, comma-separated) that may use the admin page. They always have remote access themselves. |
 | `RELAY_MAX_MBPS` | `900` | What the relay may send in total, in Mbit/s, shared equally between the servers sending at that moment (`0`: no limit). Keep it a little under the VPS's line (1 Gbit/s: 900). |
 | `RELAY_SERVER_MBPS` | `0` | What one server may send through the relay, in Mbit/s, unless set per server on the admin page (`0`: no limit of its own). |
@@ -66,6 +68,18 @@ account with its servers, filters for accounts with remote access or a server, a
 **Change**: none, remote access or viewer, a period (1 month, 3 months, half a year, a year or lifetime —
 or any last day), and a note (for instance how it was paid).
 Taking it away closes that account's tunnels at once; an end date takes effect by itself.
+
+## The CEO panel
+
+Accounts in `CEO_EMAILS` open **vidalune.com/ceo** (also linked from their account page). The service checks it on every call; administrators and customers get nothing. It shows only real data from this service — no revenue until payments go through Vidalune, and no technical monitoring:
+
+- **Overview:** customers (total, active in the last 30 days — who signed in or used the website or app —, new in 7 and 30 days, growth against the 30 days before), access (with access, per type, ending within 14 days) and relays (capacity, speed now, load, connected servers, relays close to their monthly traffic allowance).
+- **Customers:** every account with its access, when it was last active and its servers; search and filter by type (customer, beta, test, free, without access) and status (active, not active, new).
+- **Access:** give an account remote access or a viewer plan, with a type (customer, beta, test or free), for a number of days or without an end, with a note; extend it (+30 days, +1 year) or take it back. The account's plan follows its access at once, and taking it back closes its tunnels. Every grant is kept with who gave or took it back, and has room for a price and a payment reference, so billing can be added later without changing it.
+- **Relays:** the main relay (vidalune.com itself) and others you register with their region, address, capacity and the hosting's monthly traffic allowance (for example 1 TB and then 10 Mbit/s; empty for unlimited). Per relay: its servers and customers, speed now, traffic, requests and errors in the last 30 days, and this month's traffic against the allowance. Assign or move a customer (all their servers) to a relay, take a server off it, or turn a relay off (its servers go back to the main relay). For now the main relay carries all traffic; assignments are kept for when other relays run.
+- **Statistics:** per day over 30 or 90 days or a year: accounts in total, new accounts, active accounts, accounts with access, relay traffic and relay errors — each as a chart with a table view.
+
+Endpoints: `GET /api/ceo/dashboard`, `GET /api/ceo/customers`, `GET/POST /api/ceo/access`, `PUT/DELETE /api/ceo/access/:id`, `GET/POST /api/ceo/relays`, `GET/PUT /api/ceo/relays/:id`, `POST /api/ceo/relays/:id/assign`, `DELETE /api/ceo/relays/:id/servers/:serverId`, `GET /api/ceo/statistics`.
 
 ## The relay
 

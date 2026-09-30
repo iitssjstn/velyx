@@ -246,6 +246,7 @@
         el('span', { class: 'small' }, me.email),
         el('span', { class: 'actions' },
           me.admin ? el('a', { href: `${BASE}/admin` }, t('adminLink')) : null,
+          me.ceo && !BASE ? el('a', { href: '/ceo' }, 'CEO') : null,
           el('button', { class: 'link', type: 'button', onclick: async () => { await api('POST', '/api/logout'); signIn(); } }, t('signOut')),
         ),
       ),
