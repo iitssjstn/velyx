@@ -85,6 +85,8 @@ export const settings: Messages['settings'] = {
     description: 'Vidalune herkent intro\'s en aftitelingen van afleveringen aan het terugkerende geluid en, bij aftitelingen, aan de tekst in beeld. Alleen betrouwbare resultaten worden gebruikt; een scène na de aftiteling wordt nooit overgeslagen.',
     intros: 'Intro\'s overslaan',
     introsHint: 'De knop verschijnt alleen tijdens de intro.',
+    recaps: 'Terugblikken ("previously on")',
+    recapsHint: 'Fragmenten uit eerdere afleveringen aan het begin van een aflevering.',
     credits: 'Aftiteling overslaan',
     creditsHint: 'Gaat naar een scène na de aftiteling als die er is, anders naar de volgende aflevering.',
   },
@@ -94,6 +96,8 @@ export const settings: Messages['settings'] = {
     autoplay: 'Volgende aflevering automatisch afspelen',
     autoplayHint: 'Start de volgende aflevering na een aftelling.',
     countdown: 'Aftelling voor de volgende aflevering',
+    seekStep: 'Terug- en vooruitspoelen met',
+    seekStepHint: 'De knoppen ↺ ↻ en de toetsen ← →. Vaker drukken springt verder.',
     warn: 'Waarschuwen voor bestanden die deze browser mogelijk niet afspeelt',
   },
   audio: {

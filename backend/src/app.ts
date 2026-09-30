@@ -1,3 +1,4 @@
+import os from 'node:os';
 import { eq } from 'drizzle-orm';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -42,6 +43,7 @@ import { NotificationService } from './services/notifications.js';
 import { CleanupScheduler } from './services/cleanup-scheduler.js';
 import { CloudService } from './services/cloud.js';
 import { UpnpService } from './services/upnp.js';
+import { SeerrService } from './services/seerr.js';
 import { isLoopback } from './services/relay-client.js';
 import { libraries } from './db/schema.js';
 
@@ -94,10 +96,21 @@ export interface AppContext {
   cloud: CloudService;
   /** Opening a port on the router (opt-in). */
   upnp: UpnpService;
+  /** Requests through Seerr (optional). */
+  seerr: SeerrService;
   startedAt: number;
 }
 
+/** More than 60 % of the processors in use (load average; always false where there is none). */
+export function machineBusy(): boolean {
+  return os.loadavg()[0] / Math.max(1, os.cpus().length) > 0.6;
+}
+
 export interface BuildOptions {
+  /** Whether the machine counts as busy (tests). */
+  machineBusy?: () => boolean;
+  /** Pause after each read while someone watches (tests: shorter). */
+  segmentPaceMs?: number;
   /** Where UPnP searches for the router (tests: a stand-in on localhost). */
   ssdp?: { host: string; port: number };
   prober?: Prober;
@@ -151,7 +164,9 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   });
   const segments: SegmentDetector = new SegmentDetector(db, opts.audioReader ?? ffmpegAudioReader(config.ffmpegPath), {
     enabled: () => settings.get().segmentDetection,
-    busy: () => (streams.active().length > 0 ? 'playback' : scans.active ? 'scan' : null),
+    // Watching does not stop detection: it goes slower, and waits only when the machine is busy.
+    busy: () => (scans.active ? 'scan' : streams.active().length > 0 && (opts.machineBusy ?? machineBusy)() ? 'playback' : null),
+    pace: () => (streams.active().length > 0 ? (opts.segmentPaceMs ?? 3000) : 0),
     video: () => settings.get().segmentVideo,
     retryMs: opts.segmentRetryMs,
   }, {
@@ -194,7 +209,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     fetchImpl: opts.fetchImpl,
     userAgent: `Vidalune v${APP_VERSION}`,
   });
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud: new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, now: opts.cloudNow }), upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud: new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, now: opts.cloudNow }), upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr: new SeerrService({ settings, fetchImpl: opts.fetchImpl }), startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

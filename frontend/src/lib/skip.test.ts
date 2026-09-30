@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { creditsPlaying, skipAt, upNextStart, type EpisodeSegments } from './player';
+import { addSeek, creditsPlaying, SEEK_COMBINE_MS, skipAt, skipWindow, upNextStart, type EpisodeSegments } from './player';
 import { parseClock } from './format';
 
 const seg: EpisodeSegments = { fileId: 7, intro: { start: 60, end: 95 }, credits: { start: 1300, end: 1380 }, postCredits: null, manual: false };
@@ -59,5 +59,41 @@ describe('parseClock', () => {
     expect(parseClock(' 95 ')).toBe(95);
     expect(parseClock('1:02:03.5')).toBe(3723.5);
     for (const bad of ['', 'abc', '1:75', '1::2', '-3']) expect(parseClock(bad)).toBeNull();
+  });
+});
+
+describe('skip buttons with the detection’s certainty', () => {
+  const sure: EpisodeSegments = { fileId: 7, recap: { start: 2, end: 28, confidence: 'high' }, intro: { start: 92, end: 122, confidence: 'medium' }, credits: { start: 1300, end: 1380, confidence: 'high' }, postCredits: null, manual: false };
+
+  it('appears a moment after the detected start (later when less sure) and stays until just before the end', () => {
+    expect(skipWindow({ start: 92, end: 122, confidence: 'high' })).toEqual({ from: 93, until: 121 });
+    expect(skipWindow({ start: 92, end: 122, confidence: 'medium' })).toEqual({ from: 94, until: 121 });
+    // A short part: shown long enough to press it.
+    expect(skipWindow({ start: 10, end: 16, confidence: 'medium' })).toEqual({ from: 10, until: 15 });
+    expect(skipAt(sure, 7, 93, ask)).toBeNull();
+    expect(skipAt(sure, 7, 94, ask)?.kind).toBe('intro');
+  });
+
+  it('offers to skip a recap, following the intro’s preference unless it has its own', () => {
+    expect(skipAt(sure, 7, 10, ask)).toEqual({ kind: 'recap', to: 28, toNext: false, mode: 'ask' });
+    expect(skipAt(sure, 7, 10, { intro: 'never', credits: 'ask' })).toBeNull();
+    expect(skipAt(sure, 7, 10, { recap: 'always', intro: 'never', credits: 'ask' })?.mode).toBe('always');
+    // Seeking back into it later: offered again.
+    expect(skipAt(sure, 7, 5, ask)?.kind).toBe('recap');
+  });
+});
+
+describe('seeking by several presses', () => {
+  it('adds up quick presses from where the last one aimed, within the video', () => {
+    const a = addSeek(null, 1000, 100, 10, 500);
+    expect(a).toEqual({ target: 110, total: 10, at: 1000 });
+    const b = addSeek(a, 1300, 101, 10, 500);
+    expect(b).toMatchObject({ target: 120, total: 20 });
+    const c = addSeek(b, 1500, 102, -30, 500);
+    expect(c).toMatchObject({ target: 90, total: -10 });
+    // After a pause: a new jump from where the video is.
+    expect(addSeek(c, 1500 + SEEK_COMBINE_MS, 95, 10, 500)).toMatchObject({ target: 105, total: 10 });
+    expect(addSeek(null, 0, 3, -10, 500).target).toBe(0);
+    expect(addSeek(null, 0, 495, 30, 500).target).toBe(500);
   });
 });

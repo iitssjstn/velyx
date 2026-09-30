@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeftRight, Bookmark, Film, Heart, Layers, House, LogOut, Menu, Search, Server, Settings, ShieldCheck, Tv, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowLeftRight, Bookmark, Film, Heart, Inbox, Layers, House, LogOut, Menu, Search, Server, Settings, ShieldCheck, Tv, X } from 'lucide-react';
+import { api } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
 import { Logo } from './Logo';
 import { Avatar } from './Avatar';
@@ -22,7 +24,10 @@ const NAV: Array<{ to: string; label: MessageKey; icon: typeof House; end?: bool
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth();
   const { t } = useT();
-  const items = user?.role === 'admin' ? [...NAV, { to: '/admin', label: 'nav.admin' as const, icon: ShieldCheck }] : NAV;
+  // Requests only when Seerr is set up on this server.
+  const seerr = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000, enabled: !!user });
+  const base = seerr.data?.enabled ? [...NAV.slice(0, -1), { to: '/requests', label: 'nav.requests' as const, icon: Inbox }, NAV[NAV.length - 1]!] : NAV;
+  const items = user?.role === 'admin' ? [...base, { to: '/admin', label: 'nav.admin' as const, icon: ShieldCheck }] : base;
   return (
     <nav className="flex flex-col gap-1" aria-label={t('nav.main')}>
       {items.map(({ to, label, icon: Icon, end }) => (

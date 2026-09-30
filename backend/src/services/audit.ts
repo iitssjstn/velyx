@@ -51,6 +51,8 @@ export type AuditAction =
   | 'cloud.account_unlinked'
   | 'cloud.account_linked'
   | 'cloud.home_networks'
+  | 'seerr.settings'
+  | 'seerr.requested'
   | 'upnp.on'
   | 'upnp.off'
   | 'invite.created'

@@ -28,7 +28,12 @@ export interface PlaybackPrefs {
   showCompatibilityWarnings: boolean;
   volume: number;
   muted: boolean;
+  /** Seconds the back/forward buttons and ← → jump. */
+  seekStep: SeekStep;
 }
+
+export const SEEK_STEPS = [5, 10, 15, 30] as const;
+export type SeekStep = (typeof SEEK_STEPS)[number];
 
 export const DEFAULT_PREFS: PlaybackPrefs = {
   autoplayNext: true,
@@ -48,6 +53,7 @@ export const DEFAULT_PREFS: PlaybackPrefs = {
   showCompatibilityWarnings: true,
   volume: 1,
   muted: false,
+  seekStep: 10,
 };
 
 const KEY = 'velyx.playback';

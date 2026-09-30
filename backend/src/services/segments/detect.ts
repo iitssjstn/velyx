@@ -1,6 +1,7 @@
 import { FRAME_SEC, longestCommonSegment, soundRatio, type Fingerprint } from './fingerprint.js';
 import type { ChapterSegments } from './chapters.js';
 import type { VisualCredits } from './visual.js';
+import { detectRecap, type RecapSource } from './recap.js';
 
 /**
  * Season-level intro and credits detection from audio fingerprints (pure logic; reading the audio
@@ -13,7 +14,7 @@ import type { VisualCredits } from './visual.js';
  */
 
 /** Bumped whenever the algorithm changes, so older automatic results are redone. */
-export const DETECTION_VERSION = 2;
+export const DETECTION_VERSION = 3;
 
 export type Confidence = 'high' | 'medium' | 'low';
 
@@ -30,6 +31,8 @@ export interface EpisodeAudio {
   visual?: VisualCredits | null;
   /** Intro/credits chapters named as such in the file. */
   chapters?: ChapterSegments | null;
+  /** Fingerprint of the whole episode (from 0 s): later episodes look for their recap clips in it. */
+  full?: Fingerprint | null;
 }
 
 /** Where a result came from: chapter markers, the picture, or recurring audio. */
@@ -41,6 +44,8 @@ export interface Span {
 }
 
 export interface Detection {
+  /** A recap ("previously on") before the intro. */
+  recap: (Span & { confidence: Confidence; source: 'chapters' | 'audio' }) | null;
   intro: (Span & { confidence: Confidence; source: SegmentSource }) | null;
   credits: (Span & { confidence: Confidence; source: SegmentSource }) | null;
   /** Content after the credits (a post-credits scene): never skipped automatically. */
@@ -171,11 +176,11 @@ export function detectEpisode(ep: EpisodeAudio, peers: EpisodeAudio[], refs: Ref
   if (ep.chapters?.credits) {
     const c = ep.chapters;
     const end = c.postCredits ? c.postCredits.start : ep.duration;
-    return { intro, credits: { start: round(c.credits!.start), end: round(Math.max(c.credits!.end, end)), confidence: 'high', source: 'chapters' }, postCredits: c.postCredits ? { start: round(c.postCredits.start), end: round(c.postCredits.end) } : null, introFrames, creditsFrames };
+    return { recap: null, intro, credits: { start: round(c.credits!.start), end: round(Math.max(c.credits!.end, end)), confidence: 'high', source: 'chapters' }, postCredits: c.postCredits ? { start: round(c.postCredits.start), end: round(c.postCredits.end) } : null, introFrames, creditsFrames };
   }
   if (ep.visual) {
     const v = ep.visual;
-    return { intro, credits: { start: v.start, end: v.end, confidence: v.confidence, source: 'video' }, postCredits: v.postCredits, introFrames, creditsFrames };
+    return { recap: null, intro, credits: { start: v.start, end: v.end, confidence: v.confidence, source: 'video' }, postCredits: v.postCredits, introFrames, creditsFrames };
   }
 
   // ---- after the credits: a scene (real sound, long enough) or just the end of the file
@@ -190,15 +195,46 @@ export function detectEpisode(ep: EpisodeAudio, peers: EpisodeAudio[], refs: Ref
       credits = { ...credits, end: round(ep.duration) };
     }
   }
-  return { intro, credits, postCredits, introFrames, creditsFrames };
+  return { recap: null, intro, credits, postCredits, introFrames, creditsFrames };
 }
 
-/** Detects every episode of one season (episodes in broadcast order). */
-export function detectSeason(episodes: EpisodeAudio[], refs: References, only?: Set<number>): Map<number, Detection> {
+/** Earlier episodes a recap may quote: the one or two before it. */
+const RECAP_SOURCES = 2;
+
+/**
+ * Detects every episode of one season (episodes in broadcast order). `known` holds results stored
+ * earlier for episodes not analysed now, so their intro and credits are left out of recap clips.
+ */
+export function detectSeason(episodes: EpisodeAudio[], refs: References, only?: Set<number>, known: Map<number, Pick<Detection, 'intro' | 'credits' | 'recap'>> = new Map()): Map<number, Detection> {
   const out = new Map<number, Detection>();
   episodes.forEach((ep, i) => {
     if (only && !only.has(ep.id)) return;
     out.set(ep.id, detectEpisode(ep, peersOf(episodes, i), refs));
+  });
+  // Recaps last: they need to know where the earlier episodes' intros and credits are.
+  episodes.forEach((ep, i) => {
+    const d = out.get(ep.id);
+    if (!d) return;
+    if (ep.chapters?.recap) {
+      d.recap = { start: round(ep.chapters.recap.start), end: round(ep.chapters.recap.end), confidence: 'high', source: 'chapters' };
+      return;
+    }
+    const sources: RecapSource[] = [];
+    for (let k = i - 1; k >= 0 && sources.length < RECAP_SOURCES; k--) {
+      const prev = episodes[k];
+      if (!prev.full) continue;
+      const p = out.get(prev.id) ?? known.get(prev.id);
+      const exclude: Span[] = [];
+      for (const x of [p?.intro, p?.credits, p?.recap]) if (x) exclude.push({ start: x.start, end: x.end });
+      // Without a known intro, the opening minute is left out too (a logo, a theme).
+      if (!p?.intro) exclude.push({ start: 0, end: 60 });
+      sources.push({ full: prev.full, exclude });
+    }
+    if (!sources.length) return;
+    const introKnown = d.intro && d.intro.confidence !== 'low' ? d.intro : null;
+    const until = introKnown ? introKnown.start : Math.min(180, headWindow(ep.duration).end);
+    const r = detectRecap(ep.head, until, sources);
+    if (r) d.recap = { ...r, source: 'audio' };
   });
   return out;
 }

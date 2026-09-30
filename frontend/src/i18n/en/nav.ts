@@ -7,6 +7,7 @@ export const nav = {
   watchlist: 'Watchlist',
   favorites: 'Favorites',
   settings: 'Settings',
+  requests: 'Requests',
   admin: 'Admin',
   searchVidalune: 'Search Vidalune',
   servers: 'Servers',

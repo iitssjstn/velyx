@@ -40,6 +40,8 @@ export const audit: Messages['audit'] = {
     cloudRelayOn: 'Vidalune-relay aangezet',
     cloudRelayOff: 'Vidalune-relay uitgezet',
     cloudHomeNetworks: 'Thuisnetwerken gewijzigd',
+    seerrSettings: 'Seerr-koppeling gewijzigd',
+    seerrRequested: 'Aangevraagd via Seerr',
     upnpOn: 'Poort op de router opengezet (UPnP)',
     upnpOff: 'Poort op de router gesloten (UPnP)',
     inviteCreated: 'Uitnodiging gemaakt',

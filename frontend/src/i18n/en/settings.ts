@@ -84,6 +84,8 @@ export const settings = {
     description: 'Vidalune recognises intros and end credits of TV episodes by their recurring sound and, for credits, by the text in the picture. Only confident results are used; a scene after the credits is never skipped.',
     intros: 'Skip intros',
     introsHint: 'The button appears only while the intro plays.',
+    recaps: 'Recaps ("previously on")',
+    recapsHint: 'Clips of earlier episodes at the start of an episode.',
     credits: 'Skip credits',
     creditsHint: 'Goes to a scene after the credits when there is one, otherwise to the next episode.',
   },
@@ -93,6 +95,8 @@ export const settings = {
     autoplay: 'Autoplay next episode',
     autoplayHint: 'Starts the next episode after a countdown.',
     countdown: 'Countdown before the next episode',
+    seekStep: 'Skip back and forward by',
+    seekStepHint: 'The ↺ ↻ buttons and the ← → keys. Press more often to jump further.',
     warn: 'Warn about files this browser may not play',
   },
   audio: {
