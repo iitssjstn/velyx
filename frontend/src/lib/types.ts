@@ -381,13 +381,13 @@ export interface PlaybackDecision {
   mode: PlaybackMode;
 }
 
-export type PlaybackMode = 'direct' | 'remux' | 'unsupported';
+export type PlaybackMode = 'direct' | 'remux' | 'transcode' | 'unsupported';
 
 /** Why and how a file plays (or does not) on this device; see backend playback/compatibility.ts. */
 export interface PlaybackAnalysis {
   mode: PlaybackMode;
   browser: string | null;
-  video: { codec: string | null; label: string; width: number | null; height: number | null; bitDepth: number | null; range: string | null; action: 'direct' | 'copy' | 'unsupported' };
+  video: { codec: string | null; label: string; width: number | null; height: number | null; bitDepth: number | null; range: string | null; action: 'direct' | 'copy' | 'transcode' | 'unsupported' };
   audio: { codec: string | null; label: string; channels: number | null; action: 'direct' | 'copy' | 'convert' | 'none'; target: string | null };
   container: { name: string | null; action: 'direct' | 'remux' };
   /** Overall bitrate in bits per second. */
@@ -395,8 +395,8 @@ export interface PlaybackAnalysis {
   problems: string[];
   warnings: string[];
   transcodeRequired: boolean;
-  serverTranscoding: false;
-  serverLoad: 'none' | 'low';
+  serverTranscoding: boolean;
+  serverLoad: 'none' | 'low' | 'high';
   /** "Chrome on Windows"; null when unknown. */
   device: string | null;
   /** reported = the device listed its formats; profile/assumed = Vidalune estimated them. */
@@ -533,7 +533,7 @@ export interface ActiveStream {
   episodeId: number | null;
   title: string;
   subtitle: string | null;
-  mode: 'direct' | 'remux';
+  mode: 'direct' | 'remux' | 'transcode';
   /** What the remux does with the audio, e.g. "AAC 5.1"; null = passed through. */
   audioConversion: string | null;
   container: string | null;
@@ -562,7 +562,7 @@ export interface HistoryEntry {
   showId: number | null;
   title: string;
   subtitle: string | null;
-  mode: 'direct' | 'remux';
+  mode: 'direct' | 'remux' | 'transcode';
   audioConversion: string | null;
   container: string | null;
   videoCodec: string | null;

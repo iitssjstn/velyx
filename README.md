@@ -4,7 +4,7 @@
 
 Vidalune is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.9.8 — **Velyx is now Vidalune**: a new name and logo; existing installations keep working (see [Upgrading from Velyx](#upgrading-from-velyx)). Vidalune is proprietary software (see [License](#license)). Still built for old hardware: **Vidalune does not transcode video.** Direct Play is the preferred playback mode, and only audio or the container is ever converted (which costs little CPU).
+> Version 0.9.8 — **Velyx is now Vidalune**: a new name and logo; existing installations keep working (see [Upgrading from Velyx](#upgrading-from-velyx)). Vidalune is proprietary software (see [License](#license)). Still built for old hardware: Direct Play is the preferred playback mode, and by default only audio or the container is ever converted (which costs little CPU). Converting video is optional and off until an administrator turns it on (see [Video conversion](#video-conversion-optional)).
 
 ---
 
@@ -101,7 +101,7 @@ Vidalune is a lightweight, Docker-first, self-hosted media server for movies and
 
 - Docker with Docker Compose (v2) — or Debian 12+ / Ubuntu 22.04+ (amd64 or arm64) for the `.deb` package.
 - A browser: Chrome/Edge (recommended), Firefox or Safari.
-- Hardware: Vidalune itself needs very little. It was designed with low-end machines in mind (for example a dual-core Athlon II with 4–8 GB RAM). Since there is no transcoding, the server only reads and sends files — decoding happens on the device that plays the video.
+- Hardware: Vidalune itself needs very little. It was designed with low-end machines in mind (for example a dual-core Athlon II with 4–8 GB RAM). With video conversion off (the default) the server only reads and sends files — decoding happens on the device that plays the video. Converting video needs a strong processor or graphics hardware (see [Video conversion](#video-conversion-optional)).
 - Optional: a free TMDB API key for metadata.
 
 ## Quick start (Docker)
@@ -299,7 +299,8 @@ Vidalune picks the lightest way to play each file:
 
 1. **Direct Play** — the original file is streamed with HTTP range requests. Seeking is instant and the server does almost no work. Used whenever the browser supports the container, video and audio.
 2. **Audio conversion (remux)** — when the browser supports the *video* but not the audio or the container, FFmpeg copies the video stream unchanged and converts only the selected audio track to AAC (stereo, or 5.1 when *Surround* is chosen and the source has it), streamed as fragmented MP4. The same route is used when *Boost voices* or *Level volume* is switched on. Typical cases: Dolby Digital (AC3), Dolby Digital Plus (EAC3), DTS and TrueHD audio in Chrome/Edge/Firefox, and MKV files in Safari. The video is never re-encoded, so this costs little CPU. Seeking restarts the stream at the nearest keyframe (a short load of about a second); picture and sound always start at that same keyframe, and gaps in the source audio are filled so the sound cannot drift ahead of the picture. The player's badge shows *Remux • Audio converted to AAC*.
-3. **Not supported on this device** — when the browser cannot decode the video itself (for example HEVC in Firefox, or 10-bit H.264), the file would need video transcoding, which Vidalune deliberately does not do on low-end hardware. The player shows *Playback unavailable* with the video format, the browser and the reason, and offers *Try anyway* (browsers sometimes under-report what they can play).
+3. **Video conversion (transcode, optional)** — when the browser cannot decode the video itself (for example HEVC in Firefox, 10-bit H.264 or MPEG-2) and an administrator turned on [video conversion](#video-conversion-optional), the server converts the video to H.264 while it is watched (audio as in the remux). The player's badge shows *Transcode*.
+4. **Not supported on this device** — the same case with video conversion off (the default): the player shows *Playback unavailable* with the video format, the browser and the reason, and offers *Try anyway* (browsers sometimes under-report what they can play).
 
 The decision uses the browser's own report of what it can decode (including 10-bit and HDR support) and the file's FFprobe data (codec, bit depth, HDR10/HLG/Dolby Vision). Files scanned before 0.4 are analysed once, the first time they are played — or all at once from **Admin → Library health**.
 
@@ -323,7 +324,7 @@ In the player, a small badge shows the mode (*Direct Play*, or *Remux • Audio 
 - **Resume:** opening a partly watched item from an episode list or search asks *Resume from 34:12* or *Start over*; the Resume buttons on detail pages and Continue Watching go straight to the saved position. This also works when you watch something again that you had already finished.
 - **Skip intro / credits:** while a detected intro or credits play, a *Skip intro* or *Skip credits* button appears in the bottom-right corner (clear of subtitles; also `S` on the keyboard). Skipping credits goes to a scene after the credits when there is one, otherwise the episode ends. With *Skip automatically* a short *Intro skipped · Undo* notice appears instead. Set this per account in **Settings → Playback → Intros & credits** (*Show a skip button* is the default, *Skip automatically* or *Never*).
 - **Next episode:** when the end credits begin (or in the last seconds, when the credits are unknown or a scene follows them) the picture glides into a small window in the top-left corner, where the credits keep playing, and the next episode's picture fades in behind it. A card shows the next episode: the countdown, its picture (click it to play), code, length, title and a short description. **Next episode** fills up during the countdown when *Autoplay next episode* is on and starts it; **Watch credits** (or a click on the small window) brings the credits back full size; the list button goes to the season's episodes. Pausing pauses the countdown too. The next episode's details are fetched during the countdown and its picture fades in as soon as it plays, so one episode flows into the next.
-- **Status:** a small label in the top-right corner reads *✓ Direct Play*, *↻ Remux* or *↻ Remux · Audio → AAC*; click it for the details: video (codec, resolution, bit depth, HDR), audio and what it is converted to (*DTS 5.1 → AAC 5.1*), container, bitrate, the subtitle in use and the subtitle formats in the file, why the file is remuxed, and that no video transcoding takes place.
+- **Status:** a small label in the top-right corner reads *✓ Direct Play*, *↻ Remux* or *↻ Remux · Audio → AAC*; click it for the details: video (codec, resolution, bit depth, HDR), audio and what it is converted to (*DTS 5.1 → AAC 5.1*), container, bitrate, the subtitle in use and the subtitle formats in the file, why the file is remuxed, and whether the video is converted.
 - **Keyboard:** Space/K play or pause · ←/→ (J/L) back/forward by the chosen step · ↑/↓ volume · M mute · F full screen · I minimize · C subtitles · S skip recap/intro/credits · N next episode · 0–9 jump · ? shortcuts · Esc close menu / leave.
 
 ### Audio options
@@ -342,12 +343,38 @@ Boost voices and Level volume always convert the audio.
 
 **Keyboard shortcuts in the player:** `Space`/`K` play/pause, `←`/`→` or `J`/`L` seek 10 s, `↑`/`↓` volume, `M` mute, `F` fullscreen, `C` cycle subtitles, `S` skip intro/credits, `N` next episode, `0`–`9` jump to 0–90 %, `Esc` back.
 
+### Video conversion (optional)
+
+Off by default. With **Admin → Server → Video conversion** an administrator lets the server convert video a device cannot play as it is (for example MPEG-2, HEVC in a browser without it, 10-bit H.264) to H.264 while it is watched. Files that play as they are, or after repackaging, are never converted. The source resolution is kept.
+
+- **Encoder:** *Automatic* uses the fastest one that works on the server: NVIDIA graphics (NVENC), Intel or AMD graphics (VAAPI, including Intel Quick Sync), or the processor (software, which needs a strong processor). The page shows which ones work — each is tried on a second of test picture — and *Check hardware again* tries again after adding hardware.
+- **At most at once:** empty means no limit; on a small server a limit keeps it from getting stuck (a viewer beyond the limit is told to try again in a moment). A viewer who seeks replaces their own stream and never counts twice.
+- **Docker, set up with the installer** (`curl -fsSL https://vidalune.com/get | sh`): it finds the graphics and adds the lines below to the `docker-compose.yml` it wrote (running it again updates and adds them once; a compose file you wrote yourself is never changed). For NVIDIA it needs the NVIDIA Container Toolkit on the host and says so when that is missing.
+- **Docker, Intel/AMD:** pass the graphics device to the container; Vidalune keeps its group, so nothing else is needed:
+  ```yaml
+      devices:
+        - /dev/dri:/dev/dri
+  ```
+  The image (amd64) contains the VAAPI drivers for Intel and AMD.
+- **Docker, NVIDIA:** install the NVIDIA Container Toolkit on the host and add:
+  ```yaml
+      deploy:
+        resources:
+          reservations:
+            devices:
+              - driver: nvidia
+                count: all
+                capabilities: [gpu, video, compute, utility]
+  ```
+- **Debian/Ubuntu package:** the user `vidalune` is added to the `render` and `video` groups. For Intel graphics install `intel-media-va-driver-non-free` (or `intel-media-va-driver`), for AMD `mesa-va-drivers`; NVIDIA needs its own driver.
+- The player's badge shows *Transcode*, and so does the stream in Admin → Dashboard. A Chromecast gets the converted stream too.
+
 ### Casting to a TV
 
 The player can send what you are watching to a **Chromecast** or a TV with **Chromecast built in** (Google TV, Android TV and many other TVs): in the web player in **Chrome** (browsers without Google Cast show no cast button) and in the **Android app**. The TV continues where you were, and the player on your phone or computer becomes its remote control: play/pause, back and forward, the seek bar, audio track and subtitles all act on the TV, and your progress is saved as usual. Stop casting with the same button; playback continues on the device where you left the TV, paused.
 
 - The Chromecast fetches the video itself, straight from your server, with a short-lived link that opens only that one file (its video, subtitles and artwork) for about eight hours; nothing else on the server can be reached with it. The Chromecast must be able to reach the server: at home on the same network, or through the Vidalune relay or your own HTTPS address. On `localhost` the web player gives it the server address set under **Admin → Server**.
-- What the TV plays follows the same rules as everywhere in Vidalune: files a Chromecast can play go as they are, MKV files and audio it cannot play are repackaged (audio converted to AAC stereo), and **video is never transcoded**: a file whose video the Chromecast cannot decode (for example MPEG-2) is not cast, and the player says so.
+- What the TV plays follows the same rules as everywhere in Vidalune: files a Chromecast can play go as they are, MKV files and audio it cannot play are repackaged (audio converted to AAC stereo), and a file whose video the Chromecast cannot decode (for example MPEG-2) is converted when [video conversion](#video-conversion-optional) is on; otherwise it is not cast, and the player says so.
 - Subtitles are shown by the TV (text subtitles: separate files and the ones inside the video); image-based subtitles and subtitles from OpenSubtitles are not cast.
 - Seeking in a repackaged stream starts it again from the new spot (a second or two), as in the browser.
 
@@ -380,7 +407,7 @@ Besides installing the website as an app, Vidalune has its own Android app (for 
 **Playing in the app:**
 
 - **Play** or **Resume from 32:14** on a movie, **Continue with S02E04** on a show, a tap on an episode, or a tap on an item in Continue Watching (which resumes straight away). A watched episode starts over; *From start* starts a movie over. Like on the website, resuming never lands in the last part of an episode or movie (the last 10 % or 15 seconds, where the credits are): it starts from the beginning instead.
-- The app tells your server exactly which formats the phone or tablet decodes (read from Android's own list of decoders, including 10-bit and HDR), and Vidalune decides as for a browser: the original file plays directly when the device can decode it — often more than a browser can, such as HEVC, 10-bit video, MKV files and Dolby audio on devices with those decoders — otherwise the audio is converted or the file repackaged on the fly. Vidalune still never transcodes video; a file the device cannot decode says so.
+- The app tells your server exactly which formats the phone or tablet decodes (read from Android's own list of decoders, including 10-bit and HDR), and Vidalune decides as for a browser: the original file plays directly when the device can decode it — often more than a browser can, such as HEVC, 10-bit video, MKV files and Dolby audio on devices with those decoders — otherwise the audio is converted or the file repackaged on the fly. Video the device cannot decode is converted when [video conversion](#video-conversion-optional) is on; otherwise the app says so.
 - Playback is full screen and in landscape: the status bar and Android's navigation bar are hidden (swipe from the edge of the screen to show the navigation bar briefly). On a phone the rest of the app stays upright and turns back when you leave the player; on a tablet the app turns freely. Tap the picture for the controls: play/pause, back or forward (10 seconds, or 5, 15 or 30 — chosen in the player's menu and kept on the device), and a seek bar you can tap or drag. The controls hide again after 4 seconds without touching them while the video plays. Double-tap the left or right side of the picture to go back or forward by that step; every further tap there adds another step, and the total (*−20*, *+30*) is shown.
 - When you leave the player, your position is saved first and then Home, Continue Watching and the progress bars are refreshed. Coming back to the app after a while refreshes them too, so progress from another device shows up.
 - If a file does not play directly after all (the device reported a decoder that then fails), the app asks the server once more for a repackaged stream with converted audio and carries on, instead of stopping with an error.
@@ -582,7 +609,7 @@ Vidalune can work with **Seerr**, so everyone on your server can ask for movies 
 
 **Inviting someone:** **Admin → Users → Invite** makes a link for someone to use this server (the server must be linked). Give it a name if you like and choose the libraries they may see, then send the link. They open it, create a Vidalune account or sign in, and the server is in their list on vidalune.com, app.vidalune.com and in the app; the first time they open it, the server makes a normal user for them (never an administrator) with those libraries, named after their email address, and administrators get a notification (Admin → Notifications). They sign in with their Vidalune account; there is no password to hand out (an administrator can set one under Users). A link works once, for seven days. The list under Users shows open invitations and who accepted one; **Withdraw invitation** stops the link at once, also after it was accepted but before it was used.
 
-**At home and away:** at home Vidalune is free and needs no account: devices in your home network (addresses such as `192.168.x.x`, `10.x.x.x`, `172.16–31.x.x`, and IPv6 local addresses) play everything. **Playing away from home** — through port forwarding, a domain of your own, the relay or app.vidalune.com — needs remote access: either on the Vidalune account this server is linked to (then everyone who uses the server can), or a viewer subscription on the Vidalune account of the person watching (then only they can, on every server they use). Without it, the player says so and browsing the library still works. The server asks vidalune.com whether the account has remote access (with its regular report, and again when someone away from home presses play, at most every two minutes); when vidalune.com cannot be reached, remote access it confirmed keeps working for a week. **Admin → Vidalune account → At home and away** shows the status and takes other networks that count as home, for example a VPN between your own devices (`100.64.0.0/10`). Behind your own reverse proxy, set `TRUST_PROXY` so Vidalune sees the real address of visitors (see [Running behind a reverse proxy](#running-behind-a-reverse-proxy)); otherwise every visitor looks like the proxy, at home.
+**At home and away:** at home Vidalune is free and needs no account: devices in your home network (addresses such as `192.168.x.x`, `10.x.x.x`, `172.16–31.x.x`, and IPv6 local addresses) play everything. **Playing away from home** — through port forwarding, a domain of your own, the relay or app.vidalune.com — needs remote access: either on the Vidalune account this server is linked to (then everyone who uses the server can), or a viewer subscription on the Vidalune account of the person watching (then only they can, on every server they use). Without it, the player says so and browsing the library still works. The server asks vidalune.com whether the account has remote access (with its regular report, and again when someone away from home presses play, at most every two minutes); when vidalune.com cannot be reached, remote access it confirmed keeps working for a week. **Admin → Vidalune account → At home and away** shows the status and takes other networks that count as home, for example a VPN between your own devices (`100.64.0.0/10`); only private networks can be added. A request only counts as at home when its connection and every address a reverse proxy, tunnel or CDN passed on (`X-Forwarded-For`, `Forwarded`, `X-Real-IP`, `CF-Connecting-IP`, …) are in the home network, so visitors from the internet reaching the server through a proxy on the home network are away from home, with or without `TRUST_PROXY`. Behind your own reverse proxy, set `TRUST_PROXY` so Vidalune sees the real address of visitors (see [Running behind a reverse proxy](#running-behind-a-reverse-proxy)); otherwise every visitor looks like the proxy, at home.
 
 **Relay (optional):** a linked server can also turn on **Reachable without an open port (relay)**. It then keeps a connection open to vidalune.com, and app.vidalune.com and the Vidalune app reach it from anywhere — no port forwarding, domain or certificate needed. (Behind the scenes it gets an address of its own on vidalune.com for the app; a browser opening that address is sent on to app.vidalune.com.) Everything you watch and do then passes through vidalune.com (encrypted on the way, decrypted there to pass it on); nothing is stored. The app and the account page use the server's own address first and the relay only when that does not work. Turning the relay off (or unlinking) closes the connection at once. The relay (and reaching a server through it from app.vidalune.com) needs remote access on the Vidalune account that owns the server; without it, **Admin → Vidalune account** says so and the relay stays off. The server's own address — at home, or through port forwarding or a domain of your own — works as always. The relay's bandwidth is shared fairly between the servers using it at the same moment. When a server cannot be reached through the relay, the app and the browser say why (the server is off or offline, the relay is off or remote access is not active, or it is busy).
 
@@ -725,7 +752,7 @@ Vidalune has an API for apps (such as [the Vidalune app for Android](#the-vidalu
 }
 ```
 
-Vidalune then decides exactly as for a browser (still without transcoding video), with three differences a native player makes possible:
+Vidalune then decides exactly as for a browser (converting video only when an administrator turned that on), with three differences a native player makes possible:
 
 - `audioTrackSwitching`: another audio track (`audioIndex`) plays from the original file when the device decodes it, instead of through a remux.
 - `tenBitCodecs` may include `h264`: 10-bit H.264 plays when the device decodes it (no browser does).
@@ -800,7 +827,7 @@ Fastify server ── Auth / sessions ── SQLite (Drizzle, WAL)
 
 **Translations** live in `frontend/src/i18n` (one folder per language, stable keys such as `player.skipIntro`; only English is in the main bundle, other languages load when chosen) and `backend/src/i18n` for the server's own messages. Adding a language means adding a folder with the same keys (the TypeScript build checks that none is missing) and its code on the server.
 
-The `PlaybackEngine` interface decides per file and client how media is delivered: Direct Play first, audio conversion when only the audio or container is the problem. `playback/compatibility.ts` is the single place that knows what a device can decode; the engines use it for their decision and the player shows its explanation. A future transcoding engine (FFmpeg with CPU, NVENC, Quick Sync, VAAPI or AMF) plugs into the same registry without changing the player or API.
+The `PlaybackEngine` interface decides per file and client how media is delivered: Direct Play first, audio conversion when only the audio or container is the problem, and video conversion (`playback/transcode.ts`, opt-in) as the last resort. `playback/compatibility.ts` is the single place that knows what a device can decode; the engines use it for their decision and the player shows its explanation.
 
 ## Troubleshooting
 
@@ -831,7 +858,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 
 ## Known limitations
 
-- **Vidalune does not transcode video.** A video format the device cannot decode (e.g. HEVC in Firefox, 10-bit H.264 in any browser) will not play; the player explains why. Unsupported audio and containers are handled by a light remux.
+- **Video conversion is off by default.** Until an administrator turns it on, a video format the device cannot decode (e.g. HEVC in Firefox, 10-bit H.264 in any browser) will not play; the player explains why. Unsupported audio and containers are handled by a light remux. Converted video keeps the source resolution; HDR is converted to SDR without tone mapping, and there is no quality choice in the player yet.
 - HDR is passed through as-is; on screens without HDR, colours can look washed out (the player warns about it).
 - Image-based subtitles (PGS/VobSub) are not shown; Vidalune does not convert them (no OCR).
 - While audio is converted, seeking outside the already loaded part restarts the stream (about a second).
@@ -841,7 +868,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 
 ## Roadmap
 
-- Full video transcoding with hardware acceleration (NVENC, Quick Sync, VAAPI/AMF) and HLS output.
+- Video conversion: a quality choice in the player (1080p, 720p, …) and a lower quality automatically away from home, HDR tone mapping.
 - Burn-in or OCR for image-based subtitles.
 - Trickplay thumbnails on the seek bar.
 - An app for TV (Android TV).

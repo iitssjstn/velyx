@@ -55,16 +55,8 @@ export function audioFilters(plan: RemuxPlan): string {
   return filters.join(',');
 }
 
-/**
- * Plans a remux: which audio track to deliver and whether it must be converted.
- * Returns null when the video itself is not playable (that needs a full video transcode).
- */
-export function planRemux(file: MediaFileRow, caps: ClientCapabilities, options: PlaybackOptions = {}): RemuxPlan | null {
-  if (!file.videoCodec || !COPYABLE_VIDEO.has(file.videoCodec)) return null;
-  const reported = Boolean(caps.videoCodecs?.length);
-  const video = videoSupport(file, caps);
-  if (video.ok === false) return null;
-  if (!reported && file.videoCodec !== 'h264') return null;
+/** Which audio track to deliver and whether it must be converted (for any stream built by FFmpeg). */
+export function planAudio(file: MediaFileRow, caps: ClientCapabilities, options: PlaybackOptions = {}): RemuxPlan {
   const tracks = file.audioTracks ?? [];
   const wanted = options.audioIndex !== undefined ? tracks.find((t) => t.index === options.audioIndex) : undefined;
   const audioIndex = wanted?.index ?? defaultAudioIndex(file);
@@ -82,17 +74,49 @@ export function planRemux(file: MediaFileRow, caps: ClientCapabilities, options:
   };
 }
 
+/**
+ * Plans a remux: which audio track to deliver and whether it must be converted.
+ * Returns null when the video itself is not playable (that needs a full video transcode).
+ */
+export function planRemux(file: MediaFileRow, caps: ClientCapabilities, options: PlaybackOptions = {}): RemuxPlan | null {
+  if (!file.videoCodec || !COPYABLE_VIDEO.has(file.videoCodec)) return null;
+  const reported = Boolean(caps.videoCodecs?.length);
+  const video = videoSupport(file, caps);
+  if (video.ok === false) return null;
+  if (!reported && file.videoCodec !== 'h264') return null;
+  return planAudio(file, caps, options);
+}
+
+/** The query of a stream URL that carries the audio plan (read back by RemuxEngine.serve). */
+export function planQuery(plan: RemuxPlan): string {
+  return plan.audioIndex === null
+    ? '?audio=none'
+    : `?audio=${plan.audioIndex}${plan.copyAudio ? '&copy=1' : `&ch=${plan.channels ?? 2}${plan.boostVoices ? '&voice=1' : ''}${plan.levelVolume ? '&level=1' : ''}`}`;
+}
+
+/** How FFmpeg re-encodes the video when it is transcoded instead of copied. */
+export interface VideoEncode {
+  /** Global options, before the input (e.g. the VAAPI device). */
+  input: string[];
+  /** Encoder, filters and rate control. */
+  output: string[];
+}
+
 /** Builds the FFmpeg arguments: copy video, copy or convert one audio track, write fragmented MP4 to stdout. */
-export function remuxArgs(input: string, videoCodec: string | null, plan: RemuxPlan, start: number): string[] {
+export function remuxArgs(input: string, videoCodec: string | null, plan: RemuxPlan, start: number, encode: VideoEncode | null = null): string[] {
   const args = ['-hide_banner', '-nostdin', '-loglevel', 'error'];
+  if (encode) args.push(...encode.input);
   // Seek to the keyframe at or before `start`. -noaccurate_seek makes the (converted) audio start at
   // that same keyframe instead of exactly at `start`, so both streams begin together; the player learns
   // the real starting point from seekLanding().
   if (start > 0) args.push('-noaccurate_seek', '-ss', start.toFixed(3));
   args.push('-fflags', '+genpts', '-i', input, '-map', '0:v:0');
   if (plan.audioIndex !== null) args.push('-map', `0:${plan.audioIndex}`);
-  args.push('-c:v', 'copy');
-  if (videoCodec === 'hevc') args.push('-tag:v', 'hvc1');
+  if (encode) args.push(...encode.output);
+  else {
+    args.push('-c:v', 'copy');
+    if (videoCodec === 'hevc') args.push('-tag:v', 'hvc1');
+  }
   if (plan.audioIndex !== null) {
     if (plan.copyAudio) args.push('-c:a', 'copy');
     else {
@@ -142,8 +166,14 @@ export function parseFramemd5Start(output: string): number | null {
 export class RemuxEngine implements PlaybackEngine {
   readonly id = 'remux';
   private readonly processes = new Set<ChildProcess>();
+  /** Streams whose video is transcoded, by viewer and file (a new one for the same replaces the old). */
+  private readonly transcodes = new Map<ChildProcess, string>();
 
-  constructor(private readonly ffmpegPath: string) {}
+  constructor(
+    private readonly ffmpegPath: string,
+    /** Video transcoding when the administrator turned it on (null: off). */
+    private readonly transcoding: () => { encode: VideoEncode; maxStreams: number | null } | null = () => null,
+  ) {}
 
   decide(file: MediaFileRow, caps: ClientCapabilities, options: PlaybackOptions = {}): PlaybackDecision | null {
     const plan = planRemux(file, caps, options);
@@ -159,10 +189,7 @@ export class RemuxEngine implements PlaybackEngine {
         : extras
           ? tr(lang, '{codec} audio is converted to {target} ({extras}).', { codec, target, extras })
           : tr(lang, '{codec} audio is converted to {target}.', { codec, target });
-    const query =
-      plan.audioIndex === null
-        ? '?audio=none'
-        : `?audio=${plan.audioIndex}${plan.copyAudio ? '&copy=1' : `&ch=${plan.channels ?? 2}${plan.boostVoices ? '&voice=1' : ''}${plan.levelVolume ? '&level=1' : ''}`}`;
+    const query = planQuery(plan);
     return {
       engine: this.id,
       streamUrl: `/api/media/${file.id}/remux${query}`,
@@ -197,13 +224,25 @@ export class RemuxEngine implements PlaybackEngine {
   }
 
   async serve(request: FastifyRequest, reply: FastifyReply, file: MediaFileRow, absolutePath: string): Promise<FastifyReply> {
-    const q = request.query as { audio?: string; start?: string; copy?: string; ch?: string; voice?: string; level?: string };
+    const q = request.query as { audio?: string; start?: string; copy?: string; ch?: string; voice?: string; level?: string; vt?: string };
+    const lang = requestLanguage(request);
+    let encode: VideoEncode | null = null;
+    const key = `${request.user?.id ?? 0}:${file.id}`;
+    if (q.vt === '1') {
+      const t = this.transcoding();
+      if (!t) return reply.code(403).send({ error: tr(lang, 'Video conversion is turned off on this server.') });
+      // Seeking starts a new stream: the one it replaces stops first and does not count.
+      for (const [child, k] of this.transcodes) if (k === key) child.kill('SIGKILL');
+      const running = [...this.transcodes.values()].filter((k) => k !== key).length;
+      if (t.maxStreams !== null && running >= t.maxStreams) return reply.code(503).send({ error: tr(lang, 'The server is already converting {n} videos, its limit. Try again in a moment.', { n: t.maxStreams }) });
+      encode = t.encode;
+    }
     const tracks = file.audioTracks ?? [];
     let audioIndex: number | null;
     if (q.audio === 'none' || tracks.length === 0) audioIndex = null;
     else if (q.audio !== undefined) {
       const n = Number(q.audio);
-      if (!Number.isInteger(n) || !tracks.some((t) => t.index === n)) return reply.code(400).send({ error: tr(requestLanguage(request), 'Unknown audio track.') });
+      if (!Number.isInteger(n) || !tracks.some((t) => t.index === n)) return reply.code(400).send({ error: tr(lang, 'Unknown audio track.') });
       audioIndex = n;
     } else audioIndex = defaultAudioIndex(file);
     const start = q.start !== undefined ? Number(q.start) : 0;
@@ -223,14 +262,14 @@ export class RemuxEngine implements PlaybackEngine {
       levelVolume: q.level === '1',
     };
 
-    // Keep resource use bounded on small servers: drop the oldest stream when the limit is reached.
-    if (this.processes.size >= MAX_PROCESSES) {
-      const oldest = this.processes.values().next().value;
-      oldest?.kill('SIGKILL');
-    }
+    // Keep resource use bounded on small servers: drop the oldest remux when the limit is reached
+    // (transcodes have their own, optional limit above).
+    const remuxes = [...this.processes].filter((p) => !this.transcodes.has(p));
+    if (!encode && remuxes.length >= MAX_PROCESSES) remuxes[0]?.kill('SIGKILL');
 
-    const child = spawn(this.ffmpegPath, remuxArgs(absolutePath, file.videoCodec, plan, start), { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(this.ffmpegPath, remuxArgs(absolutePath, file.videoCodec, plan, start, encode), { stdio: ['ignore', 'pipe', 'pipe'] });
     this.processes.add(child);
+    if (encode) this.transcodes.set(child, key);
     let stderr = '';
     child.stderr.on('data', (c: Buffer) => {
       if (stderr.length < 4000) stderr += c.toString();
@@ -241,10 +280,12 @@ export class RemuxEngine implements PlaybackEngine {
     request.raw.on('close', stop);
     child.on('close', (code, signal) => {
       this.processes.delete(child);
+      this.transcodes.delete(child);
       if (code && code !== 0 && signal === null) log.warn(`FFmpeg exited with code ${code} for ${absolutePath}: ${stderr.trim()}`);
     });
     child.on('error', (err) => {
       this.processes.delete(child);
+      this.transcodes.delete(child);
       log.error(`Could not start FFmpeg (${this.ffmpegPath}): ${err.message}`);
     });
 
@@ -261,5 +302,10 @@ export class RemuxEngine implements PlaybackEngine {
 
   get activeStreams(): number {
     return this.processes.size;
+  }
+
+  /** Streams whose video is being transcoded right now. */
+  get activeTranscodes(): number {
+    return this.transcodes.size;
   }
 }

@@ -36,6 +36,7 @@ import { ffmpegFrameReader, ffprobeChapterReader, type ChapterReader, type Frame
 import { PlaybackRegistry } from './playback/engine.js';
 import { DirectPlayEngine } from './playback/direct-play.js';
 import { RemuxEngine } from './playback/remux.js';
+import { TranscodeEngine, TranscodingService, type EncoderSupport } from './playback/transcode.js';
 import { createLogger } from './logger.js';
 import { HttpError } from './http-error.js';
 import { DEFAULT_LANGUAGE, hasTranslation, isLanguage, requestLanguage, tr } from './i18n/index.js';
@@ -103,6 +104,8 @@ export interface AppContext {
   upnp: UpnpService;
   /** Requests through Seerr (optional). */
   seerr: SeerrService;
+  /** Converting video (opt-in) and the encoders this server has. */
+  transcoding: TranscodingService;
   startedAt: number;
 }
 
@@ -127,6 +130,8 @@ export interface BuildOptions {
   scanYieldMs?: number;
   /** Audio source for intro/credits detection (tests pass synthetic audio). */
   audioReader?: AudioReader;
+  /** Checks which video encoders work (tests pass a stand-in). */
+  encoderDetector?: (ffmpegPath: string) => Promise<EncoderSupport>;
   /** Video frames and chapters for intro/credits detection; null turns the source off (tests). */
   frameReader?: FrameReader | null;
   chapterReader?: ChapterReader | null;
@@ -184,7 +189,10 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const watcher = new LibraryWatcher(db, scans, opts.watchDebounceMs);
   const playback = new PlaybackRegistry();
   playback.register(new DirectPlayEngine());
-  playback.register(new RemuxEngine(config.ffmpegPath));
+  const transcoding = new TranscodingService(config.ffmpegPath, () => settings.get().transcoding, opts.encoderDetector);
+  playback.register(new RemuxEngine(config.ffmpegPath, () => transcoding.current()));
+  // Last: only what neither plays as it is nor after repackaging is converted, when that is on.
+  playback.register(new TranscodeEngine(() => transcoding.current()));
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
   const storage = new StorageService(db, config);
   // Critically low disk space pauses scans (which write artwork and rows); they resume on their own.
@@ -217,7 +225,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     fetchImpl: opts.fetchImpl,
     userAgent: `Vidalune v${APP_VERSION}`,
   });
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr: new SeerrService({ settings, fetchImpl: opts.fetchImpl }), startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr: new SeerrService({ settings, fetchImpl: opts.fetchImpl }), transcoding, startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

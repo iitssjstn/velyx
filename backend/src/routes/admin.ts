@@ -525,6 +525,30 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   app.get('/api/admin/settings', { preHandler: requireAdmin }, async () => settingsView());
 
+  // ------------------------------------------------------------------ video conversion (opt-in)
+  const transcodingView = () => {
+    const remux = ctx.playback.get('remux') as RemuxEngine | undefined;
+    return { settings: ctx.settings.get().transcoding, support: ctx.transcoding.support, inUse: ctx.transcoding.current()?.encoder ?? null, active: remux?.activeTranscodes ?? 0 };
+  };
+  app.get('/api/admin/transcoding', { preHandler: requireAdmin }, async () => {
+    if (!ctx.transcoding.support) await ctx.transcoding.detect();
+    return transcodingView();
+  });
+  app.put('/api/admin/transcoding', { preHandler: requireAdmin }, async (request) => {
+    const body = z
+      .object({ enabled: z.boolean(), encoder: z.enum(['auto', 'software', 'vaapi', 'nvenc']), maxStreams: z.number().int().min(1).max(100).nullable() })
+      .parse(request.body);
+    ctx.settings.update({ transcoding: body });
+    if (body.enabled && !ctx.transcoding.support) await ctx.transcoding.detect();
+    ctx.audit.record('settings.updated', { actor: request.user, ip: request.ip, detail: `video conversion ${body.enabled ? `on (${body.encoder}${body.maxStreams ? `, at most ${body.maxStreams}` : ''})` : 'off'}` });
+    return transcodingView();
+  });
+  /** Tries the encoders again (after adding a graphics card or passing /dev/dri to the container). */
+  app.post('/api/admin/transcoding/detect', { preHandler: requireAdmin }, async () => {
+    await ctx.transcoding.detect();
+    return transcodingView();
+  });
+
   app.put('/api/admin/settings', { preHandler: requireAdmin }, async (request) => {
     const body = settingsBody.parse(request.body);
     const wasConfigured = ctx.tmdb.configured;

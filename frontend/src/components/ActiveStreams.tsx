@@ -16,6 +16,7 @@ type StreamInfo = Pick<ActiveStream, 'mode' | 'audioConversion' | 'container' | 
 /** "Direct Play", "Remux" or "Remux · Audio → AAC 5.1". */
 export function modeLabel(s: Pick<StreamInfo, 'mode' | 'audioConversion'>): string {
   if (s.mode === 'direct') return t('playback.directPlay');
+  if (s.mode === 'transcode') return t('playback.transcode');
   return s.audioConversion ? t('playback.remuxAudio', { target: audioConversionLabel(s.audioConversion) }) : t('playback.remux');
 }
 
@@ -24,11 +25,11 @@ export function streamFormat(s: StreamInfo): string {
   const container = s.container ? s.container.toUpperCase() : null;
   const audio = codecName(s.audioCodec);
   return [
-    codecName(s.videoCodec),
+    s.mode === 'transcode' ? `${codecName(s.videoCodec)} → H.264` : codecName(s.videoCodec),
     resolutionLabel(s.width, s.height),
     s.bitrate ? `${(s.bitrate / 1_000_000).toFixed(1)} Mbps` : null,
-    container && (s.mode === 'remux' ? `${container} → MP4` : container),
-    audio && (s.mode === 'remux' && s.audioConversion ? `${audio} → ${audioConversionLabel(s.audioConversion.split(' · ')[0])}` : audio),
+    container && (s.mode !== 'direct' ? `${container} → MP4` : container),
+    audio && (s.mode !== 'direct' && s.audioConversion ? `${audio} → ${audioConversionLabel(s.audioConversion.split(' · ')[0])}` : audio),
   ]
     .filter(Boolean)
     .join(' · ');

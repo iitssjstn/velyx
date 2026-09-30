@@ -1,6 +1,7 @@
 export const playback = {
   directPlay: 'Direct Play',
   remux: 'Remux',
+  transcode: 'Transcode',
   remuxAudio: 'Remux · Audio → {target}',
   voicesBoosted: 'voices boosted',
   volumeLevelled: 'volume levelled',

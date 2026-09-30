@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTestEnv, createUser, setupAdmin, type TestEnv } from './helpers.js';
-import { isHomeAddress, parseNetwork } from '../src/services/remote-access.js';
+import { isHomeAddress, isHomeRequest, isPrivateNetwork, parseNetwork } from '../src/services/remote-access.js';
 import { REMOTE_GRACE_MS } from '../src/services/cloud.js';
 
 describe('home or away', () => {
@@ -123,5 +123,31 @@ describe('playing away from home', () => {
     expect(other.json().error).toMatch(/take it for yourself on vidalune\.com/);
     // The relay may be on for her sake.
     expect((await env.app.inject({ url: '/api/admin/cloud', headers: { cookie: admin } })).json().relay.allowed).toBe(true);
+  });
+});
+
+describe('closing the ways around remote access', () => {
+  it('only lets private networks count as home, also ones saved before', () => {
+    for (const n of ['192.168.50.0/24', '10.8.0.0/24', '100.64.0.0/10', '100.100.0.0/16', 'fd7a:115c:a1e0::/48']) expect(isPrivateNetwork(n), n).toBe(true);
+    for (const n of ['0.0.0.0/0', '0.0.0.0/1', '8.8.8.0/24', '100.0.0.0/8', '192.0.0.0/2', '::/0', '2000::/3', 'nonsense']) expect(isPrivateNetwork(n), n).toBe(false);
+    expect(isHomeAddress('8.8.8.8', ['0.0.0.0/0'])).toBe(false);
+    expect(isHomeAddress('2001:db8::1', ['::/0'])).toBe(false);
+  });
+
+  it('counts a visitor behind a reverse proxy or tunnel on the home network as away', () => {
+    const req = (ip: string, headers: Record<string, string> = {}) => ({ ip, socket: { remoteAddress: ip }, headers });
+    expect(isHomeRequest(req('192.168.1.20'))).toBe(true);
+    expect(isHomeRequest(req('127.0.0.1', { 'x-forwarded-for': '192.168.1.20' }))).toBe(true);
+    // A proxy on the home network passes on the visitor from the internet (without TRUST_PROXY).
+    expect(isHomeRequest(req('172.18.0.2', { 'x-forwarded-for': '203.0.113.7' }))).toBe(false);
+    expect(isHomeRequest(req('127.0.0.1', { 'x-real-ip': '203.0.113.7' }))).toBe(false);
+    expect(isHomeRequest(req('127.0.0.1', { 'cf-connecting-ip': '2001:db8::7' }))).toBe(false);
+    expect(isHomeRequest(req('127.0.0.1', { forwarded: 'for="[2001:db8::7]:4711";proto=https' }))).toBe(false);
+    expect(isHomeRequest(req('127.0.0.1', { forwarded: 'for=unknown' }))).toBe(false);
+    // With TRUST_PROXY=true, request.ip is the address a visitor claims; the real one is still in the chain.
+    expect(isHomeRequest({ ip: '192.168.1.5', socket: { remoteAddress: '172.18.0.2' }, headers: { 'x-forwarded-for': '192.168.1.5, 203.0.113.7' } })).toBe(false);
+    // Straight from the internet, claiming a home address in a header.
+    expect(isHomeRequest(req('203.0.113.7', { 'x-forwarded-for': '192.168.1.20' }))).toBe(false);
+    expect(isHomeRequest(req('127.0.0.1', { 'x-forwarded-for': '198.51.100.1:5555' }))).toBe(false);
   });
 });

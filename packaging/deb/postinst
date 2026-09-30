@@ -8,6 +8,10 @@ if [ "$1" = "configure" ]; then
   if ! getent passwd vidalune > /dev/null; then
     adduser --system --quiet --ingroup vidalune --home /var/lib/vidalune --no-create-home --shell /usr/sbin/nologin --gecos "Vidalune media server" vidalune
   fi
+  # The graphics devices, for converting video with Intel/AMD/NVIDIA hardware (when turned on).
+  for group in render video; do
+    if getent group "$group" > /dev/null; then adduser --quiet vidalune "$group" || true; fi
+  done
   mkdir -p /var/lib/vidalune
   chown vidalune:vidalune /var/lib/vidalune
   chmod 0750 /var/lib/vidalune

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, CircleHelp, RefreshCw, TriangleAlert, X } from 'lucide-react';
+import { Check, CircleHelp, Cpu, RefreshCw, TriangleAlert, X } from 'lucide-react';
 import { channelLabel, formatBitrate, resolutionLabel } from '../lib/format';
 import type { ComponentStatus, PlaybackAnalysis } from '../lib/types';
 import { t, useT, type MessageKey } from '../i18n';
@@ -8,10 +8,11 @@ import { t, useT, type MessageKey } from '../i18n';
 export function modeLabel(a: PlaybackAnalysis): string {
   if (a.mode === 'direct') return t('playback.directPlay');
   if (a.mode === 'unsupported') return t('playback.notSupported');
+  if (a.mode === 'transcode') return t('playback.transcode');
   return a.audio.action === 'convert' ? t('playback.remuxAudio', { target: 'AAC' }) : t('playback.remux');
 }
 
-const MODE_ICON = { direct: Check, remux: RefreshCw, unsupported: TriangleAlert } as const;
+const MODE_ICON = { direct: Check, remux: RefreshCw, transcode: Cpu, unsupported: TriangleAlert } as const;
 
 function videoLine(a: PlaybackAnalysis): string {
   const v = a.video;
@@ -65,7 +66,7 @@ export function StreamRows({ analysis: a }: { analysis: PlaybackAnalysis }) {
   );
 }
 
-const MODE_TITLE: Record<PlaybackAnalysis['mode'], MessageKey> = { direct: 'playback.directPlay', remux: 'playback.remux', unsupported: 'playback.unavailable' };
+const MODE_TITLE: Record<PlaybackAnalysis['mode'], MessageKey> = { direct: 'playback.directPlay', remux: 'playback.remux', transcode: 'playback.transcode', unsupported: 'playback.unavailable' };
 
 /** Overview of how a file is delivered, for the player's info panel. */
 export function PlaybackSummary({ analysis: a, subtitle }: { analysis: PlaybackAnalysis; subtitle?: string | null }) {

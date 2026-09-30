@@ -11,7 +11,7 @@ export interface ActivityStats {
   days: number;
   from: number;
   totals: { plays: number; watchSec: number; movies: number; episodes: number; users: number };
-  modes: { direct: { plays: number; watchSec: number }; remux: { plays: number; watchSec: number }; audioConverted: number };
+  modes: { direct: { plays: number; watchSec: number }; remux: { plays: number; watchSec: number }; transcode: { plays: number; watchSec: number }; audioConverted: number };
   granularity: Granularity;
   /** Watch time per day, week (starting Monday) or month, oldest first, without gaps. */
   timeline: { period: string; watchSec: number; plays: number }[];
@@ -31,7 +31,7 @@ export interface HistoryEntry {
   showId: number | null;
   title: string;
   subtitle: string | null;
-  mode: 'direct' | 'remux';
+  mode: 'direct' | 'remux' | 'transcode';
   audioConversion: string | null;
   container: string | null;
   videoCodec: string | null;
@@ -96,7 +96,7 @@ export function activityStats(db: DB, days: number, now = Date.now()): ActivityS
     .where(inRange)
     .get()!;
   const byMode = db.select({ mode: playbackSessions.mode, plays, watchSec: watch }).from(playbackSessions).where(inRange).groupBy(playbackSessions.mode).all();
-  const mode = (m: 'direct' | 'remux') => {
+  const mode = (m: 'direct' | 'remux' | 'transcode') => {
     const r = byMode.find((x) => x.mode === m);
     return { plays: r?.plays ?? 0, watchSec: r?.watchSec ?? 0 };
   };
@@ -151,7 +151,7 @@ export function activityStats(db: DB, days: number, now = Date.now()): ActivityS
     days,
     from,
     totals: { plays: t.plays, watchSec: t.watchSec, movies: t.movies, episodes: t.episodes, users: t.users },
-    modes: { direct: mode('direct'), remux: mode('remux'), audioConverted: t.audioConverted },
+    modes: { direct: mode('direct'), remux: mode('remux'), transcode: mode('transcode'), audioConverted: t.audioConverted },
     granularity,
     timeline,
     topMovies,

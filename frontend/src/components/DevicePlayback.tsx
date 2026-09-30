@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Check, RefreshCw, TriangleAlert } from 'lucide-react';
+import { Check, RefreshCw, TriangleAlert, Cpu } from 'lucide-react';
 import { api } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { usePrefs } from '../lib/prefs';
@@ -8,8 +8,8 @@ import { modeLabel, StreamRows } from './PlaybackDetails';
 import { InfoSection } from './MediaInfo';
 import { useT } from '../i18n';
 
-const MODE_ICON = { direct: Check, remux: RefreshCw, unsupported: TriangleAlert } as const;
-const MODE_CLASS = { direct: 'text-ok', remux: 'text-accent', unsupported: 'text-amber' } as const;
+const MODE_ICON = { direct: Check, remux: RefreshCw, transcode: Cpu, unsupported: TriangleAlert } as const;
+const MODE_CLASS = { direct: 'text-ok', remux: 'text-accent', transcode: 'text-accent', unsupported: 'text-amber' } as const;
 
 /**
  * How a file will play on this device: Direct Play, Remux (with or without audio conversion) or not

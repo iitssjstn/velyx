@@ -18,7 +18,7 @@ import { canSee } from '../services/access.js';
 import { analyzePlayback } from '../playback/compatibility.js';
 import { clientProfile, deviceSupport, effectiveCapabilities, profileName } from '../playback/client-profile.js';
 import { requestLanguage } from '../i18n/index.js';
-import { isHomeAddress } from '../services/remote-access.js';
+import { isHomeRequest } from '../services/remote-access.js';
 import { CAST_TOKEN_MS, CHROMECAST_CAPS, signCastToken } from '../services/cast.js';
 import { createLogger } from '../logger.js';
 
@@ -112,7 +112,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
    * owns this server (like the relay). Browsing the library works everywhere.
    */
   const remoteGate = async (request: FastifyRequest) => {
-    if (isHomeAddress(request.ip, ctx.settings.get().homeNetworks)) return;
+    if (isHomeRequest(request, ctx.settings.get().homeNetworks)) return;
     const access = await ctx.cloud.remoteAccess(request.user?.id);
     if (access === 'allowed') return;
     throw new HttpError(
@@ -177,7 +177,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   });
 
   /**
-   * Casting: what a Chromecast plays of this file (as it is, or repackaged; never transcoded), and a
+   * Casting: what a Chromecast plays of this file (as it is, repackaged, or converted when the
+   * administrator turned video conversion on), and a
    * short-lived token that lets the Chromecast fetch just this file's stream, subtitles and artwork.
    * The sender (the app or the browser) builds the addresses with the token and its own server
    * address; the Chromecast itself is checked like any viewer (home network or remote access).
@@ -189,7 +190,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (body.audioIndex !== undefined && !(file.audioTracks ?? []).some((t) => t.index === body.audioIndex)) throw new HttpError(400, 'Unknown audio track.');
     const lang = requestLanguage(request);
     const decision = ctx.playback.decide(file, CHROMECAST_CAPS, { audioIndex: body.audioIndex, audioChannels: 'stereo', lang });
-    if (!decision || decision.compatible === false) throw new HttpError(415, 'This file cannot be played on a Chromecast without converting the video, which Vidalune does not do.');
+    if (!decision || decision.compatible === false) throw new HttpError(415, 'This file cannot be played on a Chromecast without converting the video. An administrator can turn on video conversion (Admin → Server).');
     const expiresAt = Date.now() + CAST_TOKEN_MS;
     const token = signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt });
     const cloud = ctx.settings.get().cloud;
@@ -228,7 +229,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const { file, abs } = loadFile(request.params.id, request.user!);
     // A HEAD request only asks whether the stream exists: never start FFmpeg for it.
     if (request.method === 'HEAD') return reply.code(200).header('Content-Type', 'video/mp4').header('Accept-Ranges', 'none').send();
-    ctx.streams.touch(request.user!, file.id, 'remux', deviceLabel(request), remuxAudioLabel(request.query as Record<string, string | undefined>));
+    const q = request.query as Record<string, string | undefined>;
+    ctx.streams.touch(request.user!, file.id, q.vt === '1' ? 'transcode' : 'remux', deviceLabel(request), remuxAudioLabel(q));
     return ctx.playback.get('remux')!.serve(request, reply, file, abs);
   });
 

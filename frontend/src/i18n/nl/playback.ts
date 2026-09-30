@@ -2,6 +2,7 @@ import type { Messages } from '../index';
 export const playback: Messages['playback'] = {
   directPlay: 'Direct Play',
   remux: 'Remux',
+  transcode: 'Omzetten',
   remuxAudio: 'Remux · Audio → {target}',
   voicesBoosted: 'stemmen versterkt',
   volumeLevelled: 'volume gelijkgetrokken',

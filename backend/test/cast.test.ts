@@ -35,10 +35,10 @@ describe('casting to a Chromecast', () => {
     expect(direct.token).toMatch(/^[\w-]+\.[\w-]+$/);
     // MKV: repackaged (the Chromecast does not take MKV), never converted.
     expect((await session(admin, arrival.id)).json()).toMatchObject({ contentType: 'video/mp4', decision: { engine: 'remux', seek: 'restart' } });
-    // Video a Chromecast cannot decode: said so, not transcoded.
+    // Video a Chromecast cannot decode, with conversion off (the default): said so, not transcoded.
     const no = await session(admin, mpeg2.id);
     expect(no.statusCode).toBe(415);
-    expect(no.json().error).toMatch(/does not do/);
+    expect(no.json().error).toMatch(/turn on video conversion/);
     expect((await env.app.inject({ method: 'POST', url: '/api/cast/session', payload: { fileId: dune.id } })).statusCode).toBe(401);
   });
 

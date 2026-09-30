@@ -124,7 +124,7 @@ describe('playback diagnostics', () => {
     expect(a.components.video.note).toMatch(/cannot decode AV1/);
     expect(a.components.audio).toEqual({ status: 'ok', note: 'Supported' });
     expect(a.components.container.status).toBe('ok');
-    expect(a.summary).toEqual(['Your current browser/device cannot play this video format.', 'Server transcoding: No. Vidalune does not convert video.']);
+    expect(a.summary).toEqual(['Your current browser/device cannot play this video format.', 'Server transcoding is off. An administrator can turn on video conversion (Admin → Server).']);
   });
 
   it('does not claim certainty it does not have', () => {
