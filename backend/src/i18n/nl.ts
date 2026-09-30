@@ -328,6 +328,7 @@ export const nl: Record<string, string> = {
   'Seerr refused the API key. Check it under Admin → Server.': 'Seerr weigert de API-sleutel. Controleer hem onder Beheer → Server.',
   'Seerr does not know this title.': 'Seerr kent deze titel niet.',
   'This has already been requested.': 'Dit is al aangevraagd.',
+  'This is (partly) available already; it stays.': 'Dit is al (deels) beschikbaar; het blijft staan.',
   'Seerr could not handle the request. Try again later.': 'Seerr kon het verzoek niet verwerken. Probeer het later opnieuw.',
   'Enter the address Seerr is opened at, such as http://192.168.1.10:5055.': 'Vul het adres in waarop Seerr opent, bijvoorbeeld http://192.168.1.10:5055.',
   'Enter the API key from Seerr (Settings → General).': 'Vul de API-sleutel van Seerr in (Settings → General).',
