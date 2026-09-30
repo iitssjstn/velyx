@@ -6,11 +6,11 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import fastifyCookie from '@fastify/cookie';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyStatic from '@fastify/static';
-import { and, desc, eq, gt, gte, isNotNull, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, isNotNull, isNull, lt } from 'drizzle-orm';
 import { z, ZodError } from 'zod';
 import type { CloudConfig } from './config.js';
 import type { DB } from './db/client.js';
-import { accountActivity, accountSessions, accounts, invites, linkCodes, memberCodes, memberships, relayTraffic, servers, tickets } from './db/schema.js';
+import { accountActivity, accountSessions, accounts, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
 import { newSlug, Relay, relayMessage, type Rewrite } from './relay.js';
 import { composeFile, installPage, installScript } from './install.js';
@@ -85,6 +85,8 @@ const serverUrl = z
 
 export interface CloudAppOptions {
   now?: () => number;
+  /** Outgoing requests (health checks of other relays); tests pass their own. */
+  fetchImpl?: typeof fetch;
 }
 
 export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppOptions = {}): Promise<FastifyInstance> {
@@ -96,13 +98,14 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const admins = new Set(config.adminEmails);
   const isAdmin = (a: { email: string }) => admins.has(a.email);
   const ceos = new Set(config.ceoEmails);
-  const isCeo = (a: { email: string }) => ceos.has(a.email);
+  /** The Control Center (/admin): CEO_EMAILS, and the administrators of ADMIN_EMAILS. */
+  const isCeo = (a: { email: string }) => ceos.has(a.email) || admins.has(a.email);
   /** Whether an account's servers may be reached through Vidalune: an active plan (administrators always). */
-  const hasRemote = (a: typeof accounts.$inferSelect | undefined): boolean => !!a && (isAdmin(a) || (a.plan === 'remote' && (a.planUntil === null || a.planUntil > now())));
+  const hasRemote = (a: typeof accounts.$inferSelect | undefined): boolean => !!a && a.suspendedAt === null && (isAdmin(a) || (a.plan === 'remote' && (a.planUntil === null || a.planUntil > now())));
   const ownerHasRemote = (accountId: number | null): boolean => accountId !== null && hasRemote(db.select().from(accounts).where(eq(accounts.id, accountId)).get());
   /** Remote access for this account itself: its own plan for its servers, or a viewer plan. */
   const hasPersonal = (a: typeof accounts.$inferSelect | undefined): boolean =>
-    !!a && (hasRemote(a) || (a.plan === 'viewer' && (a.planUntil === null || a.planUntil > now())));
+    !!a && a.suspendedAt === null && (hasRemote(a) || (a.plan === 'viewer' && (a.planUntil === null || a.planUntil > now())));
   /** The server's users whose own Vidalune account has remote access (their server user ids). */
   const remoteUsers = (serverId: string): string[] =>
     db
@@ -155,7 +158,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const accountByToken = (token: string | undefined) => {
     if (!token) return null;
     const session = db.select().from(accountSessions).where(and(eq(accountSessions.tokenHash, sha256(token)), gt(accountSessions.expiresAt, now()))).get();
-    return session ? (db.select().from(accounts).where(eq(accounts.id, session.accountId)).get() ?? null) : null;
+    const a = session ? db.select().from(accounts).where(eq(accounts.id, session.accountId)).get() : undefined;
+    // A suspended account is signed out everywhere.
+    return a && a.suspendedAt === null ? a : null;
   };
 
   /** Cookies of a request not (yet) parsed by Fastify: those passed through app.vidalune.com. */
@@ -291,8 +296,12 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   app.post('/api/account', async (request, reply) => {
     limiter.check(`signup:${request.ip}`, now());
     const body = z.object({ email, password, client }).parse(request.body);
-    if (db.select().from(accounts).where(eq(accounts.email, body.email)).get()) throw new HttpError(409, 'There is already an account with this email address. Sign in instead.');
-    const row = db.insert(accounts).values({ email: body.email, passwordHash: await hashPassword(body.password), createdAt: now() }).returning().get();
+    const existing = db.select().from(accounts).where(eq(accounts.email, body.email)).get();
+    // Added by the CEO (no password yet): signing up with that address takes it over, with its access.
+    if (existing && (existing.passwordHash !== '' || existing.suspendedAt !== null)) throw new HttpError(409, 'There is already an account with this email address. Sign in instead.');
+    const row = existing
+      ? db.update(accounts).set({ passwordHash: await hashPassword(body.password) }).where(eq(accounts.id, existing.id)).returning().get()
+      : db.insert(accounts).values({ email: body.email, passwordHash: await hashPassword(body.password), createdAt: now() }).returning().get();
     const token = startSession(reply, row.id, body.client);
     return { email: row.email, ...(token ? { token } : {}) };
   });
@@ -304,6 +313,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const row = db.select().from(accounts).where(eq(accounts.email, body.email)).get();
     const ok = row ? await verifyPassword(row.passwordHash, body.password) : await dummyVerify(body.password);
     if (!row || !ok) throw new HttpError(401, 'Wrong email address or password.');
+    if (row.suspendedAt !== null) throw new HttpError(403, 'This Vidalune account is suspended. Contact Vidalune.');
     const token = startSession(reply, row.id, body.client);
     return { email: row.email, ...(token ? { token } : {}) };
   });
@@ -698,130 +708,19 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   });
 
   // ---- the CEO panel (/ceo): customers, access, relays and figures over time
-  ceoRoutes(app, { db, account, isCeo, now, mainCapacityMbps: config.relayMaxMbps, relay, accessChanged: () => relay.dropUnallowed() });
-
-  // ---- the admin page: who has remote access
-
-  function admin(request: FastifyRequest) {
-    const me = account(request);
-    if (!isAdmin(me)) throw new HttpError(403, 'Only for Vidalune administrators.');
-    return me;
-  }
-
-  const adminView = (a: typeof accounts.$inferSelect) => {
-    const owned = db.select({ id: servers.id, name: servers.name, lastSeenAt: servers.lastSeenAt, relayEnabled: servers.relayEnabled }).from(servers).where(eq(servers.accountId, a.id)).all();
-    return {
-      id: a.id,
-      email: a.email,
-      createdAt: a.createdAt,
-      admin: isAdmin(a),
-      plan: a.plan,
-      planUntil: a.planUntil,
-      planNote: a.planNote,
-      planChangedAt: a.planChangedAt,
-      remote: hasPersonal(a),
-      servers: owned.map((s) => ({ ...s, relayConnected: relay.connected(s.id) })),
-    };
-  };
-
-  app.get('/api/admin/accounts', async (request) => {
-    admin(request);
-    const q = z.object({ q: z.string().trim().toLowerCase().max(254).default(''), filter: z.enum(['all', 'remote', 'servers']).default('all') }).parse(request.query);
-    const all = db.select().from(accounts).orderBy(desc(accounts.createdAt)).all();
-    const list = all
-      .filter((a) => !q.q || a.email.includes(q.q))
-      .map(adminView)
-      .filter((a) => q.filter === 'all' || (q.filter === 'remote' ? a.remote : a.servers.length > 0));
-    const linked = db.select({ id: servers.id }).from(servers).where(isNotNull(servers.accountId)).all().length;
-    return {
-      stats: { accounts: all.length, remote: all.filter(hasRemote).length, viewers: all.filter((a) => !hasRemote(a) && hasPersonal(a)).length, servers: linked, tunnels: relay.count() },
-      accounts: list.slice(0, 200),
-      more: list.length > 200,
-    };
+  const ceo = ceoRoutes(app, {
+    db,
+    account,
+    isCeo,
+    now,
+    mainCapacityMbps: config.relayMaxMbps,
+    defaultServerMbps: config.relayServerMbps,
+    relay,
+    accessChanged: () => relay.dropUnallowed(),
+    signOut: (accountId) => void db.delete(accountSessions).where(eq(accountSessions.accountId, accountId)).run(),
+    fetchImpl: opts.fetchImpl,
   });
-
-  /** Gives or takes remote access: the plan, until when (null: no end) and a note. */
-  app.put('/api/admin/accounts/:id/plan', async (request) => {
-    admin(request);
-    const { id } = z.object({ id: z.coerce.number().int().positive() }).parse(request.params);
-    const body = z
-      .object({
-        plan: z.enum(['free', 'remote', 'viewer']),
-        until: z.number().int().positive().nullable().default(null),
-        note: z.string().trim().max(200).nullable().default(null),
-      })
-      .parse(request.body);
-    if (body.plan !== 'free' && body.until !== null && body.until <= now()) throw new HttpError(400, 'Choose an end date in the future.');
-    const res = db
-      .update(accounts)
-      .set({ plan: body.plan, planUntil: body.plan !== 'free' ? body.until : null, planNote: body.note || null, planChangedAt: now() })
-      .where(eq(accounts.id, id))
-      .run();
-    if (!res.changes) throw new HttpError(404, 'Not found.');
-    const row = db.select().from(accounts).where(eq(accounts.id, id)).get()!;
-    // Taken away: its servers' tunnels close now, not at the next check.
-    relay.dropUnallowed();
-    return adminView(row);
-  });
-
-  /**
-   * The relay, for administrators: what passes through now (per server and in total), today and in
-   * the last 30 days, and each server's limit. Only amounts; never what is watched.
-   */
-  app.get('/api/admin/relay', async (request) => {
-    admin(request);
-    relay.flush();
-    const t = now();
-    const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-    const since = day(t - 29 * DAY);
-    const totals = db
-      .select({ serverId: relayTraffic.serverId, out: sql<number>`sum(${relayTraffic.bytesOut})`, in: sql<number>`sum(${relayTraffic.bytesIn})`, requests: sql<number>`sum(${relayTraffic.requests})` })
-      .from(relayTraffic)
-      .where(gte(relayTraffic.day, since))
-      .groupBy(relayTraffic.serverId)
-      .all();
-    const today = new Map(db.select().from(relayTraffic).where(eq(relayTraffic.day, day(t))).all().map((r) => [r.serverId, r]));
-    const live = relay.now();
-    const rows = db.select({ server: servers, owner: accounts.email }).from(servers).leftJoin(accounts, eq(servers.accountId, accounts.id)).where(isNotNull(servers.relaySlug)).all();
-    const month = new Map(totals.map((r) => [r.serverId, r]));
-    const list = rows
-      .map(({ server: s, owner }) => ({
-        id: s.id,
-        name: s.name,
-        owner,
-        relayOn: s.relayEnabled,
-        connected: relay.connected(s.id),
-        /** Mbit/s right now (the last five seconds). */
-        mbpsNow: Math.round(((live.bps.get(s.id) ?? 0) * 8) / 10_000) / 100,
-        limitMbps: s.relayLimitMbps,
-        today: { out: today.get(s.id)?.bytesOut ?? 0, in: today.get(s.id)?.bytesIn ?? 0, requests: today.get(s.id)?.requests ?? 0 },
-        month: { out: Number(month.get(s.id)?.out ?? 0), in: Number(month.get(s.id)?.in ?? 0), requests: Number(month.get(s.id)?.requests ?? 0) },
-      }))
-      .sort((a, b) => b.mbpsNow - a.mbpsNow || b.month.out - a.month.out)
-      .slice(0, 200);
-    const mbpsNow = Math.round(([...live.bps.values()].reduce((a, b) => a + b, 0) * 8) / 10_000) / 100;
-    return {
-      /** The relay's total and the default per server (Mbit/s; 0: no limit). */
-      maxMbps: config.relayMaxMbps,
-      serverMbps: config.relayServerMbps,
-      tunnels: live.tunnels,
-      /** Servers sending right now: they share maxMbps equally. */
-      active: live.active,
-      mbpsNow,
-      servers: list,
-    };
-  });
-
-  /** A server's own relay limit (Mbit/s; null: the default). */
-  app.put('/api/admin/servers/:id/relay-limit', async (request) => {
-    admin(request);
-    const { id } = z.object({ id: z.string().max(64) }).parse(request.params);
-    const { limitMbps } = z.object({ limitMbps: z.number().int().min(1).max(10_000).nullable() }).parse(request.body);
-    const res = db.update(servers).set({ relayLimitMbps: limitMbps }).where(eq(servers.id, id)).run();
-    if (!res.changes) throw new HttpError(404, 'Not found.');
-    relay.refreshLimit(id);
-    return { ok: true, limitMbps };
-  });
+  app.decorate('ceoMonitor', ceo.monitor);
 
   // ---- installing Vidalune: the page, a compose file, the installer, the app and the latest version
 
@@ -908,9 +807,10 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     app.get('/servers', page);
     app.get('/join', page);
     app.get('/invite', page);
-    app.get('/admin', page);
-    // The CEO panel: the page for everyone, its data only for the CEO (checked by /api/ceo).
-    app.get('/ceo', (_req, reply) => reply.type('text/html').header('Cache-Control', 'no-cache').send(fs.readFileSync(path.join(webDir, 'ceo.html'))));
+    // The Control Center: the page for everyone, its data only for the CEO and administrators
+    // (checked by /api/ceo on every call). /ceo was its address before.
+    app.get('/admin', (_req, reply) => reply.type('text/html').header('Cache-Control', 'no-cache').send(fs.readFileSync(path.join(webDir, 'ceo.html'))));
+    app.get('/ceo', (_req, reply) => reply.redirect('/admin'));
   }
   const frontendDir = config.frontendDir;
   if (frontendDir) {
@@ -953,5 +853,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     prune: () => void;
     relay: Relay;
+    /** Checks the relays and writes down their state (every five minutes). */
+    ceoMonitor: () => Promise<void>;
   }
 }

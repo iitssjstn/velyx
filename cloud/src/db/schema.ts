@@ -16,6 +16,15 @@ export const accounts = sqliteTable('accounts', {
   /** A note by whoever set the plan (e.g. how it was paid). */
   planNote: text('plan_note'),
   planChangedAt: integer('plan_changed_at'),
+  /** The name the CEO knows this customer by (optional). */
+  name: text('name'),
+  /** A note by the CEO (how the customer came in, agreements). */
+  note: text('note'),
+  /** Suspended by the CEO: cannot sign in, and their servers are not reachable through Vidalune. */
+  suspendedAt: integer('suspended_at'),
+  suspendedBy: text('suspended_by'),
+  /** The relay this customer's servers use (null: the main relay). */
+  relayNodeId: integer('relay_node_id'),
 });
 
 /** Signed-in browsers and apps. Only a hash of the token is stored. */
@@ -215,7 +224,48 @@ export const relayNodes = sqliteTable('relay_nodes', {
   note: text('note'),
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('created_at').notNull(),
+  /** Its last health check, and the last one it answered (other relays; the main relay is this service). */
+  lastCheckAt: integer('last_check_at'),
+  lastSeenAt: integer('last_seen_at'),
 });
+
+/**
+ * Every five minutes, per relay: whether it was up, its speed (average and peak, Mbit/s) and how
+ * many clients (viewers' devices) and servers were connected. Kept for 35 days: charts and uptime.
+ */
+export const relaySamples = sqliteTable(
+  'relay_samples',
+  {
+    nodeId: integer('node_id')
+      .notNull()
+      .references(() => relayNodes.id, { onDelete: 'cascade' }),
+    /** The start of the five minutes (ms). */
+    at: integer('at').notNull(),
+    up: integer('up', { mode: 'boolean' }).notNull(),
+    /** Null: not known for this relay (another machine). */
+    mbps: real('mbps'),
+    peakMbps: real('peak_mbps'),
+    clients: integer('clients'),
+    servers: integer('servers'),
+  },
+  (t) => [primaryKey({ columns: [t.nodeId, t.at] }), index('relay_samples_at').on(t.at)],
+);
+
+/** What happened in the CEO panel (by the CEO, or noticed by the service itself): the activity list. */
+export const ceoEvents = sqliteTable(
+  'ceo_events',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    at: integer('at').notNull(),
+    /** The CEO's email address, or "system". */
+    actor: text('actor').notNull(),
+    action: text('action').notNull(),
+    target: text('target').notNull(),
+    /** JSON with details (old and new values). */
+    detail: text('detail'),
+  },
+  (t) => [index('ceo_events_at').on(t.at)],
+);
 
 /**
  * Access given to an account: remote access (for everyone on its servers) or a viewer plan, why
