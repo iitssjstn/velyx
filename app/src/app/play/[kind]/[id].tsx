@@ -7,7 +7,7 @@ import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
-import { CastButton, CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, useMediaStatus, useRemoteMediaClient, useStreamPosition } from 'react-native-google-cast';
+import { CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, useMediaStatus, useRemoteMediaClient, useStreamPosition } from 'react-native-google-cast';
 import { deviceDecoders } from '../../../../modules/vidalune-codecs';
 import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
@@ -638,8 +638,14 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
                 <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }} numberOfLines={1}>{item.title}</Text>
                 {item.subtitle ? <Text style={{ color: colors.muted }} numberOfLines={1}>{item.subtitle}</Text> : null}
               </View>
-              {/* Shows when a Chromecast is around; opens the list of them (and "stop casting"). */}
-              <CastButton accessibilityLabel={t('player.cast')} style={{ width: 36, height: 36, tintColor: '#fff' }} />
+              {/* Always there: opens the Chromecast list, which searches the network itself (and "stop
+                  casting" while connected). The standard button only shows once a Chromecast was
+                  already found in the background, which can take long or not happen at all. */}
+              <IconButton
+                name="cast"
+                label={t('player.cast')}
+                onPress={() => void CastContext.showCastDialog().catch((err: unknown) => Alert.alert(t('player.castFailed'), errorMessage(err, t)))}
+              />
               <IconButton name="message-square" label={t('player.tracks')} onPress={() => setMenu(true)} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 40 }}>
