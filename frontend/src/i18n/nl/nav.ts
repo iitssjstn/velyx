@@ -7,6 +7,7 @@ export const nav: Messages['nav'] = {
   collections: 'Collecties',
   watchlist: 'Kijklijst',
   favorites: 'Favorieten',
+  account: 'Account',
   settings: 'Instellingen',
   requests: 'Aanvragen',
   admin: 'Beheer',

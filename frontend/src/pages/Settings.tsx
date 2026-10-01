@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Check, CircleHelp, Repeat, Smartphone, X } from 'lucide-react';
-import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { LanguagePreferences, SkipMode, SubtitleMode } from '../lib/player';
 import { api, errorMessage } from '../lib/api';
@@ -15,8 +15,6 @@ import { toast } from '../components/Toast';
 import { SessionList } from '../components/SessionList';
 import { VidaluneAccount } from '../components/VidaluneAccount';
 import { HistoryRow } from '../components/ActiveStreams';
-import { ServerSettingsPanel } from './admin/ServerSettings';
-import { LibrariesPanel } from './admin/Libraries';
 import { LANGUAGES, languageLabel, setLanguage, useT, type Language, type MessageKey } from '../i18n';
 
 function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
@@ -519,6 +517,15 @@ export function WatchHistory() {
   );
 }
 
+/** The old address of this page (before 0.18.0): its tabs moved to /account, server and libraries to Admin. */
+export function OldSettingsRedirect() {
+  const { user } = useAuth();
+  const tab = useLocation().pathname.split('/')[2] ?? '';
+  const isAdmin = user?.role === 'admin';
+  const to = tab === 'libraries' ? (isAdmin ? '/admin/libraries' : '/account') : tab === 'server' && isAdmin ? '/admin/server' : `/account/${tab}`;
+  return <Navigate to={to} replace />;
+}
+
 export function SettingsPage() {
   const { user } = useAuth();
   const { t } = useT();
@@ -527,18 +534,18 @@ export function SettingsPage() {
     { to: 'account', label: t('settings.tabs.account') },
     { to: 'playback', label: t('settings.tabs.playback') },
     { to: 'history', label: t('settings.tabs.history') },
-    { to: 'server', label: isAdmin ? t('settings.tabs.serverMetadata') : t('settings.tabs.server') },
-    ...(isAdmin ? [{ to: 'libraries', label: t('settings.tabs.libraries') }] : []),
+    // Administrators find the server and its libraries under Admin; others see what this server is.
+    ...(isAdmin ? [] : [{ to: 'server', label: t('settings.tabs.server') }]),
   ];
   return (
     <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-8">
-      <h1 className="font-display text-3xl font-semibold tracking-tight">{t('nav.settings')}</h1>
+      <h1 className="font-display text-3xl font-semibold tracking-tight">{t('nav.account')}</h1>
       <p className="mt-1 text-muted">{t('settings.signedInAs', { name: displayName(user) })}</p>
       <nav className="no-scrollbar mt-6 mb-8 flex gap-1 overflow-x-auto border-b border-line/60 sm:flex-wrap sm:overflow-visible" aria-label={t('settings.sections')}>
         {tabs.map((tab) => (
           <NavLink
             key={tab.to}
-            to={`/settings/${tab.to}`}
+            to={`/account/${tab.to}`}
             className={({ isActive }) => `-mb-px shrink-0 border-b-2 px-4 py-2.5 text-sm transition ${isActive ? 'border-accent text-ink' : 'border-transparent text-muted hover:text-ink'}`}
           >
             {tab.label}
@@ -546,13 +553,13 @@ export function SettingsPage() {
         ))}
       </nav>
       <Routes>
-        <Route index element={<Navigate to="/settings/account" replace />} />
+        <Route index element={<Navigate to="/account/account" replace />} />
         <Route path="account" element={<AccountSettings />} />
         <Route path="playback" element={<PlaybackSettings />} />
         <Route path="history" element={<WatchHistory />} />
-        <Route path="server" element={isAdmin ? <ServerSettingsPanel /> : <ServerInfoPanel />} />
-        {isAdmin && <Route path="libraries" element={<LibrariesPanel />} />}
-        <Route path="*" element={<Navigate to="/settings/account" replace />} />
+        <Route path="server" element={isAdmin ? <Navigate to="/admin/server" replace /> : <ServerInfoPanel />} />
+        <Route path="libraries" element={<Navigate to={isAdmin ? '/admin/libraries' : '/account/account'} replace />} />
+        <Route path="*" element={<Navigate to="/account/account" replace />} />
       </Routes>
     </div>
   );

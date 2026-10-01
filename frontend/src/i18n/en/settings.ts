@@ -134,7 +134,7 @@ export const settings = {
     empty: 'Nothing watched yet.',
   },
   tabs: {
-    account: 'Account',
+    account: 'Profile',
     playback: 'Playback',
     history: 'History',
     serverMetadata: 'Server & metadata',

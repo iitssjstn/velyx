@@ -17,7 +17,7 @@ export interface AccountCloud {
 const KEY = ['account', 'cloud'];
 
 /**
- * Settings → Account: connect your own Vidalune account to your user here, to sign in from
+ * Account → Profile: connect your own Vidalune account to your user here, to sign in from
  * app.vidalune.com and the app without a password. Only shown when the server is linked.
  */
 export function VidaluneAccount() {

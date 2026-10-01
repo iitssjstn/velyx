@@ -6,6 +6,7 @@ export const nav = {
   collections: 'Collections',
   watchlist: 'Watchlist',
   favorites: 'Favorites',
+  account: 'Account',
   settings: 'Settings',
   requests: 'Requests',
   admin: 'Admin',

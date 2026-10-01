@@ -86,7 +86,7 @@ describe('Back button in the installed app', () => {
       <MemoryRouter initialEntries={['/']}>
         <AppBackButton />
         <Link to="/movies">Movies</Link>
-        <Link to="/settings/account">Settings</Link>
+        <Link to="/account/account">Account</Link>
         <Link to="/movies/5">Dune</Link>
         <Routes>
           <Route path="*" element={null} />
@@ -98,9 +98,9 @@ describe('Back button in the installed app', () => {
   it('shows on pages below the menu, and goes back', async () => {
     await renderAt(true);
     await userEvent.click(screen.getByRole('link', { name: 'Movies' }));
-    // Menu pages have the menu instead, including the tabs of Settings and Admin.
+    // Menu pages have the menu instead, including the tabs of Account and Admin.
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
-    await userEvent.click(screen.getByRole('link', { name: 'Settings' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Account' }));
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
     await userEvent.click(screen.getByRole('link', { name: 'Dune' }));
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
