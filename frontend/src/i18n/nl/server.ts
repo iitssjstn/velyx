@@ -40,8 +40,8 @@ export const server: Messages['server'] = {
   keyPriority: 'Een sleutel die hier is opgeslagen gaat voor op de omgevingsvariabele TMDB_API_KEY.',
   subtitles: {
     title: 'Ondertitels online',
-    text: 'Met een API-sleutel van OpenSubtitles.com kan iedereen vanuit het ondertitelmenu in de speler ondertitels zoeken, in elke taal, en er met één klik een toevoegen. Opgehaalde ondertitels worden bewaard in de datamap van Vidalune (je mediabestanden worden nooit gewijzigd) en zijn te gebruiken door iedereen die het bestand mag bekijken.',
-    getKey: 'Maak een gratis account aan op opensubtitles.com en voeg een API consumer toe om een sleutel te krijgen.',
+    text: 'Is deze server gekoppeld aan een Vidalune-account, dan kan iedereen ondertitels zoeken via vidalune.com, zonder eigen sleutel; met je eigen OpenSubtitles.com API-sleutel hieronder gaat het zoeken direct naar OpenSubtitles. Iedereen kan vanuit het ondertitelmenu in de speler ondertitels zoeken, in elke taal, en er met één klik een toevoegen. Opgehaalde ondertitels worden bewaard in de datamap van Vidalune (je mediabestanden worden nooit gewijzigd) en zijn te gebruiken door iedereen die het bestand mag bekijken.',
+    getKey: 'Optioneel. Maak een gratis account aan op opensubtitles.com en voeg een API consumer toe om een sleutel te krijgen.',
     apiKey: 'OpenSubtitles API-sleutel',
     account: 'Account (optioneel)',
     accountHint: 'Zonder account staat OpenSubtitles maar een paar downloads per dag toe; met een (gratis) account krijg je er meer.',
@@ -50,6 +50,7 @@ export const server: Messages['server'] = {
     passwordKept: 'Laat leeg om het opgeslagen wachtwoord te houden',
     on: 'Aan, sleutel {hint}',
     onAccount: 'Aan, sleutel {hint}, ingelogd als {name}',
+    onVidalune: 'Aan, via vidalune.com (deze server is gekoppeld aan een Vidalune-account; geen sleutel nodig)',
     off: 'Uit',
     saved: 'OpenSubtitles opgeslagen',
     turnedOff: 'Online ondertitels zoeken staat uit',

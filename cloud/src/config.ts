@@ -27,6 +27,8 @@ export interface CloudConfig {
   relayMaxMbps: number;
   /** What one server may send through the relay, in Mbit/s, unless set per server (0: no limit). */
   relayServerMbps: number;
+  /** The OpenSubtitles key (and account) linked servers search and download subtitles with (null: not offered). */
+  openSubtitles: { apiKey: string; username: string; password: string } | null;
 }
 
 const int = (v: string | undefined, fallback: number) => {
@@ -59,6 +61,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     trustProxy: Math.max(0, int(env.TRUST_PROXY, 1)),
     relayMaxMbps: Math.max(0, int(env.RELAY_MAX_MBPS, 900)),
     relayServerMbps: Math.max(0, int(env.RELAY_SERVER_MBPS, 0)),
+    openSubtitles: env.OPENSUBTITLES_API_KEY?.trim()
+      ? { apiKey: env.OPENSUBTITLES_API_KEY.trim(), username: env.OPENSUBTITLES_USERNAME?.trim() ?? '', password: env.OPENSUBTITLES_PASSWORD ?? '' }
+      : null,
     webDir: fs.existsSync(defaultWeb) ? defaultWeb : null,
     downloadDir: path.resolve(env.DOWNLOAD_DIR ?? path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'downloads')),
     frontendDir: fs.existsSync(path.join(frontendDir, 'index.html')) ? frontendDir : null,

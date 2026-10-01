@@ -39,8 +39,8 @@ export const server = {
   keyPriority: 'A key saved here takes priority over the TMDB_API_KEY environment variable.',
   subtitles: {
     title: 'Subtitles online',
-    text: 'With an OpenSubtitles.com API key, everyone can search subtitles from the subtitle menu in the player, in any language, and add one with a click. Fetched subtitles are kept in Vidalune\'s data folder (your media files are never changed) and can be used by everyone who can watch the file.',
-    getKey: 'Create a free account at opensubtitles.com and add an API consumer to get a key.',
+    text: 'When this server is linked to a Vidalune account, everyone can search subtitles through vidalune.com without a key of your own; with your own OpenSubtitles.com API key below, searches go straight to OpenSubtitles instead. Everyone can search subtitles from the subtitle menu in the player, in any language, and add one with a click. Fetched subtitles are kept in Vidalune\'s data folder (your media files are never changed) and can be used by everyone who can watch the file.',
+    getKey: 'Optional. Create a free account at opensubtitles.com and add an API consumer to get a key.',
     apiKey: 'OpenSubtitles API key',
     account: 'Account (optional)',
     accountHint: 'Without an account OpenSubtitles allows only a few downloads per day; with a (free) account you get more.',
@@ -49,6 +49,7 @@ export const server = {
     passwordKept: 'Leave empty to keep the saved password',
     on: 'On, key {hint}',
     onAccount: 'On, key {hint}, signed in as {name}',
+    onVidalune: 'On, through vidalune.com (this server is linked to a Vidalune account; no key needed)',
     off: 'Off',
     saved: 'OpenSubtitles saved',
     turnedOff: 'Searching subtitles online is turned off',

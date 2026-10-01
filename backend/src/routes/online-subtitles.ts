@@ -85,7 +85,7 @@ function providerError(err: unknown, lang: Language): HttpError {
   if (!(err instanceof OpenSubtitlesError)) return new HttpError(502, 'Searching subtitles online failed.');
   switch (err.kind) {
     case 'not-configured':
-      return new HttpError(409, 'Searching subtitles online is not set up. An administrator can add an OpenSubtitles API key in Admin → Server.');
+      return new HttpError(409, 'Searching subtitles online is not set up. An administrator can link this server to a Vidalune account, or add an OpenSubtitles API key, in Admin → Server.');
     case 'auth':
       return new HttpError(502, 'OpenSubtitles did not accept the API key or account. An administrator can check them in Admin → Server.');
     case 'quota':
@@ -161,6 +161,8 @@ export async function onlineSubtitleRoutes(app: FastifyInstance, ctx: AppContext
     const s = ctx.settings.get();
     return {
       configured: Boolean(s.openSubtitlesApiKey),
+      // Without a key of its own, a server linked to a Vidalune account searches through vidalune.com.
+      via: client.via,
       // Never the key or password themselves.
       hint: s.openSubtitlesApiKey ? `••••${s.openSubtitlesApiKey.slice(-4)}` : null,
       username: s.openSubtitlesUsername || null,

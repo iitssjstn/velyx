@@ -64,6 +64,13 @@
       "when": 1790776088416,
       "tag": "0008_ceo_control_center",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1790839041751,
+      "tag": "0009_subtitles",
+      "breakpoints": true
     }
   ]
 }

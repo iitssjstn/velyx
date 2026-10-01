@@ -48,6 +48,8 @@ interface (see *app.vidalune.com* below).
 | `CEO_EMAILS` | (none) | Accounts (email addresses, comma-separated) that may open the Control Center (/admin). |
 | `ADMIN_EMAILS` | (none) | Also open the Control Center, with the same rights, and always have remote access themselves. Kept for existing installations; `CEO_EMAILS` is enough. |
 | `RELAY_MAX_MBPS` | `900` | What the relay may send in total, in Mbit/s, shared equally between the servers sending at that moment (`0`: no limit). Keep it a little under the VPS's line (1 Gbit/s: 900). |
+| `OPENSUBTITLES_API_KEY` | — | OpenSubtitles API key that linked servers search and download subtitles with (none: not offered). Fetched files are kept in the database. |
+| `OPENSUBTITLES_USERNAME`, `OPENSUBTITLES_PASSWORD` | — | The OpenSubtitles account for that key (more downloads per day; VIP accounts get their own host). |
 | `RELAY_SERVER_MBPS` | `0` | What one server may send through the relay, in Mbit/s, unless set per server in the Control Center (`0`: no limit of its own). |
 
 ## Remote access

@@ -222,6 +222,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
       const s = settings.get();
       return { apiKey: s.openSubtitlesApiKey, username: s.openSubtitlesUsername, password: s.openSubtitlesPassword };
     },
+    vidalune: cloud,
     fetchImpl: opts.fetchImpl,
     userAgent: `Vidalune v${APP_VERSION}`,
   });

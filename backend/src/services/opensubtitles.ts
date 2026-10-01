@@ -1,4 +1,5 @@
 import fsp from 'node:fs/promises';
+import { HttpError } from '../http-error.js';
 import { createLogger } from '../logger.js';
 import type { FetchLike } from './tmdb.js';
 
@@ -121,8 +122,47 @@ export function rankSubtitles(list: OnlineSubtitle[]): OnlineSubtitle[] {
   );
 }
 
+/** Online subtitles through vidalune.com (its own OpenSubtitles key), for a linked server. */
+export interface VidaluneSubtitles {
+  linked(): boolean;
+  subtitleSearch(query: SubtitleQuery): Promise<unknown[]>;
+  subtitleDownload(fileId: number): Promise<Buffer>;
+}
+
+/** The subtitles in an answer of the search API that one video file can use. */
+export function parseSubtitles(data: unknown[], language: string): OnlineSubtitle[] {
+  const out: OnlineSubtitle[] = [];
+  for (const item of data as ApiSubtitle[]) {
+    const a = item?.attributes;
+    // Subtitles split over several files (old CD releases) cannot be used for one video file.
+    if (!a || a.files?.length !== 1 || typeof a.files[0]!.file_id !== 'number') continue;
+    out.push({
+      fileId: a.files[0]!.file_id!,
+      language: (a.language ?? language).toLowerCase(),
+      release: (a.release || a.files[0]!.file_name || '').slice(0, 300),
+      hearingImpaired: Boolean(a.hearing_impaired),
+      forced: Boolean(a.foreign_parts_only),
+      downloads: a.download_count ?? 0,
+      hashMatch: Boolean(a.moviehash_match),
+      machineTranslated: Boolean(a.ai_translated || a.machine_translated),
+      trusted: Boolean(a.from_trusted),
+    });
+  }
+  return rankSubtitles(out);
+}
+
+/** What went wrong at vidalune.com, as the error the subtitle routes explain. */
+function vidaluneError(err: unknown): OpenSubtitlesError {
+  const status = err instanceof HttpError ? err.statusCode : 502;
+  if (status === 429) return new OpenSubtitlesError((err as Error).message, 'quota', 429);
+  if (status === 403 || status === 409 || status === 503) return new OpenSubtitlesError((err as Error).message, 'not-configured', status);
+  return new OpenSubtitlesError((err as Error).message, 'unreachable', status);
+}
+
 export interface OpenSubtitlesOptions {
   getCredentials: () => OpenSubtitlesCredentials;
+  /** Used when this server has no key of its own: subtitles through vidalune.com. */
+  vidalune?: VidaluneSubtitles;
   fetchImpl?: FetchLike;
   userAgent: string;
 }
@@ -140,7 +180,13 @@ export class OpenSubtitlesClient {
   }
 
   get configured(): boolean {
-    return Boolean(this.opts.getCredentials().apiKey);
+    return this.via !== null;
+  }
+
+  /** How subtitles are found: with this server's own key, through vidalune.com, or not at all. */
+  get via(): 'key' | 'vidalune' | null {
+    if (this.opts.getCredentials().apiKey) return 'key';
+    return this.opts.vidalune?.linked() ? 'vidalune' : null;
   }
 
   /** Forget the sign-in (credentials changed). */
@@ -237,6 +283,12 @@ export class OpenSubtitlesClient {
   }
 
   async search(q: SubtitleQuery): Promise<OnlineSubtitle[]> {
+    if (this.via === 'vidalune') {
+      const data = await this.opts.vidalune!.subtitleSearch(q).catch((err: unknown) => {
+        throw vidaluneError(err);
+      });
+      return parseSubtitles(Array.isArray(data) ? data : [], q.language);
+    }
     const creds = this.credentials();
     const params: Record<string, string> = { languages: q.language };
     if (q.hash) params.moviehash = q.hash;
@@ -259,28 +311,17 @@ export class OpenSubtitlesClient {
     const search = new URLSearchParams(Object.keys(params).sort().map((k): [string, string] => [k, params[k]!]));
     const { base, token } = await this.session(creds);
     const r = await this.call<{ data?: ApiSubtitle[] }>(`${base}/subtitles?${search}`, { method: 'GET', headers: this.headers(creds.apiKey, token) });
-    const out: OnlineSubtitle[] = [];
-    for (const item of r.data ?? []) {
-      const a = item.attributes;
-      // Subtitles split over several files (old CD releases) cannot be used for one video file.
-      if (!a || a.files?.length !== 1 || typeof a.files[0]!.file_id !== 'number') continue;
-      out.push({
-        fileId: a.files[0]!.file_id!,
-        language: (a.language ?? q.language).toLowerCase(),
-        release: (a.release || a.files[0]!.file_name || '').slice(0, 300),
-        hearingImpaired: Boolean(a.hearing_impaired),
-        forced: Boolean(a.foreign_parts_only),
-        downloads: a.download_count ?? 0,
-        hashMatch: Boolean(a.moviehash_match),
-        machineTranslated: Boolean(a.ai_translated || a.machine_translated),
-        trusted: Boolean(a.from_trusted),
-      });
-    }
-    return rankSubtitles(out);
+    return parseSubtitles(r.data ?? [], q.language);
   }
 
   /** Downloads one subtitle file as SubRip text (bytes; the caller decodes them). */
   async download(fileId: number): Promise<{ data: Buffer; remaining: number | null }> {
+    if (this.via === 'vidalune') {
+      const data = await this.opts.vidalune!.subtitleDownload(fileId).catch((err: unknown) => {
+        throw vidaluneError(err);
+      });
+      return { data, remaining: null };
+    }
     const creds = this.credentials();
     const { base, token } = await this.session(creds);
     const r = await this.call<{ link?: string; remaining?: number }>(`${base}/download`, {

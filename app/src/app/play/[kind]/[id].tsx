@@ -9,12 +9,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { CastButton, CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, useMediaStatus, useRemoteMediaClient, useStreamPosition } from 'react-native-google-cast';
 import { deviceDecoders } from '../../../../modules/vidalune-codecs';
+import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
 import { playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
 import { castLoadRequest, castTrackIds, sessionUsable, type CastSession } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
 import { rememberSubtitle, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
 import { DEFAULT_SUBTITLE_STYLE, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
@@ -115,7 +117,7 @@ function Problem({ message }: { message: string }) {
 }
 
 function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; startAt: number | null }) {
-  const { api, t, serverUrl } = useSession();
+  const { api, t, serverUrl, language } = useSession();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
   const player = useVideoPlayer(null, (p) => {
@@ -134,6 +136,9 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   const [menu, setMenu] = useState(false);
   const [audioIndex, setAudioIndex] = useState<number | null>(null);
   const [subtitle, setSubtitle] = useState<SubtitleOption | null>(null);
+  /** Subtitles fetched online during this playback (the server lists them too from the next time). */
+  const [fetchedSubs, setFetchedSubs] = useState<SubtitleOption[]>([]);
+  const subtitleOptions = [...(answer?.subtitles ?? []), ...fetchedSubs.filter((f) => !answer?.subtitles.some((s) => s.key === f.key))];
   const [cues, setCues] = useState<Cue[]>([]);
   /** How subtitles look (kept on this device) and their timing for this playback (+ is later). */
   const [subStyle, setSubStyle] = useState<SubtitleStyle>(DEFAULT_SUBTITLE_STYLE);
@@ -706,9 +711,20 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
               ))}
               <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('player.subtitles')}</Text>
               <Choice label={t('player.off')} selected={!subtitle} onPress={() => chooseSubtitle(null)} />
-              {(answer?.subtitles ?? []).map((s) => (
+              {subtitleOptions.map((s) => (
                 <Choice key={s.key} label={[s.languageName || s.label, s.title && s.title !== s.languageName ? s.title : null, s.forced ? 'Forced' : null].filter(Boolean).join(' · ')} selected={subtitle?.key === s.key} onPress={() => chooseSubtitle(s)} />
               ))}
+              {answer?.onlineSubtitles ? (
+                <OnlineSubtitles
+                  fileId={answer.file.id}
+                  defaultLanguage={defaultOnlineLanguage(prefs?.subtitleLanguage, prefs?.subtitleFallback, language)}
+                  activeKey={subtitle?.key ?? null}
+                  onChosen={(option) => {
+                    setFetchedSubs((list) => (list.some((x) => x.key === option.key) ? list : [...list, option]));
+                    chooseSubtitle(option);
+                  }}
+                />
+              ) : null}
               <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('player.seekStep')}</Text>
               <Segmented
                 label={t('player.seekStepHint')}

@@ -92,7 +92,8 @@ export class CloudService {
 
   /** `soft401`: a 401 is about the request (a used ticket), not about this server's registration. */
   /** `soft402`: pass a 402 (no remote access) on instead of a generic failure. */
-  private async call<T>(method: string, path: string, body?: unknown, auth = true, soft401 = false, soft402 = false): Promise<T> {
+  /** `pass`: statuses passed on as they are (with the service's message) instead of a generic failure. */
+  private async call<T>(method: string, path: string, body?: unknown, auth = true, soft401 = false, soft402 = false, pass: number[] = []): Promise<T> {
     const link = this.deps.settings.get().cloud;
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -112,6 +113,10 @@ export class CloudService {
       throw new HttpError(409, 'The Vidalune account service no longer knows this server. Turn linking on again.');
     }
     if (res.status === 402 && soft402) throw new HttpError(402, 'Remote access through Vidalune needs a subscription.');
+    if (pass.includes(res.status)) {
+      const answer = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new HttpError(res.status, answer?.error ?? 'The Vidalune account service could not handle the request.');
+    }
     if (!res.ok) throw new HttpError(502, 'The Vidalune account service could not handle the request. Try again later.');
     return (await res.json()) as T;
   }
@@ -137,6 +142,22 @@ export class CloudService {
   /** Shared detection: reports what this server found in a season; answers with the new profile. */
   reportDetection<T>(body: unknown): Promise<T> {
     return this.call<T>('POST', '/api/detection/reports', body);
+  }
+
+  /** Online subtitles through vidalune.com: only for a server linked to a Vidalune account. */
+  linked(): boolean {
+    return !!this.deps.settings.get().cloud?.account;
+  }
+
+  /** Online subtitles through vidalune.com: OpenSubtitles' answer to a search. */
+  async subtitleSearch(query: unknown): Promise<unknown[]> {
+    return (await this.call<{ data: unknown[] }>('POST', '/api/subtitles/search', query, true, false, false, [403, 429, 503])).data;
+  }
+
+  /** Online subtitles through vidalune.com: one subtitle file (SubRip). */
+  async subtitleDownload(fileId: number): Promise<Buffer> {
+    const r = await this.call<{ data: string }>('POST', '/api/subtitles/download', { fileId }, true, false, false, [403, 429, 503]);
+    return Buffer.from(r.data, 'base64');
   }
 
   /** Turns linking on (registering once) and returns a fresh code to enter on the account page. */

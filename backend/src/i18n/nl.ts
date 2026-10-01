@@ -284,7 +284,7 @@ export const nl: Record<string, string> = {
   'OpenSubtitles did not accept this username or password ({reason}).': 'OpenSubtitles accepteert deze gebruikersnaam of dit wachtwoord niet ({reason}).',
   'Search for subtitles for this file first.': 'Zoek eerst naar ondertitels voor dit bestand.',
   'Searching subtitles online failed.': 'Online ondertitels zoeken is mislukt.',
-  'Searching subtitles online is not set up. An administrator can add an OpenSubtitles API key in Admin → Server.': 'Online ondertitels zoeken is niet ingesteld. Een beheerder kan een OpenSubtitles API-sleutel toevoegen via Beheer → Server.',
+  'Searching subtitles online is not set up. An administrator can link this server to a Vidalune account, or add an OpenSubtitles API key, in Admin → Server.': 'Online ondertitels zoeken is niet ingesteld. Een beheerder kan deze server koppelen aan een Vidalune-account, of een OpenSubtitles API-sleutel toevoegen, via Beheer → Server.',
   'The daily download limit at OpenSubtitles has been reached. Try again after {time}.': 'De dagelijkse downloadlimiet bij OpenSubtitles is bereikt. Probeer het opnieuw na {time}.',
   'The daily download limit at OpenSubtitles has been reached. Try again tomorrow.': 'De dagelijkse downloadlimiet bij OpenSubtitles is bereikt. Probeer het morgen opnieuw.',
   'This subtitle file could not be read.': 'Dit ondertitelbestand kon niet worden gelezen.',
