@@ -60,9 +60,9 @@ export interface References {
   credits: Fingerprint[];
 }
 
-/** Opening part to analyse: the first 6 minutes (at most 35 % of the episode). */
+/** Opening part to analyse: the first 15 minutes (at most 35 % of the episode): some intros only start after a long opening scene. */
 export function headWindow(duration: number): Span {
-  return { start: 0, end: Math.min(360, duration * 0.35) };
+  return { start: 0, end: Math.min(900, duration * 0.35) };
 }
 
 /** Closing part to analyse: the last 6 minutes (at most 30 % of the episode). */
