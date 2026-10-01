@@ -4,7 +4,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { DB } from '../../db/client.js';
 import { episodes, episodeSegments, libraries, mediaFiles, segmentFingerprints, segmentReferences, shows } from '../../db/schema.js';
 import { createLogger } from '../../logger.js';
-import { fingerprint, longestCommonSegment, SAMPLE_RATE, type Fingerprint } from './fingerprint.js';
+import { longestCommonSegment, SAMPLE_RATE, type Fingerprint } from './fingerprint.js';
 import { inlineFingerprintRunner, inlineSeasonRunner, type FingerprintRunner, type SeasonRunner } from './season-runner.js';
 import { DETECTION_VERSION, RECAP_SOURCES, headWindow, tailWindow, type Detection, type EpisodeAudio } from './detect.js';
 import { diagnoseSeason, type SeasonDiagnosis } from './diagnose.js';
