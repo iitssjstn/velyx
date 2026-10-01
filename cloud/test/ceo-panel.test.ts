@@ -34,7 +34,7 @@ describe('the Control Center shows live figures', () => {
     let mbps = 12.5;
     const fetchMock = vi.fn(async (url: string) => {
       const json = (d: unknown) => new Response(JSON.stringify(d), { status: 200, headers: { 'content-type': 'application/json' } });
-      if (url === '/api/account') return json({ ceo: true, email: 'ceo@example.com' });
+      if (url === '/api/account') return json({ ceo: true, email: 'ceo@example.com', version: '0.19.3' });
       if (url === '/api/ceo/dashboard') return json(dashboard(mbps));
       return json({});
     });
@@ -42,6 +42,8 @@ describe('the Control Center shows live figures', () => {
     location.hash = '#/overview';
     openPanel();
     await vi.waitFor(() => expect(text()).toContain('12.5 Mbit/s'));
+    // Which version of vidalune.com runs, under the menu.
+    expect(document.getElementById('account')!.textContent).toContain('Vidalune 0.19.3');
 
     mbps = 87.3;
     const skeletons: number[] = [];

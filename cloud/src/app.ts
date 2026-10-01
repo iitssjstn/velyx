@@ -72,6 +72,8 @@ class RateLimiter {
 const email = z.string().trim().toLowerCase().max(254).email('Enter a valid email address.');
 const password = z.string().min(8, 'Passwords are at least 8 characters.').max(256);
 const serverName = z.string().trim().min(1).max(60);
+/** This service is built with every Vidalune release, so its version is the latest one. */
+const releaseVersion = String((JSON.parse(fs.readFileSync(path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'package.json'), 'utf8')) as { version: string }).version);
 const version = z.string().trim().min(1).max(32);
 /** Who signs in: a browser (cookie) or the Vidalune app (token). */
 const client = z.enum(['web', 'app']).default('web');
@@ -335,7 +337,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   app.get('/api/account', async (request) => {
     const me = account(request);
-    return { email: me.email, remote: planView(me), appUrl: appOrigin, ...(isAdmin(me) ? { admin: true } : {}), ...(isCeo(me) ? { ceo: true } : {}) };
+    // The CEO also sees which version of vidalune.com is running (shown in the Control Center).
+    return { email: me.email, remote: planView(me), appUrl: appOrigin, ...(isAdmin(me) ? { admin: true } : {}), ...(isCeo(me) ? { ceo: true, version: releaseVersion } : {}) };
   });
 
   /**
@@ -758,8 +761,6 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   // ---- installing Vidalune: the page, a compose file, the installer, the app and the latest version
 
-  /** This service is built with every Vidalune release, so its version is the latest one. */
-  const releaseVersion = String((JSON.parse(fs.readFileSync(path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'package.json'), 'utf8')) as { version: string }).version);
   const APK = /^vidalune-(\d+\.\d+\.\d+)\.apk$/;
   /** The newest Android app present (null: none in this image). */
   const latestApk = () => {

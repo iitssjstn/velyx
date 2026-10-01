@@ -108,6 +108,7 @@ body.cc { --sidebar: 248px; --surface: #13111b; --pill-on: #6fd48f; --pill-warn:
 .cc-nav-item[aria-current='page']::before { content: ''; position: absolute; left: -14px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
 .cc-nav-item[aria-current='page'] .icon { color: var(--accent); }
 .cc-account { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+.cc-version { margin: 0 0 6px; padding: 0 12px; }
 .icon { width: 18px; height: 18px; flex: 0 0 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .cc-icon-button, body.cc .cc-icon-button { display: none; background: none; color: var(--ink); padding: 8px; border-radius: 8px; }
 .cc-icon-button:hover { background: rgba(255, 255, 255, 0.06); }

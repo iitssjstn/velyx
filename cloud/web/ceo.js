@@ -17,7 +17,7 @@
         types: { customer: 'Klant', beta: 'Beta', test: 'Test', free: 'Gratis' }, plans: { remote: 'Toegang op afstand', viewer: 'Kijker' }, noAccess: 'Geen toegang',
         status: { active: 'Actief', inactive: 'Niet actief', suspended: 'Geblokkeerd', scheduled: 'Gepland', expiring: 'Loopt af', expired: 'Verlopen', revoked: 'Ingetrokken', online: 'Online', degraded: 'Verminderd', offline: 'Offline', unknown: 'Nog niet gecontroleerd', disabled: 'Uit' },
         invited: 'Wacht op aanmelding',
-        infra: 'Relay-infrastructuur', activeRelays: 'Actieve relays', onlineRelays: 'Online relays', ofRelays: 'van {n}', clients: 'Verbonden clients', clientsSub: 'apparaten, laatste 5 min.', connectedServers: 'Verbonden servers', capacity: 'Capaciteit', current: 'Huidige bandbreedte', load: 'Belasting', available: 'Beschikbaar', peak: 'Piek', uptime: 'Uptime', lastSeen: 'Laatst gezien {when}', lastHeartbeat: 'Laatste controle', neverChecked: 'nog niet gecontroleerd',
+        infra: 'Relay-infrastructuur', activeRelays: 'Actieve relays', onlineRelays: 'Online relays', ofRelays: 'van {n}', clients: 'Verbonden clients', clientsSub: 'apparaten, laatste 5 min.', connectedServers: 'Verbonden servers', capacity: 'Capaciteit', current: 'Huidige bandbreedte', version: 'Vidalune {v}', load: 'Belasting', available: 'Beschikbaar', peak: 'Piek', uptime: 'Uptime', lastSeen: 'Laatst gezien {when}', lastHeartbeat: 'Laatste controle', neverChecked: 'nog niet gecontroleerd',
         health: 'Relay-status', mainRelay: 'hoofdrelay', nearQuota: '{name}: {used} van {quota} GB deze maand; daarna {mbps} Mbit/s.', recent: 'Recente activiteit', when: 'Tijdstip', action: 'Actie', target: 'Waarop', actor: 'Door', system: 'systeem',
         actions: {
           'customer.created': 'Klant toegevoegd', 'customer.updated': 'Klant gewijzigd', 'customer.suspended': 'Klant geblokkeerd', 'customer.unsuspended': 'Blokkade opgeheven',
@@ -64,7 +64,7 @@
         types: { customer: 'Customer', beta: 'Beta', test: 'Test', free: 'Free' }, plans: { remote: 'Remote access', viewer: 'Viewer' }, noAccess: 'No access',
         status: { active: 'Active', inactive: 'Inactive', suspended: 'Suspended', scheduled: 'Scheduled', expiring: 'Expiring', expired: 'Expired', revoked: 'Revoked', online: 'Online', degraded: 'Degraded', offline: 'Offline', unknown: 'Not checked yet', disabled: 'Off' },
         invited: 'Awaiting sign-up',
-        infra: 'Relay infrastructure', activeRelays: 'Active relays', onlineRelays: 'Online relays', ofRelays: 'of {n}', clients: 'Connected clients', clientsSub: 'devices, last 5 min', connectedServers: 'Connected servers', capacity: 'Capacity', current: 'Current bandwidth', load: 'Relay load', available: 'Available', peak: 'Peak', uptime: 'Uptime', lastSeen: 'Last seen {when}', lastHeartbeat: 'Last heartbeat', neverChecked: 'not checked yet',
+        infra: 'Relay infrastructure', activeRelays: 'Active relays', onlineRelays: 'Online relays', ofRelays: 'of {n}', clients: 'Connected clients', clientsSub: 'devices, last 5 min', connectedServers: 'Connected servers', capacity: 'Capacity', current: 'Current bandwidth', version: 'Vidalune {v}', load: 'Relay load', available: 'Available', peak: 'Peak', uptime: 'Uptime', lastSeen: 'Last seen {when}', lastHeartbeat: 'Last heartbeat', neverChecked: 'not checked yet',
         health: 'Relay health', mainRelay: 'main relay', nearQuota: '{name}: {used} of {quota} GB this month; then {mbps} Mbit/s.', recent: 'Recent activity', when: 'Time', action: 'Action', target: 'Target', actor: 'Actor', system: 'system',
         actions: {
           'customer.created': 'Customer added', 'customer.updated': 'Customer changed', 'customer.suspended': 'Customer suspended', 'customer.unsuspended': 'Suspension lifted',
@@ -324,6 +324,7 @@
       ),
     );
     $('account').replaceChildren(
+      runningVersion ? el('p', { class: 'cc-version small' }, t('version', { v: runningVersion })) : null,
       el('a', { href: '/servers', class: 'cc-nav-item' }, icon('account'), el('span', {}, t('nav.account'))),
       el('button', { type: 'button', class: 'cc-nav-item', onclick: async () => { await api('POST', '/api/logout').catch(() => null); location.href = '/servers'; } }, icon('signOut'), el('span', {}, t('nav.signOut'))),
     );
@@ -1019,6 +1020,8 @@
     view.replaceChildren(...list);
   };
   let loadedMe = false;
+  /** The version of vidalune.com that is running (shown under the menu). */
+  let runningVersion = null;
   async function go() {
     renderNav();
     tip.hidden = true;
@@ -1029,7 +1032,9 @@
         const me = await api('GET', '/api/account');
         if (!me.ceo) throw Object.assign(new Error(t('only')), { status: 403 });
         $('who').textContent = me.email;
+        runningVersion = me.version ?? null;
         loadedMe = true;
+        renderNav();
       }
       await { overview, customers, access, relays, subtitles, statistics, activity }[page](arg, params);
       view.focus({ preventScroll: true });

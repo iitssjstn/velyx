@@ -189,7 +189,9 @@ describe('remote access and the admin page (the Control Center)', () => {
   it('only administrators and the CEO (ADMIN_EMAILS, CEO_EMAILS) see accounts and give remote access', async () => {
     const user = await signUp('justin@example.com');
     const boss = await signUp('boss@example.com');
-    expect((await app.inject({ url: '/api/account', headers: { cookie: boss } })).json()).toEqual({ email: 'boss@example.com', remote: { active: true, kind: 'remote', until: null }, appUrl: null, admin: true, ceo: true });
+    expect((await app.inject({ url: '/api/account', headers: { cookie: boss } })).json()).toEqual({ email: 'boss@example.com', remote: { active: true, kind: 'remote', until: null }, appUrl: null, admin: true, ceo: true, version: JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8')).version });
+    // Only the CEO sees which version of vidalune.com runs.
+    expect((await app.inject({ url: '/api/account', headers: { cookie: user } })).json()).not.toHaveProperty('version');
     expect((await app.inject({ url: '/api/ceo/customers', headers: { cookie: user } })).statusCode).toBe(403);
     expect((await app.inject({ url: '/api/ceo/customers' })).statusCode).toBe(401);
     const id = db.select().from(accounts).where(eq(accounts.email, 'justin@example.com')).get()!.id;
