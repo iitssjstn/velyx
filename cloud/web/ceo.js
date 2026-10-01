@@ -1011,7 +1011,13 @@
   }
 
   // ---- routing
-  const show = (...nodes) => view.replaceChildren(...nodes.flat(Infinity).filter((n) => n !== null && n !== undefined && n !== false));
+  // While refreshing quietly the page keeps what it shows until the new figures are there (no skeleton).
+  let quiet = false;
+  const show = (...nodes) => {
+    const list = nodes.flat(Infinity).filter((n) => n !== null && n !== undefined && n !== false);
+    if (quiet && list.some((n) => n.classList?.contains('cc-grid') && n.querySelector?.('.cc-skeleton'))) return;
+    view.replaceChildren(...list);
+  };
   let loadedMe = false;
   async function go() {
     renderNav();
@@ -1039,6 +1045,34 @@
     window.scrollTo(0, 0);
     void go();
   });
+
+  // Live figures: pages that show the relays and their traffic fetch them again every few seconds,
+  // quietly (same place on the page, focus kept). Not while a dialog is open, the viewer is typing
+  // or the tab is in the background.
+  const LIVE_PAGES = new Set(['overview', 'relays', 'statistics', 'activity']);
+  let refreshing = false;
+  setInterval(async () => {
+    if (refreshing || document.hidden || document.body.classList.contains('cc-locked')) return;
+    if (!LIVE_PAGES.has(route().page) || document.querySelector('dialog[open]')) return;
+    const active = document.activeElement;
+    if (active && view.contains(active) && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName)) return;
+    refreshing = true;
+    quiet = true;
+    const { scrollX, scrollY } = window;
+    const hash = location.hash;
+    try {
+      const { page, arg, params } = route();
+      await { overview, relays, statistics, activity }[page](arg, params);
+      if (location.hash === hash) window.scrollTo(scrollX, scrollY);
+    } catch {
+      /* the next try, or the viewer reloads */
+    } finally {
+      refreshing = false;
+      quiet = false;
+    }
+    // The viewer went elsewhere meanwhile: draw that page (the refresh may have drawn over it).
+    if (location.hash !== hash) void go();
+  }, 5000);
   view.tabIndex = -1;
   void go();
 })();

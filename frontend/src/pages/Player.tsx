@@ -258,7 +258,11 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // Files the browser cannot open as they are come in short pieces (HLS) where the browser plays
   // those: seeking, skipping and resuming load another piece, never a new stream. Otherwise the
   // live stream, restarted at the new position.
-  const hlsUrl = info?.decision.hlsUrl && HLS_SUPPORT ? info.decision.hlsUrl : null;
+  // When the pieces cannot be played (the server could not make them), the live stream takes over.
+  const [hlsBrokenFor, setHlsBrokenFor] = useState<number | null>(null);
+  const hlsBroken = !!info && hlsBrokenFor === info.file.id;
+  const fileId = info?.file.id;
+  const hlsUrl = info?.decision.hlsUrl && HLS_SUPPORT && !hlsBroken ? info.decision.hlsUrl : null;
   const streamBase = hlsUrl ?? info?.decision.streamUrl ?? null;
   const live = !hlsUrl && info?.decision.seek === 'restart';
   // Only use a stream that belongs to the current decision (avoids loading a stale URL after an audio switch).
@@ -284,6 +288,13 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     if (!v) return;
     let destroyed = false;
     let hls: { destroy(): void } | null = null;
+    // Carry on with the live stream, from where the viewer is.
+    const fallBack = () => {
+      if (destroyed) return;
+      const at = v.currentTime > 0 ? v.currentTime : pendingSeekRef.current;
+      resumeAtRef.current = at && at > 0 ? at : null;
+      setHlsBrokenFor(fileId ?? null);
+    };
     void import('hls.js').then(({ default: Hls }) => {
       if (destroyed) return;
       const h = new Hls({ startPosition: pendingSeekRef.current ?? -1, maxBufferLength: 60, maxMaxBufferLength: 120, backBufferLength: 60, xhrSetup: (xhr) => {
@@ -297,24 +308,19 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         if (!data.fatal) return;
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR && networkRetries++ < 4) setTimeout(() => !destroyed && h.startLoad(), 1000 * networkRetries);
         else if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRetries++ < 2) h.recoverMediaError();
-        else {
-          setBuffering(false);
-          setError(t('player.errors.interrupted'));
-        }
+        else fallBack();
       });
       h.loadSource(streamSrc);
       h.attachMedia(v);
     }).catch(() => {
-      // The player code itself did not load (offline, or the server was just updated): say so, no endless spinner.
-      if (destroyed) return;
-      setBuffering(false);
-      setError(t('player.errors.interrupted'));
+      // The player code itself did not load (offline, or the server was just updated).
+      if (!destroyed) fallBack();
     });
     return () => {
       destroyed = true;
       hls?.destroy();
     };
-  }, [hlsUrl, streamSrc, reloadKey]);
+  }, [hlsUrl, streamSrc, reloadKey, fileId]);
 
   /** Current position in the file (not in the current stream). */
   const currentTime = useCallback(() => offset + (videoRef.current?.currentTime ?? 0), [offset]);
@@ -356,7 +362,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     };
     // `stream` is read only to detect "unchanged"; re-running on its changes would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [info, start, askResume]);
+  }, [info, start, askResume, hlsBroken]);
 
   /** Requests a new live stream starting at the keyframe before `target` (debounced while scrubbing). */
   const restartAt = useCallback(
