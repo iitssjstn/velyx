@@ -237,6 +237,18 @@ export class SeerrService {
   }
 
   /**
+   * Seerr's record of a title that is (partly) available there but not in this library any more
+   * (removed from it): removed, so the title can be requested again. True when it was removed.
+   * Only called after this library was checked; files are never touched.
+   */
+  async clearIfGone(mediaType: 'movie' | 'tv', tmdbId: number): Promise<boolean> {
+    const media = await this.media(mediaType, tmdbId);
+    if (!media?.id || (media.status !== 4 && media.status !== 5)) return false;
+    await this.removeMedia(media.id);
+    return true;
+  }
+
+  /**
    * Cancels every request for a title and makes it requestable again (administrators). Refused
    * when (part of) it is already available: that is removed in the library, not here.
    */

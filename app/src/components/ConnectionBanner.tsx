@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { usePathname } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -9,8 +9,9 @@ import { colors, radius } from '../lib/theme';
 
 /**
  * A bar at the top while the device is offline or the server does not answer. What was loaded
- * stays usable underneath; "Try again" loads the open screen again (one attempt per tap — nothing
- * keeps retrying in the background). Not shown in the player, which handles this itself.
+ * stays usable underneath. The app looks for the server again by itself (see the session) and the
+ * open screen loads again as soon as it answers; "Try again" does that at once. Not shown in the
+ * player, which handles this itself.
  */
 export function ConnectionBanner() {
   const { connection, signedIn, t, api } = useSession();
@@ -18,6 +19,12 @@ export function ConnectionBanner() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
+  // The server answers again (found by itself): load the open screen again.
+  const before = useRef(connection);
+  useEffect(() => {
+    if (before.current !== 'ok' && connection === 'ok') void qc.refetchQueries({ type: 'active' });
+    before.current = connection;
+  }, [connection, qc]);
   if (connection === 'ok' || !signedIn || pathname.startsWith('/play')) return null;
   const offline = connection === 'offline';
   return (

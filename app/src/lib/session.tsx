@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as Device from 'expo-device';
 import * as Network from 'expo-network';
@@ -9,6 +9,7 @@ import { getLocales } from 'expo-localization';
 import { createApi, type Api } from './api';
 import { appUserAgent } from './auth';
 import { connectionState, type Connection } from './connection';
+import { RECONNECT_EVERY_MS, findReachable, reconnectOrder } from './reconnect';
 import { pickLanguage, translator, type Language, type Translate } from './i18n';
 import type { ServerInfo } from './server';
 import type { User } from './types';
@@ -23,6 +24,8 @@ interface Stored {
   user: User | null;
   /** The server as the Vidalune account knows it, when it was opened with that account. */
   cloudServerId?: string | null;
+  /** All its addresses (its own and the relay), when opened with the account: tried when one stops answering. */
+  addresses?: string[];
 }
 
 interface SessionValue {
@@ -40,7 +43,7 @@ interface SessionValue {
   appVersion: string;
   t: Translate;
   language: Language;
-  setServer(url: string, info: ServerInfo, cloudServerId?: string | null): Promise<void>;
+  setServer(url: string, info: ServerInfo, cloudServerId?: string | null, addresses?: string[]): Promise<void>;
   forgetServer(): Promise<void>;
   signIn(token: string, user: User): Promise<void>;
   /** The account after a change (name, language) — kept on the device too. */
@@ -130,6 +133,46 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signedIn, stored?.token]);
 
+  // The server stopped answering: try again by itself (now when the app comes back to the front,
+  // then every few seconds), also at its other addresses (the relay away from home, its own address
+  // back home), and carry on at the first that answers. Nobody has to tap "Try again" or restart.
+  const [active, setActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => setActive(state === 'active'));
+    return () => sub.remove();
+  }, []);
+  // Back from the background: check the address in use at once (a few seconds at most), instead of
+  // letting the screen wait for a request that hangs on a connection the phone closed meanwhile.
+  const serverUrl = stored?.serverUrl;
+  useEffect(() => {
+    if (!active || !signedIn || !serverUrl) return;
+    let stop = false;
+    void findReachable([serverUrl], fetch).then((found) => {
+      if (!stop && !found) setServerReachable(false);
+    });
+    return () => {
+      stop = true;
+    };
+  }, [active, signedIn, serverUrl]);
+  useEffect(() => {
+    if (!signedIn || !stored || serverReachable || !active || deviceOnline === false) return;
+    let stop = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = async () => {
+      const found = await findReachable(reconnectOrder(stored.serverUrl, stored.addresses), fetch);
+      if (stop) return;
+      if (found) {
+        if (found !== stored.serverUrl) await save({ ...stored, serverUrl: found });
+        setServerReachable(true);
+      } else timer = setTimeout(() => void attempt(), RECONNECT_EVERY_MS);
+    };
+    void attempt();
+    return () => {
+      stop = true;
+      clearTimeout(timer);
+    };
+  }, [signedIn, stored, serverReachable, active, deviceOnline, save]);
+
   const value: SessionValue = {
     ready,
     serverUrl: stored?.serverUrl ?? null,
@@ -145,7 +188,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     appVersion: APP_VERSION,
     t: translator(language),
     language,
-    setServer: (url, info, cloudServerId = null) => save({ serverUrl: url, serverName: info.name, serverVersion: info.version, token: null, user: null, cloudServerId }),
+    setServer: (url, info, cloudServerId = null, addresses = []) => save({ serverUrl: url, serverName: info.name, serverVersion: info.version, token: null, user: null, cloudServerId, addresses }),
     forgetServer: () => save(null),
     signIn: (token, user) => {
       setSessionEnded(false);
