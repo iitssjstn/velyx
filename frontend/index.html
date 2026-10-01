@@ -14,8 +14,25 @@
     <meta name="apple-mobile-web-app-title" content="Vidalune" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <title>Vidalune</title>
+    <!-- The opening screen: drawn at once, before the app has loaded; the app fades it out when ready. -->
+    <style>
+      html, body { background: #14121c; }
+      #splash { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: #14121c; transition: opacity 0.45s ease; }
+      #splash.done { opacity: 0; pointer-events: none; }
+      #splash svg { width: 150px; height: 150px; margin-bottom: -18px; animation: splash-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+      #splash .play { transform-origin: 43px 32px; animation: splash-play 1.4s 0.9s ease-in-out infinite alternate; }
+      #splash .word { color: #ece8f4; font: 700 34px/1 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: -0.5px; animation: splash-word 0.8s 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+      @keyframes splash-in { from { opacity: 0; transform: scale(0.6) rotate(-12deg); } to { opacity: 1; transform: none; } }
+      @keyframes splash-word { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+      @keyframes splash-play { from { opacity: 1; } to { opacity: 0.55; } }
+      @media (prefers-reduced-motion: reduce) { #splash svg, #splash .play, #splash .word { animation: none; } }
+    </style>
   </head>
   <body>
+    <div id="splash" aria-hidden="true">
+      <svg viewBox="0 0 64 64"><mask id="splash-moon"><rect width="64" height="64" fill="white"/><circle cx="43" cy="32" r="17" fill="black"/></mask><circle cx="35" cy="32" r="20" fill="#B69CFF" mask="url(#splash-moon)"/><path class="play" d="M37 24l12 8-12 8z" fill="#B69CFF"/></svg>
+      <div class="word">vidalune</div>
+    </div>
     <div id="root"></div>
     <noscript>Vidalune needs JavaScript to run.</noscript>
     <script type="module" src="/src/main.tsx"></script>

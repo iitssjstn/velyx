@@ -9,6 +9,7 @@ import { App } from './App';
 import { Toaster } from './components/Toast';
 import { initialLanguage, setLanguage } from './i18n';
 import { initInstall, registerServiceWorker } from './lib/install';
+import { SPLASH_MAX_MS, hideSplash } from './lib/splash';
 import './index.css';
 
 initInstall();
@@ -28,6 +29,9 @@ const queryClient = new QueryClient({
 // account's own language takes over.
 const language = initialLanguage();
 const ready = language === 'en' ? Promise.resolve() : setLanguage(language).catch(() => undefined);
+
+// The opening screen never stays longer than this, whatever is still loading (or failed).
+setTimeout(() => hideSplash(), SPLASH_MAX_MS);
 
 void ready.then(() => createRoot(document.getElementById('root')!).render(
   <StrictMode>

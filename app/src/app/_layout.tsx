@@ -4,6 +4,7 @@ import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { ConnectionBanner } from '../components/ConnectionBanner';
+import { LaunchSplash } from '../components/LaunchSplash';
 import { appOrientation } from '../components/screen';
 import { SessionProvider } from '../lib/session';
 import { colors } from '../lib/theme';
@@ -63,6 +64,7 @@ export default function RootLayout() {
             <Stack.Screen name="play/[kind]/[id]" options={{ headerShown: false, animation: 'fade' }} />
           </Stack>
           <ConnectionBanner />
+          <LaunchSplash />
         </ThemeProvider>
       </SessionProvider>
     </QueryClientProvider>
