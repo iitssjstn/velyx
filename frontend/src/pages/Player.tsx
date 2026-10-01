@@ -304,6 +304,11 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       });
       h.loadSource(streamSrc);
       h.attachMedia(v);
+    }).catch(() => {
+      // The player code itself did not load (offline, or the server was just updated): say so, no endless spinner.
+      if (destroyed) return;
+      setBuffering(false);
+      setError(t('player.errors.interrupted'));
     });
     return () => {
       destroyed = true;

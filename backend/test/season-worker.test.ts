@@ -48,6 +48,13 @@ describe('detecting a season in a thread of its own', () => {
     expect(ticks).toBeGreaterThan((Date.now() - started) / 5 / 4);
   });
 
+  it('passes on a failure of the calculation itself, without doing it again on the server thread', async () => {
+    const failing = path.join(dir, 'failing-worker.mjs');
+    fs.writeFileSync(failing, "import { parentPort } from 'node:worker_threads';\nparentPort.on('message', () => parentPort.postMessage({ ok: false, error: 'broken' }));\n");
+    // Done here, this would succeed: the failure shows it was not.
+    await expect(workerSeasonRunner(pathToFileURL(failing))(eps, refs)).rejects.toThrow('broken');
+  });
+
   it('calculates on the calling thread when there is no built worker (development, tests)', async () => {
     const runner = workerSeasonRunner(pathToFileURL(path.join(dir, 'missing.js')));
     expect(runner).toBe(inlineSeasonRunner);
