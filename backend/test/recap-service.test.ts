@@ -49,7 +49,8 @@ describe('recaps in the background detection', () => {
     expect(first.intro).toMatchObject({ confidence: expect.stringMatching(/high|medium/) });
     for (const n of [2, 3]) {
       const s = await seg(n);
-      expect(Math.abs(s.recap.start - 2)).toBeLessThan(1.5);
+      // Right after a short logo: skipped from the very start.
+      expect(s.recap.start).toBe(0);
       expect(Math.abs(s.recap.end - 28)).toBeLessThan(1.5);
       expect(s.recap.confidence).toBe('high');
       // The recap ends before the cold open and the intro.

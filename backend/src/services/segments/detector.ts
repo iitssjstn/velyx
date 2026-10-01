@@ -5,7 +5,7 @@ import type { DB } from '../../db/client.js';
 import { episodes, episodeSegments, libraries, mediaFiles, segmentFingerprints, segmentReferences, shows } from '../../db/schema.js';
 import { createLogger } from '../../logger.js';
 import { fingerprint, longestCommonSegment, SAMPLE_RATE, type Fingerprint } from './fingerprint.js';
-import { DETECTION_VERSION, detectSeason, headWindow, tailWindow, type Detection, type EpisodeAudio } from './detect.js';
+import { DETECTION_VERSION, detectSeason, RECAP_SOURCES, headWindow, tailWindow, type Detection, type EpisodeAudio } from './detect.js';
 import { diagnoseSeason, type SeasonDiagnosis } from './diagnose.js';
 import { chapterSegments, type ChapterSegments } from './chapters.js';
 import { findCredits, refineStart, type VisualCredits } from './visual.js';
@@ -377,24 +377,24 @@ export class SegmentDetector {
     if (!pendingIds.size) return;
     const title = this.db.select({ title: shows.title }).from(shows).where(eq(shows.id, job.showId)).get()?.title ?? `Show ${job.showId}`;
 
-    // Only the episodes to analyse and their nearest neighbours need to be read.
+    // Only the episodes to analyse and their nearest neighbours need to be read, plus the earlier
+    // episodes a recap may quote (read whole).
     const indexOf = new Map(files.map((f, i) => [f.episodeId, i]));
     const needed = new Set<number>();
+    const wholeIds = new Set<number>();
     for (const id of pendingIds) {
       const i = indexOf.get(id)!;
       for (let d = -2; d <= 2; d++) if (files[i + d]) needed.add(i + d);
+      for (let k = i - 1; k >= 0 && k >= i - RECAP_SOURCES; k--) {
+        needed.add(k);
+        wholeIds.add(files[k].episodeId);
+      }
     }
     // Neighbours further away stand in when a close one is unreadable.
     const order = [...needed].sort((a, b) => a - b);
     this.running = { showId: job.showId, showTitle: title, seasonNumber: job.seasonNumber, done: 0, total: order.length };
     log.info(`Looking for intros and credits: ${title} season ${job.seasonNumber} (${pendingIds.size} episode${pendingIds.size === 1 ? '' : 's'})`);
 
-    // Whole episodes are read for the one or two before each episode analysed (their recap clips).
-    const wholeIds = new Set<number>();
-    for (const id of pendingIds) {
-      const i = indexOf.get(id)!;
-      for (const k of [i - 1, i - 2]) if (files[k]) wholeIds.add(files[k].episodeId);
-    }
     const audio: EpisodeAudio[] = [];
     const failed = new Map<number, string>();
     for (const i of order) {

@@ -14,7 +14,7 @@ import { detectRecap, type RecapSource } from './recap.js';
  */
 
 /** Bumped whenever the algorithm changes, so older automatic results are redone. */
-export const DETECTION_VERSION = 3;
+export const DETECTION_VERSION = 4;
 
 export type Confidence = 'high' | 'medium' | 'low';
 
@@ -198,8 +198,8 @@ export function detectEpisode(ep: EpisodeAudio, peers: EpisodeAudio[], refs: Ref
   return { recap: null, intro, credits, postCredits, introFrames, creditsFrames };
 }
 
-/** Earlier episodes a recap may quote: the one or two before it. */
-const RECAP_SOURCES = 2;
+/** Earlier episodes a recap may quote: the few before it (recaps also go back further than one episode). */
+export const RECAP_SOURCES = 4;
 
 /**
  * Detects every episode of one season (episodes in broadcast order). `known` holds results stored

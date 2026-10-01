@@ -5,8 +5,9 @@ import { FRAME_SEC, matchFragments, type Fingerprint, type Fragment } from './fi
  *
  * A recap is not one recurring sound like an intro: it is a series of short clips taken from
  * earlier episodes. So the part of the episode before its intro is compared with the whole audio
- * of the one or two episodes before it, and the clips found there are gathered into one span. There
- * is no fixed length or position: an episode without clips from earlier episodes has no recap.
+ * of the episodes before it, and the clips found there are gathered into one span. Clips are often
+ * cut short (a few seconds each), so the opening is searched in small steps. There is no fixed length
+ * or position: an episode without clips from earlier episodes has no recap.
  */
 
 export interface RecapSource {
@@ -28,6 +29,8 @@ const START_WITHIN = 120;
 const MAX_GAP = 12;
 const MIN_LENGTH = 12;
 const MAX_LENGTH = 240;
+/** A recap found within this many seconds of the start starts at 0 s: "previously on" and a logo belong to it. */
+const SNAP_TO_START = 10;
 
 /**
  * The recap in `head` (the opening of an episode, from 0 s), looking only before `until` seconds
@@ -40,7 +43,7 @@ export function detectRecap(head: Fingerprint, until: number, sources: RecapSour
   const fragments: Fragment[] = [];
   for (const s of sources) {
     const skip = (refFrame: number) => s.exclude.some((x) => refFrame * FRAME_SEC >= x.start - 2 && refFrame * FRAME_SEC <= x.end + 2);
-    fragments.push(...matchFragments(query, s.full, { skip }));
+    fragments.push(...matchFragments(query, s.full, { skip, step: 3, minWindows: 5 }));
   }
   if (!fragments.length) return null;
   // One timeline of clips (from any earlier episode), joined where they are close together.
@@ -58,7 +61,7 @@ export function detectRecap(head: Fingerprint, until: number, sources: RecapSour
   if (!g) return null;
   const coverage = g.covered / (g.end - g.start);
   const confidence = g.clips >= 3 && coverage >= 0.6 ? 'high' : g.clips >= 2 && coverage >= 0.45 ? 'medium' : 'low';
-  return { start: round(g.start), end: round(g.end), confidence };
+  return { start: g.start <= SNAP_TO_START ? 0 : round(g.start), end: round(g.end), confidence };
 }
 
 function round(sec: number): number {
