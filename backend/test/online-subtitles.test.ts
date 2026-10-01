@@ -6,8 +6,6 @@ import { migrationsFolder, openDatabase } from '../src/db/client.js';
 import { movieHash, rankSubtitles, type OnlineSubtitle } from '../src/services/opensubtitles.js';
 import { pruneOnlineSubtitleFiles } from '../src/routes/online-subtitles.js';
 import { addLibrary, createTestEnv, createUser, setupAdmin, touch, type TestEnv } from './helpers.js';
-// How vidalune.com turns a server's question into a search at OpenSubtitles.
-import { searchParams } from '../../cloud/src/subtitles.js';
 
 const SRT = '1\n00:00:01,000 --> 00:00:03,500\nHallo daar\n\n2\n00:00:05,000 --> 00:00:06,000\nTot ziens\n';
 
@@ -16,6 +14,28 @@ interface Call {
   method: string;
   headers: Record<string, string>;
   body: unknown;
+}
+
+/** How vidalune.com turns a server's question into a search at OpenSubtitles (as cloud/src/subtitles.ts does). */
+function searchParams(q: Record<string, unknown>): URLSearchParams | null {
+  const p: Record<string, string> = { languages: String(q.language) };
+  if (q.hash) p.moviehash = String(q.hash);
+  if (q.type === 'episode') {
+    p.type = 'episode';
+    if (q.parentTmdbId) p.parent_tmdb_id = String(q.parentTmdbId);
+    else if (q.parentImdbId) p.parent_imdb_id = String(q.parentImdbId).replace(/^tt/, '');
+    if (q.season != null) p.season_number = String(q.season);
+    if (q.episode != null) p.episode_number = String(q.episode);
+  } else {
+    p.type = 'movie';
+    if (q.tmdbId) p.tmdb_id = String(q.tmdbId);
+    else if (q.imdbId) p.imdb_id = String(q.imdbId).replace(/^tt/, '');
+    if (q.year) p.year = String(q.year);
+  }
+  const hasId = Boolean(p.tmdb_id || p.imdb_id || p.parent_tmdb_id || p.parent_imdb_id);
+  if (!hasId && q.query) p.query = String(q.query).toLowerCase();
+  if (!hasId && !q.query && !q.hash) return null;
+  return new URLSearchParams(Object.keys(p).sort().map((k): [string, string] => [k, p[k]!]));
 }
 
 /**
@@ -28,7 +48,7 @@ function fakeOpenSubtitles() {
   const cloudCalls: Call[] = [];
   const state = { validKey: 'good-key', quota: false, blocked: false, loginForbidden: false, downloadBody: SRT, results: [] as unknown[], cloudDown: false, cloudNoKey: false, cloudKnowsServer: true };
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-  const fetchImpl = async (input: string, init: RequestInit = {}) => {
+  const fetchImpl = async (input: string, init: RequestInit = {}): Promise<Response> => {
     const url = new URL(input);
     const headers = Object.fromEntries(Object.entries((init.headers as Record<string, string>) ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
     if (url.hostname === 'vidalune.com') return cloud(url, init, headers);
@@ -51,23 +71,23 @@ function fakeOpenSubtitles() {
     }
     return json(404, { message: 'not found' });
   };
-  const cloud = async (url: URL, init: RequestInit, headers: Record<string, string>) => {
+  const cloud = async (url: URL, init: RequestInit, headers: Record<string, string>): Promise<Response> => {
     const body = init.body ? JSON.parse(String(init.body)) : null;
     cloudCalls.push({ url, method: init.method ?? 'GET', headers, body });
     if (state.cloudDown) throw new TypeError('fetch failed');
     if (!state.cloudKnowsServer) return json(403, { error: 'Link this server to a Vidalune account to search subtitles through Vidalune.' });
     if (state.cloudNoKey) return json(503, { error: 'Subtitles through Vidalune are not available right now.' });
-    const asOs = (path: string, init2: RequestInit = {}) => fetchImpl(`https://api.opensubtitles.com/api/v1${path}`, { ...init2, headers: { 'Api-Key': state.validKey, 'User-Agent': 'Vidalune v1' } });
+    const asOs = (path: string, init2: RequestInit = {}): Promise<Response> => fetchImpl(`https://api.opensubtitles.com/api/v1${path}`, { ...init2, headers: { 'Api-Key': state.validKey, 'User-Agent': 'Vidalune v1' } });
     if (url.pathname === '/api/subtitles/search') {
       const params = searchParams(body);
-      const r = params ? ((await (await asOs(`/subtitles?${params}`)).json()) as { data?: unknown[] }) : { data: [] };
+      const r: { data?: unknown[] } = params ? ((await (await asOs(`/subtitles?${params}`)).json()) as { data?: unknown[] }) : { data: [] };
       return json(200, { data: r.data ?? [] });
     }
     if (url.pathname === '/api/subtitles/download') {
       const res = await asOs('/download', { method: 'POST', body: JSON.stringify({ file_id: body.fileId, sub_format: 'srt' }) });
       if (res.status === 406) return json(429, { error: 'The daily download limit at OpenSubtitles has been reached.' });
       const { link } = (await res.json()) as { link: string };
-      const file = await fetchImpl(link);
+      const file: Response = await fetchImpl(link);
       return json(200, { data: Buffer.from(await file.arrayBuffer()).toString('base64') });
     }
     return json(404, { error: 'Not found.' });
