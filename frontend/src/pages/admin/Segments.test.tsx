@@ -56,7 +56,7 @@ function setup(initial = '/admin/intros') {
 describe('Intros & credits admin page', () => {
   it('shows the status, the counts, the shows and the errors', async () => {
     setup();
-    expect(await screen.findByText(/Waiting: someone is watching/)).toBeTruthy();
+    expect(await screen.findByText(/Waiting: someone is watching and the server is busy/)).toBeTruthy();
     expect(screen.getByText('Intros found').nextSibling?.textContent).toBe('15');
     expect(screen.getByText('Errors', { selector: 'p' }).nextSibling?.textContent).toBe('1');
     expect(screen.getByRole('button', { name: 'Severance' })).toBeTruthy();

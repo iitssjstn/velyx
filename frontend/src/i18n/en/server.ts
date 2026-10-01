@@ -20,7 +20,7 @@ export const server = {
   defer: 'Hold scheduled scans while someone is watching',
   deferHint: 'The scan starts when playback ends (at most a few hours later). Any scan that is running also slows down while someone watches.',
   segments: 'Detect intros and credits',
-  segmentsHint: 'Compares the sound at the start and end of episodes in the background (never while someone watches or a scan runs), so viewers can skip them. See Intros & credits.',
+  segmentsHint: 'Compares the sound at the start and end of episodes in the background (it waits while a scan runs, and slows down while someone watches — it only waits for playback when the server is busy), so viewers can skip them. See Intros & credits.',
   segmentVideo: 'Recognise end credits in the picture',
   sharedDetection: 'Share detection with other Vidalune servers',
   sharedDetectionHint: 'Through vidalune.com: where recaps, intros and credits are (by TMDB show, season and episode, with the episode’s length) and short audio fingerprints of intros and credits — no titles, files, users or what anyone watches. What other servers agree on fills what was not found here, and results show how many servers agree. Works on with local detection when vidalune.com cannot be reached.',

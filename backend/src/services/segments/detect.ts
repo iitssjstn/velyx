@@ -14,7 +14,7 @@ import { detectRecap, type RecapSource } from './recap.js';
  */
 
 /** Bumped whenever the algorithm changes, so older automatic results are redone. */
-export const DETECTION_VERSION = 3;
+export const DETECTION_VERSION = 4;
 
 export type Confidence = 'high' | 'medium' | 'low';
 
@@ -60,9 +60,9 @@ export interface References {
   credits: Fingerprint[];
 }
 
-/** Opening part to analyse: the first 6 minutes (at most 35 % of the episode). */
+/** Opening part to analyse: the first 15 minutes (at most 35 % of the episode): some intros only start after a long opening scene. */
 export function headWindow(duration: number): Span {
-  return { start: 0, end: Math.min(360, duration * 0.35) };
+  return { start: 0, end: Math.min(900, duration * 0.35) };
 }
 
 /** Closing part to analyse: the last 6 minutes (at most 30 % of the episode). */
@@ -198,8 +198,8 @@ export function detectEpisode(ep: EpisodeAudio, peers: EpisodeAudio[], refs: Ref
   return { recap: null, intro, credits, postCredits, introFrames, creditsFrames };
 }
 
-/** Earlier episodes a recap may quote: the one or two before it. */
-const RECAP_SOURCES = 2;
+/** Earlier episodes a recap may quote: the few before it (recaps also go back further than one episode). */
+export const RECAP_SOURCES = 4;
 
 /**
  * Detects every episode of one season (episodes in broadcast order). `known` holds results stored

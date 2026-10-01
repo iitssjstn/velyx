@@ -27,7 +27,7 @@ export const segments = {
   },
   status: {
     disabled: 'Detection is turned off.',
-    waitingPlayback: 'Waiting: someone is watching. Detection continues when playback ends.',
+    waitingPlayback: 'Waiting: someone is watching and the server is busy (more than 60 % of the processors in use). Detection continues as soon as the server has room again.',
     waitingScan: 'Waiting for the library scan to finish.',
     running: 'Analysing {show}, season {season} ({done} of {total} episodes read)',
     queued: {
