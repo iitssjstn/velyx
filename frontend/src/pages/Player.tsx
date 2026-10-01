@@ -24,7 +24,7 @@ import {
   VolumeX,
   X,
 } from 'lucide-react';
-import { api, ApiError, errorMessage } from '../lib/api';
+import { api, ApiError, errorMessage, request } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
 import { getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
@@ -101,9 +101,13 @@ async function loadItem(kind: string, id: number): Promise<LoadedItem> {
 }
 
 /** Asks the server where a live stream for `target` will really begin (the keyframe FFmpeg lands on). */
-async function locateStart(fileId: number, target: number): Promise<{ offset: number; seek: number }> {
+/** How long to wait for the keyframe before starting the stream at the asked time itself. */
+export const LOCATE_TIMEOUT_MS = 4000;
+
+export async function locateStart(fileId: number, target: number): Promise<{ offset: number; seek: number }> {
   try {
-    const r = await api.get<{ start: number; seek: number }>(`/api/media/${fileId}/keyframe?t=${target.toFixed(3)}`);
+    // A busy server must not keep the player waiting: the stream can start at the time itself.
+    const r = await request<{ start: number; seek: number }>('GET', `/api/media/${fileId}/keyframe?t=${target.toFixed(3)}`, undefined, { signal: AbortSignal.timeout(LOCATE_TIMEOUT_MS) });
     return { offset: r.start, seek: r.seek };
   } catch {
     return { offset: target, seek: target };
@@ -305,6 +309,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         const v = videoRef.current;
         playAfterLoadRef.current = v ? !v.paused || !startedRef.current : true;
         setBuffering(true);
+        // What plays now is about to be replaced (a skip or seek): it must not carry on under the spinner.
+        v?.pause();
         const r = await locateStart(info.file.id, target);
         const cur = streamRef.current;
         // The same stream as now (a seek near where it started): the address does not change, so
