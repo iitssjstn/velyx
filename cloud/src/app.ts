@@ -543,12 +543,18 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   // Online subtitles with the one OpenSubtitles key of vidalune.com. Per server: new downloads are
   // a small share of the daily allowance there; files kept here and searches only stop floods.
-  const subtitleLimiters = { search: new RateLimiter(120, 3_600_000), download: new RateLimiter(40, 86_400_000), kept: new RateLimiter(300, 3_600_000) };
+  const subtitleLimiters = { settings: new RateLimiter(10, 60_000), search: new RateLimiter(120, 3_600_000), download: new RateLimiter(40, 86_400_000), kept: new RateLimiter(300, 3_600_000) };
   subtitleRoutes(app, {
-    proxy: new SubtitleProxy({ db, account: config.openSubtitles, fetchImpl: opts.fetchImpl ?? ((input, init) => fetch(input, init)), now, userAgent: 'Vidalune v1' }),
+    db,
+    proxy: new SubtitleProxy({ db, fetchImpl: opts.fetchImpl ?? ((input, init) => fetch(input, init)), now, userAgent: 'Vidalune v1' }),
+    ceo: (request) => {
+      const me = account(request);
+      if (!isCeo(me)) throw new HttpError(403, 'Only for the CEO of Vidalune.');
+      return me;
+    },
     server,
     limit: (key) => {
-      const which = key.startsWith('subtitle-search:') ? 'search' : key.startsWith('subtitle-download:') ? 'download' : 'kept';
+      const which = key.startsWith('subtitle-settings:') ? 'settings' : key.startsWith('subtitle-search:') ? 'search' : key.startsWith('subtitle-download:') ? 'download' : 'kept';
       subtitleLimiters[which].check(key, now());
     },
   });

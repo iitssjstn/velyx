@@ -331,3 +331,11 @@ export const subtitleSearches = sqliteTable('subtitle_searches', {
   results: text('results').notNull(),
   fetchedAt: integer('fetched_at').notNull(),
 });
+
+/** Settings of vidalune.com itself, changed in the Control Center (one row per setting, JSON). */
+export const serviceSettings = sqliteTable('service_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  updatedBy: text('updated_by').notNull(),
+});
