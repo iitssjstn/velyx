@@ -6,7 +6,7 @@ import { build } from 'esbuild';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fingerprint, SAMPLE_RATE } from '../src/services/segments/fingerprint.js';
 import { detectSeason, headWindow, tailWindow, type EpisodeAudio } from '../src/services/segments/detect.js';
-import { inlineSeasonRunner, workerSeasonRunner } from '../src/services/segments/season-runner.js';
+import { inlineFingerprintRunner, inlineSeasonRunner, workerFingerprintRunner, workerSeasonRunner } from '../src/services/segments/season-runner.js';
 import { episode, melody } from './segments-helpers.js';
 
 const INTRO = melody(35, 1001);
@@ -52,5 +52,13 @@ describe('detecting a season in a thread of its own', () => {
     const runner = workerSeasonRunner(pathToFileURL(path.join(dir, 'missing.js')));
     expect(runner).toBe(inlineSeasonRunner);
     expect(await runner(eps, refs)).toEqual(detectSeason(eps, refs));
+  });
+
+  it('fingerprints audio in the worker too, the same as here', async () => {
+    const pcm = episode([melody(30, 7), INTRO], 3);
+    const [a, b] = await workerFingerprintRunner(worker)([pcm, pcm.subarray(0, 10 * SAMPLE_RATE)]);
+    expect(a!.words).toEqual(fingerprint(pcm).words);
+    expect(b!.words).toEqual(fingerprint(pcm.subarray(0, 10 * SAMPLE_RATE)).words);
+    expect(workerFingerprintRunner(pathToFileURL(path.join(dir, 'missing.js')))).toBe(inlineFingerprintRunner);
   });
 });
