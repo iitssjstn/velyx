@@ -1,10 +1,5 @@
 import fsp from 'node:fs/promises';
 import { HttpError } from '../http-error.js';
-import { createLogger } from '../logger.js';
-import type { FetchLike } from './tmdb.js';
-
-const log = createLogger('opensubtitles');
-const API_BASE = 'https://api.opensubtitles.com/api/v1';
 
 /**
  * Languages offered for searching, as OpenSubtitles names them (lower case). Portuguese and Chinese
@@ -20,7 +15,7 @@ export function isOnlineSubtitleLanguage(v: string): v is OnlineSubtitleLanguage
   return (ONLINE_SUBTITLE_LANGUAGES as readonly string[]).includes(v);
 }
 
-export type OpenSubtitlesErrorKind = 'not-configured' | 'auth' | 'bad-key' | 'bad-account' | 'quota' | 'blocked' | 'unreachable' | 'failed';
+export type OpenSubtitlesErrorKind = 'not-configured' | 'quota' | 'unreachable' | 'failed';
 
 export class OpenSubtitlesError extends Error {
   constructor(
@@ -33,12 +28,6 @@ export class OpenSubtitlesError extends Error {
     super(message);
     this.name = 'OpenSubtitlesError';
   }
-}
-
-export interface OpenSubtitlesCredentials {
-  apiKey: string;
-  username: string;
-  password: string;
 }
 
 /** What to search for: the file's hash plus the movie or episode it is. */
@@ -160,185 +149,40 @@ function vidaluneError(err: unknown): OpenSubtitlesError {
 }
 
 export interface OpenSubtitlesOptions {
-  getCredentials: () => OpenSubtitlesCredentials;
-  /** Used when this server has no key of its own: subtitles through vidalune.com. */
-  vidalune?: VidaluneSubtitles;
-  fetchImpl?: FetchLike;
-  userAgent: string;
+  /** Subtitles through vidalune.com (its OpenSubtitles key), for a server linked to a Vidalune account. */
+  vidalune: VidaluneSubtitles;
 }
 
 /**
- * Minimal OpenSubtitles.com REST client: search and download. Signing in with an account is
- * optional and raises the daily download allowance; the token is kept for a day.
+ * Online subtitles: searched and downloaded through vidalune.com, which asks OpenSubtitles with its
+ * own key and keeps the files it fetched. Only for a server linked to a Vidalune account.
  */
 export class OpenSubtitlesClient {
-  private readonly fetchImpl: FetchLike;
-  private token: { value: string; base: string; forKey: string; until: number } | null = null;
-
-  constructor(private readonly opts: OpenSubtitlesOptions) {
-    this.fetchImpl = opts.fetchImpl ?? ((input, init) => fetch(input, init));
-  }
+  constructor(private readonly opts: OpenSubtitlesOptions) {}
 
   get configured(): boolean {
     return this.via !== null;
   }
 
-  /** How subtitles are found: with this server's own key, through vidalune.com, or not at all. */
-  get via(): 'key' | 'vidalune' | null {
-    if (this.opts.getCredentials().apiKey) return 'key';
-    return this.opts.vidalune?.linked() ? 'vidalune' : null;
-  }
-
-  /** Forget the sign-in (credentials changed). */
-  reset(): void {
-    this.token = null;
-  }
-
-  private headers(apiKey: string, token?: string): Record<string, string> {
-    return {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'Api-Key': apiKey,
-      'User-Agent': this.opts.userAgent,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  }
-
-  private async call<T>(url: string, init: RequestInit): Promise<T> {
-    let res: Response;
-    try {
-      res = await this.fetchImpl(url, { ...init, signal: AbortSignal.timeout(15000) });
-    } catch (err) {
-      throw new OpenSubtitlesError(`OpenSubtitles could not be reached: ${(err as Error).message}`, 'unreachable');
-    }
-    const text = await res.text().catch(() => '');
-    let body: (T & { message?: string; errors?: string[]; reset_time_utc?: string }) | null;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      body = null;
-    }
-    const where = new URL(url).pathname;
-    if (!body || typeof body !== 'object') {
-      // A web page instead of an API answer: a firewall or proxy between this server and the API.
-      log.warn(`OpenSubtitles answered ${res.status} to ${where} with something that is not an API answer: ${text.slice(0, 200).replace(/\s+/g, ' ')}`);
-      throw new OpenSubtitlesError(`HTTP ${res.status}, no API answer`, 'blocked', res.status);
-    }
-    if (res.ok) return body;
-    const message = `${res.status}: ${body.message ?? body.errors?.join(', ') ?? 'no reason given'}`;
-    log.warn(`OpenSubtitles answered ${where} with ${message}`);
-    if (res.status === 401 || res.status === 403) throw new OpenSubtitlesError(message, 'auth', res.status);
-    if (res.status === 406 || res.status === 429) throw new OpenSubtitlesError(message, 'quota', res.status, body.reset_time_utc ?? null);
-    throw new OpenSubtitlesError(message, 'failed', res.status);
-  }
-
-  /** Signs in with the account when one is set; returns the API base to use and the token. */
-  private async session(creds: OpenSubtitlesCredentials): Promise<{ base: string; token?: string }> {
-    if (!creds.username || !creds.password) return { base: API_BASE };
-    const forKey = `${creds.apiKey}|${creds.username}|${creds.password}`;
-    if (this.token && this.token.forKey === forKey && this.token.until > Date.now()) return { base: this.token.base, token: this.token.value };
-    const r = await this.call<{ token?: string; base_url?: string }>(`${API_BASE}/login`, {
-      method: 'POST',
-      headers: this.headers(creds.apiKey),
-      body: JSON.stringify({ username: creds.username, password: creds.password }),
-    });
-    if (!r.token) throw new OpenSubtitlesError('OpenSubtitles did not accept the account.', 'auth');
-    // Accounts may be served from another host (e.g. for VIP members).
-    const base = r.base_url && /^[a-z0-9.-]+$/i.test(r.base_url) ? `https://${r.base_url}/api/v1` : API_BASE;
-    this.token = { value: r.token, base, forKey, until: Date.now() + 23 * 60 * 60 * 1000 };
-    return { base, token: r.token };
-  }
-
-  private credentials(): OpenSubtitlesCredentials {
-    const creds = this.opts.getCredentials();
-    if (!creds.apiKey) throw new OpenSubtitlesError('Searching subtitles online is not set up.', 'not-configured');
-    return creds;
-  }
-
-  /** Checks a key (and account) before it is saved. */
-  /**
-   * Checks a key, then the account (when one is given), before they are saved. A rejection says
-   * which of the two was refused, with the provider's own reason.
-   */
-  async verify(creds: OpenSubtitlesCredentials): Promise<void> {
-    this.token = null;
-    try {
-      // A small search: unlike the informational endpoints it needs a valid key, and it costs no downloads.
-      await this.call(`${API_BASE}/subtitles?languages=en&query=vidalune&type=movie`, { method: 'GET', headers: this.headers(creds.apiKey) });
-    } catch (err) {
-      if (err instanceof OpenSubtitlesError && err.kind === 'auth') throw new OpenSubtitlesError(err.message, 'bad-key', err.status);
-      throw err;
-    }
-    if (!creds.username || !creds.password) return;
-    try {
-      await this.session(creds);
-    } catch (err) {
-      // 403 ("You cannot consume this service") is about the key; other refusals are about the account.
-      if (err instanceof OpenSubtitlesError && err.status === 403) throw new OpenSubtitlesError(err.message, 'bad-key', err.status);
-      if (err instanceof OpenSubtitlesError && (err.kind === 'auth' || (err.kind === 'failed' && err.status !== null && err.status < 500))) {
-        throw new OpenSubtitlesError(err.message, 'bad-account', err.status);
-      }
-      throw err;
-    }
+  /** How subtitles are found: through vidalune.com, or not at all (not linked). */
+  get via(): 'vidalune' | null {
+    return this.opts.vidalune.linked() ? 'vidalune' : null;
   }
 
   async search(q: SubtitleQuery): Promise<OnlineSubtitle[]> {
-    if (this.via === 'vidalune') {
-      const data = await this.opts.vidalune!.subtitleSearch(q).catch((err: unknown) => {
-        throw vidaluneError(err);
-      });
-      return parseSubtitles(Array.isArray(data) ? data : [], q.language);
-    }
-    const creds = this.credentials();
-    const params: Record<string, string> = { languages: q.language };
-    if (q.hash) params.moviehash = q.hash;
-    if (q.type === 'episode') {
-      params.type = 'episode';
-      if (q.parentTmdbId) params.parent_tmdb_id = String(q.parentTmdbId);
-      else if (q.parentImdbId) params.parent_imdb_id = q.parentImdbId.replace(/^tt/, '');
-      if (q.season !== null && q.season !== undefined) params.season_number = String(q.season);
-      if (q.episode !== null && q.episode !== undefined) params.episode_number = String(q.episode);
-    } else {
-      params.type = 'movie';
-      if (q.tmdbId) params.tmdb_id = String(q.tmdbId);
-      else if (q.imdbId) params.imdb_id = q.imdbId.replace(/^tt/, '');
-      if (q.year) params.year = String(q.year);
-    }
-    const hasId = Boolean(params.tmdb_id || params.imdb_id || params.parent_tmdb_id || params.parent_imdb_id);
-    if (!hasId && q.query) params.query = q.query.toLowerCase();
-    if (!hasId && !q.query && !q.hash) return [];
-    // The API asks for parameters in alphabetical order (other orders are redirected).
-    const search = new URLSearchParams(Object.keys(params).sort().map((k): [string, string] => [k, params[k]!]));
-    const { base, token } = await this.session(creds);
-    const r = await this.call<{ data?: ApiSubtitle[] }>(`${base}/subtitles?${search}`, { method: 'GET', headers: this.headers(creds.apiKey, token) });
-    return parseSubtitles(r.data ?? [], q.language);
+    if (!this.via) throw new OpenSubtitlesError('Not linked to a Vidalune account.', 'not-configured');
+    const data = await this.opts.vidalune.subtitleSearch(q).catch((err: unknown) => {
+      throw vidaluneError(err);
+    });
+    return parseSubtitles(Array.isArray(data) ? data : [], q.language);
   }
 
   /** Downloads one subtitle file as SubRip text (bytes; the caller decodes them). */
-  async download(fileId: number): Promise<{ data: Buffer; remaining: number | null }> {
-    if (this.via === 'vidalune') {
-      const data = await this.opts.vidalune!.subtitleDownload(fileId).catch((err: unknown) => {
-        throw vidaluneError(err);
-      });
-      return { data, remaining: null };
-    }
-    const creds = this.credentials();
-    const { base, token } = await this.session(creds);
-    const r = await this.call<{ link?: string; remaining?: number }>(`${base}/download`, {
-      method: 'POST',
-      headers: this.headers(creds.apiKey, token),
-      body: JSON.stringify({ file_id: fileId, sub_format: 'srt' }),
+  async download(fileId: number): Promise<{ data: Buffer }> {
+    if (!this.via) throw new OpenSubtitlesError('Not linked to a Vidalune account.', 'not-configured');
+    const data = await this.opts.vidalune.subtitleDownload(fileId).catch((err: unknown) => {
+      throw vidaluneError(err);
     });
-    if (!r.link || !/^https:\/\//.test(r.link)) throw new OpenSubtitlesError('OpenSubtitles did not return a download.', 'failed');
-    let res: Response;
-    try {
-      res = await this.fetchImpl(r.link, { signal: AbortSignal.timeout(20000) });
-    } catch (err) {
-      throw new OpenSubtitlesError(`OpenSubtitles could not be reached: ${(err as Error).message}`, 'unreachable');
-    }
-    if (!res.ok) throw new OpenSubtitlesError(`OpenSubtitles returned ${res.status}`, 'failed', res.status);
-    const data = Buffer.from(await res.arrayBuffer());
-    log.debug(`Downloaded subtitle file ${fileId} (${data.length} bytes, ${r.remaining ?? '?'} downloads left today)`);
-    return { data, remaining: typeof r.remaining === 'number' ? r.remaining : null };
+    return { data };
   }
 }

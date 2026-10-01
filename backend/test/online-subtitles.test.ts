@@ -6,6 +6,8 @@ import { migrationsFolder, openDatabase } from '../src/db/client.js';
 import { movieHash, rankSubtitles, type OnlineSubtitle } from '../src/services/opensubtitles.js';
 import { pruneOnlineSubtitleFiles } from '../src/routes/online-subtitles.js';
 import { addLibrary, createTestEnv, createUser, setupAdmin, touch, type TestEnv } from './helpers.js';
+// How vidalune.com turns a server's question into a search at OpenSubtitles.
+import { searchParams } from '../../cloud/src/subtitles.js';
 
 const SRT = '1\n00:00:01,000 --> 00:00:03,500\nHallo daar\n\n2\n00:00:05,000 --> 00:00:06,000\nTot ziens\n';
 
@@ -16,14 +18,20 @@ interface Call {
   body: unknown;
 }
 
-/** A stand-in for api.opensubtitles.com. */
+/**
+ * A stand-in for vidalune.com and, behind it, api.opensubtitles.com: the server asks vidalune.com,
+ * which asks OpenSubtitles with its own key. `calls` are the requests that reached OpenSubtitles;
+ * `cloudCalls` the server's requests to vidalune.com.
+ */
 function fakeOpenSubtitles() {
   const calls: Call[] = [];
-  const state = { validKey: 'good-key', quota: false, blocked: false, loginForbidden: false, downloadBody: SRT, results: [] as unknown[] };
+  const cloudCalls: Call[] = [];
+  const state = { validKey: 'good-key', quota: false, blocked: false, loginForbidden: false, downloadBody: SRT, results: [] as unknown[], cloudDown: false, cloudNoKey: false, cloudKnowsServer: true };
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   const fetchImpl = async (input: string, init: RequestInit = {}) => {
     const url = new URL(input);
     const headers = Object.fromEntries(Object.entries((init.headers as Record<string, string>) ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
+    if (url.hostname === 'vidalune.com') return cloud(url, init, headers);
     calls.push({ url, method: init.method ?? 'GET', headers, body: init.body ? JSON.parse(String(init.body)) : null });
     if (url.hostname === 'dl.opensubtitles.test') return new Response(state.downloadBody, { status: 200 });
     if (url.hostname !== 'api.opensubtitles.com') throw new Error('network disabled in tests');
@@ -43,7 +51,28 @@ function fakeOpenSubtitles() {
     }
     return json(404, { message: 'not found' });
   };
-  return { fetchImpl, calls, state };
+  const cloud = async (url: URL, init: RequestInit, headers: Record<string, string>) => {
+    const body = init.body ? JSON.parse(String(init.body)) : null;
+    cloudCalls.push({ url, method: init.method ?? 'GET', headers, body });
+    if (state.cloudDown) throw new TypeError('fetch failed');
+    if (!state.cloudKnowsServer) return json(403, { error: 'Link this server to a Vidalune account to search subtitles through Vidalune.' });
+    if (state.cloudNoKey) return json(503, { error: 'Subtitles through Vidalune are not available right now.' });
+    const asOs = (path: string, init2: RequestInit = {}) => fetchImpl(`https://api.opensubtitles.com/api/v1${path}`, { ...init2, headers: { 'Api-Key': state.validKey, 'User-Agent': 'Vidalune v1' } });
+    if (url.pathname === '/api/subtitles/search') {
+      const params = searchParams(body);
+      const r = params ? ((await (await asOs(`/subtitles?${params}`)).json()) as { data?: unknown[] }) : { data: [] };
+      return json(200, { data: r.data ?? [] });
+    }
+    if (url.pathname === '/api/subtitles/download') {
+      const res = await asOs('/download', { method: 'POST', body: JSON.stringify({ file_id: body.fileId, sub_format: 'srt' }) });
+      if (res.status === 406) return json(429, { error: 'The daily download limit at OpenSubtitles has been reached.' });
+      const { link } = (await res.json()) as { link: string };
+      const file = await fetchImpl(link);
+      return json(200, { data: Buffer.from(await file.arrayBuffer()).toString('base64') });
+    }
+    return json(404, { error: 'Not found.' });
+  };
+  return { fetchImpl, calls, cloudCalls, state };
 }
 
 const result = (fileId: number, a: Record<string, unknown> = {}) => ({
@@ -73,7 +102,8 @@ async function get(url: string, cookie = admin) {
   return (await env.app.inject({ url, headers: { cookie } })).json();
 }
 const req = (method: 'GET' | 'PUT' | 'POST' | 'DELETE', url: string, payload?: object, cookie = admin) => env.app.inject({ method, url, headers: { cookie }, ...(payload ? { payload } : {}) });
-const configure = () => req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key' });
+/** Links this server to a Vidalune account: subtitles are then searched through vidalune.com. */
+const configure = async () => env.ctx.settings.update({ cloud: { serverId: 'srv-1', secret: 's'.repeat(32), account: 'justin@example.com' } });
 const search = (language = 'nl', cookie = admin) => req('GET', `/api/media/${fileId}/subtitles/online?language=${language}`, undefined, cookie);
 
 describe('movieHash', () => {
@@ -105,71 +135,64 @@ describe('rankSubtitles', () => {
   });
 });
 
-describe('setting up OpenSubtitles', () => {
-  it('is off until an administrator adds a key, and the player knows it', async () => {
-    expect(await get('/api/admin/online-subtitles')).toMatchObject({ configured: false, hint: null });
+describe('subtitles through vidalune.com', () => {
+  it('is off until the server is linked to a Vidalune account, and the player knows it', async () => {
+    expect(await get('/api/admin/online-subtitles')).toMatchObject({ via: null });
     expect((await req('POST', `/api/media/${fileId}/playback`, {})).json().onlineSubtitles).toBe(false);
     const res = await search();
     expect(res.statusCode).toBe(409);
+    expect(res.json().error).toMatch(/linked to a Vidalune account/);
+    expect(os_.cloudCalls).toEqual([]);
     expect(os_.calls).toEqual([]);
   });
 
-  it('checks the key before saving it and never shows it again', async () => {
-    const bad = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'wrong-key' });
-    expect(bad.statusCode).toBe(400);
-    // With the provider's own reason, so it is clear what is wrong.
-    expect(bad.json().error).toBe('OpenSubtitles did not accept this API key (401: Invalid API key).');
-    const ok = await configure();
-    expect(ok.statusCode).toBe(200);
-    expect(ok.json()).toMatchObject({ configured: true, hint: '••••-key', username: null, hasPassword: false });
-    expect(JSON.stringify(await get('/api/admin/online-subtitles'))).not.toContain('good-key');
+  it('searches through vidalune.com once linked, with no OpenSubtitles key of its own to set', async () => {
+    await configure();
+    expect(await get('/api/admin/online-subtitles')).toEqual({ via: 'vidalune', languages: expect.any(Array) });
     expect((await req('POST', `/api/media/${fileId}/playback`, {})).json().onlineSubtitles).toBe(true);
-    // Every request identifies Vidalune.
-    expect(os_.calls[0]!.headers['user-agent']).toMatch(/^Vidalune v\d/);
-    expect((await get('/api/admin/audit')).items.some((e: { action: string }) => e.action === 'subtitles.settings')).toBe(true);
+    // There is no key to set here any more.
+    expect((await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key' })).statusCode).toBe(404);
+    expect((await search()).statusCode).toBe(200);
+    // OpenSubtitles was asked by vidalune.com, with its key.
+    expect(os_.calls[0]!.headers['api-key']).toBe('good-key');
   });
 
-  it('accepts an optional account, checked by signing in', async () => {
-    expect((await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna' })).statusCode).toBe(400);
-    const wrong = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna', password: 'nope' });
-    expect(wrong.statusCode).toBe(400);
-    // The key is fine: the message is about the account.
-    expect(wrong.json().error).toBe('OpenSubtitles did not accept this username or password (401: Invalid username/password).');
-    // A wrong key with an account is reported as a wrong key.
-    expect((await req('PUT', '/api/admin/online-subtitles', { apiKey: 'wrong-key', username: 'anna', password: 'secret' })).json().error).toMatch(/^OpenSubtitles did not accept this API key/);
-    // Nothing was saved.
-    expect(await get('/api/admin/online-subtitles')).toMatchObject({ configured: false });
-    const res = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna', password: 'secret' });
-    expect(res.json()).toMatchObject({ configured: true, username: 'anna', hasPassword: true });
-    expect(JSON.stringify(res.json())).not.toContain('secret');
+  it('asks vidalune.com as this server, with only what the file is (nothing about users)', async () => {
+    await configure();
+    await search('nl');
+    const call = os_.cloudCalls[0]!;
+    expect(call.url.pathname).toBe('/api/subtitles/search');
+    expect(call.headers.authorization).toBe(`Server srv-1:${'s'.repeat(32)}`);
+    for (const key of Object.keys(call.body as object)) expect(['language', 'hash', 'type', 'tmdbId', 'imdbId', 'parentTmdbId', 'parentImdbId', 'season', 'episode', 'query', 'year']).toContain(key);
+    expect(JSON.stringify(call.body)).not.toMatch(/justin|admin|cookie/i);
   });
 
-  it('says so when something in between blocks OpenSubtitles, instead of blaming the key', async () => {
-    os_.state.blocked = true;
-    const res = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna', password: 'secret' });
+  it('says so when vidalune.com cannot be reached', async () => {
+    await configure();
+    os_.state.cloudDown = true;
+    const res = await search();
     expect(res.statusCode).toBe(502);
-    expect(res.json().error).toBe('OpenSubtitles did not answer as expected (HTTP 403, no API answer). Something between this server and OpenSubtitles, such as a firewall or proxy, may be blocking it.');
+    expect(res.json().error).toBe('Subtitles could not be searched through vidalune.com right now. Try again later.');
   });
 
-  it('checks the key with a real search, and reports a refused sign-in with 403 as a key problem', async () => {
+  it('says so when vidalune.com offers no subtitles right now, or no longer knows this server as linked', async () => {
     await configure();
-    expect(os_.calls[0]!.url.pathname).toBe('/api/v1/subtitles');
-    os_.state.loginForbidden = true;
-    const res = await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key', username: 'anna', password: 'secret' });
-    expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe('OpenSubtitles did not accept this API key (403: You cannot consume this service).');
+    os_.state.cloudNoKey = true;
+    expect((await search('nl')).statusCode).toBe(409);
+    os_.state.cloudNoKey = false;
+    os_.state.cloudKnowsServer = false;
+    expect((await search('en')).statusCode).toBe(409);
   });
 
-  it('can be turned off again', async () => {
+  it('stops when the server is unlinked', async () => {
     await configure();
-    expect((await req('PUT', '/api/admin/online-subtitles', { apiKey: '' })).json()).toMatchObject({ configured: false });
+    env.ctx.settings.update({ cloud: { serverId: 'srv-1', secret: 's'.repeat(32), account: null } });
     expect((await search()).statusCode).toBe(409);
   });
 
   it('is for administrators only', async () => {
     const anna = await createUser(env.app, admin, 'anna');
     expect((await req('GET', '/api/admin/online-subtitles', undefined, anna.cookie)).statusCode).toBe(403);
-    expect((await req('PUT', '/api/admin/online-subtitles', { apiKey: 'good-key' }, anna.cookie)).statusCode).toBe(403);
   });
 });
 
@@ -228,10 +251,10 @@ describe('searching', () => {
   });
 
   it('explains provider problems', async () => {
-    env.ctx.settings.update({ openSubtitlesApiKey: 'revoked-key' });
+    os_.state.cloudNoKey = true;
     const res = await search('nl');
-    expect(res.statusCode).toBe(502);
-    expect(res.json().error).toMatch(/did not accept the API key/);
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toMatch(/Vidalune account/);
   });
 });
 
@@ -281,7 +304,8 @@ describe('fetching a subtitle', () => {
     await req('PUT', '/api/account/language', { language: 'nl' });
     const res = await fetchSub(21);
     expect(res.statusCode).toBe(429);
-    expect(res.json().error).toMatch(/^De dagelijkse downloadlimiet bij OpenSubtitles is bereikt\. Probeer het opnieuw na /);
+    // vidalune.com passes on that the limit is reached (not when it resets): try again tomorrow.
+    expect(res.json().error).toMatch(/^De dagelijkse downloadlimiet bij OpenSubtitles is bereikt\. Probeer het morgen opnieuw/);
   });
 
   it('refuses files that are not subtitles', async () => {

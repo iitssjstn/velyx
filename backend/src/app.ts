@@ -220,15 +220,9 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     playing: () => new Set(streams.active().map((s) => s.mediaFileId)),
     rescan: (libraryId) => scans.enqueue(libraryId),
   });
-  const openSubtitles = new OpenSubtitlesClient({
-    getCredentials: () => {
-      const s = settings.get();
-      return { apiKey: s.openSubtitlesApiKey, username: s.openSubtitlesUsername, password: s.openSubtitlesPassword };
-    },
-    vidalune: cloud,
-    fetchImpl: opts.fetchImpl,
-    userAgent: `Vidalune v${APP_VERSION}`,
-  });
+  // Subtitles come through vidalune.com. A key this server kept from before 0.18.1 is no longer used: forgotten.
+  for (const k of ['openSubtitlesApiKey', 'openSubtitlesUsername', 'openSubtitlesPassword'] as const) if (settings.get()[k]) settings.delete(k);
+  const openSubtitles = new OpenSubtitlesClient({ vidalune: cloud });
   return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr: new SeerrService({ settings, fetchImpl: opts.fetchImpl }), transcoding, startedAt: Date.now() };
 }
 

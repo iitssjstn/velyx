@@ -77,7 +77,7 @@ async function setup(account?: { apiKey: string; username?: string; password?: s
   if (account) expect((await app.inject({ method: 'PUT', url: '/api/ceo/subtitles', headers: { cookie: ceoCookie }, payload: account })).statusCode).toBe(200);
   // What setting the key asked OpenSubtitles (a check) does not count below.
   Object.assign(provider, { searches: [], downloads: 0, keys: new Set(), quota: false });
-  const client = new OpenSubtitlesClient({ getCredentials: () => ({ apiKey: '', username: '', password: '' }), vidalune: cloud, userAgent: 'test' });
+  const client = new OpenSubtitlesClient({ vidalune: cloud });
   return { client, stored };
 }
 
