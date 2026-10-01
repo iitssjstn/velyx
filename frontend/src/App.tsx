@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import { Layout } from './components/Layout';
@@ -21,6 +22,7 @@ import { CollectionPage, CollectionsPage } from './pages/Collections';
 import { PlayerHost, PlayRoute } from './components/PlayerHost';
 import { useT } from './i18n';
 import { PlaybackSessionProvider } from './lib/playback-session';
+import { hideSplash } from './lib/splash';
 
 // The admin area is loaded on demand to keep the initial bundle small (the player too, see PlayerHost).
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
@@ -36,6 +38,18 @@ export function App() {
   const { server, user, loading, error } = useAuth();
   const location = useLocation();
   const { t } = useT();
+
+  // The opening screen fades out once the first screen has its data (its requests start before
+  // this runs, so the page is not shown half loaded).
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (loading) return;
+    const check = () => {
+      if (queryClient.isFetching() === 0) hideSplash();
+    };
+    check();
+    return queryClient.getQueryCache().subscribe(check);
+  }, [loading, queryClient]);
 
   useEffect(() => {
     document.title = server?.name && server.name !== 'Vidalune' ? `${server.name} · Vidalune` : 'Vidalune';
