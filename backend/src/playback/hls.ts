@@ -131,7 +131,7 @@ export function hlsArgs(input: string, videoCodec: string | null, plan: RemuxPla
     '-f', 'hls',
     // Copied: a new piece at every keyframe. Converted: every GRID_SECONDS, where the keyframes are forced.
     '-hls_time', encode ? String(GRID_SECONDS) : '0.01',
-    '-hls_segment_type', 'fmp4', '-hls_fmp4_init_filename', 'init.mp4',
+    '-hls_segment_type', 'fmp4', '-hls_flags', 'temp_file', '-hls_fmp4_init_filename', 'init.mp4',
     '-start_number', String(from), '-hls_list_size', '0', '-hls_playlist_type', 'event',
     '-hls_segment_filename', path.join(dir, 'seg%d.m4s'),
     path.join(dir, 'index.m3u8'),
@@ -212,7 +212,8 @@ export class HlsSessions {
   async init(src: HlsSource): Promise<string> {
     const s = this.session(src);
     s.lastUsed = Date.now();
-    if (!s.child && !s.ended) this.start(s, src, 0);
+    // Not started yet, or the last run failed or was stopped before it made one: (re)start it.
+    if (!s.child && s.init === null) this.start(s, src, s.lastRequested);
     await this.until(s, () => s.init !== null);
     return s.init!;
   }
@@ -257,6 +258,10 @@ export class HlsSessions {
 
   private start(s: Session, src: HlsSource, from: number): void {
     this.stop(s);
+    // Pieces from here on are made again by this run: until it lists them, they may be half rewritten.
+    for (const n of s.done) if (n >= from) s.done.delete(n);
+    // The old run's list would mark those pieces finished again (and make the run look far ahead).
+    fs.rmSync(path.join(s.dir, 'index.m3u8'), { force: true });
     s.from = from;
     s.ended = false;
     s.failed = null;
@@ -366,6 +371,9 @@ export class HlsSessions {
 
   private drop(s: Session): void {
     this.stop(s);
+    // A request still waiting for this session gets an answer instead of waiting for its deadline.
+    s.ended = true;
+    s.failed ??= 'The stream was stopped.';
     this.sessions.delete(s.key);
     fs.rm(s.dir, { recursive: true, force: true }, () => undefined);
   }

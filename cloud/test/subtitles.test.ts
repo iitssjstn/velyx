@@ -22,7 +22,7 @@ let app: FastifyInstance;
 let cloud: CloudService;
 
 /** OpenSubtitles as vidalune.com sees it: what it was asked, and with which key. */
-const provider = { searches: [] as string[], downloads: 0, keys: new Set<string>(), quota: false };
+const provider = { searches: [] as string[], downloads: 0, logins: 0, keys: new Set<string>(), quota: false, expireOnce: false };
 
 let ceoCookie = '';
 
@@ -31,7 +31,7 @@ async function setup(account?: { apiKey: string; username?: string; password?: s
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-cloud-'));
   const config = loadConfig({ DATA_DIR: dir, PUBLIC_URL: 'https://vidalune.example', CEO_EMAILS: 'ceo@example.com' }, { webDir: null });
   db = openDatabase(config.dbPath);
-  Object.assign(provider, { searches: [], downloads: 0, keys: new Set(), quota: false });
+  Object.assign(provider, { searches: [], downloads: 0, logins: 0, keys: new Set(), quota: false, expireOnce: false });
   app = await buildCloudApp(config, db, {
     fetchImpl: (async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(String(input));
@@ -39,10 +39,16 @@ async function setup(account?: { apiKey: string; username?: string; password?: s
       if (key === 'wrong-key') return Response.json({ message: 'Invalid API key' }, { status: 401 });
       provider.keys.add(key);
       if (url.pathname.endsWith('/login')) {
+        provider.logins++;
         const body = JSON.parse(String(init?.body)) as { password: string };
         return body.password === 'secret' ? Response.json({ token: 'tok', base_url: 'vip-api.opensubtitles.com' }) : Response.json({ message: 'Invalid credentials' }, { status: 401 });
       }
       if (url.pathname.endsWith('/subtitles')) {
+        // OpenSubtitles ended the session before its time.
+        if (provider.expireOnce) {
+          provider.expireOnce = false;
+          return Response.json({ message: 'Invalid token' }, { status: 401 });
+        }
         provider.searches.push(`${url.host}${url.pathname}?${url.searchParams}`);
         return Response.json({ data: [{ attributes: { language: 'nl', release: 'Show.S01E02.NL', download_count: 7, moviehash_match: true, files: [{ file_id: 42, file_name: 'a.srt' }] } }] });
       }
@@ -76,7 +82,7 @@ async function setup(account?: { apiKey: string; username?: string; password?: s
   ceoCookie = `${SESSION_COOKIE}=${ceo.cookies.find((c) => c.name === SESSION_COOKIE)!.value}`;
   if (account) expect((await app.inject({ method: 'PUT', url: '/api/ceo/subtitles', headers: { cookie: ceoCookie }, payload: account })).statusCode).toBe(200);
   // What setting the key asked OpenSubtitles (a check) does not count below.
-  Object.assign(provider, { searches: [], downloads: 0, keys: new Set(), quota: false });
+  Object.assign(provider, { searches: [], downloads: 0, logins: 0, keys: new Set(), quota: false, expireOnce: false });
   const client = new OpenSubtitlesClient({ vidalune: cloud });
   return { client, stored };
 }
@@ -125,6 +131,17 @@ describe('subtitles through vidalune.com', () => {
     expect((await client.download(42)).data.toString()).toBe(SRT);
     expect(provider.downloads).toBe(1);
     expect(db.select().from(subtitleFiles).all()).toEqual([expect.objectContaining({ fileId: 42, served: 2 })]);
+  });
+
+  it('signs in again once when OpenSubtitles ends the session early', async () => {
+    const { client } = await setup({ apiKey: 'vip-key', username: 'owner', password: 'secret' });
+    await link();
+    await client.search(episode);
+    expect(provider.logins).toBe(1);
+    provider.expireOnce = true;
+    const found = await client.search({ ...episode, episode: 3 });
+    expect(found).toHaveLength(1);
+    expect(provider.logins).toBe(2);
   });
 
   it('says when the daily limit is reached, and when vidalune.com has no key', async () => {

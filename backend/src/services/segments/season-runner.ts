@@ -14,7 +14,10 @@ export type FingerprintRunner = (pcm: Int16Array[]) => Promise<Fingerprint[]>;
 export const inlineSeasonRunner: SeasonRunner = async (...args) => detectSeason(...args);
 export const inlineFingerprintRunner: FingerprintRunner = async (pcm) => pcm.map((p) => fingerprint(p));
 
-/** Runs one task in a fresh worker; falls back to `inline` when the worker fails. */
+/** The task itself failed in the worker: doing it again here would fail the same way (and block the server). */
+class TaskError extends Error {}
+
+/** Runs one task in a fresh worker; falls back to `inline` only when the worker itself could not run. */
 function inWorker<T>(file: URL, message: unknown, inline: () => T): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const worker = new Worker(file);
@@ -25,11 +28,12 @@ function inWorker<T>(file: URL, message: unknown, inline: () => T): Promise<T> {
       fn();
       void worker.terminate();
     };
-    worker.once('message', (m: { ok: boolean; result?: T; error?: string }) => done(() => (m.ok ? resolve(m.result!) : reject(new Error(m.error)))));
+    worker.once('message', (m: { ok: boolean; result?: T; error?: string }) => done(() => (m.ok ? resolve(m.result!) : reject(new TaskError(m.error)))));
     worker.once('error', (err) => done(() => reject(err)));
     worker.once('exit', (code) => done(() => reject(new Error(`Detection stopped (${code})`))));
     worker.postMessage(message);
   }).catch((err: unknown) => {
+    if (err instanceof TaskError) throw err;
     log.warn(`Detection in a separate thread failed (${(err as Error).message}); doing it here instead`);
     return inline();
   });

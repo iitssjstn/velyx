@@ -64,6 +64,12 @@ describe('HLS pieces', () => {
       // The audio is converted to AAC (a browser plays it).
       const codecs = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', `concat:${init}|${next}`]).toString().trim().split('\n');
       expect(codecs.sort()).toEqual(['aac', 'h264']);
+      // Back to the start (pieces in between were never made): a new run, the piece starts at 3 s,
+      // and the pieces the earlier run made further on are still handed out whole.
+      const back = await sessions.segment(src, 1);
+      expect(Math.abs(startOf([init, back]) - 3)).toBeLessThan(0.2);
+      const again = await sessions.segment(src, 8);
+      expect(Math.abs(startOf([init, again]) - 24)).toBeLessThan(0.2);
     } finally {
       sessions.stopAll();
     }

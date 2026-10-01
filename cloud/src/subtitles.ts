@@ -181,6 +181,18 @@ export class SubtitleProxy {
     return { base, token: r.token };
   }
 
+  /** Runs a request with the account's session; once more with a new one when OpenSubtitles ended it early. */
+  private async signedIn<T>(run: (s: { base: string; token?: string }) => Promise<T>): Promise<T> {
+    const s = await this.session();
+    try {
+      return await run(s);
+    } catch (err) {
+      // `call` forgets the token on a 401: sign in again and try once more.
+      if (s.token && this.token === null) return run(await this.session());
+      throw err;
+    }
+  }
+
   /** What OpenSubtitles has for this question (its answer, reused for a day). */
   async search(q: SubtitleQuery): Promise<unknown[]> {
     const params = searchParams(q);
@@ -190,8 +202,7 @@ export class SubtitleProxy {
     const now = this.deps.now();
     const cached = db.select().from(subtitleSearches).where(eq(subtitleSearches.key, key)).get();
     if (cached && now - cached.fetchedAt < SEARCH_TTL_MS) return JSON.parse(cached.results) as unknown[];
-    const { base, token } = await this.session();
-    const r = await this.call<{ data?: unknown[] }>(`${base}/subtitles?${params}`, { method: 'GET', headers: this.headers(token) });
+    const r = await this.signedIn(({ base, token }) => this.call<{ data?: unknown[] }>(`${base}/subtitles?${params}`, { method: 'GET', headers: this.headers(token) }));
     const data = Array.isArray(r.data) ? r.data : [];
     db.insert(subtitleSearches).values({ key, results: JSON.stringify(data), fetchedAt: now }).onConflictDoUpdate({ target: subtitleSearches.key, set: { results: JSON.stringify(data), fetchedAt: now } }).run();
     // Old answers are let go now and then.
@@ -212,8 +223,7 @@ export class SubtitleProxy {
       db.update(subtitleFiles).set({ served: sql`${subtitleFiles.served} + 1` }).where(eq(subtitleFiles.fileId, fileId)).run();
       return kept.data;
     }
-    const { base, token } = await this.session();
-    const r = await this.call<{ link?: string }>(`${base}/download`, { method: 'POST', headers: this.headers(token), body: JSON.stringify({ file_id: fileId, sub_format: 'srt' }) });
+    const r = await this.signedIn(({ base, token }) => this.call<{ link?: string }>(`${base}/download`, { method: 'POST', headers: this.headers(token), body: JSON.stringify({ file_id: fileId, sub_format: 'srt' }) }));
     if (!r.link || !/^https:\/\//.test(r.link)) throw new SubtitleError(502, 'OpenSubtitles did not return a download.');
     let res: Response;
     try {
