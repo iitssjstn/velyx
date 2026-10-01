@@ -177,14 +177,10 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (!decision) throw new HttpError(415, 'This file cannot be played.');
     const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, file.id)).all();
     const analysis = analyzePlayback(file, caps, decision, ua, confidence, lang, request.appDevice);
-    // Copied video in pieces needs the file's keyframes, and finding them reads the whole file
-    // (minutes for a film on a NAS). Until they are known the live stream is offered, and they are
-    // found in the background for the next time.
-    let hlsUrl = decision.hlsUrl;
-    if (hlsUrl && !hlsUrl.includes('vt=1') && !ctx.hls.ready(hlsLayoutKey(file))) {
-      ctx.hls.prepare(hlsLayoutKey(file), loaded.abs);
-      hlsUrl = undefined;
-    }
+    // Pieces (HLS) only for converted video, which is cut on a fixed grid. Copied video would need
+    // the file's keyframes first, and listing them reads the whole file: on a NAS that takes minutes
+    // and starves the stream being watched. Copied video keeps the live stream.
+    const hlsUrl = decision.hlsUrl?.includes('vt=1') ? decision.hlsUrl : undefined;
     return { decision: { ...decision, hlsUrl, mode: analysis.mode }, analysis, file: fileInfo(file, external), subtitles: subtitleList(file, request.user!), onlineSubtitles: ctx.openSubtitles.configured };
   });
 
