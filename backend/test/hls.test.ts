@@ -75,6 +75,29 @@ describe('HLS pieces', () => {
     }
   });
 
+  it('finds the keyframes in the background once, and keeps them for the next start of the server', async () => {
+    const kdir = path.join(dir, 'keyframes');
+    const first = new HlsSessions('ffmpeg', 'ffprobe', path.join(dir, 'cache-k'), kdir);
+    try {
+      expect(first.ready('5:1:1')).toBe(false);
+      first.prepare('5:1:1', mkv);
+      const until = Date.now() + 30_000;
+      while (!first.ready('5:1:1') && Date.now() < until) await new Promise((r) => setTimeout(r, 50));
+      expect(first.ready('5:1:1')).toBe(true);
+    } finally {
+      first.stopAll();
+    }
+    // After a restart: known at once, without reading the file (it is gone).
+    const second = new HlsSessions('ffmpeg', 'ffprobe', path.join(dir, 'cache-k'), kdir);
+    try {
+      expect(second.ready('5:1:1')).toBe(true);
+      expect((await second.layout('5:1:1', path.join(dir, 'missing.mkv'), 30, false)).starts).toHaveLength(10);
+      expect(second.ready('6:1:1')).toBe(false);
+    } finally {
+      second.stopAll();
+    }
+  });
+
   it('converts video into 4-second pieces that start on the grid, also after a jump', async () => {
     const sessions = new HlsSessions('ffmpeg', 'ffprobe', path.join(dir, 'cache-vt'));
     try {

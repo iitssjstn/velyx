@@ -23,6 +23,10 @@ const log = createLogger('hls');
 export const GRID_SECONDS = 4;
 /** How far ahead of the player pieces are made before FFmpeg pauses (seconds of video). */
 const AHEAD_SECONDS = 120;
+/** Reading a file's keyframes reads the whole file (minutes for a film on a NAS): at most this long. */
+const KEYFRAME_SCAN_MS = 20 * 60_000;
+/** At most this many files are read for their keyframes at once in the background. */
+const MAX_BACKGROUND_SCANS = 2;
 /** Stopped and removed after this long without a request. */
 const IDLE_MS = 3 * 60_000;
 /** At most this many being made at once (the oldest stops). */
@@ -77,7 +81,7 @@ export function playlist(layout: Layout, query: string): string {
 export function readKeyframes(ffprobePath: string, file: string): Promise<number[]> {
   const run = (args: string[]) =>
     new Promise<string>((resolve, reject) =>
-      execFile(ffprobePath, args, { timeout: 180_000, maxBuffer: 256 * 1024 * 1024 }, (err, stdout) => (err ? reject(err) : resolve(String(stdout)))),
+      execFile(ffprobePath, args, { timeout: KEYFRAME_SCAN_MS, maxBuffer: 256 * 1024 * 1024 }, (err, stdout) => (err ? reject(err) : resolve(String(stdout)))),
     );
   return Promise.all([
     run(['-v', 'error', '-show_entries', 'format=start_time', '-of', 'csv=p=0', file]),
@@ -172,31 +176,71 @@ export interface HlsSource {
 /** Makes and hands out the pieces: one FFmpeg run per session, restarted when the player jumps far. */
 export class HlsSessions {
   private readonly sessions = new Map<string, Session>();
-  private readonly layouts = new Map<string, Promise<Layout>>();
+  /** Keyframes found (also kept on disk, in `keyframesDir`, across restarts). */
+  private readonly known = new Map<string, number[]>();
+  private readonly scans = new Map<string, Promise<number[]>>();
   private readonly timer: NodeJS.Timeout;
 
   constructor(
     private readonly ffmpegPath: string,
     private readonly ffprobePath: string,
     private readonly baseDir: string,
+    private readonly keyframesDir: string = `${baseDir}-keyframes`,
   ) {
     fs.rmSync(baseDir, { recursive: true, force: true });
     fs.mkdirSync(baseDir, { recursive: true });
+    fs.mkdirSync(keyframesDir, { recursive: true });
     this.timer = setInterval(() => this.sweep(), 30_000);
     this.timer.unref();
   }
 
   /** The pieces of a file: keyframe to keyframe (copied video, read once) or a fixed grid (converted). */
-  layout(cacheKey: string, input: string, duration: number, converted: boolean): Promise<Layout> {
-    if (converted) return Promise.resolve(gridLayout(duration));
-    let found = this.layouts.get(cacheKey);
-    if (!found) {
-      found = readKeyframes(this.ffprobePath, input).then((k) => copyLayout(k, duration));
-      found.catch(() => this.layouts.delete(cacheKey));
-      if (this.layouts.size > 300) this.layouts.delete(this.layouts.keys().next().value!);
-      this.layouts.set(cacheKey, found);
+  async layout(cacheKey: string, input: string, duration: number, converted: boolean): Promise<Layout> {
+    if (converted) return gridLayout(duration);
+    return copyLayout(await this.keyframes(cacheKey, input), duration);
+  }
+
+  /** Whether the keyframes of a file are known, so its list of pieces can be made at once. */
+  ready(cacheKey: string): boolean {
+    return this.known.has(cacheKey) || fs.existsSync(this.keyframesFile(cacheKey));
+  }
+
+  /** Starts finding a file's keyframes in the background (for the next time it is played). */
+  prepare(cacheKey: string, input: string): void {
+    if (this.ready(cacheKey) || this.scans.has(cacheKey) || this.scans.size >= MAX_BACKGROUND_SCANS) return;
+    this.keyframes(cacheKey, input).catch((err: Error) => log.warn(`Could not read the keyframes of ${input}: ${err.message}`));
+  }
+
+  private keyframesFile(cacheKey: string): string {
+    return path.join(this.keyframesDir, `${cacheKey.replace(/[^\w.-]/g, '_')}.json`);
+  }
+
+  private keyframes(cacheKey: string, input: string): Promise<number[]> {
+    const mem = this.known.get(cacheKey);
+    if (mem) return Promise.resolve(mem);
+    try {
+      const stored = JSON.parse(fs.readFileSync(this.keyframesFile(cacheKey), 'utf8')) as unknown;
+      if (Array.isArray(stored) && stored.every((t) => typeof t === 'number')) return Promise.resolve(this.remember(cacheKey, stored as number[]));
+    } catch {
+      /* not read before */
     }
-    return found;
+    let scan = this.scans.get(cacheKey);
+    if (!scan) {
+      scan = readKeyframes(this.ffprobePath, input)
+        .then((k) => {
+          fs.writeFileSync(this.keyframesFile(cacheKey), JSON.stringify(k));
+          return this.remember(cacheKey, k);
+        })
+        .finally(() => this.scans.delete(cacheKey));
+      this.scans.set(cacheKey, scan);
+    }
+    return scan;
+  }
+
+  private remember(cacheKey: string, keyframes: number[]): number[] {
+    if (this.known.size > 300) this.known.delete(this.known.keys().next().value!);
+    this.known.set(cacheKey, keyframes);
+    return keyframes;
   }
 
   get activeSessions(): number {
