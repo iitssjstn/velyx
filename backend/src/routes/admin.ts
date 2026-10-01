@@ -146,7 +146,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       loadAverage: os.loadavg(),
       cpus: os.cpus().length,
       ffprobe: ffmpegVersion,
-      activeStreams: (ctx.playback.get('remux') as RemuxEngine | undefined)?.activeStreams ?? 0,
+      activeStreams: ((ctx.playback.get('remux') as RemuxEngine | undefined)?.activeStreams ?? 0) + ctx.hls.activeSessions,
       cpu: sampleCpu(),
       streams: ctx.streams.active(),
       disk: ctx.storage.dataDisk(),

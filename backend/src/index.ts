@@ -98,6 +98,7 @@ async function main(): Promise<void> {
     ctx.cloud.shutdown();
     ctx.upnp.stop();
     (ctx.playback.get('remux') as RemuxEngine | undefined)?.stopAll();
+    ctx.hls.stopAll();
     clearInterval(purgeTimer);
     try {
       await app.close();

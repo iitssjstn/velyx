@@ -379,6 +379,8 @@ export interface PlaybackDecision {
   note: string | null;
   durationSec: number | null;
   mode: PlaybackMode;
+  /** The same in short pieces (HLS): seeking loads another piece instead of a new stream. */
+  hlsUrl?: string;
 }
 
 export type PlaybackMode = 'direct' | 'remux' | 'transcode' | 'unsupported';

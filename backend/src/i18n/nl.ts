@@ -340,6 +340,8 @@ export const nl: Record<string, string> = {
   'Could not reach the Vidalune account service. Try again later.': 'De Vidalune-accountdienst is niet bereikbaar. Probeer het later opnieuw.',
   'Searching subtitles online needs this server to be linked to a Vidalune account. An administrator can link it in Admin → Vidalune account.': 'Online ondertitels zoeken werkt als deze server aan een Vidalune-account is gekoppeld. Een beheerder kan hem koppelen via Beheer → Vidalune-account.',
   'Subtitles could not be searched through vidalune.com right now. Try again later.': 'Ondertitels zoeken via vidalune.com lukt nu niet. Probeer het later opnieuw.',
+  'The stream could not be started ({reason}).': 'De stream kon niet worden gestart ({reason}).',
+  'The length of this file is not known yet. Try again after the next scan.': 'De lengte van dit bestand is nog niet bekend. Probeer het opnieuw na de volgende scan.',
   'The Vidalune account service could not handle the request.': 'De Vidalune-accountdienst kon het verzoek niet afhandelen.',
   'The Vidalune account service could not handle the request. Try again later.': 'De Vidalune-accountdienst kon het verzoek niet verwerken. Probeer het later opnieuw.',
   'The Vidalune account service no longer knows this server. Turn linking on again.': 'De Vidalune-accountdienst kent deze server niet meer. Zet koppelen opnieuw aan.',
