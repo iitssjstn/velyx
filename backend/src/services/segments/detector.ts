@@ -5,7 +5,8 @@ import type { DB } from '../../db/client.js';
 import { episodes, episodeSegments, libraries, mediaFiles, segmentFingerprints, segmentReferences, shows } from '../../db/schema.js';
 import { createLogger } from '../../logger.js';
 import { fingerprint, longestCommonSegment, SAMPLE_RATE, type Fingerprint } from './fingerprint.js';
-import { DETECTION_VERSION, detectSeason, RECAP_SOURCES, headWindow, tailWindow, type Detection, type EpisodeAudio } from './detect.js';
+import { inlineSeasonRunner, type SeasonRunner } from './season-runner.js';
+import { DETECTION_VERSION, RECAP_SOURCES, headWindow, tailWindow, type Detection, type EpisodeAudio } from './detect.js';
 import { diagnoseSeason, type SeasonDiagnosis } from './diagnose.js';
 import { chapterSegments, type ChapterSegments } from './chapters.js';
 import { findCredits, refineStart, type VisualCredits } from './visual.js';
@@ -64,6 +65,8 @@ export interface DetectorHooks {
   pace?: () => number;
   /** How often a waiting job looks again (default 30 s). */
   retryMs?: number;
+  /** Where a season is calculated (default: on this thread; the server uses a worker thread). */
+  runSeason?: SeasonRunner;
   /** Shared detection (optional): other servers' results for a season, and reporting ours. */
   shared?: {
     profile(showId: number, seasonNumber: number): Promise<SharedProfile | null>;
@@ -429,7 +432,8 @@ export class SegmentDetector {
           },
         ]),
     );
-    const results = detectSeason(audio, refs, pendingIds, known);
+    const results = await (this.hooks.runSeason ?? inlineSeasonRunner)(audio, refs, pendingIds, known);
+    if (this.stopped) return;
     const byId = new Map(files.map((f) => [f.episodeId, f]));
     const now = Date.now();
     for (const id of pendingIds) {
