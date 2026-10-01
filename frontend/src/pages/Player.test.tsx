@@ -105,4 +105,29 @@ describe('the loading spinner of the player', () => {
     await act(() => new Promise((r) => setTimeout(r, 50)));
     expect(spinnerShown()).toBe(false);
   });
+
+  it('never covers a video that plays, even while the browser keeps reporting "waiting"', async () => {
+    renderPlayer();
+    const video = await vi.waitFor(() => {
+      const v = document.querySelector('video');
+      if (!v) throw new Error('no video yet');
+      return v;
+    });
+    const state = fakeVideo(video);
+    fireEvent.loadedMetadata(video);
+    // A live stream with a thin buffer: "waiting" again and again, little data ahead, yet it plays on.
+    state.readyState = 2;
+    await act(async () => {
+      for (let i = 1; i <= 8; i++) {
+        state.currentTime = i * 0.25;
+        fireEvent.waiting(video);
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    });
+    expect(spinnerShown()).toBe(false);
+    // It really stops: the spinner comes back after a moment.
+    fireEvent.waiting(video);
+    await act(() => new Promise((r) => setTimeout(r, 2000)));
+    expect(spinnerShown()).toBe(true);
+  });
 });
