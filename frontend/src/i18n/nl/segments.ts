@@ -28,7 +28,7 @@ export const segments: Messages['segments'] = {
   },
   status: {
     disabled: 'Herkenning staat uit.',
-    waitingPlayback: 'Wacht: er kijkt iemand. De herkenning gaat verder als het afspelen stopt.',
+    waitingPlayback: 'Wacht: er kijkt iemand en de server heeft het druk (meer dan 60 % van de processors in gebruik). De herkenning gaat verder zodra de server weer ruimte heeft.',
     waitingScan: 'Wacht tot de bibliotheekscan klaar is.',
     running: 'Analyseren van {show}, seizoen {season} ({done} van {total} afleveringen gelezen)',
     queued: {

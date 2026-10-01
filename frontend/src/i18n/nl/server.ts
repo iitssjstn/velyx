@@ -21,7 +21,7 @@ export const server: Messages['server'] = {
   defer: 'Geplande scans uitstellen als iemand kijkt',
   deferHint: 'De scan begint als het afspelen stopt (hoogstens een paar uur later). Een scan die al loopt, gaat ook langzamer als iemand kijkt.',
   segments: 'Intro\'s en aftitelingen herkennen',
-  segmentsHint: 'Vergelijkt op de achtergrond het geluid aan het begin en einde van afleveringen (nooit als iemand kijkt of er een scan loopt), zodat kijkers ze kunnen overslaan. Zie Intro\'s en aftiteling.',
+  segmentsHint: 'Vergelijkt op de achtergrond het geluid aan het begin en einde van afleveringen (het wacht als er een scan loopt, en gaat langzamer als iemand kijkt — het wacht alleen op het afspelen als de server het druk heeft), zodat kijkers ze kunnen overslaan. Zie Intro\'s en aftiteling.',
   segmentVideo: 'Aftitelingen in beeld herkennen',
   sharedDetection: 'Detectie delen met andere Vidalune-servers',
   sharedDetectionHint: 'Via vidalune.com: waar recaps, intro’s en aftitelingen zitten (per TMDB-serie, seizoen en aflevering, met de lengte van de aflevering) en korte audio-vingerafdrukken van intro’s en aftitelingen — geen titels, bestanden, gebruikers of kijkgedrag. Wat andere servers eens zijn vult aan wat hier niet werd gevonden, en bij resultaten staat hoeveel servers het eens zijn. Werkt gewoon door met eigen detectie als vidalune.com niet bereikbaar is.',

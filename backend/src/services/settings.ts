@@ -115,7 +115,7 @@ export interface ServerSettings {
   scanOnStartup: boolean;
   /** Scheduled scans wait while someone is watching (up to a few hours). */
   deferScansWhilePlaying: boolean;
-  /** Look for intros and credits in the background (audio only, never while someone watches). */
+  /** Look for intros and credits in the background (audio only; it waits while a scan runs or while people watch on a busy machine). */
   segmentDetection: boolean;
   /** Also recognise end credits in the picture (keyframes of the last minutes, low resolution). */
   segmentVideo: boolean;

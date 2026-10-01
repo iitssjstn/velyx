@@ -121,7 +121,7 @@ const toBlob = (fp: Fingerprint) => Buffer.from(fp.words.buffer, fp.words.byteOf
 
 /**
  * Finds intros and credits in the background, one season at a time. It only reads audio (a few
- * minutes at the start and end of each episode), never while someone is watching or a scan runs,
+ * minutes at the start and end of each episode), never while a scan runs or while people watch on a busy machine,
  * and remembers the result so an episode is analysed once — again only when its file changes, the
  * algorithm improves, a low-confidence result can be improved by newly added episodes, or an
  * administrator asks. Manual corrections are never overwritten.
