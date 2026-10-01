@@ -103,6 +103,17 @@ async function loadItem(kind: string, id: number): Promise<LoadedItem> {
 }
 
 /** Asks the server where a live stream for `target` will really begin (the keyframe FFmpeg lands on). */
+/**
+ * How this browser plays HLS: with hls.js through Media Source Extensions (most browsers), natively
+ * (Safari), or not at all (then the live stream is used).
+ */
+const HLS_SUPPORT: 'mse' | 'native' | null = (() => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return null;
+  const w = window as unknown as { MediaSource?: { isTypeSupported?: unknown }; ManagedMediaSource?: unknown };
+  if (typeof w.MediaSource?.isTypeSupported === 'function' || w.ManagedMediaSource) return 'mse';
+  return document.createElement('video').canPlayType('application/vnd.apple.mpegurl') ? 'native' : null;
+})();
+
 /** How long to wait for the keyframe before starting the stream at the asked time itself. */
 export const LOCATE_TIMEOUT_MS = 4000;
 
@@ -244,9 +255,14 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const [subDelay, setSubDelay] = useState(0);
 
   const info = playback.data;
-  const live = info?.decision.seek === 'restart';
+  // Files the browser cannot open as they are come in short pieces (HLS) where the browser plays
+  // those: seeking, skipping and resuming load another piece, never a new stream. Otherwise the
+  // live stream, restarted at the new position.
+  const hlsUrl = info?.decision.hlsUrl && HLS_SUPPORT ? info.decision.hlsUrl : null;
+  const streamBase = hlsUrl ?? info?.decision.streamUrl ?? null;
+  const live = !hlsUrl && info?.decision.seek === 'restart';
   // Only use a stream that belongs to the current decision (avoids loading a stale URL after an audio switch).
-  const current = stream && info && stream.base === info.decision.streamUrl ? stream : null;
+  const current = stream && info && stream.base === streamBase ? stream : null;
   const offset = live && current ? current.offset : 0;
   const subs = useMemo(() => info?.subtitles ?? [], [info]);
   const next = item.data?.next ?? null;
@@ -258,6 +274,42 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const start = startChoice ?? suggestedStart;
   const totalDuration = live ? (info?.decision.durationSec ?? file?.durationSec ?? 0) : duration;
   const streamSrc = current ? (live && current.seek > 0 ? withParam(current.base, 'start', current.seek.toFixed(3)) : current.base) : null;
+
+  // HLS through hls.js: the pieces are loaded into the video element (Safari plays the list itself).
+  // It starts loading at the resume position, keeps a minute ahead, and recovers from a lost
+  // connection or a decoding hiccup by itself before giving up.
+  useEffect(() => {
+    if (!hlsUrl || HLS_SUPPORT !== 'mse' || !streamSrc) return;
+    const v = videoRef.current;
+    if (!v) return;
+    let destroyed = false;
+    let hls: { destroy(): void } | null = null;
+    void import('hls.js').then(({ default: Hls }) => {
+      if (destroyed) return;
+      const h = new Hls({ startPosition: pendingSeekRef.current ?? -1, maxBufferLength: 60, maxMaxBufferLength: 120, backBufferLength: 60, xhrSetup: (xhr) => {
+        xhr.withCredentials = true;
+      } });
+      hls = h;
+      let networkRetries = 0;
+      let mediaRetries = 0;
+      h.on(Hls.Events.FRAG_LOADED, () => (networkRetries = 0));
+      h.on(Hls.Events.ERROR, (_event, data) => {
+        if (!data.fatal) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && networkRetries++ < 4) setTimeout(() => !destroyed && h.startLoad(), 1000 * networkRetries);
+        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRetries++ < 2) h.recoverMediaError();
+        else {
+          setBuffering(false);
+          setError(t('player.errors.interrupted'));
+        }
+      });
+      h.loadSource(streamSrc);
+      h.attachMedia(v);
+    });
+    return () => {
+      destroyed = true;
+      hls?.destroy();
+    };
+  }, [hlsUrl, streamSrc, reloadKey]);
 
   /** Current position in the file (not in the current stream). */
   const currentTime = useCallback(() => offset + (videoRef.current?.currentTime ?? 0), [offset]);
@@ -280,14 +332,14 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     const target = resumeAtRef.current ?? (startedRef.current ? 0 : start);
     resumeAtRef.current = null;
     pendingSeekRef.current = target > 0 ? target : null;
-    const base = info.decision.streamUrl;
+    const base = streamBase!;
     if (stream && stream.base === base) {
       // Same stream as before (e.g. a setting changed that does not affect this file): nothing to reload.
       pendingSeekRef.current = null;
       setBuffering(false);
       return;
     }
-    if (info.decision.seek !== 'restart' || target <= 0) {
+    if (!live || target <= 0) {
       setStream({ base, offset: 0, seek: 0 });
       return;
     }
@@ -317,17 +369,17 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         const cur = streamRef.current;
         // The same stream as now (a seek near where it started): the address does not change, so
         // nothing would load and the spinner would stay. Seek in what is there instead.
-        if (v && cur && cur.base === info.decision.streamUrl && cur.offset === r.offset && cur.seek === r.seek) {
+        if (v && cur && cur.base === streamBase && cur.offset === r.offset && cur.seek === r.seek) {
           v.currentTime = Math.max(0, target - cur.offset);
           setBuffering(false);
           if (playAfterLoadRef.current && v.paused) void v.play().catch(() => setPlaying(false));
           return;
         }
         pendingSeekRef.current = target;
-        setStream({ base: info.decision.streamUrl, ...r });
+        setStream({ base: streamBase!, ...r });
       }, 250);
     },
-    [info],
+    [info, streamBase],
   );
   useEffect(() => () => clearTimeout(restartTimer.current), []);
 
@@ -988,7 +1040,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         <video
           key={`${streamSrc}#${reloadKey}`}
           ref={videoRef}
-          src={streamSrc}
+          src={hlsUrl && HLS_SUPPORT === 'mse' ? undefined : (streamSrc ?? undefined)}
           // Chrome on Android puts its own cast button over every video (it cannot be pressed in
           // this player and does not go away): off. Casting gets Vidalune's own button.
           disableRemotePlayback

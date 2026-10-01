@@ -1,6 +1,6 @@
 {
   "name": "vidalune",
-  "version": "0.18.1",
+  "version": "0.19.0",
   "private": true,
   "type": "module",
   "description": "Vidalune \u2014 Your media. Your server. A lightweight, Docker-first self-hosted media server.",

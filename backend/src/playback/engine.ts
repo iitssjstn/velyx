@@ -57,6 +57,11 @@ export interface PlaybackDecision {
   /** Human-readable note shown in the player, e.g. that audio is converted. */
   note: string | null;
   durationSec: number | null;
+  /**
+   * The same in short pieces (HLS) for players that play those (the website): seeking loads another
+   * piece instead of a new stream. Absent for files the browser plays as they are.
+   */
+  hlsUrl?: string;
 }
 
 /** The audio track a browser plays by default: the one flagged default, otherwise the first. */

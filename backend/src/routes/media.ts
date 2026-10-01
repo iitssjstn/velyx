@@ -9,7 +9,8 @@ import { libraries, mediaFiles, onlineSubtitles, subtitles } from '../db/schema.
 import { onlineSubtitleOption } from './online-subtitles.js';
 import { resolveMediaPath } from '../services/paths.js';
 import { readSubtitleAsVtt, shiftVtt } from '../services/subtitles.js';
-import type { RemuxEngine } from '../playback/remux.js';
+import { parseRemuxQuery, remuxQueryKey, type RemuxEngine, type RemuxQuery, type VideoEncode } from '../playback/remux.js';
+import { playlist as hlsPlaylist, type HlsSource } from '../playback/hls.js';
 import { isValidImageRequest } from '../services/images.js';
 import { languageName } from '../services/parser.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
@@ -232,6 +233,64 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const q = request.query as Record<string, string | undefined>;
     ctx.streams.touch(request.user!, file.id, q.vt === '1' ? 'transcode' : 'remux', deviceLabel(request), remuxAudioLabel(q));
     return ctx.playback.get('remux')!.serve(request, reply, file, abs);
+  });
+
+  // HLS: the same stream in short pieces (the website's player). The list is made from the file's
+  // keyframes (or a 4-second grid when the video is converted); pieces are made as they are asked for.
+  async function hlsSource(request: FastifyRequest, file: typeof mediaFiles.$inferSelect, abs: string): Promise<HlsSource> {
+    const q = request.query as RemuxQuery;
+    const parsed = parseRemuxQuery(file, q);
+    if ('error' in parsed) throw new HttpError(400, parsed.error);
+    let encode: VideoEncode | null = null;
+    const vt = q.vt === '1';
+    const key = `${request.user!.id}:${file.id}:${remuxQueryKey(parsed.plan, vt)}`;
+    if (vt) {
+      const t = ctx.transcoding.current();
+      if (!t) throw new HttpError(403, 'Video conversion is turned off on this server.');
+      const remux = ctx.playback.get('remux') as RemuxEngine;
+      if (t.maxStreams !== null && ctx.hls.convertingOther(key) + remux.activeTranscodes >= t.maxStreams) {
+        throw new HttpError(503, 'The server is already converting {n} videos, its limit. Try again in a moment.', { n: t.maxStreams });
+      }
+      encode = t.encode;
+    }
+    const layout = await ctx.hls.layout(`${file.id}:${file.size}:${file.mtimeMs}`, abs, file.durationSec ?? 0, vt);
+    return { key, input: abs, videoCodec: file.videoCodec, plan: parsed.plan, layout, encode };
+  }
+  const hlsLoad = (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const { file, abs } = loadFile(request.params.id, request.user!);
+    if (!file.durationSec) throw new HttpError(409, 'The length of this file is not known yet. Try again after the next scan.');
+    return { file, abs };
+  };
+
+  app.get<{ Params: { id: string } }>('/api/media/:id/hls/index.m3u8', { preHandler: [requireUser, remoteGate] }, async (request, reply) => {
+    const { file, abs } = hlsLoad(request);
+    const src = await hlsSource(request, file, abs);
+    const q = request.query as RemuxQuery;
+    ctx.streams.touch(request.user!, file.id, q.vt === '1' ? 'transcode' : 'remux', deviceLabel(request), remuxAudioLabel(q as Record<string, string | undefined>));
+    const query = `${remuxQueryKey(src.plan, q.vt === '1')}`;
+    return reply.type('application/vnd.apple.mpegurl').header('Cache-Control', 'no-store').send(hlsPlaylist(src.layout, query));
+  });
+
+  app.get<{ Params: { id: string } }>('/api/media/:id/hls/init.mp4', { preHandler: [requireUser, remoteGate] }, async (request, reply) => {
+    const { file, abs } = hlsLoad(request);
+    const src = await hlsSource(request, file, abs);
+    const path_ = await ctx.hls.init(src).catch((err: Error) => {
+      throw new HttpError(500, 'The stream could not be started ({reason}).', { reason: err.message.slice(0, 200) });
+    });
+    return reply.type('video/mp4').header('Cache-Control', 'no-store').send(fs.createReadStream(path_));
+  });
+
+  app.get<{ Params: { id: string; n: string } }>('/api/media/:id/hls/seg/:n.m4s', { preHandler: [requireUser, remoteGate] }, async (request, reply) => {
+    const { file, abs } = hlsLoad(request);
+    const n = Number(request.params.n);
+    const src = await hlsSource(request, file, abs);
+    if (!Number.isInteger(n) || n < 0 || n >= src.layout.starts.length) throw new HttpError(404, 'Not found.');
+    const q = request.query as RemuxQuery;
+    ctx.streams.touch(request.user!, file.id, q.vt === '1' ? 'transcode' : 'remux', deviceLabel(request), remuxAudioLabel(q as Record<string, string | undefined>));
+    const path_ = await ctx.hls.segment(src, n).catch((err: Error) => {
+      throw new HttpError(500, 'The stream could not be started ({reason}).', { reason: err.message.slice(0, 200) });
+    });
+    return reply.type('video/iso.segment').header('Cache-Control', 'no-store').send(fs.createReadStream(path_));
   });
 
   /**

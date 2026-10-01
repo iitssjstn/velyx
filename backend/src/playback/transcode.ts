@@ -114,6 +114,7 @@ export class TranscodeEngine implements PlaybackEngine {
     return {
       engine: this.id,
       streamUrl: `/api/media/${file.id}/remux${planQuery(plan)}&vt=1`,
+      hlsUrl: `/api/media/${file.id}/hls/index.m3u8${planQuery(plan)}&vt=1`,
       compatible: true,
       reasons: [],
       seek: 'restart',

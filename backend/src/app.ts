@@ -14,6 +14,7 @@ import { SESSION_COOKIE, SessionService, sessionCookieOptions, type SessionUser 
 import { SettingsService } from './services/settings.js';
 import { TmdbClient, type FetchLike } from './services/tmdb.js';
 import { OpenSubtitlesClient } from './services/opensubtitles.js';
+import { HlsSessions } from './playback/hls.js';
 import { workerFingerprintRunner, workerSeasonRunner } from './services/segments/season-runner.js';
 import { APP_VERSION } from './version.js';
 import { ImageCache } from './services/images.js';
@@ -107,6 +108,8 @@ export interface AppContext {
   seerr: SeerrService;
   /** Converting video (opt-in) and the encoders this server has. */
   transcoding: TranscodingService;
+  /** HLS pieces being made for players (the website). */
+  hls: HlsSessions;
   startedAt: number;
 }
 
@@ -224,7 +227,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   // Subtitles come through vidalune.com. A key this server kept from before 0.18.1 is no longer used: forgotten.
   for (const k of ['openSubtitlesApiKey', 'openSubtitlesUsername', 'openSubtitlesPassword'] as const) if (settings.get()[k]) settings.delete(k);
   const openSubtitles = new OpenSubtitlesClient({ vidalune: cloud });
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr: new SeerrService({ settings, fetchImpl: opts.fetchImpl }), transcoding, startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr: new SeerrService({ settings, fetchImpl: opts.fetchImpl }), transcoding, hls: new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls')), startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {
@@ -272,6 +275,8 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
         defaultSrc: ["'self'"],
         imgSrc: ["'self'", 'data:', 'blob:'],
         mediaSrc: ["'self'", 'blob:'],
+        // The HLS player (hls.js) prepares video pieces in a worker it starts from a blob.
+        workerSrc: ["'self'", 'blob:'],
         styleSrc: ["'self'", "'unsafe-inline'"],
         fontSrc: ["'self'", 'data:'],
         // Google's Cast SDK (casting to a Chromecast from Chrome), loaded only when a player opens.

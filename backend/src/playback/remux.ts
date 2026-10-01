@@ -143,6 +143,48 @@ export function remuxArgs(input: string, videoCodec: string | null, plan: RemuxP
   return args;
 }
 
+/** The audio plan in a stream address (as planQuery writes it, and vt=1 for converted video). */
+export interface RemuxQuery {
+  audio?: string;
+  copy?: string;
+  ch?: string;
+  voice?: string;
+  level?: string;
+  vt?: string;
+}
+
+/** Reads the audio plan back from a stream address; an error message when it is not valid. */
+export function parseRemuxQuery(file: MediaFileRow, q: RemuxQuery): { plan: RemuxPlan } | { error: string } {
+  const tracks = file.audioTracks ?? [];
+  let audioIndex: number | null;
+  if (q.audio === 'none' || tracks.length === 0) audioIndex = null;
+  else if (q.audio !== undefined) {
+    const n = Number(q.audio);
+    if (!Number.isInteger(n) || !tracks.some((t) => t.index === n)) return { error: 'Unknown audio track.' };
+    audioIndex = n;
+  } else audioIndex = defaultAudioIndex(file);
+  // copy=1 comes from our own decision (the browser decodes this codec); it is only honoured for MP4-safe codecs.
+  const track = tracks.find((t) => t.index === audioIndex);
+  const codec = track?.codec ?? null;
+  if (q.ch !== undefined && q.ch !== '2' && q.ch !== '6') return { error: 'Invalid channel count.' };
+  return {
+    plan: {
+      audioIndex,
+      copyAudio: q.copy === '1' && Boolean(codec && COPYABLE_AUDIO.has(codec)),
+      // Never upmix: 5.1 only when the source has at least six channels.
+      channels: q.ch === '6' ? outputChannels(track?.channels, 'surround') : 2,
+      sourceChannels: track?.channels ?? null,
+      boostVoices: q.voice === '1',
+      levelVolume: q.level === '1',
+    },
+  };
+}
+
+/** The same plan written back as a query, in one fixed order (one HLS session per plan). */
+export function remuxQueryKey(plan: RemuxPlan, vt: boolean): string {
+  return `${planQuery(plan)}${vt ? '&vt=1' : ''}`;
+}
+
 /** Reads the first packet's presentation time (seconds) from FFmpeg framemd5 output. */
 export function parseFramemd5Start(output: string): number | null {
   let tb: number | null = null;
@@ -193,6 +235,7 @@ export class RemuxEngine implements PlaybackEngine {
     return {
       engine: this.id,
       streamUrl: `/api/media/${file.id}/remux${query}`,
+      hlsUrl: `/api/media/${file.id}/hls/index.m3u8${query}`,
       compatible: true,
       reasons: [],
       seek: 'restart',
@@ -224,7 +267,7 @@ export class RemuxEngine implements PlaybackEngine {
   }
 
   async serve(request: FastifyRequest, reply: FastifyReply, file: MediaFileRow, absolutePath: string): Promise<FastifyReply> {
-    const q = request.query as { audio?: string; start?: string; copy?: string; ch?: string; voice?: string; level?: string; vt?: string };
+    const q = request.query as RemuxQuery & { start?: string };
     const lang = requestLanguage(request);
     let encode: VideoEncode | null = null;
     const key = `${request.user?.id ?? 0}:${file.id}`;
@@ -237,30 +280,11 @@ export class RemuxEngine implements PlaybackEngine {
       if (t.maxStreams !== null && running >= t.maxStreams) return reply.code(503).send({ error: tr(lang, 'The server is already converting {n} videos, its limit. Try again in a moment.', { n: t.maxStreams }) });
       encode = t.encode;
     }
-    const tracks = file.audioTracks ?? [];
-    let audioIndex: number | null;
-    if (q.audio === 'none' || tracks.length === 0) audioIndex = null;
-    else if (q.audio !== undefined) {
-      const n = Number(q.audio);
-      if (!Number.isInteger(n) || !tracks.some((t) => t.index === n)) return reply.code(400).send({ error: tr(lang, 'Unknown audio track.') });
-      audioIndex = n;
-    } else audioIndex = defaultAudioIndex(file);
+    const parsed = parseRemuxQuery(file, q);
+    if ('error' in parsed) return reply.code(400).send({ error: tr(lang, parsed.error) });
+    const plan = parsed.plan;
     const start = q.start !== undefined ? Number(q.start) : 0;
     if (!Number.isFinite(start) || start < 0 || (file.durationSec && start > file.durationSec)) return reply.code(400).send({ error: tr(requestLanguage(request), 'Invalid start position.') });
-
-    // copy=1 comes from our own decision (the browser decodes this codec); it is only honoured for MP4-safe codecs.
-    const track = tracks.find((t) => t.index === audioIndex);
-    const codec = track?.codec ?? null;
-    if (q.ch !== undefined && q.ch !== '2' && q.ch !== '6') return reply.code(400).send({ error: tr(requestLanguage(request), 'Invalid channel count.') });
-    const plan: RemuxPlan = {
-      audioIndex,
-      copyAudio: q.copy === '1' && Boolean(codec && COPYABLE_AUDIO.has(codec)),
-      // Never upmix: 5.1 only when the source has at least six channels.
-      channels: q.ch === '6' ? outputChannels(track?.channels, 'surround') : 2,
-      sourceChannels: track?.channels ?? null,
-      boostVoices: q.voice === '1',
-      levelVolume: q.level === '1',
-    };
 
     // Keep resource use bounded on small servers: drop the oldest remux when the limit is reached
     // (transcodes have their own, optional limit above).
