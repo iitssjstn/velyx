@@ -1,11 +1,12 @@
-// The release build of the server: one minified file per entry point (dist/index.js, dist/cli.js).
+// The release build of the server: one minified file per entry point (dist/index.js, dist/cli.js,
+// and dist/season-worker.js, the thread intro and credits detection calculates in).
 // Packages from node_modules stay separate (native modules such as better-sqlite3 load from there).
 import { build } from 'esbuild';
 import { rmSync } from 'node:fs';
 
 rmSync(new URL('../dist', import.meta.url), { recursive: true, force: true });
 await build({
-  entryPoints: ['src/index.ts', 'src/cli.ts'],
+  entryPoints: ['src/index.ts', 'src/cli.ts', 'src/season-worker.ts'],
   outdir: 'dist',
   bundle: true,
   platform: 'node',

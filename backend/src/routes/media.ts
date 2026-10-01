@@ -119,7 +119,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       402,
       access === 'not_linked'
         ? 'Playing away from home needs Vidalune remote access. The administrator links this server to a Vidalune account with remote access (Admin → Vidalune account).'
-        : 'Playing away from home needs Vidalune remote access. The owner of this server does not have it; you can take it for yourself on vidalune.com with your Vidalune account (Settings → Account). At home everything keeps working.',
+        : 'Playing away from home needs Vidalune remote access. The owner of this server does not have it; you can take it for yourself on vidalune.com with your Vidalune account (Account → Profile). At home everything keeps working.',
     );
   };
 

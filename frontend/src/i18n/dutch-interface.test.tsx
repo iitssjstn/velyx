@@ -62,7 +62,7 @@ describe('Dutch interface', () => {
         </Route>
       </Routes>,
     );
-    for (const label of ['Start', 'Films', 'Series', 'Collecties', 'Kijklijst', 'Favorieten', 'Instellingen', 'Beheer']) expect(screen.getAllByRole('link', { name: label }).length).toBeGreaterThan(0);
+    for (const label of ['Start', 'Films', 'Series', 'Collecties', 'Kijklijst', 'Favorieten', 'Account', 'Beheer']) expect(screen.getAllByRole('link', { name: label }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Uitloggen' })).toBeTruthy();
     expectNoEnglish(container);
   });

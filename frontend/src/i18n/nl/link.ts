@@ -5,7 +5,7 @@ export const link: Messages['link'] = {
   code: 'Code',
   check: 'Doorgaan',
   confirm: '{device} inloggen als {name}?',
-  confirmHint: 'Koppel alleen apparaten die je kent. Je kunt een apparaat altijd weer afmelden via Instellingen → Account.',
+  confirmHint: 'Koppel alleen apparaten die je kent. Je kunt een apparaat altijd weer afmelden via Account → Profiel.',
   connect: 'Koppelen',
   cancel: 'Andere code gebruiken',
   done: '{device} is nu ingelogd als {name}.',

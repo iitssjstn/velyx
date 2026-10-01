@@ -208,6 +208,7 @@ export function ServerSettingsPanel() {
 }
 
 interface OnlineSubtitleSettings {
+  via: 'key' | 'vidalune' | null;
   configured: boolean;
   hint: string | null;
   username: string | null;
@@ -253,6 +254,8 @@ export function OnlineSubtitlesSettings() {
         {t('server.status')}{' '}
         {d.configured ? (
           <span className="text-ok">{d.username ? t('server.subtitles.onAccount', { hint: d.hint ?? '', name: d.username }) : t('server.subtitles.on', { hint: d.hint ?? '' })}</span>
+        ) : d.via === 'vidalune' ? (
+          <span className="text-ok">{t('server.subtitles.onVidalune')}</span>
         ) : (
           <span className="text-amber">{t('server.subtitles.off')}</span>
         )}

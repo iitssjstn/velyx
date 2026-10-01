@@ -16,6 +16,7 @@ import { newSlug, Relay, relayMessage, type Rewrite } from './relay.js';
 import { composeFile, installPage, debInstallScript, installScript } from './install.js';
 import { homePage, pickLanguage } from './site.js';
 import { detectionRoutes } from './detection.js';
+import { SubtitleError, SubtitleProxy, subtitleRoutes } from './subtitles.js';
 import { CeoError, ceoRoutes } from './ceo.js';
 
 const DAY = 86_400_000;
@@ -251,7 +252,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) return reply.code(400).send({ error: error.issues[0]?.message ?? 'Invalid input.' });
-    if (error instanceof HttpError || error instanceof CeoError) return reply.code(error.statusCode).send({ error: error.message });
+    if (error instanceof HttpError || error instanceof CeoError || error instanceof SubtitleError) return reply.code(error.statusCode).send({ error: error.message });
     const status = (error as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) return reply.code(status).send({ error: 'Invalid request.' });
     app.log.error(error);
@@ -539,6 +540,24 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   // Shared detection: a few hundred calls an hour per server (a whole library the first time).
   const detectionLimiter = new RateLimiter(600, 3_600_000);
   detectionRoutes(app, { db, server, now, limit: (key) => detectionLimiter.check(key, now()) });
+
+  // Online subtitles with the one OpenSubtitles key of vidalune.com. Per server: new downloads are
+  // a small share of the daily allowance there; files kept here and searches only stop floods.
+  const subtitleLimiters = { settings: new RateLimiter(10, 60_000), search: new RateLimiter(120, 3_600_000), download: new RateLimiter(40, 86_400_000), kept: new RateLimiter(300, 3_600_000) };
+  subtitleRoutes(app, {
+    db,
+    proxy: new SubtitleProxy({ db, fetchImpl: opts.fetchImpl ?? ((input, init) => fetch(input, init)), now, userAgent: 'Vidalune v1' }),
+    ceo: (request) => {
+      const me = account(request);
+      if (!isCeo(me)) throw new HttpError(403, 'Only for the CEO of Vidalune.');
+      return me;
+    },
+    server,
+    limit: (key) => {
+      const which = key.startsWith('subtitle-settings:') ? 'settings' : key.startsWith('subtitle-search:') ? 'search' : key.startsWith('subtitle-download:') ? 'download' : 'kept';
+      subtitleLimiters[which].check(key, now());
+    },
+  });
 
   const serverStatus = (s: typeof servers.$inferSelect) => {
     const owner = s.accountId ? db.select().from(accounts).where(eq(accounts.id, s.accountId)).get() : undefined;

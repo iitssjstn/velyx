@@ -311,3 +311,31 @@ export const accountActivity = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.accountId, t.day] }), index('account_activity_day').on(t.day)],
 );
+
+/**
+ * Subtitle files fetched from OpenSubtitles for linked servers, kept so the next server that asks
+ * for the same file gets it from here (no download counted at OpenSubtitles).
+ */
+export const subtitleFiles = sqliteTable('subtitle_files', {
+  /** The provider's file id. */
+  fileId: integer('file_id').primaryKey(),
+  data: blob('data', { mode: 'buffer' }).notNull(),
+  fetchedAt: integer('fetched_at').notNull(),
+  /** How often servers got it from here. */
+  served: integer('served').notNull().default(0),
+});
+
+/** Search results at OpenSubtitles, reused for a while for the same question. */
+export const subtitleSearches = sqliteTable('subtitle_searches', {
+  key: text('key').primaryKey(),
+  results: text('results').notNull(),
+  fetchedAt: integer('fetched_at').notNull(),
+});
+
+/** Settings of vidalune.com itself, changed in the Control Center (one row per setting, JSON). */
+export const serviceSettings = sqliteTable('service_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  updatedBy: text('updated_by').notNull(),
+});

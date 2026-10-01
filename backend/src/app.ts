@@ -14,6 +14,7 @@ import { SESSION_COOKIE, SessionService, sessionCookieOptions, type SessionUser 
 import { SettingsService } from './services/settings.js';
 import { TmdbClient, type FetchLike } from './services/tmdb.js';
 import { OpenSubtitlesClient } from './services/opensubtitles.js';
+import { workerSeasonRunner } from './services/segments/season-runner.js';
 import { APP_VERSION } from './version.js';
 import { ImageCache } from './services/images.js';
 import { MetadataService } from './services/metadata.js';
@@ -182,6 +183,8 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     video: () => settings.get().segmentVideo,
     retryMs: opts.segmentRetryMs,
     shared: sharedDetection,
+    // Built server: a season is calculated in a thread of its own, so the server keeps answering.
+    runSeason: workerSeasonRunner(new URL('./season-worker.js', import.meta.url)),
   }, {
     frames: opts.frameReader === null ? undefined : (opts.frameReader ?? ffmpegFrameReader(config.ffmpegPath)),
     chapters: opts.chapterReader === null ? undefined : (opts.chapterReader ?? ffprobeChapterReader(config.ffprobePath)),
@@ -222,6 +225,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
       const s = settings.get();
       return { apiKey: s.openSubtitlesApiKey, username: s.openSubtitlesUsername, password: s.openSubtitlesPassword };
     },
+    vidalune: cloud,
     fetchImpl: opts.fetchImpl,
     userAgent: `Vidalune v${APP_VERSION}`,
   });

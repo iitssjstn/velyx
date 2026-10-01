@@ -7,7 +7,7 @@ export const auth: Messages['auth'] = {
   toYourServer: 'bij je Vidalune-server',
   withPasswordInstead: 'Toch inloggen met gebruikersnaam en wachtwoord',
   withVidalune: 'Inloggen met Vidalune-account',
-  vidaluneUnknown: 'Je Vidalune-account is hier nog niet aan een gebruiker gekoppeld. Log in met je gebruikersnaam en wachtwoord en koppel het daarna in Instellingen → Account.',
+  vidaluneUnknown: 'Je Vidalune-account is hier nog niet aan een gebruiker gekoppeld. Log in met je gebruikersnaam en wachtwoord en koppel het daarna in Account → Profiel.',
   vidaluneFailed: 'Inloggen met je Vidalune-account lukte niet. Probeer het opnieuw vanaf app.vidalune.com, of log in met je gebruikersnaam en wachtwoord.',
   username: 'Gebruikersnaam',
   password: 'Wachtwoord',

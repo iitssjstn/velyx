@@ -6,7 +6,7 @@ export const auth = {
   toYourServer: 'to your Vidalune server',
   withPasswordInstead: 'Sign in with a username and password instead',
   withVidalune: 'Sign in with a Vidalune account',
-  vidaluneUnknown: 'Your Vidalune account is not connected to a user here yet. Sign in with your username and password, then connect it under Settings → Account.',
+  vidaluneUnknown: 'Your Vidalune account is not connected to a user here yet. Sign in with your username and password, then connect it under Account → Profile.',
   vidaluneFailed: 'Signing in with your Vidalune account did not work. Try again from app.vidalune.com, or sign in with your username and password.',
   username: 'Username',
   password: 'Password',

@@ -89,6 +89,8 @@ export interface PlaybackAnswer {
   analysis: { mode: 'direct' | 'remux' | 'transcode' | 'unsupported'; problems: string[]; summary: string[] };
   file: { id: number; durationSec: number | null; audioTracks: AudioTrackInfo[] };
   subtitles: SubtitleOption[];
+  /** The server can search subtitles online (OpenSubtitles, with its own key or through vidalune.com). */
+  onlineSubtitles?: boolean;
 }
 
 /** Where a stream plays from: its address and the file time its time 0 stands for. */

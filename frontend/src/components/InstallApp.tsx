@@ -50,7 +50,7 @@ export function InstallApp({ onDone }: { onDone?: () => void }) {
 /** Pages reachable from the menu; everything else gets a Back button when there is no browser bar. */
 const TOP_LEVEL = ['/', '/movies', '/shows', '/collections', '/watchlist', '/favorites', '/search'];
 /** Sections from the menu whose pages are tabs of that section. */
-const TOP_LEVEL_SECTIONS = ['/settings', '/admin'];
+const TOP_LEVEL_SECTIONS = ['/account', '/admin'];
 const isTopLevel = (path: string) => TOP_LEVEL.includes(path) || TOP_LEVEL_SECTIONS.some((s) => path === s || path.startsWith(`${s}/`));
 
 /**

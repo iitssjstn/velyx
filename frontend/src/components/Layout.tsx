@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeftRight, Bookmark, Film, Heart, Inbox, Layers, House, LogOut, Menu, Search, Server, Settings, ShieldCheck, Tv, X } from 'lucide-react';
+import { ArrowLeftRight, Bookmark, Film, Heart, Inbox, Layers, House, LogOut, Menu, Search, Server, CircleUser, ShieldCheck, Tv, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
 import { Logo } from './Logo';
@@ -18,7 +18,7 @@ const NAV: Array<{ to: string; label: MessageKey; icon: typeof House; end?: bool
   { to: '/collections', label: 'nav.collections', icon: Layers },
   { to: '/watchlist', label: 'nav.watchlist', icon: Bookmark },
   { to: '/favorites', label: 'nav.favorites', icon: Heart },
-  { to: '/settings', label: 'nav.settings', icon: Settings },
+  { to: '/account', label: 'nav.account', icon: CircleUser },
 ];
 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {

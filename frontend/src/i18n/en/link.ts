@@ -4,7 +4,7 @@ export const link = {
   code: 'Code',
   check: 'Continue',
   confirm: 'Sign in {device} as {name}?',
-  confirmHint: 'Only connect devices you know. You can sign a device out again at any time in Settings → Account.',
+  confirmHint: 'Only connect devices you know. You can sign a device out again at any time in Account → Profile.',
   connect: 'Connect',
   cancel: 'Use another code',
   done: '{device} is now signed in as {name}.',

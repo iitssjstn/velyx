@@ -135,7 +135,7 @@ export const settings: Messages['settings'] = {
     empty: 'Nog niets gekeken.',
   },
   tabs: {
-    account: 'Account',
+    account: 'Profiel',
     playback: 'Afspelen',
     history: 'Geschiedenis',
     serverMetadata: 'Server en metadata',

@@ -14,7 +14,7 @@ import { FavoritesPage, WatchlistPage } from './pages/Favorites';
 import { SearchPage } from './pages/Search';
 import { RequestsPage } from './pages/Requests';
 import { RequestPage } from './pages/RequestDetail';
-import { SettingsPage } from './pages/Settings';
+import { OldSettingsRedirect, SettingsPage } from './pages/Settings';
 import { NotFoundPage } from './pages/NotFound';
 import { CollectionPage, CollectionsPage } from './pages/Collections';
 
@@ -80,7 +80,8 @@ export function App() {
           <Route path="/requests" element={<RequestsPage />} />
           <Route path="/request/:type/:id" element={<RequestPage />} />
           <Route path="/link" element={<LinkDevicePage />} />
-          <Route path="/settings/*" element={<SettingsPage />} />
+          <Route path="/account/*" element={<SettingsPage />} />
+          <Route path="/settings/*" element={<OldSettingsRedirect />} />
           <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="/admin/*" element={user.role === 'admin' ? <AdminLayout /> : <NotFoundPage />} />
           <Route path="/login" element={<AfterLogin />} />
