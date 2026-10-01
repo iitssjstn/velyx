@@ -296,6 +296,26 @@ describe('Seerr', () => {
     expect(media.has('movie/603')).toBe(true);
   });
 
+  it('shows a title removed from the library as not here (not "available" as Seerr still says), and lets it be requested again', async () => {
+    await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
+    const viewer = await createUser(env.app, admin, 'viewer');
+    // Seerr still has the show as available; this server no longer has it (removed from disk).
+    media.set('tv/1399', { id: 960, status: 5, requests: [], seasons: [{ seasonNumber: 1, status: 5 }, { seasonNumber: 2, status: 5 }] });
+    const page = (await env.app.inject({ url: '/api/seerr/tv/1399', headers: { cookie: viewer.cookie } })).json();
+    expect(page).toMatchObject({ inLibrary: false, state: null });
+    expect(page.seasons.filter((x: { seasonNumber: number }) => x.seasonNumber > 0).map((x: { state: unknown }) => x.state)).toEqual([null, null]);
+    // Requesting it makes Seerr forget its old record first.
+    const r = await env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: viewer.cookie }, payload: { mediaType: 'tv', tmdbId: 1399 } });
+    expect(r.statusCode).toBe(200);
+    expect(calls.some((c) => c.method === 'DELETE' && c.path === '/media/960')).toBe(true);
+
+    // Back in a library: Seerr's answer stands again.
+    const lib = env.ctx.db.insert(libraries).values({ name: 'Series', type: 'shows', path: `${env.mediaDir}/series` }).returning().get();
+    env.ctx.db.insert(shows).values({ libraryId: lib.id, groupKey: 'a-show', title: 'A Show', sortTitle: 'a show', parsedTitle: 'A Show', tmdbId: 1399 }).run();
+    media.set('tv/1399', { id: 961, status: 5, requests: [] });
+    expect((await env.app.inject({ url: '/api/seerr/tv/1399', headers: { cookie: viewer.cookie } })).json()).toMatchObject({ inLibrary: true, state: 'available' });
+  });
+
   it('requests only the seasons of a show that are still open, and shows similar titles', async () => {
     await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
     const viewer = await createUser(env.app, admin, 'viewer');

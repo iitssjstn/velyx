@@ -17,7 +17,7 @@ import { isHealthKey, LibraryHealth } from '../services/library-health.js';
 import { APP_VERSION } from '../version.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
 import { adminCount, publicUser, sessionIdParam } from './auth.js';
-import { backupPath, cancelRestore, createDatabaseSnapshot, pendingRestore, stageRestore, verifyBackup } from '../services/backup.js';
+import { backupPath, cancelRestore, snapshotDatabase, pendingRestore, stageRestore, verifyBackup } from '../services/backup.js';
 import { createLogger } from '../logger.js';
 import { requestLanguage } from '../i18n/index.js';
 import type { RemuxEngine } from '../playback/remux.js';
@@ -658,7 +658,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   // ------------------------------------------------------------------ backup
   app.get('/api/admin/backup', { preHandler: requireAdmin }, async (request, reply) => {
-    const file = createDatabaseSnapshot(ctx.db, ctx.config.backupDir);
+    const file = await snapshotDatabase(ctx.db, ctx.config.backupDir);
     ctx.audit.record('backup.downloaded', { actor: request.user, ip: request.ip });
     const stream = fs.createReadStream(file);
     stream.on('close', () => fs.rm(file, { force: true }, () => undefined));
@@ -697,7 +697,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
   app.get('/api/admin/backups', { preHandler: requireAdmin }, async () => backupView());
 
   app.post('/api/admin/backups', { preHandler: requireAdmin }, async (request) => {
-    const created = ctx.backups.create('manual');
+    const created = await ctx.backups.create('manual');
     ctx.audit.record('backup.created', { actor: request.user, ip: request.ip, target: created.name });
     return created;
   });

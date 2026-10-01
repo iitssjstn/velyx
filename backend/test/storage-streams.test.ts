@@ -48,7 +48,7 @@ describe('disk space', () => {
   it('skips scheduled backups when space is critical', async () => {
     const { BackupScheduler } = await import('../src/services/backup-scheduler.js');
     const b = new BackupScheduler(env.ctx.db, env.ctx.config.backupDir, env.ctx.settings, () => 'disk space is critically low');
-    expect(b.tick(new Date(Date.now() + 86_400_000))).toBeNull();
+    expect(await b.tick(new Date(Date.now() + 86_400_000))).toBeNull();
     expect(b.list()).toHaveLength(0);
   });
 });

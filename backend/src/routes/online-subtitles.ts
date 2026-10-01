@@ -24,11 +24,6 @@ const SEARCH_TTL_MS = 6 * 60 * 60 * 1000;
 /** Searches one account may start per minute (results are cached, so this only stops floods). */
 const SEARCHES_PER_MINUTE = 20;
 
-const settingsBody = z.object({
-  apiKey: z.string().trim().max(200).optional(),
-  username: z.string().trim().max(100).optional(),
-  password: z.string().max(200).optional(),
-});
 const searchQuery = z.object({ language: z.string().trim().toLowerCase().refine(isOnlineSubtitleLanguage, 'Choose a language from the list.') });
 const downloadBody = z.object({ fileId: z.number().int().positive().max(2 ** 31) });
 
@@ -85,17 +80,13 @@ function providerError(err: unknown, lang: Language): HttpError {
   if (!(err instanceof OpenSubtitlesError)) return new HttpError(502, 'Searching subtitles online failed.');
   switch (err.kind) {
     case 'not-configured':
-      return new HttpError(409, 'Searching subtitles online is not set up. An administrator can link this server to a Vidalune account, or add an OpenSubtitles API key, in Admin → Server.');
-    case 'auth':
-      return new HttpError(502, 'OpenSubtitles did not accept the API key or account. An administrator can check them in Admin → Server.');
+      return new HttpError(409, 'Searching subtitles online needs this server to be linked to a Vidalune account. An administrator can link it in Admin → Vidalune account.');
     case 'quota':
       return err.resetAt
         ? new HttpError(429, 'The daily download limit at OpenSubtitles has been reached. Try again after {time}.', { time: new Date(err.resetAt).toLocaleString(lang === 'nl' ? 'nl-NL' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' }) })
         : new HttpError(429, 'The daily download limit at OpenSubtitles has been reached. Try again tomorrow.');
     case 'unreachable':
-      return new HttpError(502, 'OpenSubtitles could not be reached. Try again later.');
-    case 'blocked':
-      return new HttpError(502, 'OpenSubtitles did not answer as expected ({reason}). Something between this server and OpenSubtitles, such as a firewall or proxy, may be blocking it.', { reason: err.message });
+      return new HttpError(502, 'Subtitles could not be searched through vidalune.com right now. Try again later.');
     default:
       return new HttpError(502, 'Searching subtitles online failed.');
   }
@@ -156,58 +147,10 @@ export async function onlineSubtitleRoutes(app: FastifyInstance, ctx: AppContext
     }
   })();
 
-  // ---------------------------------------------------------------- administrator settings
-  const settingsView = () => {
-    const s = ctx.settings.get();
-    return {
-      configured: Boolean(s.openSubtitlesApiKey),
-      // Without a key of its own, a server linked to a Vidalune account searches through vidalune.com.
-      via: client.via,
-      // Never the key or password themselves.
-      hint: s.openSubtitlesApiKey ? `••••${s.openSubtitlesApiKey.slice(-4)}` : null,
-      username: s.openSubtitlesUsername || null,
-      hasPassword: Boolean(s.openSubtitlesPassword),
-      languages: ONLINE_SUBTITLE_LANGUAGES,
-    };
-  };
-
-  app.get('/api/admin/online-subtitles', { preHandler: requireAdmin }, async () => settingsView());
-
-  app.put('/api/admin/online-subtitles', { preHandler: requireAdmin }, async (request) => {
-    const body = settingsBody.parse(request.body);
-    const current = ctx.settings.get();
-    if (body.apiKey === '') {
-      // Turning it off forgets the account as well.
-      for (const k of ['openSubtitlesApiKey', 'openSubtitlesUsername', 'openSubtitlesPassword'] as const) ctx.settings.delete(k);
-      client.reset();
-      results.clear();
-      ctx.audit.record('subtitles.settings', { actor: request.user, ip: request.ip, detail: 'OpenSubtitles turned off' });
-      return settingsView();
-    }
-    const next = {
-      apiKey: body.apiKey ?? current.openSubtitlesApiKey,
-      username: body.username ?? current.openSubtitlesUsername,
-      // A new username without a password clears the old password.
-      password: body.password ?? (body.username !== undefined && body.username !== current.openSubtitlesUsername ? '' : current.openSubtitlesPassword),
-    };
-    if (!next.apiKey) throw new HttpError(400, 'Enter an OpenSubtitles API key.');
-    if (Boolean(next.username) !== Boolean(next.password)) throw new HttpError(400, 'Enter both the username and the password of the OpenSubtitles account, or neither.');
-    try {
-      await client.verify(next);
-    } catch (err) {
-      if (err instanceof OpenSubtitlesError && err.kind === 'bad-key') throw new HttpError(400, 'OpenSubtitles did not accept this API key ({reason}).', { reason: err.message });
-      if (err instanceof OpenSubtitlesError && err.kind === 'bad-account') {
-        throw new HttpError(400, 'OpenSubtitles did not accept this username or password ({reason}).', { reason: err.message });
-      }
-      throw providerError(err, requestLanguage(request));
-    }
-    ctx.settings.update({ openSubtitlesApiKey: next.apiKey, openSubtitlesUsername: next.username, openSubtitlesPassword: next.password });
-    client.reset();
-    results.clear();
-    const changes = [body.apiKey !== undefined ? 'API key changed' : null, body.username !== undefined ? (next.username ? 'account set' : 'account removed') : null].filter(Boolean);
-    ctx.audit.record('subtitles.settings', { actor: request.user, ip: request.ip, detail: changes.join('; ') || 'verified' });
-    return settingsView();
-  });
+  // ---------------------------------------------------------------- administrator status
+  // Subtitles are searched through vidalune.com (its OpenSubtitles key): there is nothing to set up
+  // here but linking this server to a Vidalune account.
+  app.get('/api/admin/online-subtitles', { preHandler: requireAdmin }, async () => ({ via: client.via, languages: ONLINE_SUBTITLE_LANGUAGES }));
 
   // ---------------------------------------------------------------- search and fetch
   app.get<{ Params: { id: string } }>('/api/media/:id/subtitles/online', { preHandler: requireUser }, async (request) => {

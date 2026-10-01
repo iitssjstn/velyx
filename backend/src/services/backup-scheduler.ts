@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { DB } from '../db/client.js';
 import type { SettingsService } from './settings.js';
-import { createDatabaseSnapshot, listBackups, retainedBackups, timestamp, type BackupFile } from './backup.js';
+import { snapshotDatabase, listBackups, retainedBackups, timestamp, type BackupFile } from './backup.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('backup');
@@ -49,12 +49,12 @@ export class BackupScheduler {
   }
 
   /** A database snapshot named vidalune-<kind>-<timestamp>.db. */
-  create(kind: 'auto' | 'manual'): BackupFile {
+  async create(kind: 'auto' | 'manual'): Promise<BackupFile> {
     // Timestamps have one-second resolution; never overwrite a backup made in the same second.
     const stamp = timestamp();
     let name = `vidalune-${kind}-${stamp}.db`;
     for (let n = 2; fs.existsSync(path.join(this.backupDir, name)); n++) name = `vidalune-${kind}-${stamp}-${n}.db`;
-    const file = createDatabaseSnapshot(this.db, this.backupDir, name);
+    const file = await snapshotDatabase(this.db, this.backupDir, name);
     const st = fs.statSync(file);
     log.info(`${kind === 'auto' ? 'Scheduled' : 'Manual'} backup written to ${path.basename(file)}`);
     return { name, kind, size: st.size, createdAt: st.mtimeMs };
@@ -89,7 +89,7 @@ export class BackupScheduler {
   }
 
   /** Runs a scheduled backup if one is due. Returns the created backup, if any. */
-  tick(now = new Date()): BackupFile | null {
+  async tick(now = new Date()): Promise<BackupFile | null> {
     if (this.running) return null;
     const s = this.settings.get();
     const newest = this.list().find((b) => b.kind === 'auto')?.createdAt ?? null;
@@ -101,7 +101,7 @@ export class BackupScheduler {
     }
     this.running = true;
     try {
-      const created = this.create('auto');
+      const created = await this.create('auto');
       this.rotate();
       return created;
     } catch (err) {
@@ -115,7 +115,7 @@ export class BackupScheduler {
 
   start(): void {
     if (this.timer) return;
-    this.timer = setInterval(() => this.tick(), 15 * 60 * 1000);
+    this.timer = setInterval(() => void this.tick(), 15 * 60 * 1000);
     this.timer.unref();
   }
 

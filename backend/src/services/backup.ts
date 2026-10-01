@@ -18,6 +18,17 @@ export function createDatabaseSnapshot(db: DB, dir: string, name?: string): stri
   return target;
 }
 
+/**
+ * The same, made in small steps (SQLite's online backup): the server keeps answering requests
+ * meanwhile, also with a large database. For backups made while Vidalune runs.
+ */
+export async function snapshotDatabase(db: DB, dir: string, name?: string): Promise<string> {
+  fs.mkdirSync(dir, { recursive: true });
+  const target = path.join(dir, name ?? `snapshot-${Date.now()}-${process.pid}.db`);
+  await db.$client.backup(target, { progress: () => 200 });
+  return target;
+}
+
 export function timestamp(d = new Date()): string {
   return d.toISOString().replace(/[:.]/g, '-').slice(0, 19);
 }

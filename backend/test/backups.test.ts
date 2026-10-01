@@ -66,7 +66,7 @@ describe('scheduled backups', () => {
       fs.utimesSync(f, t, t);
     }
     fs.writeFileSync(path.join(dir, 'velyx-manual-keep.db'), 'x');
-    const created = env.ctx.backups.tick(new Date(Date.now() + DAY));
+    const created = await env.ctx.backups.tick(new Date(Date.now() + DAY));
     expect(created?.kind).toBe('auto');
     expect(verifyBackup(path.join(dir, created!.name)).ok).toBe(true);
     const autos = env.ctx.backups.list().filter((b) => b.kind === 'auto');
@@ -74,7 +74,7 @@ describe('scheduled backups', () => {
     expect(autos.length).toBeLessThan(21);
     expect(fs.existsSync(path.join(dir, 'velyx-manual-keep.db'))).toBe(true);
     // Not due again until the next slot.
-    expect(env.ctx.backups.tick(new Date())).toBeNull();
+    expect(await env.ctx.backups.tick(new Date())).toBeNull();
   });
 });
 
@@ -82,7 +82,7 @@ describe('verification', () => {
   it('accepts good backups and full archives', async () => {
     env = await createTestEnv();
     await setupAdmin(env.app);
-    const snap = env.ctx.backups.create('manual');
+    const snap = await env.ctx.backups.create('manual');
     const r = verifyBackup(path.join(env.ctx.config.backupDir, snap.name));
     expect(r).toMatchObject({ ok: true, errors: [], info: { users: 1 } });
     fs.writeFileSync(path.join(env.ctx.config.onlineSubtitleDir, '4-21.vtt'), 'WEBVTT\n');
@@ -125,7 +125,7 @@ describe('restore', () => {
   it('restores a backup on the next start and keeps the previous database', async () => {
     env = await createTestEnv();
     const admin = await setupAdmin(env.app);
-    const snap = env.ctx.backups.create('manual');
+    const snap = await env.ctx.backups.create('manual');
     await createUser(env.app, admin, 'late-user');
     const { dbPath, dataDir, backupDir } = env.ctx.config;
     stageRestore(path.join(backupDir, snap.name), dataDir, 'admin');
@@ -212,7 +212,7 @@ describe('CLI', () => {
   it('lists and verifies backups', async () => {
     env = await createTestEnv();
     await setupAdmin(env.app);
-    env.ctx.backups.create('manual');
+    await env.ctx.backups.create('manual');
     const run = (...args: string[]) =>
       execFileSync('npx', ['tsx', 'src/cli.ts', ...args], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, DATA_DIR: env!.ctx.config.dataDir, SESSION_SECRET: 'test-secret-test-secret-1234' }, encoding: 'utf8' });
     expect(run('backup', 'list')).toMatch(/manual .* vidalune-manual-/);

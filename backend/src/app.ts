@@ -14,7 +14,7 @@ import { SESSION_COOKIE, SessionService, sessionCookieOptions, type SessionUser 
 import { SettingsService } from './services/settings.js';
 import { TmdbClient, type FetchLike } from './services/tmdb.js';
 import { OpenSubtitlesClient } from './services/opensubtitles.js';
-import { workerSeasonRunner } from './services/segments/season-runner.js';
+import { workerFingerprintRunner, workerSeasonRunner } from './services/segments/season-runner.js';
 import { APP_VERSION } from './version.js';
 import { ImageCache } from './services/images.js';
 import { MetadataService } from './services/metadata.js';
@@ -185,6 +185,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     shared: sharedDetection,
     // Built server: a season is calculated in a thread of its own, so the server keeps answering.
     runSeason: workerSeasonRunner(new URL('./season-worker.js', import.meta.url)),
+    fingerprint: workerFingerprintRunner(new URL('./season-worker.js', import.meta.url)),
   }, {
     frames: opts.frameReader === null ? undefined : (opts.frameReader ?? ffmpegFrameReader(config.ffmpegPath)),
     chapters: opts.chapterReader === null ? undefined : (opts.chapterReader ?? ffprobeChapterReader(config.ffprobePath)),
@@ -220,15 +221,9 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     playing: () => new Set(streams.active().map((s) => s.mediaFileId)),
     rescan: (libraryId) => scans.enqueue(libraryId),
   });
-  const openSubtitles = new OpenSubtitlesClient({
-    getCredentials: () => {
-      const s = settings.get();
-      return { apiKey: s.openSubtitlesApiKey, username: s.openSubtitlesUsername, password: s.openSubtitlesPassword };
-    },
-    vidalune: cloud,
-    fetchImpl: opts.fetchImpl,
-    userAgent: `Vidalune v${APP_VERSION}`,
-  });
+  // Subtitles come through vidalune.com. A key this server kept from before 0.18.1 is no longer used: forgotten.
+  for (const k of ['openSubtitlesApiKey', 'openSubtitlesUsername', 'openSubtitlesPassword'] as const) if (settings.get()[k]) settings.delete(k);
+  const openSubtitles = new OpenSubtitlesClient({ vidalune: cloud });
   return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr: new SeerrService({ settings, fetchImpl: opts.fetchImpl }), transcoding, startedAt: Date.now() };
 }
 

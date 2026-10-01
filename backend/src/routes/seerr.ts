@@ -84,11 +84,18 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
       return id === undefined ? null : { type: i.mediaType === 'movie' ? 'movie' : 'show', id };
     };
   };
-  const withLibrary = <T extends { mediaType: 'movie' | 'tv'; tmdbId: number }>(items: T[], user: SessionUser) => {
+  const withLibrary = <T extends { mediaType: 'movie' | 'tv'; tmdbId: number; state?: RequestState | null; seasons?: Array<{ state: RequestState | null }> }>(items: T[], user: SessionUser) => {
     const local = inLibrary(items, user);
+    // Anywhere on this server (also in libraries this user cannot see).
+    const anywhere = inLibrary(items);
     return items.map((x) => {
       const l = local(x);
-      return { ...x, inLibrary: l !== null, local: l };
+      // This server decides what is here: a title removed from it can still be "available" in
+      // Seerr for a while (until Seerr checks again). Then it is shown as not here, and requestable.
+      const removed = anywhere(x) === null;
+      const gone = (s: RequestState | null | undefined) => removed && (s === 'available' || s === 'partiallyAvailable');
+      const seasons = x.seasons?.map((s) => (gone(s.state) ? { ...s, state: null } : s));
+      return { ...x, ...(x.state !== undefined ? { state: gone(x.state) ? null : x.state } : {}), ...(seasons ? { seasons } : {}), inLibrary: l !== null, local: l };
     });
   };
 
@@ -133,8 +140,11 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const mine = (recent.get(user.id) ?? []).filter((t) => t > now - 3_600_000);
     if (mine.length >= REQUESTS_PER_HOUR) throw new HttpError(429, 'You made many requests in the last hour. Try again later.');
     // Title and poster from Seerr itself (never taken from the browser).
-    const d = await ctx.seerr.details(body.mediaType, body.tmdbId, lang(user.language));
+    let d = await ctx.seerr.details(body.mediaType, body.tmdbId, lang(user.language));
     if (inLibrary([d])(d) !== null) throw new HttpError(409, 'This is already in the library.');
+    // Removed from this library but still (partly) available in Seerr: Seerr forgets it first, so it
+    // can be requested again.
+    if (await ctx.seerr.clearIfGone(body.mediaType, body.tmdbId)) d = await ctx.seerr.details(body.mediaType, body.tmdbId, lang(user.language));
     // A show with seasons requested before: only the others can be asked for.
     let seasons = body.seasons;
     if (body.mediaType === 'tv') {

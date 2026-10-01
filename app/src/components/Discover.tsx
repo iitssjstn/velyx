@@ -65,7 +65,8 @@ function DiscoverShelf({ spec, onOpen }: { spec: DiscoverRow; onOpen: (item: See
     queryFn: ({ pageParam }) => api.get<DiscoverPage>(discoverPath(spec, pageParam)),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
-    staleTime: 10 * 60_000,
+    // Short: what is in the library (or was removed from it) shows within a minute, not ten.
+    staleTime: 60_000,
   });
   const items = mergePages(q.data?.pages ?? []);
   // Nothing (or Seerr away): the row is left out.

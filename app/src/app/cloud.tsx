@@ -94,7 +94,7 @@ export default function CloudAccountScreen() {
       try {
         const found = await findServer(address, fetch);
         url = found.url;
-        await setServer(url, found.info, s.id);
+        await setServer(url, found.info, s.id, opened.addresses);
       } catch (err) {
         last = err;
         continue;

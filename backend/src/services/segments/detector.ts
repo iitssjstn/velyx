@@ -4,8 +4,8 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { DB } from '../../db/client.js';
 import { episodes, episodeSegments, libraries, mediaFiles, segmentFingerprints, segmentReferences, shows } from '../../db/schema.js';
 import { createLogger } from '../../logger.js';
-import { fingerprint, longestCommonSegment, SAMPLE_RATE, type Fingerprint } from './fingerprint.js';
-import { inlineSeasonRunner, type SeasonRunner } from './season-runner.js';
+import { longestCommonSegment, SAMPLE_RATE, type Fingerprint } from './fingerprint.js';
+import { inlineFingerprintRunner, inlineSeasonRunner, type FingerprintRunner, type SeasonRunner } from './season-runner.js';
 import { DETECTION_VERSION, RECAP_SOURCES, headWindow, tailWindow, type Detection, type EpisodeAudio } from './detect.js';
 import { diagnoseSeason, type SeasonDiagnosis } from './diagnose.js';
 import { chapterSegments, type ChapterSegments } from './chapters.js';
@@ -67,6 +67,8 @@ export interface DetectorHooks {
   retryMs?: number;
   /** Where a season is calculated (default: on this thread; the server uses a worker thread). */
   runSeason?: SeasonRunner;
+  /** Where audio is fingerprinted (default: on this thread; the server uses the worker thread). */
+  fingerprint?: FingerprintRunner;
   /** Shared detection (optional): other servers' results for a season, and reporting ours. */
   shared?: {
     profile(showId: number, seasonNumber: number): Promise<SharedProfile | null>;
@@ -528,7 +530,7 @@ export class SegmentDetector {
       const pcm = await this.readAudio(f.path, 0, f.duration);
       headPcm = pcm.subarray(0, Math.round(head.end * SAMPLE_RATE));
       tailPcm = pcm.subarray(Math.round(tail.start * SAMPLE_RATE), Math.round(tail.end * SAMPLE_RATE));
-      full = fingerprint(pcm);
+      [full] = await (this.hooks.fingerprint ?? inlineFingerprintRunner)([pcm]);
     } else {
       headPcm = await this.readAudio(f.path, head.start, head.end - head.start);
       await this.rest();
@@ -539,7 +541,8 @@ export class SegmentDetector {
     if (headPcm.length < SAMPLE_RATE * 5 || tailPcm.length < SAMPLE_RATE * 5) throw new Error('The file has no readable audio');
     const chapters = this.readers.chapters ? chapterSegments(await this.readers.chapters(f.path).catch(() => []), f.duration) : null;
     const visual = await this.readVisualCredits(f, tail.start);
-    const out: EpisodeAudio = { id: f.episodeId, duration: f.duration, head: fingerprint(headPcm), tail: fingerprint(tailPcm), tailStart: tail.start, chapters, visual, full };
+    const [headPrint, tailPrint] = await (this.hooks.fingerprint ?? inlineFingerprintRunner)([headPcm, tailPcm]);
+    const out: EpisodeAudio = { id: f.episodeId, duration: f.duration, head: headPrint!, tail: tailPrint!, tailStart: tail.start, chapters, visual, full };
     const row = { episodeId: f.episodeId, mediaFileId: f.fileId, fileSize: f.size, version: FINGERPRINT_VERSION, head: toBlob(out.head), tail: toBlob(out.tail), tailStart: tail.start, full: full ? toBlob(full) : null, extras: JSON.stringify({ chapters, visual }), createdAt: Date.now() };
     this.db.insert(segmentFingerprints).values(row).onConflictDoUpdate({ target: segmentFingerprints.episodeId, set: row }).run();
     return out;

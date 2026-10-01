@@ -43,6 +43,8 @@ import { currentLanguage, intlLocale, languageLabel, t, useT, type MessageKey } 
 const SAVE_INTERVAL_MS = 10_000;
 const HIDE_CONTROLS_MS = 3000;
 const STALL_HINT_MS = 20_000;
+/** The picture counts as moving when its time changed this recently. */
+const MOVING_WITHIN_MS = 1500;
 /** HTMLMediaElement.HAVE_FUTURE_DATA: enough is loaded to play on. */
 const HAVE_FUTURE_DATA = 3;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -715,14 +717,35 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     return () => clearInterval(check);
   }, [buffering, streamSrc]);
 
+  // The picture moves: whatever the browser's events said (some browsers keep reporting "waiting"
+  // on a live stream with a thin buffer while it plays on), nothing is loading. Checked from the
+  // video itself, a few times a second, so the spinner never covers a video that plays.
+  const [moving, setMoving] = useState(false);
   useEffect(() => {
-    if (!buffering || error || ended) {
+    setMoving(false);
+    if (!streamSrc) return;
+    let last = -1;
+    let movedAt = 0;
+    const check = setInterval(() => {
+      const v = videoRef.current;
+      if (!v) return;
+      const now = Date.now();
+      if (!v.paused && last >= 0 && v.currentTime !== last) movedAt = now;
+      last = v.currentTime;
+      setMoving(now - movedAt < MOVING_WITHIN_MS);
+    }, 400);
+    return () => clearInterval(check);
+  }, [streamSrc, reloadKey]);
+  const loading = (buffering || !streamSrc) && !moving;
+
+  useEffect(() => {
+    if (!loading || error || ended) {
       setStalled(false);
       return;
     }
     const t = setTimeout(() => setStalled(true), STALL_HINT_MS);
     return () => clearTimeout(t);
-  }, [buffering, error, ended, streamSrc]);
+  }, [loading, error, ended, streamSrc]);
 
   // ---------------------------------------------------------------- "Up next" near the end
   // Shown in the last seconds of an episode (long enough for the autoplay countdown), not earlier.
@@ -1028,7 +1051,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           </div>
         </div>
       )}
-      {!mini && !cast.active && !askResume && (buffering || !streamSrc) && !error && !showUnavailable && (
+      {!mini && !cast.active && !askResume && loading && !error && !showUnavailable && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <div className="flex flex-col items-center gap-4">
             <Spinner className="size-10" />
@@ -1418,7 +1441,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           title={item.data?.title ?? ''}
           subtitle={item.data?.subtitle ?? null}
           playing={playing}
-          loading={buffering || !streamSrc}
+          loading={loading}
           problem={error ?? (showUnavailable ? t('player.cannotPlayHere') : null)}
           progress={totalDuration ? Math.min(1, time / totalDuration) : 0}
           onTogglePlay={togglePlay}
