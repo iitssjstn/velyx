@@ -51,13 +51,16 @@ Nog niet gekozen. De eigenaar bepaalt welke punten uit "Gemeld tijdens het teste
   Later (bij HLS in de app en op de Chromecast): ondertitels ook in de HLS-playlist opnemen.
 
 - **Verversen verdelen over dag en nacht** (tijdvenster in te stellen, bijvoorbeeld 02:00–06:00):
-  - **Bij aanklikken (gewijzigd door de eigenaar, vervangt "overdag de bibliotheek verversen"):**
-    opent iemand een film of serie (detailpagina op de website of in de app), dan wordt de metadata
-    van díe titel ververst: in de bibliotheek of niet. Uitwerking:
+  - **'s Nachts, binnen het venster:** de grote verversingsronde van alle metadata (bibliotheek én
+    catalogus- en Seerr-rijen), plus het zware achtergrondwerk (zie hieronder).
+  - **Overdag, bij aanklikken (besluit van de eigenaar):** opent iemand een film of serie
+    (detailpagina op de website of in de app), dan wordt de nieuwste metadata van díe titel
+    opgehaald, in de bibliotheek of niet, zodat de kijker altijd verse gegevens ziet. Overdag geen
+    grote ronde. Uitwerking:
     - de pagina opent meteen met wat er al is; verversen gebeurt op de achtergrond en de pagina
       werkt zichzelf bij als er nieuwe gegevens zijn;
-    - alleen als de laatste verversing ouder is dan een bepaalde tijd (bijvoorbeeld 24 uur), zodat
-      vaak klikken TMDB niet belast; dubbele verzoeken voor dezelfde titel samenvoegen;
+    - alleen een korte drempel tegen dubbel werk (bijvoorbeeld niet opnieuw als de titel het
+      afgelopen uur al is ververst); dubbele verzoeken voor dezelfde titel samenvoegen;
     - bij een serie ook de seizoenen en afleveringen (die op de server staan);
     - binnen de TMDB-limiet; mislukt het (TMDB plat, geen sleutel), dan blijven de oude gegevens staan;
     - aanknopingspunt in de code: `matchMovie(id, force)` / `matchShow` en `refreshShowSeasons` in
@@ -65,10 +68,8 @@ Nog niet gekozen. De eigenaar bepaalt welke punten uit "Gemeld tijdens het teste
   - **Altijd, direct:** gewone updates na een wijziging, zoals een nieuwe serie, film of aflevering
     die is binnengehaald (bijvoorbeeld via Seerr), of een vervangen bestand. Die worden meteen
     toegevoegd en herkend, ook binnen het nachtelijke venster en overdag.
-  - **'s Nachts, binnen het venster:** al het andere verversen (alle titels, in de bibliotheek én
-    catalogus- en Seerr-rijen, die niet onlangs zijn ververst door een klik) en het zware
-    achtergrondwerk: intro-, recap- en aftitelingdetectie, ondertitels vooraf uitpakken, analyses en
-    opruimen. Overdag dus geen grote verversingsronde meer.
+  - **Zwaar achtergrondwerk, ook 's nachts:** intro-, recap- en aftitelingdetectie, ondertitels
+    vooraf uitpakken, analyses en opruimen.
   - Rustig uitvoeren (lage prioriteit, TMDB-limiet), stoppen aan het einde van het venster en de
     volgende nacht verder waar hij was. Handmatig starten kan altijd.
   - Past bij het onderhoudsvenster van punt 3 hieronder (prestaties).
