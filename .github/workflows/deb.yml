@@ -1,11 +1,10 @@
 name: Debian package
 
 # Builds the Vidalune .deb (amd64 and arm64) and tests installing, running, upgrading and removing
-# it on Debian and Ubuntu: on pull requests that touch the server or the packaging, and after every
-# release build on main, where the packages are attached to the GitHub release of that version.
+# it on Debian and Ubuntu after every release build on main, where the packages are attached to the
+# GitHub release of that version (or by hand: Actions -> Run workflow). Not on pull requests, to save
+# build minutes: CI tests the server there.
 on:
-  pull_request:
-    paths: ['backend/**', 'frontend/**', 'packaging/**', 'package.json', 'package-lock.json', '.github/workflows/deb.yml']
   workflow_run:
     workflows: ['Docker image']
     types: [completed]

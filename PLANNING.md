@@ -27,6 +27,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Na een merge: controleren dat release `v<versie>` de APK en beide `.deb`-bestanden (amd64 en arm64) heeft.
 - Bij een nieuwe versie: `app/app.json` (version + versionCode), alle `package.json`'s, de versies in
   `backend/test/auth.test.ts` en `backend/test/authorization.test.ts`, en de lockfiles bijwerken.
+- **Zuinig met GitHub-buildminuten** (de eigenaar zat op 90%, 2 okt): pas pushen als een versie klaar
+  en lokaal getest is; planning-updates meesturen met code in plaats van apart. Sinds 0.19.9 draaien
+  APK, `.deb`'s en de arm64-test alleen bij een release (na de merge), niet bij PR-pushes; CI draait
+  niet bij alleen `*.md`-wijzigingen; de cloud-image één keer per release (na de APK).
 - Zod-validatie en autorisatie op elk endpoint, Drizzle-migraties, tests voor alles (nooit tests weghalen).
 - README beschrijft alleen wat bestaat. Geen andere mediaservers of streamingdiensten noemen in
   projectteksten (Seerr mag). Geen AI-functies. Externe diensten zijn opt-in.
@@ -42,6 +46,8 @@ De eigenaar vroeg dit (2 okt, "maak het maar"). Niet zelf mergen zonder toestemm
 - Bij een serie staat niets meer vooraf aangevinkt; "Alle seizoenen" / "Geen" vinkt alles aan of uit.
   Alle open seizoenen aangevinkt = de hele serie (`seasons: null`). Website: `lib/request-seasons.ts`;
   app: `toggleSeason`/`seasonsToRequest` in `app/src/lib/discover.ts`.
+- Ook in 0.19.9: minder buildminuten (zie werkafspraken): APK en `.deb` niet meer bij PR's, app-tests
+  in CI, geen CI bij alleen tekst, cloud-image één keer per release, Docker-smoketest alleen bij PR's.
 
 ## Gemeld tijdens het testen
 

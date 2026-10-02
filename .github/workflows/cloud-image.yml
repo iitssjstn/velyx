@@ -8,10 +8,10 @@ on:
     paths: ['cloud/**', 'frontend/**', 'package-lock.json', '.github/workflows/cloud-image.yml']
   pull_request:
     paths: ['cloud/**', 'frontend/**', '.github/workflows/cloud-image.yml']
-  # Once the Android app or the Debian packages of a release are built: again, so vidalune.com hands
-  # them out.
+  # Once the Android app of a release is built (it finishes after the Debian packages): again, so
+  # vidalune.com hands both out. Once per release, not after each of them (saves build minutes).
   workflow_run:
-    workflows: ['Android app', 'Debian package']
+    workflows: ['Android app']
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -26,7 +26,8 @@ concurrency:
 
 jobs:
   image:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    # Also when the APK failed: the Debian packages and the website still go out.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion != 'cancelled'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
