@@ -53,6 +53,13 @@ export const requests: Messages['requests'] = {
     },
   },
   page: {
+    chooseSeasons: 'Vink hieronder de seizoenen aan die je wilt, en vraag ze dan aan.',
+    selectAll: 'Alle seizoenen',
+    selectNone: 'Geen',
+    confirmTitle: '“{title}” aanvragen?',
+    confirmMovie: 'Deze film wordt via Seerr aangevraagd.',
+    confirmSeasons: 'Seizoenen die via Seerr worden aangevraagd: {list}.',
+    confirmAllSeasons: 'Alle {n} seizoenen worden via Seerr aangevraagd.',
     requestHint: 'De beheerder van de server beslist wat er met een aanvraag gebeurt.',
     seasonsCount: '{n} seizoenen',
     allRequested: 'Alles van deze serie is al aangevraagd.',

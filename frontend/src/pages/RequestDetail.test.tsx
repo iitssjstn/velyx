@@ -70,9 +70,18 @@ describe('a title from Seerr on its own page', () => {
     expect((screen.getByLabelText(/Season 1 ·/) as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByLabelText(/Season 2 ·/) as HTMLInputElement).disabled).toBe(true);
     expect(screen.getByText('Being added')).toBeTruthy();
+    // Nothing is ticked beforehand: the Request button waits for a season.
+    expect((screen.getByLabelText(/Season 3 ·/) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByLabelText(/Season 4 ·/) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole('button', { name: 'Request' }) as HTMLButtonElement).disabled).toBe(true);
     await userEvent.click(screen.getByLabelText(/Season 4 ·/));
     await userEvent.click(screen.getByRole('button', { name: 'Request 1 season(s)' }));
-    await vi.waitFor(() => expect(calls.find((c) => c.call === 'POST /api/seerr/requests')?.body).toEqual({ mediaType: 'tv', tmdbId: 1399, seasons: [3] }));
+    // First a question; nothing is requested before the answer.
+    const dialog = screen.getByRole('dialog', { name: 'Request “A Show”?' });
+    expect(within(dialog).getByText('Seasons requested through Seerr: 4.')).toBeTruthy();
+    expect(calls.some((c) => c.call === 'POST /api/seerr/requests')).toBe(false);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Request' }));
+    await vi.waitFor(() => expect(calls.find((c) => c.call === 'POST /api/seerr/requests')?.body).toEqual({ mediaType: 'tv', tmdbId: 1399, seasons: [4] }));
     // No reset for someone who is not an administrator.
     expect(screen.queryByRole('button', { name: 'Make requestable again' })).toBeNull();
   });
@@ -84,6 +93,22 @@ describe('a title from Seerr on its own page', () => {
     expect(screen.queryByRole('button', { name: 'Request' })).toBeNull();
   });
 
+  it('ticks every open season at once, which requests the whole show', async () => {
+    const calls = setup('/request/tv/1399', (method, url) => (url === '/api/seerr/tv/1399' ? show : method === 'POST' ? { id: 3, title: 'A Show', state: 'requested' } : {}));
+    await userEvent.click(await screen.findByRole('button', { name: 'All seasons' }));
+    expect((screen.getByLabelText(/Season 3 ·/) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText(/Season 4 ·/) as HTMLInputElement).checked).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Request all seasons' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('All 2 seasons are requested through Seerr.')).toBeTruthy();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Request' }));
+    await vi.waitFor(() => expect(calls.find((c) => c.call === 'POST /api/seerr/requests')?.body).toEqual({ mediaType: 'tv', tmdbId: 1399, seasons: null }));
+    // "None" unticks them again.
+    await userEvent.click(screen.getByRole('button', { name: 'All seasons' }));
+    await userEvent.click(screen.getByRole('button', { name: 'None' }));
+    expect((screen.getByLabelText(/Season 3 ·/) as HTMLInputElement).checked).toBe(false);
+  });
+
   it('requests a movie (a movie has no seasons to tick)', async () => {
     const calls = setup('/request/movie/604', (method, url) => {
       if (url === '/api/seerr/movie/604') return { ...base, mediaType: 'movie', tmdbId: 604, title: 'The Matrix Reloaded', year: 2003, state: null, seasons: [] };
@@ -93,6 +118,14 @@ describe('a title from Seerr on its own page', () => {
     const button = (await screen.findByRole('button', { name: 'Request' })) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
     await userEvent.click(button);
+    const dialog = screen.getByRole('dialog', { name: 'Request “The Matrix Reloaded”?' });
+    expect(calls.some((c) => c.call === 'POST /api/seerr/requests')).toBe(false);
+    // Cancel: nothing happens.
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(calls.some((c) => c.call === 'POST /api/seerr/requests')).toBe(false);
+    await userEvent.click(button);
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Request' }));
     await vi.waitFor(() => expect(calls.find((c) => c.call === 'POST /api/seerr/requests')?.body).toEqual({ mediaType: 'movie', tmdbId: 604, seasons: null }));
   });
 

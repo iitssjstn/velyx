@@ -51,6 +51,13 @@ export const requests = {
     },
   },
   page: {
+    chooseSeasons: 'Tick the seasons you want below, then request them.',
+    selectAll: 'All seasons',
+    selectNone: 'None',
+    confirmTitle: 'Request “{title}”?',
+    confirmMovie: 'This movie is requested through Seerr.',
+    confirmSeasons: 'Seasons requested through Seerr: {list}.',
+    confirmAllSeasons: 'All {n} seasons are requested through Seerr.',
     requestHint: 'The server’s administrator decides what happens with a request.',
     seasonsCount: '{n} seasons',
     allRequested: 'Everything of this show has been requested.',

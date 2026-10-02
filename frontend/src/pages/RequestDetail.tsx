@@ -11,6 +11,7 @@ import { CastRow } from '../components/People';
 import { ConfirmModal } from '../components/Modal';
 import { Shelf } from '../components/Shelf';
 import { TrailerButton } from '../components/TrailerButton';
+import { seasonsToRequest, tickSeason } from '../lib/request-seasons';
 import { DetailSkeleton, ErrorState } from '../components/States';
 import { Button } from '../components/Button';
 import { toast } from '../components/Toast';
@@ -49,13 +50,16 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
   const { open: openLocal, busy } = useOpenLocal();
   const q = useQuery({ queryKey: ['seerr', 'details', mediaType, tmdbId], queryFn: () => api.get<SeerrDetails>(`/api/seerr/${mediaType}/${tmdbId}`) });
   const similar = useQuery({ queryKey: ['seerr', 'similar', mediaType, tmdbId], queryFn: () => api.get<{ results: SeerrResult[] }>(`/api/seerr/${mediaType}/${tmdbId}/recommendations`), enabled: q.isSuccess });
-  const [chosen, setChosen] = useState<number[] | null>(null);
+  // Nothing is ticked beforehand: the person picks the seasons they want (as in Seerr).
+  const [chosen, setChosen] = useState<number[]>([]);
+  const [confirming, setConfirming] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const request = useMutation({
-    mutationFn: () => api.post<MyRequest>('/api/seerr/requests', { mediaType, tmdbId, seasons: mediaType === 'tv' ? chosen : null }),
+    mutationFn: () => api.post<MyRequest>('/api/seerr/requests', { mediaType, tmdbId, seasons: mediaType === 'tv' ? seasonsToRequest(chosen, (q.data?.seasons ?? []).filter((s) => open(s.state)).map((s) => s.seasonNumber)) : null }),
     onSuccess: (r) => {
       toast.success(t('requests.requested', { title: r.title }));
-      setChosen(null);
+      setChosen([]);
+      setConfirming(false);
       void qc.invalidateQueries({ queryKey: ['seerr'] });
     },
     onError: (e) => toast.error(e),
@@ -75,12 +79,11 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
   const d = { ...q.data, cast: q.data.cast ?? [], seasons: q.data.seasons ?? [], genres: q.data.genres ?? [] };
   const openSeasons = d.seasons.filter((s) => open(s.state));
   const canRequest = !d.inLibrary && (d.mediaType === 'movie' ? open(d.state) : openSeasons.length > 0);
-  // A show: the seasons still open are chosen by default (null: all of them).
-  const picked = chosen ?? openSeasons.map((s) => s.seasonNumber);
-  const toggle = (n: number, on: boolean) => {
-    const next = on ? [...picked, n] : picked.filter((x) => x !== n);
-    setChosen(next.length === openSeasons.length ? null : next);
-  };
+  // A show: only the seasons ticked (still open ones; none beforehand).
+  const openNumbers = openSeasons.map((s) => s.seasonNumber);
+  const picked = chosen.filter((n) => openNumbers.includes(n));
+  const allPicked = openNumbers.length > 0 && picked.length === openNumbers.length;
+  const toggle = (n: number, on: boolean) => setChosen(tickSeason(chosen, n, on));
   const canReset = user?.role === 'admin' && !d.inLibrary && d.state !== null && d.state !== 'available' && d.state !== 'partiallyAvailable';
   const select = (item: SeerrResult) => (item.local ? void openLocal(item.local) : navigate(`/request/${item.mediaType}/${item.tmdbId}`));
 
@@ -125,11 +128,11 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
               type="button"
               // A movie has no seasons to pick; a show needs at least one season ticked.
               disabled={request.isPending || (d.mediaType === 'tv' && picked.length === 0)}
-              onClick={() => request.mutate()}
+              onClick={() => setConfirming(true)}
               className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-semibold text-accent-ink hover:brightness-110 disabled:opacity-60"
             >
               <Send className="size-5" />
-              {d.mediaType === 'movie' ? t('requests.request') : chosen === null ? t('requests.requestAll') : t('requests.requestSeasons', { count: picked.length })}
+              {d.mediaType === 'movie' || picked.length === 0 ? t('requests.request') : allPicked ? t('requests.requestAll') : t('requests.requestSeasons', { count: picked.length })}
             </button>
           )}
           <TrailerButton type={d.mediaType === 'movie' ? 'movie' : 'show'} id={d.tmdbId} title={d.title} outsideLibrary />
@@ -139,16 +142,23 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
             </Button>
           )}
         </div>
-        {canRequest && <p className="mt-3 text-sm text-faint">{t('requests.page.requestHint')}</p>}
+        {canRequest && <p className="mt-3 text-sm text-faint">{d.mediaType === 'tv' && picked.length === 0 ? t('requests.page.chooseSeasons') : t('requests.page.requestHint')}</p>}
       </DetailHero>
 
       <div className="mt-10 grid gap-10 px-4 sm:px-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div>{d.overview && <p className="max-w-3xl text-base leading-relaxed text-ink/90">{d.overview}</p>}</div>
         {d.mediaType === 'tv' && d.seasons.length > 0 && (
           <section aria-labelledby="seasons" className="rounded-[var(--radius-card)] border border-line bg-surface/70 p-4">
-            <h2 id="seasons" className="label mb-3">
-              {t('requests.seasons')}
-            </h2>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 id="seasons" className="label">
+                {t('requests.seasons')}
+              </h2>
+              {!d.inLibrary && openNumbers.length > 1 && (
+                <button type="button" onClick={() => setChosen(allPicked ? [] : openNumbers)} className="text-xs font-medium text-accent hover:underline">
+                  {allPicked ? t('requests.page.selectNone') : t('requests.page.selectAll')}
+                </button>
+              )}
+            </div>
             <ul className="space-y-1">
               {d.seasons.map((s) => {
                 const free = open(s.state) && !d.inLibrary;
@@ -180,6 +190,15 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
           </div>
         )}
       </div>
+
+      <ConfirmModal open={confirming} title={t('requests.page.confirmTitle', { title: d.title })} confirmLabel={t('requests.request')} loading={request.isPending} onConfirm={() => request.mutate()} onClose={() => setConfirming(false)}>
+        {d.mediaType === 'movie' ? (
+          <p>{t('requests.page.confirmMovie')}</p>
+        ) : (
+          <p>{allPicked ? t('requests.page.confirmAllSeasons', { n: openNumbers.length }) : t('requests.page.confirmSeasons', { list: [...picked].sort((a, b) => a - b).join(', ') })}</p>
+        )}
+        <p className="mt-2 text-sm">{t('requests.page.requestHint')}</p>
+      </ConfirmModal>
 
       <ConfirmModal open={confirmReset} title={t('requests.page.resetTitle')} confirmLabel={t('requests.page.reset')} danger loading={reset.isPending} onConfirm={() => reset.mutate()} onClose={() => setConfirmReset(false)}>
         {t('requests.page.resetText', { title: d.title })}

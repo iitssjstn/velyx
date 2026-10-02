@@ -8,7 +8,7 @@ import { TrailerButton } from '../../../components/TrailerButton';
 import { DetailSkeleton } from '../../../components/Skeleton';
 import { Button, ErrorState, styles } from '../../../components/ui';
 import { errorMessage } from '../../../lib/connection';
-import { canRequestTitle, openSeasons, toggleSeason, type SeerrDetails, type SeerrResult } from '../../../lib/discover';
+import { canRequestTitle, openSeasons, seasonsToRequest, toggleSeason, type SeerrDetails, type SeerrResult } from '../../../lib/discover';
 import { useSession } from '../../../lib/session';
 import { colors, radius } from '../../../lib/theme';
 
@@ -20,10 +20,11 @@ export default function RequestScreen() {
   const mediaType = type === 'tv' ? 'tv' : 'movie';
   const q = useQuery({ queryKey: [serverUrl, 'seerr', mediaType, id], queryFn: () => api.get<SeerrDetails>(`/api/seerr/${mediaType}/${Number(id)}`) });
   const similar = useQuery({ queryKey: [serverUrl, 'seerr', mediaType, id, 'similar'], queryFn: () => api.get<{ results?: SeerrResult[] }>(`/api/seerr/${mediaType}/${Number(id)}/recommendations`), enabled: q.isSuccess });
-  const [chosen, setChosen] = useState<number[] | null>(null);
+  // Nothing is ticked beforehand: the person picks the seasons they want (as in Seerr).
+  const [chosen, setChosen] = useState<number[]>([]);
   const { open, busy } = useOpenDiscover();
   const request = useMutation({
-    mutationFn: () => api.post<{ title: string }>('/api/seerr/requests', { mediaType, tmdbId: Number(id), seasons: mediaType === 'tv' ? chosen : null }),
+    mutationFn: () => api.post<{ title: string }>('/api/seerr/requests', { mediaType, tmdbId: Number(id), seasons: mediaType === 'tv' ? seasonsToRequest(chosen, q.data ? openSeasons(q.data) : []) : null }),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: [serverUrl, 'discover'] });
       void qc.invalidateQueries({ queryKey: [serverUrl, 'seerr'] });
@@ -38,6 +39,19 @@ export default function RequestScreen() {
   const all = openSeasons(d);
   const facts = [d.mediaType === 'movie' ? t('request.movie') : t('request.show'), d.year, d.runtime ? t('request.minutes', { n: d.runtime }) : null, d.rating ? `★ ${d.rating.toFixed(1)}` : null, d.genres.join(', ') || null].filter(Boolean).join(' · ');
   const requestable = canRequestTitle(d);
+  const picked = chosen.filter((n) => all.includes(n));
+  const allPicked = all.length > 0 && picked.length === all.length;
+  const isShow = d.mediaType === 'tv' && d.seasons.length > 0;
+  // First a question; only "Request" sends it to Seerr.
+  const confirm = () =>
+    Alert.alert(
+      t('request.confirmTitle', { title: d.title }),
+      !isShow ? t('request.confirmMovie') : allPicked ? t('request.confirmAllSeasons', { n: all.length }) : t('request.confirmSeasons', { list: [...picked].sort((a, b) => a - b).join(', ') }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('request.request'), onPress: () => request.mutate() },
+      ],
+    );
   const cast = d.cast ?? [];
   const alike = similar.data?.results ?? [];
   return (
@@ -64,17 +78,24 @@ export default function RequestScreen() {
       </View>
       {requestable && d.mediaType === 'tv' && d.seasons.length > 0 && (
         <View style={{ gap: 4 }}>
-          <Text style={styles.label}>{t('request.seasons')}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={styles.label}>{t('request.seasons')}</Text>
+            {all.length > 1 && (
+              <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setChosen(allPicked ? [] : all)}>
+                <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '600' }}>{allPicked ? t('request.selectNone') : t('request.selectAll')}</Text>
+              </Pressable>
+            )}
+          </View>
           {d.seasons.map((s) => {
             const free = all.includes(s.seasonNumber);
-            const on = free && (chosen === null || chosen.includes(s.seasonNumber));
+            const on = free && chosen.includes(s.seasonNumber);
             return (
               <Pressable
                 key={s.seasonNumber}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on, disabled: !free }}
                 disabled={!free}
-                onPress={() => setChosen(toggleSeason(chosen, all, s.seasonNumber, !on))}
+                onPress={() => setChosen(toggleSeason(chosen, s.seasonNumber, !on))}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }}
               >
                 <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: on ? colors.accent : colors.line, backgroundColor: on ? colors.accent : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
@@ -89,11 +110,14 @@ export default function RequestScreen() {
       )}
       {requestable && (
         <Button
-          label={d.mediaType === 'movie' ? t('request.request') : chosen === null ? t('request.requestAll') : t('request.requestSeasons', { count: chosen.length })}
+          label={!isShow || picked.length === 0 ? t('request.request') : allPicked ? t('request.requestAll') : t('request.requestSeasons', { count: picked.length })}
           busy={request.isPending}
-          disabled={chosen !== null && chosen.length === 0}
-          onPress={() => request.mutate()}
+          disabled={isShow && picked.length === 0}
+          onPress={confirm}
         />
+      )}
+      {requestable && isShow && picked.length === 0 && (
+        <Text style={styles.muted}>{t('request.chooseSeasons')}</Text>
       )}
       {cast.length > 0 && (
         <View style={{ gap: 8 }}>
