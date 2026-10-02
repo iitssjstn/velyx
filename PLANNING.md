@@ -101,6 +101,13 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   - na livegang: vidalune.com aanmelden bij Google Search Console met de sitemap (moet de eigenaar doen).
   - Regel blijft: geen andere mediaservers of streamingdiensten noemen in de teksten.
 
+- **Volledige wiki/handleiding** (help.vidalune.com of vidalune.com/docs), zodat mensen de eigenaar
+  nooit hoeven te vragen: aan de slag (Docker, .deb, NAS), bibliotheken en mapnamen, metadata en
+  herkenning, afspelen en transcoding, ondertitels, app en Chromecast, toegang op afstand, gebruikers en
+  uitnodigingen, Vidalune-account, Seerr, back-ups, updates, prestaties, probleemoplossing per
+  foutmelding, FAQ. Zoekfunctie, NL en EN, screenshots; foutmeldingen in de app linken naar de juiste
+  pagina. Telt mee voor SEO. Bijhouden bij elke release.
+
 ## Ideeën (nog niet besloten)
 
 - **Ondertitels als plaatjes** (PGS van Blu-ray, VobSub van dvd): nu niet getoond. Mogelijk: inbranden
