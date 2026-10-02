@@ -24,6 +24,23 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   geeft. Idee: compact tonen (talen als chips of één regel, met "+N meer" om uit te klappen) en
   dubbele talen (bijvoorbeeld gewoon en SDH) samenvoegen.
 
+- **Andere ondertiteltaal kiezen: ondertitel blijft stilstaan** (website-speler). Twee oorzaken:
+  1. Bug in `frontend/src/components/SubtitleOverlay.tsx`: bij een nieuwe track begint `lastKey` op
+     `''`. De nieuwe track heeft nog geen cues, dus de sleutel is ook `''` en de oude regel wordt nooit
+     weggehaald: de laatste zin van de vorige taal blijft staan. Fix: bij het wisselen van track
+     `setLines([])` (of `lastKey` op een waarde die nooit voorkomt). Test toevoegen.
+  2. Ingebouwde ondertitels (`EmbeddedSubtitleExtractor` in `backend/src/services/subtitles.ts`)
+     worden pas bij het kiezen uitgepakt, en FFmpeg leest daarvoor het **hele** bestand. Op een NAS
+     met een trage CPU duurt dat minuten (en na 10 minuten wordt het afgebroken), terwijl de film
+     ook nog van dezelfde schijf moet streamen. Verbetering:
+     - alle tekstondertitels van een bestand in **één** leesronde uitpakken (één keer lezen voor alle talen);
+     - dat vooraf op de achtergrond doen (lage prioriteit, na de scan of bij de start van het afspelen);
+     - in de speler "Ondertitel laden…" tonen, en een melding als het mislukt.
+- **HLS en ondertitels**: gecontroleerd, geen fout gevonden. Ondertitels zijn losse WebVTT-bestanden;
+  de HLS-tijdlijn (`-copyts -start_at_zero`) en de uitgepakte ondertitels beginnen allebei bij het
+  begin van het bestand, en de live stream verschuift de ondertitels met `?offset=`.
+  Later (bij HLS in de app en op de Chromecast): ondertitels ook in de HLS-playlist opnemen.
+
 ## Later (in deze volgorde, tenzij de eigenaar anders zegt)
 
 1. **TMDB via vidalune.com, met terugval**
