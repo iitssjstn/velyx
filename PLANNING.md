@@ -112,6 +112,16 @@ Wens van de eigenaar (2 okt): de seizoenen in de popup. Niet zelf mergen zonder 
 
 ## Ideeën (nog niet besloten)
 
+- **Eigen cast-speler (Custom Web Receiver)** — wens van de eigenaar (2 okt), **nog niet bouwen** (hij
+  test eerst). Moet een **volledige speler** zijn: alles wat mensen op de website en in de app gebruiken.
+  Dus onder meer Vidalune-uitstraling met laadscherm (achtergrond, titel), eigen bediening/voortgang,
+  audio- en ondertitelkeuze, ondertitels met de eigen stijlinstellingen (ook OpenSubtitles), intro/recap/
+  aftiteling overslaan, volgende aflevering met aftellen, hervatten, duidelijke foutmeldingen, en later
+  HLS/adaptieve kwaliteit. Nu: Google's Default Media Receiver (`CC1AD845`) in `frontend/src/lib/cast.ts`
+  en `app/app.json`. Nodig: de eigenaar registreert in de Google Cast SDK Developer Console (eenmalig
+  $5), krijgt een app-ID en zet test-Chromecasts (serienummer) erin tot publicatie; de speler komt op
+  HTTPS, bijvoorbeeld `vidalune.com/cast`; website en app gebruiken dan dat app-ID.
+
 - **Ondertitels als plaatjes** (PGS van Blu-ray, VobSub van dvd): nu niet getoond. Mogelijk: inbranden
   in het beeld tijdens het omzetten (transcoding), of omzetten naar tekst.
 - **Community**: vaste Discord-kanalen voor bugs, wensen en aankondigingen; bij elke grote update een
