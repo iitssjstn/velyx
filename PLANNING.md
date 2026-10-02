@@ -1,6 +1,10 @@
 # Planning
 
-Werklijst van de eigenaar. Er wordt alleen iets gebouwd als de eigenaar het zegt.
+Het geheugen van Claude tussen sessies: werkafspraken, stand van zaken en de werklijst van de
+eigenaar. Elke sessie begint met dit bestand (via `CLAUDE.md`). Werk het bij zodra er iets verandert:
+een nieuwe melding of wens van de eigenaar, een besluit, iets dat klaar is of een release.
+
+Er wordt alleen iets gebouwd als de eigenaar het zegt.
 Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
