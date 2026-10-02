@@ -49,6 +49,14 @@ Wens van de eigenaar (2 okt): de seizoenen in de popup. Niet zelf mergen zonder 
 
 ## Gemeld tijdens het testen
 
+- **Voortgang wordt niet bewaard bij casten** (gemeld 2 okt; nog niet gebouwd). Oorzaak: de server
+  bewaart de voortgang niet zelf; de speler op de telefoon/in de browser stuurt elke 10 s de positie van
+  de tv door (`frontend/src/pages/Player.tsx`, `castSaved`; app: `save` in `app/src/app/play/[kind]/[id].tsx`).
+  Dat stopt als de speler gesloten wordt, de telefoon op slot gaat of de app naar de achtergrond gaat,
+  of als het casten op de tv zelf wordt gestopt. Nog navragen: app of website, en wat de eigenaar deed.
+  Oplossingen: snel = de app blijft op de achtergrond doorsturen en bewaart altijd de laatste positie bij
+  het stoppen; goed = de eigen cast-speler (zie Ideeën) meldt zelf de voortgang aan de server.
+
 - **Ingebouwde ondertitels sneller uitpakken** (`EmbeddedSubtitleExtractor` in
   `backend/src/services/subtitles.ts`). Ze worden pas bij het kiezen uitgepakt, en FFmpeg leest
   daarvoor het **hele** bestand. Op een NAS met een trage CPU duurt dat minuten (en na 10 minuten
