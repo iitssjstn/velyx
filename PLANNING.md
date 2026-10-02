@@ -49,6 +49,16 @@ en daarna te stoppen. Na de merge: release `v0.19.8` controleren (APK + beide `.
 
 ## Gemeld tijdens het testen
 
+- **Aanvragen: eerst bevestigen, seizoenen niet vooraf aangevinkt** (wens van de eigenaar, 2 okt; nog
+  niet gebouwd). Nu gaat een klik op "Aanvragen" meteen door, en bij een serie staan alle open seizoenen
+  al aangevinkt (bij veel seizoenen moet je alles uitvinken). Gewenst, zoals in Seerr:
+  - een bevestigingsvenster vóór de aanvraag ("Weet je het zeker?", met titel en gekozen seizoenen), bij
+    films en series;
+  - bij een serie staat niets aangevinkt; je kiest zelf de seizoenen (eventueel een knop "Alle seizoenen");
+    de knop "Aanvragen" werkt pas als er minstens één seizoen gekozen is.
+  - Website: `frontend/src/pages/RequestDetail.tsx` (`picked`/`chosen`, er is al een `ConfirmModal`);
+    app: `app/src/app/request/[type]/[id].tsx` en `toggleSeason`/`openSeasons` in `app/src/lib/discover.ts`.
+
 - **Ingebouwde ondertitels sneller uitpakken** (`EmbeddedSubtitleExtractor` in
   `backend/src/services/subtitles.ts`). Ze worden pas bij het kiezen uitgepakt, en FFmpeg leest
   daarvoor het **hele** bestand. Op een NAS met een trage CPU duurt dat minuten (en na 10 minuten
