@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canRequest, canRequestTitle, catalogOnly, DISCOVER_ROWS, openSeasons, discoverPath, discoverTarget, mergePages, toggleSeason, type SeerrResult } from './discover';
+import { canRequest, canRequestTitle, catalogOnly, seasonsToRequest, DISCOVER_ROWS, openSeasons, discoverPath, discoverTarget, mergePages, toggleSeason, type SeerrResult } from './discover';
 
 const r = (over: Partial<SeerrResult>): SeerrResult => ({ mediaType: 'movie', tmdbId: 1, title: 'X', year: null, overview: '', posterPath: null, state: null, inLibrary: false, local: null, ...over });
 
@@ -38,9 +38,14 @@ describe('discover', () => {
   });
 
   it('ticks seasons, with all of them meaning "all"', () => {
-    expect(toggleSeason(null, [1, 2, 3], 3, false)).toEqual([1, 2]);
-    expect(toggleSeason([1, 2], [1, 2, 3], 3, true)).toBeNull();
-    expect(toggleSeason([1], [1, 2, 3], 1, false)).toEqual([]);
+    // Nothing is ticked beforehand; a tap ticks or unticks one season.
+    expect(toggleSeason([], 3, true)).toEqual([3]);
+    expect(toggleSeason([1, 2], 3, true)).toEqual([1, 2, 3]);
+    expect(toggleSeason([1], 1, false)).toEqual([]);
+    // Sent with the request: exactly what is ticked (open seasons only), or the whole show when all are.
+    expect(seasonsToRequest([], [2, 3])).toEqual([]);
+    expect(seasonsToRequest([3, 1], [2, 3])).toEqual([3]);
+    expect(seasonsToRequest([3, 2], [2, 3])).toBeNull();
   });
 
   it('requests only the seasons of a show still open', () => {

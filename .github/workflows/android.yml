@@ -1,11 +1,9 @@
 name: Android app
 
-# Builds the Vidalune app as an installable APK: on pull requests that touch the app (download it
-# from the run's artifacts), and after every release build on main, where the APK is attached to
-# the GitHub release of that version.
+# Builds the Vidalune app as an installable APK after every release build on main, where the APK is
+# attached to the GitHub release of that version (or by hand: Actions -> Run workflow). Not on pull
+# requests, to save build minutes: CI runs the app's typecheck and tests there.
 on:
-  pull_request:
-    paths: ['app/**', '.github/workflows/android.yml']
   workflow_run:
     workflows: ['Docker image']
     types: [completed]

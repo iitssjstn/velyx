@@ -104,11 +104,18 @@ export function canRequestTitle(d: Pick<SeerrDetails, 'mediaType' | 'inLibrary' 
   return !d.inLibrary && openSeasons(d).length > 0;
 }
 
-/** The seasons ticked after one tap: null means all of them. */
-export function toggleSeason(chosen: number[] | null, all: number[], season: number, on: boolean): number[] | null {
-  const now = chosen ?? all;
-  const next = on ? [...new Set([...now, season])] : now.filter((n) => n !== season);
-  return next.length === all.length ? null : next;
+/** The seasons ticked after one tap (nothing is ticked beforehand). */
+export function toggleSeason(chosen: number[], season: number, on: boolean): number[] {
+  return on ? [...new Set([...chosen, season])] : chosen.filter((n) => n !== season);
+}
+
+/**
+ * The seasons to send with a request, from the ones ticked (nothing is ticked beforehand). Only open
+ * seasons count; every open season ticked means the whole show (null: Seerr requests "all").
+ */
+export function seasonsToRequest(chosen: number[], all: number[]): number[] | null {
+  const picked = [...new Set(chosen.filter((n) => all.includes(n)))].sort((a, b) => a - b);
+  return all.length > 0 && picked.length === all.length ? null : picked;
 }
 
 /** Search results from Seerr that are not in the library (those are already among the library's own results). */

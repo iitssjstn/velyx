@@ -9,11 +9,11 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.7** (PR #83, door Claude gemerged met toestemming van de eigenaar): verse
-  metadata bij openen (drempel 1 uur, `backend/src/services/fresh-metadata.ts`), trailers en zoeken
-  buiten de bibliotheek (via Seerr), request-knop bij films werkt weer, nieuwe pagina's openen bovenaan.
+- Laatste release: **0.19.8** (PR #84): de app opent je server meteen na het inloggen. Daarvoor 0.19.7
+  (PR #83): verse metadata bij openen, trailers en zoeken buiten de bibliotheek, request-knop bij films.
+  Releases `v0.19.7` en `v0.19.8` gecontroleerd (0.19.8: de APK kwam na de controle nog).
 - Nog te doen door de eigenaar: castknop (0.19.6) testen op een telefoon; nagaan of het scrollprobleem
-  weg is (was in Chromium niet na te doen).
+  weg is; de app na inloggen proberen.
 - De eigenaar test verder en meldt alles wat hij tegenkomt; dat komt hieronder.
 - De volgende update wordt **één grote update** met alles wat hieronder staat en is goedgekeurd.
 - Hardware van de eigenaar: AMD Athlon II X2 260 (2 cores), media op een NAS, Docker (Debian 12,
@@ -27,6 +27,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Na een merge: controleren dat release `v<versie>` de APK en beide `.deb`-bestanden (amd64 en arm64) heeft.
 - Bij een nieuwe versie: `app/app.json` (version + versionCode), alle `package.json`'s, de versies in
   `backend/test/auth.test.ts` en `backend/test/authorization.test.ts`, en de lockfiles bijwerken.
+- **Zuinig met GitHub-buildminuten** (de eigenaar zat op 90%, 2 okt): pas pushen als een versie klaar
+  en lokaal getest is; planning-updates meesturen met code in plaats van apart. Sinds 0.19.9 draaien
+  APK, `.deb`'s en de arm64-test alleen bij een release (na de merge), niet bij PR-pushes; CI draait
+  niet bij alleen `*.md`-wijzigingen; de cloud-image één keer per release (na de APK).
 - Zod-validatie en autorisatie op elk endpoint, Drizzle-migraties, tests voor alles (nooit tests weghalen).
 - README beschrijft alleen wat bestaat. Geen andere mediaservers of streamingdiensten noemen in
   projectteksten (Seerr mag). Geen AI-functies. Externe diensten zijn opt-in.
@@ -35,17 +39,15 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Volgende versie
 
-### 0.19.8: app opent je server meteen na het inloggen
-De eigenaar vroeg dit (2 okt) en gaf toestemming dat Claude deze PR zelf merget als alles groen is,
-en daarna te stoppen. Na de merge: release `v0.19.8` controleren (APK + beide `.deb`'s).
-- Na inloggen met het Vidalune-account opent de app meteen de server: de laatst geopende, of de enige
-  (online, met adres). Meerdere servers en geen laatst geopende: de lijst. `autoOpenServer` in
-  `app/src/lib/cloud.ts`, gebruikt in `app/src/app/cloud.tsx`; "{naam} wordt geopend…" tijdens het openen.
-- Na zelf uitloggen of "Andere server" komt de lijst (`/cloud?choose=1`), niet automatisch weer naar binnen.
-- "Toch een adres invullen" is een klein linkje onderaan, geen grote knop meer.
-- Geen code voor nieuwe gebruikers: volgens de eigenaar is de uitnodigingslink genoeg.
-- Aanleiding: de eigenaar dacht na het inloggen een domein te moeten typen; zijn server stond al in de
-  lijst (online, met adres) maar je moest hem aantikken, en de grote adresknop leek de weg.
+### 0.19.9: aanvragen eerst bevestigen, seizoenen zelf kiezen (website en app)
+De eigenaar vroeg dit (2 okt, "maak het maar"). Niet zelf mergen zonder toestemming van de eigenaar.
+- Een klik op "Aanvragen" opent eerst een bevestiging ("“titel” aanvragen?", met de gekozen seizoenen);
+  pas na "Aanvragen" gaat het naar Seerr. Website: `ConfirmModal` in `RequestDetail.tsx`; app: `Alert`.
+- Bij een serie staat niets meer vooraf aangevinkt; "Alle seizoenen" / "Geen" vinkt alles aan of uit.
+  Alle open seizoenen aangevinkt = de hele serie (`seasons: null`). Website: `lib/request-seasons.ts`;
+  app: `toggleSeason`/`seasonsToRequest` in `app/src/lib/discover.ts`.
+- Ook in 0.19.9: minder buildminuten (zie werkafspraken): APK en `.deb` niet meer bij PR's, app-tests
+  in CI, geen CI bij alleen tekst, cloud-image één keer per release, Docker-smoketest alleen bij PR's.
 
 ## Gemeld tijdens het testen
 
