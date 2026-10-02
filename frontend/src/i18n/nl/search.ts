@@ -4,5 +4,6 @@ export const search: Messages['search'] = {
     movies: 'Films',
     shows: 'Series',
     episodes: 'Afleveringen',
+    catalog: 'Niet in de bibliotheek',
   },
 };

@@ -25,6 +25,23 @@ export interface SeerrResult {
   local: { type: 'movie' | 'show'; id: number } | null;
 }
 
+/**
+ * Titles from Seerr for a search, when Seerr is set up: only what is not here (the library has
+ * results of its own). Nothing is asked of Seerr without it.
+ */
+export function useCatalogSearch(query: string) {
+  const status = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
+  const q = useQuery({
+    queryKey: ['seerr', 'search', query],
+    queryFn: () => api.get<{ results: SeerrResult[] }>(`/api/seerr/search?q=${encodeURIComponent(query)}`),
+    enabled: query.length > 0 && !!status.data?.enabled,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const results = query ? (q.data?.results ?? []).filter((r) => !r.inLibrary) : [];
+  return { enabled: !!status.data?.enabled, results, isFetching: q.isFetching, error: query ? q.error : null };
+}
+
 export interface MyRequest {
   id: number;
   mediaType: 'movie' | 'tv';

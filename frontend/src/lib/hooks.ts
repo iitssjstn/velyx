@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLocation, useNavigationType } from 'react-router-dom';
 
 /** The value, but only after it stopped changing for `ms` (typing → one request, not one per key). */
 export function useDebounced<T>(value: T, ms: number): T {
@@ -27,4 +28,17 @@ export function useKeepOnScreen<T extends HTMLElement>(open: boolean, margin = 8
     if (dx) el.style.translate = `${Math.round(dx)}px 0`;
   }, [open, margin]);
   return ref;
+}
+
+/**
+ * A page opened from another one starts at the top (not where the previous page was scrolled to).
+ * Back and forward leave the position to the browser; a change of only the query (a season, a
+ * filter) does not move the page.
+ */
+export function useScrollToTopOnNavigate(): void {
+  const { pathname } = useLocation();
+  const type = useNavigationType();
+  useLayoutEffect(() => {
+    if (type !== 'POP') window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [pathname, type]);
 }

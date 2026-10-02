@@ -3,6 +3,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Toggle } from '../../components/actions';
 import { TrailerButton } from '../../components/TrailerButton';
+import { useFreshMetadata } from '../../components/useFreshMetadata';
 import { Artwork, useWide } from '../../components/media';
 import { DetailSkeleton } from '../../components/Skeleton';
 import { Button, ErrorState, ProgressLine, styles } from '../../components/ui';
@@ -18,6 +19,7 @@ export default function Movie() {
   const wide = useWide();
   const { width } = useWindowDimensions();
   const q = useQuery({ queryKey: [serverUrl, 'movie', id], queryFn: () => api.get<MovieDetail>(`/api/movies/${id}`) });
+  useFreshMetadata('movie', id, (newId) => router.replace(`/movie/${newId}`));
   if (q.isLoading) return <DetailSkeleton wide={wide} />;
   if (!q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const m = q.data;

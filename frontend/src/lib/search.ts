@@ -1,8 +1,9 @@
 import { t } from '../i18n';
 import { episodeCode, formatRuntime } from './format';
 import type { SearchResults } from './types';
+import type { SeerrResult } from '../components/Discover';
 
-export type QuickGroup = 'movies' | 'shows' | 'episodes';
+export type QuickGroup = 'movies' | 'shows' | 'episodes' | 'catalog';
 
 export interface QuickItem {
   key: string;
@@ -24,10 +25,20 @@ export function looksLikeEpisodeCode(query: string): boolean {
 
 /**
  * Search results as one list for keyboard navigation: a few of each kind, movies, then shows,
- * then episodes — or episodes first when an episode code was typed.
+ * then episodes — or episodes first when an episode code was typed — and last what is not in the
+ * library (from Seerr; opening one goes to its page, to request it).
  */
-export function quickItems(r: SearchResults | undefined, limits: Record<QuickGroup, number> = { movies: 5, shows: 5, episodes: 6 }): QuickItem[] {
-  if (!r) return [];
+export function quickItems(r: SearchResults | undefined, catalog: SeerrResult[] = [], limits: Record<QuickGroup, number> = { movies: 5, shows: 5, episodes: 6, catalog: 5 }): QuickItem[] {
+  const outside = catalog.slice(0, limits.catalog).map((c) => ({
+    key: `catalog-${c.mediaType}-${c.tmdbId}`,
+    group: 'catalog' as const,
+    href: `/request/${c.mediaType}/${c.tmdbId}`,
+    title: c.title,
+    meta: [c.year, c.mediaType === 'movie' ? t('requests.movie') : t('requests.tv')].filter(Boolean).join(' · ') || null,
+    image: c.posterPath,
+    wide: false,
+  }));
+  if (!r) return outside;
   const items = [
     ...r.movies.slice(0, limits.movies).map((m) => ({
       key: `movie-${m.id}`,
@@ -57,9 +68,10 @@ export function quickItems(r: SearchResults | undefined, limits: Record<QuickGro
       wide: true,
     })),
   ];
-  return looksLikeEpisodeCode(r.query) ? [...items.filter((i) => i.group === 'episodes'), ...items.filter((i) => i.group !== 'episodes')] : items;
+  const library = looksLikeEpisodeCode(r.query) ? [...items.filter((i) => i.group === 'episodes'), ...items.filter((i) => i.group !== 'episodes')] : items;
+  return [...library, ...outside];
 }
 
-export function totalResults(r: SearchResults | undefined): number {
-  return r ? r.movies.length + r.shows.length + r.episodes.length : 0;
+export function totalResults(r: SearchResults | undefined, catalog: SeerrResult[] = []): number {
+  return (r ? r.movies.length + r.shows.length + r.episodes.length : 0) + catalog.length;
 }

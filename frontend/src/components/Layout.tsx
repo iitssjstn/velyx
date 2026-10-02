@@ -10,6 +10,7 @@ import { useT, type MessageKey } from '../i18n';
 import { QuickSearch } from './QuickSearch';
 import { AppBackButton, InstallApp } from './InstallApp';
 import { serversPage } from '../lib/vidalune';
+import { useScrollToTopOnNavigate } from '../lib/hooks';
 
 const NAV: Array<{ to: string; label: MessageKey; icon: typeof House; end?: boolean }> = [
   { to: '/', label: 'nav.home', icon: House, end: true },
@@ -131,6 +132,7 @@ export function Layout() {
   const { t } = useT();
 
   useEffect(() => setOpen(false), [location.pathname]);
+  useScrollToTopOnNavigate();
 
   // Ctrl/⌘+K opens search from anywhere; "/" too, except while typing.
   useEffect(() => {

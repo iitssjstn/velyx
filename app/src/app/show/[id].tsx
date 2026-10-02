@@ -4,6 +4,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Toggle } from '../../components/actions';
 import { TrailerButton } from '../../components/TrailerButton';
+import { useFreshMetadata } from '../../components/useFreshMetadata';
 import { Artwork, useWide } from '../../components/media';
 import { Block, DetailSkeleton } from '../../components/Skeleton';
 import { savedRequest, watchedRequest } from '../../lib/lists';
@@ -19,6 +20,7 @@ export default function Show() {
   const wide = useWide();
   const { width } = useWindowDimensions();
   const q = useQuery({ queryKey: [serverUrl, 'show', id], queryFn: () => api.get<ShowDetail>(`/api/shows/${id}`) });
+  useFreshMetadata('show', id, (newId) => router.replace(`/show/${newId}`));
   const [picked, setPicked] = useState<number | null>(null);
   const s = q.data;
   // The season you are in opens first (specials last), like on the website.

@@ -10,16 +10,24 @@ interface Trailer {
   name: string;
 }
 
+/** Where the server gives the trailer: an item in the library by its id, any other title by its TMDB id. */
+export function trailerPath(type: 'movie' | 'show', id: number, outsideLibrary = false): string {
+  if (outsideLibrary) return `/api/seerr/${type === 'movie' ? 'movie' : 'tv'}/${id}/trailer`;
+  return `/api/${type === 'movie' ? 'movies' : 'shows'}/${id}/trailer`;
+}
+
 /**
  * "Trailer" next to Play on a movie or show page, when TMDB knows one. It plays in YouTube's
  * player without cookies, and only once the viewer presses the button (nothing loads before).
+ * `outsideLibrary`: a title that is not in the library (its page from Seerr); `id` is its TMDB id.
  */
-export function TrailerButton({ type, id, title }: { type: 'movie' | 'show'; id: number; title: string }) {
+export function TrailerButton({ type, id, title, outsideLibrary = false }: { type: 'movie' | 'show'; id: number; title: string; outsideLibrary?: boolean }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
+  const path = trailerPath(type, id, outsideLibrary);
   const q = useQuery({
-    queryKey: ['trailer', type, id],
-    queryFn: () => api.get<{ trailer: Trailer | null }>(`/api/${type === 'movie' ? 'movies' : 'shows'}/${id}/trailer`),
+    queryKey: ['trailer', path],
+    queryFn: () => api.get<{ trailer: Trailer | null }>(path),
     staleTime: 3_600_000,
     retry: false,
   });

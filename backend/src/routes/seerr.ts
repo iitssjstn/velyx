@@ -125,6 +125,12 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return withLibrary([d], request.user!)[0];
   });
 
+  /** The trailer of a title that is not in the library: at TMDB, or through Seerr without a TMDB key. */
+  app.get('/api/seerr/:type/:id/trailer', { preHandler: requireUser }, async (request) => {
+    const p = z.object({ type: mediaType, id: tmdbId }).parse(request.params);
+    return ctx.trailers.get(p.type, p.id, { viaSeerr: true });
+  });
+
   /** Titles like this one, for its page (what is here opens straight away). */
   app.get('/api/seerr/:type/:id/recommendations', { preHandler: requireUser }, async (request) => {
     const p = z.object({ type: mediaType, id: tmdbId }).parse(request.params);

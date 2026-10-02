@@ -110,3 +110,8 @@ export function toggleSeason(chosen: number[] | null, all: number[], season: num
   const next = on ? [...new Set([...now, season])] : now.filter((n) => n !== season);
   return next.length === all.length ? null : next;
 }
+
+/** Search results from Seerr that are not in the library (those are already among the library's own results). */
+export function catalogOnly(results: SeerrResult[] | undefined): SeerrResult[] {
+  return (results ?? []).filter((r) => !r.inLibrary);
+}

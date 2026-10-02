@@ -10,6 +10,7 @@ import { DiscoverCard, StateBadge, useOpenLocal, type MyRequest, type RequestSta
 import { CastRow } from '../components/People';
 import { ConfirmModal } from '../components/Modal';
 import { Shelf } from '../components/Shelf';
+import { TrailerButton } from '../components/TrailerButton';
 import { DetailSkeleton, ErrorState } from '../components/States';
 import { Button } from '../components/Button';
 import { toast } from '../components/Toast';
@@ -122,7 +123,8 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
           {canRequest && (
             <button
               type="button"
-              disabled={request.isPending || picked.length === 0}
+              // A movie has no seasons to pick; a show needs at least one season ticked.
+              disabled={request.isPending || (d.mediaType === 'tv' && picked.length === 0)}
               onClick={() => request.mutate()}
               className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-semibold text-accent-ink hover:brightness-110 disabled:opacity-60"
             >
@@ -130,6 +132,7 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
               {d.mediaType === 'movie' ? t('requests.request') : chosen === null ? t('requests.requestAll') : t('requests.requestSeasons', { count: picked.length })}
             </button>
           )}
+          <TrailerButton type={d.mediaType === 'movie' ? 'movie' : 'show'} id={d.tmdbId} title={d.title} outsideLibrary />
           {canReset && (
             <Button variant="ghost" icon={<RotateCcw className="size-4" />} onClick={() => setConfirmReset(true)}>
               {t('requests.page.reset')}

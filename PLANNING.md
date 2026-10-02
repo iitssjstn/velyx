@@ -1,12 +1,19 @@
 # Planning
 
-Werklijst van de eigenaar. Er wordt alleen iets gebouwd als de eigenaar het zegt.
+Het geheugen van Claude tussen sessies: werkafspraken, stand van zaken en de werklijst van de
+eigenaar. Elke sessie begint met dit bestand (via `CLAUDE.md`). Werk het bij zodra er iets verandert:
+een nieuwe melding of wens van de eigenaar, een besluit, iets dat klaar is of een release.
+
+Er wordt alleen iets gebouwd als de eigenaar het zegt.
 Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.5** (PR #81, castknop altijd zichtbaar; door de eigenaar zelf gemerged).
-- De eigenaar test nu een paar dagen en meldt alles wat hij tegenkomt; dat komt hieronder.
+- Laatste release: **0.19.6** (PR #82: castknop opent de Chromecast-lijst weer, trailers, compacte
+  ondertitellijst, ondertitel wisselen, Discord-link). Release `v0.19.6` heeft de APK en beide
+  `.deb`-bestanden (amd64 en arm64).
+- Nog te doen door de eigenaar: de castknop van 0.19.6 testen op een telefoon.
+- De eigenaar test verder en meldt alles wat hij tegenkomt; dat komt hieronder.
 - De volgende update wordt **één grote update** met alles wat hieronder staat en is goedgekeurd.
 - Hardware van de eigenaar: AMD Athlon II X2 260 (2 cores), media op een NAS, Docker (Debian 12,
   ffmpeg 5.1). Altijd testen met een film van volledige lengte op trage hardware, niet met korte clips.
@@ -27,64 +34,76 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Volgende versie
 
-### 0.19.6: de castknop opent de Chromecast-lijst weer
-- Probleem: in de app gebeurt er niets bij een klik op de castknop.
-- Oorzaak: op Android doet `CastContext.showCastDialog()` alleen een klik op de laatst geplaatste
-  native `CastButton` (MediaRouteButton). In 0.19.5 is die knop weggehaald, dus de functie geeft
-  `false` terug en er gebeurt niets (ook geen foutmelding). Het zoeken naar apparaten start ook pas
-  als zo'n knop er is.
-- Oplossing:
-  - de native `CastButton` weer plaatsen, onzichtbaar achter het eigen cast-icoon, zodat de lijst opent;
-  - op het afspeelscherm actief naar Chromecasts zoeken (`DiscoveryManager.startDiscovery`);
-  - een melding tonen als de lijst toch niet opent (`showCastDialog()` geeft `false`);
-  - testen op een telefoon.
-
-## Klaar op de branch (komt mee in de volgende versie)
-
-- **Castknop in de app**: opent de Chromecast-lijst weer (onzichtbare native knop), met melding als
-  de lijst niet opent. Nog testen op een telefoon.
-- **Ondertitel wisselen**: de oude zin verdwijnt meteen. (Ingebouwde ondertitels sneller uitpakken
-  staat nog open, zie hieronder.)
-- **Compacte ondertitellijst** op de detailpagina: één label per taal, na 8 talen "+N meer".
-- **Trailer-knop** op film- en seriepagina's (website: YouTube zonder cookies na klik; app: opent YouTube).
-- **Discord-link op vidalune.com**: in het menu en onderaan elke pagina, plus vidalune.com/discord en
-  discord.vidalune.com. De link is aan te passen of uit te zetten in het Control Center → Community.
-  Voor discord.vidalune.com moet DNS naar de VPS wijzen (wildcard van de relay of een eigen record) en
-  de reverse proxy moet die host doorsturen.
+### 0.19.7: verse metadata bij aanklikken + trailers buiten de bibliotheek
+De eigenaar koos: alleen dit punt. PR #83; de eigenaar gaf toestemming dat Claude deze PR zelf merget
+als alles groen is (eenmalig, voor 0.19.7). Na de merge: release `v0.19.7` controleren (APK + beide `.deb`'s)
+en deze sectie naar "Stand van zaken" verplaatsen.
+- **Verse metadata bij openen** (website, app.vidalune.com en de Android-app): de detailpagina opent
+  meteen met wat er is en vraagt daarna `POST /api/movies/:id/refresh` of `/api/shows/:id/refresh`.
+  De server (`backend/src/services/fresh-metadata.ts`, `FRESH_FOR_MS` = 1 uur) haalt de titel opnieuw
+  bij TMDB als `metadataUpdatedAt` ouder is dan een uur (serie: ook seizoenen en afleveringen op de
+  server). Antwoorden: `fresh` / `refreshed` / `pending` (na 8 s nog bezig; de pagina vraagt nog een
+  paar keer) / `skipped` (geen sleutel, geen match, of TMDB faalde het afgelopen uur: oude gegevens
+  blijven staan). Gelijktijdige verzoeken delen één verversing.
+- **Trailers bij titels buiten de bibliotheek** (gemeld door de eigenaar): `GET /api/seerr/:type/:id/trailer`,
+  via TMDB of zonder TMDB-sleutel via Seerr (`relatedVideos`); trailer-knop op de Seerr-titelpagina's
+  (website en app). Trailers worden nu een uur bewaard (was een dag), `backend/src/services/trailers.ts`.
+- Titels buiten de bibliotheek komen bij elk openen al rechtstreeks van Seerr (geen eigen cache).
+- **Ook in 0.19.7 (meldingen van de eigenaar, 2 okt):**
+  - Request-knop bij **films** op de website deed niets: de knop stond altijd uit (een film heeft geen
+    seizoenen, en de knop ging uit bij nul gekozen seizoenen). Nu alleen bij series. Test toegevoegd.
+  - **Zoeken toont alles**: met Seerr ook titels die niet in de bibliotheek staan, onder "Niet in de
+    bibliotheek" (zoekpagina en snelzoeker op de website, zoektabblad in de app); openen gaat naar de
+    aanvraagpagina.
+  - **Nieuwe pagina opent bovenaan** (website): `useScrollToTopOnNavigate` in `Layout` voor elke
+    navigatie behalve terug/vooruit. Het probleem was in Chromium niet na te doen; de filmpagina en de
+    aanvraagpagina sprongen niet zelf naar boven, de seriepagina wel.
+- Let op: TMDB-verzoeken staan in één rij; tijdens een grote scan of verversing wacht een klik-verversing
+  achter die rij (dan "pending"). Bij het nachtelijke venster eventueel klik-verzoeken voorrang geven.
 
 ## Gemeld tijdens het testen
 
-- **Lange lijst ondertitels op de detailpagina** (website, blok "Media" in `MovieDetail.tsx`):
-  elke ondertitel staat op een eigen regel, waardoor een film met veel talen een heel lange lijst
-  geeft. Idee: compact tonen (talen als chips of één regel, met "+N meer" om uit te klappen) en
-  dubbele talen (bijvoorbeeld gewoon en SDH) samenvoegen.
+- **App: geen serveradres meer invullen** (wens van de eigenaar, 2 okt; nog niet gebouwd, eerst overleggen).
+  Wens: wie inlogt en al met een server verbonden is, gaat meteen naar die server; wie nog geen server
+  heeft, vult een **code** in die hij van de beheerder krijgt. Geen adressen, voor mensen zonder
+  technische kennis. Wat er nu al is: de app begint met het Vidalune-account en toont de servers
+  (eigen, gedeeld, uitgenodigd), het adres is "de andere ingang" (`app/src/app/cloud.tsx`,
+  `connect.tsx`, `lib/start.ts`); uitnodigen kan alleen met een **link** (Admin → Gebruikers →
+  Uitnodigen, 7 dagen, één keer). Nog uitzoeken: waar de eigenaar het adres moest invullen, automatisch
+  openen bij één server, en een korte uitnodigingscode (naast de link) die in de app ingevuld kan worden.
 
-- **Andere ondertiteltaal kiezen: ondertitel blijft stilstaan** (website-speler). Twee oorzaken:
-  1. Bug in `frontend/src/components/SubtitleOverlay.tsx`: bij een nieuwe track begint `lastKey` op
-     `''`. De nieuwe track heeft nog geen cues, dus de sleutel is ook `''` en de oude regel wordt nooit
-     weggehaald: de laatste zin van de vorige taal blijft staan. Fix: bij het wisselen van track
-     `setLines([])` (of `lastKey` op een waarde die nooit voorkomt). Test toevoegen.
-  2. Ingebouwde ondertitels (`EmbeddedSubtitleExtractor` in `backend/src/services/subtitles.ts`)
-     worden pas bij het kiezen uitgepakt, en FFmpeg leest daarvoor het **hele** bestand. Op een NAS
-     met een trage CPU duurt dat minuten (en na 10 minuten wordt het afgebroken), terwijl de film
-     ook nog van dezelfde schijf moet streamen. Verbetering:
-     - alle tekstondertitels van een bestand in **één** leesronde uitpakken (één keer lezen voor alle talen);
-     - dat vooraf op de achtergrond doen (lage prioriteit, na de scan of bij de start van het afspelen);
-     - in de speler "Ondertitel laden…" tonen, en een melding als het mislukt.
+- **Ingebouwde ondertitels sneller uitpakken** (`EmbeddedSubtitleExtractor` in
+  `backend/src/services/subtitles.ts`). Ze worden pas bij het kiezen uitgepakt, en FFmpeg leest
+  daarvoor het **hele** bestand. Op een NAS met een trage CPU duurt dat minuten (en na 10 minuten
+  wordt het afgebroken), terwijl de film ook nog van dezelfde schijf moet streamen. Verbetering:
+  - alle tekstondertitels van een bestand in **één** leesronde uitpakken (één keer lezen voor alle talen);
+  - dat vooraf op de achtergrond doen (lage prioriteit, na de scan of bij de start van het afspelen);
+  - in de speler "Ondertitel laden…" tonen, en een melding als het mislukt.
 - **HLS en ondertitels**: gecontroleerd, geen fout gevonden. Ondertitels zijn losse WebVTT-bestanden;
   de HLS-tijdlijn (`-copyts -start_at_zero`) en de uitgepakte ondertitels beginnen allebei bij het
   begin van het bestand, en de live stream verschuift de ondertitels met `?offset=`.
   Later (bij HLS in de app en op de Chromecast): ondertitels ook in de HLS-playlist opnemen.
 
-- **Verversen verdelen over dag en nacht** (tijdvenster in te stellen, bijvoorbeeld 02:00–06:00):
-  - **Overdag:** gewoon de metadata verversen van wat op de server van de beheerder staat (films, series
-    en afleveringen in de bibliotheken), zoals nu.
+- **Verversen verdelen over dag en nacht** (nog te bouwen: het nachtelijke venster; tijdvenster in te stellen, bijvoorbeeld 02:00–06:00):
+  - **'s Nachts, binnen het venster:** de grote verversingsronde van alle metadata (bibliotheek én
+    catalogus- en Seerr-rijen), plus het zware achtergrondwerk (zie hieronder).
+  - **Overdag, bij aanklikken (besluit van de eigenaar; gebouwd in 0.19.7, zie hierboven):** opent iemand een film of serie
+    (detailpagina op de website of in de app), dan wordt de nieuwste metadata van díe titel
+    opgehaald, in de bibliotheek of niet, zodat de kijker altijd verse gegevens ziet. Overdag geen
+    grote ronde. Uitwerking:
+    - de pagina opent meteen met wat er al is; verversen gebeurt op de achtergrond en de pagina
+      werkt zichzelf bij als er nieuwe gegevens zijn;
+    - drempel van **1 uur** (goedgekeurd door de eigenaar): wie de titel binnen een uur na de laatste
+      verversing opent, krijgt dezelfde (opgeslagen) gegevens zonder nieuw TMDB-verzoek; opent iemand
+      hem na dat uur, dan wordt bij TMDB gekeken of er nieuwe gegevens zijn. Gelijktijdige verzoeken
+      voor dezelfde titel samenvoegen tot één;
+    - bij een serie ook de seizoenen en afleveringen (die op de server staan);
+    - binnen de TMDB-limiet; mislukt het (TMDB plat, geen sleutel), dan blijven de oude gegevens staan;
   - **Altijd, direct:** gewone updates na een wijziging, zoals een nieuwe serie, film of aflevering
     die is binnengehaald (bijvoorbeeld via Seerr), of een vervangen bestand. Die worden meteen
     toegevoegd en herkend, ook binnen het nachtelijke venster en overdag.
-  - **'s Nachts, binnen het venster:** de rest. Dat is de metadata van titels die niet op de server staan
-    (catalogus- en Seerr-rijen) en het zware achtergrondwerk: intro-, recap- en aftitelingdetectie,
-    ondertitels vooraf uitpakken, analyses en opruimen.
+  - **Zwaar achtergrondwerk, ook 's nachts:** intro-, recap- en aftitelingdetectie, ondertitels
+    vooraf uitpakken, analyses en opruimen.
   - Rustig uitvoeren (lage prioriteit, TMDB-limiet), stoppen aan het einde van het venster en de
     volgende nacht verder waar hij was. Handmatig starten kan altijd.
   - Past bij het onderhoudsvenster van punt 3 hieronder (prestaties).

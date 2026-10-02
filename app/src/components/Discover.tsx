@@ -5,10 +5,27 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Artwork, useWide } from './media';
 import { Heading } from './ui';
 import { errorMessage } from '../lib/connection';
-import { DISCOVER_ROWS, discoverPath, discoverTarget, mergePages, type DiscoverPage, type DiscoverRow, type SeerrResult } from '../lib/discover';
+import { catalogOnly, DISCOVER_ROWS, discoverPath, discoverTarget, mergePages, type DiscoverPage, type DiscoverRow, type SeerrResult } from '../lib/discover';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 import type { ShowDetail } from '../lib/types';
+
+/**
+ * Titles from Seerr for a search, when Seerr is set up: only what is not here (the library has
+ * results of its own). Nothing is asked of Seerr without it.
+ */
+export function useCatalogSearch(query: string | null) {
+  const { api, serverUrl } = useSession();
+  const status = useQuery({ queryKey: [serverUrl, 'seerr'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
+  const q = useQuery({
+    queryKey: [serverUrl, 'seerr', 'search', query],
+    queryFn: ({ signal }) => api.get<{ results?: SeerrResult[] }>(`/api/seerr/search?q=${encodeURIComponent(query!)}`, { signal }),
+    enabled: !!query && !!status.data?.enabled,
+    staleTime: 60_000,
+    retry: false,
+  });
+  return { results: query ? catalogOnly(q.data?.results) : [], isFetching: q.isFetching };
+}
 
 /** Opens a title from the catalog: plays what is here, otherwise its request page. */
 export function useOpenDiscover() {

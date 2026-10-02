@@ -8,3 +8,9 @@ export interface Trailer {
 export function trailerUrl(trailer: Trailer): string | null {
   return /^[\w-]{6,20}$/.test(trailer.key) ? `https://www.youtube.com/watch?v=${trailer.key}` : null;
 }
+
+/** Where the server gives the trailer: an item in the library by its id, any other title by its TMDB id. */
+export function trailerPath(type: 'movie' | 'show', id: number | string, outsideLibrary = false): string {
+  if (outsideLibrary) return `/api/seerr/${type === 'movie' ? 'movie' : 'tv'}/${id}/trailer`;
+  return `/api/${type === 'movie' ? 'movies' : 'shows'}/${id}/trailer`;
+}

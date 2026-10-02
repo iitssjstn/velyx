@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { DiscoverCard, useCatalogSearch } from '../../components/Discover';
 import { Artwork, PosterCard } from '../../components/media';
 import { ErrorState, Heading, ProgressLine, styles } from '../../components/ui';
 import { useDebounced } from '../../components/useDebounced';
@@ -13,7 +14,10 @@ import { useSession } from '../../lib/session';
 import { colors, radius } from '../../lib/theme';
 import type { SearchResults } from '../../lib/types';
 
-/** Searches movies, shows and episodes on the server while typing (after a short pause). */
+/**
+ * Searches movies, shows and episodes on the server while typing (after a short pause), and with
+ * Seerr set up also the titles that are not in the library (they open their page, to request them).
+ */
 export default function Search() {
   const { api, t, serverUrl } = useSession();
   const [text, setText] = useState('');
@@ -26,8 +30,10 @@ export default function Search() {
     placeholderData: keepPreviousData,
     staleTime: 60_000,
   });
+  // With Seerr set up, also what is not in the library (below the library's own results).
+  const catalog = useCatalogSearch(query);
   const r = query ? q.data : undefined;
-  const empty = r && !r.movies.length && !r.shows.length && !r.episodes.length;
+  const empty = r && !r.movies.length && !r.shows.length && !r.episodes.length && !catalog.results.length && !catalog.isFetching;
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <View style={{ padding: 16, paddingBottom: 8 }}>
@@ -44,7 +50,7 @@ export default function Search() {
             returnKeyType="search"
             style={{ flex: 1, color: colors.ink, fontSize: 16 }}
           />
-          {q.isFetching && query ? <ActivityIndicator size="small" color={colors.accent} /> : null}
+          {(q.isFetching || catalog.isFetching) && query ? <ActivityIndicator size="small" color={colors.accent} /> : null}
           {text ? (
             <Pressable accessibilityRole="button" accessibilityLabel={t('search.clear')} hitSlop={10} onPress={() => setText('')}>
               <Feather name="x" size={18} color={colors.muted} />
@@ -90,6 +96,20 @@ export default function Search() {
                   </View>
                 </Pressable>
               ))}
+            </View>
+          )}
+          {catalog.results.length > 0 && (
+            <View style={{ marginTop: 20 }}>
+              <Heading>{t('search.catalog')}</Heading>
+              <FlatList
+                horizontal
+                data={catalog.results}
+                keyExtractor={(c) => `${c.mediaType}-${c.tmdbId}`}
+                renderItem={({ item }) => <DiscoverCard item={item} width={120} onPress={() => router.push(`/request/${item.mediaType}/${item.tmdbId}`)} />}
+                contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+                showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              />
             </View>
           )}
         </ScrollView>
