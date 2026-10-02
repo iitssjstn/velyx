@@ -34,7 +34,21 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Volgende versie
 
-Nog niet gekozen. De eigenaar bepaalt welke punten uit "Gemeld tijdens het testen" erin komen.
+### 0.19.7: verse metadata bij aanklikken + trailers buiten de bibliotheek (gebouwd op de branch)
+De eigenaar koos: alleen dit punt. Klaar op de branch, nog niet gemerged:
+- **Verse metadata bij openen** (website, app.vidalune.com en de Android-app): de detailpagina opent
+  meteen met wat er is en vraagt daarna `POST /api/movies/:id/refresh` of `/api/shows/:id/refresh`.
+  De server (`backend/src/services/fresh-metadata.ts`, `FRESH_FOR_MS` = 1 uur) haalt de titel opnieuw
+  bij TMDB als `metadataUpdatedAt` ouder is dan een uur (serie: ook seizoenen en afleveringen op de
+  server). Antwoorden: `fresh` / `refreshed` / `pending` (na 8 s nog bezig; de pagina vraagt nog een
+  paar keer) / `skipped` (geen sleutel, geen match, of TMDB faalde het afgelopen uur: oude gegevens
+  blijven staan). Gelijktijdige verzoeken delen één verversing.
+- **Trailers bij titels buiten de bibliotheek** (gemeld door de eigenaar): `GET /api/seerr/:type/:id/trailer`,
+  via TMDB of zonder TMDB-sleutel via Seerr (`relatedVideos`); trailer-knop op de Seerr-titelpagina's
+  (website en app). Trailers worden nu een uur bewaard (was een dag), `backend/src/services/trailers.ts`.
+- Titels buiten de bibliotheek komen bij elk openen al rechtstreeks van Seerr (geen eigen cache).
+- Let op: TMDB-verzoeken staan in één rij; tijdens een grote scan of verversing wacht een klik-verversing
+  achter die rij (dan "pending"). Bij het nachtelijke venster eventueel klik-verzoeken voorrang geven.
 
 ## Gemeld tijdens het testen
 
@@ -50,10 +64,10 @@ Nog niet gekozen. De eigenaar bepaalt welke punten uit "Gemeld tijdens het teste
   begin van het bestand, en de live stream verschuift de ondertitels met `?offset=`.
   Later (bij HLS in de app en op de Chromecast): ondertitels ook in de HLS-playlist opnemen.
 
-- **Verversen verdelen over dag en nacht** (tijdvenster in te stellen, bijvoorbeeld 02:00–06:00):
+- **Verversen verdelen over dag en nacht** (nog te bouwen: het nachtelijke venster; tijdvenster in te stellen, bijvoorbeeld 02:00–06:00):
   - **'s Nachts, binnen het venster:** de grote verversingsronde van alle metadata (bibliotheek én
     catalogus- en Seerr-rijen), plus het zware achtergrondwerk (zie hieronder).
-  - **Overdag, bij aanklikken (besluit van de eigenaar):** opent iemand een film of serie
+  - **Overdag, bij aanklikken (besluit van de eigenaar; gebouwd in 0.19.7, zie hierboven):** opent iemand een film of serie
     (detailpagina op de website of in de app), dan wordt de nieuwste metadata van díe titel
     opgehaald, in de bibliotheek of niet, zodat de kijker altijd verse gegevens ziet. Overdag geen
     grote ronde. Uitwerking:
@@ -65,8 +79,6 @@ Nog niet gekozen. De eigenaar bepaalt welke punten uit "Gemeld tijdens het teste
       voor dezelfde titel samenvoegen tot één;
     - bij een serie ook de seizoenen en afleveringen (die op de server staan);
     - binnen de TMDB-limiet; mislukt het (TMDB plat, geen sleutel), dan blijven de oude gegevens staan;
-    - aanknopingspunt in de code: `matchMovie(id, force)` / `matchShow` en `refreshShowSeasons` in
-      `backend/src/services/metadata.ts`.
   - **Altijd, direct:** gewone updates na een wijziging, zoals een nieuwe serie, film of aflevering
     die is binnengehaald (bijvoorbeeld via Seerr), of een vervangen bestand. Die worden meteen
     toegevoegd en herkend, ook binnen het nachtelijke venster en overdag.

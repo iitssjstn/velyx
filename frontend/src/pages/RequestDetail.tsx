@@ -10,6 +10,7 @@ import { DiscoverCard, StateBadge, useOpenLocal, type MyRequest, type RequestSta
 import { CastRow } from '../components/People';
 import { ConfirmModal } from '../components/Modal';
 import { Shelf } from '../components/Shelf';
+import { TrailerButton } from '../components/TrailerButton';
 import { DetailSkeleton, ErrorState } from '../components/States';
 import { Button } from '../components/Button';
 import { toast } from '../components/Toast';
@@ -130,6 +131,7 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
               {d.mediaType === 'movie' ? t('requests.request') : chosen === null ? t('requests.requestAll') : t('requests.requestSeasons', { count: picked.length })}
             </button>
           )}
+          <TrailerButton type={d.mediaType === 'movie' ? 'movie' : 'show'} id={d.tmdbId} title={d.title} outsideLibrary />
           {canReset && (
             <Button variant="ghost" icon={<RotateCcw className="size-4" />} onClick={() => setConfirmReset(true)}>
               {t('requests.page.reset')}

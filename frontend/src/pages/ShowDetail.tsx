@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Check, Eye, Play, RotateCcw, Star } from 'lucide-react';
 import { episodeHeading, episodePlayHref, episodeState, seasonName, seriesContinue, showStatus } from '../lib/series';
 import { api } from '../lib/api';
+import { useFreshMetadata } from '../lib/fresh-metadata';
 import { useAuth } from '../lib/auth';
 import { formatDate, formatRuntime, resolutionLabel } from '../lib/format';
 import type { EpisodeSummary, SeasonDetail, ShowDetail } from '../lib/types';
@@ -88,6 +89,7 @@ function ShowScreen({ id }: { id: number }) {
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const q = useQuery({ queryKey: ['show', id], queryFn: () => api.get<ShowDetail>(`/api/shows/${id}`) });
+  useFreshMetadata('show', id);
   const seasons = q.data?.seasons ?? [];
   const defaultSeason = q.data?.upNext && seasons.some((s) => s.seasonNumber === q.data!.upNext!.seasonNumber) ? q.data.upNext.seasonNumber : (seasons.find((s) => s.seasonNumber > 0)?.seasonNumber ?? seasons[0]?.seasonNumber);
   const seasonParam = params.get('season');

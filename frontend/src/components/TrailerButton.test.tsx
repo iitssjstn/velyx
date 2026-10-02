@@ -1,11 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { TrailerButton } from './TrailerButton';
+import { TrailerButton, trailerPath } from './TrailerButton';
 
 afterEach(() => vi.unstubAllGlobals());
 
-function show(answer: unknown) {
+function show(answer: unknown, outsideLibrary = false) {
   const urls: string[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     urls.push(url);
@@ -13,7 +13,7 @@ function show(answer: unknown) {
   }));
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <TrailerButton type="movie" id={5} title="The Matrix" />
+      <TrailerButton type="movie" id={5} title="The Matrix" outsideLibrary={outsideLibrary} />
     </QueryClientProvider>,
   );
   return urls;
@@ -35,5 +35,13 @@ describe('TrailerButton', () => {
     const urls = show({ trailer: null });
     await vi.waitFor(() => expect(urls).toHaveLength(1));
     expect(screen.queryByRole('button', { name: 'Trailer' })).toBeNull();
+  });
+
+  it('asks for the trailer of a title outside the library by its TMDB id', async () => {
+    const urls = show({ trailer: { key: 'vKQi3bBA1y8', name: 'Official Trailer' } }, true);
+    await screen.findByRole('button', { name: 'Trailer' });
+    expect(urls).toEqual(['/api/seerr/movie/5/trailer']);
+    expect(trailerPath('show', 1399, true)).toBe('/api/seerr/tv/1399/trailer');
+    expect(trailerPath('show', 7)).toBe('/api/shows/7/trailer');
   });
 });

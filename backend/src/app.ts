@@ -19,6 +19,8 @@ import { workerFingerprintRunner, workerSeasonRunner } from './services/segments
 import { APP_VERSION } from './version.js';
 import { ImageCache } from './services/images.js';
 import { MetadataService } from './services/metadata.js';
+import { FreshMetadata } from './services/fresh-metadata.js';
+import { TrailerLookup } from './services/trailers.js';
 import { LibraryScanner } from './services/scanner.js';
 import { ScanManager } from './services/scan-manager.js';
 import { LibraryWatcher } from './services/watcher.js';
@@ -76,6 +78,10 @@ export interface AppContext {
   tmdb: TmdbClient;
   images: ImageCache;
   metadata: MetadataService;
+  /** Fresh metadata for a movie or show when its page is opened (at most once an hour). */
+  freshMetadata: FreshMetadata;
+  /** Trailers for detail pages, kept an hour. */
+  trailers: TrailerLookup;
   scanner: LibraryScanner;
   scans: ScanManager;
   watcher: LibraryWatcher;
@@ -227,7 +233,8 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   // Subtitles come through vidalune.com. A key this server kept from before 0.18.1 is no longer used: forgotten.
   for (const k of ['openSubtitlesApiKey', 'openSubtitlesUsername', 'openSubtitlesPassword'] as const) if (settings.get()[k]) settings.delete(k);
   const openSubtitles = new OpenSubtitlesClient({ vidalune: cloud });
-  return { config, db, settings, sessions, tmdb, images, metadata, scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr: new SeerrService({ settings, fetchImpl: opts.fetchImpl }), transcoding, hls: new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls')), startedAt: Date.now() };
+  const seerr = new SeerrService({ settings, fetchImpl: opts.fetchImpl });
+  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr, transcoding, hls: new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls')), startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

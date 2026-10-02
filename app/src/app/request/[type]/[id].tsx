@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DiscoverCard, useOpenDiscover } from '../../../components/Discover';
 import { Artwork } from '../../../components/media';
+import { TrailerButton } from '../../../components/TrailerButton';
 import { DetailSkeleton } from '../../../components/Skeleton';
 import { Button, ErrorState, styles } from '../../../components/ui';
 import { errorMessage } from '../../../lib/connection';
@@ -57,7 +58,10 @@ export default function RequestScreen() {
         </View>
       </View>
       {d.overview ? <Text style={styles.body}>{d.overview}</Text> : null}
-      {d.local && <Button label={t('player.play')} busy={busy} onPress={() => void open(d)} />}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        {d.local && <Button label={t('player.play')} busy={busy} onPress={() => void open(d)} />}
+        <TrailerButton type={d.mediaType === 'movie' ? 'movie' : 'show'} id={d.tmdbId} outsideLibrary />
+      </View>
       {requestable && d.mediaType === 'tv' && d.seasons.length > 0 && (
         <View style={{ gap: 4 }}>
           <Text style={styles.label}>{t('request.seasons')}</Text>

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Check, Eye, Play, RotateCcw, Star } from 'lucide-react';
 import { api } from '../lib/api';
+import { useFreshMetadata } from '../lib/fresh-metadata';
 import { useAuth } from '../lib/auth';
 import { formatClock, formatDate, formatRuntime, progressFraction } from '../lib/format';
 import { qualityLabel } from '../lib/media-details';
@@ -34,6 +35,7 @@ function MovieScreen({ id }: { id: number }) {
   const { t } = useT();
   const [fileIdx, setFileIdx] = useState(0);
   const q = useQuery({ queryKey: ['movie', id], queryFn: () => api.get<MovieDetail>(`/api/movies/${id}`) });
+  useFreshMetadata('movie', id, (newId) => navigate(`/movies/${newId}`, { replace: true }));
   const watched = useMutation({
     mutationFn: (value: boolean) => api.post('/api/progress/watched', { movieId: id, watched: value }),
     onSuccess: () => {

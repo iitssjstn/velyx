@@ -1,7 +1,7 @@
 import { HttpError } from '../http-error.js';
 import { createLogger } from '../logger.js';
 import type { SettingsService } from './settings.js';
-import type { FetchLike } from './tmdb.js';
+import { pickTrailer, type FetchLike, type TmdbTrailer } from './tmdb.js';
 
 const log = createLogger('seerr');
 const TIMEOUT_MS = 8000;
@@ -211,6 +211,14 @@ export class SeerrService {
       releaseDate: str(x.releaseDate) ?? str(x.firstAirDate),
       cast: credits.slice(0, 20).map((c) => ({ id: Number(c.id), name: String(c.name ?? ''), character: str(c.character), profilePath: str(c.profilePath) })).filter((c) => c.name),
     };
+  }
+
+  /** The title's trailer from the videos Seerr lists for it (YouTube only, a trailer before a teaser). */
+  async trailer(mediaType: 'movie' | 'tv', tmdbId: number): Promise<TmdbTrailer | null> {
+    const x = await this.call<{ relatedVideos?: Array<{ key?: unknown; name?: unknown; site?: unknown; type?: unknown; size?: unknown }> }>('GET', `/${mediaType}/${tmdbId}`);
+    const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
+    const videos = Array.isArray(x.relatedVideos) ? x.relatedVideos : [];
+    return pickTrailer(videos.map((v) => ({ key: str(v.key), name: str(v.name), site: str(v.site), type: str(v.type), size: typeof v.size === 'number' ? v.size : undefined })), 'en');
   }
 
   /** Titles like this one (TMDB's recommendations, through Seerr). */
