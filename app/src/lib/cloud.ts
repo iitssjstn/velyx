@@ -119,6 +119,18 @@ export function serverAddresses(s: CloudServer): string[] {
   return [s.url, s.relayUrl].filter((u): u is string => !!u);
 }
 
+/**
+ * The server the app opens by itself after signing in with the Vidalune account: the one opened last
+ * (signed out by the server, back in at once), otherwise the only server there is, when it is online
+ * and has an address. Several servers and none opened before: null (the person chooses).
+ */
+export function autoOpenServer(list: CloudServer[], lastId: string | null): CloudServer | null {
+  const usable = list.filter((s) => serverAddresses(s).length > 0);
+  const last = lastId ? usable.find((s) => s.id === lastId) : undefined;
+  if (last) return last;
+  return list.length === 1 && usable.length === 1 && usable[0]!.online ? usable[0]! : null;
+}
+
 /** Online servers with an address first, then the rest, each by name. */
 export function sortServers(list: CloudServer[]): CloudServer[] {
   const rank = (s: CloudServer) => (serverAddresses(s).length ? 0 : 2) + (s.online ? 0 : 1);

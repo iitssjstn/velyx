@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import { Button, Field, styles } from '../components/ui';
 import { Logo } from '../components/Logo';
-import { CLOUD_ACCOUNT_KEY, CloudError, createCloud, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudAccount, type CloudServer } from '../lib/cloud';
+import { autoOpenServer, CLOUD_ACCOUNT_KEY, CloudError, createCloud, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudAccount, type CloudServer } from '../lib/cloud';
 import { findServer, SERVER_PROBLEMS, ServerError } from '../lib/server';
 import { USER_AGENT, useSession } from '../lib/session';
 import { colors } from '../lib/theme';
@@ -117,13 +117,17 @@ export default function CloudAccountScreen() {
     setBusy(null);
   };
 
-  // Signed out by the server (a session ended) while it was opened with this account: straight back in.
+  // Straight to the server after signing in: the one opened last (also when the server ended the
+  // session), or the only one there is. Not after "Sign out" or "Switch server" (?choose=1): then the
+  // person picks from the list. When opening fails, the list stays with the reason.
+  const [opening, setOpening] = useState<CloudServer | null>(null);
   useEffect(() => {
-    if (autoOpened.current || choose || signedIn || !cloudServerId || !servers) return;
-    const s = servers.find((x) => x.id === cloudServerId);
+    if (autoOpened.current || choose || signedIn || !servers) return;
+    const s = autoOpenServer(servers, cloudServerId);
     if (!s) return;
     autoOpened.current = true;
-    void open(s);
+    setOpening(s);
+    void open(s).finally(() => setOpening(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [servers, cloudServerId, signedIn, choose]);
 
@@ -140,6 +144,7 @@ export default function CloudAccountScreen() {
           {account === undefined ? null : account ? (
             <>
               <Text style={styles.title} accessibilityRole="header">{t('cloud.servers')}</Text>
+              {opening && <Text style={styles.muted} accessibilityLiveRegion="polite">{t('cloud.opening', { name: opening.name })}</Text>}
               {servers && servers.length === 0 && <Text style={styles.muted}>{t('cloud.none', { email: account.email })}</Text>}
               {servers?.map((s) => (
                 <Pressable
@@ -157,8 +162,8 @@ export default function CloudAccountScreen() {
                 </Pressable>
               ))}
               {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
-              <Button label={t('cloud.byAddress')} variant="ghost" onPress={() => router.replace('/connect')} />
               <Button label={t('cloud.signOut', { email: account.email })} variant="ghost" onPress={() => void signOut()} />
+              <AddressLink label={t('cloud.byAddress')} />
             </>
           ) : (
             <>
@@ -171,11 +176,20 @@ export default function CloudAccountScreen() {
               {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
               <Button label={mode === 'up' ? t('cloud.signUp') : t('cloud.signIn')} onPress={() => void submit()} busy={busy === 'account'} disabled={!email.trim() || !password} />
               <Button label={mode === 'up' ? t('cloud.toSignIn') : t('cloud.toSignUp')} variant="ghost" onPress={() => { setMode(mode === 'up' ? 'in' : 'up'); setError(null); }} />
-              <Button label={t('cloud.byAddress')} variant="ghost" onPress={() => router.replace('/connect')} />
+              <AddressLink label={t('cloud.byAddress')} />
             </>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+/** Entering a server's address yourself: for those who know it; small, so nobody takes it for the way in. */
+function AddressLink({ label }: { label: string }) {
+  return (
+    <Pressable accessibilityRole="link" onPress={() => router.replace('/connect')} hitSlop={8} style={({ pressed }) => ({ alignSelf: 'center', paddingVertical: 8, opacity: pressed ? 0.6 : 1 })}>
+      <Text style={[styles.muted, { fontSize: 13, textDecorationLine: 'underline' }]}>{label}</Text>
+    </Pressable>
   );
 }
