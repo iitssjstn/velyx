@@ -61,6 +61,24 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
     volgende nacht verder waar hij was. Handmatig starten kan altijd.
   - Past bij het onderhoudsvenster van punt 3 hieronder (prestaties).
 
+- **SEO van vidalune.com moet echt heel goed** (Vidalune moet op Google te vinden zijn). Nu heeft de
+  site alleen een `<title>`, een meta-description op de homepage en een taalknop. Ontbreekt nog:
+  - `robots.txt` en `sitemap.xml` (homepage, installeren, Android-app, en elke taal);
+  - per pagina een unieke titel en description, `<link rel="canonical">`;
+  - talen voor Google: `hreflang`-links in de `<head>` (en/nl + `x-default`), liefst eigen adressen
+    per taal (bijvoorbeeld `/nl/`) in plaats van alleen `?lang=`;
+  - Open Graph en Twitter-kaarten (titel, beschrijving, afbeelding) voor mooie links in Discord en
+    sociale media;
+  - gestructureerde data (JSON-LD `SoftwareApplication` + `Organization`), met versie,
+    besturingssystemen en prijs;
+  - snelle laadtijd en goede Core Web Vitals (afbeeldingen met maten, geen blokkerende scripts);
+  - goede koppen (één `h1`) en alt-teksten; meer inhoud: pagina's per functie, FAQ en handleidingen
+    (zoekwoorden als "eigen mediaserver", "films en series zelf hosten", "media server NAS");
+  - account-, admin- en app.vidalune.com-pagina's en relay-adressen uitsluiten van indexering
+    (`noindex`), zodat alleen de website zelf in Google komt;
+  - na livegang: vidalune.com aanmelden bij Google Search Console met de sitemap (moet de eigenaar doen).
+  - Regel blijft: geen andere mediaservers of streamingdiensten noemen in de teksten.
+
 ## Later (in deze volgorde, tenzij de eigenaar anders zegt)
 
 1. **TMDB via vidalune.com, met terugval**
