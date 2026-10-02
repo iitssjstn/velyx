@@ -17,6 +17,13 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   - een melding tonen als de lijst toch niet opent (`showCastDialog()` geeft `false`);
   - testen op een telefoon.
 
+## Gemeld tijdens het testen
+
+- **Lange lijst ondertitels op de detailpagina** (website, blok "Media" in `MovieDetail.tsx`):
+  elke ondertitel staat op een eigen regel, waardoor een film met veel talen een heel lange lijst
+  geeft. Idee: compact tonen (talen als chips of één regel, met "+N meer" om uit te klappen) en
+  dubbele talen (bijvoorbeeld gewoon en SDH) samenvoegen.
+
 ## Later (in deze volgorde, tenzij de eigenaar anders zegt)
 
 1. **TMDB via vidalune.com, met terugval**
