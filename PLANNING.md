@@ -3,6 +3,28 @@
 Werklijst van de eigenaar. Er wordt alleen iets gebouwd als de eigenaar het zegt.
 Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
+## Stand van zaken
+
+- Laatste release: **0.19.5** (PR #81, castknop altijd zichtbaar; door de eigenaar zelf gemerged).
+- De eigenaar test nu een paar dagen en meldt alles wat hij tegenkomt; dat komt hieronder.
+- De volgende update wordt **één grote update** met alles wat hieronder staat en is goedgekeurd.
+- Hardware van de eigenaar: AMD Athlon II X2 260 (2 cores), media op een NAS, Docker (Debian 12,
+  ffmpeg 5.1). Altijd testen met een film van volledige lengte op trage hardware, niet met korte clips.
+
+## Werkafspraken
+
+- Alleen bouwen als de eigenaar het zegt. Eén PR per versie.
+- De eigenaar merget zelf als alles groen is; geen updates sturen tenzij gevraagd.
+- **Nooit links naar de chat/sessie** in pull requests, PR-teksten of commitberichten.
+- Na een merge: controleren dat release `v<versie>` de APK en beide `.deb`-bestanden (amd64 en arm64) heeft.
+- Bij een nieuwe versie: `app/app.json` (version + versionCode), alle `package.json`'s, de versies in
+  `backend/test/auth.test.ts` en `backend/test/authorization.test.ts`, en de lockfiles bijwerken.
+- Zod-validatie en autorisatie op elk endpoint, Drizzle-migraties, tests voor alles (nooit tests weghalen).
+- README beschrijft alleen wat bestaat. Geen andere mediaservers of streamingdiensten noemen in
+  projectteksten (Seerr mag). Geen AI-functies. Externe diensten zijn opt-in.
+- OpenSubtitles-gegevens alleen via het Control Center, nooit in compose. De apt-ondertekeningssleutel
+  nooit in de chat.
+
 ## Volgende versie
 
 ### 0.19.6: de castknop opent de Chromecast-lijst weer
@@ -78,6 +100,13 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
     (`noindex`), zodat alleen de website zelf in Google komt;
   - na livegang: vidalune.com aanmelden bij Google Search Console met de sitemap (moet de eigenaar doen).
   - Regel blijft: geen andere mediaservers of streamingdiensten noemen in de teksten.
+
+## Ideeën (nog niet besloten)
+
+- **Ondertitels als plaatjes** (PGS van Blu-ray, VobSub van dvd): nu niet getoond. Mogelijk: inbranden
+  in het beeld tijdens het omzetten (transcoding), of omzetten naar tekst.
+- **Community**: vaste Discord-kanalen voor bugs, wensen en aankondigingen; bij elke grote update een
+  korte post met screenshots (ook op Reddit). Meldingen van gebruikers komen in deze planning.
 
 ## Later (in deze volgorde, tenzij de eigenaar anders zegt)
 
