@@ -1,6 +1,8 @@
 import type { Messages } from '../index';
 export const mediaInfo: Messages['mediaInfo'] = {
   noAudio: 'Geen audiosporen.',
+  showMore: '+{count} meer',
+  showLess: 'Minder tonen',
   noSubtitles: 'Geen ondertitels.',
   technical: 'Technisch',
   videoFormat: 'Videoformaat',

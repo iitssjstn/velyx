@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { MediaFileInfo, Replacement } from '../lib/types';
 import { codecName, formatBytes, formatClock, formatRelative, resolutionLabel, snapshotLabel } from '../lib/format';
 import { audioLines, subtitleLines, technicalSummary, type DetailLine } from '../lib/media-details';
@@ -38,6 +38,44 @@ function Lines({ lines, empty }: { lines: DetailLine[]; empty: string }) {
   );
 }
 
+/** Subtitles shown before "+N more": a film with many languages stays a short block. */
+export const SUBTITLES_SHOWN = 8;
+
+/**
+ * Subtitles as compact chips, one per language (several of the same language, such as a normal
+ * and an SDH one, count up on one chip); the details are in each chip's tooltip.
+ */
+function SubtitleChips({ lines, empty }: { lines: DetailLine[]; empty: string }) {
+  const { t } = useT();
+  const [all, setAll] = useState(false);
+  if (!lines.length) return <p className="text-sm text-muted">{empty}</p>;
+  const groups: { label: string; notes: string[] }[] = [];
+  for (const l of lines) {
+    const g = groups.find((x) => x.label === l.label);
+    if (g) g.notes.push(l.note ?? '');
+    else groups.push({ label: l.label, notes: [l.note ?? ''] });
+  }
+  const shown = all ? groups : groups.slice(0, SUBTITLES_SHOWN);
+  const hidden = groups.length - shown.length;
+  return (
+    <ul className="flex flex-wrap gap-2 text-sm">
+      {shown.map((g) => (
+        <li key={g.label} title={g.notes.filter(Boolean).join('\n') || undefined} className="rounded-md border border-line px-2 py-0.5 text-ink/90">
+          {g.label}
+          {g.notes.length > 1 && <span className="ml-1 text-xs text-muted">×{g.notes.length}</span>}
+        </li>
+      ))}
+      {(hidden > 0 || all) && groups.length > SUBTITLES_SHOWN && (
+        <li>
+          <button type="button" className="rounded-md px-2 py-0.5 text-sm text-accent hover:underline" aria-expanded={all} onClick={() => setAll(!all)}>
+            {all ? t('mediaInfo.showLess') : t('mediaInfo.showMore', { count: hidden })}
+          </button>
+        </li>
+      )}
+    </ul>
+  );
+}
+
 /**
  * Audio, subtitles and technical details of a media file, from what the library scan stored
  * (opening a page never analyses the file again).
@@ -52,7 +90,7 @@ export function MediaInfo({ file, replacements = [] }: { file: MediaFileInfo; re
         <Lines lines={audioLines(file)} empty={t('mediaInfo.noAudio')} />
       </InfoSection>
       <InfoSection title={t('playback.subtitles')}>
-        <Lines lines={subtitleLines(file)} empty={t('mediaInfo.noSubtitles')} />
+        <SubtitleChips lines={subtitleLines(file)} empty={t('mediaInfo.noSubtitles')} />
       </InfoSection>
       <InfoSection title={t('mediaInfo.technical')} className="sm:col-span-2">
         {summary.length > 0 && (
