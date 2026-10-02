@@ -55,6 +55,11 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   en de volgende nacht verder waar hij was. Nu bestaat alleen handmatig verversen
   (`refreshMetadata` in `scanner.ts`/`scan-manager.ts`). Past bij het onderhoudsvenster van punt 3
   hieronder (prestaties): zwaar achtergrondwerk in hetzelfde venster.
+  - Alleen de metadata van wat **echt op de server staat** verversen (films, series en afleveringen
+    in de bibliotheken; geen catalogus- of Seerr-titels die er niet zijn).
+  - In hetzelfde venster ook **de rest** van het zware werk doen: intro/recap/aftiteling-detectie,
+    ondertitels vooraf uitpakken, analyses, opruimen enz. Overdag alleen wat direct nodig is
+    (nieuwe bestanden toevoegen en herkennen).
 
 ## Later (in deze volgorde, tenzij de eigenaar anders zegt)
 
