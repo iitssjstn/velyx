@@ -3,6 +3,7 @@ import { Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions 
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Toggle } from '../../components/actions';
+import { TrailerButton } from '../../components/TrailerButton';
 import { Artwork, useWide } from '../../components/media';
 import { Block, DetailSkeleton } from '../../components/Skeleton';
 import { savedRequest, watchedRequest } from '../../lib/lists';
@@ -40,9 +41,10 @@ export default function Show() {
       {s.watchedCount > 0 && <Text style={styles.muted}>{t('show.watched', { watched: s.watchedCount, total: s.episodeCount })}</Text>}
     </View>
   );
-  const continueButton = s.upNext && (
-    <View style={{ flexDirection: 'row' }}>
-      <Button label={t('show.continue', { code: episodeCode(s.upNext.seasonNumber, s.upNext.episodeNumber) })} onPress={() => router.push(`/play/episode/${s.upNext!.id}`)} />
+  const continueButton = (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+      {s.upNext && <Button label={t('show.continue', { code: episodeCode(s.upNext.seasonNumber, s.upNext.episodeNumber) })} onPress={() => router.push(`/play/episode/${s.upNext!.id}`)} />}
+      <TrailerButton type="show" id={s.id} />
     </View>
   );
   const toggles = (
