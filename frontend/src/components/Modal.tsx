@@ -63,6 +63,7 @@ export function ConfirmModal({
   confirmLabel,
   danger,
   loading,
+  confirmDisabled,
   onConfirm,
   onClose,
 }: {
@@ -72,6 +73,8 @@ export function ConfirmModal({
   confirmLabel: string;
   danger?: boolean;
   loading?: boolean;
+  /** The confirm button is off (for example until something is chosen). */
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -86,7 +89,7 @@ export function ConfirmModal({
         <button
           type="button"
           onClick={onConfirm}
-          disabled={loading}
+          disabled={loading || confirmDisabled}
           className={`h-10 rounded-lg px-4 font-semibold disabled:opacity-50 ${danger ? 'bg-danger text-bg' : 'bg-accent text-accent-ink'}`}
         >
           {confirmLabel}

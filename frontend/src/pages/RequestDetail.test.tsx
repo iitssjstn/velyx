@@ -66,21 +66,20 @@ describe('a title from Seerr on its own page', () => {
     expect(screen.getByText('8.4')).toBeTruthy();
     expect(screen.getByText('Sean Bean')).toBeTruthy();
     expect(await screen.findByText('Similar One')).toBeTruthy();
-    // Seasons already here or on their way cannot be picked again.
-    expect((screen.getByLabelText(/Season 1 ·/) as HTMLInputElement).disabled).toBe(true);
-    expect((screen.getByLabelText(/Season 2 ·/) as HTMLInputElement).disabled).toBe(true);
+    // The page lists the seasons and what was asked for before, without ticking anything.
     expect(screen.getByText('Being added')).toBeTruthy();
-    // Nothing is ticked beforehand: the Request button waits for a season.
-    expect((screen.getByLabelText(/Season 3 ·/) as HTMLInputElement).checked).toBe(false);
-    expect((screen.getByLabelText(/Season 4 ·/) as HTMLInputElement).checked).toBe(false);
-    expect((screen.getByRole('button', { name: 'Request' }) as HTMLButtonElement).disabled).toBe(true);
-    await userEvent.click(screen.getByLabelText(/Season 4 ·/));
-    await userEvent.click(screen.getByRole('button', { name: 'Request 1 season(s)' }));
-    // First a question; nothing is requested before the answer.
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    // The seasons are chosen in the question "Request" opens; nothing is ticked beforehand.
+    await userEvent.click(screen.getByRole('button', { name: 'Request' }));
     const dialog = screen.getByRole('dialog', { name: 'Request “A Show”?' });
-    expect(within(dialog).getByText('Seasons requested through Seerr: 4.')).toBeTruthy();
+    // Seasons already here or on their way cannot be picked again.
+    expect((within(dialog).getByLabelText(/Season 1 ·/) as HTMLInputElement).disabled).toBe(true);
+    expect((within(dialog).getByLabelText(/Season 2 ·/) as HTMLInputElement).disabled).toBe(true);
+    expect((within(dialog).getByLabelText(/Season 3 ·/) as HTMLInputElement).checked).toBe(false);
+    expect((within(dialog).getByRole('button', { name: 'Request' }) as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.click(within(dialog).getByLabelText(/Season 4 ·/));
     expect(calls.some((c) => c.call === 'POST /api/seerr/requests')).toBe(false);
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Request' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Request 1 season(s)' }));
     await vi.waitFor(() => expect(calls.find((c) => c.call === 'POST /api/seerr/requests')?.body).toEqual({ mediaType: 'tv', tmdbId: 1399, seasons: [4] }));
     // No reset for someone who is not an administrator.
     expect(screen.queryByRole('button', { name: 'Make requestable again' })).toBeNull();
@@ -95,18 +94,17 @@ describe('a title from Seerr on its own page', () => {
 
   it('ticks every open season at once, which requests the whole show', async () => {
     const calls = setup('/request/tv/1399', (method, url) => (url === '/api/seerr/tv/1399' ? show : method === 'POST' ? { id: 3, title: 'A Show', state: 'requested' } : {}));
-    await userEvent.click(await screen.findByRole('button', { name: 'All seasons' }));
-    expect((screen.getByLabelText(/Season 3 ·/) as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByLabelText(/Season 4 ·/) as HTMLInputElement).checked).toBe(true);
-    await userEvent.click(screen.getByRole('button', { name: 'Request all seasons' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Request' }));
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByText('All 2 seasons are requested through Seerr.')).toBeTruthy();
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Request' }));
-    await vi.waitFor(() => expect(calls.find((c) => c.call === 'POST /api/seerr/requests')?.body).toEqual({ mediaType: 'tv', tmdbId: 1399, seasons: null }));
     // "None" unticks them again.
-    await userEvent.click(screen.getByRole('button', { name: 'All seasons' }));
-    await userEvent.click(screen.getByRole('button', { name: 'None' }));
-    expect((screen.getByLabelText(/Season 3 ·/) as HTMLInputElement).checked).toBe(false);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'All seasons' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'None' }));
+    expect((within(dialog).getByLabelText(/Season 3 ·/) as HTMLInputElement).checked).toBe(false);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'All seasons' }));
+    expect((within(dialog).getByLabelText(/Season 3 ·/) as HTMLInputElement).checked).toBe(true);
+    expect((within(dialog).getByLabelText(/Season 4 ·/) as HTMLInputElement).checked).toBe(true);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Request all seasons' }));
+    await vi.waitFor(() => expect(calls.find((c) => c.call === 'POST /api/seerr/requests')?.body).toEqual({ mediaType: 'tv', tmdbId: 1399, seasons: null }));
   });
 
   it('requests a movie (a movie has no seasons to tick)', async () => {

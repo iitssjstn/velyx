@@ -52,9 +52,10 @@ describe('requests through Seerr', () => {
     await userEvent.click(screen.getByRole('button', { name: /A Show/ }));
     expect(await screen.findByRole('heading', { name: 'A Show' })).toBeTruthy();
     expect(await screen.findByText('Season 2 · 8 episodes')).toBeTruthy();
-    await userEvent.click(screen.getByLabelText('Season 2 · 8 episodes'));
-    await userEvent.click(screen.getByRole('button', { name: 'Request 1 season(s)' }));
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Request' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Request' }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByLabelText('Season 2 · 8 episodes'));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Request 1 season(s)' }));
     await vi.waitFor(() => expect(calls.find((c) => c.call === 'POST /api/seerr/requests')?.body).toEqual({ mediaType: 'tv', tmdbId: 1399, seasons: [2] }));
   });
 
