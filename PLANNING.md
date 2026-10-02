@@ -41,6 +41,12 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Klaar op de branch (komt mee in de volgende versie)
 
+- **Castknop in de app**: opent de Chromecast-lijst weer (onzichtbare native knop), met melding als
+  de lijst niet opent. Nog testen op een telefoon.
+- **Ondertitel wisselen**: de oude zin verdwijnt meteen. (Ingebouwde ondertitels sneller uitpakken
+  staat nog open, zie hieronder.)
+- **Compacte ondertitellijst** op de detailpagina: één label per taal, na 8 talen "+N meer".
+- **Trailer-knop** op film- en seriepagina's (website: YouTube zonder cookies na klik; app: opent YouTube).
 - **Discord-link op vidalune.com**: in het menu en onderaan elke pagina, plus vidalune.com/discord en
   discord.vidalune.com. De link is aan te passen of uit te zetten in het Control Center → Community.
   Voor discord.vidalune.com moet DNS naar de VPS wijzen (wildcard van de relay of een eigen record) en
