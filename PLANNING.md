@@ -53,7 +53,10 @@ Wens van de eigenaar (2 okt): de seizoenen in de popup. Niet zelf mergen zonder 
   bewaart de voortgang niet zelf; de speler op de telefoon/in de browser stuurt elke 10 s de positie van
   de tv door (`frontend/src/pages/Player.tsx`, `castSaved`; app: `save` in `app/src/app/play/[kind]/[id].tsx`).
   Dat stopt als de speler gesloten wordt, de telefoon op slot gaat of de app naar de achtergrond gaat,
-  of als het casten op de tv zelf wordt gestopt. Nog navragen: app of website, en wat de eigenaar deed.
+  of als het casten op de tv zelf wordt gestopt. Bij de eigenaar: gecast vanuit de **app**, die daarna
+  op de achtergrond stond (Android pauzeert dan de JavaScript-timers, dus er wordt niets doorgestuurd).
+  Voorstel: nu de snelle verbetering (bij terugkomen in de app en bij het einde van de cast-sessie de
+  positie van de tv ophalen en bewaren), echt opgelost met de eigen cast-speler.
   Oplossingen: snel = de app blijft op de achtergrond doorsturen en bewaart altijd de laatste positie bij
   het stoppen; goed = de eigen cast-speler (zie Ideeën) meldt zelf de voortgang aan de server.
 
