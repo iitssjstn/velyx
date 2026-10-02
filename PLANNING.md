@@ -51,6 +51,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - **Verversen verdelen over dag en nacht** (tijdvenster in te stellen, bijvoorbeeld 02:00–06:00):
   - **Overdag:** gewoon de metadata verversen van wat op de server van de beheerder staat (films, series
     en afleveringen in de bibliotheken), zoals nu.
+  - **Altijd, direct:** gewone updates na een wijziging, zoals een nieuwe serie, film of aflevering
+    die is binnengehaald (bijvoorbeeld via Seerr), of een vervangen bestand. Die worden meteen
+    toegevoegd en herkend, ook binnen het nachtelijke venster en overdag.
   - **'s Nachts, binnen het venster:** de rest. Dat is de metadata van titels die niet op de server staan
     (catalogus- en Seerr-rijen) en het zware achtergrondwerk: intro-, recap- en aftitelingdetectie,
     ondertitels vooraf uitpakken, analyses en opruimen.
