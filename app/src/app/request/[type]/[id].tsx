@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DiscoverCard, useOpenDiscover } from '../../../components/Discover';
@@ -22,10 +22,12 @@ export default function RequestScreen() {
   const similar = useQuery({ queryKey: [serverUrl, 'seerr', mediaType, id, 'similar'], queryFn: () => api.get<{ results?: SeerrResult[] }>(`/api/seerr/${mediaType}/${Number(id)}/recommendations`), enabled: q.isSuccess });
   // Nothing is ticked beforehand: the person picks the seasons they want (as in Seerr).
   const [chosen, setChosen] = useState<number[]>([]);
+  const [picking, setPicking] = useState(false);
   const { open, busy } = useOpenDiscover();
   const request = useMutation({
     mutationFn: () => api.post<{ title: string }>('/api/seerr/requests', { mediaType, tmdbId: Number(id), seasons: mediaType === 'tv' ? seasonsToRequest(chosen, q.data ? openSeasons(q.data) : []) : null }),
     onSuccess: (r) => {
+      setPicking(false);
       void qc.invalidateQueries({ queryKey: [serverUrl, 'discover'] });
       void qc.invalidateQueries({ queryKey: [serverUrl, 'seerr'] });
       Alert.alert('Vidalune', t('request.requested', { title: r.title }), [{ text: t('common.ok'), onPress: () => router.back() }]);
@@ -42,16 +44,18 @@ export default function RequestScreen() {
   const picked = chosen.filter((n) => all.includes(n));
   const allPicked = all.length > 0 && picked.length === all.length;
   const isShow = d.mediaType === 'tv' && d.seasons.length > 0;
-  // First a question; only "Request" sends it to Seerr.
-  const confirm = () =>
-    Alert.alert(
-      t('request.confirmTitle', { title: d.title }),
-      !isShow ? t('request.confirmMovie') : allPicked ? t('request.confirmAllSeasons', { n: all.length }) : t('request.confirmSeasons', { list: [...picked].sort((a, b) => a - b).join(', ') }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('request.request'), onPress: () => request.mutate() },
-      ],
-    );
+  // First a question; only "Request" there sends it to Seerr. A show's seasons are chosen in it.
+  const confirm = () => {
+    if (isShow) {
+      setChosen([]);
+      setPicking(true);
+      return;
+    }
+    Alert.alert(t('request.confirmTitle', { title: d.title }), t('request.confirmMovie'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('request.request'), onPress: () => request.mutate() },
+    ]);
+  };
   const cast = d.cast ?? [];
   const alike = similar.data?.results ?? [];
   return (
@@ -76,49 +80,68 @@ export default function RequestScreen() {
         {d.local && <Button label={t('player.play')} busy={busy} onPress={() => void open(d)} />}
         <TrailerButton type={d.mediaType === 'movie' ? 'movie' : 'show'} id={d.tmdbId} outsideLibrary />
       </View>
-      {requestable && d.mediaType === 'tv' && d.seasons.length > 0 && (
+      {requestable && (
+        <Button label={t('request.request')} busy={request.isPending} onPress={confirm} />
+      )}
+      {isShow && (
+        // What there is, and what was asked for before; the seasons to request are chosen after "Request".
         <View style={{ gap: 4 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={styles.label}>{t('request.seasons')}</Text>
-            {all.length > 1 && (
-              <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setChosen(allPicked ? [] : all)}>
-                <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '600' }}>{allPicked ? t('request.selectNone') : t('request.selectAll')}</Text>
-              </Pressable>
-            )}
-          </View>
-          {d.seasons.map((s) => {
-            const free = all.includes(s.seasonNumber);
-            const on = free && chosen.includes(s.seasonNumber);
-            return (
-              <Pressable
-                key={s.seasonNumber}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: on, disabled: !free }}
-                disabled={!free}
-                onPress={() => setChosen(toggleSeason(chosen, s.seasonNumber, !on))}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }}
-              >
-                <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: on ? colors.accent : colors.line, backgroundColor: on ? colors.accent : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-                  {on && <Text style={{ color: colors.accentInk, fontWeight: '800', fontSize: 13 }}>✓</Text>}
-                </View>
-                <Text style={[styles.body, { flex: 1, opacity: free ? 1 : 0.6 }]}>{t('request.season', { n: s.seasonNumber, count: s.episodeCount })}</Text>
-                {!free && s.state ? <Text style={{ color: s.state === 'available' ? colors.ok : colors.accent, fontSize: 12 }}>{t(`request.state.${s.state}`)}</Text> : null}
-              </Pressable>
-            );
-          })}
+          <Text style={styles.label}>{t('request.seasons')}</Text>
+          {d.seasons.map((s) => (
+            <View key={s.seasonNumber} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 }}>
+              <Text style={[styles.body, { flex: 1 }]}>{t('request.season', { n: s.seasonNumber, count: s.episodeCount })}</Text>
+              {!all.includes(s.seasonNumber) && s.state ? <Text style={{ color: s.state === 'available' ? colors.ok : colors.accent, fontSize: 12 }}>{t(`request.state.${s.state}`)}</Text> : null}
+            </View>
+          ))}
         </View>
       )}
-      {requestable && (
-        <Button
-          label={!isShow || picked.length === 0 ? t('request.request') : allPicked ? t('request.requestAll') : t('request.requestSeasons', { count: picked.length })}
-          busy={request.isPending}
-          disabled={isShow && picked.length === 0}
-          onPress={confirm}
-        />
-      )}
-      {requestable && isShow && picked.length === 0 && (
-        <Text style={styles.muted}>{t('request.chooseSeasons')}</Text>
-      )}
+      <Modal visible={picking} transparent animationType="fade" onRequestClose={() => setPicking(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 }}>
+          <View accessibilityViewIsModal style={{ backgroundColor: colors.surface, borderRadius: radius.lg, padding: 20, gap: 12, maxHeight: '85%' }}>
+            <Text style={styles.title} accessibilityRole="header">{t('request.confirmTitle', { title: d.title })}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <Text style={[styles.muted, { flex: 1 }]}>{t('request.pickSeasons')}</Text>
+              {all.length > 1 && (
+                <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setChosen(allPicked ? [] : all)}>
+                  <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '600' }}>{allPicked ? t('request.selectNone') : t('request.selectAll')}</Text>
+                </Pressable>
+              )}
+            </View>
+            <ScrollView style={{ flexGrow: 0 }}>
+              {d.seasons.map((s) => {
+                const free = all.includes(s.seasonNumber);
+                const on = free && chosen.includes(s.seasonNumber);
+                return (
+                  <Pressable
+                    key={s.seasonNumber}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on, disabled: !free }}
+                    disabled={!free}
+                    onPress={() => setChosen(toggleSeason(chosen, s.seasonNumber, !on))}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }}
+                  >
+                    <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: on ? colors.accent : colors.line, backgroundColor: on ? colors.accent : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                      {on && <Text style={{ color: colors.accentInk, fontWeight: '800', fontSize: 13 }}>✓</Text>}
+                    </View>
+                    <Text style={[styles.body, { flex: 1, opacity: free ? 1 : 0.6 }]}>{t('request.season', { n: s.seasonNumber, count: s.episodeCount })}</Text>
+                    {!free && s.state ? <Text style={{ color: s.state === 'available' ? colors.ok : colors.accent, fontSize: 12 }}>{t(`request.state.${s.state}`)}</Text> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Text style={[styles.muted, { fontSize: 13 }]}>{t('request.requestHint')}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10 }}>
+              <Button label={t('common.cancel')} variant="ghost" onPress={() => setPicking(false)} />
+              <Button
+                label={picked.length === 0 ? t('request.request') : allPicked ? t('request.requestAll') : t('request.requestSeasons', { count: picked.length })}
+                busy={request.isPending}
+                disabled={picked.length === 0}
+                onPress={() => request.mutate()}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
       {cast.length > 0 && (
         <View style={{ gap: 8 }}>
           <Text style={styles.label}>{t('request.cast')}</Text>

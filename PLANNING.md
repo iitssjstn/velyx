@@ -9,9 +9,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.8** (PR #84): de app opent je server meteen na het inloggen. Daarvoor 0.19.7
-  (PR #83): verse metadata bij openen, trailers en zoeken buiten de bibliotheek, request-knop bij films.
-  Releases `v0.19.7` en `v0.19.8` gecontroleerd (0.19.8: de APK kwam na de controle nog).
+- Laatste release: **0.19.9** (PR #85): aanvragen eerst bevestigen, seizoenen zelf kiezen, minder
+  buildminuten. Release `v0.19.9` gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.8 (PR #84, app
+  opent je server meteen) en 0.19.7 (PR #83, verse metadata, trailers en zoeken buiten de bibliotheek).
 - Nog te doen door de eigenaar: castknop (0.19.6) testen op een telefoon; nagaan of het scrollprobleem
   weg is; de app na inloggen proberen.
 - De eigenaar test verder en meldt alles wat hij tegenkomt; dat komt hieronder.
@@ -39,15 +39,13 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Volgende versie
 
-### 0.19.9: aanvragen eerst bevestigen, seizoenen zelf kiezen (website en app)
-De eigenaar vroeg dit (2 okt, "maak het maar"). Niet zelf mergen zonder toestemming van de eigenaar.
-- Een klik op "Aanvragen" opent eerst een bevestiging ("“titel” aanvragen?", met de gekozen seizoenen);
-  pas na "Aanvragen" gaat het naar Seerr. Website: `ConfirmModal` in `RequestDetail.tsx`; app: `Alert`.
-- Bij een serie staat niets meer vooraf aangevinkt; "Alle seizoenen" / "Geen" vinkt alles aan of uit.
-  Alle open seizoenen aangevinkt = de hele serie (`seasons: null`). Website: `lib/request-seasons.ts`;
-  app: `toggleSeason`/`seasonsToRequest` in `app/src/lib/discover.ts`.
-- Ook in 0.19.9: minder buildminuten (zie werkafspraken): APK en `.deb` niet meer bij PR's, app-tests
-  in CI, geen CI bij alleen tekst, cloud-image één keer per release, Docker-smoketest alleen bij PR's.
+### 0.19.10: seizoenen kiezen in het aanvraagvenster (website en app)
+Wens van de eigenaar (2 okt): de seizoenen in de popup. Niet zelf mergen zonder toestemming.
+- De pagina toont de seizoenen alleen als overzicht (afleveringen, wat al aangevraagd/beschikbaar is),
+  zonder vinkjes. "Aanvragen" opent het venster; bij een serie kies je daar de seizoenen (niets vooraf
+  aangevinkt, "Alle seizoenen"/"Geen"); de knop in het venster werkt pas als er iets gekozen is.
+  Bij een film blijft het een bevestiging.
+- Website: `ConfirmModal` kreeg `confirmDisabled`; app: een eigen `Modal` (film: `Alert`).
 
 ## Gemeld tijdens het testen
 

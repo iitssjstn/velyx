@@ -126,13 +126,16 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
           {canRequest && (
             <button
               type="button"
-              // A movie has no seasons to pick; a show needs at least one season ticked.
-              disabled={request.isPending || (d.mediaType === 'tv' && picked.length === 0)}
-              onClick={() => setConfirming(true)}
+              disabled={request.isPending}
+              // A show's seasons are chosen in the question that opens (nothing ticked beforehand).
+              onClick={() => {
+                setChosen([]);
+                setConfirming(true);
+              }}
               className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-semibold text-accent-ink hover:brightness-110 disabled:opacity-60"
             >
               <Send className="size-5" />
-              {d.mediaType === 'movie' || picked.length === 0 ? t('requests.request') : allPicked ? t('requests.requestAll') : t('requests.requestSeasons', { count: picked.length })}
+              {t('requests.request')}
             </button>
           )}
           <TrailerButton type={d.mediaType === 'movie' ? 'movie' : 'show'} id={d.tmdbId} title={d.title} outsideLibrary />
@@ -142,36 +145,24 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
             </Button>
           )}
         </div>
-        {canRequest && <p className="mt-3 text-sm text-faint">{d.mediaType === 'tv' && picked.length === 0 ? t('requests.page.chooseSeasons') : t('requests.page.requestHint')}</p>}
+        {canRequest && <p className="mt-3 text-sm text-faint">{t('requests.page.requestHint')}</p>}
       </DetailHero>
 
       <div className="mt-10 grid gap-10 px-4 sm:px-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div>{d.overview && <p className="max-w-3xl text-base leading-relaxed text-ink/90">{d.overview}</p>}</div>
         {d.mediaType === 'tv' && d.seasons.length > 0 && (
           <section aria-labelledby="seasons" className="rounded-[var(--radius-card)] border border-line bg-surface/70 p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 id="seasons" className="label">
-                {t('requests.seasons')}
-              </h2>
-              {!d.inLibrary && openNumbers.length > 1 && (
-                <button type="button" onClick={() => setChosen(allPicked ? [] : openNumbers)} className="text-xs font-medium text-accent hover:underline">
-                  {allPicked ? t('requests.page.selectNone') : t('requests.page.selectAll')}
-                </button>
-              )}
-            </div>
+            <h2 id="seasons" className="label mb-3">
+              {t('requests.seasons')}
+            </h2>
+            {/* What there is, and what was asked for before; the seasons to request are chosen after "Request". */}
             <ul className="space-y-1">
-              {d.seasons.map((s) => {
-                const free = open(s.state) && !d.inLibrary;
-                return (
-                  <li key={s.seasonNumber}>
-                    <label className={`flex items-center gap-3 rounded-lg px-2 py-1.5 ${free ? 'cursor-pointer hover:bg-raised' : ''}`}>
-                      <input type="checkbox" className="size-4 accent-[var(--color-accent)]" disabled={!free} checked={free ? picked.includes(s.seasonNumber) : false} onChange={(e) => toggle(s.seasonNumber, e.target.checked)} />
-                      <span className="flex-1 text-sm">{t('requests.season', { n: s.seasonNumber, count: s.episodeCount })}</span>
-                      {s.state && !open(s.state) && <StateBadge state={s.state} />}
-                    </label>
-                  </li>
-                );
-              })}
+              {d.seasons.map((s) => (
+                <li key={s.seasonNumber} className="flex items-center gap-3 px-2 py-1.5">
+                  <span className="flex-1 text-sm">{t('requests.season', { n: s.seasonNumber, count: s.episodeCount })}</span>
+                  {s.state && !open(s.state) && <StateBadge state={s.state} />}
+                </li>
+              ))}
             </ul>
             {!d.inLibrary && openSeasons.length === 0 && <p className="mt-3 text-sm text-muted">{t('requests.page.allRequested')}</p>}
           </section>
@@ -191,13 +182,45 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
         )}
       </div>
 
-      <ConfirmModal open={confirming} title={t('requests.page.confirmTitle', { title: d.title })} confirmLabel={t('requests.request')} loading={request.isPending} onConfirm={() => request.mutate()} onClose={() => setConfirming(false)}>
+      <ConfirmModal
+        open={confirming}
+        title={t('requests.page.confirmTitle', { title: d.title })}
+        confirmLabel={d.mediaType === 'movie' || picked.length === 0 ? t('requests.request') : allPicked ? t('requests.requestAll') : t('requests.requestSeasons', { count: picked.length })}
+        loading={request.isPending}
+        // A show: at least one season ticked.
+        confirmDisabled={d.mediaType === 'tv' && picked.length === 0}
+        onConfirm={() => request.mutate()}
+        onClose={() => setConfirming(false)}
+      >
         {d.mediaType === 'movie' ? (
           <p>{t('requests.page.confirmMovie')}</p>
         ) : (
-          <p>{allPicked ? t('requests.page.confirmAllSeasons', { n: openNumbers.length }) : t('requests.page.confirmSeasons', { list: [...picked].sort((a, b) => a - b).join(', ') })}</p>
+          <>
+            <div className="flex items-center justify-between gap-3">
+              <p>{t('requests.page.pickSeasons')}</p>
+              {openNumbers.length > 1 && (
+                <button type="button" onClick={() => setChosen(allPicked ? [] : openNumbers)} className="shrink-0 text-sm font-medium text-accent hover:underline">
+                  {allPicked ? t('requests.page.selectNone') : t('requests.page.selectAll')}
+                </button>
+              )}
+            </div>
+            <ul className="mt-3 max-h-[45vh] space-y-1 overflow-y-auto">
+              {d.seasons.map((s) => {
+                const free = open(s.state) && !d.inLibrary;
+                return (
+                  <li key={s.seasonNumber}>
+                    <label className={`flex items-center gap-3 rounded-lg px-2 py-1.5 text-ink ${free ? 'cursor-pointer hover:bg-raised' : 'opacity-60'}`}>
+                      <input type="checkbox" className="size-4 accent-[var(--color-accent)]" disabled={!free} checked={free ? picked.includes(s.seasonNumber) : false} onChange={(e) => toggle(s.seasonNumber, e.target.checked)} />
+                      <span className="flex-1 text-sm">{t('requests.season', { n: s.seasonNumber, count: s.episodeCount })}</span>
+                      {s.state && !open(s.state) && <StateBadge state={s.state} />}
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
-        <p className="mt-2 text-sm">{t('requests.page.requestHint')}</p>
+        <p className="mt-3 text-sm">{t('requests.page.requestHint')}</p>
       </ConfirmModal>
 
       <ConfirmModal open={confirmReset} title={t('requests.page.resetTitle')} confirmLabel={t('requests.page.reset')} danger loading={reset.isPending} onConfirm={() => reset.mutate()} onClose={() => setConfirmReset(false)}>
