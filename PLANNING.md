@@ -48,6 +48,14 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   begin van het bestand, en de live stream verschuift de ondertitels met `?offset=`.
   Later (bij HLS in de app en op de Chromecast): ondertitels ook in de HLS-playlist opnemen.
 
+- **Metadata 's nachts verversen, binnen een tijdvenster**: de eigenaar stelt een tijd in (bijvoorbeeld
+  02:00–06:00) waarin de server de metadata automatisch ververst (nieuwe posters, beschrijvingen,
+  afleveringen, beoordelingen). Buiten dat venster gebeurt dat niet vanzelf; handmatig verversen blijft
+  altijd kunnen. Rustig uitvoeren (lage prioriteit, TMDB-limiet), stoppen bij het einde van het venster
+  en de volgende nacht verder waar hij was. Nu bestaat alleen handmatig verversen
+  (`refreshMetadata` in `scanner.ts`/`scan-manager.ts`). Past bij het onderhoudsvenster van punt 3
+  hieronder (prestaties): zwaar achtergrondwerk in hetzelfde venster.
+
 ## Later (in deze volgorde, tenzij de eigenaar anders zegt)
 
 1. **TMDB via vidalune.com, met terugval**
