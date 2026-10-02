@@ -44,7 +44,7 @@ const FRAME = {
 } satisfies Record<Lang, Record<string, string>>;
 
 /** A page of the website: header (navigation, sign in or "my servers"), the content, footer. */
-export function layout(lang: Lang, opts: { title: string; signedIn: boolean; path: string; description?: string }, body: string): string {
+export function layout(lang: Lang, opts: { title: string; signedIn: boolean; path: string; description?: string; discord?: boolean }, body: string): string {
   const t = FRAME[lang];
   const other: Lang = lang === 'nl' ? 'en' : 'nl';
   return `<!doctype html>
@@ -66,6 +66,7 @@ export function layout(lang: Lang, opts: { title: string; signedIn: boolean; pat
         <a href="/#how">${escape(t.how)}</a>
         <a href="/#plans">${escape(t.plans)}</a>
         <a href="/install">${escape(t.install)}</a>
+        ${opts.discord ? '<a href="/discord" rel="noopener">Discord</a>' : ''}
       </nav>
       <div class="site-actions">
         <a class="small" href="${escape(opts.path)}?lang=${other}" hreflang="${other}">${escape(t.other)}</a>
@@ -79,7 +80,7 @@ export function layout(lang: Lang, opts: { title: string; signedIn: boolean; pat
     ${body}
     <footer class="site-footer">
       <span><strong>vidalune</strong> · ${escape(t.footer)}</span>
-      <span><a href="/install">${escape(t.install)}</a> · <a href="/install#app">${escape(t.app)}</a> · <a href="/account">${escape(opts.signedIn ? t.account : t.signIn)}</a></span>
+      <span><a href="/install">${escape(t.install)}</a> · <a href="/install#app">${escape(t.app)}</a> · ${opts.discord ? '<a href="/discord" rel="noopener">Discord</a> · ' : ''}<a href="/account">${escape(opts.signedIn ? t.account : t.signIn)}</a></span>
       <span class="small">© ${new Date().getFullYear()} Vidalune · ${escape(t.license)}</span>
     </footer>
   </body>
@@ -171,7 +172,7 @@ const HOME = {
 } satisfies Record<Lang, unknown>;
 
 /** The home page of vidalune.com. */
-export function homePage(lang: Lang, signedIn: boolean): string {
+export function homePage(lang: Lang, signedIn: boolean, discord = false): string {
   const t = HOME[lang];
   const body = `
     <main class="site-main">
@@ -217,5 +218,5 @@ export function homePage(lang: Lang, signedIn: boolean): string {
         <p><a class="button" href="/install">${escape(t.heroInstall)}</a></p>
       </section>
     </main>`;
-  return layout(lang, { title: t.title, signedIn, path: '/', description: t.description }, body);
+  return layout(lang, { title: t.title, signedIn, path: '/', description: t.description, discord }, body);
 }

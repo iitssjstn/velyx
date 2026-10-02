@@ -17,6 +17,13 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   - een melding tonen als de lijst toch niet opent (`showCastDialog()` geeft `false`);
   - testen op een telefoon.
 
+## Klaar op de branch (komt mee in de volgende versie)
+
+- **Discord-link op vidalune.com**: in het menu en onderaan elke pagina, plus vidalune.com/discord en
+  discord.vidalune.com. De link is aan te passen of uit te zetten in het Control Center → Community.
+  Voor discord.vidalune.com moet DNS naar de VPS wijzen (wildcard van de relay of een eigen record) en
+  de reverse proxy moet die host doorsturen.
+
 ## Gemeld tijdens het testen
 
 - **Lange lijst ondertitels op de detailpagina** (website, blok "Media" in `MovieDetail.tsx`):

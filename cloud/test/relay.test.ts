@@ -12,6 +12,7 @@ import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
 import { accounts, servers } from '../src/db/schema.js';
 import { clientIp, RESERVED } from '../src/relay.js';
+import { DEFAULT_DISCORD_URL as DISCORD_URL } from '../src/community.js';
 import * as cloudProtocol from '../src/tunnel-protocol.js';
 // The other end: a real Vidalune server with its relay client.
 import { createTestEnv, type TestEnv } from '../../backend/test/helpers.js';
@@ -121,10 +122,18 @@ describe('the relay', () => {
     expect(cloud.relay.slugOf({ headers: { host: 'relay.test' } } as http.IncomingMessage)).toBeNull();
     expect(cloud.relay.slugOf({ headers: { host: 'x.y.relay.test' } } as http.IncomingMessage)).toBeNull();
     expect(RESERVED.has('www')).toBe(true);
+    expect(cloud.relay.slugOf({ headers: { host: 'discord.relay.test' } } as http.IncomingMessage)).toBeNull();
     const req = (xff: string) => ({ headers: { 'x-forwarded-for': xff }, socket: { remoteAddress: '10.0.0.2' } }) as unknown as http.IncomingMessage;
     // Behind one proxy: the address that proxy saw, whatever the visitor put in front of it.
     expect(clientIp(req('1.1.1.1, 203.0.113.7'), 1)).toBe('203.0.113.7');
     expect(clientIp(req(''), 0)).toBe('10.0.0.2');
+  });
+
+  it('sends discord.<domain> and /discord to the Vidalune Discord', async () => {
+    for (const r of [await get('discord.relay.test', '/'), await get('discord.relay.test:8443', '/anything'), await get('relay.test', '/discord')]) {
+      expect(r.status).toBe(302);
+      expect(r.headers.location).toBe(DISCORD_URL);
+    }
   });
 
   it('refuses tunnels from servers that are not linked with the relay on', async () => {

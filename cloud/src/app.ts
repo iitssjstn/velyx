@@ -15,6 +15,7 @@ import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sh
 import { newSlug, Relay, relayMessage, type Rewrite } from './relay.js';
 import { composeFile, installPage, debInstallScript, installScript } from './install.js';
 import { homePage, pickLanguage } from './site.js';
+import { Community, communityRoutes } from './community.js';
 import { detectionRoutes } from './detection.js';
 import { SubtitleError, SubtitleProxy, subtitleRoutes } from './subtitles.js';
 import { CeoError, ceoRoutes } from './ceo.js';
@@ -126,6 +127,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const appHost = `app.${config.relayDomain}`;
   /** Where app.vidalune.com is (null: this service does not serve the web interface there). */
   const appOrigin = config.frontendDir ? `${publicUrl.protocol}//${appHost}${publicUrl.port ? `:${publicUrl.port}` : ''}` : null;
+  /** discord.<domain>: the Vidalune community (see communityRoutes). */
+  const community = new Community({ db, now });
+  const isDiscordHost = (req: http.IncomingMessage) => String(req.headers.host ?? '').toLowerCase().replace(/:\d+$/, '') === `discord.${config.relayDomain}`;
   const isAppHost = (req: http.IncomingMessage) => String(req.headers.host ?? '').toLowerCase().replace(/:\d+$/, '') === appHost;
   const app = Fastify({
     trustProxy: (_addr: string, hop: number) => hop < hops,
@@ -134,6 +138,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     // Requests for <slug>.<domain> go to the relay before anything else; the rest is this service.
     serverFactory: (handler) => {
       const server = http.createServer((req, res) => {
+        if (isDiscordHost(req)) req.url = '/discord';
         const slug = relay.slugOf(req);
         if (slug) return relay.handleRequest(req, res, slug);
         if (isAppHost(req) && config.frontendDir) {
@@ -547,6 +552,15 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   // Online subtitles with the one OpenSubtitles key of vidalune.com. Per server: new downloads are
   // a small share of the daily allowance there; files kept here and searches only stop floods.
   const subtitleLimiters = { settings: new RateLimiter(10, 60_000), search: new RateLimiter(120, 3_600_000), download: new RateLimiter(40, 86_400_000), kept: new RateLimiter(300, 3_600_000) };
+  communityRoutes(app, {
+    community,
+    ceo: (request) => {
+      const me = account(request);
+      if (!isCeo(me)) throw new HttpError(403, 'Only for the CEO of Vidalune.');
+      return me;
+    },
+    limit: (key) => subtitleLimiters.settings.check(key, now()),
+  });
   subtitleRoutes(app, {
     db,
     proxy: new SubtitleProxy({ db, fetchImpl: opts.fetchImpl ?? ((input, init) => fetch(input, init)), now, userAgent: 'Vidalune v1' }),
@@ -799,7 +813,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   });
 
   app.get('/install', async (request, reply) =>
-    reply.type('text/html').header('Cache-Control', 'no-cache').send(installPage(pickLanguage(request.query, request.headers['accept-language']), config.publicUrl, releaseVersion, !!latestApk(), !!accountByToken(request.cookies[SESSION_COOKIE]), !!latestDeb('amd64'))),
+    reply.type('text/html').header('Cache-Control', 'no-cache').send(installPage(pickLanguage(request.query, request.headers['accept-language']), config.publicUrl, releaseVersion, !!latestApk(), !!accountByToken(request.cookies[SESSION_COOKIE]), !!latestDeb('amd64'), !!community.discord())),
   );
   app.get('/install/docker-compose.yml', async (_request, reply) =>
     reply.type('text/yaml; charset=utf-8').header('Content-Disposition', 'attachment; filename="docker-compose.yml"').send(composeFile()),
@@ -881,7 +895,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     app.get('/', async (request, reply) => {
       if (isAppHost(request.raw)) return page(request, reply);
       const lang = pickLanguage(request.query, request.headers['accept-language']);
-      return reply.type('text/html').header('Cache-Control', 'no-cache').send(homePage(lang, !!accountByToken(request.cookies[SESSION_COOKIE])));
+      return reply.type('text/html').header('Cache-Control', 'no-cache').send(homePage(lang, !!accountByToken(request.cookies[SESSION_COOKIE]), !!community.discord()));
     });
     app.get('/account', page);
     app.get('/link', page);
