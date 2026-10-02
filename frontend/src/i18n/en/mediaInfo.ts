@@ -1,5 +1,7 @@
 export const mediaInfo = {
   noAudio: 'No audio tracks.',
+  showMore: '+{count} more',
+  showLess: 'Show less',
   noSubtitles: 'No subtitles.',
   technical: 'Technical',
   videoFormat: 'Video format',

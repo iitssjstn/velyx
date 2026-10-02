@@ -10,7 +10,7 @@ import { CHUNK, decodeFrame, encodeFrame, FRAME, HOP_BY_HOP, INITIAL_WINDOW, win
 import { mbpsToBps, Shaper } from './shaper.js';
 
 /** Subdomains that are never given to a server. */
-export const RESERVED = new Set(['www', 'app', 'api', 'relay', 'admin', 'mail', 'status', 'docs', 'cloud', 'help', 'support', 'blog', 'account', 'login']);
+export const RESERVED = new Set(['www', 'app', 'api', 'relay', 'admin', 'mail', 'status', 'docs', 'cloud', 'help', 'support', 'blog', 'account', 'login', 'discord']);
 const SLUG_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 export const newSlug = () => Array.from({ length: 8 }, () => SLUG_ALPHABET[crypto.randomInt(SLUG_ALPHABET.length)]).join('');
 

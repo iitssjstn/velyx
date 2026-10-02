@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MediaInfo } from './MediaInfo';
 import type { MediaFileInfo } from '../lib/types';
 
@@ -39,7 +39,27 @@ describe('MediaInfo', () => {
     expect(document.body.textContent).toContain('1080p · H.264 · WEB · 4.2 GB → 2160p · HEVC · HDR10 · Blu-ray Remux · 60.0 GB');
     expect(screen.getByText('Watch history was kept.')).toBeTruthy();
     // Image subtitles are described honestly.
-    expect(document.body.textContent).toContain('PGS · image-based, not shown');
+    expect(screen.getByText('English').closest('li')!.getAttribute('title')).toContain('PGS · image-based, not shown');
+  });
+
+  it('shows many subtitles as a short row of languages, with the rest behind "+N more"', () => {
+    const languages = ['English', 'Arabic', 'Portuguese', 'Croatian', 'Czech', 'Danish', 'Dutch', 'Spanish', 'Filipino', 'Finnish', 'French'];
+    const tracks = languages.flatMap((name, i) => {
+      const one = { codec: 'subrip', language: null, languageName: name, title: null, textBased: true, isDefault: false, isForced: false };
+      // English, Spanish and French also have an SDH version.
+      return ['English', 'Spanish', 'French'].includes(name) ? [{ ...one, index: 10 + i * 2 }, { ...one, index: 11 + i * 2, title: `${name} [SDH]` }] : [{ ...one, index: 10 + i * 2 }];
+    });
+    render(<MediaInfo file={{ ...file, embeddedSubtitles: tracks }} />);
+    const subs = screen.getByRole('region', { name: 'Subtitles' });
+    const chips = () => Array.from(subs.querySelectorAll('li')).map((li) => li.textContent);
+    // One chip per language (English ×2), only the first 8, then "+3 more".
+    expect(chips()).toEqual(['English×2', 'Arabic', 'Portuguese', 'Croatian', 'Czech', 'Danish', 'Dutch', 'Spanish×2', '+3 more']);
+    expect(screen.getByText('English').closest('li')!.getAttribute('title')).toContain('English [SDH]');
+    fireEvent.click(screen.getByRole('button', { name: '+3 more' }));
+    expect(chips()).toHaveLength(12);
+    expect(chips()).toContain('French×2');
+    fireEvent.click(screen.getByRole('button', { name: 'Show less' }));
+    expect(chips()).toHaveLength(9);
   });
 
   it('has no replacement row for files that were never replaced', () => {

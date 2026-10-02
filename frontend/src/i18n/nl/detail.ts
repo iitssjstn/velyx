@@ -1,5 +1,7 @@
 import type { Messages } from '../index';
 export const detail: Messages['detail'] = {
+  trailer: 'Trailer',
+  trailerOf: 'Trailer: {title}',
   noPlayableFile: 'Geen afspeelbaar bestand — scan de bibliotheek opnieuw.',
   noDescription: 'Geen beschrijving beschikbaar.',
   director: 'Regie',

@@ -218,7 +218,7 @@ const TEXT = {
 } satisfies Record<Lang, unknown>;
 
 /** The install page (no scripts: it is plain HTML with the account pages' style). */
-export function installPage(lang: Lang, publicUrl: string, version: string, hasApp: boolean, signedIn = false, hasDeb = false): string {
+export function installPage(lang: Lang, publicUrl: string, version: string, hasApp: boolean, signedIn = false, hasDeb = false, discord = false): string {
   const t = TEXT[lang];
   const code = (s: string) => `<pre><code>${escape(s)}</code></pre>`;
   const body = `
@@ -270,5 +270,5 @@ export function installPage(lang: Lang, publicUrl: string, version: string, hasA
       </div>
       <p class="small">${escape(t.license)}</p>
     </main>`;
-  return layout(lang, { title: t.title, signedIn, path: '/install' }, body);
+  return layout(lang, { title: t.title, signedIn, path: '/install', discord }, body);
 }

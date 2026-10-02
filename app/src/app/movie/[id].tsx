@@ -2,6 +2,7 @@ import { RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'rea
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Toggle } from '../../components/actions';
+import { TrailerButton } from '../../components/TrailerButton';
 import { Artwork, useWide } from '../../components/media';
 import { DetailSkeleton } from '../../components/Skeleton';
 import { Button, ErrorState, ProgressLine, styles } from '../../components/ui';
@@ -27,8 +28,13 @@ export default function Movie() {
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
       <Button label={resume ? t('player.resume', { time: formatClock(resume.positionSec) }) : t('player.play')} onPress={() => router.push(`/play/movie/${m.id}`)} />
       {resume && <Button label={t('player.fromStart')} variant="ghost" onPress={() => router.push(`/play/movie/${m.id}?t=0`)} />}
+      <TrailerButton type="movie" id={m.id} />
     </View>
-  ) : null;
+  ) : (
+    <View style={{ flexDirection: 'row' }}>
+      <TrailerButton type="movie" id={m.id} />
+    </View>
+  );
   const toggles = (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       <Toggle active={m.watchlist} icon="bookmark" text={t('actions.watchlist')} label={t('actions.addWatchlist')} activeLabel={t('actions.removeWatchlist')} request={(on) => savedRequest('watchlist', 'movie', m.id, on)} />

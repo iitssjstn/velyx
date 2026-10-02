@@ -62,3 +62,30 @@ describe('the Control Center shows live figures', () => {
     expect(text()).toContain('87.3 Mbit/s');
   });
 });
+
+describe('the Control Center community page', () => {
+  it('shows the Discord link and saves a new one', async () => {
+    let saved: unknown = null;
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const json = (d: unknown) => new Response(JSON.stringify(d), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (url === '/api/account') return json({ ceo: true, email: 'ceo@example.com', version: '0.19.6' });
+      if (url === '/api/ceo/community' && init?.method === 'PUT') {
+        saved = JSON.parse(String(init.body));
+        return json(saved);
+      }
+      if (url === '/api/ceo/community') return json({ discordUrl: 'https://discord.gg/S9X7yDNqEP' });
+      return json({});
+    }));
+    location.hash = '#/community';
+    openPanel();
+    const input = await vi.waitFor(() => {
+      const el = document.querySelector<HTMLInputElement>('#view input[name="discordUrl"]');
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(input.value).toBe('https://discord.gg/S9X7yDNqEP');
+    input.value = 'https://discord.gg/NewInvite';
+    input.closest('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await vi.waitFor(() => expect(saved).toEqual({ discordUrl: 'https://discord.gg/NewInvite' }));
+  });
+});
