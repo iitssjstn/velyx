@@ -9,10 +9,11 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.6** (PR #82: castknop opent de Chromecast-lijst weer, trailers, compacte
-  ondertitellijst, ondertitel wisselen, Discord-link). Release `v0.19.6` heeft de APK en beide
-  `.deb`-bestanden (amd64 en arm64).
-- Nog te doen door de eigenaar: de castknop van 0.19.6 testen op een telefoon.
+- Laatste release: **0.19.7** (PR #83, door Claude gemerged met toestemming van de eigenaar): verse
+  metadata bij openen (drempel 1 uur, `backend/src/services/fresh-metadata.ts`), trailers en zoeken
+  buiten de bibliotheek (via Seerr), request-knop bij films werkt weer, nieuwe pagina's openen bovenaan.
+- Nog te doen door de eigenaar: castknop (0.19.6) testen op een telefoon; nagaan of het scrollprobleem
+  weg is (was in Chromium niet na te doen).
 - De eigenaar test verder en meldt alles wat hij tegenkomt; dat komt hieronder.
 - De volgende update wordt **één grote update** met alles wat hieronder staat en is goedgekeurd.
 - Hardware van de eigenaar: AMD Athlon II X2 260 (2 cores), media op een NAS, Docker (Debian 12,
@@ -34,43 +35,19 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Volgende versie
 
-### 0.19.7: verse metadata bij aanklikken + trailers buiten de bibliotheek
-De eigenaar koos: alleen dit punt. PR #83; de eigenaar gaf toestemming dat Claude deze PR zelf merget
-als alles groen is (eenmalig, voor 0.19.7). Na de merge: release `v0.19.7` controleren (APK + beide `.deb`'s)
-en deze sectie naar "Stand van zaken" verplaatsen.
-- **Verse metadata bij openen** (website, app.vidalune.com en de Android-app): de detailpagina opent
-  meteen met wat er is en vraagt daarna `POST /api/movies/:id/refresh` of `/api/shows/:id/refresh`.
-  De server (`backend/src/services/fresh-metadata.ts`, `FRESH_FOR_MS` = 1 uur) haalt de titel opnieuw
-  bij TMDB als `metadataUpdatedAt` ouder is dan een uur (serie: ook seizoenen en afleveringen op de
-  server). Antwoorden: `fresh` / `refreshed` / `pending` (na 8 s nog bezig; de pagina vraagt nog een
-  paar keer) / `skipped` (geen sleutel, geen match, of TMDB faalde het afgelopen uur: oude gegevens
-  blijven staan). Gelijktijdige verzoeken delen één verversing.
-- **Trailers bij titels buiten de bibliotheek** (gemeld door de eigenaar): `GET /api/seerr/:type/:id/trailer`,
-  via TMDB of zonder TMDB-sleutel via Seerr (`relatedVideos`); trailer-knop op de Seerr-titelpagina's
-  (website en app). Trailers worden nu een uur bewaard (was een dag), `backend/src/services/trailers.ts`.
-- Titels buiten de bibliotheek komen bij elk openen al rechtstreeks van Seerr (geen eigen cache).
-- **Ook in 0.19.7 (meldingen van de eigenaar, 2 okt):**
-  - Request-knop bij **films** op de website deed niets: de knop stond altijd uit (een film heeft geen
-    seizoenen, en de knop ging uit bij nul gekozen seizoenen). Nu alleen bij series. Test toegevoegd.
-  - **Zoeken toont alles**: met Seerr ook titels die niet in de bibliotheek staan, onder "Niet in de
-    bibliotheek" (zoekpagina en snelzoeker op de website, zoektabblad in de app); openen gaat naar de
-    aanvraagpagina.
-  - **Nieuwe pagina opent bovenaan** (website): `useScrollToTopOnNavigate` in `Layout` voor elke
-    navigatie behalve terug/vooruit. Het probleem was in Chromium niet na te doen; de filmpagina en de
-    aanvraagpagina sprongen niet zelf naar boven, de seriepagina wel.
-- Let op: TMDB-verzoeken staan in één rij; tijdens een grote scan of verversing wacht een klik-verversing
-  achter die rij (dan "pending"). Bij het nachtelijke venster eventueel klik-verzoeken voorrang geven.
+### 0.19.8: app opent je server meteen na het inloggen
+De eigenaar vroeg dit (2 okt) en gaf toestemming dat Claude deze PR zelf merget als alles groen is,
+en daarna te stoppen. Na de merge: release `v0.19.8` controleren (APK + beide `.deb`'s).
+- Na inloggen met het Vidalune-account opent de app meteen de server: de laatst geopende, of de enige
+  (online, met adres). Meerdere servers en geen laatst geopende: de lijst. `autoOpenServer` in
+  `app/src/lib/cloud.ts`, gebruikt in `app/src/app/cloud.tsx`; "{naam} wordt geopend…" tijdens het openen.
+- Na zelf uitloggen of "Andere server" komt de lijst (`/cloud?choose=1`), niet automatisch weer naar binnen.
+- "Toch een adres invullen" is een klein linkje onderaan, geen grote knop meer.
+- Geen code voor nieuwe gebruikers: volgens de eigenaar is de uitnodigingslink genoeg.
+- Aanleiding: de eigenaar dacht na het inloggen een domein te moeten typen; zijn server stond al in de
+  lijst (online, met adres) maar je moest hem aantikken, en de grote adresknop leek de weg.
 
 ## Gemeld tijdens het testen
-
-- **App: geen serveradres meer invullen** (wens van de eigenaar, 2 okt; nog niet gebouwd, eerst overleggen).
-  Wens: wie inlogt en al met een server verbonden is, gaat meteen naar die server; wie nog geen server
-  heeft, vult een **code** in die hij van de beheerder krijgt. Geen adressen, voor mensen zonder
-  technische kennis. Wat er nu al is: de app begint met het Vidalune-account en toont de servers
-  (eigen, gedeeld, uitgenodigd), het adres is "de andere ingang" (`app/src/app/cloud.tsx`,
-  `connect.tsx`, `lib/start.ts`); uitnodigen kan alleen met een **link** (Admin → Gebruikers →
-  Uitnodigen, 7 dagen, één keer). Nog uitzoeken: waar de eigenaar het adres moest invullen, automatisch
-  openen bij één server, en een korte uitnodigingscode (naast de link) die in de app ingevuld kan worden.
 
 - **Ingebouwde ondertitels sneller uitpakken** (`EmbeddedSubtitleExtractor` in
   `backend/src/services/subtitles.ts`). Ze worden pas bij het kiezen uitgepakt, en FFmpeg leest
@@ -87,7 +64,7 @@ en deze sectie naar "Stand van zaken" verplaatsen.
 - **Verversen verdelen over dag en nacht** (nog te bouwen: het nachtelijke venster; tijdvenster in te stellen, bijvoorbeeld 02:00–06:00):
   - **'s Nachts, binnen het venster:** de grote verversingsronde van alle metadata (bibliotheek én
     catalogus- en Seerr-rijen), plus het zware achtergrondwerk (zie hieronder).
-  - **Overdag, bij aanklikken (besluit van de eigenaar; gebouwd in 0.19.7, zie hierboven):** opent iemand een film of serie
+  - **Overdag, bij aanklikken (besluit van de eigenaar; gebouwd in 0.19.7):** opent iemand een film of serie
     (detailpagina op de website of in de app), dan wordt de nieuwste metadata van díe titel
     opgehaald, in de bibliotheek of niet, zodat de kijker altijd verse gegevens ziet. Overdag geen
     grote ronde. Uitwerking:

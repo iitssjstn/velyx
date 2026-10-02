@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLOUD_ACCOUNT_KEY, CloudError, connectPending, createCloud, PENDING_CONNECT_KEY, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudServer, type KeyStore } from './cloud';
+import { autoOpenServer, CLOUD_ACCOUNT_KEY, CloudError, connectPending, createCloud, PENDING_CONNECT_KEY, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudServer, type KeyStore } from './cloud';
 
 const answer = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
 
@@ -89,5 +89,22 @@ describe('connecting the Vidalune account after a sign-in by password', () => {
     };
     expect(await connectPending(keys, failing, cloudAnswering('x'.repeat(43)))).toBe(false);
     expect(keys.data[PENDING_CONNECT_KEY]).toBeUndefined();
+  });
+
+  it('opens the server by itself after signing in: the one opened last, or the only one', () => {
+    const s = (id: string, url: string | null, online = true, relayUrl: string | null = null): CloudServer => ({ id, name: id, version: '1', url, relayUrl, online, lastSeenAt: 0 });
+    // The only server, online with an address (as for most people): straight in.
+    expect(autoOpenServer([s('home', 'https://vidalune.example.nl')], null)?.id).toBe('home');
+    expect(autoOpenServer([s('home', null, true, 'https://abc.relay.vidalune.com')], null)?.id).toBe('home');
+    // Not when it cannot be opened: no address, or offline (the list says why).
+    expect(autoOpenServer([s('home', null)], null)).toBeNull();
+    expect(autoOpenServer([s('home', 'https://a', false)], null)).toBeNull();
+    expect(autoOpenServer([], null)).toBeNull();
+    // Several: the one opened last; otherwise the person chooses.
+    const two = [s('home', 'https://a'), s('friend', 'https://b')];
+    expect(autoOpenServer(two, 'friend')?.id).toBe('friend');
+    expect(autoOpenServer(two, null)).toBeNull();
+    expect(autoOpenServer(two, 'gone')).toBeNull();
+    expect(autoOpenServer([s('home', 'https://a'), s('old', null)], null)).toBeNull();
   });
 });
