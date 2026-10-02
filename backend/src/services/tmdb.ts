@@ -241,10 +241,51 @@ export class TmdbClient {
     return this.request(`/${kind}/${id}/translations`, {});
   }
 
+  /** The best trailer of a movie or show on YouTube, in the metadata language or else English. */
+  async trailer(kind: 'movie' | 'tv', id: number): Promise<TmdbTrailer | null> {
+    const lang = this.opts.getLanguage();
+    const base = lang.split('-')[0]!.toLowerCase();
+    const r = await this.request<{ results?: TmdbVideo[] }>(`/${kind}/${id}/videos`, { language: lang, include_video_language: [...new Set([base, 'en'])].join(',') + ',null' });
+    return pickTrailer(r.results ?? [], base);
+  }
+
   /** The metadata language setting ("en-US"). */
   language(): string {
     return this.opts.getLanguage();
   }
+}
+
+export interface TmdbVideo {
+  key?: string;
+  name?: string;
+  site?: string;
+  type?: string;
+  official?: boolean;
+  iso_639_1?: string | null;
+  size?: number;
+  published_at?: string;
+}
+
+export interface TmdbTrailer {
+  /** The YouTube video id. */
+  key: string;
+  name: string;
+}
+
+/**
+ * The trailer to show: YouTube only (played without cookies), a trailer before a teaser, the
+ * viewer's language before English, official before fan-made, then the sharpest and newest.
+ */
+export function pickTrailer(videos: TmdbVideo[], language: string): TmdbTrailer | null {
+  const usable = videos.filter((v) => v.site === 'YouTube' && typeof v.key === 'string' && /^[\w-]{6,20}$/.test(v.key) && (v.type === 'Trailer' || v.type === 'Teaser'));
+  const score = (v: TmdbVideo) => [v.type === 'Trailer' ? 1 : 0, v.iso_639_1 === language ? 2 : v.iso_639_1 === 'en' ? 1 : 0, v.official ? 1 : 0, v.size ?? 0, Date.parse(v.published_at ?? '') || 0];
+  const best = usable.sort((a, b) => {
+    const x = score(a);
+    const y = score(b);
+    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return y[i]! - x[i]!;
+    return 0;
+  })[0];
+  return best ? { key: best.key!, name: best.name ?? '' } : null;
 }
 
 export { yearOf };

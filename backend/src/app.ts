@@ -283,6 +283,8 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
         scriptSrc: ["'self'", 'https://www.gstatic.com'],
         connectSrc: ["'self'"],
         objectSrc: ["'none'"],
+        // Trailers: YouTube's player without cookies, only after the viewer presses "Trailer".
+        frameSrc: ['https://www.youtube-nocookie.com'],
         frameAncestors: ["'self'"],
         upgradeInsecureRequests: null,
       },

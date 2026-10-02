@@ -32,6 +32,7 @@ import { listQuery, movieListWhere, movieRuntime, showListWhere } from '../servi
 import { visibleCollections } from '../services/collections.js';
 import { assertEpisode, assertMovie, assertShow, canSee, scopeCondition } from '../services/access.js';
 import { COMPLETION_THRESHOLD } from './user-data.js';
+import type { TmdbTrailer } from '../services/tmdb.js';
 
 type FileRow = typeof mediaFiles.$inferSelect;
 
@@ -352,6 +353,32 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
       .offset((q.page - 1) * q.limit)
       .all();
     return { items: catalog.movieCards(userId, rows), total, page: q.page, pageSize: q.limit };
+  });
+
+  // ---- trailers: looked up at TMDB when a detail page asks (kept a day; never stored with the item)
+  const trailers = new Map<string, { at: number; trailer: TmdbTrailer | null }>();
+  async function trailerFor(kind: 'movie' | 'tv', tmdbId: number | null): Promise<{ trailer: TmdbTrailer | null }> {
+    if (!tmdbId || !ctx.tmdb.configured) return { trailer: null };
+    const key = `${kind}:${tmdbId}:${ctx.tmdb.language()}`;
+    const hit = trailers.get(key);
+    if (hit && Date.now() - hit.at < 86_400_000) return { trailer: hit.trailer };
+    try {
+      const trailer = await ctx.tmdb.trailer(kind, tmdbId);
+      if (trailers.size >= 1000) trailers.clear();
+      trailers.set(key, { at: Date.now(), trailer });
+      return { trailer };
+    } catch {
+      // TMDB unreachable: the page simply has no trailer button (asked again next time).
+      return { trailer: null };
+    }
+  }
+  app.get<{ Params: { id: string } }>('/api/movies/:id/trailer', { preHandler: requireUser }, async (request) => {
+    const m = assertMovie(db, scopeOf(request), parseId(request.params.id));
+    return trailerFor('movie', m.tmdbId);
+  });
+  app.get<{ Params: { id: string } }>('/api/shows/:id/trailer', { preHandler: requireUser }, async (request) => {
+    const s = assertShow(db, scopeOf(request), parseId(request.params.id));
+    return trailerFor('tv', s.tmdbId);
   });
 
   app.get<{ Params: { id: string } }>('/api/movies/:id', { preHandler: requireUser }, async (request) => {
