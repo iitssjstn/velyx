@@ -8,6 +8,7 @@ import { useAuth } from '../lib/auth';
 import { formatDate, formatRuntime, resolutionLabel } from '../lib/format';
 import type { EpisodeSummary, SeasonDetail, ShowDetail } from '../lib/types';
 import { CollectionLinks, DetailHero, MetaList } from '../components/DetailHero';
+import { TrailerButton } from '../components/TrailerButton';
 import { FavoriteButton, WatchlistButton } from '../components/FavoriteButton';
 import { WatchedMenu } from '../components/WatchedMenu';
 import { AdminItemMenu } from '../components/AdminItemMenu';
@@ -175,6 +176,7 @@ function ShowScreen({ id }: { id: number }) {
               {t('player.startOver')}
             </Link>
           )}
+          <TrailerButton type="show" id={s.id} title={s.title} />
           <WatchlistButton key={String(s.watchlist)} type="show" id={s.id} initial={s.watchlist} />
           <FavoriteButton type="show" id={s.id} initial={s.favorite} />
           <WatchedMenu watchedCount={s.watchedCount} total={s.episodeCount} onMark={(value) => watched.mutate({ showId: s.id, watched: value })} />

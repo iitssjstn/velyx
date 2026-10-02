@@ -9,6 +9,7 @@ import { formatClock, formatDate, formatRuntime, progressFraction } from '../lib
 import { qualityLabel } from '../lib/media-details';
 import type { MovieDetail } from '../lib/types';
 import { CollectionLinks, DetailHero, MetaList } from '../components/DetailHero';
+import { TrailerButton } from '../components/TrailerButton';
 import { FavoriteButton, WatchlistButton } from '../components/FavoriteButton';
 import { AdminItemMenu } from '../components/AdminItemMenu';
 import { CastRow } from '../components/People';
@@ -101,6 +102,7 @@ function MovieScreen({ id }: { id: number }) {
           ) : (
             <p className="text-sm text-danger">{t('detail.noPlayableFile')}</p>
           )}
+          <TrailerButton type="movie" id={m.id} title={m.title} />
           <WatchlistButton key={String(m.watchlist)} type="movie" id={m.id} initial={m.watchlist} />
           <FavoriteButton type="movie" id={m.id} initial={m.favorite} />
           <button

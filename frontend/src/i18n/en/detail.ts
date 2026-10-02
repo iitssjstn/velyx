@@ -1,4 +1,6 @@
 export const detail = {
+  trailer: 'Trailer',
+  trailerOf: 'Trailer: {title}',
   noPlayableFile: 'No playable file — rescan the library.',
   noDescription: 'No description available.',
   director: 'Director',
