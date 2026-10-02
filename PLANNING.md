@@ -49,6 +49,12 @@ Gevraagd door de eigenaar (2 okt, "zonder dat ik 5 euro moet betalen"). Niet zel
 
 ## Gemeld tijdens het testen
 
+- **Discord-meldingen bij nieuwe media verbeteren** (gemeld 2 okt, nog niet gebouwd). Nu: per scan losse
+  berichten "New in TV Shows: 1 file(s) — Found in the latest scan.", één per aflevering, zonder titel.
+  Gewenst: per serie en seizoen één bericht met de naam van de serie, het seizoen en hoeveel afleveringen
+  er (nieuw) beschikbaar zijn; bij films de titel (en jaar). Zie de notificatieservice
+  (`backend/src/services/notifications.ts`) en waar de scanner "new files" meldt.
+
 - **Voortgang wordt niet bewaard bij casten** (gemeld 2 okt; app-deel gebouwd in 0.19.11). Oorzaak: de server
   bewaart de voortgang niet zelf; de speler op de telefoon/in de browser stuurt elke 10 s de positie van
   de tv door (`frontend/src/pages/Player.tsx`, `castSaved`; app: `save` in `app/src/app/play/[kind]/[id].tsx`).
