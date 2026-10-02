@@ -121,6 +121,11 @@ Wens van de eigenaar (2 okt): de seizoenen in de popup. Niet zelf mergen zonder 
   en `app/app.json`. Nodig: de eigenaar registreert in de Google Cast SDK Developer Console (eenmalig
   $5), krijgt een app-ID en zet test-Chromecasts (serienummer) erin tot publicatie; de speler komt op
   HTTPS, bijvoorbeeld `vidalune.com/cast`; website en app gebruiken dan dat app-ID.
+  - Foto's van de eigenaar (2 okt): de tv toont nu Google's standaardscherm (titel, jaar, balk, knoppen
+    ±30 s en CC) en ondertitels in een **monospace-lettertype op zwarte blokken**. Dat komt doordat
+    Vidalune geen `TextTrackStyle` meestuurt. Snelle verbetering, ook zonder eigen speler: bij het casten
+    een `TextTrackStyle` meegeven (gewoon lettertype, rand/schaduw in plaats van blok, grootte en kleur
+    uit de ondertitelinstellingen van de gebruiker), in `frontend/src/lib/cast.ts` en de app.
 
 - **Ondertitels als plaatjes** (PGS van Blu-ray, VobSub van dvd): nu niet getoond. Mogelijk: inbranden
   in het beeld tijdens het omzetten (transcoding), of omzetten naar tekst.
