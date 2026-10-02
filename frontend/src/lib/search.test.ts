@@ -23,9 +23,24 @@ describe('quick search items', () => {
   });
 
   it('keeps only a few of each kind', () => {
-    expect(quickItems(r, { movies: 1, shows: 0, episodes: 1 }).map((i) => i.title)).toEqual(['Dune', 'Reacher S02E04']);
+    expect(quickItems(r, [], { movies: 1, shows: 0, episodes: 1, catalog: 0 }).map((i) => i.title)).toEqual(['Dune', 'Reacher S02E04']);
     expect(quickItems(undefined)).toEqual([]);
     expect(totalResults(r)).toBe(5);
+  });
+});
+
+describe('titles that are not in the library', () => {
+  const outside = (tmdbId: number, title: string, mediaType: 'movie' | 'tv') => ({ mediaType, tmdbId, title, year: 2024, overview: '', posterPath: '/p.jpg', state: null, inLibrary: false, local: null });
+
+  it('come after the library, and open their page to be requested', () => {
+    const items = quickItems(r, [outside(5, 'Reacher Returns', 'movie'), outside(6, 'Reach', 'tv')]);
+    expect(items.slice(-2).map((i) => [i.group, i.title, i.meta, i.href])).toEqual([
+      ['catalog', 'Reacher Returns', '2024 · Movie', '/request/movie/5'],
+      ['catalog', 'Reach', '2024 · Show', '/request/tv/6'],
+    ]);
+    expect(totalResults(r, [outside(5, 'Reacher Returns', 'movie')])).toBe(6);
+    // Nothing in the library: only these.
+    expect(quickItems(undefined, [outside(5, 'Reacher Returns', 'movie')]).map((i) => i.href)).toEqual(['/request/movie/5']);
   });
 });
 

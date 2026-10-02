@@ -3,5 +3,6 @@ export const search = {
     movies: 'Movies',
     shows: 'TV Shows',
     episodes: 'Episodes',
+    catalog: 'Not in the library',
   },
 };

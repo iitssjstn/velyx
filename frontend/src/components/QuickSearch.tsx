@@ -8,11 +8,13 @@ import { groupLabel, quickItems, totalResults, type QuickItem } from '../lib/sea
 import type { SearchResults } from '../lib/types';
 import { Artwork } from './Artwork';
 import { Spinner } from './States';
+import { useCatalogSearch } from './Discover';
 import { useT } from '../i18n';
 
 /**
  * Search from anywhere (Ctrl/⌘+K or "/"): a few results of each kind while typing, arrow keys and
- * Enter to open one, and a link to all results. One request per pause in typing.
+ * Enter to open one, and a link to all results. One request per pause in typing (and, with Seerr
+ * set up, one for the titles that are not in the library).
  */
 export function QuickSearch({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
@@ -29,9 +31,10 @@ export function QuickSearch({ onClose }: { onClose: () => void }) {
     staleTime: 30_000,
     queryFn: () => api.get<SearchResults>(`/api/search${qs({ q: query })}`),
   });
+  const catalog = useCatalogSearch(query);
   const results = query ? q.data : undefined;
-  const items = quickItems(results);
-  const total = totalResults(results);
+  const items = quickItems(results, catalog.results);
+  const total = totalResults(results, catalog.results);
   // The last row opens the full results page.
   const allHref = `/search${qs({ q: query })}`;
   const rows = items.length + (query ? 1 : 0);
@@ -90,7 +93,7 @@ export function QuickSearch({ onClose }: { onClose: () => void }) {
             aria-label={t('nav.searchVidalune')}
             className="h-14 flex-1 bg-transparent text-lg outline-none placeholder:text-faint [&::-webkit-search-cancel-button]:hidden"
           />
-          {q.isFetching && <Spinner className="size-4" />}
+          {(q.isFetching || catalog.isFetching) && <Spinner className="size-4" />}
           <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-full text-muted hover:bg-raised hover:text-ink" aria-label={t('quickSearch.close')}>
             <X className="size-4" />
           </button>
@@ -98,7 +101,7 @@ export function QuickSearch({ onClose }: { onClose: () => void }) {
         <div className="overflow-y-auto py-2">
           {!query ? (
             <p className="px-4 py-6 text-sm text-muted">{t('quickSearch.hint')}</p>
-          ) : results && total === 0 ? (
+          ) : results && total === 0 && !catalog.isFetching ? (
             <p className="px-4 py-6 text-sm text-muted">{t('quickSearch.nothingFound', { query })}</p>
           ) : (
             <ul id={listId} role="listbox" aria-label={t('quickSearch.results')}>

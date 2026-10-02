@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Check, Eye, Play, RotateCcw, Star } from 'lucide-react';
@@ -100,10 +99,6 @@ function ShowScreen({ id }: { id: number }) {
     enabled: current !== undefined,
     queryFn: () => api.get<SeasonDetail>(`/api/shows/${id}/seasons/${current}`),
   });
-
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-  }, [id]);
 
   const watched = useMutation({
     mutationFn: (body: Record<string, unknown>) => api.post('/api/progress/watched', body),

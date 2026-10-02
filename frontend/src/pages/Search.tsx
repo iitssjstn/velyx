@@ -8,6 +8,7 @@ import { api, qs } from '../lib/api';
 import { episodeCode, progressFraction } from '../lib/format';
 import type { SearchResults } from '../lib/types';
 import { PosterCard } from '../components/Cards';
+import { DiscoverCard, useCatalogSearch } from '../components/Discover';
 import { Artwork } from '../components/Artwork';
 import { ProgressBar } from '../components/ProgressBar';
 import { EmptyState, ErrorState, Spinner } from '../components/States';
@@ -30,8 +31,10 @@ export function SearchPage() {
     placeholderData: keepPreviousData,
     queryFn: () => api.get<SearchResults>(`/api/search${qs({ q: query })}`),
   });
+  // With Seerr set up, also what is not in the library (below the library's own results).
+  const catalog = useCatalogSearch(query);
   const r = query ? q.data : undefined;
-  const nothing = r && r.movies.length + r.shows.length + r.episodes.length === 0;
+  const nothing = r && r.movies.length + r.shows.length + r.episodes.length === 0 && catalog.results.length === 0 && !catalog.isFetching;
 
   return (
     <div className="px-4 pt-8 sm:px-8">
@@ -45,7 +48,7 @@ export function SearchPage() {
           onKeyDown={(e) => {
             // Enter opens the best match; Escape clears.
             if (e.key === 'Enter') {
-              const first = quickItems(r)[0];
+              const first = quickItems(r, catalog.results)[0];
               if (first) {
                 e.preventDefault();
                 navigate(first.href);
@@ -56,7 +59,7 @@ export function SearchPage() {
           aria-label={t('common.search')}
           className="input h-14 rounded-2xl pr-12 pl-12 text-lg [&::-webkit-search-cancel-button]:hidden"
         />
-        {q.isFetching ? (
+        {q.isFetching || catalog.isFetching ? (
           <Spinner className="absolute top-1/2 right-4 size-5 -translate-y-1/2" />
         ) : text ? (
           <button type="button" onClick={() => setText('')} className="absolute top-1/2 right-3 grid size-8 -translate-y-1/2 place-items-center rounded-full text-muted hover:text-ink" aria-label={t('searchPage.clear')}>
@@ -118,6 +121,18 @@ export function SearchPage() {
               </ul>
             </section>
           )}
+          {catalog.results.length > 0 && (
+            <section>
+              <h2 className="font-display text-xl font-semibold">{t('searchPage.catalog')}</h2>
+              <p className="mt-1 text-sm text-muted">{t('searchPage.catalogHint')}</p>
+              <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]">
+                {catalog.results.map((c) => (
+                  <DiscoverCard key={`${c.mediaType}-${c.tmdbId}`} item={c} onSelect={(item) => navigate(`/request/${item.mediaType}/${item.tmdbId}`)} />
+                ))}
+              </div>
+            </section>
+          )}
+          {catalog.error && <p className="text-sm text-muted">{t('searchPage.catalogError')}</p>}
         </div>
       ) : null}
     </div>

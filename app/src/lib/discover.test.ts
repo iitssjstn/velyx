@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canRequest, canRequestTitle, DISCOVER_ROWS, openSeasons, discoverPath, discoverTarget, mergePages, toggleSeason, type SeerrResult } from './discover';
+import { canRequest, canRequestTitle, catalogOnly, DISCOVER_ROWS, openSeasons, discoverPath, discoverTarget, mergePages, toggleSeason, type SeerrResult } from './discover';
 
 const r = (over: Partial<SeerrResult>): SeerrResult => ({ mediaType: 'movie', tmdbId: 1, title: 'X', year: null, overview: '', posterPath: null, state: null, inLibrary: false, local: null, ...over });
 
@@ -15,6 +15,11 @@ describe('discover', () => {
     expect(discoverTarget(r({ mediaType: 'tv', local: { type: 'show', id: 9 } }), 77)).toBe('/play/episode/77');
     expect(discoverTarget(r({ mediaType: 'tv', local: { type: 'show', id: 9 } }), null)).toBe('/show/9');
     expect(discoverTarget(r({ mediaType: 'tv', tmdbId: 1399 }))).toBe('/request/tv/1399');
+  });
+
+  it('searches outside the library only for what is not here', () => {
+    expect(catalogOnly([r({ tmdbId: 1, inLibrary: true, local: { type: 'movie', id: 5 } }), r({ tmdbId: 2 })]).map((x) => x.tmdbId)).toEqual([2]);
+    expect(catalogOnly(undefined)).toEqual([]);
   });
 
   it('shows a title once when it comes back on a later page', () => {

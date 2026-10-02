@@ -123,7 +123,8 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
           {canRequest && (
             <button
               type="button"
-              disabled={request.isPending || picked.length === 0}
+              // A movie has no seasons to pick; a show needs at least one season ticked.
+              disabled={request.isPending || (d.mediaType === 'tv' && picked.length === 0)}
               onClick={() => request.mutate()}
               className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-semibold text-accent-ink hover:brightness-110 disabled:opacity-60"
             >

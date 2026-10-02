@@ -49,10 +49,28 @@ en deze sectie naar "Stand van zaken" verplaatsen.
   via TMDB of zonder TMDB-sleutel via Seerr (`relatedVideos`); trailer-knop op de Seerr-titelpagina's
   (website en app). Trailers worden nu een uur bewaard (was een dag), `backend/src/services/trailers.ts`.
 - Titels buiten de bibliotheek komen bij elk openen al rechtstreeks van Seerr (geen eigen cache).
+- **Ook in 0.19.7 (meldingen van de eigenaar, 2 okt):**
+  - Request-knop bij **films** op de website deed niets: de knop stond altijd uit (een film heeft geen
+    seizoenen, en de knop ging uit bij nul gekozen seizoenen). Nu alleen bij series. Test toegevoegd.
+  - **Zoeken toont alles**: met Seerr ook titels die niet in de bibliotheek staan, onder "Niet in de
+    bibliotheek" (zoekpagina en snelzoeker op de website, zoektabblad in de app); openen gaat naar de
+    aanvraagpagina.
+  - **Nieuwe pagina opent bovenaan** (website): `useScrollToTopOnNavigate` in `Layout` voor elke
+    navigatie behalve terug/vooruit. Het probleem was in Chromium niet na te doen; de filmpagina en de
+    aanvraagpagina sprongen niet zelf naar boven, de seriepagina wel.
 - Let op: TMDB-verzoeken staan in één rij; tijdens een grote scan of verversing wacht een klik-verversing
   achter die rij (dan "pending"). Bij het nachtelijke venster eventueel klik-verzoeken voorrang geven.
 
 ## Gemeld tijdens het testen
+
+- **App: geen serveradres meer invullen** (wens van de eigenaar, 2 okt; nog niet gebouwd, eerst overleggen).
+  Wens: wie inlogt en al met een server verbonden is, gaat meteen naar die server; wie nog geen server
+  heeft, vult een **code** in die hij van de beheerder krijgt. Geen adressen, voor mensen zonder
+  technische kennis. Wat er nu al is: de app begint met het Vidalune-account en toont de servers
+  (eigen, gedeeld, uitgenodigd), het adres is "de andere ingang" (`app/src/app/cloud.tsx`,
+  `connect.tsx`, `lib/start.ts`); uitnodigen kan alleen met een **link** (Admin → Gebruikers →
+  Uitnodigen, 7 dagen, één keer). Nog uitzoeken: waar de eigenaar het adres moest invullen, automatisch
+  openen bij één server, en een korte uitnodigingscode (naast de link) die in de app ingevuld kan worden.
 
 - **Ingebouwde ondertitels sneller uitpakken** (`EmbeddedSubtitleExtractor` in
   `backend/src/services/subtitles.ts`). Ze worden pas bij het kiezen uitgepakt, en FFmpeg leest

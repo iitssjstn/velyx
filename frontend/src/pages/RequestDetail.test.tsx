@@ -84,6 +84,18 @@ describe('a title from Seerr on its own page', () => {
     expect(screen.queryByRole('button', { name: 'Request' })).toBeNull();
   });
 
+  it('requests a movie (a movie has no seasons to tick)', async () => {
+    const calls = setup('/request/movie/604', (method, url) => {
+      if (url === '/api/seerr/movie/604') return { ...base, mediaType: 'movie', tmdbId: 604, title: 'The Matrix Reloaded', year: 2003, state: null, seasons: [] };
+      if (method === 'POST' && url === '/api/seerr/requests') return { id: 1, mediaType: 'movie', tmdbId: 604, title: 'The Matrix Reloaded', posterPath: null, state: 'requested', createdAt: 0, updatedAt: 0 };
+      return {};
+    });
+    const button = (await screen.findByRole('button', { name: 'Request' })) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    await userEvent.click(button);
+    await vi.waitFor(() => expect(calls.find((c) => c.call === 'POST /api/seerr/requests')?.body).toEqual({ mediaType: 'movie', tmdbId: 604, seasons: null }));
+  });
+
   it('lets an administrator make a stuck title requestable again, after asking', async () => {
     role = 'admin';
     const calls = setup('/request/movie/700', (_m, url) => (url === '/api/seerr/movie/700' ? { ...base, mediaType: 'movie', tmdbId: 700, title: 'The Uprising', year: 2026, state: 'processing', seasons: [] } : { ok: true }));
