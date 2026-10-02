@@ -34,8 +34,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Volgende versie
 
-### 0.19.7: verse metadata bij aanklikken + trailers buiten de bibliotheek (gebouwd op de branch)
-De eigenaar koos: alleen dit punt. Klaar op de branch, nog niet gemerged:
+### 0.19.7: verse metadata bij aanklikken + trailers buiten de bibliotheek
+De eigenaar koos: alleen dit punt. PR #83; de eigenaar gaf toestemming dat Claude deze PR zelf merget
+als alles groen is (eenmalig, voor 0.19.7). Na de merge: release `v0.19.7` controleren (APK + beide `.deb`'s)
+en deze sectie naar "Stand van zaken" verplaatsen.
 - **Verse metadata bij openen** (website, app.vidalune.com en de Android-app): de detailpagina opent
   meteen met wat er is en vraagt daarna `POST /api/movies/:id/refresh` of `/api/shows/:id/refresh`.
   De server (`backend/src/services/fresh-metadata.ts`, `FRESH_FOR_MS` = 1 uur) haalt de titel opnieuw
