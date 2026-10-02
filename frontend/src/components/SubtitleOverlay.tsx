@@ -28,6 +28,9 @@ export function SubtitleOverlay({
       setLines([]);
       return;
     }
+    // Another track (or file): the lines of the previous one go at once, also while the new
+    // track's cues are still loading (an embedded subtitle can take a while to be extracted).
+    setLines([]);
     let raf = 0;
     let lastKey = '';
     const tick = () => {
