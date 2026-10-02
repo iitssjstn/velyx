@@ -21,7 +21,7 @@ function leaves(tree: Tree, prefix = ''): Array<[string, string]> {
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 /** Texts that are the same in Dutch on purpose: technical terms, product names and formats. */
-const SAME_IN_DUTCH = new Set(['nav.account', 
+const SAME_IN_DUTCH = new Set(['nav.account', 'detail.trailer', 'detail.trailerOf',
   'nav.servers', 'time.seconds', 'time.minutes', 'media.mono', 'media.stereo', 'series.special', 'series.specials', 'series.status.pilot', 'nav.menu',
   'settings.audio.surround', 'settings.device.containers', 'settings.server.title', 'settings.tabs.account', 'settings.tabs.server',
   'continueWatching.details', 'library.cast', 'player.volume', 'collections.itemCount.one', 'collections.itemCount.other', 'device.browser',
