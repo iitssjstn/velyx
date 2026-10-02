@@ -48,18 +48,15 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   begin van het bestand, en de live stream verschuift de ondertitels met `?offset=`.
   Later (bij HLS in de app en op de Chromecast): ondertitels ook in de HLS-playlist opnemen.
 
-- **Metadata 's nachts verversen, binnen een tijdvenster**: de eigenaar stelt een tijd in (bijvoorbeeld
-  02:00–06:00) waarin de server de metadata automatisch ververst (nieuwe posters, beschrijvingen,
-  afleveringen, beoordelingen). Buiten dat venster gebeurt dat niet vanzelf; handmatig verversen blijft
-  altijd kunnen. Rustig uitvoeren (lage prioriteit, TMDB-limiet), stoppen bij het einde van het venster
-  en de volgende nacht verder waar hij was. Nu bestaat alleen handmatig verversen
-  (`refreshMetadata` in `scanner.ts`/`scan-manager.ts`). Past bij het onderhoudsvenster van punt 3
-  hieronder (prestaties): zwaar achtergrondwerk in hetzelfde venster.
-  - Alleen de metadata van wat **echt op de server staat** verversen (films, series en afleveringen
-    in de bibliotheken; geen catalogus- of Seerr-titels die er niet zijn).
-  - In hetzelfde venster ook **de rest** van het zware werk doen: intro/recap/aftiteling-detectie,
-    ondertitels vooraf uitpakken, analyses, opruimen enz. Overdag alleen wat direct nodig is
-    (nieuwe bestanden toevoegen en herkennen).
+- **Verversen verdelen over dag en nacht** (tijdvenster in te stellen, bijvoorbeeld 02:00–06:00):
+  - **Overdag:** gewoon de metadata verversen van wat op de server van de beheerder staat (films, series
+    en afleveringen in de bibliotheken), zoals nu.
+  - **'s Nachts, binnen het venster:** de rest. Dat is de metadata van titels die niet op de server staan
+    (catalogus- en Seerr-rijen) en het zware achtergrondwerk: intro-, recap- en aftitelingdetectie,
+    ondertitels vooraf uitpakken, analyses en opruimen.
+  - Rustig uitvoeren (lage prioriteit, TMDB-limiet), stoppen aan het einde van het venster en de
+    volgende nacht verder waar hij was. Handmatig starten kan altijd.
+  - Past bij het onderhoudsvenster van punt 3 hieronder (prestaties).
 
 ## Later (in deze volgorde, tenzij de eigenaar anders zegt)
 
