@@ -7,13 +7,13 @@ import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
-import { CastButton, CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, useMediaStatus, useRemoteMediaClient, useStreamPosition } from 'react-native-google-cast';
+import { CastButton, CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, useMediaStatus, useRemoteMediaClient } from 'react-native-google-cast';
 import { deviceDecoders } from '../../../../modules/vidalune-codecs';
 import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
 import { playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
-import { castLoadRequest, castTrackIds, openCastDialog, sessionUsable, type CastSession } from '../../../lib/cast';
+import { castLoadRequest, castTrackIds, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
@@ -211,7 +211,21 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   const client = useRemoteMediaClient();
   const castDevice = useCastDevice();
   const mediaStatus = useMediaStatus();
-  const streamPosition = useStreamPosition(0.5);
+  // The TV's position (file time) while casting, as last reported; saved when casting ends.
+  const tvPosition = useRef<number | null>(null);
+  const onTvProgress = useRef<(streamSec: number) => void>(() => undefined);
+  // The TV reports its position through the Cast SDK's own progress listener. It runs natively, so it
+  // keeps coming while the app is in the background (phone locked, another app open), when JavaScript
+  // timers and effects wait; the position is therefore saved straight from it (see below).
+  useEffect(() => {
+    if (!client) return;
+    void client
+      .getStreamPosition()
+      .then((p) => p !== null && onTvProgress.current(p))
+      .catch(() => undefined);
+    const subscription = client.onMediaProgressUpdated((p) => onTvProgress.current(p), 0.5);
+    return () => subscription.remove();
+  }, [client]);
   const [casting, setCasting] = useState(false);
   const castingRef = useRef(false);
   const castSession = useRef<{ session: CastSession; audio: number | null } | null>(null);
@@ -397,17 +411,18 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       void castLoad(position, audioIndex).catch(castFailed);
     } else if (!client && castingRef.current) {
       castingRef.current = false;
+      // Where the TV was (also when casting was stopped on the TV or while the app was away).
+      const at = tvPosition.current ?? position;
+      tvPosition.current = null;
+      void save(at, true);
       setCasting(false);
       setPlaying(false);
-      if (answer && !ended) void load(answer, position, false).catch((err: unknown) => setProblem(errorMessage(err, t)));
+      if (answer && !ended) void load(answer, at, false).catch((err: unknown) => setProblem(errorMessage(err, t)));
     }
     // On connecting and disconnecting only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, answer !== null]);
-  // The TV's position, playing state and end.
-  useEffect(() => {
-    if (casting && streamPosition !== null) setTime(streamPosition);
-  }, [casting, streamPosition]);
+  // The TV's playing state and end (its position comes from onTvProgress below).
   const castState = mediaStatus?.playerState ?? null;
   const castIdle = mediaStatus?.idleReason ?? null;
   useEffect(() => {
@@ -436,8 +451,18 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
     [api, duration, item.kind, item.id],
   );
   useEffect(() => {
-    if (playing) void save(position);
-  }, [playing, position, save]);
+    if (playing && !casting) void save(position);
+  }, [playing, casting, position, save]);
+  // While casting: shown and saved straight from the TV's progress reports (every 10 s at most), so it
+  // also happens while the app is in the background.
+  onTvProgress.current = (streamSec) => {
+    if (!castingRef.current) return;
+    const at = tvFilePosition(offset, streamSec);
+    if (at === null) return;
+    tvPosition.current = at;
+    setTime(streamSec);
+    void save(at);
+  };
   // The last known position, for saving when leaving (the native player may be gone by then).
   const saveRef = useRef<() => unknown>(() => undefined);
   saveRef.current = () => save(position, true);

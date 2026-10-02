@@ -9,9 +9,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.9** (PR #85): aanvragen eerst bevestigen, seizoenen zelf kiezen, minder
-  buildminuten. Release `v0.19.9` gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.8 (PR #84, app
-  opent je server meteen) en 0.19.7 (PR #83, verse metadata, trailers en zoeken buiten de bibliotheek).
+- Laatste release: **0.19.10** (PR #86): seizoenen kiezen in het aanvraagvenster. Release `v0.19.10`
+  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.9 (PR #85, aanvragen bevestigen, minder
+  buildminuten), 0.19.8 (PR #84, app opent je server meteen), 0.19.7 (PR #83, verse metadata e.d.).
 - Nog te doen door de eigenaar: castknop (0.19.6) testen op een telefoon; nagaan of het scrollprobleem
   weg is; de app na inloggen proberen.
 - De eigenaar test verder en meldt alles wat hij tegenkomt; dat komt hieronder.
@@ -39,15 +39,32 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Volgende versie
 
-### 0.19.10: seizoenen kiezen in het aanvraagvenster (website en app)
-Wens van de eigenaar (2 okt): de seizoenen in de popup. Niet zelf mergen zonder toestemming.
-- De pagina toont de seizoenen alleen als overzicht (afleveringen, wat al aangevraagd/beschikbaar is),
-  zonder vinkjes. "Aanvragen" opent het venster; bij een serie kies je daar de seizoenen (niets vooraf
-  aangevinkt, "Alle seizoenen"/"Geen"); de knop in het venster werkt pas als er iets gekozen is.
-  Bij een film blijft het een bevestiging.
-- Website: `ConfirmModal` kreeg `confirmDisabled`; app: een eigen `Modal` (film: `Alert`).
+### 0.19.11: voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
+Gevraagd door de eigenaar (2 okt, "zonder dat ik 5 euro moet betalen"). Niet zelf mergen zonder toestemming.
+- De app slaat tijdens het casten de voortgang op direct vanuit de voortgangsmelder van de Cast SDK
+  (`client.onMediaProgressUpdated`, native), niet meer via een React-effect: dat wachtte op de
+  achtergrond. Bij het einde van het casten (ook op de tv gestopt) wordt de laatste positie van de tv
+  bewaard. `app/src/app/play/[kind]/[id].tsx`, `tvFilePosition` in `app/src/lib/cast.ts`.
+- Nog door de eigenaar te testen op een echte telefoon + Chromecast (scherm op slot tijdens het kijken).
 
 ## Gemeld tijdens het testen
+
+- **Voortgang wordt niet bewaard bij casten** (gemeld 2 okt; app-deel gebouwd in 0.19.11). Oorzaak: de server
+  bewaart de voortgang niet zelf; de speler op de telefoon/in de browser stuurt elke 10 s de positie van
+  de tv door (`frontend/src/pages/Player.tsx`, `castSaved`; app: `save` in `app/src/app/play/[kind]/[id].tsx`).
+  Dat stopt als de speler gesloten wordt, de telefoon op slot gaat of de app naar de achtergrond gaat,
+  of als het casten op de tv zelf wordt gestopt. Bij de eigenaar: gecast vanuit de **app**, die daarna
+  op de achtergrond stond (Android pauzeert dan de JavaScript-timers, dus er wordt niets doorgestuurd).
+  Voorstel: nu de snelle verbetering (bij terugkomen in de app en bij het einde van de cast-sessie de
+  positie van de tv ophalen en bewaren), echt opgelost met de eigen cast-speler.
+  Oplossingen: snel = de app blijft op de achtergrond doorsturen en bewaart altijd de laatste positie bij
+  het stoppen; goed = de eigen cast-speler (zie Ideeën) meldt zelf de voortgang aan de server.
+
+- **Tv toont geen goede lengte bij casten** (gemeld 2 okt, foto: "0:02 … 0:06"). Oorzaak: een omgepakt
+  bestand (bv. MKV) gaat als doorlopende fragmented MP4 (`frag_keyframe+empty_moov`, `remux.ts`) naar de
+  tv; Google's standaardspeler kent dan de lengte niet en toont alleen wat binnen is (website en app
+  sturen `streamDuration`/`duration` wel mee, maar die gebruikt hij niet). Oplossingen: HLS (VOD-lijst met
+  alle stukken) naar de Chromecast (Later punt 4, zonder $5), of de eigen cast-speler.
 
 - **Ingebouwde ondertitels sneller uitpakken** (`EmbeddedSubtitleExtractor` in
   `backend/src/services/subtitles.ts`). Ze worden pas bij het kiezen uitgepakt, en FFmpeg leest
@@ -111,6 +128,21 @@ Wens van de eigenaar (2 okt): de seizoenen in de popup. Niet zelf mergen zonder 
   pagina. Telt mee voor SEO. Bijhouden bij elke release.
 
 ## Ideeën (nog niet besloten)
+
+- **Eigen cast-speler (Custom Web Receiver)** — wens van de eigenaar (2 okt), **nog niet bouwen** (hij
+  test eerst). Moet een **volledige speler** zijn: alles wat mensen op de website en in de app gebruiken.
+  Dus onder meer Vidalune-uitstraling met laadscherm (achtergrond, titel), eigen bediening/voortgang,
+  audio- en ondertitelkeuze, ondertitels met de eigen stijlinstellingen (ook OpenSubtitles), intro/recap/
+  aftiteling overslaan, volgende aflevering met aftellen, hervatten, duidelijke foutmeldingen, en later
+  HLS/adaptieve kwaliteit. Nu: Google's Default Media Receiver (`CC1AD845`) in `frontend/src/lib/cast.ts`
+  en `app/app.json`. Nodig: de eigenaar registreert in de Google Cast SDK Developer Console (eenmalig
+  $5), krijgt een app-ID en zet test-Chromecasts (serienummer) erin tot publicatie; de speler komt op
+  HTTPS, bijvoorbeeld `vidalune.com/cast`; website en app gebruiken dan dat app-ID.
+  - Foto's van de eigenaar (2 okt): de tv toont nu Google's standaardscherm (titel, jaar, balk, knoppen
+    ±30 s en CC) en ondertitels in een **monospace-lettertype op zwarte blokken**. Dat komt doordat
+    Vidalune geen `TextTrackStyle` meestuurt. Snelle verbetering, ook zonder eigen speler: bij het casten
+    een `TextTrackStyle` meegeven (gewoon lettertype, rand/schaduw in plaats van blok, grootte en kleur
+    uit de ondertitelinstellingen van de gebruiker), in `frontend/src/lib/cast.ts` en de app.
 
 - **Ondertitels als plaatjes** (PGS van Blu-ray, VobSub van dvd): nu niet getoond. Mogelijk: inbranden
   in het beeld tijdens het omzetten (transcoding), of omzetten naar tekst.
