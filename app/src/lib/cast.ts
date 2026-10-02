@@ -106,3 +106,16 @@ export function castTrackIds(session: CastSession | null, subtitleKey: string | 
   const i = session ? session.subtitles.findIndex((sub) => sub.key === subtitleKey) : -1;
   return i >= 0 ? [i + 1] : [];
 }
+
+/**
+ * Opens Google's Chromecast list. On Android it can only open through a native cast button on the
+ * screen (the player keeps an invisible one); `false` means it did not open, which is said instead
+ * of nothing happening.
+ */
+export async function openCastDialog(show: () => Promise<boolean>, failed: (message: 'player.castNoDialog' | Error) => void): Promise<void> {
+  try {
+    if (!(await show())) failed('player.castNoDialog');
+  } catch (err) {
+    failed(err instanceof Error ? err : new Error(String(err)));
+  }
+}

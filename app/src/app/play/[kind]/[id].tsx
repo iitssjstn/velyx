@@ -7,13 +7,13 @@ import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
-import { CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, useMediaStatus, useRemoteMediaClient, useStreamPosition } from 'react-native-google-cast';
+import { CastButton, CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, useMediaStatus, useRemoteMediaClient, useStreamPosition } from 'react-native-google-cast';
 import { deviceDecoders } from '../../../../modules/vidalune-codecs';
 import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
 import { playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
-import { castLoadRequest, castTrackIds, sessionUsable, type CastSession } from '../../../lib/cast';
+import { castLoadRequest, castTrackIds, openCastDialog, sessionUsable, type CastSession } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
@@ -640,11 +640,13 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
               </View>
               {/* Always there: opens the Chromecast list, which searches the network itself (and "stop
                   casting" while connected). The standard button only shows once a Chromecast was
-                  already found in the background, which can take long or not happen at all. */}
+                  already found in the background, which can take long or not happen at all. On
+                  Android the list opens through a native cast button, so an invisible one stays here. */}
+              <CastButton style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }} importantForAccessibility="no-hide-descendants" />
               <IconButton
                 name="cast"
                 label={t('player.cast')}
-                onPress={() => void CastContext.showCastDialog().catch((err: unknown) => Alert.alert(t('player.castFailed'), errorMessage(err, t)))}
+                onPress={() => void openCastDialog(() => CastContext.showCastDialog(), (e) => Alert.alert(t('player.castFailed'), typeof e === 'string' ? t(e) : errorMessage(e, t)))}
               />
               <IconButton name="message-square" label={t('player.tracks')} onPress={() => setMenu(true)} />
             </View>

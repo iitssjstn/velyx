@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { castAddress, castLoadRequest, castTrackIds, sessionUsable, type CastSession } from './cast';
+import { castAddress, castLoadRequest, castTrackIds, openCastDialog, sessionUsable, type CastSession } from './cast';
 
 const url = (path: string) => `http://nas:3000${path.startsWith('/') ? path : `/${path}`}`;
 const session = (seek: 'range' | 'restart'): CastSession => ({
@@ -51,5 +51,19 @@ describe('casting from the app', () => {
     expect(sessionUsable(session('range'), 2, 1, 1000)).toBe(false);
     expect(sessionUsable(session('range'), 1, 1, 9_990_000)).toBe(false);
     expect(sessionUsable(null, 1, 1)).toBe(false);
+  });
+});
+
+describe('opening the Chromecast list', () => {
+  it('says so when the list does not open, instead of doing nothing', async () => {
+    const said: unknown[] = [];
+    await openCastDialog(async () => true, (m) => said.push(m));
+    expect(said).toEqual([]);
+    await openCastDialog(async () => false, (m) => said.push(m));
+    expect(said).toEqual(['player.castNoDialog']);
+    await openCastDialog(async () => {
+      throw new Error('Cast framework not ready');
+    }, (m) => said.push(m));
+    expect((said[1] as Error).message).toBe('Cast framework not ready');
   });
 });
