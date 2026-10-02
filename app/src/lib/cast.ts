@@ -119,3 +119,11 @@ export async function openCastDialog(show: () => Promise<boolean>, failed: (mess
     failed(err instanceof Error ? err : new Error(String(err)));
   }
 }
+
+/**
+ * The file time the TV is at, from its stream position (a repackaged stream starts at `offset` in the
+ * file). Null when the TV reports nothing usable yet.
+ */
+export function tvFilePosition(offset: number, streamSec: number): number | null {
+  return Number.isFinite(streamSec) && streamSec > 0 ? offset + streamSec : null;
+}

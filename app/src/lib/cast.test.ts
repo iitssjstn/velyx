@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { castAddress, castLoadRequest, castTrackIds, openCastDialog, sessionUsable, type CastSession } from './cast';
+import { castAddress, castLoadRequest, castTrackIds, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from './cast';
 
 const url = (path: string) => `http://nas:3000${path.startsWith('/') ? path : `/${path}`}`;
 const session = (seek: 'range' | 'restart'): CastSession => ({
@@ -67,3 +67,14 @@ describe('opening the Chromecast list', () => {
     expect((said[1] as Error).message).toBe('Cast framework not ready');
   });
 });
+
+describe('tvFilePosition', () => {
+  it('turns the TV\'s stream position into file time, ignoring what is not usable yet', () => {
+    expect(tvFilePosition(0, 754.2)).toBe(754.2);
+    // A repackaged stream started at 1200 s in the file.
+    expect(tvFilePosition(1200, 30)).toBe(1230);
+    expect(tvFilePosition(0, 0)).toBeNull();
+    expect(tvFilePosition(0, Number.NaN)).toBeNull();
+  });
+});
+
