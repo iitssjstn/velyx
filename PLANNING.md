@@ -59,8 +59,10 @@ Nog niet gekozen. De eigenaar bepaalt welke punten uit "Gemeld tijdens het teste
     grote ronde. Uitwerking:
     - de pagina opent meteen met wat er al is; verversen gebeurt op de achtergrond en de pagina
       werkt zichzelf bij als er nieuwe gegevens zijn;
-    - alleen een korte drempel tegen dubbel werk (bijvoorbeeld niet opnieuw als de titel het
-      afgelopen uur al is ververst); dubbele verzoeken voor dezelfde titel samenvoegen;
+    - drempel van **1 uur** (goedgekeurd door de eigenaar): wie de titel binnen een uur na de laatste
+      verversing opent, krijgt dezelfde (opgeslagen) gegevens zonder nieuw TMDB-verzoek; opent iemand
+      hem na dat uur, dan wordt bij TMDB gekeken of er nieuwe gegevens zijn. Gelijktijdige verzoeken
+      voor dezelfde titel samenvoegen tot één;
     - bij een serie ook de seizoenen en afleveringen (die op de server staan);
     - binnen de TMDB-limiet; mislukt het (TMDB plat, geen sleutel), dan blijven de oude gegevens staan;
     - aanknopingspunt in de code: `matchMovie(id, force)` / `matchShow` en `refreshShowSeasons` in
