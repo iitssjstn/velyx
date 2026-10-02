@@ -5,8 +5,11 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.5** (PR #81, castknop altijd zichtbaar; door de eigenaar zelf gemerged).
-- De eigenaar test nu een paar dagen en meldt alles wat hij tegenkomt; dat komt hieronder.
+- Laatste release: **0.19.6** (PR #82: castknop opent de Chromecast-lijst weer, trailers, compacte
+  ondertitellijst, ondertitel wisselen, Discord-link). Release `v0.19.6` heeft de APK en beide
+  `.deb`-bestanden (amd64 en arm64).
+- Nog te doen door de eigenaar: de castknop van 0.19.6 testen op een telefoon.
+- De eigenaar test verder en meldt alles wat hij tegenkomt; dat komt hieronder.
 - De volgende update wordt **één grote update** met alles wat hieronder staat en is goedgekeurd.
 - Hardware van de eigenaar: AMD Athlon II X2 260 (2 cores), media op een NAS, Docker (Debian 12,
   ffmpeg 5.1). Altijd testen met een film van volledige lengte op trage hardware, niet met korte clips.
@@ -27,50 +30,17 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Volgende versie
 
-### 0.19.6: de castknop opent de Chromecast-lijst weer
-- Probleem: in de app gebeurt er niets bij een klik op de castknop.
-- Oorzaak: op Android doet `CastContext.showCastDialog()` alleen een klik op de laatst geplaatste
-  native `CastButton` (MediaRouteButton). In 0.19.5 is die knop weggehaald, dus de functie geeft
-  `false` terug en er gebeurt niets (ook geen foutmelding). Het zoeken naar apparaten start ook pas
-  als zo'n knop er is.
-- Oplossing:
-  - de native `CastButton` weer plaatsen, onzichtbaar achter het eigen cast-icoon, zodat de lijst opent;
-  - op het afspeelscherm actief naar Chromecasts zoeken (`DiscoveryManager.startDiscovery`);
-  - een melding tonen als de lijst toch niet opent (`showCastDialog()` geeft `false`);
-  - testen op een telefoon.
-
-## Klaar op de branch (komt mee in de volgende versie)
-
-- **Castknop in de app**: opent de Chromecast-lijst weer (onzichtbare native knop), met melding als
-  de lijst niet opent. Nog testen op een telefoon.
-- **Ondertitel wisselen**: de oude zin verdwijnt meteen. (Ingebouwde ondertitels sneller uitpakken
-  staat nog open, zie hieronder.)
-- **Compacte ondertitellijst** op de detailpagina: één label per taal, na 8 talen "+N meer".
-- **Trailer-knop** op film- en seriepagina's (website: YouTube zonder cookies na klik; app: opent YouTube).
-- **Discord-link op vidalune.com**: in het menu en onderaan elke pagina, plus vidalune.com/discord en
-  discord.vidalune.com. De link is aan te passen of uit te zetten in het Control Center → Community.
-  Voor discord.vidalune.com moet DNS naar de VPS wijzen (wildcard van de relay of een eigen record) en
-  de reverse proxy moet die host doorsturen.
+Nog niet gekozen. De eigenaar bepaalt welke punten uit "Gemeld tijdens het testen" erin komen.
 
 ## Gemeld tijdens het testen
 
-- **Lange lijst ondertitels op de detailpagina** (website, blok "Media" in `MovieDetail.tsx`):
-  elke ondertitel staat op een eigen regel, waardoor een film met veel talen een heel lange lijst
-  geeft. Idee: compact tonen (talen als chips of één regel, met "+N meer" om uit te klappen) en
-  dubbele talen (bijvoorbeeld gewoon en SDH) samenvoegen.
-
-- **Andere ondertiteltaal kiezen: ondertitel blijft stilstaan** (website-speler). Twee oorzaken:
-  1. Bug in `frontend/src/components/SubtitleOverlay.tsx`: bij een nieuwe track begint `lastKey` op
-     `''`. De nieuwe track heeft nog geen cues, dus de sleutel is ook `''` en de oude regel wordt nooit
-     weggehaald: de laatste zin van de vorige taal blijft staan. Fix: bij het wisselen van track
-     `setLines([])` (of `lastKey` op een waarde die nooit voorkomt). Test toevoegen.
-  2. Ingebouwde ondertitels (`EmbeddedSubtitleExtractor` in `backend/src/services/subtitles.ts`)
-     worden pas bij het kiezen uitgepakt, en FFmpeg leest daarvoor het **hele** bestand. Op een NAS
-     met een trage CPU duurt dat minuten (en na 10 minuten wordt het afgebroken), terwijl de film
-     ook nog van dezelfde schijf moet streamen. Verbetering:
-     - alle tekstondertitels van een bestand in **één** leesronde uitpakken (één keer lezen voor alle talen);
-     - dat vooraf op de achtergrond doen (lage prioriteit, na de scan of bij de start van het afspelen);
-     - in de speler "Ondertitel laden…" tonen, en een melding als het mislukt.
+- **Ingebouwde ondertitels sneller uitpakken** (`EmbeddedSubtitleExtractor` in
+  `backend/src/services/subtitles.ts`). Ze worden pas bij het kiezen uitgepakt, en FFmpeg leest
+  daarvoor het **hele** bestand. Op een NAS met een trage CPU duurt dat minuten (en na 10 minuten
+  wordt het afgebroken), terwijl de film ook nog van dezelfde schijf moet streamen. Verbetering:
+  - alle tekstondertitels van een bestand in **één** leesronde uitpakken (één keer lezen voor alle talen);
+  - dat vooraf op de achtergrond doen (lage prioriteit, na de scan of bij de start van het afspelen);
+  - in de speler "Ondertitel laden…" tonen, en een melding als het mislukt.
 - **HLS en ondertitels**: gecontroleerd, geen fout gevonden. Ondertitels zijn losse WebVTT-bestanden;
   de HLS-tijdlijn (`-copyts -start_at_zero`) en de uitgepakte ondertitels beginnen allebei bij het
   begin van het bestand, en de live stream verschuift de ondertitels met `?offset=`.
