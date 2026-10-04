@@ -78,6 +78,16 @@ Gevraagd door de eigenaar (2 okt, "zonder dat ik 5 euro moet betalen"). Niet zel
   begin van het bestand, en de live stream verschuift de ondertitels met `?offset=`.
   Later (bij HLS in de app en op de Chromecast): ondertitels ook in de HLS-playlist opnemen.
 
+- **Bibliotheekmappen kiezen en scannen gaat fout** (meldingen 4 okt; screenshots bij de planning):
+  - Bij het toevoegen van een bibliotheek verschijnt soms de melding dat de gekozen map overlapt met een bestaande bibliotheek (bijvoorbeeld `TV Shows (Anime)`), waardoor een extra bibliotheek niet kan worden toegevoegd. Onderzoek de overlapcontrole: vergelijk genormaliseerde containerpaden correct, blokkeer alleen echte overlappende paden en geef een duidelijke melding met de betreffende paden.
+  - De mapkiezer toont bij het openen van `/media/movies` geen submappen. Controleer de mapnavigatie, het padveld en de server-side directory-listing; de gebruiker moet mappen kunnen openen en selecteren die binnen de container toegankelijk zijn.
+  - Een bestaande bibliotheek `Movies` lijkt op `/` te staan. Een scan heeft daardoor bestanden uit de Vidalune-appomgeving, waaronder `node_modules`, als media behandeld. De scan meldde **1.492 bestanden, 1.492 toegevoegd, 0 verwijderd en 1.464 mislukt**; FFprobe meldt dat veel bestanden niet geanalyseerd kunnen worden. Controleer waarom de bibliotheek op `/` staat en voorkom dat een bibliotheek per ongeluk de volledige container/root scant. Valideer en toon het ingestelde pad vóór een scan, geef een waarschuwing voor brede/rootpaden en wijzig bestaande bibliotheekpaden niet stilzwijgend. Controleer ook dat de Docker-mediapaden overeenkomen met de werkelijk gemounte mappen (standaard bijvoorbeeld `/media/movies` en `/media/tv`). Voeg regressietests toe voor padnormalisatie, overlapcontrole, mapnavigatie en het weigeren/waarschuwen bij onbedoelde root-scans.
+  - Test na de fix met een lege map, mappen met submappen, twee afzonderlijke bibliotheken en een bestaande bibliotheek; controleer dat alleen echte mediabestanden worden gescand en dat ongeldige bestanden niet als films/afleveringen worden toegevoegd.
+
+- **APT-repository geeft 404 bij `apt update`** (melding 4 okt):
+  - `apt update` op `https://vidalune.com/apt` geeft `404 Not Found` voor `./Release` en meldt dat de repository geen Release-bestand heeft. Daardoor wordt de repository door APT uitgeschakeld.
+  - Controleer de publicatie en URL-structuur van de APT-repository, inclusief `Release`/`InRelease`, package-indexbestanden en de daadwerkelijke `.deb`-paden. Zorg dat de documentatie en installatie-instructies exact overeenkomen met de live repository. Test vanaf een schone Debian-installatie met `apt update` en installatie/updaten van het amd64- en arm64-pakket. Los dit op zonder de APT-ondertekening of beveiligingscontroles uit te schakelen.
+
 - **Verversen verdelen over dag en nacht** (nog te bouwen: het nachtelijke venster; tijdvenster in te stellen, bijvoorbeeld 02:00–06:00):
   - **'s Nachts, binnen het venster:** de grote verversingsronde van alle metadata (bibliotheek én
     catalogus- en Seerr-rijen), plus het zware achtergrondwerk (zie hieronder).
