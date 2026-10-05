@@ -100,10 +100,16 @@ De release bevat `/genres` op web en een eigen Categorieën-tab in Android, beid
   Account en Beheer rechts. Content benut de volledige breedte.
 - Mobiele navigatie en app-bottom-tabs blijven ongewijzigd. Watchlist en Favorieten blijven bereikbaar
   via Account.
+- Plaats de begroeting als overlay in de Home-hero, zodat de achtergrondfoto direct onder de topnav
+  begint en niet door een los begroetingsblok omlaag wordt geduwd.
+- Neem Seerr-items op in dezelfde virtuele grid op Films en Series, met bronkeuze Alles/Bibliotheek/Seerr.
+  Verberg in Alles catalogusdubbelen die al lokaal staan; behoud bibliotheekfilters en maak hun bereik duidelijk.
 - Laat `/genres` standaard bibliotheek en Seerr combineren: gelijke genrenamen samenvoegen, lokale
   resultaten en catalogustitels tonen, catalogusdubbelen voor items die al lokaal beschikbaar zijn
   onderdrukken, en bronkeuze behouden. Werkt ook wanneer Seerr uitstaat en toont duidelijke fout-/leegstatussen.
-- Ondersteun Engels en Nederlands. Lokaal gecontroleerd: 62 frontendtestbestanden (266 tests),
+- Maak Genres een desktopnav-dropdown met directe film-/seriegenrekeuzes; mobiel houdt de bestaande
+  Genres-link. De links openen de gecombineerde genrepagina op de gekozen categorie.
+- Ondersteun Engels en Nederlands. Lokaal gecontroleerd: 62 frontendtestbestanden (270 tests),
   frontend/backend/cloud-typechecks, Android-typecheck, app-tests (109 tests), ESLint en frontend-productiebuild slagen.
 - Visuele browsercontrole blijft nog te doen: de ingebouwde browser blokkeert localhost en de lokale backend draait niet.
 

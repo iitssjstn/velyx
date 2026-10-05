@@ -14,7 +14,7 @@ import { EmptyState, ErrorState, ShelfSkeleton } from '../components/States';
 import { ProgressBar } from '../components/ProgressBar';
 import { useT } from '../i18n';
 
-function Hero({ data }: { data: HomeData }) {
+function Hero({ data, greetingText }: { data: HomeData; greetingText: string }) {
   const { t } = useT();
   const cw = data.hero;
   const featured: Card | undefined = data.recentlyAdded.find((c) => c.backdropPath) ?? data.recentlyAdded[0];
@@ -42,31 +42,34 @@ function Hero({ data }: { data: HomeData }) {
         <div className="absolute inset-0 bg-gradient-to-r from-bg via-bg/75 to-bg/10" />
         <div className="absolute inset-0 bg-gradient-to-t from-bg via-transparent to-bg/40" />
       </div>
-      <div className={`relative flex flex-col justify-end px-4 pt-16 pb-8 sm:px-8 ${src ? 'min-h-[21rem] sm:min-h-[26rem]' : 'min-h-[15rem]'}`}>
-        <p className="text-sm text-muted">{cw ? t('home.pickUp') : t('home.recentlyAddedHero')}</p>
-        <h2 className="mt-1 max-w-2xl font-display text-4xl leading-[1.05] font-semibold tracking-tight sm:text-5xl">{title}</h2>
-        {overview && <p className="mt-3 line-clamp-2 max-w-xl text-ink/80">{overview}</p>}
-        {position && fraction > 0 && (
-          <div className="mt-4 flex max-w-sm items-center gap-3 text-sm text-muted">
-            <ProgressBar value={fraction} className="flex-1" />
-            <span className="tabular-nums">{position}</span>
-          </div>
-        )}
-        <div className="mt-6 flex flex-wrap gap-2 sm:gap-3">
-          <Link to={playLink} className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 font-semibold whitespace-nowrap text-bg transition hover:bg-white sm:h-12 sm:px-6">
-            <Play className="size-5 fill-current" />
-            {cw && started ? t('player.resume') : featuredShow ? t('home.episodes') : t('player.play')}
-          </Link>
-          {cw && started && (
-            <Link to={startOverHref(cw)} className="inline-flex h-11 items-center gap-2 rounded-full bg-ink/10 px-4 font-medium whitespace-nowrap backdrop-blur transition hover:bg-ink/20 sm:h-12 sm:px-5">
-              <RotateCcw className="size-5" />
-              {t('player.startOver')}
-            </Link>
+      <div className={`relative flex flex-col px-4 pt-6 pb-8 sm:px-8 sm:pt-7 ${src ? 'min-h-[21rem] sm:min-h-[26rem]' : 'min-h-[15rem]'}`}>
+        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">{greetingText}</h1>
+        <div className="mt-auto pt-12">
+          <p className="text-sm text-muted">{cw ? t('home.pickUp') : t('home.recentlyAddedHero')}</p>
+          <h2 className="mt-1 max-w-2xl font-display text-4xl leading-[1.05] font-semibold tracking-tight sm:text-5xl">{title}</h2>
+          {overview && <p className="mt-3 line-clamp-2 max-w-xl text-ink/80">{overview}</p>}
+          {position && fraction > 0 && (
+            <div className="mt-4 flex max-w-sm items-center gap-3 text-sm text-muted">
+              <ProgressBar value={fraction} className="flex-1" />
+              <span className="tabular-nums">{position}</span>
+            </div>
           )}
-          {!featuredShow && <Link to={infoHref} className="inline-flex h-11 items-center gap-2 rounded-full bg-ink/10 px-4 font-medium whitespace-nowrap backdrop-blur transition hover:bg-ink/20 sm:h-12 sm:px-5">
-            <Info className="size-5" />
-            {t('home.details')}
-          </Link>}
+          <div className="mt-6 flex flex-wrap gap-2 sm:gap-3">
+            <Link to={playLink} className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 font-semibold whitespace-nowrap text-bg transition hover:bg-white sm:h-12 sm:px-6">
+              <Play className="size-5 fill-current" />
+              {cw && started ? t('player.resume') : featuredShow ? t('home.episodes') : t('player.play')}
+            </Link>
+            {cw && started && (
+              <Link to={startOverHref(cw)} className="inline-flex h-11 items-center gap-2 rounded-full bg-ink/10 px-4 font-medium whitespace-nowrap backdrop-blur transition hover:bg-ink/20 sm:h-12 sm:px-5">
+                <RotateCcw className="size-5" />
+                {t('player.startOver')}
+              </Link>
+            )}
+            {!featuredShow && <Link to={infoHref} className="inline-flex h-11 items-center gap-2 rounded-full bg-ink/10 px-4 font-medium whitespace-nowrap backdrop-blur transition hover:bg-ink/20 sm:h-12 sm:px-5">
+              <Info className="size-5" />
+              {t('home.details')}
+            </Link>}
+          </div>
         </div>
       </div>
     </section>
@@ -102,36 +105,34 @@ export function HomePage() {
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const d = q.data;
   const empty = d.counts.movies === 0 && d.counts.shows === 0;
+  const greetingText = t('home.greeting', { greeting: greeting(), name: displayName(user) });
 
   return (
     <div>
-      <div className="px-4 pt-8 sm:px-8">
-        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-          {t('home.greeting', { greeting: greeting(), name: displayName(user) })}
-        </h1>
-      </div>
-
       {empty ? (
-        <EmptyState
-          icon={<Clapperboard className="size-6" />}
-          title={d.counts.libraries === 0 ? t('home.noLibraries') : t('home.librariesEmpty')}
-          action={
-            user?.role === 'admin' ? (
-              <Link to="/admin/libraries" className="inline-flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">
-                {d.counts.libraries === 0 ? t('home.addLibrary') : t('home.manageLibraries')}
-              </Link>
-            ) : undefined
-          }
-        >
-          {user?.role === 'admin'
-            ? d.counts.libraries === 0
-              ? t('home.noLibrariesAdmin')
-              : t('home.librariesEmptyAdmin')
-            : t('home.noLibrariesUser')}
-        </EmptyState>
+        <>
+          <div className="px-4 pt-8 sm:px-8"><h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">{greetingText}</h1></div>
+          <EmptyState
+            icon={<Clapperboard className="size-6" />}
+            title={d.counts.libraries === 0 ? t('home.noLibraries') : t('home.librariesEmpty')}
+            action={
+              user?.role === 'admin' ? (
+                <Link to="/admin/libraries" className="inline-flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">
+                  {d.counts.libraries === 0 ? t('home.addLibrary') : t('home.manageLibraries')}
+                </Link>
+              ) : undefined
+            }
+          >
+            {user?.role === 'admin'
+              ? d.counts.libraries === 0
+                ? t('home.noLibrariesAdmin')
+                : t('home.librariesEmptyAdmin')
+              : t('home.noLibrariesUser')}
+          </EmptyState>
+        </>
       ) : (
         <>
-          <Hero data={d} />
+          <Hero data={d} greetingText={greetingText} />
           {d.continueWatching.length > 0 && (
             <Shelf title={t('continueWatching.title')}>
               {d.continueWatching.map((c) => (
