@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeftRight, Bookmark, Film, Heart, Inbox, Layers, House, LogOut, Menu, Search, Server, CircleUser, ShieldCheck, Tv, X } from 'lucide-react';
+import { ArrowLeftRight, Bookmark, Film, Heart, Inbox, Layers, House, LogOut, Menu, Search, Server, CircleUser, ShieldCheck, Tags, Tv, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
 import { Logo } from './Logo';
@@ -16,6 +16,7 @@ const NAV: Array<{ to: string; label: MessageKey; icon: typeof House; end?: bool
   { to: '/', label: 'nav.home', icon: House, end: true },
   { to: '/movies', label: 'nav.movies', icon: Film },
   { to: '/shows', label: 'nav.tvShows', icon: Tv },
+  { to: '/genres', label: 'nav.genres', icon: Tags },
   { to: '/collections', label: 'nav.collections', icon: Layers },
   { to: '/watchlist', label: 'nav.watchlist', icon: Bookmark },
   { to: '/favorites', label: 'nav.favorites', icon: Heart },

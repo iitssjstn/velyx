@@ -3,6 +3,7 @@ export const nav = {
   home: 'Home',
   movies: 'Movies',
   tvShows: 'TV Shows',
+  genres: 'Genres',
   collections: 'Collections',
   watchlist: 'Watchlist',
   favorites: 'Favorites',

@@ -4,6 +4,7 @@ export const nav: Messages['nav'] = {
   home: 'Start',
   movies: 'Films',
   tvShows: 'Series',
+  genres: 'Categorieën',
   collections: 'Collecties',
   watchlist: 'Kijklijst',
   favorites: 'Favorieten',

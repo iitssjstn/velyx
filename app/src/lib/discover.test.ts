@@ -10,10 +10,9 @@ describe('discover', () => {
     expect(new Set(DISCOVER_ROWS.map((x) => `${x.row}-${x.genre}`)).size).toBe(DISCOVER_ROWS.length);
   });
 
-  it('plays what is here, and opens a request for the rest', () => {
-    expect(discoverTarget(r({ local: { type: 'movie', id: 5 } }))).toBe('/play/movie/5');
-    expect(discoverTarget(r({ mediaType: 'tv', local: { type: 'show', id: 9 } }), 77)).toBe('/play/episode/77');
-    expect(discoverTarget(r({ mediaType: 'tv', local: { type: 'show', id: 9 } }), null)).toBe('/show/9');
+  it('opens local details for what is here, and a request page for the rest', () => {
+    expect(discoverTarget(r({ local: { type: 'movie', id: 5 } }))).toBe('/movie/5');
+    expect(discoverTarget(r({ mediaType: 'tv', local: { type: 'show', id: 9 } }))).toBe('/show/9');
     expect(discoverTarget(r({ mediaType: 'tv', tmdbId: 1399 }))).toBe('/request/tv/1399');
   });
 

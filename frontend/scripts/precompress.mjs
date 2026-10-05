@@ -2,9 +2,10 @@
 // them compressed without compressing anything per request.
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
 
-const dist = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'dist');
+const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const TEXT = /\.(?:js|css|svg|json|webmanifest|txt)$/;
 let saved = 0;
 
