@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import fastifyHelmet from '@fastify/helmet';
@@ -74,7 +75,7 @@ const email = z.string().trim().toLowerCase().max(254).email('Enter a valid emai
 const password = z.string().min(8, 'Passwords are at least 8 characters.').max(256);
 const serverName = z.string().trim().min(1).max(60);
 /** This service is built with every Vidalune release, so its version is the latest one. */
-const releaseVersion = String((JSON.parse(fs.readFileSync(path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'package.json'), 'utf8')) as { version: string }).version);
+const releaseVersion = String((JSON.parse(fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8')) as { version: string }).version);
 const version = z.string().trim().min(1).max(32);
 /** Who signs in: a browser (cookie) or the Vidalune app (token). */
 const client = z.enum(['web', 'app']).default('web');
@@ -837,8 +838,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     'vidalune.gpg': 'application/pgp-keys',
     'vidalune.asc': 'application/pgp-keys',
   };
-  app.get('/apt/:file', async (request, reply) => {
-    const { file } = z.object({ file: z.string().refine((f) => f in APT_INDEX || DEB.test(f)) }).parse(request.params);
+  app.get<{ Params: { '*': string } }>('/apt/*', async (request, reply) => {
+    const match = /^(?:\.\/)?([^/]+)$/.exec(request.params['*']);
+    const { file } = z.object({ file: z.string().refine((f) => Object.hasOwn(APT_INDEX, f) || DEB.test(f)) }).parse({ file: match?.[1] });
     const full = path.join(config.downloadDir, 'apt', file);
     if (!fs.existsSync(full)) throw new HttpError(404, 'Not found.');
     const deb = DEB.test(file);

@@ -8,6 +8,18 @@ export function isInside(root: string, target: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
+export function isFilesystemRoot(target: string): boolean {
+  const resolved = path.resolve(target);
+  return resolved === path.parse(resolved).root;
+}
+
+export function pathsOverlap(first: string, second: string): boolean {
+  const resolve = (p: string) => realpathOrNull(p) ?? path.resolve(p);
+  const a = resolve(first);
+  const b = resolve(second);
+  return isInside(a, b) || isInside(b, a);
+}
+
 export function realpathOrNull(p: string): string | null {
   try {
     return fs.realpathSync(p);
@@ -41,6 +53,7 @@ export function validateLibraryPath(input: string, mediaRoots: string[]): Librar
     return { ok: false, error: 'Folder {path} does not exist inside the container. Check your volume mounts.', params: { path: normalized } };
   }
   if (!fs.statSync(real).isDirectory()) return { ok: false, error: '{path} is not a folder.', params: { path: normalized } };
+  if (isFilesystemRoot(real)) return { ok: false, error: 'A library cannot use a filesystem root path.' };
   const roots = mediaRoots.map((r) => realpathOrNull(r) ?? path.resolve(r));
   if (!roots.some((root) => isInside(root, real))) {
     return { ok: false, error: 'Libraries must be inside {roots} (MEDIA_ROOTS).', params: { roots: mediaRoots.join(', ') } };

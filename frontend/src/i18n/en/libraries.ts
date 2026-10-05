@@ -37,6 +37,7 @@ export const libraries = {
   type: 'Library type',
   folder: 'Folder',
   folderHint: 'Choose the folder with Browse, or type its path. It must be inside {roots}; with Docker it is the path inside the container (with the default docker-compose setup {movies} or {tv}).',
+  broadFolderWarning: 'This is a media root and may include many folders. Choose a narrower folder if you only want one library.',
   browse: 'Browse',
   browseHide: 'Close folders',
   up: 'Up',

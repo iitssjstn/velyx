@@ -109,6 +109,8 @@ function LibraryForm({ initial, mediaRoots, onDone }: { initial?: Library; media
   const [path, setPath] = useState(initial?.path ?? (mediaRoots[0] ? `${mediaRoots[0].replace(/\/$/, '')}/` : ''));
   const [error, setError] = useState<string | null>(null);
   const [browsing, setBrowsing] = useState(false);
+  const selectedPath = path.trim().replace(/\/+$/, '') || '/';
+  const selectedMediaRoot = mediaRoots.some((root) => (root.trim().replace(/\/+$/, '') || '/') === selectedPath);
   const m = useMutation({
     mutationFn: () => (initial ? api.put(`/api/libraries/${initial.id}`, { name: name.trim(), path: path.trim() }) : api.post('/api/libraries', { name: name.trim(), type, path: path.trim() })),
     onSuccess: () => {
@@ -176,6 +178,7 @@ function LibraryForm({ initial, mediaRoots, onDone }: { initial?: Library; media
         <p className="mt-1.5 text-xs text-faint">
           {tRich('libraries.folderHint', { roots: mediaRoots.join(', '), movies: <code>/media/movies</code>, tv: <code>/media/tv</code> })}
         </p>
+        {selectedMediaRoot && <p role="note" className="mt-2 flex items-start gap-2 text-sm text-amber"><CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />{t('libraries.broadFolderWarning')}</p>}
       </div>
       {error && <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
       <div className="flex justify-end gap-2">

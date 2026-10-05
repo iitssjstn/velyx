@@ -103,6 +103,9 @@ describe('installing Vidalune from vidalune.com', () => {
     const inRelease = await app.inject({ url: '/apt/InRelease' });
     expect(inRelease.body).toBe('signed');
     expect(inRelease.headers['cache-control']).toBe('no-cache');
+    expect((await app.inject({ url: '/apt/./InRelease' })).body).toBe('signed');
+    expect((await app.inject({ url: '/apt/./Release' })).statusCode).toBe(404);
+    expect((await app.inject({ url: '/apt/./Packages.gz' })).headers['content-type']).toBe('application/gzip');
     expect((await app.inject({ url: '/apt/Packages.gz' })).headers['content-type']).toBe('application/gzip');
     const deb = await app.inject({ url: '/apt/vidalune_0.16.1_amd64.deb' });
     expect(deb.body).toBe('deb');
