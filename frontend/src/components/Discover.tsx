@@ -25,6 +25,11 @@ export interface SeerrResult {
   local: { type: 'movie' | 'show'; id: number } | null;
 }
 
+export function seerrDetailsHref(item: SeerrResult): string {
+  if (item.local) return item.local.type === 'movie' ? `/movies/${item.local.id}` : `/shows/${item.local.id}`;
+  return `/request/${item.mediaType}/${item.tmdbId}`;
+}
+
 /**
  * Titles from Seerr for a search, when Seerr is set up: only what is not here (the library has
  * results of its own). Nothing is asked of Seerr without it.
@@ -219,13 +224,17 @@ function useNearEnd() {
  * What is here plays right away; the rest is one click from a request.
  */
 export function DiscoverShelves() {
+  const { t } = useT();
   const status = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
   const navigate = useNavigate();
-  const { open } = useOpenLocal();
   if (!status.data?.enabled) return null;
-  const select = (item: SeerrResult) => (item.local ? void open(item.local) : navigate(`/request/${item.mediaType}/${item.tmdbId}`));
+  const select = (item: SeerrResult) => navigate(seerrDetailsHref(item));
   return (
     <div>
+      <section className="mx-4 mt-12 border-t border-line pt-4 sm:mx-8" aria-labelledby="discover-library-boundary">
+        <h2 id="discover-library-boundary" className="text-sm font-semibold text-ink">{t('requests.discover.catalogLabel')}</h2>
+        <p className="mt-1 text-xs text-faint">{t('requests.discover.catalogHint')}</p>
+      </section>
       {DISCOVER_ROWS.map((spec) => (
         <DiscoverShelf key={`${spec.row}-${spec.genre ?? ''}`} spec={spec} onSelect={select} />
       ))}

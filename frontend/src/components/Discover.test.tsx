@@ -64,6 +64,8 @@ describe('Discover rows on the home screen', () => {
   it('shows the catalog in rows and leaves out empty ones', async () => {
     const calls = setup(true);
     expect((await screen.findAllByText('Here Movie'))[0]).toBeTruthy();
+    expect(screen.getByText('Titles below may not be in your library yet.')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Explore the catalog' })).toBeTruthy();
     expect(screen.getByText('Trending now')).toBeTruthy();
     expect(screen.getByText('Being added')).toBeTruthy();
     expect(screen.getAllByTitle('In the library')).toHaveLength(2);
@@ -72,16 +74,16 @@ describe('Discover rows on the home screen', () => {
     await vi.waitFor(() => expect(screen.queryByText('Popular movies')).toBeNull());
   });
 
-  it('plays a movie that is here right away', async () => {
+  it('opens a movie that Seerr says is here on its local metadata page', async () => {
     setup(true);
     await userEvent.click((await screen.findAllByText('Here Movie'))[0]);
-    expect(screen.getByTestId('where').textContent).toBe('/play/movie/5');
+    expect(screen.getByTestId('where').textContent).toBe('/movies/5');
   });
 
-  it('goes on with the next episode of a show that is here', async () => {
+  it('opens a series that Seerr says is here on its local metadata page', async () => {
     setup(true);
     await userEvent.click((await screen.findAllByText('Here Show'))[0]);
-    expect((await screen.findByTestId('where')).textContent).toBe('/play/episode/77?t=0');
+    expect((await screen.findByTestId('where')).textContent).toBe('/shows/9');
   });
 
   it('opens the page of what is not here, to request it', async () => {
