@@ -5,18 +5,22 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { BrowsePage, activeFilterChips } from './Browse';
 import { gridLayout, visibleRows } from '../components/VirtualGrid';
+import type { Card } from '../lib/types';
 
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ user: { id: 1, role: 'user' } }) }));
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
-function renderBrowse(url = '/movies') {
+function renderBrowse(url = '/movies', items: Card[] = []) {
   const calls: string[] = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string) => {
       calls.push(input);
-      const body = input.startsWith('/api/genres') ? [{ id: 3, name: 'Drama', count: 2 }] : { items: [], total: 0, page: 1, pageSize: 60 };
+      const body = input.startsWith('/api/genres') ? [{ id: 3, name: 'Drama', count: 2 }] : { items, total: items.length, page: 1, pageSize: 60 };
       return new Response(JSON.stringify(body), { status: 200 });
     }),
   );
@@ -32,6 +36,14 @@ function renderBrowse(url = '/movies') {
 }
 
 describe('library filters UI', () => {
+  it('shows Play and details actions on movie cards in the library grid', async () => {
+    const movie: Card = { type: 'movie', id: 9, title: 'The Matrix', year: 1999, posterPath: null, backdropPath: null, rating: 8.7, runtime: 136, overview: null, genres: ['Action'], addedAt: 0, progress: null, favorite: false };
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(640);
+    renderBrowse('/movies', [movie]);
+    expect((await screen.findByRole('link', { name: 'Play The Matrix' }) as HTMLAnchorElement).getAttribute('href')).toBe('/play/movie/9');
+    expect((screen.getByRole('link', { name: 'The Matrix: details' }) as HTMLAnchorElement).getAttribute('href')).toBe('/movies/9');
+  });
+
   it('sends filters and sorting to the server', async () => {
     const calls = renderBrowse();
     await screen.findByText('No movies yet');

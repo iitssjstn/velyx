@@ -1,41 +1,105 @@
-import { playHref } from '../lib/player';
-import { Link } from 'react-router-dom';
+import { playHref, resumePoint } from '../lib/player';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
-import { Check, MoreHorizontal, Play, RotateCcw, Star, X } from 'lucide-react';
+import { Check, CircleAlert, MoreHorizontal, Play, RotateCcw, Star, X } from 'lucide-react';
 import { continueDetail, continuePosition, isStarted, resumeHref, startOverHref } from '../lib/continue';
-import type { Card, ContinueItem } from '../lib/types';
+import type { Card, ContinueItem, ShowDetail } from '../lib/types';
 import { formatRuntime, progressFraction } from '../lib/format';
+import { api } from '../lib/api';
 import { Artwork } from './Artwork';
 import { ProgressBar } from './ProgressBar';
 import { t, useT } from '../i18n';
 import { useKeepOnScreen } from '../lib/hooks';
+import { seriesContinue } from '../lib/series';
+import { toast } from './Toast';
 
-export function PosterCard({ item, className = '' }: { item: Card; className?: string }) {
+export function PosterCard({ item, className = '', gridActions = false }: { item: Card; className?: string; gridActions?: boolean }) {
   const { t } = useT();
+  const navigate = useNavigate();
+  const [openingShow, setOpeningShow] = useState(false);
   const href = item.type === 'movie' ? `/movies/${item.id}` : `/shows/${item.id}`;
   const watched = item.type === 'movie' ? item.progress?.completed : item.episodeCount > 0 && item.watchedCount >= item.episodeCount;
   const fraction = item.type === 'movie' ? (item.progress && !item.progress.completed ? progressFraction(item.progress) : 0) : 0;
   const unwatchedEpisodes = item.type === 'show' ? item.episodeCount - item.watchedCount : 0;
-  return (
-    <Link to={href} className={`group block focus-visible:outline-none ${className}`}>
-      <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:ring-accent/60 group-focus-visible:ring-2 group-focus-visible:ring-accent">
-        <Artwork path={item.posterPath} title={item.title} />
-        {watched && (
-          <span className="absolute top-2 right-2 z-10 grid size-6 place-items-center rounded-full bg-ok text-bg shadow" title={t('library.watched')}>
-            <Check className="size-3.5" strokeWidth={3} />
-          </span>
-        )}
-        {item.type === 'show' && !watched && item.watchedCount > 0 && unwatchedEpisodes > 0 && (
-          <span className="absolute top-2 right-2 z-10 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-ink" title={t('library.unwatchedCount', { count: unwatchedEpisodes })}>
-            {unwatchedEpisodes}
-          </span>
-        )}
-        <CardDetails item={item} withProgress={fraction > 0} />
-        {fraction > 0 && <ProgressBar value={fraction} className="absolute inset-x-2 bottom-2 z-10 w-auto" />}
-      </div>
+  const playName = t('continueWatching.playName', { name: item.title });
+  const detailsName = t('continueWatching.details', { name: item.title });
+  const openShow = async () => {
+    if (openingShow || item.type !== 'show') return;
+    setOpeningShow(true);
+    try {
+      const show = await api.get<ShowDetail>(`/api/shows/${item.id}`);
+      navigate(seriesContinue(show)?.href ?? href);
+    } catch (error) {
+      toast.error(error);
+    } finally {
+      setOpeningShow(false);
+    }
+  };
+  const poster = (
+    <div className={`relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:ring-accent/60 ${gridActions ? 'group-focus-within:ring-2 group-focus-within:ring-accent' : 'group-focus-visible:ring-2 group-focus-visible:ring-accent'}`}>
+      <Artwork path={item.posterPath} title={item.title} />
+      {watched && (
+        <span className="absolute top-2 right-2 z-10 grid size-6 place-items-center rounded-full bg-ok text-bg shadow" title={t('library.watched')}>
+          <Check className="size-3.5" strokeWidth={3} />
+        </span>
+      )}
+      {item.type === 'show' && !watched && item.watchedCount > 0 && unwatchedEpisodes > 0 && (
+        <span className="absolute top-2 right-2 z-10 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-ink" title={t('library.unwatchedCount', { count: unwatchedEpisodes })}>
+          {unwatchedEpisodes}
+        </span>
+      )}
+      <CardDetails item={item} withProgress={fraction > 0} />
+      {fraction > 0 && <ProgressBar value={fraction} className={`absolute inset-x-2 bottom-2 z-10 w-auto ${gridActions ? '!right-20' : ''}`} />}
+    </div>
+  );
+  const title = (
+    <>
       <p className="mt-2 truncate text-sm font-medium text-ink/90 group-hover:text-ink">{item.title}</p>
       <p className="text-xs text-faint">{item.year ?? (item.type === 'show' ? t('series.episodeCount', { count: item.episodeCount }) : '\u00a0')}</p>
-    </Link>
+    </>
+  );
+  if (!gridActions) {
+    return <Link to={href} className={`group block focus-visible:outline-none ${className}`}>{poster}{title}</Link>;
+  }
+  return (
+    <div className={`group ${className}`}>
+      <div className="relative">
+        <Link to={href} className="block focus-visible:outline-none">{poster}</Link>
+        <div className="absolute right-2 bottom-2 z-20 flex items-center gap-1">
+          {item.type === 'movie' ? (
+            <Link
+              to={playHref('movie', item.id, resumePoint(item.progress))}
+              aria-label={playName}
+              title={playName}
+              className="grid size-9 place-items-center rounded-full border border-white/25 bg-black/75 text-white shadow-lg transition hover:bg-accent hover:text-accent-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+            >
+              <Play className="size-4 fill-current" />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void openShow()}
+              disabled={openingShow}
+              aria-label={playName}
+              aria-busy={openingShow}
+              title={playName}
+              className="grid size-9 place-items-center rounded-full border border-white/25 bg-black/75 text-white shadow-lg transition hover:bg-accent hover:text-accent-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none disabled:opacity-60"
+            >
+              <Play className="size-4 fill-current" />
+            </button>
+          )}
+          <Link
+            to={href}
+            aria-label={detailsName}
+            title={detailsName}
+            className="grid size-9 place-items-center rounded-full border border-white/25 bg-black/75 text-white shadow-lg transition hover:bg-accent hover:text-accent-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+          >
+            <CircleAlert className="size-4" />
+          </Link>
+        </div>
+      </div>
+      <Link to={href} className="block focus-visible:outline-none">{title}</Link>
+    </div>
   );
 }
 
@@ -58,9 +122,9 @@ function CardDetails({ item, withProgress }: { item: Card; withProgress: boolean
   return (
     <div
       aria-hidden="true"
-      className={`pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black from-30% via-black/80 via-55% to-black/10 px-3 pt-10 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none ${withProgress ? 'pb-5' : 'pb-3'}`}
+      className={`pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black from-30% via-black/80 via-55% to-black/10 px-3 pt-10 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-has-[a:focus-visible]:opacity-100 motion-reduce:transition-none ${withProgress ? 'pb-5' : 'pb-3'}`}
     >
-      <div className="translate-y-1 transition-transform duration-200 group-hover:translate-y-0 group-focus-visible:translate-y-0 motion-reduce:transition-none">
+      <div className="translate-y-1 transition-transform duration-200 group-hover:translate-y-0 group-has-[a:focus-visible]:translate-y-0 motion-reduce:transition-none">
         <p className="line-clamp-2 font-display text-sm leading-tight font-semibold text-ink">{item.title}</p>
         {facts && <p className="mt-1 text-xs text-ink/80">{facts}</p>}
         {item.rating ? (
