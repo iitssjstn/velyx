@@ -9,10 +9,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.11** (PR #87): voortgang bewaren bij casten, ook op de achtergrond. Release
-  `v0.19.11` gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.10 (PR #86, seizoenen kiezen in het
-  aanvraagvenster), 0.19.9 (PR #85, aanvragen bevestigen, minder buildminuten), 0.19.8 (PR #84, app
-  opent je server meteen), 0.19.7 (PR #83, verse metadata e.d.).
+- Laatste release: **0.19.12** (PR #89): Cast-duur en ondertitelstijl, veilige bibliotheekpaden en APT.
+  Release `v0.19.12` gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.11 (PR #87, voortgang bewaren
+  bij casten), 0.19.10 (PR #86, seizoenen kiezen in het aanvraagvenster), 0.19.9 (PR #85, aanvragen
+  bevestigen, minder buildminuten), 0.19.8 (PR #84, app opent je server meteen), 0.19.7 (PR #83).
 - Nog te doen door de eigenaar: castknop (0.19.6) testen op een telefoon; nagaan of het scrollprobleem
   weg is; de app na inloggen proberen.
 - De eigenaar test verder en meldt alles wat hij tegenkomt; dat komt hieronder.
@@ -40,7 +40,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Versie 0.19.11
 
-### 0.19.11: voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
+### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
 Gevraagd door de eigenaar (2 okt, "zonder dat ik 5 euro moet betalen"). Niet zelf mergen zonder toestemming.
 - De app slaat tijdens het casten de voortgang op direct vanuit de voortgangsmelder van de Cast SDK
   (`client.onMediaProgressUpdated`, native), niet meer via een React-effect: dat wachtte op de
@@ -48,17 +48,25 @@ Gevraagd door de eigenaar (2 okt, "zonder dat ik 5 euro moet betalen"). Niet zel
   bewaard. `app/src/app/play/[kind]/[id].tsx`, `tvFilePosition` in `app/src/lib/cast.ts`.
 - Nog door de eigenaar te testen op een echte telefoon + Chromecast (scherm op slot tijdens het kijken).
 
+## Versie 0.19.12
+
+### Cast, veilige bibliotheekpaden en APT-repository
+PR #88 (veiligere paden en APT) en PR #89 (Cast HLS-duur en ondertitelstijl) zijn gemerged. Release
+`v0.19.12` is gecontroleerd (APK + beide `.deb`'s). Remux/transcode-casts gebruiken HLS VOD zodat de tv
+een eindige duur ziet; web en app sturen de opgeslagen ondertitelstijl mee. De regressietests slagen.
+- Nog door de eigenaar te testen: een film van volledige lengte op een echte Chromecast en de eigen NAS.
+- De eerste HLS-layout voor gekopieerde video leest keyframes uit het hele bestand; meet de opstarttijd
+  op de server met twee cores en los dit op als de wachttijd onaanvaardbaar is.
+- Na uitrol van de cloud-image: `apt update` en installatie/upgrades op een schone Debian-installatie
+  controleren.
+
 ## Volgende versie
 
-### 0.19.12: Cast, veilige bibliotheekpaden en APT-repository
-PR #88 blokkeert scans van filesystem-rootpaden, normaliseert bibliotheek-overlapcontrole, waarschuwt
-voor brede mediamappen en verwerkt de `./`-paden van de vlakke APT-repository. Cast gebruikt voor
-remux/transcode HLS VOD zodat de tv een eindige lengte ziet; web en app sturen ook de opgeslagen
-ondertitelstijl mee. De cast-tests slagen. Nog verplicht vóór sluiten: een film van volledige lengte op
-de Chromecast en trage hardware testen. De eerste HLS-layout voor gekopieerde video leest keyframes van
-het hele bestand; meet de wachttijd op de NAS en los die op als die onaanvaardbaar is. Na de merge moet
-de cloud-image worden uitgerold; daarna `apt update` en installatie/upgrades op een schone Debian-installatie
-controleren.
+### 0.19.13: Play- en detailacties op de bibliotheekgrid
+Toon rechtsonder op elke poster in Films/Series een Play-knop en een knop met een uitroepteken in een
+cirkel. Play hervat een film waar mogelijk of speelt bij een serie de volgende aflevering; de
+detailknop opent de bestaande film-/seriepagina voor trailer en metadata. Beperk de knoppen tot de
+bibliotheekgrid, behoud toetsenbordtoegang en test beide routes in het Nederlands en Engels.
 
 ## Gemeld tijdens het testen
 

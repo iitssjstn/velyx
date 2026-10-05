@@ -289,7 +289,7 @@ export function BrowsePage({ kind }: { kind: Kind }) {
       ) : (
         <>
           <div className="mt-8">
-            <VirtualGrid items={items} getKey={(i) => i.id} renderItem={(item) => <PosterCard item={item} />} minColumnWidth={minColumnWidth} rowHeightFor={rowHeightFor} onNearEnd={loadMore} />
+            <VirtualGrid items={items} getKey={(i) => i.id} renderItem={(item) => <PosterCard item={item} gridActions />} minColumnWidth={minColumnWidth} rowHeightFor={rowHeightFor} onNearEnd={loadMore} />
           </div>
           <div className="flex justify-center py-10">
             {isFetchingNextPage ? <Spinner className="size-6" /> : hasNextPage ? <Button variant="secondary" onClick={loadMore}>{t('browse.loadMore')}</Button> : null}
