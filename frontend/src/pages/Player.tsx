@@ -787,6 +787,26 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   useEffect(() => {
     setMoving(false);
     if (!streamSrc) return;
+    const video = videoRef.current;
+    if (!video) return;
+    if (typeof video.requestVideoFrameCallback === 'function') {
+      let alive = true;
+      let frameId = 0;
+      let idleTimer: ReturnType<typeof setTimeout> | undefined;
+      const onFrame = () => {
+        if (!alive) return;
+        setMoving(true);
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => alive && setMoving(false), MOVING_WITHIN_MS);
+        frameId = video.requestVideoFrameCallback(onFrame);
+      };
+      frameId = video.requestVideoFrameCallback(onFrame);
+      return () => {
+        alive = false;
+        clearTimeout(idleTimer);
+        if (typeof video.cancelVideoFrameCallback === 'function') video.cancelVideoFrameCallback(frameId);
+      };
+    }
     let last = -1;
     let movedAt = 0;
     const check = setInterval(() => {

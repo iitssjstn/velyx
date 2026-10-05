@@ -4,6 +4,10 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Player from './Player';
 
+const frameRequestDescriptor = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, 'requestVideoFrameCallback');
+const frameCancelDescriptor = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, 'cancelVideoFrameCallback');
+let latestFrame: ((now: number, metadata: unknown) => void) | null = null;
+
 // Real responses of a server for a small test film (direct play).
 const MOVIE = {"id": 3, "type": "movie", "title": "Test Film", "overview": null, "tagline": null, "originalTitle": null, "year": 2019, "runtime": 4, "releaseDate": null, "rating": null, "voteCount": null, "director": null, "posterPath": null, "backdropPath": null, "tmdbId": null, "imdbId": null, "libraryName": "Films", "match": {"status": "pending", "confidence": null, "parsedTitle": "Direct Film", "parsedYear": 2019}, "genres": [], "cast": [], "crew": [], "files": [{"id": 3, "fileName": "Direct Film (2019).webm", "size": 16314646, "container": "webm", "durationSec": 240.008, "bitrate": 543803, "videoCodec": "vp9", "videoProfile": "Profile 0", "videoBitDepth": 8, "videoRange": "SDR", "width": 640, "height": 360, "fps": 25, "audioCodec": "opus", "audioChannels": 1, "audioTracks": [{"index": 1, "codec": "opus", "language": null, "channels": 1, "channelLayout": "mono", "title": null, "isDefault": false, "languageName": null}], "embeddedSubtitles": [], "externalSubtitles": [], "probeError": null}], "progress": {"positionSec": 13, "durationSec": 240, "completed": false, "updatedAt": 1790789255532}, "favorite": false, "watchlist": false, "collections": [], "replacements": []};
 const PLAYBACK = {"decision": {"engine": "direct", "streamUrl": "/api/media/3/stream", "compatible": true, "reasons": [], "seek": "range", "audioIndex": 1, "note": null, "durationSec": 240.008, "mode": "direct"}, "analysis": {"mode": "direct", "browser": null, "video": {"codec": "vp9", "label": "VP9", "width": 640, "height": 360, "bitDepth": 8, "range": "SDR", "action": "direct"}, "audio": {"codec": "opus", "label": "Opus", "channels": 1, "action": "direct", "target": null}, "container": {"name": "webm", "action": "direct"}, "bitrate": 543803, "problems": [], "warnings": [], "transcodeRequired": false, "serverTranscoding": false, "serverLoad": "none", "device": null, "confidence": "reported", "components": {"video": {"status": "ok", "note": "Plays as-is"}, "audio": {"status": "ok", "note": "Plays as-is"}, "container": {"status": "ok", "note": "Supported"}}, "summary": ["No server-side conversion required."], "subtitles": {"text": [], "image": []}}, "file": {"id": 3, "fileName": "Direct Film (2019).webm", "size": 16314646, "container": "webm", "durationSec": 240.008, "bitrate": 543803, "videoCodec": "vp9", "videoProfile": "Profile 0", "videoBitDepth": 8, "videoRange": "SDR", "width": 640, "height": 360, "fps": 25, "audioCodec": "opus", "audioChannels": 1, "audioTracks": [{"index": 1, "codec": "opus", "language": null, "channels": 1, "channelLayout": "mono", "title": null, "isDefault": false, "languageName": null}], "embeddedSubtitles": [], "externalSubtitles": [], "probeError": null}, "subtitles": [], "onlineSubtitles": false};
@@ -26,6 +30,11 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  if (frameRequestDescriptor) Object.defineProperty(HTMLVideoElement.prototype, 'requestVideoFrameCallback', frameRequestDescriptor);
+  else Reflect.deleteProperty(HTMLVideoElement.prototype, 'requestVideoFrameCallback');
+  if (frameCancelDescriptor) Object.defineProperty(HTMLVideoElement.prototype, 'cancelVideoFrameCallback', frameCancelDescriptor);
+  else Reflect.deleteProperty(HTMLVideoElement.prototype, 'cancelVideoFrameCallback');
+  latestFrame = null;
 });
 
 /** What the browser reports about the video element, changed by the test. */
@@ -38,7 +47,7 @@ function fakeVideo(video: HTMLVideoElement) {
 }
 
 function renderPlayer() {
-  render(
+  return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
         <Player kind="movie" id={3} search="?t=0" mini={false} onMinimize={() => undefined} onRestore={() => undefined} onClose={() => undefined} onPlayItem={() => undefined} />
@@ -129,5 +138,36 @@ describe('the loading spinner of the player', () => {
     fireEvent.waiting(video);
     await act(() => new Promise((r) => setTimeout(r, 2000)));
     expect(spinnerShown()).toBe(true);
+  });
+
+  it('clears loading from rendered frames even when currentTime stalls, after closing and reopening', async () => {
+    let id = 0;
+    Object.defineProperty(HTMLVideoElement.prototype, 'requestVideoFrameCallback', {
+      configurable: true,
+      value: (callback: (now: number, metadata: unknown) => void) => {
+        latestFrame = callback;
+        return ++id;
+      },
+    });
+    Object.defineProperty(HTMLVideoElement.prototype, 'cancelVideoFrameCallback', { configurable: true, value: () => undefined });
+
+    for (let cycle = 0; cycle < 2; cycle++) {
+      const mounted = renderPlayer();
+      const video = await vi.waitFor(() => {
+        const v = document.querySelector('video');
+        if (!v) throw new Error('no video yet');
+        return v;
+      });
+      const state = fakeVideo(video);
+      fireEvent.loadedMetadata(video);
+      state.readyState = 2;
+      fireEvent.waiting(video);
+      await vi.waitFor(() => expect(spinnerShown()).toBe(true));
+      expect(latestFrame).toBeTypeOf('function');
+      await act(async () => latestFrame?.(performance.now(), { mediaTime: 1 }));
+      expect(state.currentTime).toBe(0);
+      expect(spinnerShown()).toBe(false);
+      mounted.unmount();
+    }
   });
 });

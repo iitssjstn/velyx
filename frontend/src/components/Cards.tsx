@@ -35,65 +35,70 @@ export function PosterCard({ item, className = '', gridActions = false }: { item
       setOpeningShow(false);
     }
   };
+  const poster = (
+    <div className={`relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:ring-accent/60 ${gridActions ? 'group-focus-within:ring-2 group-focus-within:ring-accent' : 'group-focus-visible:ring-2 group-focus-visible:ring-accent'}`}>
+      <Artwork path={item.posterPath} title={item.title} />
+      {watched && (
+        <span className="absolute top-2 right-2 z-10 grid size-6 place-items-center rounded-full bg-ok text-bg shadow" title={t('library.watched')}>
+          <Check className="size-3.5" strokeWidth={3} />
+        </span>
+      )}
+      {item.type === 'show' && !watched && item.watchedCount > 0 && unwatchedEpisodes > 0 && (
+        <span className="absolute top-2 right-2 z-10 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-ink" title={t('library.unwatchedCount', { count: unwatchedEpisodes })}>
+          {unwatchedEpisodes}
+        </span>
+      )}
+      <CardDetails item={item} withProgress={fraction > 0} />
+      {fraction > 0 && <ProgressBar value={fraction} className={`absolute inset-x-2 bottom-2 z-10 w-auto ${gridActions ? '!right-20' : ''}`} />}
+    </div>
+  );
+  const title = (
+    <>
+      <p className="mt-2 truncate text-sm font-medium text-ink/90 group-hover:text-ink">{item.title}</p>
+      <p className="text-xs text-faint">{item.year ?? (item.type === 'show' ? t('series.episodeCount', { count: item.episodeCount }) : '\u00a0')}</p>
+    </>
+  );
+  if (!gridActions) {
+    return <Link to={href} className={`group block focus-visible:outline-none ${className}`}>{poster}{title}</Link>;
+  }
   return (
     <div className={`group ${className}`}>
       <div className="relative">
-        <Link to={href} className="block focus-visible:outline-none">
-          <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:ring-accent/60 group-has-[a:focus-visible]:ring-2 group-has-[a:focus-visible]:ring-accent">
-            <Artwork path={item.posterPath} title={item.title} />
-            {watched && (
-              <span className="absolute top-2 right-2 z-10 grid size-6 place-items-center rounded-full bg-ok text-bg shadow" title={t('library.watched')}>
-                <Check className="size-3.5" strokeWidth={3} />
-              </span>
-            )}
-            {item.type === 'show' && !watched && item.watchedCount > 0 && unwatchedEpisodes > 0 && (
-              <span className="absolute top-2 right-2 z-10 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-ink" title={t('library.unwatchedCount', { count: unwatchedEpisodes })}>
-                {unwatchedEpisodes}
-              </span>
-            )}
-            <CardDetails item={item} withProgress={fraction > 0} />
-            {fraction > 0 && <ProgressBar value={fraction} className={`absolute inset-x-2 bottom-2 z-10 w-auto ${gridActions ? '!right-20' : ''}`} />}
-          </div>
-        </Link>
-        {gridActions && (
-          <div className="absolute right-2 bottom-2 z-20 flex items-center gap-1">
-            {item.type === 'movie' ? (
-              <Link
-                to={playHref('movie', item.id, resumePoint(item.progress))}
-                aria-label={playName}
-                title={playName}
-                className="grid size-9 place-items-center rounded-full border border-white/25 bg-black/75 text-white shadow-lg transition hover:bg-accent hover:text-accent-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
-              >
-                <Play className="size-4 fill-current" />
-              </Link>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void openShow()}
-                disabled={openingShow}
-                aria-label={playName}
-                aria-busy={openingShow}
-                title={playName}
-                className="grid size-9 place-items-center rounded-full border border-white/25 bg-black/75 text-white shadow-lg transition hover:bg-accent hover:text-accent-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none disabled:opacity-60"
-              >
-                <Play className="size-4 fill-current" />
-              </button>
-            )}
+        <Link to={href} className="block focus-visible:outline-none">{poster}</Link>
+        <div className="absolute right-2 bottom-2 z-20 flex items-center gap-1">
+          {item.type === 'movie' ? (
             <Link
-              to={href}
-              aria-label={detailsName}
-              title={detailsName}
+              to={playHref('movie', item.id, resumePoint(item.progress))}
+              aria-label={playName}
+              title={playName}
               className="grid size-9 place-items-center rounded-full border border-white/25 bg-black/75 text-white shadow-lg transition hover:bg-accent hover:text-accent-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
             >
-              <CircleAlert className="size-4" />
+              <Play className="size-4 fill-current" />
             </Link>
-          </div>
-        )}
+          ) : (
+            <button
+              type="button"
+              onClick={() => void openShow()}
+              disabled={openingShow}
+              aria-label={playName}
+              aria-busy={openingShow}
+              title={playName}
+              className="grid size-9 place-items-center rounded-full border border-white/25 bg-black/75 text-white shadow-lg transition hover:bg-accent hover:text-accent-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none disabled:opacity-60"
+            >
+              <Play className="size-4 fill-current" />
+            </button>
+          )}
+          <Link
+            to={href}
+            aria-label={detailsName}
+            title={detailsName}
+            className="grid size-9 place-items-center rounded-full border border-white/25 bg-black/75 text-white shadow-lg transition hover:bg-accent hover:text-accent-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+          >
+            <CircleAlert className="size-4" />
+          </Link>
+        </div>
       </div>
-      <Link to={href} className="block focus-visible:outline-none">
-        <p className="mt-2 truncate text-sm font-medium text-ink/90 group-hover:text-ink">{item.title}</p>
-        <p className="text-xs text-faint">{item.year ?? (item.type === 'show' ? t('series.episodeCount', { count: item.episodeCount }) : '\u00a0')}</p>
-      </Link>
+      <Link to={href} className="block focus-visible:outline-none">{title}</Link>
     </div>
   );
 }
