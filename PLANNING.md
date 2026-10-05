@@ -9,9 +9,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.15** (PR #92): genrepagina's voor bibliotheek en Seerr. Release `v0.19.15`
-  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.14 (PR #91, lokale Seerr-resultaten openen metadata),
-  0.19.13 (PR #90, laadstatusfix), 0.19.12 (PR #89,
+- Laatste release: **0.19.16** (PR #93): desktop/tablet topnav en gecombineerde genrepagina. Release
+  `v0.19.16` gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.15 (PR #92, genrepagina's voor
+  bibliotheek en Seerr), 0.19.14 (PR #91, lokale Seerr-resultaten openen metadata), 0.19.13 (PR #90,
+  laadstatusfix), 0.19.12 (PR #89,
   Cast HLS-duur, ondertitelstijl, veilige bibliotheekpaden en APT), 0.19.11 (PR #87, castvoortgang),
   0.19.10 (PR #86), 0.19.9 (PR #85), 0.19.8 (PR #84) en 0.19.7 (PR #83).
 - Nog te doen door de eigenaar: castknop (0.19.6) testen op een telefoon; nagaan of het scrollprobleem
@@ -92,9 +93,10 @@ De release bevat `/genres` op web en een eigen Categorieën-tab in Android, beid
   blijven beschikbaar zonder Seerr. Engelse en Nederlandse teksten zijn toegevoegd.
 - De Debian-packagebuild en installatietests zijn uiteindelijk groen afgerond na tijdelijke GitHub-runnerproblemen.
 
-## Volgende versie
+## Versie 0.19.16
 
-### 0.19.16: desktop/tablet topnavigatie en gecombineerde genrepagina
+### Desktop/tablet topnavigatie en gecombineerde genrepagina
+PR #93 is gemerged en release `v0.19.16` is compleet (APK + beide `.deb`-bestanden gecontroleerd).
 - Vervang op desktop en tablet de verticale sidebar door een donkere horizontale topnav: logo links;
   Home, Films, Series, Categorieën, Collecties en Aanvragen in de navigatie; zoeken, serverwissel,
   Account en Beheer rechts. Content benut de volledige breedte.
@@ -112,6 +114,15 @@ De release bevat `/genres` op web en een eigen Categorieën-tab in Android, beid
 - Ondersteun Engels en Nederlands. Lokaal gecontroleerd: 62 frontendtestbestanden (270 tests),
   frontend/backend/cloud-typechecks, Android-typecheck, app-tests (109 tests), ESLint en frontend-productiebuild slagen.
 - Visuele browsercontrole blijft nog te doen: de ingebouwde browser blokkeert localhost en de lokale backend draait niet.
+
+## Volgende versie
+
+### 0.19.17: hero, Seerr in Films/Series en directe genrekeuze
+- Laat de Home-heroafbeelding direct onder de topnav beginnen; de begroeting ligt als overlay in de hero.
+- Voeg Seerr toe aan dezelfde grid op Films en Series, met bronkeuze Alles/Bibliotheek/Seerr en zonder lokale dubbelen.
+- Maak genrekeuze direct bereikbaar via een dropdown in de desktopnav; houd de mobiele Genres-link ongewijzigd.
+- Laat de genrepagina gecombineerde lokale/Seerr-resultaten tonen, ook wanneer hij vanuit de dropdown met een genre opent.
+- Ondersteun Engels en Nederlands; geen verwijzing naar andere catalogusdiensten in de UI.
 
 ## Gemeld tijdens het testen
 
