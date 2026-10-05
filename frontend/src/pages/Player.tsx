@@ -328,7 +328,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // ---------------------------------------------------------------- casting (Chromecast)
   const cast = useCast(
     file && item.data
-      ? { fileId: file.id, audioIndex: info?.decision.audioIndex ?? null, title: item.data.title, subtitle: item.data.subtitle, posterPath: item.data.backdrop, subtitleKey: subKey, locate: (target) => locateStart(file.id, target) }
+      ? { fileId: file.id, audioIndex: info?.decision.audioIndex ?? null, title: item.data.title, subtitle: item.data.subtitle, posterPath: item.data.backdrop, subtitleKey: subKey, subtitleStyle: { subtitleSize: prefs.subtitleSize, subtitleColor: prefs.subtitleColor, subtitleBackground: prefs.subtitleBackground, subtitleEdge: prefs.subtitleEdge }, locate: (target) => locateStart(file.id, target) }
       : null,
   );
   const castingRef = useRef(false);

@@ -43,7 +43,7 @@ export function verifyCastToken(secret: string, token: string | undefined, now =
  * artwork. Returns the file id a path belongs to, 'image' for artwork, or null.
  */
 export function castPath(pathname: string): { fileId: number } | { subtitleId: number } | 'image' | null {
-  let m = /^\/api\/media\/(\d+)\/(stream|remux|subtitles\/\d+\.vtt)$/.exec(pathname);
+  let m = /^\/api\/media\/(\d+)\/(stream|remux|hls\/(?:index\.m3u8|init\.mp4|seg\/\d+\.m4s)|subtitles\/\d+\.vtt)$/.exec(pathname);
   if (m) return { fileId: Number(m[1]) };
   m = /^\/api\/subtitles\/(\d+)\.vtt$/.exec(pathname);
   if (m) return { subtitleId: Number(m[1]) };

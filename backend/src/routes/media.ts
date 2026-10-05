@@ -199,6 +199,9 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const lang = requestLanguage(request);
     const decision = ctx.playback.decide(file, CHROMECAST_CAPS, { audioIndex: body.audioIndex, audioChannels: 'stereo', lang });
     if (!decision || decision.compatible === false) throw new HttpError(415, 'This file cannot be played on a Chromecast without converting the video. An administrator can turn on video conversion (Admin → Server).');
+    const castDecision = decision.engine === 'direct'
+      ? decision
+      : { ...decision, streamUrl: decision.streamUrl.replace(/\/remux(?=\?)/, '/hls/index.m3u8'), seek: 'range' as const };
     const expiresAt = Date.now() + CAST_TOKEN_MS;
     const token = signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt });
     const cloud = ctx.settings.get().cloud;
@@ -210,8 +213,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       // set under Admin → Server.
       relayUrl: cloud?.account && cloud.relay ? (cloud.relayUrl ?? null) : null,
       serverUrl: ctx.settings.serverUrl() || null,
-      decision,
-      contentType: decision.engine === 'direct' ? (file.container === 'webm' ? 'video/webm' : 'video/mp4') : 'video/mp4',
+      decision: castDecision,
+      contentType: decision.engine === 'direct' ? (file.container === 'webm' ? 'video/webm' : 'video/mp4') : 'application/vnd.apple.mpegurl',
       // Text subtitles only (a Chromecast shows WebVTT), from this file.
       subtitles: subtitleList(file, request.user!).filter((s) => s.kind === 'external' || s.kind === 'embedded'),
     };
@@ -274,7 +277,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const src = await hlsSource(request, file, abs);
     const q = request.query as RemuxQuery;
     ctx.streams.touch(request.user!, file.id, q.vt === '1' ? 'transcode' : 'remux', deviceLabel(request), remuxAudioLabel(q as Record<string, string | undefined>));
-    const query = `${remuxQueryKey(src.plan, q.vt === '1')}`;
+    const castToken = (request.query as RemuxQuery & { cast?: unknown }).cast;
+    const query = `${remuxQueryKey(src.plan, q.vt === '1')}${typeof castToken === 'string' ? `&cast=${encodeURIComponent(castToken)}` : ''}`;
     return reply.type('application/vnd.apple.mpegurl').header('Cache-Control', 'no-store').send(hlsPlaylist(src.layout, query));
   });
 

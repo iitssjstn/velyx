@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { castAddress, castLoadRequest, castTrackIds, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from './cast';
+import { castAddress, castLoadRequest, castTextTrackStyle, castTrackIds, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from './cast';
 
 const url = (path: string) => `http://nas:3000${path.startsWith('/') ? path : `/${path}`}`;
 const session = (seek: 'range' | 'restart'): CastSession => ({
@@ -28,6 +28,30 @@ describe('casting from the app', () => {
     expect(request.mediaInfo).toMatchObject({ contentUrl: 'http://nas:3000/api/media/5/stream?cast=tok.en', contentType: 'video/mp4', streamDuration: 3000 });
     expect(request.mediaInfo.metadata).toEqual({ type: 'generic', title: 'Dune', subtitle: '2021', images: [{ url: 'http://nas:3000/api/images/w780/back.jpg?cast=tok.en' }] });
     expect(request.mediaInfo.mediaTracks[1]).toEqual({ id: 2, type: 'text', subtype: 'subtitles', contentId: 'http://nas:3000/api/media/5/subtitles/3.vtt?cast=tok.en', contentType: 'text/vtt', name: 'Nederlands', language: 'nl' });
+    expect(request.mediaInfo.streamType).toBe('BUFFERED');
+    expect(request.mediaInfo.textTrackStyle).toMatchObject({ fontScale: 1, foregroundColor: '#FFFFFFFF', backgroundColor: '#00000000', edgeType: 'dropShadow' });
+  });
+
+  it('maps saved app subtitle preferences to the Cast receiver style', () => {
+    const style = { size: 'large' as const, color: 'yellow' as const, background: 'none' as const, edge: 'outline' as const, position: 0 };
+    expect(castTextTrackStyle(style)).toMatchObject({ fontFamily: 'sans-serif', fontGenericFamily: 'sansSerif', fontScale: 1.2, foregroundColor: '#FFE14DFF', backgroundColor: '#00000000', edgeType: 'outline' });
+    const { request } = castLoadRequest({ session: session('range'), url, title: 'Dune', subtitle: null, artwork: null, at: 0, keyframe: null, subtitleKey: null, subtitleStyle: style });
+    expect(request.mediaInfo.textTrackStyle).toMatchObject({ fontScale: 1.2, foregroundColor: '#FFE14DFF', edgeType: 'outline' });
+  });
+
+  it('loads remuxed casts as finite HLS with the full file duration', () => {
+    const source = session('range');
+    source.contentType = 'application/vnd.apple.mpegurl';
+    source.decision = { ...source.decision, engine: 'remux', streamUrl: '/api/media/5/hls/index.m3u8?audio=1&copy=1' };
+    const { request, offset } = castLoadRequest({ session: source, url, title: 'Dune', subtitle: null, artwork: null, at: 600, keyframe: null, subtitleKey: null });
+    expect(offset).toBe(0);
+    expect(request.startTime).toBe(600);
+    expect(request.mediaInfo).toMatchObject({
+      contentUrl: 'http://nas:3000/api/media/5/hls/index.m3u8?audio=1&copy=1&cast=tok.en',
+      contentType: 'application/vnd.apple.mpegurl',
+      streamType: 'BUFFERED',
+      streamDuration: 3000,
+    });
   });
 
   it('starts a repackaged stream at the keyframe, with subtitles on the same clock', () => {

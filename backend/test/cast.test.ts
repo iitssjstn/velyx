@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { addLibrary, createTestEnv, createUser, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
 import { mediaFiles, subtitles } from '../src/db/schema.js';
@@ -34,7 +34,9 @@ describe('casting to a Chromecast', () => {
     expect(direct).toMatchObject({ contentType: 'video/mp4', decision: { engine: 'direct', seek: 'range' } });
     expect(direct.token).toMatch(/^[\w-]+\.[\w-]+$/);
     // MKV: repackaged (the Chromecast does not take MKV), never converted.
-    expect((await session(admin, arrival.id)).json()).toMatchObject({ contentType: 'video/mp4', decision: { engine: 'remux', seek: 'restart' } });
+    const remux = (await session(admin, arrival.id)).json();
+    expect(remux).toMatchObject({ contentType: 'application/vnd.apple.mpegurl', decision: { engine: 'remux', seek: 'range' } });
+    expect(remux.decision.streamUrl).toContain(`/api/media/${arrival.id}/hls/index.m3u8?`);
     // Video a Chromecast cannot decode, with conversion off (the default): said so, not transcoded.
     const no = await session(admin, mpeg2.id);
     expect(no.statusCode).toBe(415);
@@ -64,6 +66,26 @@ describe('casting to a Chromecast', () => {
     // A wrong or changed token opens nothing; a normal request is not affected.
     expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${token}x` })).statusCode).toBe(401);
     expect((await env.app.inject({ url: `/api/media/${dune.id}/stream`, headers: { cookie: admin } })).headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('keeps the file-scoped cast token on the HLS playlist, init segment, and media segments', async () => {
+    const { admin, arrival } = await setup();
+    const hls = (await session(admin, arrival.id)).json();
+    const token = hls.token as string;
+    vi.spyOn(env.ctx.hls, 'layout').mockResolvedValue({ starts: [0, 2], duration: 4 });
+    const url = new URL(hls.decision.streamUrl, 'http://localhost');
+    url.searchParams.set('cast', token);
+    const response = await env.app.inject({ url: `${url.pathname}${url.search}` });
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('#EXT-X-PLAYLIST-TYPE:VOD');
+    expect(response.body).toContain('#EXTINF:2.000000,');
+    expect(response.body).toContain('#EXT-X-ENDLIST');
+    expect(response.body).toContain(`init.mp4?audio=1&copy=1&cast=${token}`);
+    expect(response.body).toContain(`seg/0.m4s?audio=1&copy=1&cast=${token}`);
+    expect(castPath(`/api/media/${arrival.id}/hls/index.m3u8`)).toEqual({ fileId: arrival.id });
+    expect(castPath(`/api/media/${arrival.id}/hls/init.mp4`)).toEqual({ fileId: arrival.id });
+    expect(castPath(`/api/media/${arrival.id}/hls/seg/0.m4s`)).toEqual({ fileId: arrival.id });
+    expect(castPath(`/api/media/${arrival.id}/hls/seg/../home`)).toBeNull();
   });
 
   it('stops working when the account is disabled or the token runs out', async () => {

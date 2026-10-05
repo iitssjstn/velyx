@@ -9,9 +9,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.10** (PR #86): seizoenen kiezen in het aanvraagvenster. Release `v0.19.10`
-  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.9 (PR #85, aanvragen bevestigen, minder
-  buildminuten), 0.19.8 (PR #84, app opent je server meteen), 0.19.7 (PR #83, verse metadata e.d.).
+- Laatste release: **0.19.11** (PR #87): voortgang bewaren bij casten, ook op de achtergrond. Release
+  `v0.19.11` gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.10 (PR #86, seizoenen kiezen in het
+  aanvraagvenster), 0.19.9 (PR #85, aanvragen bevestigen, minder buildminuten), 0.19.8 (PR #84, app
+  opent je server meteen), 0.19.7 (PR #83, verse metadata e.d.).
 - Nog te doen door de eigenaar: castknop (0.19.6) testen op een telefoon; nagaan of het scrollprobleem
   weg is; de app na inloggen proberen.
 - De eigenaar test verder en meldt alles wat hij tegenkomt; dat komt hieronder.
@@ -37,7 +38,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - OpenSubtitles-gegevens alleen via het Control Center, nooit in compose. De apt-ondertekeningssleutel
   nooit in de chat.
 
-## Volgende versie
+## Versie 0.19.11
 
 ### 0.19.11: voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
 Gevraagd door de eigenaar (2 okt, "zonder dat ik 5 euro moet betalen"). Niet zelf mergen zonder toestemming.
@@ -46,6 +47,18 @@ Gevraagd door de eigenaar (2 okt, "zonder dat ik 5 euro moet betalen"). Niet zel
   achtergrond. Bij het einde van het casten (ook op de tv gestopt) wordt de laatste positie van de tv
   bewaard. `app/src/app/play/[kind]/[id].tsx`, `tvFilePosition` in `app/src/lib/cast.ts`.
 - Nog door de eigenaar te testen op een echte telefoon + Chromecast (scherm op slot tijdens het kijken).
+
+## Volgende versie
+
+### 0.19.12: Cast, veilige bibliotheekpaden en APT-repository
+PR #88 blokkeert scans van filesystem-rootpaden, normaliseert bibliotheek-overlapcontrole, waarschuwt
+voor brede mediamappen en verwerkt de `./`-paden van de vlakke APT-repository. Cast gebruikt voor
+remux/transcode HLS VOD zodat de tv een eindige lengte ziet; web en app sturen ook de opgeslagen
+ondertitelstijl mee. De cast-tests slagen. Nog verplicht vóór sluiten: een film van volledige lengte op
+de Chromecast en trage hardware testen. De eerste HLS-layout voor gekopieerde video leest keyframes van
+het hele bestand; meet de wachttijd op de NAS en los die op als die onaanvaardbaar is. Na de merge moet
+de cloud-image worden uitgerold; daarna `apt update` en installatie/upgrades op een schone Debian-installatie
+controleren.
 
 ## Gemeld tijdens het testen
 
@@ -64,7 +77,9 @@ Gevraagd door de eigenaar (2 okt, "zonder dat ik 5 euro moet betalen"). Niet zel
   bestand (bv. MKV) gaat als doorlopende fragmented MP4 (`frag_keyframe+empty_moov`, `remux.ts`) naar de
   tv; Google's standaardspeler kent dan de lengte niet en toont alleen wat binnen is (website en app
   sturen `streamDuration`/`duration` wel mee, maar die gebruikt hij niet). Oplossingen: HLS (VOD-lijst met
-  alle stukken) naar de Chromecast (Later punt 4, zonder $5), of de eigen cast-speler.
+  alle stukken) naar de Chromecast (zonder $5), of de eigen cast-speler. In 0.19.12 wordt HLS VOD
+  gebruikt voor remux/transcode-casts; de echte duurweergave en opstarttijd moeten nog op een Chromecast
+  en op de trage NAS-hardware worden bevestigd.
 
 - **Ingebouwde ondertitels sneller uitpakken** (`EmbeddedSubtitleExtractor` in
   `backend/src/services/subtitles.ts`). Ze worden pas bij het kiezen uitgepakt, en FFmpeg leest
@@ -159,11 +174,9 @@ Gevraagd door de eigenaar (2 okt, "zonder dat ik 5 euro moet betalen"). Niet zel
   en `app/app.json`. Nodig: de eigenaar registreert in de Google Cast SDK Developer Console (eenmalig
   $5), krijgt een app-ID en zet test-Chromecasts (serienummer) erin tot publicatie; de speler komt op
   HTTPS, bijvoorbeeld `vidalune.com/cast`; website en app gebruiken dan dat app-ID.
-  - Foto's van de eigenaar (2 okt): de tv toont nu Google's standaardscherm (titel, jaar, balk, knoppen
-    ±30 s en CC) en ondertitels in een **monospace-lettertype op zwarte blokken**. Dat komt doordat
-    Vidalune geen `TextTrackStyle` meestuurt. Snelle verbetering, ook zonder eigen speler: bij het casten
-    een `TextTrackStyle` meegeven (gewoon lettertype, rand/schaduw in plaats van blok, grootte en kleur
-    uit de ondertitelinstellingen van de gebruiker), in `frontend/src/lib/cast.ts` en de app.
+  - Foto's van de eigenaar (2 okt): de tv toonde Google's standaardscherm en monospace-ondertitels op
+    zwarte blokken omdat Vidalune geen `TextTrackStyle` meestuurde. In 0.19.12 sturen website en app de
+    opgeslagen grootte, kleur, achtergrond en rand/schaduw mee. Controleer de weergave op een echte tv.
 
 - **Ondertitels als plaatjes** (PGS van Blu-ray, VobSub van dvd): nu niet getoond. Mogelijk: inbranden
   in het beeld tijdens het omzetten (transcoding), of omzetten naar tekst.
