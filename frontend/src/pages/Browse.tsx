@@ -5,6 +5,7 @@ import { Film, SlidersHorizontal, Sparkles, Tags, Tv, X } from 'lucide-react';
 import { api, qs } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { Card, Genre, Paged } from '../lib/types';
+import { DiscoverCard, DISCOVER_ROWS, seerrDetailsHref, type SeerrResult } from '../components/Discover';
 import { PosterCard } from '../components/Cards';
 import { EmptyState, ErrorState, PageLoader, Spinner } from '../components/States';
 import { Button } from '../components/Button';
@@ -14,6 +15,9 @@ import { toast } from '../components/Toast';
 import { t, useT } from '../i18n';
 
 type Kind = 'movies' | 'shows';
+type BrowseSource = 'all' | 'library' | 'seerr';
+type BrowseItem = { source: 'library'; item: Card } | { source: 'seerr'; item: SeerrResult };
+interface SeerrPage { page: number; totalPages: number; results: SeerrResult[] }
 
 const SORTS = ['title', 'added', 'watched', 'release', 'year', 'rating', 'runtime'] as const;
 
@@ -36,6 +40,7 @@ const RESOLUTIONS = [
 ];
 const RATINGS = ['5', '6', '7', '8'];
 const PAGE_SIZE = 60;
+const genreKey = (name: string) => name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase();
 /** Filter keys stored in the URL; everything but sort/order counts as "filtered". */
 const FILTER_KEYS = ['filter', 'genre', 'resolution', 'hdr', 'yearFrom', 'yearTo', 'minRating', 'maxRuntime'] as const;
 
@@ -190,10 +195,13 @@ function SaveSmartCollection({ kind, query, summary, onDone }: { kind: Kind; que
 export function BrowsePage({ kind }: { kind: Kind }) {
   const { user } = useAuth();
   const { t } = useT();
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [panel, setPanel] = useState(false);
   const sort = params.get('sort') ?? 'title';
   const order = params.get('order') ?? undefined;
+  const sourceParam = params.get('source');
+  const source: BrowseSource = sourceParam === 'library' || sourceParam === 'seerr' ? sourceParam : 'all';
   const [saving, setSaving] = useState(false);
   const title = kind === 'movies' ? t('nav.movies') : t('nav.tvShows');
   const query = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? undefined]));
@@ -205,11 +213,27 @@ export function BrowsePage({ kind }: { kind: Kind }) {
     initialPageParam: 1,
     queryFn: ({ pageParam }) => api.get<Paged<Card>>(`/api/${kind}${qs({ page: pageParam, limit: PAGE_SIZE, sort, order, ...query })}`),
     getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
+    enabled: source !== 'seerr',
   });
+  const row = kind === 'movies' ? 'movies' : 'tv';
+  const selectedGenre = genres.data?.find((genre) => String(genre.id) === query.genre)?.name;
+  const seerrGenre = selectedGenre && DISCOVER_ROWS.find((entry) => entry.row === row && entry.genre && entry.genreName && genreKey(t(entry.genreName)) === genreKey(selectedGenre))?.genre;
+  const seerrStatus = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), enabled: source !== 'library', staleTime: 5 * 60_000 });
+  const catalog = useInfiniteQuery({
+    queryKey: ['seerr', 'browse', row, seerrGenre ?? null],
+    queryFn: ({ pageParam }) => api.get<SeerrPage>(`/api/seerr/discover?row=${row}${seerrGenre ? `&genre=${seerrGenre}` : ''}&page=${pageParam}`),
+    initialPageParam: 1,
+    getNextPageParam: (last) => last.page < last.totalPages ? last.page + 1 : undefined,
+    enabled: source !== 'library' && Boolean(seerrStatus.data?.enabled),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const { hasNextPage: hasMoreCatalog, isFetchingNextPage: isFetchingCatalog, fetchNextPage: fetchNextCatalog } = catalog;
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = q;
   const loadMore = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+    if (source !== 'seerr' && hasNextPage && !isFetchingNextPage) void fetchNextPage();
+    if (source !== 'library' && hasMoreCatalog && !isFetchingCatalog) void fetchNextCatalog();
+  }, [source, hasNextPage, isFetchingNextPage, fetchNextPage, hasMoreCatalog, isFetchingCatalog, fetchNextCatalog]);
 
   const setSort = (value: string) => {
     const next = new URLSearchParams(params);
@@ -218,37 +242,66 @@ export function BrowsePage({ kind }: { kind: Kind }) {
     next.delete('order');
     setParams(next, { replace: true });
   };
+  const setSource = (value: BrowseSource) => {
+    const next = new URLSearchParams(params);
+    if (value === 'all') next.delete('source');
+    else next.set('source', value);
+    setParams(next, { replace: true });
+  };
   const clearKeys = (keys: string[]) => {
     const next = new URLSearchParams(params);
     keys.forEach((k) => next.delete(k));
     setParams(next, { replace: true });
   };
 
-  const items = q.data?.pages.flatMap((p) => p.items) ?? [];
+  const localItems = q.data?.pages.flatMap((p) => p.items) ?? [];
+  const seenCatalog = new Set<string>();
+  const catalogItems = (catalog.data?.pages.flatMap((page) => page.results) ?? []).filter((item) => {
+    const key = `${item.mediaType}-${item.tmdbId}`;
+    if (seenCatalog.has(key) || (source === 'all' && item.inLibrary)) return false;
+    seenCatalog.add(key);
+    return true;
+  });
+  const items: BrowseItem[] = [
+    ...(source === 'seerr' ? [] : localItems.map((item): BrowseItem => ({ source: 'library', item }))),
+    ...(source === 'library' ? [] : catalogItems.map((item): BrowseItem => ({ source: 'seerr', item }))),
+  ];
   const total = q.data?.pages[0]?.total ?? 0;
-  const chips = activeFilterChips(params, kind, genres.data);
+  const chips = source === 'seerr' ? [] : activeFilterChips(params, kind, genres.data);
   const filtered = chips.length > 0;
+  const loading = (source !== 'seerr' && q.isLoading) || (source !== 'library' && (seerrStatus.isLoading || (seerrStatus.data?.enabled && catalog.isLoading)));
+  const localError = source !== 'seerr' ? q.error : null;
+  const catalogError = source !== 'library' ? seerrStatus.error ?? catalog.error : null;
+  const hasNext = (source !== 'seerr' && q.hasNextPage) || (source !== 'library' && catalog.hasNextPage);
+  const loadingNext = (source !== 'seerr' && q.isFetchingNextPage) || (source !== 'library' && catalog.isFetchingNextPage);
 
   return (
     <div className="px-4 pt-8 sm:px-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold tracking-tight">{title}</h1>
-          {q.data && <p className="mt-1 text-sm text-muted">{t(kind === 'movies' ? 'browse.movieCount' : 'browse.showCount', { count: total })}</p>}
+          {q.data && source !== 'seerr' && <p className="mt-1 text-sm text-muted">{t(source === 'library' ? kind === 'movies' ? 'browse.movieCount' : 'browse.showCount' : 'browse.inLibraryCount', { count: total })}</p>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1" role="group" aria-label={t('browse.categorySource')}>
+            <button type="button" aria-pressed={source === 'all'} className={`rounded-full border px-3 py-2 text-xs transition ${source === 'all' ? 'border-accent bg-accent/15 text-ink' : 'border-line text-muted hover:text-ink'}`} onClick={() => setSource('all')}>{t('browse.categoryAll')}</button>
+            <button type="button" aria-pressed={source === 'library'} className={`rounded-full border px-3 py-2 text-xs transition ${source === 'library' ? 'border-accent bg-accent/15 text-ink' : 'border-line text-muted hover:text-ink'}`} onClick={() => setSource('library')}>{t('browse.categoryLibrary')}</button>
+            <button type="button" aria-pressed={source === 'seerr'} className={`rounded-full border px-3 py-2 text-xs transition ${source === 'seerr' ? 'border-accent bg-accent/15 text-ink' : 'border-line text-muted hover:text-ink'}`} onClick={() => setSource('seerr')}>{t('browse.categoryCatalog')}</button>
+          </div>
           <Link to={`/genres?scope=all&kind=${kind}`} className="inline-flex h-10 items-center gap-2 rounded-lg bg-raised px-3 text-sm text-ink hover:bg-line focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none">
             <Tags className="size-4" />{t('browse.categoryTitle')}
           </Link>
-          <select aria-label={t('browse.sort')} className="input h-10 w-auto py-0 pr-8 text-sm" value={sort} onChange={(e) => setSort(e.target.value)}>
-            {SORTS.filter((s) => kind === 'movies' || s !== 'runtime').map((s) => (
-              <option key={s} value={s}>{t(`browse.sorts.${s}`)}</option>
-            ))}
-          </select>
-          <Button variant="secondary" icon={<SlidersHorizontal className="size-4" />} onClick={() => setPanel(true)} aria-label={filtered ? t('browse.filtersActive', { count: chips.length }) : t('browse.filtersTitle')}>
-            <span className="hidden sm:inline">{t('browse.filtersTitle')}</span>
-            {filtered && <span className="rounded-full bg-accent px-1.5 text-xs font-semibold text-accent-ink">{chips.length}</span>}
-          </Button>
+          {source !== 'seerr' && <>
+            <select aria-label={t('browse.sort')} className="input h-10 w-auto py-0 pr-8 text-sm" value={sort} onChange={(e) => setSort(e.target.value)}>
+              {SORTS.filter((s) => kind === 'movies' || s !== 'runtime').map((s) => (
+                <option key={s} value={s}>{t(`browse.sorts.${s}`)}</option>
+              ))}
+            </select>
+            <Button variant="secondary" icon={<SlidersHorizontal className="size-4" />} onClick={() => setPanel(true)} aria-label={filtered ? t('browse.filtersActive', { count: chips.length }) : t('browse.filtersTitle')}>
+              <span className="hidden sm:inline">{t('browse.filtersTitle')}</span>
+              {filtered && <span className="rounded-full bg-accent px-1.5 text-xs font-semibold text-accent-ink">{chips.length}</span>}
+            </Button>
+          </>}
         </div>
       </div>
 
@@ -271,31 +324,49 @@ export function BrowsePage({ kind }: { kind: Kind }) {
         </div>
       )}
 
-      {q.isLoading ? (
+      {source === 'all' && filtered && <p className="mt-3 text-xs text-faint">{t('browse.catalogFilterHint')}</p>}
+
+      {loading ? (
         <PageLoader />
-      ) : q.error ? (
-        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+      ) : source === 'seerr' && seerrStatus.error ? (
+        <ErrorState error={seerrStatus.error} onRetry={() => void seerrStatus.refetch()} />
+      ) : source === 'seerr' && !seerrStatus.data?.enabled ? (
+        <EmptyState title={t('browse.catalogNotEnabled')}>{t('browse.catalogNotEnabledHint')}</EmptyState>
+      ) : localError ? (
+        <ErrorState error={localError} onRetry={() => void q.refetch()} />
+      ) : source === 'all' && catalogError && items.length === 0 ? (
+        <ErrorState error={catalogError} onRetry={() => { void seerrStatus.refetch(); void catalog.refetch(); }} />
       ) : items.length === 0 ? (
         <EmptyState
           icon={kind === 'movies' ? <Film className="size-6" /> : <Tv className="size-6" />}
-          title={filtered ? t('browse.nothingMatches') : kind === 'movies' ? t('browse.noMovies') : t('browse.noShows')}
+          title={source === 'seerr' ? t('browse.noCatalogCategories') : filtered ? t('browse.nothingMatches') : kind === 'movies' ? t('browse.noMovies') : t('browse.noShows')}
           action={
             filtered ? (
               <Button variant="secondary" onClick={() => clearKeys([...FILTER_KEYS])}>{t('browse.clearFilters')}</Button>
-            ) : user?.role === 'admin' ? (
+            ) : source !== 'seerr' && user?.role === 'admin' ? (
               <Link to="/admin/libraries" className="inline-flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">{t('home.manageLibraries')}</Link>
             ) : undefined
           }
         >
-          {!filtered && (kind === 'movies' ? t('browse.addMoviesLibrary') : t('browse.addShowsLibrary'))}
+          {source === 'seerr' ? t('browse.noCatalogCategories') : !filtered && (kind === 'movies' ? t('browse.addMoviesLibrary') : t('browse.addShowsLibrary'))}
         </EmptyState>
       ) : (
         <>
+          {source === 'all' && catalogError && <ErrorState error={catalogError} onRetry={() => { void seerrStatus.refetch(); void catalog.refetch(); }} />}
           <div className="mt-8">
-            <VirtualGrid items={items} getKey={(i) => i.id} renderItem={(item) => <PosterCard item={item} />} minColumnWidth={minColumnWidth} rowHeightFor={rowHeightFor} onNearEnd={loadMore} />
+            <VirtualGrid
+              items={items}
+              getKey={(result) => result.source === 'library' ? `local-${result.item.type}-${result.item.id}` : `seerr-${result.item.mediaType}-${result.item.tmdbId}`}
+              renderItem={(result) => result.source === 'library'
+                ? <PosterCard item={result.item} />
+                : <DiscoverCard item={result.item} onSelect={(chosen) => navigate(seerrDetailsHref(chosen))} className="w-full" />}
+              minColumnWidth={minColumnWidth}
+              rowHeightFor={rowHeightFor}
+              onNearEnd={loadMore}
+            />
           </div>
           <div className="flex justify-center py-10">
-            {isFetchingNextPage ? <Spinner className="size-6" /> : hasNextPage ? <Button variant="secondary" onClick={loadMore}>{t('browse.loadMore')}</Button> : null}
+            {loadingNext ? <Spinner className="size-6" /> : hasNext ? <Button variant="secondary" onClick={loadMore}>{t('browse.loadMore')}</Button> : null}
           </div>
         </>
       )}

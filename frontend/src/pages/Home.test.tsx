@@ -33,6 +33,7 @@ describe('Home — Continue Watching', () => {
   it('leads with the most recent item: where you are, Resume and Start over', async () => {
     setup();
     expect(await screen.findByText('Pick up where you left off')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Anna/ }).closest('section')).toBeTruthy();
     const hero = screen.getByText('Pick up where you left off').parentElement!;
     expect(within(hero).getByText('Season 2 · Episode 4')).toBeTruthy();
     expect(within(hero).getByText('32:14 / 48:21')).toBeTruthy();
