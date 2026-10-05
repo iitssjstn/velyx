@@ -1,14 +1,12 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Artwork, useWide } from './media';
 import { Heading } from './ui';
-import { errorMessage } from '../lib/connection';
 import { catalogOnly, DISCOVER_ROWS, discoverPath, discoverTarget, mergePages, type DiscoverPage, type DiscoverRow, type SeerrResult } from '../lib/discover';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
-import type { ShowDetail } from '../lib/types';
 
 /**
  * Titles from Seerr for a search, when Seerr is set up: only what is not here (the library has
@@ -27,23 +25,10 @@ export function useCatalogSearch(query: string | null) {
   return { results: query ? catalogOnly(q.data?.results) : [], isFetching: q.isFetching };
 }
 
-/** Opens a title from the catalog: plays what is here, otherwise its request page. */
+/** Opens a title from the catalog on its local detail page, or its request page if not here. */
 export function useOpenDiscover() {
-  const { api, t } = useSession();
-  const [busy, setBusy] = useState(false);
-  const open = async (item: SeerrResult) => {
-    if (item.local?.type !== 'show') return router.push(discoverTarget(item) as never);
-    setBusy(true);
-    try {
-      const show = await api.get<ShowDetail>(`/api/shows/${item.local.id}`);
-      router.push(discoverTarget(item, show.upNext?.id ?? null) as never);
-    } catch (err) {
-      Alert.alert(t('common.error'), errorMessage(err, t));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return { open, busy };
+  const open = (item: SeerrResult) => router.push(discoverTarget(item) as never);
+  return { open, busy: false };
 }
 
 export function DiscoverCard({ item, onPress, width }: { item: SeerrResult; onPress: () => void; width: number }) {

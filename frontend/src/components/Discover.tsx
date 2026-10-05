@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { api } from '../lib/api';
 import { imageUrl } from '../lib/format';
@@ -232,8 +232,13 @@ export function DiscoverShelves() {
   return (
     <div>
       <section className="mx-4 mt-12 border-t border-line pt-4 sm:mx-8" aria-labelledby="discover-library-boundary">
-        <h2 id="discover-library-boundary" className="text-sm font-semibold text-ink">{t('requests.discover.catalogLabel')}</h2>
-        <p className="mt-1 text-xs text-faint">{t('requests.discover.catalogHint')}</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="discover-library-boundary" className="text-sm font-semibold text-ink">{t('requests.discover.catalogLabel')}</h2>
+            <p className="mt-1 text-xs text-faint">{t('requests.discover.catalogHint')}</p>
+          </div>
+          <Link to="/genres?scope=seerr&kind=movies" className="text-sm font-medium text-accent hover:text-ink focus-visible:outline-accent">{t('browse.categoryTitle')}</Link>
+        </div>
       </section>
       {DISCOVER_ROWS.map((spec) => (
         <DiscoverShelf key={`${spec.row}-${spec.genre ?? ''}`} spec={spec} onSelect={select} />

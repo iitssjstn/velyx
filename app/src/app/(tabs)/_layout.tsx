@@ -30,6 +30,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="search" options={{ title: t('tabs.search'), headerShown: false, tabBarIcon: icon('search') }} />
       <Tabs.Screen name="movies" options={{ title: t('tabs.movies'), tabBarIcon: icon('film') }} />
       <Tabs.Screen name="shows" options={{ title: t('tabs.shows'), tabBarIcon: icon('tv') }} />
+      <Tabs.Screen name="genres" options={{ title: t('tabs.genres'), tabBarIcon: icon('grid') }} />
       <Tabs.Screen name="account" options={{ title: t('tabs.account'), tabBarIcon: icon('user') }} />
     </Tabs>
   );

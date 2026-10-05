@@ -18,6 +18,7 @@ import { RequestPage } from './pages/RequestDetail';
 import { OldSettingsRedirect, SettingsPage } from './pages/Settings';
 import { NotFoundPage } from './pages/NotFound';
 import { CollectionPage, CollectionsPage } from './pages/Collections';
+import { GenresPage } from './pages/Genres';
 
 import { PlayerHost, PlayRoute } from './components/PlayerHost';
 import { useT } from './i18n';
@@ -84,6 +85,7 @@ export function App() {
           <Route index element={<HomePage />} />
           <Route path="/movies" element={<BrowsePage key="movies" kind="movies" />} />
           <Route path="/shows" element={<BrowsePage key="shows" kind="shows" />} />
+          <Route path="/genres" element={<GenresPage />} />
           <Route path="/movies/:id" element={<MoviePage />} />
           <Route path="/shows/:id" element={<ShowPage />} />
           <Route path="/collections" element={<CollectionsPage />} />

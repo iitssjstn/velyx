@@ -78,14 +78,10 @@ export function mergePages(pages: DiscoverPage[]): SeerrResult[] {
     });
 }
 
-/**
- * Where tapping a title goes: a movie that is here plays, a show that is here goes on with its
- * next episode (its page when there is none), anything else opens its request page.
- */
-export function discoverTarget(item: Pick<SeerrResult, 'mediaType' | 'tmdbId' | 'local'>, upNextEpisodeId?: number | null): string {
+/** Where tapping a Seerr title goes: local media details when available, otherwise its request page. */
+export function discoverTarget(item: Pick<SeerrResult, 'mediaType' | 'tmdbId' | 'local'>): string {
   if (!item.local) return `/request/${item.mediaType}/${item.tmdbId}`;
-  if (item.local.type === 'movie') return `/play/movie/${item.local.id}`;
-  return upNextEpisodeId ? `/play/episode/${upNextEpisodeId}` : `/show/${item.local.id}`;
+  return item.local.type === 'movie' ? `/movie/${item.local.id}` : `/show/${item.local.id}`;
 }
 
 /** Whether a title can be requested: not here, and not requested already (or turned down / failed). */
