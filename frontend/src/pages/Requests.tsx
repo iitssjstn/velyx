@@ -7,7 +7,7 @@ import { ConfirmModal } from '../components/Modal';
 import { toast } from '../components/Toast';
 import { api } from '../lib/api';
 import { Button } from '../components/Button';
-import { DiscoverCard, Poster, StateBadge, useOpenLocal, type MyRequest, type SeerrResult } from '../components/Discover';
+import { DiscoverCard, Poster, StateBadge, seerrDetailsHref, type MyRequest, type SeerrResult } from '../components/Discover';
 import { ErrorState, PageLoader } from '../components/States';
 import { useT } from '../i18n';
 
@@ -81,10 +81,8 @@ export function RequestsPage() {
   const { user } = useAuth();
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
-  const openLocal = useOpenLocal();
   const navigate = useNavigate();
-  // What is here plays; the rest opens its own page with the request button.
-  const select = (r: SeerrResult) => (r.local ? void openLocal.open(r.local) : navigate(`/request/${r.mediaType}/${r.tmdbId}`));
+  const select = (r: SeerrResult) => navigate(seerrDetailsHref(r));
   const status = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr') });
   const results = useQuery({
     queryKey: ['seerr', 'search', query],

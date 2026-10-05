@@ -1,7 +1,7 @@
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import { cardFacts, ContinueCard, PosterCard } from './Cards';
 import { Artwork } from './Artwork';
 import type { MovieCard, ShowCard } from '../lib/types';
@@ -21,13 +21,6 @@ const movie: MovieCard = {
   progress: { positionSec: 600, durationSec: 6000, completed: false },
   favorite: false,
 };
-
-function CurrentPath() {
-  const location = useLocation();
-  return <output>{`${location.pathname}${location.search}`}</output>;
-}
-
-afterEach(() => vi.unstubAllGlobals());
 
 describe('PosterCard', () => {
   it('links to the movie and shows progress', () => {
@@ -54,32 +47,6 @@ describe('PosterCard', () => {
     expect(screen.getByTitle('Watched')).toBeTruthy();
   });
 
-  it('offers play and details controls on library-grid cards', async () => {
-    render(
-      <MemoryRouter initialEntries={['/movies']}>
-        <PosterCard item={movie} gridActions />
-        <CurrentPath />
-      </MemoryRouter>,
-    );
-    expect((screen.getByRole('link', { name: 'Play Interstellar' }) as HTMLAnchorElement).getAttribute('href')).toBe('/play/movie/7?t=600');
-    expect((screen.getByRole('link', { name: 'Interstellar: details' }) as HTMLAnchorElement).getAttribute('href')).toBe('/movies/7');
-    await userEvent.click(screen.getByRole('link', { name: 'Play Interstellar' }));
-    expect(await screen.findByText('/play/movie/7?t=600')).toBeTruthy();
-  });
-
-  it('plays the next episode from a series grid card and keeps details available', async () => {
-    const show: ShowCard = { type: 'show', id: 3, title: 'Breaking Bad', year: 2008, posterPath: null, backdropPath: null, rating: null, overview: null, genres: [], addedAt: 0, seasonCount: 1, episodeCount: 2, watchedCount: 0, favorite: false };
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ upNext: { id: 42, seasonNumber: 1, episodeNumber: 1, progress: null }, watchedCount: 0, episodeCount: 2 }), { status: 200 })));
-    render(
-      <MemoryRouter initialEntries={['/browse/shows']}>
-        <PosterCard item={show} gridActions />
-        <CurrentPath />
-      </MemoryRouter>,
-    );
-    expect((screen.getByRole('link', { name: 'Breaking Bad: details' }) as HTMLAnchorElement).getAttribute('href')).toBe('/shows/3');
-    await userEvent.click(screen.getByRole('button', { name: 'Play Breaking Bad' }));
-    expect(await screen.findByText('/play/episode/42?t=0')).toBeTruthy();
-  });
 });
 
 describe('PosterCard hover details', () => {
@@ -96,7 +63,7 @@ describe('PosterCard hover details', () => {
     const overlay = screen.getByText('2014 • 2h 49m').closest('[aria-hidden="true"]')!;
     expect(overlay.className).toMatch(/opacity-0/);
     expect(overlay.className).toMatch(/group-hover:opacity-100/);
-    expect(overlay.className).toMatch(/group-has-\[a:focus-visible\]:opacity-100/);
+    expect(overlay.className).toMatch(/group-focus-visible:opacity-100/);
     // The progress bar and its room stay visible above the details.
     expect(overlay.className).toMatch(/pb-5/);
     expect(screen.getByRole('progressbar').className).toMatch(/z-10/);

@@ -9,10 +9,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.12** (PR #89): Cast-duur en ondertitelstijl, veilige bibliotheekpaden en APT.
-  Release `v0.19.12` gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.11 (PR #87, voortgang bewaren
-  bij casten), 0.19.10 (PR #86, seizoenen kiezen in het aanvraagvenster), 0.19.9 (PR #85, aanvragen
-  bevestigen, minder buildminuten), 0.19.8 (PR #84, app opent je server meteen), 0.19.7 (PR #83).
+- Laatste release: **0.19.13** (PR #90): library-grid acties en laadstatusfix. Release `v0.19.13`
+  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.12 (PR #89, Cast HLS-duur, ondertitelstijl,
+  veilige bibliotheekpaden en APT), 0.19.11 (PR #87, voortgang bewaren bij casten), 0.19.10 (PR #86,
+  seizoenen kiezen), 0.19.9 (PR #85), 0.19.8 (PR #84) en 0.19.7 (PR #83).
 - Nog te doen door de eigenaar: castknop (0.19.6) testen op een telefoon; nagaan of het scrollprobleem
   weg is; de app na inloggen proberen.
 - De eigenaar test verder en meldt alles wat hij tegenkomt; dat komt hieronder.
@@ -60,13 +60,20 @@ een eindige duur ziet; web en app sturen de opgeslagen ondertitelstijl mee. De r
 - Na uitrol van de cloud-image: `apt update` en installatie/upgrades op een schone Debian-installatie
   controleren.
 
+## Versie 0.19.13
+
+### Library-grid Play/details en player loading
+PR #90 is gemerged en release `v0.19.13` is compleet. De eigenaar wil de extra Play- en uitroeptekenknoppen
+op posters verwijderen; de player-laadstatusfix blijft behouden.
+
 ## Volgende versie
 
-### 0.19.13: Play- en detailacties op de bibliotheekgrid
-Toon rechtsonder op elke poster in Films/Series een Play-knop en een knop met een uitroepteken in een
-cirkel. Play hervat een film waar mogelijk of speelt bij een serie de volgende aflevering; de
-detailknop opent de bestaande film-/seriepagina voor trailer en metadata. Beperk de knoppen tot de
-bibliotheekgrid, behoud toetsenbordtoegang en test beide routes in het Nederlands en Engels.
+### 0.19.14: Seerr-kaarten openen lokale metadata
+Verwijder de Play- en uitroepteken-overlayknoppen van bibliotheekposters en cataloguskaarten. Een klik op
+een Seerr/TMDB-kaart van een lokaal beschikbare film of serie opent de bestaande lokale metadata- en
+trailerpagina; een titel die niet lokaal staat opent de Seerr-detail-/aanvraagpagina. Zet boven de
+catalogusrijen vanaf Trending een duidelijke scheidingslijn met uitleg dat titels eronder mogelijk niet
+in de bibliotheek staan. Houd één duidelijke klikactie per cataloguskaart.
 
 ## Gemeld tijdens het testen
 

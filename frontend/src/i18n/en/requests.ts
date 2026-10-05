@@ -29,6 +29,8 @@ export const requests = {
   play: 'Play',
   opening: 'Opening…',
   discover: {
+    catalogLabel: 'Explore the catalog',
+    catalogHint: 'Titles below may not be in your library yet.',
     trending: 'Trending now',
     popularMovies: 'Popular movies',
     popularShows: 'Popular shows',
