@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQueries, useQuery } from '@tanstack/react-query';
+import { createPortal } from 'react-dom';
 import { ArrowLeftRight, Bookmark, ChevronDown, Film, Heart, Inbox, Layers, House, LogOut, Menu, Search, Server, CircleUser, ShieldCheck, Tags, Tv, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
@@ -33,6 +34,9 @@ function GenreDropdown() {
   const { t } = useT();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const movies = useQuery({ queryKey: ['genres', 'movies'], queryFn: () => api.get<Genre[]>('/api/genres?type=movies'), enabled: open, staleTime: 5 * 60_000 });
   const shows = useQuery({ queryKey: ['genres', 'shows'], queryFn: () => api.get<Genre[]>('/api/genres?type=shows'), enabled: open, staleTime: 5 * 60_000 });
   const seerrStatus = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), enabled: open && !!user, staleTime: 5 * 60_000 });
@@ -68,14 +72,42 @@ function GenreDropdown() {
   const showChoices = choices('shows', shows.data);
   const loading = movies.isLoading || shows.isLoading || seerrStatus.isLoading || (seerrStatus.data?.enabled && checks.some((query) => query.isLoading));
   const href = (kind: GenreKind, category?: GenreChoice) => `/genres?scope=all&kind=${kind}${category?.localId ? `&localGenre=${category.localId}` : ''}${category?.seerrId ? `&seerrGenre=${category.seerrId}` : ''}`;
-  const close = (event: React.MouseEvent<HTMLAnchorElement>) => event.currentTarget.closest('details')?.removeAttribute('open');
+  const placeMenu = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = Math.min(window.innerWidth * 0.88, 608);
+    const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+    const top = rect.bottom + 8;
+    setPosition({ top, left, width, maxHeight: Math.max(180, window.innerHeight - top - 12) });
+  };
+  const close = () => setOpen(false);
+
+  useEffect(() => {
+    if (!open) return;
+    placeMenu();
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', placeMenu);
+    window.addEventListener('scroll', placeMenu, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', placeMenu);
+      window.removeEventListener('scroll', placeMenu, true);
+    };
+  }, [open]);
 
   return (
-    <details className="group relative shrink-0" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary aria-label={t('nav.genres')} className="flex h-10 cursor-pointer list-none items-center gap-1.5 rounded-lg px-2 text-xs whitespace-nowrap text-muted transition-colors hover:bg-raised/60 hover:text-ink lg:px-2.5 lg:text-sm [&::-webkit-details-marker]:hidden">
+    <div className="shrink-0">
+      <button ref={triggerRef} type="button" aria-label={t('nav.genres')} aria-haspopup="true" aria-expanded={open} aria-controls="desktop-genre-menu" onClick={() => { if (open) setOpen(false); else { placeMenu(); setOpen(true); } }} className="flex h-10 items-center gap-1.5 rounded-lg px-2 text-xs whitespace-nowrap text-muted transition-colors hover:bg-raised/60 hover:text-ink lg:px-2.5 lg:text-sm">
         <Tags className="size-4" />{t('nav.genres')}<ChevronDown className="size-3.5" />
-      </summary>
-      <div className="absolute top-full left-0 z-50 mt-2 max-h-[min(70vh,36rem)] w-[min(88vw,38rem)] overflow-y-auto rounded-xl border border-line bg-surface p-4 shadow-2xl">
+      </button>
+      {open && position && createPortal(<div ref={menuRef} id="desktop-genre-menu" role="region" aria-label={t('nav.genres')} className="fixed z-[60] overflow-y-auto rounded-xl border border-line bg-surface p-4 shadow-2xl" style={position}>
         <div className="mb-3 flex items-center justify-between gap-3">
           <span className="text-sm font-semibold text-ink">{t('browse.categoryTitle')}</span>
           <Link to={href('movies')} onClick={close} className="text-xs font-medium text-accent hover:text-ink">{t('browse.allCategories')}</Link>
@@ -100,8 +132,8 @@ function GenreDropdown() {
             ))}
           </div>
         )}
-      </div>
-    </details>
+      </div>, document.body)}
+    </div>
   );
 }
 
