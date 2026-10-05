@@ -102,7 +102,7 @@ export function RequestsPage() {
       <div className="space-y-2">
         <h1 className="font-display text-3xl font-semibold tracking-tight">{t('requests.title')}</h1>
         <p className="max-w-2xl text-sm text-muted">{t('requests.intro')}</p>
-        <Link to="/genres?scope=seerr&kind=movies" className="inline-flex text-sm font-medium text-accent hover:text-ink focus-visible:outline-accent">{t('browse.categoryTitle')}</Link>
+        <Link to="/genres?scope=all&kind=movies" className="inline-flex text-sm font-medium text-accent hover:text-ink focus-visible:outline-accent">{t('browse.categoryTitle')}</Link>
       </div>
       <form onSubmit={submit} className="flex max-w-xl gap-2" role="search">
         <label htmlFor="seerr-q" className="sr-only">{t('requests.search')}</label>

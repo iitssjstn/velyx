@@ -237,7 +237,7 @@ export function DiscoverShelves() {
             <h2 id="discover-library-boundary" className="text-sm font-semibold text-ink">{t('requests.discover.catalogLabel')}</h2>
             <p className="mt-1 text-xs text-faint">{t('requests.discover.catalogHint')}</p>
           </div>
-          <Link to="/genres?scope=seerr&kind=movies" className="text-sm font-medium text-accent hover:text-ink focus-visible:outline-accent">{t('browse.categoryTitle')}</Link>
+          <Link to="/genres?scope=all&kind=movies" className="text-sm font-medium text-accent hover:text-ink focus-visible:outline-accent">{t('browse.categoryTitle')}</Link>
         </div>
       </section>
       {DISCOVER_ROWS.map((spec) => (
