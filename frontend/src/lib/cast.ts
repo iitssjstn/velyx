@@ -1,5 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api';
+import type { PlaybackPrefs } from './prefs';
+
+export type CastSubtitleStyle = Pick<PlaybackPrefs, 'subtitleSize' | 'subtitleColor' | 'subtitleBackground' | 'subtitleEdge'>;
+
+export function castTextTrackStyle(style?: CastSubtitleStyle) {
+  const current = style ?? { subtitleSize: 'medium', subtitleColor: 'white', subtitleBackground: 'none', subtitleEdge: 'shadow' };
+  return {
+    fontFamily: 'sans-serif',
+    fontGenericFamily: 'SANS_SERIF',
+    fontScale: { small: 0.8, medium: 1, large: 1.2, xlarge: 1.4 }[current.subtitleSize],
+    foregroundColor: current.subtitleColor === 'yellow' ? '#FFE14DFF' : '#FFFFFFFF',
+    backgroundColor: { none: '#00000000', translucent: '#00000099', solid: '#000000EB' }[current.subtitleBackground],
+    edgeType: { shadow: 'DROP_SHADOW', outline: 'OUTLINE', none: 'NONE' }[current.subtitleEdge],
+    edgeColor: '#000000FF',
+  };
+}
 
 /**
  * Casting to a Chromecast (or a TV with Chromecast built in) from the browser, with Google's Cast
@@ -87,6 +103,7 @@ export interface CastItem {
   posterPath?: string | null;
   /** The chosen subtitle (its key), shown on the TV too. */
   subtitleKey: string | null;
+  subtitleStyle?: CastSubtitleStyle;
   /** Keyframe before a position, for repackaged streams (they start at a keyframe). */
   locate: (target: number) => Promise<{ offset: number; seek: number }>;
 }
@@ -163,6 +180,8 @@ export function useCast(item: CastItem | null) {
         startTime = Math.max(0, at - k.offset);
       } else offset.current = 0;
       const media = new chromeCast.media.MediaInfo(castUrl(base, s.decision.streamUrl, s.token, start), s.contentType);
+      media.streamType = chromeCast.media.StreamType.BUFFERED;
+      media.textTrackStyle = Object.assign(new chromeCast.media.TextTrackStyle(), castTextTrackStyle(it.subtitleStyle));
       const meta = new chromeCast.media.GenericMediaMetadata();
       meta.title = it.title;
       if (it.subtitle) meta.subtitle = it.subtitle;

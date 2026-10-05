@@ -4,6 +4,20 @@
  * player becomes its remote control. What to load is worked out here, without React Native, so it
  * is tested with Vitest; the player hands it to react-native-google-cast.
  */
+import { DEFAULT_SUBTITLE_STYLE, type SubtitleStyle } from './subtitleStyle';
+import type { MediaStreamType, TextTrackStyle } from 'react-native-google-cast';
+
+export function castTextTrackStyle(style: SubtitleStyle = DEFAULT_SUBTITLE_STYLE): TextTrackStyle {
+  return {
+    fontFamily: 'sans-serif',
+    fontGenericFamily: 'sansSerif',
+    fontScale: { small: 0.8, medium: 1, large: 1.2, xlarge: 1.4 }[style.size],
+    foregroundColor: style.color === 'yellow' ? '#FFE14DFF' : '#FFFFFFFF',
+    backgroundColor: { none: '#00000000', translucent: '#00000099', solid: '#000000EB' }[style.background],
+    edgeType: ({ shadow: 'dropShadow', outline: 'outline', none: 'none' } as const)[style.edge],
+    edgeColor: '#000000FF',
+  };
+}
 
 export interface CastSubtitle {
   key: string;
@@ -30,7 +44,9 @@ export interface CastLoadRequest {
   mediaInfo: {
     contentUrl: string;
     contentType: string;
+    streamType: MediaStreamType;
     streamDuration?: number;
+    textTrackStyle: ReturnType<typeof castTextTrackStyle>;
     metadata: { type: 'generic'; title: string; subtitle?: string; images?: { url: string }[] };
     mediaTracks: { id: number; type: 'text'; subtype: 'subtitles'; contentId: string; contentType: string; name: string; language?: string }[];
   };
@@ -64,6 +80,7 @@ export function castLoadRequest(opts: {
   at: number;
   keyframe: { offset: number; seek: number } | null;
   subtitleKey: string | null;
+  subtitleStyle?: SubtitleStyle;
 }): { request: CastLoadRequest; offset: number } {
   const { session: s, url, at } = opts;
   const restart = s.decision.seek === 'restart' && at > 0 && opts.keyframe !== null;
@@ -79,6 +96,8 @@ export function castLoadRequest(opts: {
       mediaInfo: {
         contentUrl: stream,
         contentType: s.contentType,
+        streamType: 'BUFFERED' as MediaStreamType,
+        textTrackStyle: castTextTrackStyle(opts.subtitleStyle),
         ...(s.decision.durationSec ? { streamDuration: Math.max(0, s.decision.durationSec - offset) } : {}),
         metadata: {
           type: 'generic',
