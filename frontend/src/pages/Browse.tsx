@@ -237,7 +237,7 @@ export function BrowsePage({ kind }: { kind: Kind }) {
           {q.data && <p className="mt-1 text-sm text-muted">{t(kind === 'movies' ? 'browse.movieCount' : 'browse.showCount', { count: total })}</p>}
         </div>
         <div className="flex gap-2">
-          <Link to={`/genres?scope=library&kind=${kind}`} className="inline-flex h-10 items-center gap-2 rounded-lg bg-raised px-3 text-sm text-ink hover:bg-line focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none">
+          <Link to={`/genres?scope=all&kind=${kind}`} className="inline-flex h-10 items-center gap-2 rounded-lg bg-raised px-3 text-sm text-ink hover:bg-line focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none">
             <Tags className="size-4" />{t('browse.categoryTitle')}
           </Link>
           <select aria-label={t('browse.sort')} className="input h-10 w-auto py-0 pr-8 text-sm" value={sort} onChange={(e) => setSort(e.target.value)}>

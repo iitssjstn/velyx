@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeftRight, Bookmark, Film, Heart, Inbox, Layers, House, LogOut, Menu, Search, Server, CircleUser, ShieldCheck, Tags, Tv, X } from 'lucide-react';
+import { ArrowLeftRight, Bookmark, ChevronDown, Film, Heart, Inbox, Layers, House, LogOut, Menu, Search, Server, CircleUser, ShieldCheck, Tags, Tv, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
 import { Logo } from './Logo';
@@ -22,16 +22,18 @@ const NAV: Array<{ to: string; label: MessageKey; icon: typeof House; end?: bool
   { to: '/favorites', label: 'nav.favorites', icon: Heart },
   { to: '/account', label: 'nav.account', icon: CircleUser },
 ];
+const TOP_NAV_PATHS = new Set(['/', '/movies', '/shows', '/genres', '/collections']);
 
-function NavItems({ onNavigate }: { onNavigate?: () => void }) {
+function NavItems({ onNavigate, horizontal = false }: { onNavigate?: () => void; horizontal?: boolean }) {
   const { user } = useAuth();
   const { t } = useT();
   // Requests only when Seerr is set up on this server.
   const seerr = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000, enabled: !!user });
-  const base = seerr.data?.enabled ? [...NAV.slice(0, -1), { to: '/requests', label: 'nav.requests' as const, icon: Inbox }, NAV[NAV.length - 1]!] : NAV;
-  const items = user?.role === 'admin' ? [...base, { to: '/admin', label: 'nav.admin' as const, icon: ShieldCheck }] : base;
+  const primary = horizontal ? NAV.filter(({ to }) => TOP_NAV_PATHS.has(to)) : NAV;
+  const base = seerr.data?.enabled ? [...primary, { to: '/requests', label: 'nav.requests' as const, icon: Inbox }, ...(horizontal ? [] : [NAV[NAV.length - 1]!])] : primary;
+  const items = !horizontal && user?.role === 'admin' ? [...base, { to: '/admin', label: 'nav.admin' as const, icon: ShieldCheck }] : base;
   return (
-    <nav className="flex flex-col gap-1" aria-label={t('nav.main')}>
+    <nav className={horizontal ? 'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden' : 'flex flex-col gap-1'} aria-label={t('nav.main')}>
       {items.map(({ to, label, icon: Icon, end }) => (
         <NavLink
           key={to}
@@ -39,29 +41,38 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
           end={end ?? false}
           onClick={onNavigate}
           className={({ isActive }) =>
-            `group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[0.95rem] transition-colors ${
-              isActive ? 'bg-raised text-ink' : 'text-muted hover:bg-raised/60 hover:text-ink'
-            }`
+            horizontal
+              ? `group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-2 text-xs whitespace-nowrap transition-colors lg:px-2.5 lg:text-sm ${isActive ? 'bg-raised text-ink' : 'text-muted hover:bg-raised/60 hover:text-ink'}`
+              : `group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[0.95rem] transition-colors ${isActive ? 'bg-raised text-ink' : 'text-muted hover:bg-raised/60 hover:text-ink'}`
           }
         >
           {({ isActive }) => (
             <>
-              <Icon className={`size-[1.15rem] ${isActive ? 'text-accent' : ''}`} strokeWidth={isActive ? 2.3 : 1.9} />
+              <Icon className={`${horizontal ? 'size-4' : 'size-[1.15rem]'} ${isActive ? 'text-accent' : ''}`} strokeWidth={isActive ? 2.3 : 1.9} />
               {t(label)}
             </>
           )}
         </NavLink>
       ))}
-      <ServerSwitch />
+      {!horizontal && <ServerSwitch />}
     </nav>
   );
 }
 
 /** This server, and the way to your other servers on app.vidalune.com (when it is linked). */
-function ServerSwitch() {
+function ServerSwitch({ horizontal = false }: { horizontal?: boolean }) {
   const { server } = useAuth();
   const { t } = useT();
   if (!server?.vidalune) return null;
+  if (horizontal) {
+    return (
+      <a href={serversPage(server.vidalune.appUrl)} title={`${server.name} · ${t('nav.otherServers')}`} aria-label={`${t('nav.servers')}: ${server.name}`} className="flex h-10 shrink-0 items-center gap-2 rounded-lg px-2 text-sm text-muted transition-colors hover:bg-raised/60 hover:text-ink">
+        <Server className="size-[1.1rem] text-accent" strokeWidth={2} aria-hidden="true" />
+        <span className="hidden max-w-28 truncate 2xl:inline">{server.name}</span>
+        <ArrowLeftRight className="size-4" strokeWidth={1.9} aria-hidden="true" />
+      </a>
+    );
+  }
   return (
     <div className="mt-5 border-t border-line/50 pt-4">
       <p className="px-3 pb-1.5 text-xs font-medium tracking-wide text-faint uppercase">{t('nav.servers')}</p>
@@ -108,21 +119,32 @@ function UserBox() {
   );
 }
 
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
-
-function SearchButton({ onOpen }: { onOpen: () => void }) {
+function AccountMenu() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const { t } = useT();
+  if (!user) return null;
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="mb-4 flex w-full items-center gap-3 rounded-lg border border-line/70 bg-surface/60 px-3 py-2 text-left text-sm text-muted transition hover:border-line hover:text-ink"
-      aria-label={t('nav.searchVidalune')}
-    >
-      <Search className="size-4" />
-      <span className="flex-1">{t('nav.searchPlaceholder')}</span>
-      <kbd className="rounded bg-raised px-1.5 py-0.5 font-mono text-[0.7rem] text-faint">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
-    </button>
+    <details className="group relative shrink-0">
+      <summary aria-label={t('nav.account')} className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-lg px-2 text-sm text-muted transition-colors hover:bg-raised/60 hover:text-ink [&::-webkit-details-marker]:hidden">
+        <Avatar user={user} size={30} />
+        <span className="hidden md:inline">{t('nav.account')}</span>
+        <ChevronDown className="hidden size-3.5 xl:block" />
+      </summary>
+      <div className="absolute top-full right-0 z-50 mt-2 w-56 rounded-xl border border-line bg-surface p-2 shadow-2xl">
+        <div className="border-b border-line/70 px-3 py-2">
+          <p className="truncate text-sm font-medium text-ink">{displayName(user)}</p>
+          <p className="text-xs text-faint">{user.role === 'admin' ? t('roles.admin') : t('roles.user')}</p>
+        </div>
+        <NavLink to="/account" onClick={(event) => event.currentTarget.closest('details')?.removeAttribute('open')} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted hover:bg-raised hover:text-ink"><CircleUser className="size-4" />{t('nav.account')}</NavLink>
+        <NavLink to="/watchlist" onClick={(event) => event.currentTarget.closest('details')?.removeAttribute('open')} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted hover:bg-raised hover:text-ink"><Bookmark className="size-4" />{t('nav.watchlist')}</NavLink>
+        <NavLink to="/favorites" onClick={(event) => event.currentTarget.closest('details')?.removeAttribute('open')} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted hover:bg-raised hover:text-ink"><Heart className="size-4" />{t('nav.favorites')}</NavLink>
+        <InstallApp />
+        <button type="button" onClick={async (event) => { event.currentTarget.closest('details')?.removeAttribute('open'); await logout(); navigate('/login'); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted hover:bg-raised hover:text-ink">
+          <LogOut className="size-4" />{t('auth.signOut')}
+        </button>
+      </div>
+    </details>
   );
 }
 
@@ -131,6 +153,7 @@ export function Layout() {
   const [searching, setSearching] = useState(false);
   const location = useLocation();
   const { t } = useT();
+  const { user } = useAuth();
 
   useEffect(() => setOpen(false), [location.pathname]);
   useScrollToTopOnNavigate();
@@ -153,25 +176,23 @@ export function Layout() {
   }, []);
 
   return (
-    <div className="min-h-dvh lg:pl-60">
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line/60 bg-bg/95 px-3 py-5 lg:flex">
-        <div className="flex items-center gap-1 pb-6">
-          <AppBackButton className="-ml-1" />
-          <div className="px-3">
-            <Logo />
-          </div>
+    <div className="min-h-dvh">
+      <header className="sticky top-0 z-40 hidden h-16 items-center gap-3 border-b border-line/60 bg-bg/95 px-3 backdrop-blur md:flex xl:px-6">
+        <AppBackButton className="-ml-1" />
+        <Logo size="sm" />
+        <NavItems horizontal />
+        <div className="flex shrink-0 items-center gap-1">
+          <button type="button" onClick={() => setSearching(true)} className="grid size-10 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-raised/60 hover:text-ink" aria-label={t('nav.searchVidalune')} title={t('nav.searchVidalune')}>
+            <Search className="size-[1.1rem]" />
+          </button>
+          <ServerSwitch horizontal />
+          <AccountMenu />
+          {user?.role === 'admin' && <NavLink to="/admin" title={t('nav.admin')} aria-label={t('nav.admin')} className="flex h-10 shrink-0 items-center gap-2 rounded-lg px-2 text-sm text-muted transition-colors hover:bg-raised/60 hover:text-ink"><ShieldCheck className="size-[1.1rem]" /><span className="hidden lg:inline">{t('nav.admin')}</span></NavLink>}
         </div>
-        <SearchButton onOpen={() => setSearching(true)} />
-        <NavItems />
-        <div className="mt-auto">
-          <InstallApp />
-          <UserBox />
-        </div>
-      </aside>
+      </header>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line/50 bg-bg/90 px-4 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line/50 bg-bg/90 px-4 backdrop-blur md:hidden">
         <div className="flex items-center gap-1">
           <AppBackButton className="-ml-3" />
           <Logo size="sm" />
@@ -187,7 +208,7 @@ export function Layout() {
       </header>
 
       {open && (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label={t('nav.menu')}>
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label={t('nav.menu')}>
           <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
           <div className="absolute inset-y-0 right-0 flex w-72 max-w-[85vw] flex-col bg-surface px-3 py-4 shadow-2xl">
             <div className="flex items-center justify-between px-3 pb-6">

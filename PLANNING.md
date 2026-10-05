@@ -9,8 +9,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.14** (PR #91): lokale Seerr-resultaten openen metadata. Release `v0.19.14`
-  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.13 (PR #90, laadstatusfix), 0.19.12 (PR #89,
+- Laatste release: **0.19.15** (PR #92): genrepagina's voor bibliotheek en Seerr. Release `v0.19.15`
+  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.14 (PR #91, lokale Seerr-resultaten openen metadata),
+  0.19.13 (PR #90, laadstatusfix), 0.19.12 (PR #89,
   Cast HLS-duur, ondertitelstijl, veilige bibliotheekpaden en APT), 0.19.11 (PR #87, castvoortgang),
   0.19.10 (PR #86), 0.19.9 (PR #85), 0.19.8 (PR #84) en 0.19.7 (PR #83).
 - Nog te doen door de eigenaar: castknop (0.19.6) testen op een telefoon; nagaan of het scrollprobleem
@@ -23,6 +24,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 ## Werkafspraken
 
 - Alleen bouwen als de eigenaar het zegt. Eén PR per versie.
+- Help de eigenaar actief leren coderen: geef bij geschikte, niet-urgente taken eerst een klein probleem
+  met relevante context, laat hem een oplossing voorstellen en geef daarna concrete feedback en uitleg.
+  Bied hints als dat helpt; bij spoed of een expliciet verzoek om directe implementatie los je het eerst op
+  en bespreek je daarna kort wat ervan te leren valt en waarom de oplossing werkt.
 - De eigenaar merget zelf als alles groen is; geen updates sturen tenzij gevraagd.
 - **Nooit links naar de chat/sessie** in pull requests, PR-teksten of commitberichten.
 - Na een merge: controleren dat release `v<versie>` de APK en beide `.deb`-bestanden (amd64 en arm64) heeft.
@@ -75,22 +80,32 @@ trailerpagina; een titel die niet lokaal staat opent de Seerr-detail-/aanvraagpa
 catalogusrijen vanaf Trending een duidelijke scheidingslijn met uitleg dat titels eronder mogelijk niet
 in de bibliotheek staan. Release `v0.19.14` is compleet gepubliceerd.
 
-## Volgende versie
+## Versie 0.19.15
 
-### 0.19.15: genre-/categoriepagina's voor bibliotheek en Seerr
-Maak overzichtelijke genre-indexen en gefilterde resultaatpagina's voor de eigen filmbibliotheek,
-seriebibliotheek en Seerr/TMDB-catalogus. Gebruik lokale genre-aantallen en toon alleen genres met
-resultaten; Seerr blijft optioneel en de lokale categoriepagina's moeten zonder Seerr werken. Houd
-films/series consistent, laat titels direct naar afspelen, metadata of aanvragen gaan, en ondersteun web
-en Android in het Nederlands en Engels.
-- Gebouwd: `/genres` op web en een eigen Categorieën-tab in Android, beide met bronkeuze
+### Genre-/categoriepagina's voor bibliotheek en Seerr
+PR #92 is gemerged en release `v0.19.15` is compleet: APK en beide `.deb`-bestanden zijn gecontroleerd.
+De release bevat `/genres` op web en een eigen Categorieën-tab in Android, beide met bronkeuze
   (bibliotheek/Seerr) en film-/seriefilter. Bibliotheekcategorieën gebruiken bestaande genre-aantallen;
   Seerr-categorieën worden alleen getoond als de eerste resultaatpagina titels bevat, met gepagineerde
   resultaten. Lokale Seerr-titels openen lokale metadata/trailers; overige titels openen de aanvraagpagina.
 - Lege resultaten, API-fouten en uitgeschakelde Seerr krijgen expliciete statussen. Lokale categorieën
   blijven beschikbaar zonder Seerr. Engelse en Nederlandse teksten zijn toegevoegd.
-- Lokaal gecontroleerd: webtypecheck, 62 frontendtests (262 tests), Android-typecheck en 22 app-testbestanden
-  (109 tests) slagen. Handmatig gebruik in een browser en op Android blijft onderdeel van de acceptatie.
+- De Debian-packagebuild en installatietests zijn uiteindelijk groen afgerond na tijdelijke GitHub-runnerproblemen.
+
+## Volgende versie
+
+### 0.19.16: desktop/tablet topnavigatie en gecombineerde genrepagina
+- Vervang op desktop en tablet de verticale sidebar door een donkere horizontale topnav: logo links;
+  Home, Films, Series, Categorieën, Collecties en Aanvragen in de navigatie; zoeken, serverwissel,
+  Account en Beheer rechts. Content benut de volledige breedte.
+- Mobiele navigatie en app-bottom-tabs blijven ongewijzigd. Watchlist en Favorieten blijven bereikbaar
+  via Account.
+- Laat `/genres` standaard bibliotheek en Seerr combineren: gelijke genrenamen samenvoegen, lokale
+  resultaten en catalogustitels tonen, catalogusdubbelen voor items die al lokaal beschikbaar zijn
+  onderdrukken, en bronkeuze behouden. Werkt ook wanneer Seerr uitstaat en toont duidelijke fout-/leegstatussen.
+- Ondersteun Engels en Nederlands. Lokaal gecontroleerd: 62 frontendtestbestanden (266 tests),
+  frontend/backend/cloud-typechecks, Android-typecheck, app-tests (109 tests), ESLint en frontend-productiebuild slagen.
+- Visuele browsercontrole blijft nog te doen: de ingebouwde browser blokkeert localhost en de lokale backend draait niet.
 
 ## Gemeld tijdens het testen
 

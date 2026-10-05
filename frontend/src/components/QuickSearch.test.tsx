@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -20,11 +20,11 @@ function Where() {
   return <p data-testid="where">{l.pathname + l.search}</p>;
 }
 
-function setup(body: object = results) {
+function setup(body: object | ((url: string) => unknown) = results) {
   const urls: string[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     urls.push(url);
-    return new Response(JSON.stringify(body), { status: 200 });
+    return new Response(JSON.stringify(typeof body === 'function' ? body(url) : body), { status: 200 });
   }));
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -41,6 +41,31 @@ function setup(body: object = results) {
 }
 
 describe('global search', () => {
+  it('keeps primary links in the desktop top nav and preserves mobile menu actions', async () => {
+    setup();
+    const desktopNav = within(screen.getByRole('navigation', { name: 'Main' }));
+    for (const label of ['Home', 'Movies', 'TV Shows', 'Genres', 'Collections']) {
+      expect(desktopNav.getByRole('link', { name: new RegExp(label) })).toBeTruthy();
+    }
+    expect(desktopNav.queryByRole('link', { name: 'Watchlist' })).toBeNull();
+
+    await userEvent.click(screen.getByLabelText('Account'));
+    expect(screen.getByRole('link', { name: 'Watchlist' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Favorites' })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+    const mobileMenu = within(screen.getByRole('dialog', { name: 'Menu' }));
+    expect(mobileMenu.getByRole('link', { name: 'Watchlist' })).toBeTruthy();
+    expect(mobileMenu.getByRole('link', { name: 'Favorites' })).toBeTruthy();
+    expect(mobileMenu.getByRole('link', { name: 'Account' })).toBeTruthy();
+  });
+
+  it('shows Requests in the desktop top nav when Seerr is enabled', async () => {
+    setup((url) => url === '/api/seerr' ? { enabled: true } : results);
+    const desktopNav = within(screen.getByRole('navigation', { name: 'Main' }));
+    expect(await desktopNav.findByRole('link', { name: 'Requests' })).toBeTruthy();
+  });
+
   it('opens with Ctrl+K and "/", searches once per pause in typing, and shows each kind', async () => {
     const urls = setup();
     await userEvent.keyboard('{Control>}k{/Control}');
