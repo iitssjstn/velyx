@@ -8,7 +8,7 @@ import type { AppContext } from '../app.js';
 import { requireAdmin } from '../app.js';
 import { episodes, libraries, mediaFiles, movies, seasons, shows, users } from '../db/schema.js';
 import { hashPassword, validatePassword, validateUsername } from '../auth/password.js';
-import { listFolders, validateLibraryPath } from '../services/paths.js';
+import { isFilesystemRoot, listFolders, pathsOverlap, validateLibraryPath } from '../services/paths.js';
 import { ReplacementTracker } from '../services/replacements.js';
 import { checkBinary } from '../services/probe.js';
 import { recentLogs } from '../logger.js';
@@ -262,7 +262,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const check = validateLibraryPath(body.path, ctx.config.mediaRoots);
     if (!check.ok) throw new HttpError(400, check.error!, check.params);
     const all = db.select().from(libraries).all();
-    const clash = all.find((l) => l.path === check.resolved || check.resolved!.startsWith(l.path + '/') || l.path.startsWith(check.resolved! + '/'));
+    const clash = all.find((l) => pathsOverlap(l.path, check.resolved!));
     if (clash) throw new HttpError(409, 'This folder overlaps with the library "{name}".', { name: clash.name });
     const row = db.insert(libraries).values({ name: body.name, type: body.type, path: check.resolved! }).returning().get();
     log.info(`Library "${row.name}" added (${row.path})`);
@@ -288,7 +288,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
         .from(libraries)
         .where(ne(libraries.id, id))
         .all()
-        .find((l) => l.path === check.resolved || check.resolved!.startsWith(l.path + '/') || l.path.startsWith(check.resolved! + '/'));
+        .find((l) => pathsOverlap(l.path, check.resolved!));
       if (clash) throw new HttpError(409, 'This folder overlaps with the library "{name}".', { name: clash.name });
       if (ctx.scans.isBusy(id)) throw new HttpError(409, 'Wait for the current scan to finish before changing the folder.');
       patch.path = check.resolved!;
@@ -340,7 +340,9 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   app.post<{ Params: { id: string } }>('/api/libraries/:id/scan', { preHandler: requireAdmin }, async (request) => {
     const id = parseId(request.params.id);
-    if (!db.select({ id: libraries.id }).from(libraries).where(eq(libraries.id, id)).get()) throw notFound('Library');
+    const library = db.select({ id: libraries.id, path: libraries.path }).from(libraries).where(eq(libraries.id, id)).get();
+    if (!library) throw notFound('Library');
+    if (isFilesystemRoot(library.path)) throw new HttpError(400, 'A library cannot use a filesystem root path.');
     const { refreshMetadata: refresh = false, full = false } = scanBody.parse(request.body ?? {});
     if (refresh && !ctx.tmdb.configured) throw new HttpError(400, 'Add a TMDB API key in Admin → Metadata to refresh metadata.');
     ctx.scans.enqueue(id, refresh, full);

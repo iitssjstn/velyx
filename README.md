@@ -4,7 +4,7 @@
 
 Vidalune is a lightweight, Docker-first, self-hosted media server for movies and TV shows. Point it at your media folders, open it in a browser and watch — with posters and descriptions from TMDB, watch progress per user, Continue Watching, a watchlist, favorites, per-user library access and a custom video player. It is built to run comfortably on modest home-server hardware.
 
-> Version 0.9.8 — **Velyx is now Vidalune**: a new name and logo; existing installations keep working (see [Upgrading from Velyx](#upgrading-from-velyx)). Vidalune is proprietary software (see [License](#license)). Still built for old hardware: Direct Play is the preferred playback mode, and by default only audio or the container is ever converted (which costs little CPU). Converting video is optional and off until an administrator turns it on (see [Video conversion](#video-conversion-optional)).
+> **Velyx is now Vidalune**: a new name and logo; existing installations keep working (see [Upgrading from Velyx](#upgrading-from-velyx)). Vidalune is proprietary software (see [License](#license)). Still built for old hardware: Direct Play is the preferred playback mode, and by default only audio or the container is ever converted (which costs little CPU). Converting video is optional and off until an administrator turns it on (see [Video conversion](#video-conversion-optional)).
 
 ---
 

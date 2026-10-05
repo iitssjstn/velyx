@@ -47,11 +47,13 @@ describe('choosing a library folder', () => {
     await userEvent.click((await screen.findAllByRole('button', { name: /Add library/ }))[0]);
     const input = screen.getByLabelText('Folder') as HTMLInputElement;
     expect(input.value).toBe('/srv/');
+    expect(screen.getByText('This is a media root and may include many folders. Choose a narrower folder if you only want one library.')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Browse' }));
     await userEvent.click(await screen.findByRole('button', { name: 'movies' }));
     expect(await screen.findByText('No folders here.')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Use this folder' }));
     expect(input.value).toBe('/srv/movies');
+    expect(screen.queryByText('This is a media root and may include many folders. Choose a narrower folder if you only want one library.')).toBeNull();
     expect(screen.queryByText('No folders here.')).toBeNull();
   });
 

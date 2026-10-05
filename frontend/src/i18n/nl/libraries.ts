@@ -38,6 +38,7 @@ export const libraries: Messages['libraries'] = {
   type: 'Soort bibliotheek',
   folder: 'Map',
   folderHint: 'Kies de map met Bladeren, of typ het pad. Hij moet binnen {roots} liggen; met Docker is het het pad in de container (met de standaard docker-compose-opzet {movies} of {tv}).',
+  broadFolderWarning: 'Dit is een mediamap en kan veel submappen bevatten. Kies een specifiekere map als je maar één bibliotheek wilt.',
   browse: 'Bladeren',
   browseHide: 'Mappen sluiten',
   up: 'Omhoog',

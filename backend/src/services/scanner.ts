@@ -6,6 +6,7 @@ import type { DB } from '../db/client.js';
 import { episodes, libraries, mediaFiles, movies, seasons, shows, subtitles, type FileSnapshot } from '../db/schema.js';
 import { createLogger } from '../logger.js';
 import type { MetadataService } from './metadata.js';
+import { isFilesystemRoot } from './paths.js';
 import {
   isExtraFile,
   isSubtitleFile,
@@ -135,6 +136,7 @@ export class LibraryScanner {
     const started = Date.now();
     const lib = this.db.select().from(libraries).where(eq(libraries.id, libraryId)).get();
     if (!lib) throw new Error(`Library ${libraryId} not found`);
+    if (isFilesystemRoot(lib.path)) throw new Error('A library cannot use a filesystem root path.');
     const report = (p: ScanProgress) => opts.onProgress?.(p);
     const summary: ScanSummary = { found: 0, added: 0, updated: 0, unchanged: 0, removed: 0, failed: 0, unparsed: 0, metadataMatched: 0, metadataUnmatched: 0, durationMs: 0 };
 
