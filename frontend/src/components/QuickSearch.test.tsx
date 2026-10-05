@@ -44,9 +44,10 @@ describe('global search', () => {
   it('keeps primary links in the desktop top nav and preserves mobile menu actions', async () => {
     setup();
     const desktopNav = within(screen.getByRole('navigation', { name: 'Main' }));
-    for (const label of ['Home', 'Movies', 'TV Shows', 'Genres', 'Collections']) {
+    for (const label of ['Home', 'Movies', 'TV Shows', 'Collections']) {
       expect(desktopNav.getByRole('link', { name: new RegExp(label) })).toBeTruthy();
     }
+    expect(screen.getByLabelText('Genres')).toBeTruthy();
     expect(desktopNav.queryByRole('link', { name: 'Watchlist' })).toBeNull();
 
     await userEvent.click(screen.getByLabelText('Account'));
@@ -58,6 +59,20 @@ describe('global search', () => {
     expect(mobileMenu.getByRole('link', { name: 'Watchlist' })).toBeTruthy();
     expect(mobileMenu.getByRole('link', { name: 'Favorites' })).toBeTruthy();
     expect(mobileMenu.getByRole('link', { name: 'Account' })).toBeTruthy();
+    expect(mobileMenu.getByRole('link', { name: 'Genres' })).toBeTruthy();
+  });
+
+  it('offers direct combined genre links from the desktop Genres dropdown', async () => {
+    setup((url) => {
+      if (url === '/api/seerr') return { enabled: true };
+      if (url === '/api/genres?type=movies') return [{ id: 4, name: 'Drama', count: 1 }];
+      if (url === '/api/genres?type=shows') return [];
+      if (url.includes('row=movies&genre=18')) return { results: [{ mediaType: 'movie', tmdbId: 2, title: 'Drama', inLibrary: false }] };
+      return { page: 1, totalPages: 1, results: [] };
+    });
+    await userEvent.click(screen.getByLabelText('Genres'));
+    const drama = await screen.findByRole('link', { name: 'Drama' });
+    expect(drama.getAttribute('href')).toBe('/genres?scope=all&kind=movies&localGenre=4&seerrGenre=18');
   });
 
   it('shows Requests in the desktop top nav when Seerr is enabled', async () => {

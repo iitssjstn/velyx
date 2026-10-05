@@ -13,13 +13,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderBrowse(url = '/movies') {
+function renderBrowse(url = '/movies', answer: (input: string) => unknown = (input) => input.startsWith('/api/genres') ? [{ id: 3, name: 'Drama', count: 2 }] : input === '/api/seerr' ? { enabled: false } : { items: [], total: 0, page: 1, pageSize: 60 }, kind: 'movies' | 'shows' = 'movies') {
   const calls: string[] = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string) => {
       calls.push(input);
-      const body = input.startsWith('/api/genres') ? [{ id: 3, name: 'Drama', count: 2 }] : { items: [], total: 0, page: 1, pageSize: 60 };
+      const body = answer(input);
       return new Response(JSON.stringify(body), { status: 200 });
     }),
   );
@@ -27,7 +27,7 @@ function renderBrowse(url = '/movies') {
   render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[url]}>
-        <BrowsePage kind="movies" />
+          <BrowsePage kind={kind} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -35,6 +35,50 @@ function renderBrowse(url = '/movies') {
 }
 
 describe('library filters UI', () => {
+  it('shows library and Seerr cards in one grid without local duplicates', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
+    const calls = renderBrowse('/movies', (url) => {
+      if (url.startsWith('/api/genres')) return [{ id: 3, name: 'Drama', count: 1 }];
+      if (url === '/api/seerr') return { enabled: true };
+      if (url.startsWith('/api/seerr/discover?row=movies')) return { page: 1, totalPages: 1, results: [
+        { mediaType: 'movie', tmdbId: 10, title: 'In Library', year: 2023, overview: '', posterPath: null, state: null, inLibrary: true, local: { type: 'movie', id: 4 } },
+        { mediaType: 'movie', tmdbId: 20, title: 'Outside Catalog', year: 2024, overview: '', posterPath: null, state: null, inLibrary: false, local: null },
+      ] };
+      if (url.startsWith('/api/movies')) return { items: [{ type: 'movie', id: 4, title: 'In Library', year: 2023, posterPath: null, backdropPath: null, rating: null, runtime: 90, overview: null, genres: ['Drama'], addedAt: 0, progress: null, favorite: false }], total: 1, page: 1, pageSize: 60 };
+      return { items: [], total: 0, page: 1, pageSize: 60 };
+    });
+
+    expect(await screen.findByRole('link', { name: /In Library/ })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /Outside Catalog/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /In Library/ })).toBeNull();
+    expect(calls.some((url) => url.startsWith('/api/seerr/discover?row=movies'))).toBe(true);
+  });
+
+  it('loads TV Seerr results on the series page', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
+    const calls = renderBrowse('/shows', (url) => {
+      if (url.startsWith('/api/genres')) return [];
+      if (url === '/api/seerr') return { enabled: true };
+      if (url.startsWith('/api/seerr/discover?row=tv')) return { page: 1, totalPages: 1, results: [{ mediaType: 'tv', tmdbId: 42, title: 'Catalog Series', year: 2024, overview: '', posterPath: null, state: null, inLibrary: false, local: null }] };
+      return { items: [], total: 0, page: 1, pageSize: 60 };
+    }, 'shows');
+    expect(await screen.findByRole('button', { name: /Catalog Series/ })).toBeTruthy();
+    expect(calls.some((url) => url.startsWith('/api/seerr/discover?row=tv'))).toBe(true);
+    expect(calls.some((url) => url.startsWith('/api/seerr/discover?row=movies'))).toBe(false);
+  });
+
+  it('can show Seerr alone without requesting the local library list', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
+    const calls = renderBrowse('/movies?source=seerr', (url) => {
+      if (url.startsWith('/api/genres')) return [];
+      if (url === '/api/seerr') return { enabled: true };
+      if (url.startsWith('/api/seerr/discover?row=movies')) return { page: 1, totalPages: 1, results: [{ mediaType: 'movie', tmdbId: 20, title: 'Outside Catalog', year: 2024, overview: '', posterPath: null, state: null, inLibrary: false, local: null }] };
+      return { items: [], total: 0, page: 1, pageSize: 60 };
+    });
+    expect(await screen.findByRole('button', { name: /Outside Catalog/ })).toBeTruthy();
+    expect(calls.some((url) => url.startsWith('/api/movies'))).toBe(false);
+  });
+
   it('sends filters and sorting to the server', async () => {
     const calls = renderBrowse();
     await screen.findByText('No movies yet');
