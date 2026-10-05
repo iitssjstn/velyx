@@ -62,11 +62,12 @@ een eindige duur ziet; web en app sturen de opgeslagen ondertitelstijl mee. De r
 
 ## Volgende versie
 
-### 0.19.13: Play- en detailacties op de bibliotheekgrid
-Toon rechtsonder op elke poster in Films/Series een Play-knop en een knop met een uitroepteken in een
-cirkel. Play hervat een film waar mogelijk of speelt bij een serie de volgende aflevering; de
-detailknop opent de bestaande film-/seriepagina voor trailer en metadata. Beperk de knoppen tot de
-bibliotheekgrid, behoud toetsenbordtoegang en test beide routes in het Nederlands en Engels.
+### 0.19.13: Seerr-kaarten openen lokale metadata
+Een klik op een Seerr/TMDB-kaart van een film of serie die al lokaal beschikbaar is opent de bestaande
+lokale metadata-/trailerpagina; een titel die niet lokaal staat opent de Seerr-detail-/aanvraagpagina.
+Zet boven de catalogusrijen vanaf Trending een duidelijke scheidingslijn met uitleg dat titels eronder
+niet per se in de bibliotheek staan. Voeg geen Play- of uitroepteken-overlayknoppen toe.
+- De terugkerende laadstatus is nu gebaseerd op daadwerkelijk gepresenteerde videoframes (`requestVideoFrameCallback`), met `currentTime`-polling als fallback; test opnieuw starten en sluiten meerdere keren.
 
 ## Gemeld tijdens het testen
 

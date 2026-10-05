@@ -6,7 +6,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatRuntime } from '../lib/format';
 import { DetailHero, MetaList } from '../components/DetailHero';
-import { DiscoverCard, StateBadge, useOpenLocal, type MyRequest, type RequestState, type SeerrResult } from '../components/Discover';
+import { DiscoverCard, seerrDetailsHref, StateBadge, useOpenLocal, type MyRequest, type RequestState, type SeerrResult } from '../components/Discover';
 import { CastRow } from '../components/People';
 import { ConfirmModal } from '../components/Modal';
 import { Shelf } from '../components/Shelf';
@@ -85,7 +85,7 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
   const allPicked = openNumbers.length > 0 && picked.length === openNumbers.length;
   const toggle = (n: number, on: boolean) => setChosen(tickSeason(chosen, n, on));
   const canReset = user?.role === 'admin' && !d.inLibrary && d.state !== null && d.state !== 'available' && d.state !== 'partiallyAvailable';
-  const select = (item: SeerrResult) => (item.local ? void openLocal(item.local) : navigate(`/request/${item.mediaType}/${item.tmdbId}`));
+  const select = (item: SeerrResult) => navigate(seerrDetailsHref(item));
 
   return (
     <div className="pb-16">

@@ -31,6 +31,8 @@ export const requests: Messages['requests'] = {
   play: 'Afspelen',
   opening: 'Openen…',
   discover: {
+    catalogLabel: 'Catalogus ontdekken',
+    catalogHint: 'Titels hieronder staan mogelijk nog niet in je bibliotheek.',
     trending: 'Nu populair',
     popularMovies: 'Populaire films',
     popularShows: 'Populaire series',
