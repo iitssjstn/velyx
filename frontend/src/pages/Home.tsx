@@ -32,40 +32,40 @@ function Hero({ data, greetingText }: { data: HomeData; greetingText: string }) 
   const featuredShow = !cw && featured!.type === 'show';
 
   return (
-    <section className="relative mb-4 overflow-hidden">
+    <section className="relative isolate mb-0 overflow-hidden">
       <div className="absolute inset-0">
         {src ? (
-          <img src={src} alt="" className="h-full w-full object-cover object-top opacity-70" />
+          <img src={src} alt="" className="h-full w-full object-cover object-[center_28%] opacity-90" />
         ) : (
           <div className="h-full w-full bg-[radial-gradient(90%_120%_at_80%_0%,color-mix(in_oklab,var(--color-accent)_30%,transparent),transparent_70%)]" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-r from-bg via-bg/75 to-bg/10" />
-        <div className="absolute inset-0 bg-gradient-to-t from-bg via-transparent to-bg/40" />
+        <div className="absolute inset-0 bg-gradient-to-r from-bg/95 via-bg/70 via-40% to-bg/5" />
+        <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/30 via-35% to-bg/20" />
       </div>
-      <div className={`relative flex flex-col px-4 pt-6 pb-8 sm:px-8 sm:pt-7 ${src ? 'min-h-[21rem] sm:min-h-[26rem]' : 'min-h-[15rem]'}`}>
-        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">{greetingText}</h1>
-        <div className="mt-auto pt-12">
-          <p className="text-sm text-muted">{cw ? t('home.pickUp') : t('home.recentlyAddedHero')}</p>
-          <h2 className="mt-1 max-w-2xl font-display text-4xl leading-[1.05] font-semibold tracking-tight sm:text-5xl">{title}</h2>
-          {overview && <p className="mt-3 line-clamp-2 max-w-xl text-ink/80">{overview}</p>}
+      <div className={`relative flex flex-col px-5 pt-5 pb-9 sm:px-8 sm:pt-6 sm:pb-12 lg:px-12 ${src ? 'min-h-[min(70svh,44rem)]' : 'min-h-[24rem]'}`}>
+        <h1 className="text-sm font-medium text-ink/70">{greetingText}</h1>
+        <div className="mt-auto max-w-3xl pt-16">
+          <p className="text-sm font-semibold text-accent">{cw ? t('home.pickUp') : t('home.recentlyAddedHero')}</p>
+          <h2 className="mt-2 max-w-3xl font-display text-5xl leading-[0.98] font-semibold sm:text-6xl lg:text-7xl">{title}</h2>
+          {overview && <p className="mt-4 line-clamp-2 max-w-2xl text-base text-ink/85 sm:text-lg">{overview}</p>}
           {position && fraction > 0 && (
-            <div className="mt-4 flex max-w-sm items-center gap-3 text-sm text-muted">
+            <div className="mt-5 flex max-w-md items-center gap-3 text-sm text-muted">
               <ProgressBar value={fraction} className="flex-1" />
               <span className="tabular-nums">{position}</span>
             </div>
           )}
-          <div className="mt-6 flex flex-wrap gap-2 sm:gap-3">
-            <Link to={playLink} className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 font-semibold whitespace-nowrap text-bg transition hover:bg-white sm:h-12 sm:px-6">
+          <div className="mt-6 flex flex-wrap gap-2.5 sm:gap-3">
+            <Link to={playLink} className="inline-flex h-12 items-center gap-2 rounded-md bg-accent px-6 font-semibold whitespace-nowrap text-accent-ink transition hover:bg-accent-strong">
               <Play className="size-5 fill-current" />
               {cw && started ? t('player.resume') : featuredShow ? t('home.episodes') : t('player.play')}
             </Link>
             {cw && started && (
-              <Link to={startOverHref(cw)} className="inline-flex h-11 items-center gap-2 rounded-full bg-ink/10 px-4 font-medium whitespace-nowrap backdrop-blur transition hover:bg-ink/20 sm:h-12 sm:px-5">
+              <Link to={startOverHref(cw)} className="inline-flex h-12 items-center gap-2 rounded-md bg-ink/10 px-5 font-medium whitespace-nowrap backdrop-blur transition hover:bg-ink/20">
                 <RotateCcw className="size-5" />
                 {t('player.startOver')}
               </Link>
             )}
-            {!featuredShow && <Link to={infoHref} className="inline-flex h-11 items-center gap-2 rounded-full bg-ink/10 px-4 font-medium whitespace-nowrap backdrop-blur transition hover:bg-ink/20 sm:h-12 sm:px-5">
+            {!featuredShow && <Link to={infoHref} className="inline-flex h-12 items-center gap-2 rounded-md bg-ink/10 px-5 font-medium whitespace-nowrap backdrop-blur transition hover:bg-ink/20">
               <Info className="size-5" />
               {t('home.details')}
             </Link>}
