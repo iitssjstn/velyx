@@ -679,7 +679,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
               <IconButton
                 name="cast"
                 label={t('player.cast')}
-                onPress={() => void openCastDialog(() => CastContext.showCastDialog(), (e) => Alert.alert(t('player.castFailed'), typeof e === 'string' ? t(e) : errorMessage(e, t)))}
+                onPress={() => void openCastDialog(() => CastContext.showCastDialog(), (e) => Alert.alert(t('player.castListFailed'), typeof e === 'string' ? t(e) : errorMessage(e, t)))}
               />
               <IconButton name="message-square" label={t('player.tracks')} onPress={() => setMenu(true)} />
             </View>
@@ -716,7 +716,6 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
           onStop={() => void CastContext.getSessionManager().endCurrentSession(true)}
           onVolume={(value) => void client?.setStreamVolume(value).catch(() => undefined)}
           onToggleMute={() => void client?.setStreamMuted(!(mediaStatus?.isMuted ?? false)).catch(() => undefined)}
-          onChangeDevice={() => void openCastDialog(() => CastContext.showCastDialog(), (e) => Alert.alert(t('player.castFailed'), typeof e === 'string' ? t(e) : errorMessage(e, t)))}
         />
       )}
       {/* Skip intro / credits: visible with or without the controls, above them. */}
@@ -829,7 +828,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   );
 }
 
-function CastRemotePanel({ title, subtitle, device, artwork, position, duration, playing, volume, muted, insets, onSeek, onTogglePlay, onOpenTracks, onStop, onVolume, onToggleMute, onChangeDevice }: {
+function CastRemotePanel({ title, subtitle, device, artwork, position, duration, playing, volume, muted, insets, onSeek, onTogglePlay, onOpenTracks, onStop, onVolume, onToggleMute }: {
   title: string;
   subtitle: string | null;
   device: string | null;
@@ -846,7 +845,6 @@ function CastRemotePanel({ title, subtitle, device, artwork, position, duration,
   onStop: () => void;
   onVolume: (volume: number) => void;
   onToggleMute: () => void;
-  onChangeDevice: () => void;
 }) {
   const { t } = useSession();
   const [volumeOpen, setVolumeOpen] = useState(false);
@@ -855,12 +853,11 @@ function CastRemotePanel({ title, subtitle, device, artwork, position, duration,
   return (
     <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 100, elevation: 100, backgroundColor: colors.bg, paddingTop: 12 + insets.top, paddingBottom: 12 + insets.bottom, paddingLeft: 18 + insets.left, paddingRight: 18 + insets.right }}>
       <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
-        <Feather name="cast" size={18} color={colors.accent} />
         <View style={{ alignItems: 'center', flex: 1 }}>
           <Text style={{ color: colors.faint, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>{t('player.castRemote').toUpperCase()}</Text>
           <Text style={{ color: colors.ink, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{device ?? t('player.casting')}</Text>
         </View>
-        <IconButton name="cast" label={t('player.cast')} onPress={onChangeDevice} />
+        <IconButton name="cast" label={t('player.stopCasting')} onPress={onStop} />
       </View>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'space-evenly', paddingVertical: 12 }}>
         <Artwork path={artwork} size="w780" label={title} style={{ width: 184, height: 276, borderRadius: radius.lg }} />

@@ -161,6 +161,7 @@ say "Updates come with the rest of the system: sudo apt update && sudo apt upgra
 const TEXT = {
   en: {
     title: 'Install Vidalune',
+    description: 'Install Vidalune on your own server with Docker or Debian/Ubuntu. Your movies and series stay on your hardware; Vidalune reads your media locally.',
     intro: 'Vidalune runs on your own computer or server, with Docker or as a package for Debian and Ubuntu. Your media stays where it is; Vidalune only reads it.',
     needs: 'You need',
     needsList: ['A computer or server that is always on (Linux, a NAS, or Windows/macOS with Docker Desktop).', 'Docker with Docker Compose v2 — or Debian/Ubuntu for the package without Docker.', 'Your movies and series in folders on that machine.'],
@@ -189,6 +190,7 @@ const TEXT = {
   },
   nl: {
     title: 'Vidalune installeren',
+    description: 'Installeer Vidalune op je eigen server met Docker of Debian/Ubuntu. Je films en series blijven op je eigen hardware; Vidalune leest je media lokaal.',
     intro: 'Vidalune draait op je eigen computer of server, met Docker of als pakket voor Debian en Ubuntu. Je media blijft waar hij staat; Vidalune leest hem alleen.',
     needs: 'Wat je nodig hebt',
     needsList: ['Een computer of server die altijd aan staat (Linux, een NAS, of Windows/macOS met Docker Desktop).', 'Docker met Docker Compose v2 — of Debian/Ubuntu voor het pakket zonder Docker.', 'Je films en series in mappen op die computer.'],
@@ -270,5 +272,5 @@ export function installPage(lang: Lang, publicUrl: string, version: string, hasA
       </div>
       <p class="small">${escape(t.license)}</p>
     </main>`;
-  return layout(lang, { title: t.title, signedIn, path: '/install', discord }, body);
+  return layout(lang, { title: t.title, signedIn, path: '/install', publicUrl, description: t.description, discord }, body);
 }

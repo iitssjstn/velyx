@@ -132,6 +132,22 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const community = new Community({ db, now });
   const isDiscordHost = (req: http.IncomingMessage) => String(req.headers.host ?? '').toLowerCase().replace(/:\d+$/, '') === `discord.${config.relayDomain}`;
   const isAppHost = (req: http.IncomingMessage) => String(req.headers.host ?? '').toLowerCase().replace(/:\d+$/, '') === appHost;
+  const denyRobots = (res: http.ServerResponse) =>
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }).end('User-agent: *\nDisallow: /\n');
+  const sitemapEntries = ['/', '/install'].flatMap((route) => {
+    const localized = (lang: 'en' | 'nl') => {
+      const url = new URL(route, config.publicUrl);
+      url.searchParams.set('lang', lang);
+      return url.toString();
+    };
+    const en = localized('en');
+    const nl = localized('nl');
+    return [{ loc: en, en, nl }, { loc: nl, en, nl }];
+  });
+  const escapeXml = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[char]!);
+  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${sitemapEntries
+    .map(({ loc, en, nl }) => `  <url><loc>${escapeXml(loc)}</loc><xhtml:link rel="alternate" hreflang="en" href="${escapeXml(en)}"/><xhtml:link rel="alternate" hreflang="nl" href="${escapeXml(nl)}"/><xhtml:link rel="alternate" hreflang="x-default" href="${escapeXml(en)}"/></url>`)
+    .join('\n')}\n</urlset>\n`;
   const app = Fastify({
     trustProxy: (_addr: string, hop: number) => hop < hops,
     bodyLimit: 64 * 1024,
@@ -140,8 +156,14 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     serverFactory: (handler) => {
       const server = http.createServer((req, res) => {
         if (isDiscordHost(req)) req.url = '/discord';
+        const requestPath = (req.url ?? '/').split('?', 1)[0];
+        if (requestPath === '/robots.txt' && isAppHost(req)) return denyRobots(res);
+        if (requestPath === '/sitemap.xml' && isAppHost(req)) return res.writeHead(404, { 'X-Robots-Tag': 'noindex' }).end();
         const slug = relay.slugOf(req);
-        if (slug) return relay.handleRequest(req, res, slug);
+        if (slug) {
+          if (requestPath === '/robots.txt') return denyRobots(res);
+          return relay.handleRequest(req, res, slug);
+        }
         if (isAppHost(req) && config.frontendDir) {
           const url = req.url ?? '/';
           if (url === APP_PREFIX || url.startsWith(`${APP_PREFIX}?`)) {
@@ -813,6 +835,18 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     return { version: releaseVersion, url: `${config.publicUrl}/install`, app: latestApk() ? `${config.publicUrl}/download/app` : null };
   });
 
+  app.get('/robots.txt', async (request, reply) => {
+    if (isAppHost(request.raw)) return reply.type('text/plain; charset=utf-8').send('User-agent: *\nDisallow: /\n');
+    return reply
+      .type('text/plain; charset=utf-8')
+      .header('Cache-Control', 'public, max-age=3600')
+      .send(`User-agent: *\nDisallow: /api/\nDisallow: /apt/\nDisallow: /download/\nDisallow: /get\nDisallow: /get-deb\n\nSitemap: ${config.publicUrl}/sitemap.xml\n`);
+  });
+  app.get('/sitemap.xml', async (request, reply) => {
+    if (isAppHost(request.raw)) return reply.code(404).header('X-Robots-Tag', 'noindex').send();
+    return reply.type('application/xml; charset=utf-8').header('Cache-Control', 'public, max-age=3600').send(sitemap);
+  });
+
   app.get('/install', async (request, reply) =>
     reply.type('text/html').header('Cache-Control', 'no-cache').send(installPage(pickLanguage(request.query, request.headers['accept-language']), config.publicUrl, releaseVersion, !!latestApk(), !!accountByToken(request.cookies[SESSION_COOKIE]), !!latestDeb('amd64'), !!community.discord())),
   );
@@ -897,7 +931,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     app.get('/', async (request, reply) => {
       if (isAppHost(request.raw)) return page(request, reply);
       const lang = pickLanguage(request.query, request.headers['accept-language']);
-      return reply.type('text/html').header('Cache-Control', 'no-cache').send(homePage(lang, !!accountByToken(request.cookies[SESSION_COOKIE]), !!community.discord()));
+      return reply.type('text/html').header('Cache-Control', 'no-cache').send(homePage(lang, !!accountByToken(request.cookies[SESSION_COOKIE]), !!community.discord(), config.publicUrl));
     });
     app.get('/account', page);
     app.get('/link', page);
