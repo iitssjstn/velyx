@@ -143,6 +143,9 @@ export interface ServerSettings {
   upnp: { enabled: boolean; externalPort: number };
   /** Seerr (optional): its address and API key; empty = not used. The key never leaves the server. */
   seerr: { url: string; apiKey: string };
+  /** Sonarr/Radarr (optional): their API keys never leave the server. */
+  sonarr: { url: string; apiKey: string };
+  radarr: { url: string; apiKey: string };
   /** Converting video the device cannot play (opt-in). */
   transcoding: TranscodingSettings;
 }
@@ -178,6 +181,8 @@ const DEFAULTS: ServerSettings = {
   homeNetworks: [],
   upnp: { enabled: false, externalPort: 3000 },
   seerr: { url: '', apiKey: '' },
+  sonarr: { url: '', apiKey: '' },
+  radarr: { url: '', apiKey: '' },
   transcoding: DEFAULT_TRANSCODING,
 };
 

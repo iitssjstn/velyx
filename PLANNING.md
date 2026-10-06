@@ -9,8 +9,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.19** (PR #96): Seerr-filters op Films en Series. Release `v0.19.19`
-  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.18 (PR #95, Genres-dropdown en catalogusfilters),
+- Laatste release: **0.19.22** (PR #99): JSON-LD voor de publieke site. Release `v0.19.22`
+  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
+  0.19.19 (PR #96, Seerr-filters op Films en Series), 0.19.18 (PR #95, Genres-dropdown en catalogusfilters),
   0.19.17 (PR #94, Home-hero en Seerr in Films/Series), 0.19.16 (PR #93, desktop/tablet topnav en
   gecombineerde genrepagina), 0.19.15 (PR #92, genrepagina's voor bibliotheek en Seerr), 0.19.14 (PR #91,
   lokale Seerr-resultaten openen metadata), 0.19.13 (PR #90,
@@ -160,11 +161,20 @@ PR #98 is gemerged. Deze versie bevat de cast-remote-fixes en de basis voor publ
 - Lokale playback-specifieke instellingen niet tonen in de remote; normale app/webnavigatie behouden waar passend.
 - Ondersteun Engels en Nederlands; lokale tests/builds worden niet uitgevoerd op de ontwikkel-pc; GitHub CI verifieert de PR.
 
+## Versie 0.19.22
+
+PR #99 is gemerged en release `v0.19.22` is gecontroleerd (APK + beide `.deb`'s).
+
+### Gestructureerde metadata voor publieke pagina's
+- JSON-LD voor `SoftwareApplication` en `Organization` met releaseversie, besturingssystemen en het bestaande prijsbereik.
+
 ## Volgende versie
 
-### 0.19.22: gestructureerde metadata voor publieke pagina's
-- Voeg JSON-LD voor `SoftwareApplication` en `Organization` toe met releaseversie, besturingssystemen en het bestaande prijsbereik.
-- Dek de JSON-LD af met een routetest.
+### 0.19.23: Sonarr- en Radarr-integratie
+- Optionele integraties, alleen voor beheerders; API-sleutels worden uitsluitend op de server bewaard.
+- Verbinding testen en bestaande films/series met status tonen; directe link naar de betreffende dienst.
+- Verwijderen via Vidalune; bestanden standaard behouden en alleen wissen na expliciete bevestiging.
+- Daarna opnemen als optionele stappen in Quick Setup.
 
 ## Gemeld tijdens het testen
 

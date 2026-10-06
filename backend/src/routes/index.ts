@@ -14,6 +14,7 @@ import { onlineSubtitleRoutes } from './online-subtitles.js';
 import { cloudRoutes } from './cloud.js';
 import { inviteRoutes } from './invites.js';
 import { seerrRoutes } from './seerr.js';
+import { arrRoutes } from './arr.js';
 
 export async function registerRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   await authRoutes(app, ctx);
@@ -30,4 +31,5 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext): Pro
   await cloudRoutes(app, ctx);
   await inviteRoutes(app, ctx);
   await seerrRoutes(app, ctx);
+  await arrRoutes(app, ctx);
 }
