@@ -42,11 +42,11 @@ function Hero({ data, greetingText }: { data: HomeData; greetingText: string }) 
         <div className="absolute inset-0 bg-gradient-to-r from-bg/95 via-bg/70 via-40% to-bg/5" />
         <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/30 via-35% to-bg/20" />
       </div>
-      <div className={`relative flex flex-col px-5 pt-5 pb-9 sm:px-8 sm:pt-6 sm:pb-12 lg:px-12 ${src ? 'min-h-[min(70svh,44rem)]' : 'min-h-[24rem]'}`}>
+      <div className={`relative flex flex-col px-5 pt-4 pb-7 sm:px-8 sm:pt-5 sm:pb-8 lg:px-12 ${src ? 'min-h-[21rem] sm:min-h-[min(44svh,32rem)]' : 'min-h-[20rem]'}`}>
         <h1 className="text-sm font-medium text-ink/70">{greetingText}</h1>
-        <div className="mt-auto max-w-3xl pt-16">
+        <div className="mt-auto max-w-2xl pt-10 lg:max-w-[58%]">
           <p className="text-sm font-semibold text-accent">{cw ? t('home.pickUp') : t('home.recentlyAddedHero')}</p>
-          <h2 className="mt-2 max-w-3xl font-display text-5xl leading-[0.98] font-semibold sm:text-6xl lg:text-7xl">{title}</h2>
+          <h2 className="mt-2 max-w-3xl font-display text-4xl leading-[0.98] font-semibold sm:text-5xl lg:text-6xl">{title}</h2>
           {overview && <p className="mt-4 line-clamp-2 max-w-2xl text-base text-ink/85 sm:text-lg">{overview}</p>}
           {position && fraction > 0 && (
             <div className="mt-5 flex max-w-md items-center gap-3 text-sm text-muted">
