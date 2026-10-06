@@ -31,7 +31,7 @@ describe('Sonarr and Radarr admin integration', () => {
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText('Sonarr Address'), 'http://nas:8989/sonarr');
     await user.type(screen.getByLabelText('Sonarr API key'), 'secret-sonarr-key');
-    await user.click(screen.getByRole('button', { name: 'Test and save' }));
+    await user.click(screen.getAllByRole('button', { name: 'Test and save' })[0]);
     expect(await screen.findByText('Connected (version 4.0.0).')).toBeTruthy();
     expect(await screen.findByText('The Expanse')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Open service' }).getAttribute('href')).toBe('http://nas:8989/sonarr');
