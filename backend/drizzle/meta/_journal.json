@@ -183,6 +183,13 @@
       "when": 1790758345482,
       "tag": "0025_metadata_translations",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1791299769852,
+      "tag": "0026_next_prowler",
+      "breakpoints": true
     }
   ]
 }

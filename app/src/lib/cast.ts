@@ -32,7 +32,7 @@ export interface CastSession {
   relayUrl: string | null;
   serverUrl: string | null;
   contentType: string;
-  decision: { engine: string; streamUrl: string; seek: 'range' | 'restart'; durationSec: number | null };
+  decision: { engine: string; streamUrl: string; seek: 'range' | 'restart'; durationSec: number | null; optimized?: { id: number; profile: 'compat-720p' | 'compat-1080p' } };
   subtitles: CastSubtitle[];
 }
 

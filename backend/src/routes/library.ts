@@ -39,7 +39,7 @@ function escapeLike(q: string): string {
   return q.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
-export function fileInfo(f: FileRow, externalSubs: Array<typeof subtitles.$inferSelect> = []) {
+export function fileInfo(f: FileRow, externalSubs: Array<typeof subtitles.$inferSelect> = [], subtitleSource: FileRow = f) {
   return {
     id: f.id,
     fileName: f.path.split('/').pop() ?? f.path,
@@ -57,7 +57,7 @@ export function fileInfo(f: FileRow, externalSubs: Array<typeof subtitles.$infer
     audioCodec: f.audioCodec,
     audioChannels: f.audioChannels,
     audioTracks: (f.audioTracks ?? []).map((a) => ({ ...a, languageName: a.language ? languageName(a.language) : null })),
-    embeddedSubtitles: (f.subtitleTracks ?? []).map((s) => ({ ...s, languageName: s.language ? languageName(s.language) : null })),
+    embeddedSubtitles: (subtitleSource.subtitleTracks ?? []).map((s) => ({ ...s, languageName: s.language ? languageName(s.language) : null })),
     externalSubtitles: externalSubs.map((s) => ({ id: s.id, language: s.language, label: s.label, format: s.format, forced: s.forced })),
     probeError: f.probeError,
   };
@@ -593,9 +593,10 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     const progress = catalog.episodeProgress(userId, eps.map((e) => e.id));
     const files = eps.length
       ? db
-          .select({ episodeId: mediaFiles.episodeId, durationSec: mediaFiles.durationSec, height: mediaFiles.height })
+          .select({ id: mediaFiles.id, episodeId: mediaFiles.episodeId, durationSec: mediaFiles.durationSec, height: mediaFiles.height, size: mediaFiles.size })
           .from(mediaFiles)
           .where(inArray(mediaFiles.episodeId, eps.map((e) => e.id)))
+          .orderBy(desc(mediaFiles.height), desc(mediaFiles.size))
           .all()
       : [];
     return {
@@ -616,6 +617,8 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
           runtime: e.runtime ?? (f?.durationSec ? Math.round(f.durationSec / 60) : null),
           rating: e.rating,
           stillPath: e.stillPath,
+          fileId: f?.id ?? null,
+          files: files.filter((x) => x.episodeId === e.id).map((x) => ({ id: x.id, height: x.height, size: x.size })),
           durationSec: f?.durationSec ?? null,
           height: f?.height ?? null,
           progress: progress.get(e.id) ?? null,

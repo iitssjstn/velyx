@@ -286,6 +286,32 @@ export const mediaFiles = sqliteTable(
   ],
 );
 
+/** Persistently generated playback-friendly copies; the original media file remains untouched. */
+export const optimizedMedia = sqliteTable(
+  'optimized_media',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    mediaFileId: integer('media_file_id')
+      .notNull()
+      .references(() => mediaFiles.id, { onDelete: 'cascade' }),
+    profile: text('profile', { enum: ['compat-720p', 'compat-1080p'] }).notNull(),
+    status: text('status', { enum: ['queued', 'processing', 'ready', 'failed'] }).notNull().default('queued'),
+    progress: integer('progress').notNull().default(0),
+    outputPath: text('output_path').notNull(),
+    sourceSize: integer('source_size').notNull(),
+    sourceMtimeMs: integer('source_mtime_ms').notNull(),
+    outputSize: integer('output_size'),
+    probeJson: text('probe_json'),
+    error: text('error'),
+    createdAt: integer('created_at').notNull().default(now),
+    updatedAt: integer('updated_at').notNull().default(now),
+  },
+  (t) => [
+    uniqueIndex('optimized_media_source_profile_idx').on(t.mediaFileId, t.profile),
+    index('optimized_media_status_idx').on(t.status),
+  ],
+);
+
 export const subtitles = sqliteTable(
   'subtitles',
   {

@@ -51,6 +51,7 @@ import { CloudService } from './services/cloud.js';
 import { UpnpService } from './services/upnp.js';
 import { SeerrService } from './services/seerr.js';
 import { ArrService } from './services/arr.js';
+import { OptimizationService } from './services/optimization.js';
 import { isLoopback } from './services/relay-client.js';
 import { libraries, subtitles as subtitleRows, users } from './db/schema.js';
 import { castPath, verifyCastToken } from './services/cast.js';
@@ -115,6 +116,8 @@ export interface AppContext {
   seerr: SeerrService;
   /** Optional Sonarr and Radarr connections (admin actions only). */
   arr: ArrService;
+  /** Serial queue for persistent playback-compatible media copies. */
+  optimizations: OptimizationService;
   /** Converting video (opt-in) and the encoders this server has. */
   transcoding: TranscodingService;
   /** HLS pieces being made for players (the website). */
@@ -209,6 +212,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   playback.register(new RemuxEngine(config.ffmpegPath, () => transcoding.current()));
   // Last: only what neither plays as it is nor after repackaging is converted, when that is on.
   playback.register(new TranscodeEngine(() => transcoding.current()));
+  const optimizations = new OptimizationService({ db, dataDir: config.dataDir, ffmpegPath: config.ffmpegPath, probe, transcoding, settings, busy: () => scans.active || streams.active().length > 0 });
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
   const storage = new StorageService(db, config);
   // Critically low disk space pauses scans (which write artwork and rows); they resume on their own.
@@ -238,7 +242,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const openSubtitles = new OpenSubtitlesClient({ vidalune: cloud });
   const seerr = new SeerrService({ settings, fetchImpl: opts.fetchImpl });
   const arr = new ArrService({ settings, fetchImpl: opts.fetchImpl });
-  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr, arr, transcoding, hls: new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls')), startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr, arr, transcoding, optimizations, hls: new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls')), startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {
@@ -279,6 +283,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     trustProxy: trustProxy(ctx.config.trustProxy),
     bodyLimit: 4 * 1024 * 1024,
   });
+  app.addHook('onClose', async () => ctx.optimizations.stop());
 
   await app.register(helmet, {
     contentSecurityPolicy: {

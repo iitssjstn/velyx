@@ -15,6 +15,7 @@ import { cloudRoutes } from './cloud.js';
 import { inviteRoutes } from './invites.js';
 import { seerrRoutes } from './seerr.js';
 import { arrRoutes } from './arr.js';
+import { optimizationRoutes } from './optimization.js';
 
 export async function registerRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   await authRoutes(app, ctx);
@@ -32,4 +33,5 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext): Pro
   await inviteRoutes(app, ctx);
   await seerrRoutes(app, ctx);
   await arrRoutes(app, ctx);
+  await optimizationRoutes(app, ctx);
 }

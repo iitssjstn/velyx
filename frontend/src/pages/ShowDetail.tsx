@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Check, Eye, Play, RotateCcw, Star } from 'lucide-react';
 import { episodeHeading, episodePlayHref, episodeState, seasonName, seriesContinue, showStatus } from '../lib/series';
@@ -19,9 +20,11 @@ import { ProgressBar } from '../components/ProgressBar';
 import { DetailSkeleton, ErrorState, Spinner } from '../components/States';
 import { toast } from '../components/Toast';
 import { useT } from '../i18n';
+import { OptimizationControls } from '../components/OptimizationControls';
 
-function EpisodeRow({ ep, onToggleWatched }: { ep: EpisodeSummary; onToggleWatched: (ep: EpisodeSummary) => void }) {
+function EpisodeRow({ ep, onToggleWatched, admin }: { ep: EpisodeSummary; onToggleWatched: (ep: EpisodeSummary) => void; admin: boolean }) {
   const { t } = useT();
+  const [sourceFileId, setSourceFileId] = useState(ep.fileId);
   const state = episodeState(ep);
   const heading = episodeHeading(ep);
   const href = episodePlayHref(ep);
@@ -71,6 +74,15 @@ function EpisodeRow({ ep, onToggleWatched }: { ep: EpisodeSummary; onToggleWatch
           </button>
         </div>
         {ep.overview && <p className="mt-1.5 line-clamp-2 text-sm text-muted sm:line-clamp-3">{ep.overview}</p>}
+        {admin && ep.files.length > 1 && (
+          <label className="mt-2 flex max-w-xs items-center gap-2 text-xs text-muted">
+            <span>{t('optimization.sourceVersion')}</span>
+            <select className="input h-8 min-w-0 flex-1 py-0 text-xs" value={sourceFileId ?? ep.files[0]!.id} onChange={(event) => setSourceFileId(Number(event.target.value))}>
+              {ep.files.map((file, index) => <option key={file.id} value={file.id}>{t('optimization.fileVersion', { n: index + 1 })} · {file.height ? `${file.height}p` : t('optimization.unknownQuality')}</option>)}
+            </select>
+          </label>
+        )}
+        {admin && ep.fileId && <OptimizationControls fileId={ep.files.some((file) => file.id === sourceFileId) ? sourceFileId! : ep.fileId} compact />}
       </div>
     </li>
   );
@@ -236,7 +248,7 @@ function ShowScreen({ id }: { id: number }) {
         ) : (
           <ul className="mt-4 space-y-1" aria-label={t('series.episodes')}>
             {season.data?.episodes.map((ep) => (
-              <EpisodeRow key={ep.id} ep={ep} onToggleWatched={(e) => watched.mutate({ episodeId: e.id, watched: !e.progress?.completed })} />
+              <EpisodeRow key={ep.id} ep={ep} admin={user?.role === 'admin'} onToggleWatched={(e) => watched.mutate({ episodeId: e.id, watched: !e.progress?.completed })} />
             ))}
           </ul>
         )}

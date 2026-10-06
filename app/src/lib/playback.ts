@@ -80,6 +80,7 @@ export interface PlaybackAnswer {
     engine: string;
     mode: 'direct' | 'remux' | 'transcode' | 'unsupported';
     streamUrl: string;
+    optimized?: { id: number; profile: 'compat-720p' | 'compat-1080p' };
     compatible: boolean | 'unknown';
     /** 'range': seek in the file; 'restart': ask for a new stream from the new position. */
     seek: 'range' | 'restart';
@@ -111,7 +112,8 @@ function withParam(url: string, key: string, value: string): string {
 export async function streamFrom(api: Api, answer: PlaybackAnswer, at: number): Promise<StreamStart> {
   const base = answer.decision.streamUrl;
   if (answer.decision.seek !== 'restart' || at <= 0) return { uri: api.url(base), offset: 0 };
-  const r = await api.get<{ start: number; seek: number }>(`/api/media/${answer.file.id}/keyframe?t=${at.toFixed(3)}`);
+  const optimized = answer.decision.optimized?.id;
+  const r = await api.get<{ start: number; seek: number }>(`/api/media/${answer.file.id}/keyframe?t=${at.toFixed(3)}${optimized ? `&optimized=${optimized}` : ''}`);
   return { uri: api.url(withParam(base, 'start', r.seek.toFixed(3))), offset: r.start };
 }
 

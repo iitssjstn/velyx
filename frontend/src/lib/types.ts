@@ -299,6 +299,8 @@ export interface EpisodeSummary {
   runtime: number | null;
   rating: number | null;
   stillPath: string | null;
+  fileId: number | null;
+  files: { id: number; height: number | null; size: number }[];
   durationSec: number | null;
   height: number | null;
   progress: Progress | null;
@@ -371,6 +373,7 @@ export interface OnlineSubtitleResult {
 export interface PlaybackDecision {
   engine: 'direct' | 'remux' | string;
   streamUrl: string;
+  optimized?: { id: number; profile: 'compat-720p' | 'compat-1080p' };
   compatible: boolean | 'unknown';
   reasons: string[];
   /** 'range' = browser seeks itself; 'restart' = live stream, request again with &start= to seek. */

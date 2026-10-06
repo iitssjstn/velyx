@@ -44,6 +44,8 @@ export function wantsAudioProcessing(options: PlaybackOptions): boolean {
 export interface PlaybackDecision {
   engine: string;
   streamUrl: string;
+  /** A stored copy selected because the source needs live video transcoding on this device. */
+  optimized?: { id: number; profile: 'compat-720p' | 'compat-1080p' };
   /** Whether the client is expected to decode the file; 'unknown' when it did not report capabilities. */
   compatible: boolean | 'unknown';
   reasons: string[];
