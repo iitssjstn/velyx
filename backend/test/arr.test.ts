@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ArrService, normalizeArrUrl } from '../src/services/arr.js';
+import { normalizeArrUrl } from '../src/services/arr.js';
 import { createTestEnv, createUser, setupAdmin, type TestEnv } from './helpers.js';
 
 const SONARR_KEY = 'sonarr-api-key-123456';

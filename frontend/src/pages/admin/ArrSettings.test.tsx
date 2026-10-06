@@ -41,7 +41,7 @@ describe('Sonarr and Radarr admin integration', () => {
 
   it('keeps Radarr files unless the administrator explicitly checks the delete-files option', async () => {
     const radarr = { ...off, radarr: { url: 'http://nas:7878', hasKey: true } };
-    const calls = setup((url, method) => {
+    const calls = setup((url) => {
       if (url === '/api/admin/arr') return radarr;
       if (url === '/api/admin/arr/radarr/items') return { items: [{ id: 8, title: 'Arrival', year: 2016, monitored: false, status: 'released' }] };
       return {};
