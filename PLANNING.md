@@ -366,3 +366,4 @@ Doel: een nieuwe installatie moet stap voor stap duidelijk maken wat nog ingeste
 
 ### Filmischer Vidalune-startscherm
 Maak de homepage visueel meer cinematografisch met een grotere full-bleed hero, prominente titel en duidelijke Play-/Details-acties in Vidalune-kleuren. Behoud de persoonlijke hervatselectie, voortgang en bestaande kijkrijen. Quick Setup blijft openstaand werk.
+- GitHub Actions CI-testfout herleid tot verouderde versieassertie in `backend/test/authorization.test.ts`; bijgewerkt naar 0.19.25.
