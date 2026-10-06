@@ -50,6 +50,7 @@ import { CleanupScheduler } from './services/cleanup-scheduler.js';
 import { CloudService } from './services/cloud.js';
 import { UpnpService } from './services/upnp.js';
 import { SeerrService } from './services/seerr.js';
+import { ArrService } from './services/arr.js';
 import { isLoopback } from './services/relay-client.js';
 import { libraries, subtitles as subtitleRows, users } from './db/schema.js';
 import { castPath, verifyCastToken } from './services/cast.js';
@@ -112,6 +113,8 @@ export interface AppContext {
   upnp: UpnpService;
   /** Requests through Seerr (optional). */
   seerr: SeerrService;
+  /** Optional Sonarr and Radarr connections (admin actions only). */
+  arr: ArrService;
   /** Converting video (opt-in) and the encoders this server has. */
   transcoding: TranscodingService;
   /** HLS pieces being made for players (the website). */
@@ -234,7 +237,8 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   for (const k of ['openSubtitlesApiKey', 'openSubtitlesUsername', 'openSubtitlesPassword'] as const) if (settings.get()[k]) settings.delete(k);
   const openSubtitles = new OpenSubtitlesClient({ vidalune: cloud });
   const seerr = new SeerrService({ settings, fetchImpl: opts.fetchImpl });
-  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr, transcoding, hls: new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls')), startedAt: Date.now() };
+  const arr = new ArrService({ settings, fetchImpl: opts.fetchImpl });
+  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr, arr, transcoding, hls: new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls')), startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

@@ -16,5 +16,6 @@ export const admin = {
     backup: 'Backup',
     notifications: 'Notifications',
     cloud: 'Vidalune account',
+    arr: 'Sonarr & Radarr',
   },
 };

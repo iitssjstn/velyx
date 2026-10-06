@@ -31,6 +31,7 @@ const SAME_IN_DUTCH = new Set(['nav.account', 'detail.trailer', 'detail.trailerO
   'dashboard.runtime', 'server.status', 'audit.groups.tmdb', 'segments.intro',
   'requests.minutes', 'requests.admin.urlPlaceholder', 'requests.discover.genres.drama', 'requests.discover.genres.horror', 'requests.discover.genres.thriller',
   'onlineSubs.hearingImpaired', 'onlineSubs.downloads.one', 'onlineSubs.downloads.other', 'onlineSubs.tag', 'link.code', 'playback.bitrate',
+  'arr.sonarr', 'arr.radarr', 'arr.urlPlaceholder',
 ]);
 
 describe('translations', () => {

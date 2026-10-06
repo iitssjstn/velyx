@@ -17,5 +17,6 @@ export const admin: Messages['admin'] = {
     backup: 'Back-up',
     notifications: 'Meldingen',
     cloud: 'Vidalune-account',
+    arr: 'Sonarr en Radarr',
   },
 };
