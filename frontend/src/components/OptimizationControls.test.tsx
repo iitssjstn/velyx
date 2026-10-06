@@ -20,16 +20,18 @@ function setup(answer: (url: string, method: string, body?: string) => unknown) 
 
 describe('OptimizationControls', () => {
   it('queues the selected compatible profile', async () => {
+    const queued = { id: 3, profile: 'compat-1080p', status: 'queued', progress: 0, outputSize: null, error: null, updatedAt: 1 };
+    let created = false;
     const calls = setup((url, method) => {
-      if (url === '/api/admin/media/7/optimizations' && method === 'GET') return { variants: [] };
-      if (url === '/api/admin/media/7/optimizations' && method === 'POST') return { variant: { id: 3, profile: 'compat-1080p', status: 'queued', progress: 0, outputSize: null, error: null, updatedAt: 1 } };
+      if (url === '/api/admin/media/7/optimizations' && method === 'GET') return { variants: created ? [queued] : [] };
+      if (url === '/api/admin/media/7/optimizations' && method === 'POST') { created = true; return { variant: queued }; }
       return {};
     });
     const user = userEvent.setup();
     await user.selectOptions(await screen.findByLabelText('Copy profile'), 'compat-1080p');
     await user.click(screen.getByRole('button', { name: 'Optimize' }));
     expect(calls.some((call) => call.url === '/api/admin/media/7/optimizations' && call.method === 'POST' && call.body === '{"profile":"compat-1080p"}')).toBe(true);
-    expect(await screen.findByText('Queued')).toBeTruthy();
+    expect((await screen.findAllByText('Queued')).length).toBeGreaterThan(0);
   });
 
   it('removes only a generated copy after confirmation', async () => {

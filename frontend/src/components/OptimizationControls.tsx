@@ -90,7 +90,6 @@ export function OptimizationControls({ fileId, compact = false }: { fileId: numb
           ))}
         </ul>
       )}
-      {selected?.status === 'ready' && <button type="button" className="text-xs text-muted hover:text-danger" onClick={() => setRemoving(selected)}>{t('optimization.remove')}</button>}
       <ConfirmModal open={!!removing} title={t('optimization.removeTitle')} confirmLabel={t('optimization.remove')} danger loading={remove.isPending} onClose={() => setRemoving(null)} onConfirm={() => removing && remove.mutate(removing.id)}>
         {t('optimization.removeText')}
       </ConfirmModal>
