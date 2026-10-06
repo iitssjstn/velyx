@@ -151,6 +151,8 @@ Seerr-catalogusfilters ondersteunen genre, jaar en minimumbeoordeling; lokale ki
 ### 0.19.20: mobiele cast-afstandsbediening (web en app)
 - Op mobiel tijdens casten een remote-layout tonen in plaats van een lege/lokale videoweergave; desktopbediening behouden.
 - Bovenaan apparaatnaam; grote poster/achtergrond met huidige titel en voortgang.
+- Tijdens een cast stopt de castknop rechtsboven de sessie; verwijder het dubbele statusicoon links.
+- Een fout bij het openen van de Chromecastlijst mag niet zeggen dat het casten niet is gestart.
 - Grote play/pauze centraal, 10 seconden terug/vooruit en ruime seekbar.
 - Onderaan compacte volume-, audio/ondertitel- en meer-acties, met een duidelijke stopcast-optie.
 - In de app dezelfde bediening, inclusief echte receiver-volume/mute en portraitweergave tijdens casten.
@@ -236,21 +238,14 @@ Seerr-catalogusfilters ondersteunen genre, jaar en minimumbeoordeling; lokale ki
     volgende nacht verder waar hij was. Handmatig starten kan altijd.
   - Past bij het onderhoudsvenster van punt 3 hieronder (prestaties).
 
-- **SEO van vidalune.com moet echt heel goed** (Vidalune moet op Google te vinden zijn). Nu heeft de
-  site alleen een `<title>`, een meta-description op de homepage en een taalknop. Ontbreekt nog:
-  - `robots.txt` en `sitemap.xml` (homepage, installeren, Android-app, en elke taal);
-  - per pagina een unieke titel en description, `<link rel="canonical">`;
-  - talen voor Google: `hreflang`-links in de `<head>` (en/nl + `x-default`), liefst eigen adressen
-    per taal (bijvoorbeeld `/nl/`) in plaats van alleen `?lang=`;
-  - Open Graph en Twitter-kaarten (titel, beschrijving, afbeelding) voor mooie links in Discord en
-    sociale media;
-  - gestructureerde data (JSON-LD `SoftwareApplication` + `Organization`), met versie,
-    besturingssystemen en prijs;
+- **SEO van vidalune.com moet echt heel goed** (Vidalune moet op Google te vinden zijn). De eerste
+  technische basis staat; inhoud en verdere verrijking ontbreken nog:
+  - Update 6 okt: `robots.txt` en `sitemap.xml` zijn toegevoegd. De sitemap bevat alleen home en installeren in NL/EN met `hreflang`; account-shell, app en relay-hosts worden uitgesloten. Home en installeren hebben canonicals, `hreflang` en unieke descriptions. Android-downloads zijn bewust geen sitemap-pagina.
+  - Open Graph/Twitter-afbeelding en JSON-LD (`SoftwareApplication` + `Organization` met versie,
+    besturingssystemen en prijs);
   - snelle laadtijd en goede Core Web Vitals (afbeeldingen met maten, geen blokkerende scripts);
   - goede koppen (één `h1`) en alt-teksten; meer inhoud: pagina's per functie, FAQ en handleidingen
     (zoekwoorden als "eigen mediaserver", "films en series zelf hosten", "media server NAS");
-  - account-, admin- en app.vidalune.com-pagina's en relay-adressen uitsluiten van indexering
-    (`noindex`), zodat alleen de website zelf in Google komt;
   - na livegang: vidalune.com aanmelden bij Google Search Console met de sitemap (moet de eigenaar doen).
   - Regel blijft: geen andere mediaservers of streamingdiensten noemen in de teksten.
 

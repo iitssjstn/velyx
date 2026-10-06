@@ -57,6 +57,8 @@ describe('installing Vidalune from vidalune.com', () => {
     const en = await app.inject({ url: '/install' });
     expect(en.headers['content-type']).toContain('text/html');
     expect(en.body).toContain('Install Vidalune');
+    expect(en.body).toContain('<link rel="canonical" href="https://vidalune.example/install?lang=en" />');
+    expect(en.body).toContain('name="description" content="Install Vidalune on your own server');
     expect(en.body).toContain('curl -fsSL https://vidalune.example/get | sh');
     const nl = await app.inject({ url: '/install', headers: { 'accept-language': 'nl-NL,nl;q=0.9,en;q=0.8' } });
     expect(nl.body).toContain('Vidalune installeren');
@@ -209,8 +211,12 @@ describe('installing Vidalune from vidalune.com', () => {
     const en = await app.inject({ url: '/' });
     expect(en.headers['content-type']).toContain('text/html');
     for (const text of ['Your media. Your server.', 'href="/install"', 'href="/account?new"', 'Create account', 'id="features"', 'id="plans"']) expect(en.body).toContain(text);
+    expect(en.body).toContain('<link rel="canonical" href="https://vidalune.example/?lang=en" />');
+    expect(en.body).toContain('hreflang="nl" href="https://vidalune.example/?lang=nl"');
+    expect(en.body).toContain('<meta property="og:title" content="Vidalune — your media, your server" />');
     const nl = await app.inject({ url: '/', headers: { 'accept-language': 'nl-NL,nl' } });
     expect(nl.body).toContain('Jouw media. Jouw server.');
+    expect(nl.body).toContain('<link rel="canonical" href="https://vidalune.example/?lang=nl" />');
     expect(nl.body).toContain('Account maken');
     // Signed in: straight to your servers.
     const signUp = await app.inject({ method: 'POST', url: '/api/account', payload: { email: 'justin@example.com', password: 'correct-horse' } });
@@ -222,5 +228,30 @@ describe('installing Vidalune from vidalune.com', () => {
     // The account pages themselves live at /account.
     const account = await app.inject({ url: '/account' });
     expect(account.body).toContain('account.js');
+  });
+
+  it('publishes a localized sitemap and keeps account and app pages out of search results', async () => {
+    const robots = await app.inject({ url: '/robots.txt' });
+    expect(robots.headers['content-type']).toContain('text/plain');
+    expect(robots.body).toContain('Sitemap: https://vidalune.example/sitemap.xml');
+    expect(robots.body).toContain('Disallow: /api/');
+
+    const appRobots = await app.inject({ url: '/robots.txt', headers: { host: 'app.vidalune.example' } });
+    expect(appRobots.body).toContain('Disallow: /');
+
+    const sitemap = await app.inject({ url: '/sitemap.xml' });
+    expect(sitemap.headers['content-type']).toContain('application/xml');
+    for (const url of [
+      'https://vidalune.example/?lang=en',
+      'https://vidalune.example/?lang=nl',
+      'https://vidalune.example/install?lang=en',
+      'https://vidalune.example/install?lang=nl',
+    ]) expect(sitemap.body).toContain(`<loc>${url}</loc>`);
+    expect(sitemap.body).toContain('hreflang="x-default"');
+    expect(sitemap.body).not.toContain('/account');
+    expect(sitemap.body).not.toContain('/admin');
+
+    const account = await app.inject({ url: '/account' });
+    expect(account.body).toContain('<meta name="robots" content="noindex, nofollow"');
   });
 });

@@ -44,9 +44,15 @@ const FRAME = {
 } satisfies Record<Lang, Record<string, string>>;
 
 /** A page of the website: header (navigation, sign in or "my servers"), the content, footer. */
-export function layout(lang: Lang, opts: { title: string; signedIn: boolean; path: string; description?: string; discord?: boolean }, body: string): string {
+export function layout(lang: Lang, opts: { title: string; signedIn: boolean; path: string; publicUrl: string; description?: string; discord?: boolean }, body: string): string {
   const t = FRAME[lang];
   const other: Lang = lang === 'nl' ? 'en' : 'nl';
+  const localizedUrl = (locale: Lang) => {
+    const url = new URL(opts.path, opts.publicUrl);
+    url.searchParams.set('lang', locale);
+    return url.toString();
+  };
+  const canonical = localizedUrl(lang);
   return `<!doctype html>
 <html lang="${lang}">
   <head>
@@ -55,6 +61,15 @@ export function layout(lang: Lang, opts: { title: string; signedIn: boolean; pat
     <meta name="color-scheme" content="dark" />
     <title>${escape(opts.title)}</title>
     ${opts.description ? `<meta name="description" content="${escape(opts.description)}" />` : ''}
+    <link rel="canonical" href="${escape(canonical)}" />
+    <link rel="alternate" hreflang="en" href="${escape(localizedUrl('en'))}" />
+    <link rel="alternate" hreflang="nl" href="${escape(localizedUrl('nl'))}" />
+    <link rel="alternate" hreflang="x-default" href="${escape(localizedUrl('en'))}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="${escape(opts.title)}" />
+    <meta property="og:url" content="${escape(canonical)}" />
+    ${opts.description ? `<meta property="og:description" content="${escape(opts.description)}" /><meta name="twitter:description" content="${escape(opts.description)}" />` : ''}
+    <meta name="twitter:card" content="summary" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/style.css" />
   </head>
@@ -172,7 +187,7 @@ const HOME = {
 } satisfies Record<Lang, unknown>;
 
 /** The home page of vidalune.com. */
-export function homePage(lang: Lang, signedIn: boolean, discord = false): string {
+export function homePage(lang: Lang, signedIn: boolean, discord = false, publicUrl = 'https://vidalune.com'): string {
   const t = HOME[lang];
   const body = `
     <main class="site-main">
@@ -218,5 +233,5 @@ export function homePage(lang: Lang, signedIn: boolean, discord = false): string
         <p><a class="button" href="/install">${escape(t.heroInstall)}</a></p>
       </section>
     </main>`;
-  return layout(lang, { title: t.title, signedIn, path: '/', description: t.description, discord }, body);
+  return layout(lang, { title: t.title, signedIn, path: '/', publicUrl, description: t.description, discord }, body);
 }
