@@ -9,8 +9,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.23** (PR #100): Sonarr/Radarr-integratie. Release `v0.19.23`
-  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.22 (PR #99, JSON-LD voor de publieke site),
+- Laatste release: **0.19.24** (PR #101): persistent geoptimaliseerde afspeelkopieën. Release `v0.19.24`
+  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.23 (PR #100, Sonarr/Radarr-integratie),
+  0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
   0.19.19 (PR #96, Seerr-filters op Films en Series), 0.19.18 (PR #95, Genres-dropdown en catalogusfilters),
   0.19.17 (PR #94, Home-hero en Seerr in Films/Series), 0.19.16 (PR #93, desktop/tablet topnav en
@@ -360,3 +361,8 @@ Doel: een nieuwe installatie moet stap voor stap duidelijk maken wat nog ingeste
 - Test een volledig nieuwe installatie vanaf nul, inclusief Docker en `.deb` waar van toepassing: Quick Setup moet correct herkennen wat al is ingesteld, ontbrekende onderdelen uitleggen, optionele stappen kunnen overslaan en bestaande configuratie bij upgrades behouden. Test ook ongeldige paden, niet-bereikbare relay/TMDB-diensten en ontbrekende ondertitelinstellingen. Voeg regressietests toe; sla configuratie nooit stilzwijgend over en overschrijf bestaande instellingen niet zonder toestemming.
 
 **Acceptatiecriterium:** een nieuwe gebruiker kan Vidalune installeren (Docker of `.deb`) en met behulp van de Quick Setup zelfstandig een bibliotheek instellen en begrijpen hoe ondertiteling, TMDB, relay en optioneel Seerr geconfigureerd worden. Iedere ontbrekende of defecte instelling heeft een concrete uitleg en vervolgstap. Er wordt niets onnodig dubbel ingesteld als het al via de relay beschikbaar is. Genre-/categoriepagina’s moeten het vinden van films en series in zowel de eigen bibliotheek als de optionele Seerr-catalogus vereenvoudigen.
+
+## Versie 0.19.25
+
+### Filmischer Vidalune-startscherm
+Maak de homepage visueel meer cinematografisch met een grotere full-bleed hero, prominente titel en duidelijke Play-/Details-acties in Vidalune-kleuren. Behoud de persoonlijke hervatselectie, voortgang en bestaande kijkrijen. Quick Setup blijft openstaand werk.
