@@ -79,6 +79,34 @@ describe('library filters UI', () => {
     expect(calls.some((url) => url.startsWith('/api/movies'))).toBe(false);
   });
 
+  it('shows the filter panel for Seerr and applies genre, year and rating filters', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
+    const calls = renderBrowse('/movies?source=seerr', (url) => {
+      if (url.startsWith('/api/genres')) return [];
+      if (url === '/api/seerr') return { enabled: true };
+      if (url.startsWith('/api/seerr/discover?row=movies')) return { page: 1, totalPages: 1, results: [
+        { mediaType: 'movie', tmdbId: 1, title: 'Action Winner', year: 2022, rating: 8, overview: '', posterPath: null, state: null, inLibrary: false, local: null },
+        { mediaType: 'movie', tmdbId: 2, title: 'Old Action', year: 1990, rating: 8, overview: '', posterPath: null, state: null, inLibrary: false, local: null },
+        { mediaType: 'movie', tmdbId: 3, title: 'Low Rated Action', year: 2022, rating: 4, overview: '', posterPath: null, state: null, inLibrary: false, local: null },
+      ] };
+      return { items: [], total: 0, page: 1, pageSize: 60 };
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    const panel = within(screen.getByRole('dialog', { name: 'Filters' }));
+    expect(panel.getByText('Watched status, resolution and HDR only apply to files in your library.')).toBeTruthy();
+    expect(panel.getByRole('button', { name: 'Unwatched' }).closest('fieldset')?.hasAttribute('disabled')).toBe(true);
+    await userEvent.selectOptions(panel.getByLabelText('Genre'), '28');
+    await userEvent.selectOptions(panel.getByLabelText('Rating'), '7');
+    await userEvent.type(panel.getByLabelText('Year from'), '2000');
+    await userEvent.click(panel.getByRole('button', { name: 'Show results' }));
+
+    expect(await screen.findByRole('button', { name: /Action Winner/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Old Action/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Low Rated Action/ })).toBeNull();
+    expect(calls.some((url) => url.includes('/api/seerr/discover?row=movies&genre=28'))).toBe(true);
+  });
+
   it('sends filters and sorting to the server', async () => {
     const calls = renderBrowse();
     await screen.findByText('No movies yet');

@@ -41,6 +41,7 @@ const RESOLUTIONS = [
 const RATINGS = ['5', '6', '7', '8'];
 const PAGE_SIZE = 60;
 const genreKey = (name: string) => name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase();
+const CATALOG_FILTER_KEYS = ['catalogGenre', 'catalogYearFrom', 'catalogYearTo', 'catalogMinRating'] as const;
 /** Filter keys stored in the URL; everything but sort/order counts as "filtered". */
 const FILTER_KEYS = ['filter', 'genre', 'resolution', 'hdr', 'yearFrom', 'yearTo', 'minRating', 'maxRuntime'] as const;
 
@@ -68,21 +69,26 @@ export function activeFilterChips(params: URLSearchParams, kind: Kind, genres: G
   return chips;
 }
 
-function FilterPanel({ kind, params, genres, onApply, onClose }: { kind: Kind; params: URLSearchParams; genres: Genre[]; onApply: (next: URLSearchParams) => void; onClose: () => void }) {
+function FilterPanel({ kind, source, params, genres, onApply, onClose }: { kind: Kind; source: BrowseSource; params: URLSearchParams; genres: Genre[]; onApply: (next: URLSearchParams) => void; onClose: () => void }) {
   const { t } = useT();
+  const catalog = source === 'seerr';
   const [draft, setDraft] = useState(() => new URLSearchParams(params));
+  const keyFor = (key: string) => catalog ? `catalog${key[0]!.toUpperCase()}${key.slice(1)}` : key;
+  const value = (key: string) => draft.get(keyFor(key)) ?? '';
   const set = (key: string, value: string | null) =>
     setDraft((d) => {
       const n = new URLSearchParams(d);
-      if (value === null || value === '' || (key === 'filter' && value === 'all')) n.delete(key);
-      else n.set(key, value);
+      const target = keyFor(key);
+      if (value === null || value === '' || (key === 'filter' && value === 'all')) n.delete(target);
+      else n.set(target, value);
       return n;
     });
   const chip = (active: boolean) =>
     `rounded-full border px-3 py-1.5 text-sm transition-colors ${active ? 'border-accent bg-accent/15 text-ink' : 'border-line text-muted hover:text-ink'}`;
   return (
     <div className="space-y-6">
-      <fieldset>
+      {catalog && <p className="text-sm text-muted">{t('browse.catalogOnlyFiltersHint')}</p>}
+      <fieldset disabled={catalog} className={catalog ? 'opacity-50' : undefined}>
         <legend className="label">{t('browse.show')}</legend>
         <div className="flex flex-wrap gap-2">
           {watchFilters(kind).map((f) => (
@@ -93,7 +99,7 @@ function FilterPanel({ kind, params, genres, onApply, onClose }: { kind: Kind; p
         </div>
       </fieldset>
       {kind === 'movies' && (
-        <fieldset>
+        <fieldset disabled={catalog} className={catalog ? 'opacity-50' : undefined}>
           <legend className="label">{t('browse.quality')}</legend>
           <div className="flex flex-wrap gap-2">
             {RESOLUTIONS.map((r) => (
@@ -110,7 +116,7 @@ function FilterPanel({ kind, params, genres, onApply, onClose }: { kind: Kind; p
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="f-genre">{t('browse.genre')}</label>
-          <select id="f-genre" className="input" value={draft.get('genre') ?? ''} onChange={(e) => set('genre', e.target.value)}>
+          <select id="f-genre" className="input" value={value('genre')} onChange={(e) => set('genre', e.target.value)}>
             <option value="">{t('browse.allGenres')}</option>
             {genres.map((g) => (
               <option key={g.id} value={g.id}>{g.name}</option>
@@ -119,7 +125,7 @@ function FilterPanel({ kind, params, genres, onApply, onClose }: { kind: Kind; p
         </div>
         <div>
           <label className="label" htmlFor="f-rating">{t('browse.rating')}</label>
-          <select id="f-rating" className="input" value={draft.get('minRating') ?? ''} onChange={(e) => set('minRating', e.target.value)}>
+          <select id="f-rating" className="input" value={value('minRating')} onChange={(e) => set('minRating', e.target.value)}>
             <option value="">{t('browse.anyRating')}</option>
             {RATINGS.map((r) => (
               <option key={r} value={r}>{r}+</option>
@@ -128,11 +134,11 @@ function FilterPanel({ kind, params, genres, onApply, onClose }: { kind: Kind; p
         </div>
         <div>
           <label className="label" htmlFor="f-from">{t('browse.yearFrom')}</label>
-          <input id="f-from" className="input" type="number" inputMode="numeric" min={1870} max={2100} placeholder={t('browse.egYear', { year: 1990 })} value={draft.get('yearFrom') ?? ''} onChange={(e) => set('yearFrom', e.target.value)} />
+          <input id="f-from" className="input" type="number" inputMode="numeric" min={1870} max={2100} placeholder={t('browse.egYear', { year: 1990 })} value={value('yearFrom')} onChange={(e) => set('yearFrom', e.target.value)} />
         </div>
         <div>
           <label className="label" htmlFor="f-to">{t('browse.yearTo')}</label>
-          <input id="f-to" className="input" type="number" inputMode="numeric" min={1870} max={2100} placeholder={t('browse.egYear', { year: 1999 })} value={draft.get('yearTo') ?? ''} onChange={(e) => set('yearTo', e.target.value)} />
+          <input id="f-to" className="input" type="number" inputMode="numeric" min={1870} max={2100} placeholder={t('browse.egYear', { year: 1999 })} value={value('yearTo')} onChange={(e) => set('yearTo', e.target.value)} />
         </div>
       </div>
       <div className="flex justify-between gap-2">
@@ -140,7 +146,7 @@ function FilterPanel({ kind, params, genres, onApply, onClose }: { kind: Kind; p
           variant="ghost"
           onClick={() => {
             const n = new URLSearchParams(draft);
-            FILTER_KEYS.forEach((k) => n.delete(k));
+            (catalog ? CATALOG_FILTER_KEYS : FILTER_KEYS).forEach((k) => n.delete(k));
             setDraft(n);
           }}
         >
@@ -207,7 +213,7 @@ export function BrowsePage({ kind }: { kind: Kind }) {
   const query = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? undefined]));
   if (query.filter === 'all') query.filter = undefined;
 
-  const genres = useQuery({ queryKey: ['genres', kind], queryFn: () => api.get<Genre[]>(`/api/genres?type=${kind}`), staleTime: 5 * 60_000 });
+  const genres = useQuery({ queryKey: ['genres', kind], queryFn: () => api.get<Genre[]>(`/api/genres?type=${kind}`), enabled: source !== 'seerr', staleTime: 5 * 60_000 });
   const q = useInfiniteQuery({
     queryKey: [kind, 'list', sort, order, query],
     initialPageParam: 1,
@@ -216,11 +222,22 @@ export function BrowsePage({ kind }: { kind: Kind }) {
     enabled: source !== 'seerr',
   });
   const row = kind === 'movies' ? 'movies' : 'tv';
+  const catalogGenres: Genre[] = DISCOVER_ROWS.flatMap((entry) => entry.row === row && entry.genre && entry.genreName
+    ? [{ id: entry.genre, name: t(entry.genreName), count: 0 }]
+    : []);
   const selectedGenre = genres.data?.find((genre) => String(genre.id) === query.genre)?.name;
-  const seerrGenre = selectedGenre && DISCOVER_ROWS.find((entry) => entry.row === row && entry.genre && entry.genreName && genreKey(t(entry.genreName)) === genreKey(selectedGenre))?.genre;
+  const catalogFilters = {
+    genre: Number(params.get('catalogGenre')) || undefined,
+    yearFrom: Number(params.get('catalogYearFrom')) || undefined,
+    yearTo: Number(params.get('catalogYearTo')) || undefined,
+    minRating: Number(params.get('catalogMinRating')) || undefined,
+  };
+  const seerrGenre = source === 'seerr'
+    ? catalogFilters.genre
+    : selectedGenre && DISCOVER_ROWS.find((entry) => entry.row === row && entry.genre && entry.genreName && genreKey(t(entry.genreName)) === genreKey(selectedGenre))?.genre;
   const seerrStatus = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), enabled: source !== 'library', staleTime: 5 * 60_000 });
   const catalog = useInfiniteQuery({
-    queryKey: ['seerr', 'browse', row, seerrGenre ?? null],
+    queryKey: ['seerr', 'browse', row, seerrGenre ?? null, catalogFilters.yearFrom, catalogFilters.yearTo, catalogFilters.minRating],
     queryFn: ({ pageParam }) => api.get<SeerrPage>(`/api/seerr/discover?row=${row}${seerrGenre ? `&genre=${seerrGenre}` : ''}&page=${pageParam}`),
     initialPageParam: 1,
     getNextPageParam: (last) => last.page < last.totalPages ? last.page + 1 : undefined,
@@ -246,6 +263,7 @@ export function BrowsePage({ kind }: { kind: Kind }) {
     const next = new URLSearchParams(params);
     if (value === 'all') next.delete('source');
     else next.set('source', value);
+    if (value === 'seerr') ['filter', 'resolution', 'hdr', 'maxRuntime'].forEach((key) => next.delete(key));
     setParams(next, { replace: true });
   };
   const clearKeys = (keys: string[]) => {
@@ -260,6 +278,11 @@ export function BrowsePage({ kind }: { kind: Kind }) {
     const key = `${item.mediaType}-${item.tmdbId}`;
     if (seenCatalog.has(key) || (source === 'all' && item.inLibrary)) return false;
     seenCatalog.add(key);
+    if (source === 'seerr') {
+      if (catalogFilters.yearFrom && (!item.year || item.year < catalogFilters.yearFrom)) return false;
+      if (catalogFilters.yearTo && (!item.year || item.year > catalogFilters.yearTo)) return false;
+      if (catalogFilters.minRating && (!item.rating || item.rating < catalogFilters.minRating)) return false;
+    }
     return true;
   });
   const items: BrowseItem[] = [
@@ -267,8 +290,16 @@ export function BrowsePage({ kind }: { kind: Kind }) {
     ...(source === 'library' ? [] : catalogItems.map((item): BrowseItem => ({ source: 'seerr', item }))),
   ];
   const total = q.data?.pages[0]?.total ?? 0;
-  const chips = source === 'seerr' ? [] : activeFilterChips(params, kind, genres.data);
+  const catalogParams = new URLSearchParams();
+  for (const [filter, key] of [['genre', 'catalogGenre'], ['yearFrom', 'catalogYearFrom'], ['yearTo', 'catalogYearTo'], ['minRating', 'catalogMinRating']]) {
+    const value = params.get(key);
+    if (value) catalogParams.set(filter, value);
+  }
+  const chips = source === 'seerr'
+    ? activeFilterChips(catalogParams, kind, catalogGenres).map((chip) => ({ ...chip, keys: chip.keys.map((key) => `catalog${key[0]!.toUpperCase()}${key.slice(1)}`) }))
+    : activeFilterChips(params, kind, genres.data);
   const filtered = chips.length > 0;
+  const activeFilterKeys = source === 'seerr' ? CATALOG_FILTER_KEYS : FILTER_KEYS;
   const loading = (source !== 'seerr' && q.isLoading) || (source !== 'library' && (seerrStatus.isLoading || (seerrStatus.data?.enabled && catalog.isLoading)));
   const localError = source !== 'seerr' ? q.error : null;
   const catalogError = source !== 'library' ? seerrStatus.error ?? catalog.error : null;
@@ -297,11 +328,11 @@ export function BrowsePage({ kind }: { kind: Kind }) {
                 <option key={s} value={s}>{t(`browse.sorts.${s}`)}</option>
               ))}
             </select>
-            <Button variant="secondary" icon={<SlidersHorizontal className="size-4" />} onClick={() => setPanel(true)} aria-label={filtered ? t('browse.filtersActive', { count: chips.length }) : t('browse.filtersTitle')}>
-              <span className="hidden sm:inline">{t('browse.filtersTitle')}</span>
-              {filtered && <span className="rounded-full bg-accent px-1.5 text-xs font-semibold text-accent-ink">{chips.length}</span>}
-            </Button>
           </>}
+          <Button variant="secondary" icon={<SlidersHorizontal className="size-4" />} onClick={() => setPanel(true)} aria-label={filtered ? t('browse.filtersActive', { count: chips.length }) : t('browse.filtersTitle')}>
+            <span className="hidden sm:inline">{t('browse.filtersTitle')}</span>
+            {filtered && <span className="rounded-full bg-accent px-1.5 text-xs font-semibold text-accent-ink">{chips.length}</span>}
+          </Button>
         </div>
       </div>
 
@@ -313,7 +344,7 @@ export function BrowsePage({ kind }: { kind: Kind }) {
               <X className="size-3.5 text-muted" />
             </button>
           ))}
-          <button type="button" onClick={() => clearKeys([...FILTER_KEYS])} className="px-2 text-sm text-muted hover:text-ink">
+          <button type="button" onClick={() => clearKeys([...activeFilterKeys])} className="px-2 text-sm text-muted hover:text-ink">
             {t('browse.clearAll')}
           </button>
           {user?.role === 'admin' && (
@@ -339,10 +370,12 @@ export function BrowsePage({ kind }: { kind: Kind }) {
       ) : items.length === 0 ? (
         <EmptyState
           icon={kind === 'movies' ? <Film className="size-6" /> : <Tv className="size-6" />}
-          title={source === 'seerr' ? t('browse.noCatalogCategories') : filtered ? t('browse.nothingMatches') : kind === 'movies' ? t('browse.noMovies') : t('browse.noShows')}
+          title={source === 'seerr' ? filtered ? t('browse.nothingMatches') : t('browse.noCatalogCategories') : filtered ? t('browse.nothingMatches') : kind === 'movies' ? t('browse.noMovies') : t('browse.noShows')}
           action={
-            filtered ? (
-              <Button variant="secondary" onClick={() => clearKeys([...FILTER_KEYS])}>{t('browse.clearFilters')}</Button>
+            source === 'seerr' && catalog.hasNextPage ? (
+              <Button variant="secondary" loading={catalog.isFetchingNextPage} onClick={() => void catalog.fetchNextPage()}>{t('browse.loadMore')}</Button>
+            ) : filtered ? (
+              <Button variant="secondary" onClick={() => clearKeys([...activeFilterKeys])}>{t('browse.clearFilters')}</Button>
             ) : source !== 'seerr' && user?.role === 'admin' ? (
               <Link to="/admin/libraries" className="inline-flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">{t('home.manageLibraries')}</Link>
             ) : undefined
@@ -385,8 +418,9 @@ export function BrowsePage({ kind }: { kind: Kind }) {
         {panel && (
           <FilterPanel
             kind={kind}
+            source={source}
             params={params}
-            genres={genres.data ?? []}
+            genres={source === 'seerr' ? catalogGenres : genres.data ?? []}
             onClose={() => setPanel(false)}
             onApply={(next) => {
               setParams(next, { replace: true });
