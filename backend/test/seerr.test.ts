@@ -45,7 +45,7 @@ const fakeSeerr = async (url: string, init?: RequestInit) => {
     // Discover rows leave out mediaType for movie and tv lists (as Seerr does for some of them).
     const page = Number(u.searchParams.get('page'));
     if (path === '/discover/trending') return json({ page, totalPages: 3, results: [{ id: 550, mediaType: 'movie', title: 'Already Here', releaseDate: '1999-10-15', posterPath: null }, { id: 1399, mediaType: 'tv', name: 'A Show', firstAirDate: '2011-04-17', posterPath: '/show.jpg' }, { id: 1, mediaType: 'person', name: 'Somebody' }] });
-    if (path === '/discover/movies/genre/28') return json({ page, totalPages: 400, results: [{ id: 603, title: 'The Matrix', releaseDate: '1999-03-30', posterPath: '/matrix.jpg' }] });
+    if (path === '/discover/movies/genre/28') return json({ page, totalPages: 400, results: [{ id: 603, title: 'The Matrix', releaseDate: '1999-03-30', voteAverage: 8.26, posterPath: '/matrix.jpg' }] });
     if (path === '/discover/tv/upcoming') return json({ page, totalPages: 1, results: [{ id: 1400, name: 'Coming Soon', firstAirDate: '2027-01-01', posterPath: null }] });
   }
   const info = (key: string) => (media.has(key) ? { mediaInfo: media.get(key) } : {});
@@ -211,7 +211,7 @@ describe('Seerr', () => {
     const action = (await row('row=movies&genre=28&page=2')).json();
     expect(calls.at(-1)?.path).toBe('/discover/movies/genre/28?page=2&language=en');
     expect(action.totalPages).toBe(20);
-    expect(action.results).toMatchObject([{ mediaType: 'movie', tmdbId: 603, title: 'The Matrix', inLibrary: true }]);
+    expect(action.results).toMatchObject([{ mediaType: 'movie', tmdbId: 603, title: 'The Matrix', rating: 8.3, inLibrary: true }]);
     expect((await row('row=upcomingTv')).json().results).toMatchObject([{ mediaType: 'tv', tmdbId: 1400, year: 2027, inLibrary: false, local: null }]);
 
     // Someone who may not see the Kids library: The Matrix is not "here" for them.

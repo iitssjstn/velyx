@@ -19,6 +19,7 @@ export const browse: Messages['browse'] = {
   noCatalogCategories: 'Geen catalogustitels gevonden in deze genres.',
   inLibraryCount: '{count} in de bibliotheek',
   catalogFilterHint: 'Filters gelden voor bibliotheektitels; Seerr-titels staan ernaast.',
+  catalogOnlyFiltersHint: 'Kijkstatus, resolutie en HDR gelden alleen voor bestanden in je bibliotheek.',
   catalogNotEnabled: 'Seerr is niet gekoppeld',
   catalogNotEnabledHint: 'Koppel Seerr in de serverinstellingen om per genre in de catalogus te bladeren.',
   fromYear: 'Vanaf {year}',

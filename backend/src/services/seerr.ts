@@ -18,6 +18,8 @@ export interface SeerrResult {
   tmdbId: number;
   title: string;
   year: number | null;
+  /** TMDB rating (0–10) when the discover row includes it. */
+  rating?: number | null;
   overview: string;
   posterPath: string | null;
   /** What Seerr knows of it: already requested, being downloaded, available (null: nothing yet). */
@@ -174,6 +176,7 @@ export class SeerrService {
         tmdbId: Number(x.id),
         title: String(x.title ?? x.name ?? ''),
         year: yearOf(x.releaseDate ?? x.firstAirDate),
+        ...(typeof x.voteAverage === 'number' ? { rating: Math.round(x.voteAverage * 10) / 10 } : {}),
         overview: String(x.overview ?? ''),
         posterPath: typeof x.posterPath === 'string' ? x.posterPath : null,
         state: mediaState(x.mediaInfo as RawMedia | undefined),
