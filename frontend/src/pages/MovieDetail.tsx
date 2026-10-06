@@ -17,6 +17,7 @@ import { CastRow } from '../components/People';
 import { MoreLikeThis } from '../components/MoreLikeThis';
 import { MediaInfo } from '../components/MediaInfo';
 import { DevicePlayback } from '../components/DevicePlayback';
+import { OptimizationControls } from '../components/OptimizationControls';
 import { ProgressBar } from '../components/ProgressBar';
 import { DetailSkeleton, ErrorState } from '../components/States';
 import { toast } from '../components/Toast';
@@ -178,6 +179,7 @@ function MovieScreen({ id }: { id: number }) {
             <MediaInfo key={file.id} file={file} replacements={m.replacements} />
             <DevicePlayback fileId={file.id} />
           </div>
+          {user?.role === 'admin' && <OptimizationControls fileId={file.id} />}
         </section>
       )}
       <CastRow cast={m.cast} />

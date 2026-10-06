@@ -50,6 +50,13 @@ describe('where a stream starts', () => {
     expect(await streamFrom(a, answer('restart', '/api/media/7/remux?audio=1'), 0)).toEqual({ uri: 'http://vidalune.local/api/media/7/remux?audio=1', offset: 0 });
   });
 
+  it('keeps an optimized-copy id when locating a seek keyframe', async () => {
+    const a = api((url) => (url.includes('/keyframe?t=600.000&optimized=9') ? { start: 599, seek: 600 } : {}));
+    const playback = answer('restart', '/api/media/7/remux?audio=1&optimized=9');
+    playback.decision.optimized = { id: 9, profile: 'compat-720p' };
+    expect(await streamFrom(a, playback, 600)).toEqual({ uri: 'http://vidalune.local/api/media/7/remux?audio=1&optimized=9&start=600.000', offset: 599 });
+  });
+
   it('shifts subtitles along with a stream that starts later', () => {
     const sub = { url: '/api/subtitles/3.vtt' } as SubtitleOption;
     expect(subtitleUrl(api(), sub, 0)).toBe('http://vidalune.local/api/subtitles/3.vtt');

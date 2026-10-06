@@ -120,10 +120,10 @@ const HLS_SUPPORT: 'mse' | 'native' | null = (() => {
 /** How long to wait for the keyframe before starting the stream at the asked time itself. */
 export const LOCATE_TIMEOUT_MS = 4000;
 
-export async function locateStart(fileId: number, target: number): Promise<{ offset: number; seek: number }> {
+export async function locateStart(fileId: number, target: number, optimizationId?: number): Promise<{ offset: number; seek: number }> {
   try {
     // A busy server must not keep the player waiting: the stream can start at the time itself.
-    const r = await request<{ start: number; seek: number }>('GET', `/api/media/${fileId}/keyframe?t=${target.toFixed(3)}`, undefined, { signal: AbortSignal.timeout(LOCATE_TIMEOUT_MS) });
+    const r = await request<{ start: number; seek: number }>('GET', `/api/media/${fileId}/keyframe?t=${target.toFixed(3)}${optimizationId ? `&optimized=${optimizationId}` : ''}`, undefined, { signal: AbortSignal.timeout(LOCATE_TIMEOUT_MS) });
     return { offset: r.start, seek: r.seek };
   } catch {
     return { offset: target, seek: target };
@@ -187,6 +187,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   }, [file, audioChoice, prefsReady]);
 
   const audioPrefs = { audioChannels: prefs.audioOutput, boostVoices: prefs.boostVoices, levelVolume: prefs.levelVolume };
+  const optimizationIds = useRef(new Map<number, number>());
   const playbackKey = ['playback', file?.id, audioChoice, audioPrefs.audioChannels, audioPrefs.boostVoices, audioPrefs.levelVolume];
   const playback = useQuery({
     queryKey: playbackKey,
@@ -194,12 +195,18 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     gcTime: 0,
     staleTime: Infinity,
     placeholderData: keepPreviousData,
-    queryFn: () =>
-      api.post<PlaybackInfo>(`/api/media/${file!.id}/playback`, {
+    queryFn: async () => {
+      const optimizationId = optimizationIds.current.get(file!.id);
+      const answer = await api.post<PlaybackInfo>(`/api/media/${file!.id}/playback`, {
         ...detectCapabilities(),
         ...audioPrefs,
         ...(audioChoice !== undefined && audioChoice !== null ? { audioIndex: audioChoice } : {}),
-      }),
+        ...(optimizationId ? { optimizationId } : {}),
+      });
+      if (answer.decision.optimized) optimizationIds.current.set(file!.id, answer.decision.optimized.id);
+      else optimizationIds.current.delete(file!.id);
+      return answer;
+    },
   });
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -331,7 +338,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // ---------------------------------------------------------------- casting (Chromecast)
   const cast = useCast(
     file && item.data
-      ? { fileId: file.id, audioIndex: info?.decision.audioIndex ?? null, title: item.data.title, subtitle: item.data.subtitle, posterPath: item.data.poster ?? item.data.backdrop, subtitleKey: subKey, subtitleStyle: { subtitleSize: prefs.subtitleSize, subtitleColor: prefs.subtitleColor, subtitleBackground: prefs.subtitleBackground, subtitleEdge: prefs.subtitleEdge }, locate: (target) => locateStart(file.id, target) }
+      ? { fileId: file.id, audioIndex: info?.file.id === file.id ? info.decision.audioIndex : null, optimizationId: info?.file.id === file.id ? info.decision.optimized?.id : undefined, title: item.data.title, subtitle: item.data.subtitle, posterPath: item.data.poster ?? item.data.backdrop, subtitleKey: subKey, subtitleStyle: { subtitleSize: prefs.subtitleSize, subtitleColor: prefs.subtitleColor, subtitleBackground: prefs.subtitleBackground, subtitleEdge: prefs.subtitleEdge }, locate: (target) => locateStart(file.id, target, info?.file.id === file.id ? info.decision.optimized?.id : undefined) }
       : null,
   );
   const castingRef = useRef(false);

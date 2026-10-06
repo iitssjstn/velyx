@@ -16,12 +16,14 @@ import { languageName } from '../services/parser.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
 import { fileInfo } from './library.js';
 import { canSee } from '../services/access.js';
+import type { PlaybackDecision } from '../playback/engine.js';
 import { analyzePlayback } from '../playback/compatibility.js';
 import { clientProfile, deviceSupport, effectiveCapabilities, profileName } from '../playback/client-profile.js';
 import { requestLanguage } from '../i18n/index.js';
 import { isHomeRequest } from '../services/remote-access.js';
 import { CAST_TOKEN_MS, CHROMECAST_CAPS, signCastToken } from '../services/cast.js';
 import { createLogger } from '../logger.js';
+import type { ReadyOptimization } from '../services/optimization.js';
 
 const log = createLogger('playback');
 
@@ -38,6 +40,7 @@ export const capsBody = z
     audioChannels: z.enum(['stereo', 'surround']).optional(),
     boostVoices: z.boolean().optional(),
     levelVolume: z.boolean().optional(),
+    optimizationId: z.number().int().positive().optional(),
   })
   .default({});
 
@@ -50,6 +53,20 @@ function offsetParam(query: unknown): number {
   return n;
 }
 
+function needsCompatibilityCopy(decision: PlaybackDecision | null): boolean {
+  return !decision || decision.engine === 'transcode' || decision.compatible === false || (decision.compatible === 'unknown' && decision.reasons.length > 0);
+}
+
+function withOptimization(decision: PlaybackDecision, optimization: ReadyOptimization): PlaybackDecision {
+  const add = (url: string) => `${url}${url.includes('?') ? '&' : '?'}optimized=${optimization.id}`;
+  return { ...decision, streamUrl: add(decision.streamUrl), ...(decision.hlsUrl ? { hlsUrl: add(decision.hlsUrl) } : {}), optimized: { id: optimization.id, profile: optimization.profile } };
+}
+
+function variantAudioIndex(source: typeof mediaFiles.$inferSelect, variant: typeof mediaFiles.$inferSelect, sourceIndex: number): number | null {
+  const position = (source.audioTracks ?? []).findIndex((track) => track.index === sourceIndex);
+  return position < 0 ? null : (variant.audioTracks ?? [])[position]?.index ?? null;
+}
+
 /** How a viewer's device shows in the activity overview: "Vidalune app on Pixel 8" or "Chrome on Windows". */
 function deviceLabel(request: FastifyRequest): string {
   return request.appDevice ? `Vidalune app on ${request.appDevice}` : describeUserAgent(request.headers['user-agent']);
@@ -59,7 +76,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   const db = ctx.db;
 
   /** Looks up a media file and verifies it still lives inside its library folder. */
-  function loadFile(idParam: string, user: SessionUser) {
+  function loadFile(idParam: string, user: SessionUser, optimizationId?: number, allowMissingSource = false) {
     const id = parseId(idParam);
     const row = db
       .select({ f: mediaFiles, root: libraries.path })
@@ -69,9 +86,42 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       .get();
     // Files in libraries the user may not see answer exactly like missing ones.
     if (!row || !canSee(ctx.access.scope(user), row.f.libraryId)) throw notFound('Media file');
-    const abs = resolveMediaPath(row.root, row.f.path);
-    if (!abs) throw new HttpError(404, 'Media file is no longer available. Try rescanning the library.');
-    return { file: row.f, abs };
+    const sourcePath = resolveMediaPath(row.root, row.f.path);
+    if (optimizationId !== undefined) {
+      const optimization = ctx.optimizations.resolve(row.f.id, optimizationId, row.f.size, row.f.mtimeMs);
+      const outputStat = fs.statSync(optimization.outputPath);
+      const file = {
+        ...row.f,
+        size: outputStat.size,
+        mtimeMs: Math.floor(outputStat.mtimeMs),
+        container: optimization.probe.container ?? 'mp4',
+        durationSec: optimization.probe.durationSec ?? row.f.durationSec,
+        bitrate: optimization.probe.bitrate,
+        videoCodec: optimization.probe.videoCodec,
+        videoProfile: optimization.probe.videoProfile,
+        videoBitDepth: optimization.probe.videoBitDepth,
+        videoRange: optimization.probe.videoRange,
+        width: optimization.probe.width,
+        height: optimization.probe.height,
+        fps: optimization.probe.fps,
+        audioCodec: optimization.probe.audioCodec,
+        audioChannels: optimization.probe.audioChannels,
+        audioTracks: optimization.probe.audioTracks,
+        subtitleTracks: row.f.subtitleTracks,
+        probeError: null,
+      };
+      return { file, abs: optimization.outputPath, sourceFile: row.f, optimization };
+    }
+    if (!sourcePath && !allowMissingSource) throw new HttpError(404, 'Media file is no longer available. Try rescanning the library.');
+    return { file: row.f, abs: sourcePath ?? '', sourceFile: row.f, optimization: null as ReadyOptimization | null };
+  }
+
+  function optimizationId(query: unknown): number | undefined {
+    const value = (query as { optimized?: unknown } | undefined)?.optimized;
+    if (value === undefined) return undefined;
+    const result = z.coerce.number().int().positive().safeParse(value);
+    if (!result.success) throw new HttpError(400, 'Invalid optimization id.');
+    return result.data;
   }
 
   function subtitleList(file: typeof mediaFiles.$inferSelect, user: SessionUser) {
@@ -131,7 +181,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     url: '/api/media/:id/stream',
     preHandler: [requireUser, remoteGate],
     handler: async (request, reply) => {
-      const { file, abs } = loadFile(request.params.id, request.user!);
+      const { file, abs } = loadFile(request.params.id, request.user!, optimizationId(request.query));
       if (request.method === 'GET') ctx.streams.touch(request.user!, file.id, 'direct', deviceLabel(request));
       const engine = ctx.playback.get('direct')!;
       return engine.serve(request, reply, file, abs);
@@ -165,23 +215,43 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   const hlsLayoutKey = (file: typeof mediaFiles.$inferSelect) => `${file.id}:${file.size}:${file.mtimeMs}`;
 
   app.post<{ Params: { id: string } }>('/api/media/:id/playback', { preHandler: [requireUser, remoteGate] }, async (request) => {
-    const loaded = loadFile(request.params.id, request.user!);
-    const file = await ensureVideoDetails(loaded.file, loaded.abs);
-    const { audioIndex, audioChannels, boostVoices, levelVolume, ...reportedCaps } = capsBody.parse(request.body ?? {});
+    const source = loadFile(request.params.id, request.user!, undefined, true);
+    const { audioIndex, audioChannels, boostVoices, levelVolume, optimizationId: requestedOptimizationId, ...reportedCaps } = capsBody.parse(request.body ?? {});
+    let loaded = requestedOptimizationId === undefined ? source : loadFile(request.params.id, request.user!, requestedOptimizationId);
+    let file = loaded.abs ? await ensureVideoDetails(loaded.file, loaded.abs) : loaded.file;
     if (audioIndex !== undefined && !(file.audioTracks ?? []).some((t) => t.index === audioIndex)) throw new HttpError(400, 'Unknown audio track.');
     // Clients that do not report their formats are judged by what their kind of browser usually plays.
     const ua = request.headers['user-agent'];
     const { caps, confidence } = effectiveCapabilities(reportedCaps, clientProfile(ua));
     const lang = requestLanguage(request);
-    const decision = ctx.playback.decide(file, caps, { audioIndex, audioChannels, boostVoices, levelVolume, lang });
+    const options = { audioIndex, audioChannels, boostVoices, levelVolume, lang };
+    let decision = ctx.playback.decide(file, caps, options);
+    if (!loaded.optimization && needsCompatibilityCopy(decision)) {
+      for (const ready of ctx.optimizations.findReadyVariants(file.id, file.size, file.mtimeMs)) {
+        const candidate = loadFile(request.params.id, request.user!, ready.id);
+        const candidateAudioIndex = audioIndex === undefined ? undefined : variantAudioIndex(source.sourceFile, candidate.file, audioIndex);
+        if (audioIndex !== undefined && candidateAudioIndex === null) continue;
+        const candidateOptions = { ...options, ...(typeof candidateAudioIndex === 'number' ? { audioIndex: candidateAudioIndex } : {}) };
+        const candidateDecision = ctx.playback.decide(candidate.file, caps, candidateOptions);
+        if (candidateDecision && candidateDecision.compatible !== false) {
+          loaded = candidate;
+          file = candidate.file;
+          decision = candidateDecision;
+          break;
+        }
+      }
+    }
+    if (!loaded.optimization && !loaded.abs) throw new HttpError(404, 'Media file is no longer available. Try rescanning the library.');
     if (!decision) throw new HttpError(415, 'This file cannot be played.');
-    const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, file.id)).all();
+    if (loaded.optimization) decision = withOptimization(decision, loaded.optimization);
+    const sourceFile = loaded.sourceFile;
+    const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, sourceFile.id)).all();
     const analysis = analyzePlayback(file, caps, decision, ua, confidence, lang, request.appDevice);
     // Pieces (HLS) only for converted video, which is cut on a fixed grid. Copied video would need
     // the file's keyframes first, and listing them reads the whole file: on a NAS that takes minutes
     // and starves the stream being watched. Copied video keeps the live stream.
     const hlsUrl = decision.hlsUrl?.includes('vt=1') ? decision.hlsUrl : undefined;
-    return { decision: { ...decision, hlsUrl, mode: analysis.mode }, analysis, file: fileInfo(file, external), subtitles: subtitleList(file, request.user!), onlineSubtitles: ctx.openSubtitles.configured };
+    return { decision: { ...decision, hlsUrl, mode: analysis.mode }, analysis, file: fileInfo(file, external, sourceFile), subtitles: subtitleList(sourceFile, request.user!), onlineSubtitles: ctx.openSubtitles.configured };
   });
 
   /**
@@ -192,13 +262,31 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
    * address; the Chromecast itself is checked like any viewer (home network or remote access).
    */
   app.post('/api/cast/session', { preHandler: requireUser }, async (request) => {
-    const body = z.object({ fileId: z.number().int().positive(), audioIndex: z.number().int().min(0).max(1000).optional() }).parse(request.body);
-    const loaded = loadFile(String(body.fileId), request.user!);
-    const file = await ensureVideoDetails(loaded.file, loaded.abs);
+    const body = z.object({ fileId: z.number().int().positive(), audioIndex: z.number().int().min(0).max(1000).optional(), optimizationId: z.number().int().positive().optional() }).parse(request.body);
+    const source = loadFile(String(body.fileId), request.user!);
+    let loaded = body.optimizationId === undefined ? source : loadFile(String(body.fileId), request.user!, body.optimizationId);
+    let file = await ensureVideoDetails(loaded.file, loaded.abs);
     if (body.audioIndex !== undefined && !(file.audioTracks ?? []).some((t) => t.index === body.audioIndex)) throw new HttpError(400, 'Unknown audio track.');
     const lang = requestLanguage(request);
-    const decision = ctx.playback.decide(file, CHROMECAST_CAPS, { audioIndex: body.audioIndex, audioChannels: 'stereo', lang });
+    const options = { audioIndex: body.audioIndex, audioChannels: 'stereo' as const, lang };
+    let decision = ctx.playback.decide(file, CHROMECAST_CAPS, options);
+    if (!loaded.optimization && needsCompatibilityCopy(decision)) {
+      for (const ready of ctx.optimizations.findReadyVariants(file.id, file.size, file.mtimeMs)) {
+        const candidate = loadFile(String(body.fileId), request.user!, ready.id);
+        const candidateAudioIndex = body.audioIndex === undefined ? undefined : variantAudioIndex(source.sourceFile, candidate.file, body.audioIndex);
+        if (body.audioIndex !== undefined && candidateAudioIndex === null) continue;
+        const candidateOptions = { ...options, ...(typeof candidateAudioIndex === 'number' ? { audioIndex: candidateAudioIndex } : {}) };
+        const candidateDecision = ctx.playback.decide(candidate.file, CHROMECAST_CAPS, candidateOptions);
+        if (candidateDecision && candidateDecision.compatible !== false) {
+          loaded = candidate;
+          file = candidate.file;
+          decision = candidateDecision;
+          break;
+        }
+      }
+    }
     if (!decision || decision.compatible === false) throw new HttpError(415, 'This file cannot be played on a Chromecast without converting the video. An administrator can turn on video conversion (Admin → Server).');
+    if (loaded.optimization) decision = withOptimization(decision, loaded.optimization);
     const castDecision = decision.engine === 'direct'
       ? decision
       : { ...decision, streamUrl: decision.streamUrl.replace(/\/remux(?=\?)/, '/hls/index.m3u8'), seek: 'range' as const };
@@ -216,7 +304,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       decision: castDecision,
       contentType: decision.engine === 'direct' ? (file.container === 'webm' ? 'video/webm' : 'video/mp4') : 'application/vnd.apple.mpegurl',
       // Text subtitles only (a Chromecast shows WebVTT), from this file.
-      subtitles: subtitleList(file, request.user!).filter((s) => s.kind === 'external' || s.kind === 'embedded'),
+      subtitles: subtitleList(loaded.sourceFile, request.user!).filter((s) => s.kind === 'external' || s.kind === 'embedded'),
     };
   });
 
@@ -237,7 +325,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   // Live remux: video copied, audio converted when needed. Seeking = request again with ?start=.
   app.get<{ Params: { id: string } }>('/api/media/:id/remux', { preHandler: [requireUser, remoteGate] }, async (request, reply) => {
-    const { file, abs } = loadFile(request.params.id, request.user!);
+    const { file, abs } = loadFile(request.params.id, request.user!, optimizationId(request.query));
     // A HEAD request only asks whether the stream exists: never start FFmpeg for it.
     if (request.method === 'HEAD') return reply.code(200).header('Content-Type', 'video/mp4').header('Accept-Ranges', 'none').send();
     const q = request.query as Record<string, string | undefined>;
@@ -253,7 +341,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if ('error' in parsed) throw new HttpError(400, parsed.error);
     let encode: VideoEncode | null = null;
     const vt = q.vt === '1';
-    const key = `${request.user!.id}:${file.id}:${remuxQueryKey(parsed.plan, vt)}`;
+    const key = `${request.user!.id}:${file.id}:${file.size}:${file.mtimeMs}:${remuxQueryKey(parsed.plan, vt)}`;
     if (vt) {
       const t = ctx.transcoding.current();
       if (!t) throw new HttpError(403, 'Video conversion is turned off on this server.');
@@ -267,7 +355,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return { key, input: abs, videoCodec: file.videoCodec, plan: parsed.plan, layout, encode };
   }
   const hlsLoad = (request: FastifyRequest<{ Params: { id: string } }>) => {
-    const { file, abs } = loadFile(request.params.id, request.user!);
+    const { file, abs } = loadFile(request.params.id, request.user!, optimizationId(request.query));
     if (!file.durationSec) throw new HttpError(409, 'The length of this file is not known yet. Try again after the next scan.');
     return { file, abs };
   };
@@ -278,7 +366,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const q = request.query as RemuxQuery;
     ctx.streams.touch(request.user!, file.id, q.vt === '1' ? 'transcode' : 'remux', deviceLabel(request), remuxAudioLabel(q as Record<string, string | undefined>));
     const castToken = (request.query as RemuxQuery & { cast?: unknown }).cast;
-    const query = `${remuxQueryKey(src.plan, q.vt === '1')}${typeof castToken === 'string' ? `&cast=${encodeURIComponent(castToken)}` : ''}`;
+    const optimized = optimizationId(request.query);
+    const query = `${remuxQueryKey(src.plan, q.vt === '1')}${optimized ? `&optimized=${optimized}` : ''}${typeof castToken === 'string' ? `&cast=${encodeURIComponent(castToken)}` : ''}`;
     return reply.type('application/vnd.apple.mpegurl').header('Cache-Control', 'no-store').send(hlsPlaylist(src.layout, query));
   });
 
@@ -309,7 +398,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
    * and treats `start` as stream time 0, so the clock and subtitles line up with the picture.
    */
   app.get<{ Params: { id: string }; Querystring: { t?: string } }>('/api/media/:id/keyframe', { preHandler: requireUser }, async (request) => {
-    const { file, abs } = loadFile(request.params.id, request.user!);
+    const { file, abs } = loadFile(request.params.id, request.user!, optimizationId(request.query));
     const t = Number(request.query.t ?? 0);
     if (!Number.isFinite(t) || t < 0) throw new HttpError(400, 'Invalid time.');
     const target = file.durationSec ? Math.min(t, Math.max(0, file.durationSec - 1)) : t;

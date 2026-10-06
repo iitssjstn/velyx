@@ -36,7 +36,7 @@ export interface CastSession {
   serverUrl: string | null;
   expiresAt: number;
   contentType: string;
-  decision: { engine: string; streamUrl: string; seek: 'range' | 'restart'; durationSec: number | null };
+  decision: { engine: string; streamUrl: string; seek: 'range' | 'restart'; durationSec: number | null; optimized?: { id: number; profile: 'compat-720p' | 'compat-1080p' } };
   subtitles: CastSubtitle[];
 }
 
@@ -98,6 +98,7 @@ export function loadCastSdk(): Promise<any | null> {
 export interface CastItem {
   fileId: number;
   audioIndex: number | null;
+  optimizationId?: number;
   title: string;
   subtitle?: string | null;
   posterPath?: string | null;
@@ -173,7 +174,7 @@ export function useCast(item: CastItem | null) {
       if (!it || !castSession) return;
       const chromeCast = w.chrome.cast;
       const audioIndex = audioOverride === undefined ? it.audioIndex : audioOverride;
-      if (!session.current || session.current.expiresAt < Date.now() + 60_000 || audioOverride !== undefined) session.current = await api.post<CastSession>('/api/cast/session', { fileId: it.fileId, ...(audioIndex !== null ? { audioIndex } : {}) });
+      if (!session.current || session.current.expiresAt < Date.now() + 60_000 || audioOverride !== undefined) session.current = await api.post<CastSession>('/api/cast/session', { fileId: it.fileId, ...(audioIndex !== null ? { audioIndex } : {}), ...(it.optimizationId ? { optimizationId: it.optimizationId } : {}) });
       const s = session.current;
       const base = castBase(window.location.origin, s);
       let start = 0;

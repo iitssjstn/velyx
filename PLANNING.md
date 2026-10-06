@@ -9,8 +9,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.22** (PR #99): JSON-LD voor de publieke site. Release `v0.19.22`
-  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
+- Laatste release: **0.19.23** (PR #100): Sonarr/Radarr-integratie. Release `v0.19.23`
+  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.22 (PR #99, JSON-LD voor de publieke site),
+  0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
   0.19.19 (PR #96, Seerr-filters op Films en Series), 0.19.18 (PR #95, Genres-dropdown en catalogusfilters),
   0.19.17 (PR #94, Home-hero en Seerr in Films/Series), 0.19.16 (PR #93, desktop/tablet topnav en
   gecombineerde genrepagina), 0.19.15 (PR #92, genrepagina's voor bibliotheek en Seerr), 0.19.14 (PR #91,
@@ -168,13 +169,29 @@ PR #99 is gemerged en release `v0.19.22` is gecontroleerd (APK + beide `.deb`'s)
 ### Gestructureerde metadata voor publieke pagina's
 - JSON-LD voor `SoftwareApplication` en `Organization` met releaseversie, besturingssystemen en het bestaande prijsbereik.
 
-## Volgende versie
+## Versie 0.19.23
 
-### 0.19.23: Sonarr- en Radarr-integratie
+PR #100 is gemerged en release `v0.19.23` is gecontroleerd (APK + beide `.deb`'s).
+
+### Sonarr- en Radarr-integratie
 - Optionele integraties, alleen voor beheerders; API-sleutels worden uitsluitend op de server bewaard.
 - Verbinding testen en bestaande films/series met status tonen; directe link naar de betreffende dienst.
 - Verwijderen via Vidalune; bestanden standaard behouden en alleen wissen na expliciete bevestiging.
-- Daarna opnemen als optionele stappen in Quick Setup.
+
+## Versie 0.19.24
+
+### Blijvend geoptimaliseerde kopieën
+- Maak per film of aflevering een extra H.264/AAC-MP4-kopie op een compatibel profiel (720p of 1080p); laat het origineel onaangeroerd.
+- Sla kopieën op in de Vidalune-datamap, buiten de gescande bibliotheek; valideer de bronfingerprint en verwijder verouderde kopieën veilig.
+- Zet werk serieel en met lage CPU-prioriteit in de wachtrij; pauzeer tijdens scans of playback en toon voortgang/fouten.
+- Gebruik een opgeslagen kopie automatisch als afspeelapparaat anders live videotranscoding nodig heeft; behoud audiokeuze, ondertitels, seek, HLS en Chromecast.
+- Test met een volledige film op zwakke hardware; Quick Setup volgt hierna.
+
+## Volgende versie
+
+### 0.19.25: Quick Setup
+- Begeleid de beheerder door bestaande bibliotheken, TMDB, ondertiteling, relay, Seerr, Sonarr en Radarr.
+- Herken bestaande configuratie, maak optionele stappen overslaan en later hervatten, en behoud de instellingen van Docker- en `.deb`-installaties.
 
 ## Gemeld tijdens het testen
 

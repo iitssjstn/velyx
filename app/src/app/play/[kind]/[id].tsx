@@ -247,11 +247,11 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
       setLoading(true);
       let s = castSession.current;
       if (!s || !sessionUsable(s.session, audio, s.audio)) {
-        const session = await api.post<CastSession>('/api/cast/session', { fileId: item.fileId, ...(audio !== null ? { audioIndex: audio } : {}) });
+        const session = await api.post<CastSession>('/api/cast/session', { fileId: item.fileId, ...(audio !== null ? { audioIndex: audio } : {}), ...(answer?.file.id === item.fileId && answer.decision.optimized ? { optimizationId: answer.decision.optimized.id } : {}) });
         s = castSession.current = { session, audio };
       }
       // A repackaged stream starts at the keyframe before `at`.
-      const keyframe = s.session.decision.seek === 'restart' && at > 0 ? await api.get<{ start: number; seek: number }>(`/api/media/${item.fileId}/keyframe?t=${at.toFixed(3)}`).then((r) => ({ offset: r.start, seek: r.seek })) : null;
+      const keyframe = s.session.decision.seek === 'restart' && at > 0 ? await api.get<{ start: number; seek: number }>(`/api/media/${item.fileId}/keyframe?t=${at.toFixed(3)}${s.session.decision.optimized ? `&optimized=${s.session.decision.optimized.id}` : ''}`).then((r) => ({ offset: r.start, seek: r.seek })) : null;
       const { request, offset: from } = castLoadRequest({ session: s.session, url: (path) => api.url(path), title: item.title, subtitle: item.subtitle, artwork: imagePath(item.poster ?? item.artwork, 'w780'), at, keyframe, subtitleKey: subtitleRef.current?.key ?? null, subtitleStyle: subStyle });
       setOffset(from);
       setTime(Math.max(0, at - from));
@@ -277,7 +277,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
           await castLoad(at, wantedAudio);
           return;
         }
-        const caps = { ...capsRef.current, ...(wantedAudio !== undefined ? { audioIndex: wantedAudio } : {}) };
+        const caps = { ...capsRef.current, ...(wantedAudio !== undefined ? { audioIndex: wantedAudio } : {}), ...(answer?.file.id === item.fileId && answer.decision.optimized ? { optimizationId: answer.decision.optimized.id } : {}) };
         const a = await api.post<PlaybackAnswer>(`/api/media/${item.fileId}/playback`, caps);
         if (a.analysis.mode === 'unsupported') {
           setProblem([t('player.cannotPlay'), ...a.analysis.problems].join('\n\n'));
