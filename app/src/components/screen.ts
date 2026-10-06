@@ -16,16 +16,25 @@ export function appOrientation(): void {
   else void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(ignore);
 }
 
+/** The cast remote is upright on a phone; tablets keep their preferred orientation. */
+export function castRemoteOrientation(): void {
+  NavigationBar.setHidden(false);
+  appOrientation();
+}
+
+/** Local video playback remains landscape and immersive. */
+export function playbackOrientation(): void {
+  void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(ignore);
+  NavigationBar.setHidden(true);
+}
+
 /**
  * The player's screen: landscape without the navigation bar. The bar is switched directly: the
  * <NavigationBar hidden /> component makes "hidden" its default, so the bar stayed away after
  * playback and the tab bar moved into its place.
  */
 export const playerScreenState = playerScreen({
-  player() {
-    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(ignore);
-    NavigationBar.setHidden(true);
-  },
+  player: playbackOrientation,
   app() {
     NavigationBar.setHidden(false);
     appOrientation();

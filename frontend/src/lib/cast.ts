@@ -117,6 +117,8 @@ export interface CastState {
   /** Position in the file (seconds). */
   time: number;
   playing: boolean;
+  volume: number;
+  muted: boolean;
   error: string | null;
 }
 
@@ -125,7 +127,7 @@ export interface CastState {
  * (a repackaged stream is loaded again from the new spot), and the position while it plays.
  */
 export function useCast(item: CastItem | null) {
-  const [state, setState] = useState<CastState>({ available: false, active: false, device: null, time: 0, playing: false, error: null });
+  const [state, setState] = useState<CastState>({ available: false, active: false, device: null, time: 0, playing: false, volume: 1, muted: false, error: null });
   const framework = useRef<any>(null);
   const player = useRef<any>(null);
   const controller = useRef<any>(null);
@@ -151,6 +153,8 @@ export function useCast(item: CastItem | null) {
       const c = controller.current;
       c.addEventListener(f.RemotePlayerEventType.CURRENT_TIME_CHANGED, () => setState((st) => ({ ...st, time: offset.current + (player.current.currentTime ?? 0) })));
       c.addEventListener(f.RemotePlayerEventType.IS_PAUSED_CHANGED, () => setState((st) => ({ ...st, playing: !player.current.isPaused })));
+      c.addEventListener(f.RemotePlayerEventType.VOLUME_LEVEL_CHANGED, () => setState((st) => ({ ...st, volume: player.current.volumeLevel ?? st.volume })));
+      c.addEventListener(f.RemotePlayerEventType.IS_MUTED_CHANGED, () => setState((st) => ({ ...st, muted: Boolean(player.current.isMuted) })));
       c.addEventListener(f.RemotePlayerEventType.IS_CONNECTED_CHANGED, () => {
         if (!player.current.isConnected) setState((st) => ({ ...st, active: false, device: null }));
       });
@@ -162,13 +166,14 @@ export function useCast(item: CastItem | null) {
 
   /** Loads the file on the Chromecast from `at` (seconds in the file). */
   const load = useCallback(
-    async (at: number) => {
+    async (at: number, audioOverride?: number | null) => {
       const it = itemRef.current;
       const f = framework.current;
       const castSession = f?.CastContext.getInstance().getCurrentSession();
       if (!it || !castSession) return;
       const chromeCast = w.chrome.cast;
-      if (!session.current || session.current.expiresAt < Date.now() + 60_000) session.current = await api.post<CastSession>('/api/cast/session', { fileId: it.fileId, ...(it.audioIndex !== null ? { audioIndex: it.audioIndex } : {}) });
+      const audioIndex = audioOverride === undefined ? it.audioIndex : audioOverride;
+      if (!session.current || session.current.expiresAt < Date.now() + 60_000 || audioOverride !== undefined) session.current = await api.post<CastSession>('/api/cast/session', { fileId: it.fileId, ...(audioIndex !== null ? { audioIndex } : {}) });
       const s = session.current;
       const base = castBase(window.location.origin, s);
       let start = 0;
@@ -205,7 +210,7 @@ export function useCast(item: CastItem | null) {
       const chosen = s.subtitles.findIndex((sub) => sub.key === it.subtitleKey);
       request.activeTrackIds = chosen >= 0 ? [chosen + 1] : [];
       await castSession.loadMedia(request);
-      setState((st) => ({ ...st, active: true, device: castSession.getCastDevice()?.friendlyName ?? null, time: at, playing: true, error: null }));
+      setState((st) => ({ ...st, active: true, device: castSession.getCastDevice()?.friendlyName ?? null, time: at, playing: true, volume: player.current.volumeLevel ?? st.volume, muted: Boolean(player.current.isMuted), error: null }));
     },
     [],
   );
@@ -237,6 +242,32 @@ export function useCast(item: CastItem | null) {
 
   const togglePlay = useCallback(() => controller.current?.playOrPause(), []);
 
+  const setVolume = useCallback((value: number) => {
+    if (!player.current || !controller.current) return;
+    const volume = Math.min(1, Math.max(0, value));
+    player.current.volumeLevel = volume;
+    controller.current.setVolumeLevel();
+    setState((st) => ({ ...st, volume }));
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    if (!player.current || !controller.current) return;
+    controller.current.muteOrUnmute();
+    setState((st) => ({ ...st, muted: !st.muted }));
+  }, []);
+
+  const setAudio = useCallback((at: number, audioIndex: number | null) => {
+    session.current = null;
+    return load(at, audioIndex);
+  }, [load]);
+
+  const setSubtitle = useCallback((key: string | null) => {
+    if (!session.current || !player.current || !controller.current) return;
+    const index = session.current.subtitles.findIndex((subtitle) => subtitle.key === key);
+    player.current.activeTrackIds = index >= 0 ? [index + 1] : [];
+    controller.current.setActiveTrackIds();
+  }, []);
+
   const seek = useCallback(
     (target: number) => {
       const s = session.current;
@@ -253,6 +284,6 @@ export function useCast(item: CastItem | null) {
     [load],
   );
 
-  return { ...state, start, stop, togglePlay, seek, reload: load };
+  return { ...state, start, stop, togglePlay, seek, setVolume, toggleMute, setAudio, setSubtitle, reload: load };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */

@@ -9,9 +9,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { CastButton, CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, useMediaStatus, useRemoteMediaClient } from 'react-native-google-cast';
 import { deviceDecoders } from '../../../../modules/vidalune-codecs';
+import { Artwork } from '../../../components/media';
 import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
-import { playerScreenState } from '../../../components/screen';
+import { castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
 import { castLoadRequest, castTrackIds, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
@@ -41,6 +42,7 @@ interface Item {
   subtitle: string | null;
   /** Artwork shown on the TV while casting. */
   artwork: string | null;
+  poster: string | null;
   progress: { positionSec: number; durationSec: number; completed: boolean } | null;
   next: NextEpisode | null;
   segments: EpisodeSegments | null;
@@ -60,6 +62,7 @@ const DOUBLE_TAP_MS = 300;
 export default function Player() {
   const { kind, id, t: startParam } = useLocalSearchParams<{ kind: string; id: string; t?: string }>();
   const { api, t, serverUrl } = useSession();
+  const [castActive, setCastActive] = useState(false);
 
   const item = useQuery({
     queryKey: [serverUrl, 'play-item', kind, id],
@@ -73,11 +76,11 @@ export default function Player() {
       if (kind === 'episode') {
         const e = await api.get<{ id: number; showTitle: string; seasonNumber: number; episodeNumber: number; title: string | null; stillPath?: string | null; showBackdropPath?: string | null; files: { id: number }[]; progress: Item['progress']; next: NextEpisode | null; segments?: EpisodeSegments | null }>(`/api/episodes/${id}`);
         if (!e.files[0]) throw new Error(t('player.cannotPlay'));
-        return { kind: 'episode', id: e.id, fileId: e.files[0].id, title: e.showTitle, subtitle: [episodeCode(e.seasonNumber, e.episodeNumber), e.title].filter(Boolean).join(' · '), artwork: e.stillPath ?? e.showBackdropPath ?? null, progress: e.progress, next: e.next, segments: e.segments ?? null };
+        return { kind: 'episode', id: e.id, fileId: e.files[0].id, title: e.showTitle, subtitle: [episodeCode(e.seasonNumber, e.episodeNumber), e.title].filter(Boolean).join(' · '), artwork: e.stillPath ?? e.showBackdropPath ?? null, poster: e.showPosterPath ?? null, progress: e.progress, next: e.next, segments: e.segments ?? null };
       }
       const m = await api.get<{ id: number; title: string; year: number | null; backdropPath?: string | null; posterPath?: string | null; files: { id: number }[]; progress: Item['progress'] }>(`/api/movies/${id}`);
       if (!m.files[0]) throw new Error(t('player.cannotPlay'));
-      return { kind: 'movie', id: m.id, fileId: m.files[0].id, title: m.title, subtitle: m.year ? String(m.year) : null, artwork: m.backdropPath ?? m.posterPath ?? null, progress: m.progress, next: null, segments: null };
+      return { kind: 'movie', id: m.id, fileId: m.files[0].id, title: m.title, subtitle: m.year ? String(m.year) : null, artwork: m.backdropPath ?? m.posterPath ?? null, poster: m.posterPath ?? null, progress: m.progress, next: null, segments: null };
     },
   });
   const prefs = useQuery({ queryKey: [serverUrl, 'account-prefs'], queryFn: () => api.get<Prefs>('/api/account/preferences') });
@@ -92,11 +95,11 @@ export default function Player() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <Stack.Screen options={{ headerShown: false, animation: 'fade' }} />
-      <StatusBar hidden />
+      <StatusBar hidden={!castActive} />
       {item.error ? (
         <Problem message={errorMessage(item.error, t)} />
       ) : item.data && !prefs.isLoading ? (
-        <Playback key={`${item.data.kind}-${item.data.id}`} item={item.data} prefs={prefs.data ?? null} startAt={startParam !== undefined ? Number(startParam) : null} />
+        <Playback key={`${item.data.kind}-${item.data.id}`} item={item.data} prefs={prefs.data ?? null} startAt={startParam !== undefined ? Number(startParam) : null} onCastingChange={setCastActive} />
       ) : (
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} size="large" />
@@ -116,7 +119,7 @@ function Problem({ message }: { message: string }) {
   );
 }
 
-function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; startAt: number | null }) {
+function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs: Prefs | null; startAt: number | null; onCastingChange: (active: boolean) => void }) {
   const { api, t, serverUrl, language } = useSession();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
@@ -228,6 +231,11 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
   }, [client]);
   const [casting, setCasting] = useState(false);
   const castingRef = useRef(false);
+  useEffect(() => { onCastingChange(casting); }, [casting, onCastingChange]);
+  useEffect(() => {
+    if (casting) castRemoteOrientation();
+    else playbackOrientation();
+  }, [casting]);
   const castSession = useRef<{ session: CastSession; audio: number | null } | null>(null);
   const subtitleRef = useRef<SubtitleOption | null>(null);
   subtitleRef.current = subtitle;
@@ -244,7 +252,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
       }
       // A repackaged stream starts at the keyframe before `at`.
       const keyframe = s.session.decision.seek === 'restart' && at > 0 ? await api.get<{ start: number; seek: number }>(`/api/media/${item.fileId}/keyframe?t=${at.toFixed(3)}`).then((r) => ({ offset: r.start, seek: r.seek })) : null;
-      const { request, offset: from } = castLoadRequest({ session: s.session, url: (path) => api.url(path), title: item.title, subtitle: item.subtitle, artwork: imagePath(item.artwork, 'w780'), at, keyframe, subtitleKey: subtitleRef.current?.key ?? null, subtitleStyle: subStyle });
+      const { request, offset: from } = castLoadRequest({ session: s.session, url: (path) => api.url(path), title: item.title, subtitle: item.subtitle, artwork: imagePath(item.poster ?? item.artwork, 'w780'), at, keyframe, subtitleKey: subtitleRef.current?.key ?? null, subtitleStyle: subStyle });
       setOffset(from);
       setTime(Math.max(0, at - from));
       setEnded(false);
@@ -690,8 +698,29 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
           </View>
         )}
       </Pressable>
+      {casting && (
+        <CastRemotePanel
+          title={item.title}
+          subtitle={item.subtitle}
+          device={castDevice?.friendlyName ?? null}
+          artwork={item.poster ?? item.artwork}
+          position={position}
+          duration={duration}
+          playing={playing}
+          volume={mediaStatus?.volume ?? 1}
+          muted={mediaStatus?.isMuted ?? false}
+          insets={insets}
+          onSeek={seekTo}
+          onTogglePlay={toggle}
+          onOpenTracks={() => setMenu(true)}
+          onStop={() => void CastContext.getSessionManager().endCurrentSession(true)}
+          onVolume={(value) => void client?.setStreamVolume(value).catch(() => undefined)}
+          onToggleMute={() => void client?.setStreamMuted(!(mediaStatus?.isMuted ?? false)).catch(() => undefined)}
+          onChangeDevice={() => void openCastDialog(() => CastContext.showCastDialog(), (e) => Alert.alert(t('player.castFailed'), typeof e === 'string' ? t(e) : errorMessage(e, t)))}
+        />
+      )}
       {/* Skip intro / credits: visible with or without the controls, above them. */}
-      {askSkip && !showNext && (
+      {askSkip && !showNext && !casting && (
         <View style={{ position: 'absolute', right: 24 + insets.right, bottom: (controls ? 110 : 32) + insets.bottom }}>
           <Button
             label={askSkip.kind === 'recap' ? t('player.skipRecap') : askSkip.kind === 'intro' ? t('player.skipIntro') : t('player.skipCredits')}
@@ -702,7 +731,7 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
           />
         </View>
       )}
-      {showNext && item.next && (
+      {showNext && item.next && !casting && (
         <View style={{ position: 'absolute', right: 24 + insets.right, bottom: (controls ? 110 : 32) + insets.bottom, width: 300, maxWidth: '80%', backgroundColor: 'rgba(20,18,28,0.92)', borderRadius: radius.lg, padding: 14, gap: 10, borderWidth: 1, borderColor: colors.line }}>
           <Text style={{ color: colors.muted, fontSize: 13 }}>{t('player.next')}</Text>
           <Text style={{ color: colors.ink, fontWeight: '700' }} numberOfLines={2}>
@@ -758,6 +787,8 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
                   }}
                 />
               ) : null}
+              {!casting && <>
+              {!casting && <>
               <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('player.seekStep')}</Text>
               <Segmented
                 label={t('player.seekStepHint')}
@@ -788,7 +819,93 @@ function Playback({ item, prefs, startAt }: { item: Item; prefs: Prefs | null; s
                 onPlus={() => setSubDelay((d) => stepDelay(d, 1))}
                 onReset={subDelay !== 0 ? () => setSubDelay(0) : undefined}
               />
+              </>}
+              </>}
             </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
+function CastRemotePanel({ title, subtitle, device, artwork, position, duration, playing, volume, muted, insets, onSeek, onTogglePlay, onOpenTracks, onStop, onVolume, onToggleMute, onChangeDevice }: {
+  title: string;
+  subtitle: string | null;
+  device: string | null;
+  artwork: string | null;
+  position: number;
+  duration: number;
+  playing: boolean;
+  volume: number;
+  muted: boolean;
+  insets: { top: number; bottom: number; left: number; right: number };
+  onSeek: (time: number) => void;
+  onTogglePlay: () => void;
+  onOpenTracks: () => void;
+  onStop: () => void;
+  onVolume: (volume: number) => void;
+  onToggleMute: () => void;
+  onChangeDevice: () => void;
+}) {
+  const { t } = useSession();
+  const [volumeOpen, setVolumeOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const action = { minWidth: 76, minHeight: 60, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 4, paddingHorizontal: 8, borderRadius: radius.md };
+  return (
+    <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 100, elevation: 100, backgroundColor: colors.bg, paddingTop: 12 + insets.top, paddingBottom: 12 + insets.bottom, paddingLeft: 18 + insets.left, paddingRight: 18 + insets.right }}>
+      <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+        <Feather name="cast" size={18} color={colors.accent} />
+        <View style={{ alignItems: 'center', flex: 1 }}>
+          <Text style={{ color: colors.faint, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>{t('player.castRemote').toUpperCase()}</Text>
+          <Text style={{ color: colors.ink, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{device ?? t('player.casting')}</Text>
+        </View>
+        <IconButton name="cast" label={t('player.cast')} onPress={onChangeDevice} />
+      </View>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'space-evenly', paddingVertical: 12 }}>
+        <Artwork path={artwork} size="w780" label={title} style={{ width: 184, height: 276, borderRadius: radius.lg }} />
+        <View style={{ alignItems: 'center', gap: 4 }}>
+          <Text style={{ color: colors.ink, fontSize: 21, fontWeight: '800', textAlign: 'center' }} numberOfLines={2}>{title}</Text>
+          {subtitle ? <Text style={{ color: colors.muted, fontSize: 14 }}>{subtitle}</Text> : null}
+        </View>
+        <View style={{ width: '100%', maxWidth: 520, gap: 4 }}>
+          <SeekBar position={position} duration={duration} onScrub={() => undefined} onSeek={onSeek} label={t('player.seek')} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={{ color: colors.ink, fontSize: 12 }}>{formatClock(position)}</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>{formatClock(duration)}</Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 22 }}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('player.backSeconds', { n: 10 })} onPress={() => onSeek(Math.max(0, position - 10))} style={({ pressed }) => [{ width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 29, backgroundColor: pressed ? colors.raised : 'transparent' }]}>
+            <Feather name="rotate-ccw" size={25} color={colors.ink} /><Text style={{ position: 'absolute', color: colors.ink, fontSize: 9, fontWeight: '800' }}>10</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={playing ? t('player.pause') : t('player.play')} onPress={onTogglePlay} style={({ pressed }) => [{ width: 76, height: 76, alignItems: 'center', justifyContent: 'center', borderRadius: 38, backgroundColor: pressed ? colors.raised : colors.ink }]}>
+            <Feather name={playing ? 'pause' : 'play'} size={34} color={colors.bg} />
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('player.forwardSeconds', { n: 10 })} onPress={() => onSeek(Math.min(duration, position + 10))} style={({ pressed }) => [{ width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 29, backgroundColor: pressed ? colors.raised : 'transparent' }]}>
+            <Feather name="rotate-cw" size={25} color={colors.ink} /><Text style={{ position: 'absolute', color: colors.ink, fontSize: 9, fontWeight: '800' }}>10</Text>
+          </Pressable>
+        </View>
+      </View>
+      {volumeOpen && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: colors.line, paddingVertical: 6 }}>
+          <IconButton name={muted ? 'volume-x' : 'volume-2'} label={muted ? t('player.unmute') : t('player.volume')} onPress={onToggleMute} />
+          <View style={{ flex: 1 }}><SeekBar position={muted ? 0 : volume} duration={1} onScrub={() => undefined} onSeek={onVolume} label={t('player.volume')} /></View>
+        </View>
+      )}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-around', borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 5 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('player.volume')} onPress={() => setVolumeOpen((v) => !v)} style={action}><Feather name={muted ? 'volume-x' : 'volume-2'} size={21} color={colors.ink} /><Text style={{ color: colors.muted, fontSize: 11 }}>{t('player.volume')}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('player.audioSubtitles')} onPress={onOpenTracks} style={action}><Feather name="message-square" size={21} color={colors.ink} /><Text style={{ color: colors.muted, fontSize: 11 }}>{t('player.audioSubtitles')}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('player.more')} onPress={() => setMoreOpen(true)} style={action}><Feather name="more-horizontal" size={21} color={colors.ink} /><Text style={{ color: colors.muted, fontSize: 11 }}>{t('player.more')}</Text></Pressable>
+      </View>
+      <Modal visible={moreOpen} transparent statusBarTranslucent animationType="slide" onRequestClose={() => setMoreOpen(false)}>
+        <Pressable onPress={() => setMoreOpen(false)} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <Pressable onPress={() => undefined} style={{ backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: 22, paddingBottom: 24 + insets.bottom, gap: 12 }}>
+            <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '700' }}>{t('player.more')}</Text>
+            <Text style={{ color: colors.muted }}>{device ? t('player.castingTo', { device }) : t('player.casting')}</Text>
+            <Pressable accessibilityRole="button" onPress={() => { setMoreOpen(false); onStop(); }} style={{ minHeight: 52, justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.danger, paddingHorizontal: 16 }}>
+              <Text style={{ color: colors.ink, fontWeight: '700', textAlign: 'center' }}>{t('player.stopCasting')}</Text>
+            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
