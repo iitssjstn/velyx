@@ -147,6 +147,7 @@ PR #96 is gemerged en release `v0.19.19` is compleet (APK + beide `.deb`-bestand
 Seerr-catalogusfilters ondersteunen genre, jaar en minimumbeoordeling; lokale kijk-/bestandsfilters zijn uitgeschakeld.
 
 ## Versie 0.19.21
+PR #98 is gemerged. Deze versie bevat de cast-remote-fixes en de basis voor publieke SEO.
 
 ### Mobiele cast-afstandsbediening en SEO-basis
 - Op mobiel tijdens casten een remote-layout tonen in plaats van een lege/lokale videoweergave; desktopbediening behouden.
@@ -158,6 +159,12 @@ Seerr-catalogusfilters ondersteunen genre, jaar en minimumbeoordeling; lokale ki
 - In de app dezelfde bediening, inclusief echte receiver-volume/mute en portraitweergave tijdens casten.
 - Lokale playback-specifieke instellingen niet tonen in de remote; normale app/webnavigatie behouden waar passend.
 - Ondersteun Engels en Nederlands; lokale tests/builds worden niet uitgevoerd op de ontwikkel-pc; GitHub CI verifieert de PR.
+
+## Volgende versie
+
+### 0.19.22: gestructureerde metadata voor publieke pagina's
+- Voeg JSON-LD voor `SoftwareApplication` en `Organization` toe met releaseversie, besturingssystemen en het bestaande prijsbereik.
+- Dek de JSON-LD af met een routetest.
 
 ## Gemeld tijdens het testen
 
@@ -241,8 +248,7 @@ Seerr-catalogusfilters ondersteunen genre, jaar en minimumbeoordeling; lokale ki
 - **SEO van vidalune.com moet echt heel goed** (Vidalune moet op Google te vinden zijn). De eerste
   technische basis staat; inhoud en verdere verrijking ontbreken nog:
   - Update 6 okt: `robots.txt` en `sitemap.xml` zijn toegevoegd. De sitemap bevat alleen home en installeren in NL/EN met `hreflang`; account-shell, app en relay-hosts worden uitgesloten. Home en installeren hebben canonicals, `hreflang` en unieke descriptions. Android-downloads zijn bewust geen sitemap-pagina.
-  - Open Graph/Twitter-afbeelding en JSON-LD (`SoftwareApplication` + `Organization` met versie,
-    besturingssystemen en prijs);
+  - Nog open: Open Graph/Twitter-afbeelding;
   - snelle laadtijd en goede Core Web Vitals (afbeeldingen met maten, geen blokkerende scripts);
   - goede koppen (één `h1`) en alt-teksten; meer inhoud: pagina's per functie, FAQ en handleidingen
     (zoekwoorden als "eigen mediaserver", "films en series zelf hosten", "media server NAS");
