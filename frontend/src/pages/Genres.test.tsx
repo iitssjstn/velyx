@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
@@ -103,5 +103,41 @@ describe('genre categories', () => {
   it('reports when Seerr is disabled', async () => {
     setup('/genres?scope=seerr&kind=movies', (url) => url === '/api/seerr' ? { enabled: false } : null);
     expect(await screen.findByText('Seerr is not connected')).toBeTruthy();
+  });
+
+  it('loads the next page when the results sentinel becomes visible', async () => {
+    let intersectionCallback: IntersectionObserverCallback | undefined;
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: IntersectionObserverCallback) {
+        intersectionCallback = callback;
+      }
+      observe() {}
+      disconnect() {}
+    });
+
+    const calls = setup('/genres?scope=all&kind=movies&localGenre=4', (url) => {
+      if (url === '/api/genres?type=movies') return [{ id: 4, name: 'Drama', count: 61 }];
+      if (url === '/api/seerr') return { enabled: false };
+      if (url.includes('/api/movies?page=1&')) return {
+        items: [{ type: 'movie', id: 1, title: 'First page', year: 2024, posterPath: null, backdropPath: null, rating: null, runtime: 90, overview: null, genres: ['Drama'], addedAt: 0, progress: null, favorite: false }],
+        total: 61,
+        page: 1,
+        pageSize: 60,
+      };
+      if (url.includes('/api/movies?page=2&')) return {
+        items: [{ type: 'movie', id: 2, title: 'Next page', year: 2023, posterPath: null, backdropPath: null, rating: null, runtime: 90, overview: null, genres: ['Drama'], addedAt: 0, progress: null, favorite: false }],
+        total: 61,
+        page: 2,
+        pageSize: 60,
+      };
+      return { page: 1, totalPages: 1, results: [] };
+    });
+
+    expect(await screen.findByRole('link', { name: /First page/ })).toBeTruthy();
+    await act(async () => {
+      intersectionCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    });
+    expect(await screen.findByRole('link', { name: /Next page/ })).toBeTruthy();
+    expect(calls.some((url) => url.includes('/api/movies?page=2&'))).toBe(true);
   });
 });
