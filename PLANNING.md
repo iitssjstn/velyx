@@ -9,8 +9,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.24** (PR #101): persistent geoptimaliseerde afspeelkopieën. Release `v0.19.24`
-  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.23 (PR #100, Sonarr/Radarr-integratie),
+- Laatste release: **0.19.25** (PR #102): filmischer startscherm. Release `v0.19.25`
+  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.24 (PR #101, persistent geoptimaliseerde
+  afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
   0.19.19 (PR #96, Seerr-filters op Films en Series), 0.19.18 (PR #95, Genres-dropdown en catalogusfilters),
@@ -367,3 +368,8 @@ Doel: een nieuwe installatie moet stap voor stap duidelijk maken wat nog ingeste
 ### Filmischer Vidalune-startscherm
 Maak de homepage visueel meer cinematografisch met een grotere full-bleed hero, prominente titel en duidelijke Play-/Details-acties in Vidalune-kleuren. Behoud de persoonlijke hervatselectie, voortgang en bestaande kijkrijen. Quick Setup blijft openstaand werk.
 - GitHub Actions CI-testfout herleid tot verouderde versieassertie in `backend/test/authorization.test.ts`; bijgewerkt naar 0.19.25.
+
+## Versie 0.19.26
+
+### Compactere hero op de homepage
+Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op desktop het artwork meer ruimte naast de tekst en acties; behoud de persoonlijke hervatselectie en voortgang.
