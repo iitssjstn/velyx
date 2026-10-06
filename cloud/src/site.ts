@@ -44,7 +44,7 @@ const FRAME = {
 } satisfies Record<Lang, Record<string, string>>;
 
 /** A page of the website: header (navigation, sign in or "my servers"), the content, footer. */
-export function layout(lang: Lang, opts: { title: string; signedIn: boolean; path: string; publicUrl: string; description?: string; discord?: boolean }, body: string): string {
+export function layout(lang: Lang, opts: { title: string; signedIn: boolean; path: string; publicUrl: string; version: string; description?: string; discord?: boolean }, body: string): string {
   const t = FRAME[lang];
   const other: Lang = lang === 'nl' ? 'en' : 'nl';
   const localizedUrl = (locale: Lang) => {
@@ -53,6 +53,24 @@ export function layout(lang: Lang, opts: { title: string; signedIn: boolean; pat
     return url.toString();
   };
   const canonical = localizedUrl(lang);
+  const structuredData = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@graph': [
+      { '@type': 'Organization', '@id': `${opts.publicUrl}/#organization`, name: 'Vidalune', url: opts.publicUrl },
+      {
+        '@type': 'SoftwareApplication',
+        '@id': `${opts.publicUrl}/#software`,
+        name: 'Vidalune',
+        applicationCategory: 'MultimediaApplication',
+        operatingSystem: ['Linux', 'Android'],
+        softwareVersion: opts.version,
+        url: opts.publicUrl,
+        isAccessibleForFree: true,
+        offers: { '@type': 'AggregateOffer', priceCurrency: 'EUR', lowPrice: 0, highPrice: 5, offerCount: 3 },
+        publisher: { '@id': `${opts.publicUrl}/#organization` },
+      },
+    ],
+  }).replace(/</g, '\\u003c');
   return `<!doctype html>
 <html lang="${lang}">
   <head>
@@ -70,6 +88,7 @@ export function layout(lang: Lang, opts: { title: string; signedIn: boolean; pat
     <meta property="og:url" content="${escape(canonical)}" />
     ${opts.description ? `<meta property="og:description" content="${escape(opts.description)}" /><meta name="twitter:description" content="${escape(opts.description)}" />` : ''}
     <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">${structuredData}</script>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/style.css" />
   </head>
@@ -187,7 +206,7 @@ const HOME = {
 } satisfies Record<Lang, unknown>;
 
 /** The home page of vidalune.com. */
-export function homePage(lang: Lang, signedIn: boolean, discord = false, publicUrl = 'https://vidalune.com'): string {
+export function homePage(lang: Lang, signedIn: boolean, discord: boolean, publicUrl: string, version: string): string {
   const t = HOME[lang];
   const body = `
     <main class="site-main">
@@ -233,5 +252,5 @@ export function homePage(lang: Lang, signedIn: boolean, discord = false, publicU
         <p><a class="button" href="/install">${escape(t.heroInstall)}</a></p>
       </section>
     </main>`;
-  return layout(lang, { title: t.title, signedIn, path: '/', publicUrl, description: t.description, discord }, body);
+  return layout(lang, { title: t.title, signedIn, path: '/', publicUrl, version, description: t.description, discord }, body);
 }

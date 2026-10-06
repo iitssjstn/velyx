@@ -241,8 +241,8 @@ Seerr-catalogusfilters ondersteunen genre, jaar en minimumbeoordeling; lokale ki
 - **SEO van vidalune.com moet echt heel goed** (Vidalune moet op Google te vinden zijn). De eerste
   technische basis staat; inhoud en verdere verrijking ontbreken nog:
   - Update 6 okt: `robots.txt` en `sitemap.xml` zijn toegevoegd. De sitemap bevat alleen home en installeren in NL/EN met `hreflang`; account-shell, app en relay-hosts worden uitgesloten. Home en installeren hebben canonicals, `hreflang` en unieke descriptions. Android-downloads zijn bewust geen sitemap-pagina.
-  - Open Graph/Twitter-afbeelding en JSON-LD (`SoftwareApplication` + `Organization` met versie,
-    besturingssystemen en prijs);
+  - Update 6 okt: de publieke pagina's bevatten JSON-LD voor `SoftwareApplication` en `Organization`, met releaseversie, ondersteunde systemen en bestaand prijsbereik.
+  - Nog open: Open Graph/Twitter-afbeelding;
   - snelle laadtijd en goede Core Web Vitals (afbeeldingen met maten, geen blokkerende scripts);
   - goede koppen (één `h1`) en alt-teksten; meer inhoud: pagina's per functie, FAQ en handleidingen
     (zoekwoorden als "eigen mediaserver", "films en series zelf hosten", "media server NAS");
