@@ -146,9 +146,9 @@ PR #95 is gemerged en release `v0.19.18` is compleet: APK en beide `.deb`-bestan
 PR #96 is gemerged en release `v0.19.19` is compleet (APK + beide `.deb`-bestanden gecontroleerd).
 Seerr-catalogusfilters ondersteunen genre, jaar en minimumbeoordeling; lokale kijk-/bestandsfilters zijn uitgeschakeld.
 
-## Volgende versie
+## Versie 0.19.21
 
-### 0.19.20: mobiele cast-afstandsbediening (web en app)
+### Mobiele cast-afstandsbediening en SEO-basis
 - Op mobiel tijdens casten een remote-layout tonen in plaats van een lege/lokale videoweergave; desktopbediening behouden.
 - Bovenaan apparaatnaam; grote poster/achtergrond met huidige titel en voortgang.
 - Tijdens een cast stopt de castknop rechtsboven de sessie; verwijder het dubbele statusicoon links.
