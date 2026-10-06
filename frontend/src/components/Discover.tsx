@@ -17,6 +17,7 @@ export interface SeerrResult {
   tmdbId: number;
   title: string;
   year: number | null;
+  rating?: number | null;
   overview: string;
   posterPath: string | null;
   state: RequestState | null;

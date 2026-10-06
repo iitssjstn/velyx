@@ -18,6 +18,7 @@ export const browse = {
   noCatalogCategories: 'No catalog titles were found in these genres.',
   inLibraryCount: '{count} in library',
   catalogFilterHint: 'Filters apply to library titles; Seerr catalog titles are shown alongside.',
+  catalogOnlyFiltersHint: 'Watched status, resolution and HDR only apply to files in your library.',
   catalogNotEnabled: 'Seerr is not connected',
   catalogNotEnabledHint: 'Connect Seerr in server settings to browse its catalog by genre.',
   fromYear: 'From {year}',

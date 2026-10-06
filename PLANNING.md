@@ -131,7 +131,12 @@ PR #94 is gemerged en release `v0.19.17` is compleet (APK + beide `.deb`-bestand
 ### 0.19.18: herstel zichtbaarheid dropdown Genres
 - De Genres-dropdown zat binnen een horizontaal scrollbare nav en werd daardoor verticaal afgeknipt.
 - Render het menu buiten die scrollcontainer; behoud positionering, buitenklik en Escape-sluiten.
-- Lokaal gecontroleerd: 62 frontendtestbestanden (270 tests), frontend-typecheck, ESLint en frontend-productiebuild slagen.
+- Toon het volledige filterpaneel ook bij Seerr. Genre, jaar en minimumbeoordeling filteren catalogustitels;
+  kijkstatus, resolutie en HDR blijven zichtbaar maar uitgeschakeld omdat die alleen voor lokale bestanden gelden.
+- De Seerr-discoverresponse geeft nu ook de rating door wanneer Seerr die bevat; catalogusfilters ondersteunen
+  pagineren wanneer een vroege pagina geen overeenkomsten oplevert.
+- Lokaal gecontroleerd: 168 frontendtestbestanden (271 tests), Seerr-backendtests (12), backend/frontend-typechecks,
+  ESLint en frontend-productiebuild slagen.
 
 ## Gemeld tijdens het testen
 
