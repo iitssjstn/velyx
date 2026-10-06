@@ -272,5 +272,5 @@ export function installPage(lang: Lang, publicUrl: string, version: string, hasA
       </div>
       <p class="small">${escape(t.license)}</p>
     </main>`;
-  return layout(lang, { title: t.title, signedIn, path: '/install', publicUrl, description: t.description, discord }, body);
+  return layout(lang, { title: t.title, signedIn, path: '/install', publicUrl, version, description: t.description, discord }, body);
 }

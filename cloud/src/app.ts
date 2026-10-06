@@ -931,7 +931,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     app.get('/', async (request, reply) => {
       if (isAppHost(request.raw)) return page(request, reply);
       const lang = pickLanguage(request.query, request.headers['accept-language']);
-      return reply.type('text/html').header('Cache-Control', 'no-cache').send(homePage(lang, !!accountByToken(request.cookies[SESSION_COOKIE]), !!community.discord(), config.publicUrl));
+      return reply.type('text/html').header('Cache-Control', 'no-cache').send(homePage(lang, !!accountByToken(request.cookies[SESSION_COOKIE]), !!community.discord(), config.publicUrl, releaseVersion));
     });
     app.get('/account', page);
     app.get('/link', page);

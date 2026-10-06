@@ -214,6 +214,19 @@ describe('installing Vidalune from vidalune.com', () => {
     expect(en.body).toContain('<link rel="canonical" href="https://vidalune.example/?lang=en" />');
     expect(en.body).toContain('hreflang="nl" href="https://vidalune.example/?lang=nl"');
     expect(en.body).toContain('<meta property="og:title" content="Vidalune — your media, your server" />');
+    const jsonLd = /<script type="application\/ld\+json">([^<]+)<\/script>/.exec(en.body);
+    expect(jsonLd).not.toBeNull();
+    expect(JSON.parse(jsonLd![1])).toMatchObject({
+      '@context': 'https://schema.org',
+      '@graph': expect.arrayContaining([
+        expect.objectContaining({ '@type': 'Organization', name: 'Vidalune' }),
+        expect.objectContaining({
+          '@type': 'SoftwareApplication',
+          softwareVersion: version,
+          offers: expect.objectContaining({ priceCurrency: 'EUR', lowPrice: 0, highPrice: 5 }),
+        }),
+      ]),
+    });
     const nl = await app.inject({ url: '/', headers: { 'accept-language': 'nl-NL,nl' } });
     expect(nl.body).toContain('Jouw media. Jouw server.');
     expect(nl.body).toContain('<link rel="canonical" href="https://vidalune.example/?lang=nl" />');
