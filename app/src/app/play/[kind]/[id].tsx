@@ -74,7 +74,7 @@ export default function Player() {
     refetchOnReconnect: false,
     queryFn: async (): Promise<Item> => {
       if (kind === 'episode') {
-        const e = await api.get<{ id: number; showTitle: string; seasonNumber: number; episodeNumber: number; title: string | null; stillPath?: string | null; showBackdropPath?: string | null; files: { id: number }[]; progress: Item['progress']; next: NextEpisode | null; segments?: EpisodeSegments | null }>(`/api/episodes/${id}`);
+        const e = await api.get<{ id: number; showTitle: string; seasonNumber: number; episodeNumber: number; title: string | null; stillPath?: string | null; showBackdropPath?: string | null; showPosterPath?: string | null; files: { id: number }[]; progress: Item['progress']; next: NextEpisode | null; segments?: EpisodeSegments | null }>(`/api/episodes/${id}`);
         if (!e.files[0]) throw new Error(t('player.cannotPlay'));
         return { kind: 'episode', id: e.id, fileId: e.files[0].id, title: e.showTitle, subtitle: [episodeCode(e.seasonNumber, e.episodeNumber), e.title].filter(Boolean).join(' · '), artwork: e.stillPath ?? e.showBackdropPath ?? null, poster: e.showPosterPath ?? null, progress: e.progress, next: e.next, segments: e.segments ?? null };
       }
@@ -900,7 +900,7 @@ function CastRemotePanel({ title, subtitle, device, artwork, position, duration,
       </View>
       <Modal visible={moreOpen} transparent statusBarTranslucent animationType="slide" onRequestClose={() => setMoreOpen(false)}>
         <Pressable onPress={() => setMoreOpen(false)} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' }}>
-          <Pressable onPress={() => undefined} style={{ backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: 22, paddingBottom: 24 + insets.bottom, gap: 12 }}>
+          <Pressable onPress={() => undefined} style={{ backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: 22, paddingBottom: 24 + insets.bottom, gap: 12 }}>
             <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '700' }}>{t('player.more')}</Text>
             <Text style={{ color: colors.muted }}>{device ? t('player.castingTo', { device }) : t('player.casting')}</Text>
             <Pressable accessibilityRole="button" onPress={() => { setMoreOpen(false); onStop(); }} style={{ minHeight: 52, justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.danger, paddingHorizontal: 16 }}>
