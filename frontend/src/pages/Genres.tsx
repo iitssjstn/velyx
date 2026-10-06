@@ -1,10 +1,11 @@
+import { useCallback, useEffect, useRef } from 'react';
 import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Film, Tv } from 'lucide-react';
 import { DiscoverCard, DISCOVER_ROWS, seerrDetailsHref, type SeerrResult } from '../components/Discover';
 import { PosterCard } from '../components/Cards';
 import { Button } from '../components/Button';
-import { EmptyState, ErrorState, PageLoader } from '../components/States';
+import { EmptyState, ErrorState, PageLoader, Spinner } from '../components/States';
 import { api } from '../lib/api';
 import type { Card, Genre, Paged } from '../lib/types';
 import { useT } from '../i18n';
@@ -22,6 +23,7 @@ export function GenresPage() {
   const { t } = useT();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const loadMoreRef = useRef<HTMLDivElement>(null);
   const rawScope = params.get('scope');
   const scope: Scope = rawScope === 'library' || rawScope === 'seerr' ? rawScope : 'all';
   const kind: Kind = params.get('kind') === 'shows' ? 'shows' : 'movies';
@@ -121,12 +123,22 @@ export function GenresPage() {
     if (scope === 'seerr' && category.seerrId) setParams({ scope, kind, genre: String(category.seerrId) });
     else if (scope === 'all') setParams({ scope, kind, ...(category.localId ? { localGenre: String(category.localId) } : {}), ...(category.seerrId ? { seerrGenre: String(category.seerrId) } : {}) });
   };
-  const loadMore = () => {
+  const loadMore = useCallback(() => {
     if (localActive && localResults.hasNextPage && !localResults.isFetchingNextPage) void localResults.fetchNextPage();
     if (catalogActive && catalogResults.hasNextPage && !catalogResults.isFetchingNextPage) void catalogResults.fetchNextPage();
-  };
+  }, [localActive, localResults.hasNextPage, localResults.isFetchingNextPage, localResults.fetchNextPage, catalogActive, catalogResults.hasNextPage, catalogResults.isFetchingNextPage, catalogResults.fetchNextPage]);
   const hasNextPage = (localActive && localResults.hasNextPage) || (catalogActive && catalogResults.hasNextPage);
   const isFetchingNextPage = localResults.isFetchingNextPage || catalogResults.isFetchingNextPage;
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!selected || !hasNextPage || isFetchingNextPage || !node || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) loadMore();
+    }, { rootMargin: '500px 0px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [selected, hasNextPage, isFetchingNextPage, loadMore]);
 
   if (scope === 'library' && localGenre) return <Navigate to={`/${kind}?genre=${localGenre}`} replace />;
 
@@ -201,7 +213,7 @@ export function GenresPage() {
                   : <DiscoverCard item={result.item} className="w-full" onSelect={(chosen) => navigate(seerrDetailsHref(chosen))} />}
               </li>)}
             </ul>
-            {hasNextPage && <div className="flex justify-center py-8"><Button variant="secondary" loading={isFetchingNextPage} onClick={loadMore}>{t('browse.loadMore')}</Button></div>}
+            {hasNextPage && <div ref={loadMoreRef} className="flex min-h-12 justify-center py-4" aria-live="polite">{isFetchingNextPage && <Spinner className="size-6" />}</div>}
           </>
       )}
     </div>

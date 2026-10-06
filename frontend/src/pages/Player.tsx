@@ -11,6 +11,7 @@ import {
   Maximize,
   Maximize2,
   Minimize,
+  MoreHorizontal,
   PictureInPicture2,
   Pause,
   Play,
@@ -73,6 +74,7 @@ interface LoadedItem {
   subtitle: string | null;
   backHref: string;
   backdrop: string | null;
+  poster: string | null;
   /** The series' backdrop (behind the Next episode card when the next episode has no picture). */
   showBackdrop: string | null;
   files: MediaFileInfo[];
@@ -84,7 +86,7 @@ interface LoadedItem {
 async function loadItem(kind: string, id: number): Promise<LoadedItem> {
   if (kind === 'movie') {
     const m = await api.get<MovieDetail>(`/api/movies/${id}`);
-    return { kind: 'movie', id, title: m.title, subtitle: m.year ? String(m.year) : null, backHref: `/movies/${id}`, backdrop: m.backdropPath, showBackdrop: null, files: m.files, progress: m.progress, next: null, segments: null };
+    return { kind: 'movie', id, title: m.title, subtitle: m.year ? String(m.year) : null, backHref: `/movies/${id}`, backdrop: m.backdropPath, poster: m.posterPath, showBackdrop: null, files: m.files, progress: m.progress, next: null, segments: null };
   }
   const e = await api.get<EpisodeDetail>(`/api/episodes/${id}`);
   return {
@@ -94,6 +96,7 @@ async function loadItem(kind: string, id: number): Promise<LoadedItem> {
     subtitle: `${episodeCode(e.seasonNumber, e.episodeNumber)}${e.title ? ` — ${e.title}` : ''}`,
     backHref: `/shows/${e.showId}?season=${e.seasonNumber}`,
     backdrop: e.stillPath ?? e.showBackdropPath,
+    poster: e.showPosterPath,
     showBackdrop: e.showBackdropPath,
     files: e.files,
     progress: e.progress,
@@ -210,7 +213,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const [muted, setMuted] = useState(prefs.muted);
   const [fullscreen, setFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [menu, setMenu] = useState<null | 'subs' | 'audio' | 'settings'>(null);
+  const [menu, setMenu] = useState<null | 'subs' | 'audio' | 'tracks' | 'settings'>(null);
   const [subKey, setSubKey] = useState<string | null>(null);
   const [speed, setSpeed] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -328,7 +331,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // ---------------------------------------------------------------- casting (Chromecast)
   const cast = useCast(
     file && item.data
-      ? { fileId: file.id, audioIndex: info?.decision.audioIndex ?? null, title: item.data.title, subtitle: item.data.subtitle, posterPath: item.data.backdrop, subtitleKey: subKey, subtitleStyle: { subtitleSize: prefs.subtitleSize, subtitleColor: prefs.subtitleColor, subtitleBackground: prefs.subtitleBackground, subtitleEdge: prefs.subtitleEdge }, locate: (target) => locateStart(file.id, target) }
+      ? { fileId: file.id, audioIndex: info?.decision.audioIndex ?? null, title: item.data.title, subtitle: item.data.subtitle, posterPath: item.data.poster ?? item.data.backdrop, subtitleKey: subKey, subtitleStyle: { subtitleSize: prefs.subtitleSize, subtitleColor: prefs.subtitleColor, subtitleBackground: prefs.subtitleBackground, subtitleEdge: prefs.subtitleEdge }, locate: (target) => locateStart(file.id, target) }
       : null,
   );
   const castingRef = useRef(false);
@@ -487,15 +490,20 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   }, []);
 
   const applyVolume = useCallback((v: number, m: boolean) => {
-    const el = videoRef.current;
-    if (el) {
-      el.volume = v;
-      el.muted = m;
+    if (cast.active) {
+      cast.setVolume(v);
+      if (m !== cast.muted) cast.toggleMute();
+    } else {
+      const el = videoRef.current;
+      if (el) {
+        el.volume = v;
+        el.muted = m;
+      }
     }
     setVolume(v);
     setMuted(m);
     setPrefs({ volume: v, muted: m });
-  }, []);
+  }, [cast.active, cast.muted, cast.setVolume, cast.toggleMute]);
 
   const selectSubtitle = useCallback(
     (key: string | null) => {
@@ -520,6 +528,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const chooseSubtitle = useCallback(
     (key: string | null) => {
       selectSubtitle(key);
+      if (cast.active) cast.setSubtitle(key);
       const opt = key ? subs.find((o) => o.key === key) : undefined;
       setPrefs(
         opt
@@ -527,7 +536,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           : { subtitleLanguage: '', subtitleForced: false, subtitleLabel: '' },
       );
     },
-    [selectSubtitle, subs],
+    [cast.active, cast.setSubtitle, selectSubtitle, subs],
   );
 
   // A subtitle fetched online joins the file's subtitles and is selected once its track exists.
@@ -586,13 +595,19 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const selectServerAudio = useCallback(
     (index: number) => {
       if (index === info?.decision.audioIndex) return;
+      if (cast.active) {
+        setAudioChoice(index);
+        setMenu(null);
+        void cast.setAudio(currentTime(), index);
+        return;
+      }
       const v = videoRef.current;
       resumeAtRef.current = currentTime();
       playAfterLoadRef.current = v ? !v.paused : true;
       setBuffering(true);
       setAudioChoice(index);
     },
-    [info, currentTime],
+    [cast.active, cast.setAudio, info, currentTime],
   );
 
   const goNext = useCallback(() => {
@@ -1126,13 +1141,36 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       {!mini && !postPlay && <SubtitleOverlay video={activeTrack?.video ?? null} track={activeTrack?.track ?? null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />}
 
       {!mini && cast.active && (
-        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-bg/80" role="status">
+        <div className="pointer-events-none absolute inset-0 z-10 hidden place-items-center bg-bg/80 md:grid" role="status">
           <div className="flex flex-col items-center gap-3 px-6 text-center">
             <Cast className="size-12 text-accent" />
             <p className="text-lg font-semibold">{cast.device ? t('player.castingTo', { device: cast.device }) : t('player.casting')}</p>
             <p className="max-w-sm text-sm text-muted">{t('player.castingHint')}</p>
           </div>
         </div>
+      )}
+      {!mini && cast.active && item.data && (
+        <MobileCastRemote
+          title={item.data.title}
+          subtitle={item.data.subtitle}
+          device={cast.device}
+          backdrop={imageUrl(item.data.backdrop, 'w1280')}
+          poster={imageUrl(item.data.poster, 'w500')}
+          time={cast.time}
+          duration={totalDuration}
+          playing={cast.playing}
+          volume={cast.volume}
+          muted={cast.muted}
+          audio={fileAudio.map((track) => ({ id: track.index, label: [languageLabel(track.language) || track.languageName || track.title || t('playback.unknown'), channelLabel(track.channels)].filter(Boolean).join(' '), selected: info?.decision.audioIndex === track.index }))}
+          subtitles={[{ id: null, label: t('player.off'), selected: !subKey }, ...subs.map((track) => ({ id: track.key, label: subtitleName(track), selected: subKey === track.key }))]}
+          onSeek={seekTo}
+          onTogglePlay={togglePlay}
+          onStop={cast.stop}
+          onVolume={(value) => applyVolume(value, cast.muted)}
+          onToggleMute={() => applyVolume(cast.volume, !cast.muted)}
+          onSelectAudio={selectServerAudio}
+          onSelectSubtitle={chooseSubtitle}
+        />
       )}
       {!mini && !cast.active && !askResume && loading && !error && !showUnavailable && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
@@ -1296,7 +1334,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
 
       {/* Bottom controls */}
       <div
-        className={`absolute inset-x-0 bottom-0 ${mini ? 'hidden' : ''} bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-16 pb-4 transition-opacity duration-300 sm:px-8 sm:pt-24 sm:pb-7 ${showUi ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`absolute inset-x-0 bottom-0 ${mini ? 'hidden' : cast.active ? 'hidden md:block' : ''} bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-16 pb-4 transition-opacity duration-300 sm:px-8 sm:pt-24 sm:pb-7 ${showUi ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Seek bar */}
@@ -1542,6 +1580,141 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
  */
 const MINI_CLASSES =
   'fixed z-50 flex h-16 items-center overflow-hidden rounded-xl bg-black text-ink shadow-2xl ring-1 ring-white/10 inset-x-2 bottom-2 sm:inset-x-auto sm:right-4 sm:bottom-4 sm:block sm:h-auto sm:w-[22rem] sm:aspect-video';
+
+interface RemoteChoice { id: number | string | null; label: string; selected: boolean }
+
+function MobileCastRemote({
+  title,
+  subtitle,
+  device,
+  backdrop,
+  poster,
+  time,
+  duration,
+  playing,
+  volume,
+  muted,
+  audio,
+  subtitles,
+  onSeek,
+  onTogglePlay,
+  onStop,
+  onVolume,
+  onToggleMute,
+  onSelectAudio,
+  onSelectSubtitle,
+}: {
+  title: string;
+  subtitle: string | null;
+  device: string | null;
+  backdrop: string | null;
+  poster: string | null;
+  time: number;
+  duration: number;
+  playing: boolean;
+  volume: number;
+  muted: boolean;
+  audio: RemoteChoice[];
+  subtitles: RemoteChoice[];
+  onSeek: (time: number) => void;
+  onTogglePlay: () => void;
+  onStop: () => void;
+  onVolume: (volume: number) => void;
+  onToggleMute: () => void;
+  onSelectAudio: (id: number) => void;
+  onSelectSubtitle: (id: string | null) => void;
+}) {
+  const { t } = useT();
+  const [sheet, setSheet] = useState<null | 'volume' | 'tracks' | 'more'>(null);
+  const [scrub, setScrub] = useState<number | null>(null);
+  const scrubRef = useRef<number | null>(null);
+  const seekValue = scrub ?? time;
+  const close = () => setSheet(null);
+  const action = 'flex min-h-14 min-w-20 flex-col items-center justify-center gap-1 rounded-xl px-3 text-xs text-ink/80 transition hover:bg-white/10 active:bg-white/15';
+
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-bg md:hidden" role="region" aria-label={t('player.castRemote')}>
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        {backdrop && <img src={backdrop} alt="" className="h-[58vh] w-full object-cover opacity-35" />}
+        <div className="absolute inset-0 bg-gradient-to-b from-bg/30 via-bg/70 to-bg" />
+      </div>
+      <div className="relative flex min-h-dvh flex-col px-5" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
+        <header className="flex items-center justify-center gap-2 py-3 text-center">
+          <Cast className="size-4 text-accent" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold tracking-wide text-faint uppercase">{t('player.casting')}</p>
+            <p className="max-w-[70vw] truncate text-sm font-semibold">{device ?? t('player.casting')}</p>
+          </div>
+        </header>
+
+        <main className="flex flex-1 flex-col items-center justify-center py-4 text-center">
+          {poster ? <img src={poster} alt="" className="mb-5 max-h-[34vh] w-auto max-w-[48vw] rounded-xl object-contain shadow-2xl ring-1 ring-white/10" /> : <div className="mb-5 grid h-44 w-32 place-items-center rounded-xl bg-raised text-faint"><Cast className="size-10" /></div>}
+          <h1 className="max-w-xl font-display text-2xl font-semibold leading-tight">{title}</h1>
+          {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
+          <div className="mt-7 w-full max-w-xl">
+            <input
+              type="range"
+              min={0}
+              max={Math.max(1, duration)}
+              step={1}
+              value={Math.min(seekValue, duration || 0)}
+              onChange={(event) => { const value = Number(event.target.value); scrubRef.current = value; setScrub(value); }}
+              onPointerUp={() => { if (scrubRef.current !== null) onSeek(scrubRef.current); scrubRef.current = null; setScrub(null); }}
+              onKeyUp={() => { if (scrubRef.current !== null) onSeek(scrubRef.current); scrubRef.current = null; setScrub(null); }}
+              aria-label={t('player.seek')}
+              aria-valuetext={formatClock(seekValue)}
+              className="h-8 w-full accent-[var(--color-accent)]"
+            />
+            <div className="flex justify-between text-xs tabular-nums text-muted"><span>{formatClock(seekValue)}</span><span>{formatClock(duration)}</span></div>
+          </div>
+          <div className="mt-7 flex items-center justify-center gap-5 sm:gap-8">
+            <button type="button" onClick={() => onSeek(Math.max(0, time - 10))} className="grid size-14 place-items-center rounded-full text-ink/90 hover:bg-white/10" aria-label={t('player.backSeconds', { seconds: 10 })}>
+              <span className="relative"><RotateCcw className="size-6" /><span className="absolute inset-0 grid place-items-center text-[9px] font-bold">10</span></span>
+            </button>
+            <button type="button" onClick={onTogglePlay} className="grid size-[4.5rem] place-items-center rounded-full bg-ink text-bg shadow-lg transition hover:bg-white" aria-label={playing ? t('player.pause') : t('player.play')}>
+              {playing ? <Pause className="size-8 fill-current" /> : <Play className="ml-1 size-8 fill-current" />}
+            </button>
+            <button type="button" onClick={() => onSeek(Math.min(duration, time + 10))} className="grid size-14 place-items-center rounded-full text-ink/90 hover:bg-white/10" aria-label={t('player.forwardSeconds', { seconds: 10 })}>
+              <span className="relative"><RotateCw className="size-6" /><span className="absolute inset-0 grid place-items-center text-[9px] font-bold">10</span></span>
+            </button>
+          </div>
+        </main>
+
+        <footer className="border-t border-line/70 pt-3">
+          <div className="flex items-center justify-around">
+            <button type="button" className={action} onClick={() => setSheet(sheet === 'volume' ? null : 'volume')} aria-label={t('player.volume')}>
+              {muted || volume === 0 ? <VolumeX className="size-5" /> : volume < 0.5 ? <Volume1 className="size-5" /> : <Volume2 className="size-5" />}
+              <span>{t('player.volume')}</span>
+            </button>
+            <button type="button" className={action} onClick={() => setSheet(sheet === 'tracks' ? null : 'tracks')} aria-label={t('player.audioSubtitles')}>
+              <Captions className="size-5" /><span>{t('player.audioSubtitles')}</span>
+            </button>
+            <button type="button" className={action} onClick={() => setSheet(sheet === 'more' ? null : 'more')} aria-label={t('player.more')}>
+              <MoreHorizontal className="size-5" /><span>{t('player.more')}</span>
+            </button>
+          </div>
+        </footer>
+      </div>
+
+      {sheet && <div className="fixed inset-0 z-[70] flex items-end bg-black/55" onClick={close}>
+        <section className="w-full rounded-t-2xl border-t border-line bg-surface px-5 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <div className="mb-4 flex items-center justify-between"><h2 className="font-display text-lg font-semibold">{sheet === 'volume' ? t('player.volume') : sheet === 'tracks' ? t('player.audioSubtitles') : t('player.more')}</h2><button type="button" onClick={close} className="grid size-11 place-items-center rounded-full hover:bg-raised" aria-label={t('common.close')}><X className="size-5" /></button></div>
+          {sheet === 'volume' && <div className="flex items-center gap-3">
+            <button type="button" onClick={onToggleMute} className="grid size-12 shrink-0 place-items-center rounded-full hover:bg-raised" aria-label={muted ? t('player.unmute') : t('player.mute')}>
+              {muted ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
+            </button>
+            <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume} onChange={(event) => onVolume(Number(event.target.value))} className="w-full accent-[var(--color-accent)]" aria-label={t('player.volume')} />
+          </div>}
+          {sheet === 'tracks' && <div className="max-h-[50vh] space-y-4 overflow-y-auto">
+            <section><h3 className="mb-2 text-xs font-semibold text-faint">{t('player.audioTrack')}</h3>{audio.length ? audio.map((choice) => <button key={choice.id} type="button" onClick={() => { onSelectAudio(Number(choice.id)); close(); }} className={`block min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm ${choice.selected ? 'bg-raised text-accent' : 'text-ink hover:bg-raised'}`}>{choice.label}</button>) : <p className="text-sm text-muted">{t('player.noAudioTracks')}</p>}</section>
+            <section><h3 className="mb-2 text-xs font-semibold text-faint">{t('playback.subtitles')}</h3>{subtitles.map((choice) => <button key={String(choice.id)} type="button" onClick={() => { onSelectSubtitle(choice.id === null ? null : String(choice.id)); close(); }} className={`block min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm ${choice.selected ? 'bg-raised text-accent' : 'text-ink hover:bg-raised'}`}>{choice.label}</button>)}</section>
+          </div>}
+          {sheet === 'more' && <button type="button" onClick={() => { close(); onStop(); }} className="min-h-12 w-full rounded-lg bg-danger/15 px-4 text-left font-semibold text-danger hover:bg-danger/25">{t('player.stopCasting')}</button>}
+        </section>
+      </div>}
+    </div>
+  );
+}
 
 function MiniBar({ title, subtitle, playing, loading, problem, progress, onTogglePlay, onRestore, onClose }: {
   title: string;

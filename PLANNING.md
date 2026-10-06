@@ -9,10 +9,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.18** (PR #95): zichtbare Genres-dropdown. Release `v0.19.18`
-  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.17 (PR #94, Home-hero en Seerr in Films/Series),
-  0.19.16 (PR #93, desktop/tablet topnav en gecombineerde genrepagina), 0.19.15 (PR #92,
-  genrepagina's voor bibliotheek en Seerr), 0.19.14 (PR #91,
+- Laatste release: **0.19.19** (PR #96): Seerr-filters op Films en Series. Release `v0.19.19`
+  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.18 (PR #95, Genres-dropdown en catalogusfilters),
+  0.19.17 (PR #94, Home-hero en Seerr in Films/Series), 0.19.16 (PR #93, desktop/tablet topnav en
+  gecombineerde genrepagina), 0.19.15 (PR #92, genrepagina's voor bibliotheek en Seerr), 0.19.14 (PR #91,
   lokale Seerr-resultaten openen metadata), 0.19.13 (PR #90,
   laadstatusfix), 0.19.12 (PR #89,
   Cast HLS-duur, ondertitelstijl, veilige bibliotheekpaden en APT), 0.19.11 (PR #87, castvoortgang),
@@ -140,14 +140,22 @@ PR #95 is gemerged en release `v0.19.18` is compleet: APK en beide `.deb`-bestan
 - Lokaal gecontroleerd: 168 frontendtestbestanden (271 tests), Seerr-backendtests (12), backend/frontend-typechecks,
   ESLint en frontend-productiebuild slagen.
 
+## Versie 0.19.19
+
+### Seerr-filters op Films en Series
+PR #96 is gemerged en release `v0.19.19` is compleet (APK + beide `.deb`-bestanden gecontroleerd).
+Seerr-catalogusfilters ondersteunen genre, jaar en minimumbeoordeling; lokale kijk-/bestandsfilters zijn uitgeschakeld.
+
 ## Volgende versie
 
-### 0.19.19: Seerr-filters op Films en Series
-- Houd de filterdropdown zichtbaar bij bron Seerr.
-- Genre, jaar en minimumbeoordeling filteren catalogustitels; bekekenstatus, resolutie en HDR blijven zichtbaar
-  maar uitgeschakeld omdat ze alleen voor lokale bestanden gelden.
-- Behoud cataloguspaginering wanneer filters vroege pagina's leegmaken en geef ratings uit Seerr-discover door.
-- Ondersteun Engels en Nederlands; geen lokale kijk-/bestandsfilters uitvoeren op Seerr-resultaten.
+### 0.19.20: mobiele cast-afstandsbediening (web en app)
+- Op mobiel tijdens casten een remote-layout tonen in plaats van een lege/lokale videoweergave; desktopbediening behouden.
+- Bovenaan apparaatnaam; grote poster/achtergrond met huidige titel en voortgang.
+- Grote play/pauze centraal, 10 seconden terug/vooruit en ruime seekbar.
+- Onderaan compacte volume-, audio/ondertitel- en meer-acties, met een duidelijke stopcast-optie.
+- In de app dezelfde bediening, inclusief echte receiver-volume/mute en portraitweergave tijdens casten.
+- Lokale playback-specifieke instellingen niet tonen in de remote; normale app/webnavigatie behouden waar passend.
+- Ondersteun Engels en Nederlands; lokale tests/builds worden niet uitgevoerd op de ontwikkel-pc; GitHub CI verifieert de PR.
 
 ## Gemeld tijdens het testen
 
