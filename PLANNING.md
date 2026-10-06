@@ -9,9 +9,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.17** (PR #94): Home-hero en Seerr in Films/Series. Release `v0.19.17`
-  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.16 (PR #93, desktop/tablet topnav en gecombineerde
-  genrepagina), 0.19.15 (PR #92, genrepagina's voor bibliotheek en Seerr), 0.19.14 (PR #91,
+- Laatste release: **0.19.18** (PR #95): zichtbare Genres-dropdown. Release `v0.19.18`
+  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.17 (PR #94, Home-hero en Seerr in Films/Series),
+  0.19.16 (PR #93, desktop/tablet topnav en gecombineerde genrepagina), 0.19.15 (PR #92,
+  genrepagina's voor bibliotheek en Seerr), 0.19.14 (PR #91,
   lokale Seerr-resultaten openen metadata), 0.19.13 (PR #90,
   laadstatusfix), 0.19.12 (PR #89,
   Cast HLS-duur, ondertitelstijl, veilige bibliotheekpaden en APT), 0.19.11 (PR #87, castvoortgang),
@@ -126,9 +127,10 @@ PR #94 is gemerged en release `v0.19.17` is compleet (APK + beide `.deb`-bestand
 - Laat de genrepagina gecombineerde lokale/Seerr-resultaten tonen, ook wanneer hij vanuit de dropdown met een genre opent.
 - Ondersteun Engels en Nederlands; geen verwijzing naar andere catalogusdiensten in de UI.
 
-## Volgende versie
+## Versie 0.19.18
 
-### 0.19.18: herstel zichtbaarheid dropdown Genres
+### Herstel zichtbaarheid dropdown Genres en filters voor Seerr
+PR #95 is gemerged en release `v0.19.18` is compleet: APK en beide `.deb`-bestanden zijn gepubliceerd.
 - De Genres-dropdown zat binnen een horizontaal scrollbare nav en werd daardoor verticaal afgeknipt.
 - Render het menu buiten die scrollcontainer; behoud positionering, buitenklik en Escape-sluiten.
 - Toon het volledige filterpaneel ook bij Seerr. Genre, jaar en minimumbeoordeling filteren catalogustitels;
@@ -137,6 +139,15 @@ PR #94 is gemerged en release `v0.19.17` is compleet (APK + beide `.deb`-bestand
   pagineren wanneer een vroege pagina geen overeenkomsten oplevert.
 - Lokaal gecontroleerd: 168 frontendtestbestanden (271 tests), Seerr-backendtests (12), backend/frontend-typechecks,
   ESLint en frontend-productiebuild slagen.
+
+## Volgende versie
+
+### 0.19.19: Seerr-filters op Films en Series
+- Houd de filterdropdown zichtbaar bij bron Seerr.
+- Genre, jaar en minimumbeoordeling filteren catalogustitels; bekekenstatus, resolutie en HDR blijven zichtbaar
+  maar uitgeschakeld omdat ze alleen voor lokale bestanden gelden.
+- Behoud cataloguspaginering wanneer filters vroege pagina's leegmaken en geef ratings uit Seerr-discover door.
+- Ondersteun Engels en Nederlands; geen lokale kijk-/bestandsfilters uitvoeren op Seerr-resultaten.
 
 ## Gemeld tijdens het testen
 
