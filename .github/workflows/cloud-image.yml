@@ -27,7 +27,7 @@ concurrency:
 jobs:
   image:
     # Also when the APK failed: the Debian packages and the website still go out.
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion != 'cancelled'
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion != 'cancelled' && github.event.workflow_run.conclusion != 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
