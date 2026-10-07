@@ -13,7 +13,6 @@ export interface CloudStatus {
   account: string | null;
   code: { code: string; expiresAt: number; linkUrl: string } | null;
   serviceUrl: string;
-  directAccess: { configured: boolean; hostname: string; port: number; dnsReady: boolean; tlsReady: boolean; portOpen: boolean; checkedAt: number | null; url: string | null } | null;
   relay: { enabled: boolean; url: string | null; connected: boolean; error: 'refused' | 'subscription' | 'unreachable' | 'closed' | null; allowed: boolean };
   /** Playing away from home works (linked, and the owner has remote access). */
   remoteAccess: boolean;
@@ -181,25 +180,6 @@ export function CloudPage() {
           </>
         )}
       </section>
-
-      {s.account && (
-        <section className="panel space-y-3 p-5" aria-labelledby="direct-access-title">
-          <h2 id="direct-access-title" className="font-display text-lg font-semibold">{t('cloud.directTitle')}</h2>
-          <p className="text-sm text-muted">{t('cloud.directIntro', { port: s.directAccess?.port ?? 8443 })}</p>
-          {!s.directAccess ? (
-            <p className="text-sm text-muted" role="status">{t('cloud.directWaiting')}</p>
-          ) : !s.directAccess.configured ? (
-            <p className="text-sm text-danger" role="status">{t('cloud.directNotConfigured')}</p>
-          ) : (
-            <div className="space-y-1 text-sm" aria-live="polite">
-              <p>{t('cloud.directDns')}: {s.directAccess.dnsReady ? t('cloud.directReady') : t('cloud.directPending')}</p>
-              <p>{t('cloud.directTls')}: {s.directAccess.tlsReady ? t('cloud.directReady') : t('cloud.directPending')}</p>
-              <p>{t('cloud.directPort')}: {s.directAccess.portOpen ? t('cloud.directReady') : t('cloud.directPortClosed', { port: s.directAccess.port })}</p>
-              {s.directAccess.url && <p className="font-mono text-xs text-ok">{s.directAccess.url}</p>}
-            </div>
-          )}
-        </section>
-      )}
 
       {s.account && (
         <section className="panel space-y-3 p-5" aria-labelledby="relay-title">

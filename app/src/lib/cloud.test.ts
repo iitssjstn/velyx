@@ -48,9 +48,9 @@ describe('Vidalune account service', () => {
   });
 
   it('tries the server\'s own address before the relay', () => {
-    const s: CloudServer = { id: '1', name: 'Thuis', version: '1', url: 'https://legacy.example.com', directAccess: { configured: true, url: 'https://server.media.vidalune.com:32400', port: 32400, dnsReady: true, tlsReady: true, portOpen: true }, endpoints: [{ type: 'lan', address: '192.168.1.50', port: 32400, protocol: 'https', url: 'https://192.168.1.50:32400' }, { type: 'public', address: '8.8.8.8', port: 32400, protocol: 'https', url: 'https://server.media.vidalune.com:32400', reachable: true }], relayUrl: 'https://k7f3q9ma.vidalune.com', online: true, lastSeenAt: 0 };
-    expect(serverAddresses(s)).toEqual(['https://192.168.1.50:32400', 'https://server.media.vidalune.com:32400', 'https://legacy.example.com', 'https://k7f3q9ma.vidalune.com']);
-    expect(serverAddresses({ ...s, url: null })).toEqual(['https://192.168.1.50:32400', 'https://server.media.vidalune.com:32400', 'https://k7f3q9ma.vidalune.com']);
+    const s: CloudServer = { id: '1', name: 'Thuis', version: '1', url: 'https://media.example.com', relayUrl: 'https://k7f3q9ma.vidalune.com', online: true, lastSeenAt: 0 };
+    expect(serverAddresses(s)).toEqual(['https://media.example.com', 'https://k7f3q9ma.vidalune.com']);
+    expect(serverAddresses({ ...s, url: null })).toEqual(['https://k7f3q9ma.vidalune.com']);
   });
 
   it('lists servers that can be opened first', () => {

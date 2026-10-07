@@ -1,1 +1,0 @@
-ALTER TABLE `servers` ADD `local_endpoints` text DEFAULT '[]' NOT NULL;

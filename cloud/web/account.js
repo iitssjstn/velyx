@@ -78,7 +78,6 @@
   const LAST = 'vidalune.lastServer';
   const remember = (id) => { try { localStorage.setItem(LAST, id); } catch { /* private window */ } };
   const lastServer = () => { try { return localStorage.getItem(LAST); } catch { return null; } };
-  const hasAddress = (s) => Boolean(s.endpoints?.length || s.directAccess?.url || s.url || s.relayUrl);
 
   /** Whether this browser reaches an address (any answer counts; a network error does not). */
   async function reachable(url) {
@@ -183,7 +182,7 @@
       }
       history.replaceState(null, '', `${BASE}/servers`);
       try {
-        if (hasAddress(s)) return await openServer(s, me);
+        if (s.url || s.relayUrl) return await openServer(s, me);
       } catch {
         /* the list, with the server in it */
       }
@@ -197,7 +196,7 @@
     const offline = list.find((s) => s.id === params.get('offline'));
     const warning = problem || (!message && offline ? t('unreachable', { name: offline.name }) : '');
     // The server used last time; with only one server, that one.
-    const openable = list.filter(hasAddress);
+    const openable = list.filter((s) => s.url || s.relayUrl);
     const last = openable.find((s) => s.id === lastServer()) ?? (list.length === 1 ? openable[0] : undefined);
     if (!message && !warning && !offline && !joining && !pendingCode() && !params.has('choose') && location.hostname.startsWith('app.') && last) {
       try {
@@ -246,7 +245,7 @@
                   el('span', { class: 'actions' },
                     el('button', {
                       type: 'button',
-                      disabled: !hasAddress(s),
+                      disabled: !(s.url || s.relayUrl),
                       onclick: async (e) => {
                         const b = e.currentTarget;
                         b.disabled = true;
@@ -275,7 +274,7 @@
                 el('div', { class: 'small' },
                   el('span', { class: s.online ? 'dot on' : 'dot' }),
                   s.online ? t('online') : t('offline', { when: when(s.lastSeenAt) }), ' · ', t('version', { v: s.version }),
-                  !hasAddress(s) ? [' · ', t('noAddress')] : null,
+                  !(s.url || s.relayUrl) ? [' · ', t('noAddress')] : null,
                 ),
               ))),
       ),
