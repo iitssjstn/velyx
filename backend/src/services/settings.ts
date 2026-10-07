@@ -83,6 +83,10 @@ export interface CloudLink {
   relayAllowed?: boolean;
   /** The relay may connect: the owner, or someone who uses this server, has remote access. */
   relayUsable?: boolean;
+  /** Direct HTTPS hostname and its DNS provisioning status from the account service. */
+  directAccess?: { configured: boolean; hostname: string; publicIp: string | null; port: number; dnsReady: boolean; tlsReady: boolean; portOpen: boolean; checkedAt: number | null; url: string | null } | null;
+  /** The local HTTPS listener has a valid certificate loaded. */
+  directTlsReady?: boolean;
   /** Users here (their ids) whose own Vidalune account has remote access (a viewer subscription). */
   remoteUsers?: string[];
   /** When the account service last said so (remote access keeps working a while when it cannot be reached). */
@@ -179,7 +183,7 @@ const DEFAULTS: ServerSettings = {
   openSubtitlesPassword: '',
   cloud: null,
   homeNetworks: [],
-  upnp: { enabled: false, externalPort: 3000 },
+  upnp: { enabled: false, externalPort: 32400 },
   seerr: { url: '', apiKey: '' },
   sonarr: { url: '', apiKey: '' },
   radarr: { url: '', apiKey: '' },

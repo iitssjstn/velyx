@@ -10,6 +10,7 @@ import { checkBinary } from './services/probe.js';
 import { createLogger } from './logger.js';
 import { APP_VERSION } from './version.js';
 import type { RemuxEngine } from './playback/remux.js';
+import { DirectHttpsService } from './services/direct-https.js';
 
 const log = createLogger('vidalune');
 
@@ -34,6 +35,7 @@ async function main(): Promise<void> {
   if (purged) log.info(`Removed ${purged} expired sessions`);
 
   const app = await buildApp(ctx);
+  const directHttps = new DirectHttpsService({ app, cloud: ctx.cloud, dataDir: config.dataDir, port: config.directTlsPort, host: config.host });
   await app.listen({ port: config.port, host: config.host });
   log.info(`Vidalune started on http://${config.host}:${config.port}`);
   if (!config.frontendDir) log.warn('Frontend build not found — only the API is served');
@@ -65,6 +67,7 @@ async function main(): Promise<void> {
   ctx.disk.start();
   ctx.cleanupScheduler.start();
   ctx.cloud.start();
+  directHttps.start();
   // Opens the port on the router again after a restart (the lease may have run out).
   if (ctx.settings.get().upnp.enabled) void ctx.upnp.renew().then(() => ctx.upnp.start());
   // A backup missed while Vidalune was off runs shortly after start, not in the middle of it.
@@ -97,6 +100,7 @@ async function main(): Promise<void> {
     ctx.cleanupScheduler.stop();
     ctx.cloud.shutdown();
     ctx.upnp.stop();
+    directHttps.stop();
     (ctx.playback.get('remux') as RemuxEngine | undefined)?.stopAll();
     ctx.hls.stopAll();
     clearInterval(purgeTimer);
