@@ -412,6 +412,7 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 
 ### Endpoint discovery en directe media
 - De beheerder stelt de publieke TCP-poort in via de Vidalune-beheerpagina; DNS- en certificaatuitgifte blijven achtergrondwerk en hun interne voortgang wordt niet getoond.
+- Na het aanmaken van het DNS-01-record controleert de CA de DNS-uitdaging zelf; Vidalune wacht niet eerst op zijn eigen recursieve DNS-cache.
 - PR #108 is gemerged als rollbackrelease `v0.19.29`; deze herstelde directe-media-uitwerking hoort daarom bij `v0.19.30`.
 - De geauthenticeerde server-heartbeat meldt private LAN-endpoint hints; de Account Service bepaalt het publieke IP uitsluitend uit de waargenomen requestbron.
 - De serverlijst/open-handshake geeft LAN-endpoints eerst, daarna de publieke HTTPS-host en bestaande adressen. Web/Android testen directe kandidaten en gebruiken de bestaande server-HMAC playbacktoken.

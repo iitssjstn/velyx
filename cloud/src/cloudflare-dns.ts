@@ -1,5 +1,4 @@
 import { isIP } from 'node:net';
-import { resolveTxt } from 'node:dns/promises';
 
 const privateV4 = [
   ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16],
@@ -94,8 +93,6 @@ export class CloudflareDns {
       zoneName: string;
       fetchImpl?: typeof fetch;
       apiBase?: string;
-      lookupTxt?: (hostname: string) => Promise<string[][]>;
-      wait?: (ms: number) => Promise<void>;
     },
   ) {}
 
@@ -167,21 +164,6 @@ export class CloudflareDns {
   async deleteTxt(recordId: string): Promise<void> {
     const zoneId = await (this.zoneId ??= this.findZone());
     await this.deleteRecord(zoneId, recordId);
-  }
-
-  async waitForTxt(hostname: string, content: string, attempts = 12): Promise<void> {
-    const lookup = this.options.lookupTxt ?? resolveTxt;
-    const wait = this.options.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-    for (let attempt = 0; attempt < attempts; attempt++) {
-      try {
-        const records = await lookup(hostname);
-        if (records.some((parts) => parts.join('') === content)) return;
-      } catch {
-        // DNS-01 TXT propagation is asynchronous; retry until the bounded deadline.
-      }
-      if (attempt + 1 < attempts) await wait(2500);
-    }
-    throw new Error('DNS validation record did not become visible before the ACME challenge deadline.');
   }
 
   private deleteRecord(zoneId: string, recordId: string): Promise<{ id: string }> {
