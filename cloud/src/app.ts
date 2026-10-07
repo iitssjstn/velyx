@@ -66,7 +66,17 @@ export const SERVER_COOKIE = 'vl_server';
 /** app.vidalune.com's own account pages live under this path; everything else is the chosen server. */
 export const APP_PREFIX = '/_vl';
 /** The web interface on app.vidalune.com gets the same policy as on a Vidalune server itself. */
-const appCsp = (directDomain: string) => `default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: https://*.${directDomain}:*; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self' https://www.gstatic.com; connect-src 'self' https://*.${directDomain}:*; object-src 'none'; frame-src https://www.youtube-nocookie.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'`;
+const appCsp = (directDomain: string, serverUrl?: string | null) => {
+  const mediaOrigins = [`https://*.${directDomain}:*`];
+  try {
+    const serverOrigin = serverUrl ? new URL(serverUrl) : null;
+    if (serverOrigin?.protocol === 'https:' && !mediaOrigins.includes(serverOrigin.origin)) mediaOrigins.push(serverOrigin.origin);
+  } catch {
+    // Ignore invalid server URLs; the automatic direct hostname remains available.
+  }
+  const mediaSources = mediaOrigins.join(' ');
+  return `default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: ${mediaSources}; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self' https://www.gstatic.com; connect-src 'self' ${mediaSources}; object-src 'none'; frame-src https://www.youtube-nocookie.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'`;
+};
 const SESSION_DAYS = 30;
 /** The Vidalune app stays signed in longer than a browser. */
 const APP_SESSION_DAYS = 180;
@@ -1114,7 +1124,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const get = (name: string) => cookies.find(([cookieName]) => cookieName === name)?.[1];
     const { server } = chosenServer(get(SESSION_COOKIE), get(SERVER_COOKIE));
     if (!server) return reply.redirect(`${APP_PREFIX}/servers`);
-    return reply.type('text/html').header('Cache-Control', 'no-cache').header('Content-Security-Policy', appCsp(config.directDomain)).send(fs.readFileSync(path.join(frontendDir!, 'index.html')));
+    return reply.type('text/html').header('Cache-Control', 'no-cache').header('Content-Security-Policy', appCsp(config.directDomain, server.url)).send(fs.readFileSync(path.join(frontendDir!, 'index.html')));
   };
   if (frontendDir) {
     app.get('/_app/', async (request, reply) => {
