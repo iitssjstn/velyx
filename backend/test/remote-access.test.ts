@@ -119,7 +119,7 @@ describe('playing away from home', () => {
     linked = true;
     await env.app.inject({ method: 'POST', url: '/api/admin/cloud/check', headers: { cookie: admin } });
     const cloud = env.ctx.settings.get().cloud!;
-    const directAccess = { configured: true, hostname: 'server.media.vidalune.com', publicIp: '203.0.113.7', port: 32400, dnsReady: true, tlsReady: true, portOpen: true, checkedAt: clock, url: 'https://server.media.vidalune.com:32400' };
+    const directAccess = { configured: true, hostname: 'server.media.vidalune.com', publicIp: '203.0.113.7', port: 18443, dnsReady: true, tlsReady: true, portOpen: true, checkedAt: clock, url: 'https://server.media.vidalune.com:18443' };
     env.ctx.settings.update({ cloud: { ...cloud, directAccess } });
 
     expect((await stream('203.0.113.7')).statusCode).toBe(404);

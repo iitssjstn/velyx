@@ -59,9 +59,9 @@ describe('a Vidalune server and the account service', () => {
     expect(waiting).toMatchObject({ enabled: true, account: null, code: { code: expect.stringMatching(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/) } });
     expect(waiting.code!.linkUrl).toBe(`https://vidalune.example/link#${waiting.code!.code}`);
     expect(stored.cloud).toMatchObject({ serverId: expect.any(String), secret: expect.any(String) });
-    // Only name, version and address leave the server.
+    // Only name, version, address and the direct port leave the server.
     for (const body of sent) for (const key of Object.keys(body as object)) expect(['name', 'version', 'url', 'directPort', 'directTlsReady']).toContain(key);
-    expect(sent[0]).toEqual({ name: 'Thuis', version: '0.10.1', url: 'https://media.example.com' });
+    expect(sent[0]).toEqual({ name: 'Thuis', version: '0.10.1', url: 'https://media.example.com', directPort: 8443 });
 
     // Someone signs in on the account page and enters the code.
     const signUp = await app.inject({ method: 'POST', url: '/api/account', payload: { email: 'justin@example.com', password: 'correct-horse' } });

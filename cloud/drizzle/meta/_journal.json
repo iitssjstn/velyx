@@ -99,6 +99,13 @@
       "when": 1791362471146,
       "tag": "0013_direct_port_probe",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1791372966819,
+      "tag": "0014_direct_port_8443",
+      "breakpoints": true
     }
   ]
 }

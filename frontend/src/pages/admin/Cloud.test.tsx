@@ -12,7 +12,7 @@ const waiting: CloudStatus = { enabled: true, account: null, code: { code: 'K7F3
 const linked: CloudStatus = { enabled: true, account: 'justin@example.com', code: null, serviceUrl: 'https://vidalune.com', directAccess: null, relay: noRelay, remoteAccess: false, homeNetworks: [] };
 const relayed: CloudStatus = { ...linked, relay: { enabled: true, url: 'https://k7f3q9ma.vidalune.com', connected: true, error: null, allowed: true } };
 
-const upnpOff: UpnpStatus = { enabled: false, externalPort: 32400, open: false, address: null, problem: null, checkedAt: null };
+const upnpOff: UpnpStatus = { enabled: false, externalPort: 8443, open: false, address: null, problem: null, checkedAt: null };
 
 function setup(initial: CloudStatus, answers: Record<string, CloudStatus | UpnpStatus>) {
   const calls: string[] = [];
@@ -80,12 +80,12 @@ describe('Vidalune account page', () => {
     const direct = {
       configured: true,
       hostname: 'server-1.media.vidalune.com',
-      port: 32400,
+      port: 18443,
       dnsReady: true,
       tlsReady: true,
       portOpen: true,
       checkedAt: 1,
-      url: 'https://server-1.media.vidalune.com:32400',
+      url: 'https://server-1.media.vidalune.com:18443',
     };
     setup({ ...linked, directAccess: direct }, {});
     expect(await screen.findByText('Direct connection')).toBeTruthy();

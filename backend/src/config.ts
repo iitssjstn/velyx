@@ -1,5 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+
+export const DEFAULT_DIRECT_TLS_PORT = 8443;
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 
@@ -143,8 +145,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     frontendDir: frontendCandidate,
     serverUrl: env.SERVER_URL ?? '',
     cloudUrl: (env.VIDALUNE_CLOUD_URL || 'https://vidalune.com').replace(/\/+$/, ''),
-    directTlsPort: int(env.DIRECT_TLS_PORT, 32400),
-    directPublicPort: int(env.DIRECT_PUBLIC_PORT, 32400),
+    directTlsPort: int(env.DIRECT_TLS_PORT, DEFAULT_DIRECT_TLS_PORT),
+    directPublicPort: int(env.DIRECT_PUBLIC_PORT, DEFAULT_DIRECT_TLS_PORT),
     ...overrides,
   };
   cfg.sessionSecret = overrides.sessionSecret ?? resolveSessionSecret(dataDir, env.SESSION_SECRET);

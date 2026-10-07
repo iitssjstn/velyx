@@ -95,7 +95,7 @@ describe('automatic direct DNS', () => {
       if (url.pathname.endsWith('/zones') && !init?.method) return Response.json({ success: true, result: [{ id: 'zone-1', name: 'vidalune.com' }] });
       if (url.pathname.endsWith('/dns_records') && !init?.method) return Response.json({ success: true, result: [] });
       if (url.pathname.endsWith('/dns_records') && init?.method === 'POST') return Response.json({ success: true, result: { id: 'record-1' } });
-      if (url.hostname.endsWith('.media.vidalune.com') && url.port === '32400' && url.pathname === '/api/server/direct/health') return new Response(null, { status: 204 });
+      if (url.hostname.endsWith('.media.vidalune.com') && url.port === '18443' && url.pathname === '/api/server/direct/health') return new Response(null, { status: 204 });
       throw new Error(`Unexpected direct access request: ${url.origin}${url.pathname}`);
     };
     const { id, auth } = await setup(fetchImpl);
@@ -105,15 +105,15 @@ describe('automatic direct DNS', () => {
       url: '/api/server/heartbeat',
       headers: { authorization: auth },
       remoteAddress: '8.8.8.8',
-      payload: { name: 'Thuis', version: '0.19.27', directPort: 32400, directTlsReady: true },
+      payload: { name: 'Thuis', version: '0.19.28', directPort: 18443, directTlsReady: true },
     });
     expect(heartbeat.json().directAccess).toMatchObject({
       hostname: `${id}.media.vidalune.com`,
-      port: 32400,
+      port: 18443,
       dnsReady: true,
       tlsReady: true,
       portOpen: true,
-      url: `https://${id}.media.vidalune.com:32400`,
+      url: `https://${id}.media.vidalune.com:18443`,
     });
   });
 
@@ -128,7 +128,7 @@ describe('automatic direct DNS', () => {
     };
     const { auth } = await setup(fetchImpl);
     await linkServer(auth);
-    const heartbeat = await app.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: auth }, remoteAddress: '8.8.8.8', payload: { name: 'Thuis', version: '0.19.27', directPort: 32400, directTlsReady: true } });
+    const heartbeat = await app.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: auth }, remoteAddress: '8.8.8.8', payload: { name: 'Thuis', version: '0.19.28', directPort: 18443, directTlsReady: true } });
     expect(heartbeat.json().directAccess).toMatchObject({ dnsReady: true, tlsReady: true, portOpen: false, url: null });
   });
 

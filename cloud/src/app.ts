@@ -9,7 +9,7 @@ import fastifyHelmet from '@fastify/helmet';
 import fastifyStatic from '@fastify/static';
 import { and, desc, eq, gt, isNotNull, isNull, lt } from 'drizzle-orm';
 import { z, ZodError } from 'zod';
-import type { CloudConfig } from './config.js';
+import { DEFAULT_DIRECT_PORT, type CloudConfig } from './config.js';
 import type { DB } from './db/client.js';
 import { accountActivity, accountSessions, accounts, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
@@ -656,11 +656,11 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   app.post('/api/server/register', async (request) => {
     limiter.check(`register:${request.ip}`, now());
-    const body = z.object({ name: serverName, version, url: serverUrl }).parse(request.body);
+    const body = z.object({ name: serverName, version, url: serverUrl, directPort: z.number().int().min(1).max(65535).default(DEFAULT_DIRECT_PORT) }).parse(request.body);
     const id = crypto.randomUUID();
     const secret = newToken();
     const t = now();
-    db.insert(servers).values({ id, secretHash: sha256(secret), name: body.name, version: body.version, url: body.url ?? null, createdAt: t, lastSeenAt: t }).run();
+    db.insert(servers).values({ id, secretHash: sha256(secret), name: body.name, version: body.version, url: body.url ?? null, directPort: body.directPort, createdAt: t, lastSeenAt: t }).run();
     return { id, secret };
   });
 
@@ -677,7 +677,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   /** A server reports its name, version and address; the answer says whether it is linked, and to whom. */
   app.post('/api/server/heartbeat', async (request) => {
     const me = server(request);
-    const body = z.object({ name: serverName, version, url: serverUrl, directPort: z.number().int().min(1).max(65535).default(32400), directTlsReady: z.boolean().default(false) }).parse(request.body);
+    const body = z.object({ name: serverName, version, url: serverUrl, directPort: z.number().int().min(1).max(65535).default(DEFAULT_DIRECT_PORT), directTlsReady: z.boolean().default(false) }).parse(request.body);
     const publicIp = publicAddress(request.ip);
     const checkedAt = now();
     let dnsReady = false;

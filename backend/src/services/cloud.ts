@@ -3,6 +3,7 @@ import { createLogger } from '../logger.js';
 import type { FetchLike } from './tmdb.js';
 import type { SettingsService } from './settings.js';
 import { RelayClient, type RelayProblem } from './relay-client.js';
+import { DEFAULT_DIRECT_TLS_PORT } from '../config.js';
 
 const log = createLogger('cloud');
 const TIMEOUT_MS = 10_000;
@@ -92,13 +93,12 @@ export class CloudService {
 
   private about() {
     const s = this.deps.settings;
-    return { name: s.serverName().slice(0, 60), version: this.deps.version, url: s.serverUrl() || null };
+    return { name: s.serverName().slice(0, 60), version: this.deps.version, url: s.serverUrl() || null, directPort: this.deps.directPublicPort?.() ?? DEFAULT_DIRECT_TLS_PORT };
   }
 
   private heartbeat() {
     return {
       ...this.about(),
-      directPort: this.deps.directPublicPort?.() ?? 32400,
       directTlsReady: this.deps.settings.get().cloud?.directTlsReady ?? false,
     };
   }
