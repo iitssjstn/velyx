@@ -3,7 +3,7 @@ export const server = {
   keyRemoved: 'TMDB key removed.',
   saved: 'Settings saved.',
   url: 'Server URL',
-  urlHint: 'No manual address is needed. Vidalune uses the server\'s automatic HTTPS address for media.',
+  urlHint: 'Optional public HTTPS address for this server. Leave empty to use Vidalune\'s automatic address.',
   metadataLanguage: 'Metadata language',
   metadataLanguageHint: 'TMDB language code, e.g. en-US or nl-NL, for titles and descriptions of all media. Refresh metadata to apply it to existing items. The interface language is chosen per account.',
   includeAdult: 'Include adult titles in TMDB searches',

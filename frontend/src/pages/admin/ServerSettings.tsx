@@ -12,7 +12,7 @@ import { useT } from '../../i18n';
 import { SeerrSettings } from './SeerrSettings';
 import { TranscodingSettings } from './TranscodingSettings';
 
-/** Server name and TMDB configuration. The TMDB key is write-only: the API never returns it. */
+/** Server name, optional public media URL and TMDB configuration. The TMDB key is write-only. */
 export function ServerSettingsPanel() {
   const qc = useQueryClient();
   const { refetchServer } = useAuth();
@@ -64,6 +64,11 @@ export function ServerSettingsPanel() {
             <label className="label" htmlFor="lang">{t('server.metadataLanguage')}</label>
             <input id="lang" className="input" placeholder="en-US" value={form.tmdbLanguage} onChange={(e) => setForm({ ...form, tmdbLanguage: e.target.value })} />
             <p className="mt-1 text-xs text-faint">{t('server.metadataLanguageHint')}</p>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label" htmlFor="serverUrl">{t('server.url')}</label>
+            <input id="serverUrl" className="input" type="url" autoComplete="url" placeholder="https://media.example.com" value={form.serverUrl} onChange={(e) => setForm({ ...form, serverUrl: e.target.value })} />
+            <p className="mt-1 text-xs text-faint">{t('server.urlHint')}</p>
           </div>
           <label className="flex items-center gap-3 self-center text-sm">
             <input type="checkbox" className="size-4 accent-[var(--color-accent)]" checked={form.includeAdult} onChange={(e) => setForm({ ...form, includeAdult: e.target.checked })} />
