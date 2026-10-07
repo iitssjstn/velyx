@@ -45,6 +45,7 @@ export const player = {
   backSeconds: 'Back {seconds} seconds (←)',
   forwardSeconds: 'Forward {seconds} seconds (→)',
   errors: {
+    directServerRequired: 'No reachable connection is available for video playback. Set a Server URL under Admin → Server or check remote access under Admin → Vidalune account.',
     interrupted: 'The connection to the server was interrupted.',
     cannotPlay: 'Your browser cannot play this file: {reasons}.',
     cannotDecode: 'Your browser cannot decode this file. Try Chrome or Edge, which handle the most formats.',

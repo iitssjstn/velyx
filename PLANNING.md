@@ -197,6 +197,14 @@ PR #100 is gemerged en release `v0.19.23` is gecontroleerd (APK + beide `.deb`'s
 
 ## Gemeld tijdens het testen
 
+- **Videostreams via FlareSolverr en traag afspelen** (gemeld 7 okt):
+  de websiteplayer gebruikte hetzelfde origin als de website, waardoor `app.vidalune.com` alle
+  videobytes kon doorgeven. De player probeert nu eerst de Server-URL en daarna de ingeschakelde,
+  toegestane Vidalune-relay. Elke kandidaat wordt met een HEAD-verzoek en een bestandsspecifieke
+  token getest; de accountsite wordt nooit als videohost gebruikt. Zelfgehoste websites behouden
+  same-origin als terugval. Nog controleren op de installatie: directe host, relay-terugval, HLS,
+  audio/ondertitels, en dat geen videobytes via `app.vidalune.com` lopen.
+
 - **Voortgang wordt niet bewaard bij casten** (gemeld 2 okt; app-deel gebouwd in 0.19.11). Oorzaak: de server
   bewaart de voortgang niet zelf; de speler op de telefoon/in de browser stuurt elke 10 s de positie van
   de tv door (`frontend/src/pages/Player.tsx`, `castSaved`; app: `save` in `app/src/app/play/[kind]/[id].tsx`).
@@ -373,3 +381,11 @@ Maak de homepage visueel meer cinematografisch met een grotere full-bleed hero, 
 
 ### Compactere hero op de homepage
 Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op desktop het artwork meer ruimte naast de tekst en acties; behoud de persoonlijke hervatselectie en voortgang.
+
+## Versie 0.19.27
+
+### Rechtstreeks webafspelen
+- Probeer de ingestelde Server-URL eerst en de ingeschakelde, toegestane Vidalune-relay daarna; valideer elke kandidaat met een HEAD-verzoek.
+- Gebruik op `app.vidalune.com` nooit de accountsite als videohost; meld duidelijk wanneer geen mediahost bereikbaar is. Zelfgehoste websites behouden hun same-origin-terugval.
+- Autoriseer externe mediarequests met een bestandsspecifieke ondertekende token; beperk CORS en CSP tot geconfigureerde mediakandidaten.
+- Controleer directe toegang, relay-terugval, onbereikbare kandidaten, HLS en audio-/ondertitelgedrag. Bevestig op de installatie van de eigenaar dat geen videobytes via `app.vidalune.com` lopen.

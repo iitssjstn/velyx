@@ -309,6 +309,31 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     crossOriginResourcePolicy: { policy: 'same-origin' },
     hsts: false,
   });
+  app.addHook('onSend', async (_request, reply, payload) => {
+    const relay = ctx.cloud.status().relay;
+    const origins = [ctx.settings.serverUrl(), relay.enabled && relay.allowed ? relay.url : null].flatMap((candidate) => {
+      if (!candidate) return [];
+      try {
+        const url = new URL(candidate);
+        return url.protocol === 'http:' || url.protocol === 'https:' ? [url.origin] : [];
+      } catch {
+        return [];
+      }
+    });
+    if (!origins.length) return payload;
+    const current = reply.getHeader('Content-Security-Policy');
+    if (typeof current !== 'string') return payload;
+    const directives = current.split(';').map((directive) => directive.trim());
+    for (const name of ['connect-src', 'media-src']) {
+      for (const origin of origins) {
+        const index = directives.findIndex((directive) => directive.startsWith(`${name} `));
+        if (index < 0) directives.push(`${name} ${origin}`);
+        else if (!directives[index]!.split(/\s+/).includes(origin)) directives[index] = `${directives[index]} ${origin}`;
+      }
+    }
+    reply.header('Content-Security-Policy', directives.join('; '));
+    return payload;
+  });
   await app.register(cookie, { secret: ctx.config.sessionSecret });
 
   app.decorateRequest('user', null);
@@ -327,7 +352,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
       const target = castPath(request.url.split('?')[0]);
       if (!claims || !target || (request.method !== 'GET' && request.method !== 'HEAD')) return;
       const allowed =
-        target === 'image' ||
+        (target === 'image' && claims.artwork === true) ||
         ('fileId' in target && target.fileId === claims.fileId) ||
         ('subtitleId' in target && ctx.db.select({ file: subtitleRows.mediaFileId }).from(subtitleRows).where(eq(subtitleRows.id, target.subtitleId)).get()?.file === claims.fileId);
       if (!allowed) return;

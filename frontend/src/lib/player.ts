@@ -1,4 +1,4 @@
-import type { SubtitleOption } from './types';
+import type { PlaybackInfo, SubtitleOption } from './types';
 import { sameLanguage } from './prefs';
 import { languageLabel, t } from '../i18n';
 
@@ -69,6 +69,53 @@ export function isTyping(target: EventTarget | null): boolean {
 /** Appends a query parameter to a URL that may already have a query string. */
 export function withParam(url: string, key: string, value: string | number): string {
   return `${url}${url.includes('?') ? '&' : '?'}${key}=${encodeURIComponent(String(value))}`;
+}
+
+export async function selectDirectPlayback(info: PlaybackInfo, pageOrigin: string, fetchImpl: typeof fetch = fetch): Promise<PlaybackInfo> {
+  const page = new URL(pageOrigin);
+  const hostedApp = page.hostname.toLowerCase() === 'app.vidalune.com';
+  const unavailable = () => {
+    if (hostedApp) throw new Error(t('player.errors.directServerRequired'));
+    return info;
+  };
+  const direct = info.directPlayback;
+  if (!direct?.baseUrls.length) return unavailable();
+  for (const candidate of direct.baseUrls) {
+    let base: URL;
+    try {
+      base = new URL(candidate);
+    } catch {
+      continue;
+    }
+    if (!['http:', 'https:'].includes(base.protocol)) continue;
+    if (base.origin === page.origin) {
+      if (!hostedApp) return info;
+      continue;
+    }
+    const probe = new URL(`/api/media/${info.file.id}/stream`, base.origin);
+    if (info.decision.optimized) probe.searchParams.set('optimized', String(info.decision.optimized.id));
+    probe.searchParams.set('cast', direct.token);
+    try {
+      const response = await fetchImpl(probe, { method: 'HEAD', mode: 'cors', credentials: 'omit', signal: AbortSignal.timeout(4000) });
+      if (!response.ok) continue;
+    } catch {
+      continue;
+    }
+    const withToken = (path: string) => {
+      const url = new URL(path, `${base.origin}/`);
+      url.searchParams.set('cast', direct.token);
+      return url.toString();
+    };
+    return {
+      ...info,
+      decision: {
+        ...info.decision,
+        streamUrl: withToken(info.decision.streamUrl),
+        ...(info.decision.hlsUrl ? { hlsUrl: withToken(info.decision.hlsUrl) } : {}),
+      },
+    };
+  }
+  return unavailable();
 }
 
 /**
