@@ -366,8 +366,9 @@ describe('the relay', () => {
     expect((await get(app, `/_vl/open?server=${s.id}`, { cookie: other })).headers.location).toBe('/_vl/servers?choose');
     expect((await get(app, '/api/server/info', { cookie: `${other}; ${SERVER_COOKIE}=${s.id}` })).status).toBe(401);
     await cloud.inject({ method: 'DELETE', url: `/api/ceo/access/${s.grantId}`, headers: { cookie: s.bossCookie } });
-    expect((await get(app, '/api/server/info', { cookie: cookies })).status).toBe(401);
-    expect((await get(app, '/', { cookie: cookies })).headers.location).toBe('/_vl/servers');
+    // The account control tunnel stays available to the owner; only the public relay is disabled.
+    expect((await get(app, '/api/server/info', { cookie: cookies })).status).toBe(200);
+    expect((await get(app, '/api/server/info', { cookie: `${other}; ${SERVER_COOKIE}=${s.id}` })).status).toBe(401);
   });
 
   it('hands a browser over from vidalune.com to app.<domain>, signed in, with the server chosen', async () => {
