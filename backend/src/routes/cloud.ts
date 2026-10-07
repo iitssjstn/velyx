@@ -34,23 +34,15 @@ export async function cloudRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return ctx.cloud.status();
   });
 
-  /** Opening a port on the router with UPnP (opt-in), so the server is reachable from outside. */
-  app.get('/api/admin/upnp', { preHandler: requireAdmin }, async () => ctx.upnp.status());
+  app.get('/api/admin/direct-port', { preHandler: requireAdmin }, async () => ({ publicPort: ctx.settings.get().directPublicPort, internalPort: ctx.config.directTlsPort }));
 
-  app.put('/api/admin/upnp', { preHandler: requireAdmin }, async (request) => {
-    const body = z.object({ enabled: z.boolean(), externalPort: z.number().int().min(1024).max(65535) }).parse(request.body);
-    const before = ctx.upnp.status();
-    const status = await ctx.upnp.configure(body.enabled, body.externalPort);
-    if (before.enabled !== body.enabled) ctx.audit.record(body.enabled ? 'upnp.on' : 'upnp.off', { actor: request.user, ip: request.ip, detail: String(body.externalPort) });
-    else if (before.externalPort !== body.externalPort) ctx.audit.record('upnp.port_changed', { actor: request.user, ip: request.ip, detail: String(body.externalPort) });
+  app.put('/api/admin/direct-port', { preHandler: requireAdmin }, async (request) => {
+    const { publicPort } = z.object({ publicPort: z.number().int().min(1024).max(65535) }).parse(request.body);
+    const before = ctx.settings.get().directPublicPort;
+    ctx.settings.update({ directPublicPort: publicPort });
+    if (before !== publicPort) ctx.audit.record('direct.port_changed', { actor: request.user, ip: request.ip, detail: String(publicPort) });
     await ctx.cloud.check().catch(() => undefined);
-    return status;
-  });
-
-  app.post('/api/admin/upnp/check', { preHandler: requireAdmin }, async () => {
-    const status = await ctx.upnp.renew();
-    await ctx.cloud.check().catch(() => undefined);
-    return status;
+    return { publicPort, internalPort: ctx.config.directTlsPort };
   });
 
   // ---- every user: their own Vidalune account, to sign in here from app.vidalune.com and the app
