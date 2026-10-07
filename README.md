@@ -122,7 +122,9 @@ services:
     container_name: vidalune
     restart: unless-stopped
     ports:
+      # Local web/API access (for Nginx Proxy Manager or the home network); do not forward this port on the router.
       - "3000:3000"
+      # The single public media port; set the same public port on Admin → Vidalune account.
       - "${DIRECT_TLS_PORT:-32400}:${DIRECT_TLS_PORT:-32400}"
     environment:
       TZ: Europe/Amsterdam

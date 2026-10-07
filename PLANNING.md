@@ -305,6 +305,15 @@ PR #100 is gemerged en release `v0.19.23` is gecontroleerd (APK + beide `.deb`'s
   pagina. Telt mee voor SEO. Bijhouden bij elke release.
 
 ## Ideeën (nog niet besloten)
+## Versie 0.19.33
+
+### Directe control-/dataplane herstart
+- Vidalune/Velyx-cloud beheert account, abonnement, serverontdekking, DNS en certificaten; de player blijft een afzonderlijke clientflow.
+- Eén publieke TCP-poort per mediaserver, instelbaar via de website. Compose publiceert de interne HTTPS-listener; de router stuurt de gekozen publieke poort daarnaartoe.
+- De player haalt playbackmetadata en een bestandsgebonden JWT via de control-API op en streamt rechtstreeks vanaf de mediaserver. Velyx vervoert geen mediabytes.
+- Iedere server gebruikt een eigen automatisch beheerde hostname en ACME-certificaat. De direct-playbranches blijven beschikbaar als referentie; valideer thuis- en WAN-afspelen op echte installaties vóór uitrol.
+
+## Ideeën (nog niet besloten)
 
 - **Eigen cast-speler (Custom Web Receiver)** — wens van de eigenaar (2 okt), **nog niet bouwen** (hij
   test eerst). Moet een **volledige speler** zijn: alles wat mensen op de website en in de app gebruiken.
