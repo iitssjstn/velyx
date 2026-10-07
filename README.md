@@ -123,11 +123,10 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-      - "${DIRECT_PUBLIC_PORT:-32400}:${DIRECT_TLS_PORT:-32400}"
+      - "${DIRECT_TLS_PORT:-32400}:${DIRECT_TLS_PORT:-32400}"
     environment:
       TZ: Europe/Amsterdam
       DIRECT_TLS_PORT: ${DIRECT_TLS_PORT:-32400}
-      DIRECT_PUBLIC_PORT: ${DIRECT_PUBLIC_PORT:-32400}
       # Run as the user/group that owns your media files (check with: id your-user)
       PUID: "1000"
       PGID: "1000"
@@ -205,8 +204,7 @@ These are **not needed** and deliberately not in the compose file. They exist fo
 | `SESSION_SECRET` | Fixed cookie-signing secret. When unset, one is generated once and stored in `data/.session-secret`. |
 | `VIDALUNE_CLOUD_URL` | The Vidalune account service (default `https://vidalune.com`). Only contacted after an administrator links the server. |
 | `VIDALUNE_UPDATE_URL` | Where new versions are announced (default: `https://vidalune.com/api/releases/latest`); `off` disables the check. |
-| `DIRECT_TLS_PORT` | `32400` | Internal HTTPS media listener port. In Docker, publish the external port to this container port. |
-| `DIRECT_PUBLIC_PORT` | `32400` | Public TCP port forwarded to the direct listener when UPnP is off. |
+| `DIRECT_TLS_PORT` | `32400` | Internal HTTPS media listener port. In Docker, publish this listener port. |
 
 
 ### Example with optional settings
@@ -620,15 +618,17 @@ Vidalune can work with **Seerr**, so everyone on your server can ask for movies 
 
 **Inviting someone:** **Admin → Users → Invite** makes a link for someone to use this server (the server must be linked). Give it a name if you like and choose the libraries they may see, then send the link. They open it, create a Vidalune account or sign in, and the server is in their list on vidalune.com, app.vidalune.com and in the app; the first time they open it, the server makes a normal user for them (never an administrator) with those libraries, named after their email address, and administrators get a notification (Admin → Notifications). They sign in with their Vidalune account; there is no password to hand out (an administrator can set one under Users). A link works once, for seven days. The list under Users shows open invitations and who accepted one; **Withdraw invitation** stops the link at once, also after it was accepted but before it was used.
 
-**At home and away:** at home Vidalune is free and needs no account: devices in your home network (addresses such as `192.168.x.x`, `10.x.x.x`, `172.16–31.x.x`, and IPv6 local addresses) play everything. Linking a server to a Vidalune account makes it available on `app.vidalune.com`; no domain or address needs to be entered manually. The account tunnel handles sign-in, library browsing and controls; video, byte ranges, HLS, subtitles and playback artwork go directly to the server.
+**At home and away:** at home Vidalune is free and needs no account: devices in your home network (addresses such as `192.168.x.x`, `10.x.x.x`, `172.16–31.x.x`, and IPv6 local addresses) play everything. Linking a server to a Vidalune account makes it available on `app.vidalune.com`; no domain or address needs to be entered manually. The account tunnel handles sign-in, library browsing and controls. The authenticated server API returns a short-lived JWT scoped to one media file; the media server validates it over HTTPS. Video, byte ranges, HLS, subtitles and playback artwork go directly to the server, never through Velyx.
 
-**Playing away from home** needs remote access and one reachable TCP port. The public port is configurable on the server's Cloud page (default `32400`) and forwards to the internal direct HTTPS listener (default `32400`). Vidalune assigns the HTTPS hostname and certificate automatically in the background. UPnP can open the configured port; otherwise forward it manually. At home, video remains free. Without remote access or a reachable direct endpoint, playback explains why while browsing remains available. The server periodically checks account access; confirmed access remains valid for a week if vidalune.com is temporarily unavailable.
+**Playing away from home** needs remote access and one reachable TCP port. Set the public port on **Admin → Vidalune account → Direct connection**, then manually forward that TCP port in your router to the server's internal direct HTTPS listener (default `32400`). Docker publishes the internal listener port. Vidalune assigns the HTTPS hostname and certificate automatically in the background. At home, video remains free. Without remote access or a reachable direct endpoint, playback explains why while browsing remains available. The server periodically checks account access; confirmed access remains valid for a week if vidalune.com is temporarily unavailable.
+
+If your router or local DNS server supports split DNS, you can make the managed server hostname resolve to the server's private IP on your home network while public DNS continues resolving it to the public IP. Keep the same hostname so its HTTPS certificate remains valid; do not publish the private address in public DNS.
 
 **Admin → Vidalune account → At home and away** shows the status and allows other private networks, such as a VPN between your own devices (`100.64.0.0/10`), to count as home. Behind a reverse proxy, set `TRUST_PROXY` so Vidalune sees the real visitor address (see [Running behind a reverse proxy](#running-behind-a-reverse-proxy)).
 
 **Relay (optional):** linked servers keep a small account-control tunnel so `app.vidalune.com` can sign in and browse the library. That tunnel never carries video, HLS segments or subtitle files. The public relay address is an optional fallback for control/API access; its bandwidth is shared fairly between servers. Direct video still uses the managed HTTPS hostname and forwarded port, and remote video still obeys the remote-access rule above.
 
-**Opening the direct port on the router (UPnP, optional):** **Admin → Vidalune account → Open the port** asks your router to forward the configured public TCP port. If UPnP is unavailable, forward `DIRECT_PUBLIC_PORT` to `DIRECT_TLS_PORT` manually. Docker publishes these ports using the variables in the Compose example above; UPnP may require `network_mode: host`. On Debian, allow `DIRECT_TLS_PORT` in the firewall and forward `DIRECT_PUBLIC_PORT` in the router. The mapping is renewed every half hour and closed when turned off.
+**Manual port forwarding:** set the public TCP port on **Admin → Vidalune account → Direct connection**. In your router, forward that public port to the server's LAN address and internal listener port (default `32400`). On Debian, allow the listener port through the firewall. In Docker, publish the listener port as shown in the Compose example; the router forwards to the host's published port.
 
 While linked, the server sends the account service its name, version, observed public IP and direct-port/TLS readiness every five minutes so Vidalune can maintain DNS and check reachability — never media, library contents, users or what anyone watches. **Unlink** removes the server from the account service, after which these updates stop. On vidalune.com you see your servers and their direct-connection status and can unlink them or delete your account. The Android app can sign in with the same account to list your servers.
 

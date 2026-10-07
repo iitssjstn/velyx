@@ -39,16 +39,6 @@ export const cloud = {
   },
   relayNeedsLink: 'Link this server first to use the relay.',
   directTitle: 'Direct connection',
-  upnpIntro: 'Enter the public TCP port your router forwards to Vidalune. With UPnP, Vidalune can open the port automatically; otherwise configure the forwarding yourself. Video away from home also needs remote access.',
-  upnpPort: 'Public port',
-  upnpOn: 'Open the port',
-  upnpOff: 'Close the port',
-  upnpCheck: 'Check again',
-  upnpOpen: 'The router forwarded port {address}.',
-  upnpOpenNoAddress: 'Open on port {port}.',
-  upnpProblem: {
-    noRouter: 'No router with UPnP answered. Turn UPnP on in the router, or (in Docker) use network_mode: host.',
-    refused: 'The router refused: this port may be in use by another device. Choose another port.',
-    failed: 'The router did not answer as expected. Try again, or set up port forwarding yourself.',
-  },
+  directPortIntro: 'Enter the public TCP port. In your router, forward that TCP port to port {port} on this server.',
+  directPort: 'Public port',
 };
