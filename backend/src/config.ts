@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 
-export const DEFAULT_DIRECT_TLS_PORT = 8443;
+export const DEFAULT_DIRECT_TLS_PORT = 32400;
 
 export interface AppConfig {
   port: number;

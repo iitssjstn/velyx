@@ -396,7 +396,7 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Verwijder verplichte handmatige domeininvoer. Bij koppelen krijgt iedere server automatisch een eigen hostname onder het Vidalune-domein.
 - De accountservice gebruikt Cloudflare DNS-01 voor A/AAAA en certificaatvalidatie. Cloudflare-proxying staat uit op de directe hostname; TLS-privésleutels worden op de mediaserver gegenereerd en verlaten die niet.
 - De server meldt periodiek het waargenomen publieke IP en de ingestelde externe poort. De accountservice houdt DNS bij en controleert van buitenaf of de poort bereikbaar is.
-- De mediaserver bedient directe mediarequests via een afzonderlijke configureerbare HTTPS-listener (standaard TCP 8443). UPnP kan de publieke poort automatisch mappen.
+- De mediaserver bedient directe mediarequests via een afzonderlijke configureerbare HTTPS-listener (standaard TCP 32400). UPnP kan de publieke poort automatisch mappen.
 - `app.vidalune.com` blijft aanmelden, serverkeuze en bediening afhandelen. Video, byte-ranges, HLS-segmenten en benodigde ondertitels gaan rechtstreeks van de mediaserver naar de browser; ze gaan nooit via de accountsite of cloudrelay.
 - Verberg het handmatige Server-URL-veld als verbindingsvereiste. Toon automatisch status en instructies voor poortmapping, dubbele NAT/CGNAT, DNS, certificaat en bereikbaarheid. Als directe toegang faalt, meld dit duidelijk; proxy video niet stilzwijgend via de accountsite.
 - Externe DNS- en certificaatbeheer gebruiken Cloudflare-credentials die alleen als deployment secret op de accountservice staan; vraag serverbeheerders nooit om domein, DNS-token of certificaat.
@@ -411,10 +411,12 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 ## Versie 0.19.30
 
 ### Endpoint discovery en directe media
+- De beheerder stelt de publieke TCP-poort in via de Vidalune-beheerpagina; DNS- en certificaatuitgifte blijven achtergrondwerk en hun interne voortgang wordt niet getoond.
+- Na het aanmaken van het DNS-01-record controleert de CA de DNS-uitdaging zelf; Vidalune wacht niet eerst op zijn eigen recursieve DNS-cache.
 - PR #108 is gemerged als rollbackrelease `v0.19.29`; deze herstelde directe-media-uitwerking hoort daarom bij `v0.19.30`.
 - De geauthenticeerde server-heartbeat meldt private LAN-endpoint hints; de Account Service bepaalt het publieke IP uitsluitend uit de waargenomen requestbron.
 - De serverlijst/open-handshake geeft LAN-endpoints eerst, daarna de publieke HTTPS-host en bestaande adressen. Web/Android testen directe kandidaten en gebruiken de bestaande server-HMAC playbacktoken.
-- Interne listener en publieke poort blijven apart configureerbaar via `DIRECT_TLS_PORT` en `DIRECT_PUBLIC_PORT` (beide standaard 8443); Drizzle `0014` behoudt die default en `0015` voegt LAN-endpoints toe.
+- Interne listener en publieke poort blijven apart configureerbaar via `DIRECT_TLS_PORT` en `DIRECT_PUBLIC_PORT` (beide standaard 32400); Drizzle `0014` behoudt die default en `0015` voegt LAN-endpoints toe.
 - Relay/control blijft voor account, browsen en bediening. Relay en `app.vidalune.com`-API-proxy weigeren stream-, HLS-, subtitle- en playback-artworkbytes met HTTP 409.
 - De accountwebclient gebruikt de publiek beheerde HTTPS-host. Een browser kan een certificaat voor de verborgen host niet valideren wanneer hij rechtstreeks naar een RFC1918-IP gaat; Android test LAN best-effort en valt na TLS-/routefout terug op public.
 - NAT-PMP/STUN/ICE/TURN zijn niet toegevoegd. TURN blijft expliciet geen standaard mediafallback.

@@ -188,7 +188,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     },
     onScanFailed: (libraryId, message) => notifications.notify('scanFailed', { library: libraryName(libraryId), reason: message }),
   });
-  const cloud = new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, directTlsPort: config.directTlsPort, directPublicPort: () => settings.get().upnp.enabled ? settings.get().upnp.externalPort : config.directPublicPort, now: opts.cloudNow });
+  const cloud = new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, directTlsPort: config.directTlsPort, directPublicPort: () => settings.get().upnp.externalPort, now: opts.cloudNow });
   const sharedDetection = new SharedDetection(db, cloud, () => settings.get().sharedDetection);
   const segments: SegmentDetector = new SegmentDetector(db, opts.audioReader ?? ffmpegAudioReader(config.ffmpegPath), {
     enabled: () => settings.get().segmentDetection,

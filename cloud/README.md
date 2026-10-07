@@ -64,7 +64,7 @@ interface (see *app.vidalune.com* below).
 
 Linking a server gives app.vidalune.com a small control tunnel for sign-in, library browsing and
 controls, including free home use. The tunnel never carries video, HLS segments or subtitle files.
-Direct video uses the server's automatically assigned HTTPS hostname and its configurable public TCP port (default 8443). Watching
+Direct video uses the server's automatically assigned HTTPS hostname and its configurable public TCP port (default 32400). Watching
 video away from home needs remote access on the Vidalune account that owns the server, or a viewer
 subscription on the account of the person watching. The server itself enforces that rule on every
 stream request; home-network playback remains free.
@@ -140,7 +140,7 @@ A linked server keeps a WebSocket open to `wss://vidalune.com/api/server/tunnel`
 control, including on the free plan. The optional public relay hostname (`https://<name>.vidalune.com`)
 is separately gated by remote access and passes control/API requests only; media and subtitle paths
 are refused. Direct video uses the managed `media.<domain>` hostname, DNS-only Cloudflare records,
-the server's own ACME certificate/private key, and the configured forwarded TCP port (default 8443).
+the server's own ACME certificate/private key, and the configured forwarded TCP port (default 32400).
 
 **Fair sharing and limits:** the relay passes a server's answers on only as fast as its share allows:
 every server that is sending gets an equal part of `RELAY_MAX_MBPS`, and never more than its own

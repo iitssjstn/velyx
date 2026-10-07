@@ -110,27 +110,6 @@ describe('Cloudflare direct DNS records', () => {
     expect(calls[3]).toMatchObject({ url: 'https://cf.test/zones/zone-1/dns_records/txt-1', init: expect.objectContaining({ method: 'DELETE' }) });
   });
 
-  it('waits for the challenge digest to resolve and stops at the bounded deadline', async () => {
-    let lookups = 0;
-    const waits: number[] = [];
-    const dns = new CloudflareDns({
-      token: 'test-token',
-      zoneName: 'vidalune.com',
-      fetchImpl: vi.fn(),
-      lookupTxt: async () => {
-        lookups++;
-        return lookups < 3 ? [['other']] : [['challenge', '-digest']];
-      },
-      wait: async (ms) => { waits.push(ms); },
-    });
-    await dns.waitForTxt('_acme-challenge.server.media.vidalune.com', 'challenge-digest', 4);
-    expect(lookups).toBe(3);
-    expect(waits).toEqual([2500, 2500]);
-
-    const unavailable = new CloudflareDns({ token: 'test-token', zoneName: 'vidalune.com', fetchImpl: vi.fn(), lookupTxt: async () => [], wait: async () => undefined });
-    await expect(unavailable.waitForTxt('_acme-challenge.server.media.vidalune.com', 'missing', 2)).rejects.toThrow(/did not become visible/);
-  });
-
   it('rejects hostnames outside the configured zone and invalid IP addresses without a request', async () => {
     const fetchImpl = vi.fn<typeof fetch>();
     const dns = new CloudflareDns({ token: 'test-token', zoneName: 'vidalune.com', fetchImpl });

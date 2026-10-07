@@ -114,6 +114,12 @@ describe('linking to a Vidalune account', () => {
     expect((await post('/api/admin/cloud/check')).json().relay).toMatchObject({ allowed: true });
   });
 
+  it('reports the manually selected public port when UPnP is disabled', async () => {
+    env.ctx.settings.update({ upnp: { enabled: false, externalPort: 32400 } });
+    await post('/api/admin/cloud/link');
+    expect(calls[0]?.body).toMatchObject({ directPort: 32400 });
+  });
+
   it('turns the relay on only for a linked server, and off again when the server is unlinked on vidalune.com', async () => {
     await post('/api/admin/cloud/link');
     const refused = await env.app.inject({ method: 'POST', url: '/api/admin/cloud/relay', headers: { cookie: admin }, payload: { enabled: true } });
