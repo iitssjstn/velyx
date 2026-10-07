@@ -3,8 +3,7 @@
 The service behind vidalune.com: Vidalune accounts, and linking a Vidalune server to an account with
 a code. A Vidalune server only contacts it after its administrator turns linking on (Admin →
 Vidalune account). It stores email addresses, Argon2id password hashes, and per server its name,
-version and the public IP observed on authenticated heartbeats for automatic DNS — never media or
-what anyone watches.
+version and public address — never media or what anyone watches.
 
 Self-hosters do not need to run this. It runs once, for vidalune.com.
 
@@ -22,10 +21,6 @@ services:
       PUBLIC_URL: https://vidalune.com   # where people open it
       TRUST_PROXY: "1"                   # one proxy (Nginx Proxy Manager) in front
       CEO_EMAILS: you@example.com        # accounts that may open the Control Center (/admin)
-      DIRECT_DOMAIN: media.vidalune.com
-      CLOUDFLARE_ZONE_NAME: vidalune.com
-      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-} # runtime secret; DNS edit/read for this zone only
-      DIRECT_ACME_EMAIL: you@example.com
     volumes:
       - ./cloud-data:/data               # cloud.db lives here: back it up
     networks: [npm]                      # the network Nginx Proxy Manager is on
@@ -54,26 +49,20 @@ interface (see *app.vidalune.com* below).
 | `ADMIN_EMAILS` | (none) | Also open the Control Center, with the same rights, and always have remote access themselves. Kept for existing installations; `CEO_EMAILS` is enough. |
 | `RELAY_MAX_MBPS` | `900` | What the relay may send in total, in Mbit/s, shared equally between the servers sending at that moment (`0`: no limit). Keep it a little under the VPS's line (1 Gbit/s: 900). |
 | `RELAY_SERVER_MBPS` | `0` | What one server may send through the relay, in Mbit/s, unless set per server in the Control Center (`0`: no limit of its own). |
-| `DIRECT_DOMAIN` | `media.<PUBLIC_URL hostname>` | Parent domain for automatically assigned direct server hostnames. |
-| `CLOUDFLARE_ZONE_NAME` | `<PUBLIC_URL hostname>` | Cloudflare zone that contains `DIRECT_DOMAIN`. |
-| `CLOUDFLARE_API_TOKEN` | (empty) | Runtime-only token for DNS updates. Scope it to Zone DNS Edit and Zone Read for this zone. Keep it in the account service host's secret/environment configuration; a GitHub Actions secret is not passed to the running container automatically. |
-| `DIRECT_ACME_DIRECTORY_URL` | Let's Encrypt production | ACME directory used to issue publicly trusted certificates. Use the Let's Encrypt staging directory only for deployment tests. |
-| `DIRECT_ACME_EMAIL` | first `ADMIN_EMAILS` address | Optional contact for certificate expiry notices. |
 
 ## Remote access
 
-Linking a server gives app.vidalune.com a small control tunnel for sign-in, library browsing and
-controls, including free home use. The tunnel never carries video, HLS segments or subtitle files.
-Direct video uses the server's automatically assigned HTTPS hostname and its configurable public TCP port (default 32400). Watching
-video away from home needs remote access on the Vidalune account that owns the server, or a viewer
-subscription on the account of the person watching. The server itself enforces that rule on every
-stream request; home-network playback remains free.
+Reaching a server through Vidalune — its relay address, and opening it from app.vidalune.com over
+the relay — needs *remote access* on the Vidalune account that owns the server. Without it the relay
+cannot be turned on, an open tunnel is closed, and relay addresses answer that the server cannot be
+reached. The server's own address (home network, port forwarding, own domain) is not affected.
 
-The optional public relay hostname is separately gated by remote access. It can pass control/API
-requests but refuses media paths. Direct hostnames are provisioned with DNS-only Cloudflare records
-and DNS-01 certificates; the TLS private key is generated and kept on the server.
-Remote access is managed in the Control Center (below). A viewer subscription grants only that
-viewer remote playback; it does not grant access to other users of the server.
+There are two kinds: **remote access** on the account that owns a server (everyone who uses that
+server may watch away from home) and **viewer** on anyone's account (only that account may, on every
+server it uses, also when the owner has no subscription). A server with a viewer among its users may
+use the relay too; the server itself decides per user whether they may play away from home. Remote
+access is given in the Control Center (below).
+
 ## The Control Center (/admin)
 
 Accounts in `CEO_EMAILS` (and `ADMIN_EMAILS`) open **vidalune.com/admin** (also linked as *Admin* on
@@ -136,11 +125,12 @@ Endpoints (all `/api/ceo/…`): `GET dashboard`, `GET activity`, `GET/POST custo
 
 ## The relay
 
-A linked server keeps a WebSocket open to `wss://vidalune.com/api/server/tunnel` for account-site
-control, including on the free plan. The optional public relay hostname (`https://<name>.vidalune.com`)
-is separately gated by remote access and passes control/API requests only; media and subtitle paths
-are refused. Direct video uses the managed `media.<domain>` hostname, DNS-only Cloudflare records,
-the server's own ACME certificate/private key, and the configured forwarded TCP port (default 32400).
+A Vidalune server whose administrator turns the relay on (Admin → Vidalune account, only while
+linked) keeps a WebSocket open to `wss://vidalune.com/api/server/tunnel` and gets the address
+`https://<name>.vidalune.com`. Visitors of that address are passed through the tunnel to the server;
+nothing is stored. Names like `www`, `app` and `api` are never given out. The address is not shown
+to people: a browser opening it is sent to app.vidalune.com with that server chosen; the API (the
+app, and app.vidalune.com's own requests) passes through.
 
 **Fair sharing and limits:** the relay passes a server's answers on only as fast as its share allows:
 every server that is sending gets an equal part of `RELAY_MAX_MBPS`, and never more than its own

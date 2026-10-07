@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTestEnv, createUser, setupAdmin, type TestEnv } from './helpers.js';
-import { isHomeAddress, isHomeRequest, isPrivateNetwork, isSamePublicAddress, parseNetwork } from '../src/services/remote-access.js';
+import { isHomeAddress, isHomeRequest, isPrivateNetwork, parseNetwork } from '../src/services/remote-access.js';
 import { REMOTE_GRACE_MS } from '../src/services/cloud.js';
 
 describe('home or away', () => {
@@ -12,15 +12,6 @@ describe('home or away', () => {
     expect(parseNetwork('192.168.50.0/24')).toEqual(['192.168.50.0', 24, 'ipv4']);
     expect(parseNetwork('fd7a::/48')).toEqual(['fd7a::', 48, 'ipv6']);
     for (const bad of ['192.168.1.1', '10.0.0.0/33', 'example.com/8', '']) expect(parseNetwork(bad)).toBeNull();
-  });
-
-  it('matches only the exact observed public address for a verified same-WAN client', () => {
-    expect(isSamePublicAddress('203.0.113.7', '203.0.113.7')).toBe(true);
-    expect(isSamePublicAddress('::ffff:203.0.113.7', '203.0.113.7')).toBe(true);
-    expect(isSamePublicAddress('2001:4860:4860::8888', '2001:4860:4860:0:0:0:0:8888')).toBe(true);
-    expect(isSamePublicAddress('203.0.113.8', '203.0.113.7')).toBe(false);
-    expect(isSamePublicAddress('not-an-ip', '203.0.113.7')).toBe(false);
-    expect(isSamePublicAddress('203.0.113.7', null)).toBe(false);
   });
 });
 
@@ -57,18 +48,17 @@ afterEach(async () => {
   await env.cleanup();
 });
 
-/** Playback analysis has no media bytes; the file does not exist: 404 means the analysis route was reached. */
+/** Playing a file as a device away from home (or at home). The file does not exist: 404 means "let through". */
 const play = (ip = '203.0.113.7') => env.app.inject({ method: 'POST', url: '/api/media/999/playback', headers: { cookie: admin }, remoteAddress: ip, payload: {} });
-/** The file does not exist: 404 means remote access passed; 402 means playback is gated. */
 const stream = (ip = '203.0.113.7') => env.app.inject({ url: '/api/media/999/stream', headers: { cookie: admin }, remoteAddress: ip });
 
 describe('playing away from home', () => {
   it('is free at home, and needs a linked server with remote access away from home', async () => {
     expect((await play('192.168.1.20')).statusCode).toBe(404);
-    expect((await stream('192.168.1.20')).statusCode).toBe(404);
-    const unlinked = await stream();
+    const unlinked = await play();
     expect(unlinked.statusCode).toBe(402);
     expect(unlinked.json().error).toMatch(/links this server to a Vidalune account/);
+    expect((await stream()).statusCode).toBe(402);
     // Browsing still works away from home.
     expect((await env.app.inject({ url: '/api/home', headers: { cookie: admin }, remoteAddress: '203.0.113.7' })).statusCode).toBe(200);
 
@@ -76,15 +66,14 @@ describe('playing away from home', () => {
     linked = true;
     await env.app.inject({ method: 'POST', url: '/api/admin/cloud/check', headers: { cookie: admin } });
     const noPlan = await play();
-    expect(noPlan.statusCode).toBe(404);
-    expect((await stream()).statusCode).toBe(402);
-    expect((await stream('192.168.1.20')).statusCode).toBe(404);
+    expect(noPlan.statusCode).toBe(402);
+    expect(noPlan.json().error).toMatch(/owner of this server does not have/);
 
     // Given on vidalune.com: the next try asks again (at most every two minutes) and plays.
     allowed = true;
-    expect((await stream()).statusCode).toBe(402);
+    expect((await play()).statusCode).toBe(402);
     clock += 3 * 60_000;
-    expect((await stream()).statusCode).toBe(404);
+    expect((await play()).statusCode).toBe(404);
     expect((await env.app.inject({ url: '/api/admin/cloud', headers: { cookie: admin } })).json()).toMatchObject({ remoteAccess: true });
   });
 
@@ -95,43 +84,28 @@ describe('playing away from home', () => {
     await env.app.inject({ method: 'POST', url: '/api/admin/cloud/check', headers: { cookie: admin } });
     reachable = false;
     clock += 2 * 24 * 60 * 60_000;
-    expect((await stream()).statusCode).toBe(404);
+    expect((await play()).statusCode).toBe(404);
     clock += REMOTE_GRACE_MS;
-    expect((await stream()).statusCode).toBe(402);
+    expect((await play()).statusCode).toBe(402);
     // Taken away on vidalune.com: stops as soon as the server hears it.
     reachable = true;
     allowed = false;
     clock += 3 * 60_000;
-    expect((await stream()).statusCode).toBe(402);
+    expect((await play()).statusCode).toBe(402);
   });
 
   it('lets an administrator add home networks, such as a VPN', async () => {
-    expect((await stream('100.64.1.2')).statusCode).toBe(402);
+    expect((await play('100.64.1.2')).statusCode).toBe(402);
     const bad = await env.app.inject({ method: 'PUT', url: '/api/admin/cloud/home-networks', headers: { cookie: admin }, payload: { networks: ['example.com'] } });
     expect(bad.statusCode).toBe(400);
     const set = await env.app.inject({ method: 'PUT', url: '/api/admin/cloud/home-networks', headers: { cookie: admin }, payload: { networks: ['100.64.0.0/10', '100.64.0.0/10'] } });
     expect(set.json().homeNetworks).toEqual(['100.64.0.0/10']);
-    expect((await stream('100.64.1.2')).statusCode).toBe(404);
-  });
-
-  it('counts the same public WAN IP as home only while the direct port is confirmed open', async () => {
-    await env.app.inject({ method: 'POST', url: '/api/admin/cloud/link', headers: { cookie: admin } });
-    linked = true;
-    await env.app.inject({ method: 'POST', url: '/api/admin/cloud/check', headers: { cookie: admin } });
-    const cloud = env.ctx.settings.get().cloud!;
-    const directAccess = { configured: true, hostname: 'server.media.vidalune.com', publicIp: '203.0.113.7', port: 32400, dnsReady: true, tlsReady: true, portOpen: true, checkedAt: clock, url: 'https://server.media.vidalune.com:32400' };
-    env.ctx.settings.update({ cloud: { ...cloud, directAccess } });
-
-    expect((await stream('203.0.113.7')).statusCode).toBe(404);
-    expect((await stream('203.0.113.8')).statusCode).toBe(402);
-
-    env.ctx.settings.update({ cloud: { ...env.ctx.settings.get().cloud!, directAccess: { ...directAccess, portOpen: false, url: null } } });
-    expect((await stream('203.0.113.7')).statusCode).toBe(402);
+    expect((await play('100.64.1.2')).statusCode).toBe(404);
   });
 
   it('treats visitors through the relay as away from home', async () => {
     // The relay client on this server passes the visitor's address from loopback.
-    const res = await env.app.inject({ url: '/api/media/999/stream', headers: { cookie: admin, 'x-forwarded-for': '203.0.113.7' }, remoteAddress: '127.0.0.1' });
+    const res = await env.app.inject({ method: 'POST', url: '/api/media/999/playback', headers: { cookie: admin, 'x-forwarded-for': '203.0.113.7' }, remoteAddress: '127.0.0.1', payload: {} });
     expect(res.statusCode).toBe(402);
   });
 
@@ -142,7 +116,7 @@ describe('playing away from home', () => {
     const tom = await createUser(env.app, admin, 'tom');
     viewers = [String(lisa.id)];
     await env.app.inject({ method: 'POST', url: '/api/admin/cloud/check', headers: { cookie: admin } });
-    const as = (cookie: string) => env.app.inject({ url: '/api/media/999/stream', headers: { cookie }, remoteAddress: '203.0.113.7' });
+    const as = (cookie: string) => env.app.inject({ method: 'POST', url: '/api/media/999/playback', headers: { cookie }, remoteAddress: '203.0.113.7', payload: {} });
     expect((await as(lisa.cookie)).statusCode).toBe(404);
     const other = await as(tom.cookie);
     expect(other.statusCode).toBe(402);

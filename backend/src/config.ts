@@ -3,8 +3,6 @@ import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 
-export const DEFAULT_DIRECT_TLS_PORT = 32400;
-
 export interface AppConfig {
   port: number;
   host: string;
@@ -44,8 +42,6 @@ export interface AppConfig {
   serverUrl: string;
   /** The Vidalune account service (only contacted after an administrator links the server). */
   cloudUrl: string;
-  /** HTTPS listener for direct media requests; forward one public TCP port to this port. */
-  directTlsPort: number;
 }
 
 function bool(v: string | undefined, fallback: boolean): boolean {
@@ -143,7 +139,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     frontendDir: frontendCandidate,
     serverUrl: env.SERVER_URL ?? '',
     cloudUrl: (env.VIDALUNE_CLOUD_URL || 'https://vidalune.com').replace(/\/+$/, ''),
-    directTlsPort: int(env.DIRECT_TLS_PORT, DEFAULT_DIRECT_TLS_PORT),
     ...overrides,
   };
   cfg.sessionSecret = overrides.sessionSecret ?? resolveSessionSecret(dataDir, env.SESSION_SECRET);

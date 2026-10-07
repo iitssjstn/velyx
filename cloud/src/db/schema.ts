@@ -52,20 +52,6 @@ export const servers = sqliteTable(
     name: text('name').notNull(),
     version: text('version').notNull(),
     url: text('url'),
-    /** Public address observed on authenticated server heartbeats. */
-    publicIp: text('public_ip'),
-    /** Private LAN endpoint hints reported by the authenticated server (JSON array). */
-    localEndpoints: text('local_endpoints').notNull().default('[]'),
-    /** Whether the automatic direct hostname currently matches publicIp in DNS. */
-    directDnsReady: integer('direct_dns_ready', { mode: 'boolean' }).notNull().default(false),
-    directDnsCheckedAt: integer('direct_dns_checked_at'),
-    /** The direct TLS listener port reported by the server. */
-    directPort: integer('direct_port').notNull().default(32400),
-    /** The server has a valid certificate installed and its direct listener is ready. */
-    directTlsReady: integer('direct_tls_ready', { mode: 'boolean' }).notNull().default(false),
-    /** The account service last reached the direct listener from outside the server's network. */
-    directPortOpen: integer('direct_port_open', { mode: 'boolean' }).notNull().default(false),
-    directPortCheckedAt: integer('direct_port_checked_at'),
     /** Its relay address: https://<relaySlug>.vidalune.com (assigned once, kept when turned off). */
     relaySlug: text('relay_slug').unique(),
     /** Reachable through the relay (the server's administrator turned it on). */

@@ -5,7 +5,7 @@ name: Account service image
 on:
   push:
     branches: [main]
-    paths: ['cloud/**', 'frontend/**', 'package-lock.json', '.github/workflows/cloud-image.yml']
+    paths: ['cloud/**', 'frontend/**', 'package-lock.json', '.github/workflows/cloud-image.yml', '.github/workflows/android.yml', '.github/workflows/deb.yml']
   pull_request:
     paths: ['cloud/**', 'frontend/**', '.github/workflows/cloud-image.yml']
   # Once the Android app of a release is built (it finishes after the Debian packages): again, so
@@ -46,12 +46,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release download --repo "$GITHUB_REPOSITORY" --pattern 'vidalune-*.apk' --pattern 'vidalune_*.deb' --dir cloud/downloads || echo "Nothing released yet."
 
+      - name: Verify release Debian packages
+        if: github.event_name == 'workflow_run'
+        run: |
+          version=$(node -p "require('./package.json').version")
+          for arch in amd64 arm64; do
+            file="cloud/downloads/vidalune_${version}_${arch}.deb"
+            test -s "$file" || { echo "Missing release package: $file" >&2; exit 1; }
+          done
+
       # The signed apt repository at vidalune.com/apt, from the packages of the newest release.
       - name: Apt repository
         if: github.event_name != 'pull_request'
         env:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ] && [ -z "$APT_SIGNING_KEY" ]; then echo "APT_SIGNING_KEY is required to publish a release cloud image." >&2; exit 1; fi
           if [ -z "$APT_SIGNING_KEY" ] || ! ls cloud/downloads/vidalune_*.deb > /dev/null 2>&1; then echo "No signing key or no packages: no apt repository."; exit 0; fi
           command -v apt-ftparchive > /dev/null || sudo apt-get install -y -qq apt-utils
           sh packaging/apt/build-repo.sh cloud/downloads cloud/downloads/apt

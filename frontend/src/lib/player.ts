@@ -75,21 +75,19 @@ export async function selectDirectPlayback(info: PlaybackInfo, pageOrigin: strin
   const page = new URL(pageOrigin);
   const hostedApp = page.hostname.toLowerCase() === 'app.vidalune.com';
   const unavailable = () => {
-    console.info('connection_mode=failed');
     if (hostedApp) throw new Error(t('player.errors.directServerRequired'));
     return info;
   };
   const direct = info.directPlayback;
-  const endpoints = direct?.endpoints.filter((endpoint) => !hostedApp || endpoint.type === 'public') ?? [];
-  if (!direct || !endpoints.length) return unavailable();
-  for (const endpoint of endpoints) {
+  if (!direct?.baseUrls.length) return unavailable();
+  for (const candidate of direct.baseUrls) {
     let base: URL;
     try {
-      base = new URL(endpoint.url);
+      base = new URL(candidate);
     } catch {
       continue;
     }
-    if (!['https:', 'http:'].includes(base.protocol)) continue;
+    if (!['http:', 'https:'].includes(base.protocol)) continue;
     if (base.origin === page.origin) {
       if (!hostedApp) return info;
       continue;
@@ -97,15 +95,12 @@ export async function selectDirectPlayback(info: PlaybackInfo, pageOrigin: strin
     const probe = new URL(`/api/media/${info.file.id}/stream`, base.origin);
     if (info.decision.optimized) probe.searchParams.set('optimized', String(info.decision.optimized.id));
     probe.searchParams.set('cast', direct.token);
-    let response: Response;
     try {
-      response = await fetchImpl(probe, { method: 'HEAD', mode: 'cors', credentials: 'omit', signal: AbortSignal.timeout(2500) });
+      const response = await fetchImpl(probe, { method: 'HEAD', mode: 'cors', credentials: 'omit', signal: AbortSignal.timeout(4000) });
+      if (!response.ok) continue;
     } catch {
       continue;
     }
-    if (response.status === 402) throw new Error(t('player.errors.remoteAccessRequired'));
-    if (!response.ok) continue;
-    console.info(`connection_mode=direct_${endpoint.type}`);
     const withToken = (path: string) => {
       const url = new URL(path, `${base.origin}/`);
       url.searchParams.set('cast', direct.token);
@@ -118,7 +113,6 @@ export async function selectDirectPlayback(info: PlaybackInfo, pageOrigin: strin
         streamUrl: withToken(info.decision.streamUrl),
         ...(info.decision.hlsUrl ? { hlsUrl: withToken(info.decision.hlsUrl) } : {}),
       },
-      subtitles: info.subtitles.map((subtitle) => ({ ...subtitle, url: withToken(subtitle.url) })),
     };
   }
   return unavailable();

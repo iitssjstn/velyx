@@ -8,7 +8,6 @@ import { buildCloudApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
 import { IMAGE } from '../src/install.js';
-import { homePage } from '../src/site.js';
 
 let dir: string;
 let downloads: string;
@@ -31,20 +30,6 @@ afterEach(async () => {
 });
 
 describe('installing Vidalune from vidalune.com', () => {
-  it('explains that remote video connects directly to the server', () => {
-    const en = homePage('en', false, false, 'https://vidalune.example', version);
-    expect(en).toContain('one port must be reachable for video away from home');
-    expect(en).toContain('Direct HTTPS connection to your server');
-    expect(en).toContain('manually forward one TCP port to your server');
-    expect(en).not.toContain('relay reaches your server');
-
-    const nl = homePage('nl', false, false, 'https://vidalune.example', version);
-    expect(nl).toContain('moet één poort bereikbaar zijn');
-    expect(nl).toContain('Rechtstreekse HTTPS-verbinding met je server');
-    expect(nl).toContain('handmatig één TCP-doorschakeling in naar je server');
-    expect(nl).not.toContain('relay je server');
-  });
-
   it('announces the latest version for the update check, and the app once there is one', async () => {
     const none = await app.inject({ url: '/api/releases/latest' });
     expect(none.json()).toEqual({ version, url: 'https://vidalune.example/install', app: null });
@@ -82,9 +67,6 @@ describe('installing Vidalune from vidalune.com', () => {
     const compose = await app.inject({ url: '/install/docker-compose.yml' });
     expect(compose.headers['content-disposition']).toContain('docker-compose.yml');
     expect(compose.body).toContain(`image: ${IMAGE}`);
-    expect(compose.body).toContain('"${DIRECT_TLS_PORT:-32400}:${DIRECT_TLS_PORT:-32400}"');
-    expect(compose.body).toContain('DIRECT_TLS_PORT: ${DIRECT_TLS_PORT:-32400}');
-    expect(compose.body).not.toContain('DIRECT_PUBLIC_PORT');
     expect(compose.body).toContain('/media/movies:ro');
   });
 

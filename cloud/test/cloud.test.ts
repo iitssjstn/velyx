@@ -136,12 +136,8 @@ describe('linking a server', () => {
 
     const linked = await app.inject({ method: 'POST', url: '/api/link', headers: { cookie }, payload: { code: issued.code.toLowerCase() } });
     expect(linked.json()).toMatchObject({ id: s.id, name: 'Thuis', online: true });
-    const heartbeatStatus = (await heartbeat()).json();
-    expect(heartbeatStatus).toMatchObject({ linked: true, account: 'justin@example.com', relay: { enabled: false, url: null, connected: false } });
-    expect(heartbeatStatus.directAccess).toHaveProperty('publicIp');
-    const listedServers = (await app.inject({ url: '/api/servers', headers: { cookie } })).json();
-    expect(listedServers).toMatchObject([{ id: s.id, name: 'Thuis', version: '0.10.1', url: 'https://media.example.com', online: true }]);
-    expect(listedServers[0].directAccess).not.toHaveProperty('publicIp');
+    expect((await heartbeat()).json()).toMatchObject({ linked: true, account: 'justin@example.com', relay: { enabled: false, url: null, connected: false } });
+    expect((await app.inject({ url: '/api/servers', headers: { cookie } })).json()).toMatchObject([{ id: s.id, name: 'Thuis', version: '0.10.1', url: 'https://media.example.com', online: true }]);
     // Used up.
     expect((await app.inject({ method: 'POST', url: '/api/link', headers: { cookie }, payload: { code: issued.code } })).statusCode).toBe(400);
 

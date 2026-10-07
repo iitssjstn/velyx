@@ -90,7 +90,6 @@ export interface PlaybackAnswer {
   analysis: { mode: 'direct' | 'remux' | 'transcode' | 'unsupported'; problems: string[]; summary: string[] };
   file: { id: number; durationSec: number | null; audioTracks: AudioTrackInfo[] };
   subtitles: SubtitleOption[];
-  directPlayback?: { endpoints: { type: 'lan' | 'public'; url: string }[]; token: string };
   /** The server can search subtitles online (OpenSubtitles, with its own key or through vidalune.com). */
   onlineSubtitles?: boolean;
 }
@@ -100,9 +99,6 @@ export interface StreamStart {
   uri: string;
   /** Seconds into the file at which this stream begins (0 for direct play). */
   offset: number;
-  /** Direct media origin/token when the control API was opened through the relay. */
-  mediaBase?: string;
-  mediaToken?: string;
 }
 
 function withParam(url: string, key: string, value: string): string {
@@ -113,50 +109,17 @@ function withParam(url: string, key: string, value: string): string {
  * The stream for a position. Direct play reads the file (the player seeks itself); a remux stream
  * begins at the keyframe before `at`, which the server tells, so positions are offset by it.
  */
-export async function streamFrom(api: Api, answer: PlaybackAnswer, at: number, fetchImpl: typeof fetch = fetch): Promise<StreamStart> {
-  let mediaBase: string | undefined;
-  const mediaToken = answer.directPlayback?.token;
-  if (answer.directPlayback) {
-    if (!mediaToken || !answer.directPlayback.endpoints.length) throw new Error('No direct media endpoint is available.');
-    for (const endpoint of answer.directPlayback.endpoints) {
-      try {
-        const probe = new URL(`/api/media/${answer.file.id}/stream`, endpoint.url);
-        if (answer.decision.optimized) probe.searchParams.set('optimized', String(answer.decision.optimized.id));
-        probe.searchParams.set('cast', mediaToken);
-        const response = await fetchImpl(probe, { method: 'HEAD', signal: AbortSignal.timeout(4000) });
-        if (response.status === 402) throw new Error('Remote access is required to play this file away from home.');
-        if (!response.ok) continue;
-        mediaBase = new URL(endpoint.url).origin;
-        console.info(`connection_mode=direct_${endpoint.type}`);
-        break;
-      } catch (error) {
-        if (error instanceof Error && error.message.startsWith('Remote access')) throw error;
-      }
-    }
-    if (!mediaBase) {
-      console.info('connection_mode=failed');
-      throw new Error('No direct media endpoint is reachable.');
-    }
-  }
-  const directUrl = (path: string) => {
-    if (!mediaBase || !mediaToken) return api.url(path);
-    const url = new URL(path, `${mediaBase}/`);
-    url.searchParams.set('cast', mediaToken);
-    return url.toString();
-  };
+export async function streamFrom(api: Api, answer: PlaybackAnswer, at: number): Promise<StreamStart> {
   const base = answer.decision.streamUrl;
-  if (answer.decision.seek !== 'restart' || at <= 0) return { uri: directUrl(base), offset: 0, ...(mediaBase && mediaToken ? { mediaBase, mediaToken } : {}) };
+  if (answer.decision.seek !== 'restart' || at <= 0) return { uri: api.url(base), offset: 0 };
   const optimized = answer.decision.optimized?.id;
   const r = await api.get<{ start: number; seek: number }>(`/api/media/${answer.file.id}/keyframe?t=${at.toFixed(3)}${optimized ? `&optimized=${optimized}` : ''}`);
-  return { uri: directUrl(withParam(base, 'start', r.seek.toFixed(3))), offset: r.start, ...(mediaBase && mediaToken ? { mediaBase, mediaToken } : {}) };
+  return { uri: api.url(withParam(base, 'start', r.seek.toFixed(3))), offset: r.start };
 }
 
 /** A subtitle's address for a stream that begins `offset` seconds into the file. */
-export function subtitleUrl(api: Api, option: SubtitleOption, offset: number, media?: { baseUrl: string; token: string }): string {
-  const url = media ? new URL(option.url, `${media.baseUrl}/`) : new URL(api.url(option.url));
-  if (offset > 0) url.searchParams.set('offset', offset.toFixed(3));
-  if (media) url.searchParams.set('cast', media.token);
-  return url.toString();
+export function subtitleUrl(api: Api, option: SubtitleOption, offset: number): string {
+  return api.url(offset > 0 ? withParam(option.url, 'offset', offset.toFixed(3)) : option.url);
 }
 
 /**
