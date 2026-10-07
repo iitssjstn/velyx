@@ -16,7 +16,7 @@ import { castRemoteOrientation, playbackOrientation, playerScreenState } from '.
 import { Button, styles } from '../../../components/ui';
 import { castLoadRequest, castTrackIds, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
-import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
 import { rememberSubtitle, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
 import { DEFAULT_SUBTITLE_STYLE, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
@@ -129,6 +129,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   });
 
   const [answer, setAnswer] = useState<PlaybackAnswer | null>(null);
+  const [mediaEndpoint, setMediaEndpoint] = useState<{ baseUrl: string; token: string } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [time, setTime] = useState(0);
@@ -194,6 +195,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
       if (castingRef.current) return;
       setLoading(true);
       const s = await streamFrom(api, a, at);
+      setMediaEndpoint(s.mediaBase && s.mediaToken ? { baseUrl: s.mediaBase, token: s.mediaToken } : null);
       setOffset(s.offset);
       setTime(Math.max(0, at - s.offset));
       // Direct play starts at 0 and seeks once the file is open; a remux stream already starts there.
@@ -201,7 +203,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
       tracksSet.current = false;
       streamReady.current = false;
       setEnded(false);
-      await player.replaceAsync({ uri: s.uri, headers: api.headers(), metadata: { title: item.title, artist: item.subtitle ?? undefined } });
+      await player.replaceAsync({ uri: s.uri, headers: s.mediaToken ? {} : api.headers(), metadata: { title: item.title, artist: item.subtitle ?? undefined } });
       if (autoplay && !castingRef.current) player.play();
       else setLoading(false);
     },
@@ -250,9 +252,10 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
         const session = await api.post<CastSession>('/api/cast/session', { fileId: item.fileId, ...(audio !== null ? { audioIndex: audio } : {}), ...(answer?.file.id === item.fileId && answer.decision.optimized ? { optimizationId: answer.decision.optimized.id } : {}) });
         s = castSession.current = { session, audio };
       }
+      if (!s.session.serverUrl) throw new Error(t('player.noDirectEndpoint'));
       // A repackaged stream starts at the keyframe before `at`.
       const keyframe = s.session.decision.seek === 'restart' && at > 0 ? await api.get<{ start: number; seek: number }>(`/api/media/${item.fileId}/keyframe?t=${at.toFixed(3)}${s.session.decision.optimized ? `&optimized=${s.session.decision.optimized.id}` : ''}`).then((r) => ({ offset: r.start, seek: r.seek })) : null;
-      const { request, offset: from } = castLoadRequest({ session: s.session, url: (path) => api.url(path), title: item.title, subtitle: item.subtitle, artwork: imagePath(item.poster ?? item.artwork, 'w780'), at, keyframe, subtitleKey: subtitleRef.current?.key ?? null, subtitleStyle: subStyle });
+      const { request, offset: from } = castLoadRequest({ session: s.session, url: (path) => new URL(path, `${s!.session.serverUrl}/`).toString(), title: item.title, subtitle: item.subtitle, artwork: imagePath(item.poster ?? item.artwork, 'w780'), at, keyframe, subtitleKey: subtitleRef.current?.key ?? null, subtitleStyle: subStyle });
       setOffset(from);
       setTime(Math.max(0, at - from));
       setEnded(false);
@@ -328,14 +331,14 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
     setCues([]);
     if (!subtitle) return;
     let alive = true;
-    fetch(api.url(subtitle.url), { headers: api.headers() })
+    fetch(subtitleUrl(api, subtitle, 0, mediaEndpoint ?? undefined), { headers: mediaEndpoint ? {} : api.headers() })
       .then((r) => r.text())
       .then((text) => alive && setCues(parseVtt(text)))
       .catch(() => undefined);
     return () => {
       alive = false;
     };
-  }, [subtitle, api]);
+  }, [subtitle, api, mediaEndpoint]);
 
   const lastTime = useRef(0);
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {

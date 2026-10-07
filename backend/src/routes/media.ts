@@ -20,8 +20,8 @@ import type { PlaybackDecision } from '../playback/engine.js';
 import { analyzePlayback } from '../playback/compatibility.js';
 import { clientProfile, deviceSupport, effectiveCapabilities, profileName } from '../playback/client-profile.js';
 import { requestLanguage } from '../i18n/index.js';
-import { isHomeRequest } from '../services/remote-access.js';
-import { CAST_TOKEN_MS, CHROMECAST_CAPS, signCastToken } from '../services/cast.js';
+import { isHomeRequest, isSamePublicAddress } from '../services/remote-access.js';
+import { CHROMECAST_CAPS, playbackJwtExpiresAt, signPlaybackJwt } from '../services/cast.js';
 import { createLogger } from '../logger.js';
 import type { ReadyOptimization } from '../services/optimization.js';
 
@@ -164,6 +164,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
    */
   const remoteGate = async (request: FastifyRequest) => {
     if (isHomeRequest(request, ctx.settings.get().homeNetworks)) return;
+    const direct = ctx.cloud.status().directAccess;
+    if (direct?.portOpen && isSamePublicAddress(request.ip, direct.publicIp)) return;
     const access = await ctx.cloud.remoteAccess(request.user?.id);
     if (access === 'allowed') return;
     throw new HttpError(
@@ -214,7 +216,9 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   /** Identifies a file's keyframes: a changed file (size, time) is read again. */
   const hlsLayoutKey = (file: typeof mediaFiles.$inferSelect) => `${file.id}:${file.size}:${file.mtimeMs}`;
 
-  app.post<{ Params: { id: string } }>('/api/media/:id/playback', { preHandler: [requireUser, remoteGate] }, async (request) => {
+  // Playback analysis contains no media bytes. Keep it available through the account control tunnel;
+  // the direct stream, remux, HLS segments and subtitle bodies enforce remote access themselves.
+  app.post<{ Params: { id: string } }>('/api/media/:id/playback', { preHandler: requireUser }, async (request) => {
     const source = loadFile(request.params.id, request.user!, undefined, true);
     const { audioIndex, audioChannels, boostVoices, levelVolume, optimizationId: requestedOptimizationId, ...reportedCaps } = capsBody.parse(request.body ?? {});
     let loaded = requestedOptimizationId === undefined ? source : loadFile(request.params.id, request.user!, requestedOptimizationId);
@@ -251,19 +255,18 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     // the file's keyframes first, and listing them reads the whole file: on a NAS that takes minutes
     // and starves the stream being watched. Copied video keeps the live stream.
     const hlsUrl = decision.hlsUrl?.includes('vt=1') ? decision.hlsUrl : undefined;
-    const relay = ctx.cloud.status().relay;
-    const mediaBases = [ctx.settings.serverUrl(), relay.enabled && relay.allowed ? relay.url : null];
-    const baseUrls = [...new Set(mediaBases.flatMap((candidate) => {
-      if (!candidate) return [];
-      try {
-        const url = new URL(candidate);
-        return url.protocol === 'http:' || url.protocol === 'https:' ? [url.origin] : [];
-      } catch {
-        return [];
-      }
-    }))];
-    const directPlayback = !request.appDevice && baseUrls.length
-      ? { baseUrls, token: signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt: Date.now() + CAST_TOKEN_MS, artwork: false }) }
+    const directAccess = ctx.cloud.status().directAccess;
+    const localEndpoints = directAccess?.localEndpoints.map((endpoint) => ({
+      type: 'lan' as const,
+      url: `https://${endpoint.address.includes(':') ? `[${endpoint.address}]` : endpoint.address}:${endpoint.port}`,
+    })) ?? [];
+    const endpoints = [...new Map([
+      ...localEndpoints,
+      ...(directAccess?.url ? [{ type: 'public' as const, url: directAccess.url }] : []),
+      ...(ctx.settings.serverUrl() ? [{ type: 'public' as const, url: ctx.settings.serverUrl() }] : []),
+    ].map((endpoint) => [endpoint.url, endpoint])).values()];
+    const directPlayback = endpoints.length
+      ? { endpoints, token: await signPlaybackJwt(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt: playbackJwtExpiresAt(file.durationSec), artwork: false }) }
       : undefined;
     return { decision: { ...decision, hlsUrl, mode: analysis.mode }, analysis, file: fileInfo(file, external, sourceFile), subtitles: subtitleList(sourceFile, request.user!), onlineSubtitles: ctx.openSubtitles.configured, ...(directPlayback ? { directPlayback } : {}) };
   });
@@ -304,17 +307,14 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const castDecision = decision.engine === 'direct'
       ? decision
       : { ...decision, streamUrl: decision.streamUrl.replace(/\/remux(?=\?)/, '/hls/index.m3u8'), seek: 'range' as const };
-    const expiresAt = Date.now() + CAST_TOKEN_MS;
-    const token = signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt, artwork: true });
-    const cloud = ctx.settings.get().cloud;
+    const expiresAt = playbackJwtExpiresAt(file.durationSec);
+    const token = await signPlaybackJwt(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt, artwork: true });
+    const directUrl = ctx.cloud.status().directAccess?.url ?? null;
     return {
       token,
       expiresAt,
-      // Where the Chromecast can reach this server when the page it was cast from cannot tell
-      // (app.vidalune.com works only with the browser's own sign-in): the relay, or the address
-      // set under Admin → Server.
-      relayUrl: cloud?.account && cloud.relay ? (cloud.relayUrl ?? null) : null,
-      serverUrl: ctx.settings.serverUrl() || null,
+      directUrl,
+      serverUrl: ctx.cloud.status().directAccess?.url || ctx.settings.serverUrl() || null,
       decision: castDecision,
       contentType: decision.engine === 'direct' ? (file.container === 'webm' ? 'video/webm' : 'video/mp4') : 'application/vnd.apple.mpegurl',
       // Text subtitles only (a Chromecast shows WebVTT), from this file.
@@ -436,7 +436,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return subtitleList(file, request.user!);
   });
 
-  app.get<{ Params: { id: string } }>('/api/subtitles/:id.vtt', { preHandler: requireUser }, async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/subtitles/:id.vtt', { preHandler: [requireUser, remoteGate] }, async (request, reply) => {
     const id = parseId(request.params.id);
     const row = db
       .select({ s: subtitles, f: mediaFiles, root: libraries.path })
@@ -452,7 +452,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return reply.type('text/vtt; charset=utf-8').header('Cache-Control', 'private, max-age=3600').send(vtt);
   });
 
-  app.get<{ Params: { id: string; index: string } }>('/api/media/:id/subtitles/:index.vtt', { preHandler: requireUser }, async (request, reply) => {
+  app.get<{ Params: { id: string; index: string } }>('/api/media/:id/subtitles/:index.vtt', { preHandler: [requireUser, remoteGate] }, async (request, reply) => {
     const { file, abs } = loadFile(request.params.id, request.user!);
     const index = Number(request.params.index);
     const track = (file.subtitleTracks ?? []).find((t) => t.index === index);

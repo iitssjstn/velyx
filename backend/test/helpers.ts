@@ -60,7 +60,6 @@ export interface TestEnvOptions {
   encoderDetector?: (ffmpegPath: string) => Promise<EncoderSupport>;
   /** The clock of the account service link. */
   cloudNow?: () => number;
-  ssdp?: { host: string; port: number };
   machineBusy?: () => boolean;
   segmentPaceMs?: number;
 }
@@ -84,7 +83,7 @@ export async function createTestEnv(opts: TestEnvOptions = {}): Promise<TestEnv>
   const noNetwork: FetchLike = async () => {
     throw new Error('network disabled in tests');
   };
-  const ctx = createContext(config, db, { prober, fetchImpl: opts.fetchImpl ?? noNetwork, tmdbMinIntervalMs: 0, watchDebounceMs: opts.watchDebounceMs, scanYieldMs: opts.scanYieldMs, audioReader: opts.audioReader, segmentRetryMs: opts.segmentRetryMs, frameReader: opts.frameReader ?? null, chapterReader: opts.chapterReader ?? null, cloudNow: opts.cloudNow, ssdp: opts.ssdp, machineBusy: opts.machineBusy, segmentPaceMs: opts.segmentPaceMs ?? 0, encoderDetector: opts.encoderDetector ?? (async () => ({ software: true, vaapi: null, nvenc: false, checkedAt: 0 })) });
+  const ctx = createContext(config, db, { prober, fetchImpl: opts.fetchImpl ?? noNetwork, tmdbMinIntervalMs: 0, watchDebounceMs: opts.watchDebounceMs, scanYieldMs: opts.scanYieldMs, audioReader: opts.audioReader, segmentRetryMs: opts.segmentRetryMs, frameReader: opts.frameReader ?? null, chapterReader: opts.chapterReader ?? null, cloudNow: opts.cloudNow, machineBusy: opts.machineBusy, segmentPaceMs: opts.segmentPaceMs ?? 0, encoderDetector: opts.encoderDetector ?? (async () => ({ software: true, vaapi: null, nvenc: false, checkedAt: 0 })) });
   // Folder watching is opt-in per test (see watcher.test.ts) so other suites stay deterministic.
   // So is intro/credits detection (it needs real or synthetic audio).
   ctx.settings.update({ watchFolders: false, segmentDetection: Boolean(opts.audioReader) });

@@ -9,8 +9,10 @@ services:
     restart: unless-stopped
     ports:
       - "${VIDALUNE_PORT:-3000}:3000"
+      - "${DIRECT_TLS_PORT:-32400}:${DIRECT_TLS_PORT:-32400}"
     environment:
       TZ: ${TZ:-Europe/Amsterdam}
+      DIRECT_TLS_PORT: ${DIRECT_TLS_PORT:-32400}
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
       COOKIE_SECURE: ${COOKIE_SECURE:-auto}

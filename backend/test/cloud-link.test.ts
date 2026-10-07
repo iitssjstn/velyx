@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createTestEnv, createUser, setupAdmin, type TestEnv } from './helpers.js';
 import { auditLog } from '../src/db/schema.js';
+import { localEndpoints } from '../src/services/cloud.js';
 
 // A stand-in for the Vidalune account service (the real one is tested in cloud/).
 let linkedTo: string | null;
@@ -50,6 +51,22 @@ afterEach(async () => {
 const post = (url: string, cookie = admin) => env.app.inject({ method: 'POST', url, headers: { cookie } });
 
 describe('linking to a Vidalune account', () => {
+  it('advertises only private LAN addresses on the configured HTTPS listener', () => {
+    const info = (address: string, internal = false) => address.includes(':')
+      ? { address, netmask: 'ffff:ffff:ffff:ffff::', family: 'IPv6' as const, mac: '00:00:00:00:00:00', internal, cidr: null, scopeid: 0 }
+      : { address, netmask: '255.255.255.0', family: 'IPv4' as const, mac: '00:00:00:00:00:00', internal, cidr: null };
+    expect(localEndpoints(8443, {
+      lan: [info('192.168.1.50'), info('10.0.0.4'), info('100.64.1.2'), info('fd12::50')],
+      public: [info('8.8.8.8'), info('169.254.1.4')],
+      loopback: [info('127.0.0.1', true), info('::1', true)],
+    })).toEqual([
+      { type: 'lan', address: '192.168.1.50', port: 8443, protocol: 'https' },
+      { type: 'lan', address: '10.0.0.4', port: 8443, protocol: 'https' },
+      { type: 'lan', address: '100.64.1.2', port: 8443, protocol: 'https' },
+      { type: 'lan', address: 'fd12::50', port: 8443, protocol: 'https' },
+    ]);
+  });
+
   it('contacts nothing until an administrator turns it on', async () => {
     expect((await env.app.inject({ url: '/api/admin/cloud', headers: { cookie: admin } })).json()).toMatchObject({ enabled: false, account: null, code: null, serviceUrl: 'https://vidalune.com' });
     await post('/api/admin/cloud/check');
@@ -68,7 +85,8 @@ describe('linking to a Vidalune account', () => {
     expect(JSON.stringify(waiting)).not.toContain('secret-secret');
     expect(calls.map((c) => c.url.replace('https://vidalune.com', ''))).toEqual(['/api/server/register', '/api/server/code']);
     expect(calls[1].auth).toBe('Server srv-1:secret-secret-secret-secret');
-    expect(calls[0].body).toEqual({ name: 'Vidalune', version: expect.any(String), url: null });
+    expect(calls[0].body).toMatchObject({ name: 'Vidalune', version: expect.any(String), url: null, localEndpoints: expect.any(Array) });
+    expect((calls[0].body as { localEndpoints: Array<{ type: string; port: number; protocol: string }> }).localEndpoints.every((endpoint) => endpoint.type === 'lan' && endpoint.port === env.ctx.config.directTlsPort && endpoint.protocol === 'https')).toBe(true);
 
     linkedTo = 'justin@example.com';
     const linked = (await post('/api/admin/cloud/check')).json();
@@ -94,6 +112,12 @@ describe('linking to a Vidalune account', () => {
     // Given on vidalune.com: the next report says so.
     allowed = true;
     expect((await post('/api/admin/cloud/check')).json().relay).toMatchObject({ allowed: true });
+  });
+
+  it('reports the manually selected public port', async () => {
+    env.ctx.settings.update({ directPublicPort: 32400 });
+    await post('/api/admin/cloud/link');
+    expect(calls[0]?.body).toMatchObject({ directPort: 32400 });
   });
 
   it('turns the relay on only for a linked server, and off again when the server is unlinked on vidalune.com', async () => {

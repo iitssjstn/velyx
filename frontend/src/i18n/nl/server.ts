@@ -4,7 +4,7 @@ export const server: Messages['server'] = {
   keyRemoved: 'TMDB-sleutel verwijderd.',
   saved: 'Instellingen opgeslagen.',
   url: 'Server-URL',
-  urlHint: 'Optioneel. De speler probeert eerst dit adres en daarna de Vidalune-relay. Op de accountsite zelf wordt geen videobeeld geladen.',
+  urlHint: 'Je hoeft geen adres in te vullen. Vidalune gebruikt automatisch het HTTPS-adres van de server voor media.',
   metadataLanguage: 'Taal van de metadata',
   metadataLanguageHint: 'TMDB-taalcode, bijv. en-US of nl-NL, voor titels en beschrijvingen van alle media. Vernieuw de metadata om dit op bestaande items toe te passen. De taal van de interface kiest elke gebruiker zelf.',
   includeAdult: 'Titels voor volwassenen meenemen in TMDB-zoekopdrachten',
