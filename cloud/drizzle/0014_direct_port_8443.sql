@@ -9,7 +9,7 @@ CREATE TABLE `__new_servers` (
 	`public_ip` text,
 	`direct_dns_ready` integer DEFAULT false NOT NULL,
 	`direct_dns_checked_at` integer,
-	`direct_port` integer DEFAULT 8443 NOT NULL,
+	`direct_port` integer DEFAULT 32400 NOT NULL,
 	`direct_tls_ready` integer DEFAULT false NOT NULL,
 	`direct_port_open` integer DEFAULT false NOT NULL,
 	`direct_port_checked_at` integer,

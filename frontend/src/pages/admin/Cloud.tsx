@@ -13,7 +13,6 @@ export interface CloudStatus {
   account: string | null;
   code: { code: string; expiresAt: number; linkUrl: string } | null;
   serviceUrl: string;
-  directAccess: { configured: boolean; hostname: string; port: number; dnsReady: boolean; tlsReady: boolean; portOpen: boolean; checkedAt: number | null; url: string | null } | null;
   relay: { enabled: boolean; url: string | null; connected: boolean; error: 'refused' | 'subscription' | 'unreachable' | 'closed' | null; allowed: boolean };
   /** Playing away from home works (linked, and the owner has remote access). */
   remoteAccess: boolean;
@@ -32,8 +31,8 @@ export interface UpnpStatus {
 
 const KEY = ['admin', 'cloud'];
 
-/** Opening a port on the router with UPnP (opt-in). */
-function UpnpSection() {
+/** Configure the public media port; UPnP is an optional way to open it automatically. */
+function DirectConnectionSection() {
   const { t } = useT();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['admin', 'upnp'], queryFn: () => api.get<UpnpStatus>('/api/admin/upnp') });
@@ -49,10 +48,10 @@ function UpnpSection() {
   const chosen = Number(port ?? u.externalPort);
   const valid = Number.isInteger(chosen) && chosen >= 1024 && chosen <= 65535;
   return (
-    <section className="panel space-y-3 p-5" aria-labelledby="upnp-title">
-      <h2 id="upnp-title" className="flex items-center gap-2 font-display text-lg font-semibold">
+    <section className="panel space-y-3 p-5" aria-labelledby="direct-title">
+      <h2 id="direct-title" className="flex items-center gap-2 font-display text-lg font-semibold">
         <Network className="size-5 text-accent" aria-hidden="true" />
-        {t('cloud.upnpTitle')}
+        {t('cloud.directTitle')}
       </h2>
       <p className="text-sm text-muted">{t('cloud.upnpIntro')}</p>
       {u.enabled && (
@@ -65,8 +64,8 @@ function UpnpSection() {
           <label className="label" htmlFor="upnp-port">{t('cloud.upnpPort')}</label>
           <input id="upnp-port" className="input w-32" type="number" min={1024} max={65535} value={port ?? String(u.externalPort)} onChange={(e) => setPort(e.target.value)} />
         </div>
-        {u.enabled && port !== null && (
-          <Button size="sm" variant="secondary" disabled={!valid} loading={save.isPending} onClick={() => save.mutate({ enabled: true, externalPort: chosen })}>{t('common.save')}</Button>
+        {port !== null && (
+          <Button size="sm" variant="secondary" disabled={!valid} loading={save.isPending} onClick={() => save.mutate({ enabled: u.enabled, externalPort: chosen })}>{t('common.save')}</Button>
         )}
         <Button size="sm" variant={u.enabled ? 'secondary' : 'primary'} disabled={!valid} loading={save.isPending} onClick={() => save.mutate({ enabled: !u.enabled, externalPort: chosen })}>
           {u.enabled ? t('cloud.upnpOff') : t('cloud.upnpOn')}
@@ -183,25 +182,6 @@ export function CloudPage() {
       </section>
 
       {s.account && (
-        <section className="panel space-y-3 p-5" aria-labelledby="direct-access-title">
-          <h2 id="direct-access-title" className="font-display text-lg font-semibold">{t('cloud.directTitle')}</h2>
-          <p className="text-sm text-muted">{t('cloud.directIntro', { port: s.directAccess?.port ?? 8443 })}</p>
-          {!s.directAccess ? (
-            <p className="text-sm text-muted" role="status">{t('cloud.directWaiting')}</p>
-          ) : !s.directAccess.configured ? (
-            <p className="text-sm text-danger" role="status">{t('cloud.directNotConfigured')}</p>
-          ) : (
-            <div className="space-y-1 text-sm" aria-live="polite">
-              <p>{t('cloud.directDns')}: {s.directAccess.dnsReady ? t('cloud.directReady') : t('cloud.directPending')}</p>
-              <p>{t('cloud.directTls')}: {s.directAccess.tlsReady ? t('cloud.directReady') : t('cloud.directPending')}</p>
-              <p>{t('cloud.directPort')}: {s.directAccess.portOpen ? t('cloud.directReady') : t('cloud.directPortClosed', { port: s.directAccess.port })}</p>
-              {s.directAccess.url && <p className="font-mono text-xs text-ok">{s.directAccess.url}</p>}
-            </div>
-          )}
-        </section>
-      )}
-
-      {s.account && (
         <section className="panel space-y-3 p-5" aria-labelledby="relay-title">
           <h2 id="relay-title" className="flex items-center gap-2 font-display text-lg font-semibold">
             <Radio className="size-5 text-accent" aria-hidden="true" />
@@ -257,7 +237,7 @@ export function CloudPage() {
         </form>
       </section>
 
-      <UpnpSection />
+      <DirectConnectionSection />
 
       <ConfirmModal open={confirming} title={t('cloud.unlinkTitle')} confirmLabel={t('cloud.unlink')} danger loading={unlink.isPending} onConfirm={() => unlink.mutate()} onClose={() => setConfirming(false)}>
         {t('cloud.unlinkConfirm')}

@@ -46,6 +46,7 @@ export const audit: Messages['audit'] = {
     seerrReset: 'Titel opnieuw aanvraagbaar gemaakt (Seerr)',
     upnpOn: 'Poort op de router opengezet (UPnP)',
     upnpOff: 'Poort op de router gesloten (UPnP)',
+    upnpPortChanged: 'Publieke mediaspoort gewijzigd',
     inviteCreated: 'Uitnodiging gemaakt',
     inviteRevoked: 'Uitnodiging ingetrokken',
     inviteUsed: 'Via een uitnodiging binnengekomen',

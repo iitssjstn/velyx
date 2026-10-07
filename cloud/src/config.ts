@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const DEFAULT_DIRECT_PORT = 8443;
+export const DEFAULT_DIRECT_PORT = 32400;
 
 /** Settings of the Vidalune account service, from the environment. */
 export interface CloudConfig {

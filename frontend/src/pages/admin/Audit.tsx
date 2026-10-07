@@ -55,6 +55,7 @@ const AUDIT_ACTIONS: Record<string, MessageKey> = {
   'seerr.reset': 'audit.actions.seerrReset',
   'upnp.on': 'audit.actions.upnpOn',
   'upnp.off': 'audit.actions.upnpOff',
+  'upnp.port_changed': 'audit.actions.upnpPortChanged',
   'invite.created': 'audit.actions.inviteCreated',
   'invite.revoked': 'audit.actions.inviteRevoked',
   'invite.used': 'audit.actions.inviteUsed',

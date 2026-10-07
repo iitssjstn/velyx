@@ -60,7 +60,7 @@ export const servers = sqliteTable(
     directDnsReady: integer('direct_dns_ready', { mode: 'boolean' }).notNull().default(false),
     directDnsCheckedAt: integer('direct_dns_checked_at'),
     /** The direct TLS listener port reported by the server. */
-    directPort: integer('direct_port').notNull().default(8443),
+    directPort: integer('direct_port').notNull().default(32400),
     /** The server has a valid certificate installed and its direct listener is ready. */
     directTlsReady: integer('direct_tls_ready', { mode: 'boolean' }).notNull().default(false),
     /** The account service last reached the direct listener from outside the server's network. */
