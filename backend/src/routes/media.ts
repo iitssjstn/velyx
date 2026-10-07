@@ -32,6 +32,17 @@ export const capsBody = z
     containers: z.array(z.string().max(20)).max(30).optional(),
     videoCodecs: z.array(z.string().max(20)).max(30).optional(),
     audioCodecs: z.array(z.string().max(20)).max(30).optional(),
+    tenBitCodecs: z.array(z.string().max(20)).max(30).optional(),
+    hdr: z.boolean().optional(),
+    audioTrackSwitching: z.boolean().optional(),
+    imageSubtitles: z.boolean().optional(),
+    audioIndex: z.number().int().min(0).max(1000).optional(),
+    audioChannels: z.enum(['stereo', 'surround']).optional(),
+    boostVoices: z.boolean().optional(),
+    levelVolume: z.boolean().optional(),
+    optimizationId: z.number().int().positive().optional(),
+  })
+  .default({});
 
 function isAccountControlUrl(candidate: string, cloudUrl: string): boolean {
   try {
@@ -44,17 +55,6 @@ function isAccountControlUrl(candidate: string, cloudUrl: string): boolean {
     return false;
   }
 }
-    tenBitCodecs: z.array(z.string().max(20)).max(30).optional(),
-    hdr: z.boolean().optional(),
-    audioTrackSwitching: z.boolean().optional(),
-    imageSubtitles: z.boolean().optional(),
-    audioIndex: z.number().int().min(0).max(1000).optional(),
-    audioChannels: z.enum(['stereo', 'surround']).optional(),
-    boostVoices: z.boolean().optional(),
-    levelVolume: z.boolean().optional(),
-    optimizationId: z.number().int().positive().optional(),
-  })
-  .default({});
 
 /** ?offset= on subtitle URLs: seconds to subtract from every cue (for streams that start later). */
 function offsetParam(query: unknown): number {
