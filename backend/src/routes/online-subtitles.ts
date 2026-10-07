@@ -9,6 +9,7 @@ import { requireAdmin, requireUser } from '../app.js';
 import { episodes, libraries, mediaFiles, movies, onlineSubtitles, shows } from '../db/schema.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
 import { canSee } from '../services/access.js';
+import { isHomeRequest } from '../services/remote-access.js';
 import { resolveMediaPath } from '../services/paths.js';
 import { decodeSubtitle, shiftVtt, srtToVtt } from '../services/subtitles.js';
 import { ONLINE_SUBTITLE_LANGUAGES, OpenSubtitlesError, isOnlineSubtitleLanguage, movieHash, type OnlineSubtitle, type SubtitleQuery } from '../services/opensubtitles.js';
@@ -26,6 +27,15 @@ const SEARCHES_PER_MINUTE = 20;
 
 const searchQuery = z.object({ language: z.string().trim().toLowerCase().refine(isOnlineSubtitleLanguage, 'Choose a language from the list.') });
 const downloadBody = z.object({ fileId: z.number().int().positive().max(2 ** 31) });
+
+async function requireRemotePlayback(request: import('fastify').FastifyRequest, ctx: AppContext): Promise<void> {
+  if (isHomeRequest(request, ctx.settings.get().homeNetworks)) return;
+  const access = await ctx.cloud.remoteAccess(request.user?.id);
+  if (access === 'allowed') return;
+  throw new HttpError(402, access === 'not_linked'
+    ? 'Playing away from home needs Vidalune remote access. The administrator links this server to a Vidalune account with remote access (Admin → Vidalune account).'
+    : 'Playing away from home needs Vidalune remote access. The owner of this server does not have it; you can take it for yourself on vidalune.com with your Vidalune account (Account → Profile). At home everything keeps working.');
+}
 
 type OnlineRow = typeof onlineSubtitles.$inferSelect;
 
@@ -209,7 +219,7 @@ export async function onlineSubtitleRoutes(app: FastifyInstance, ctx: AppContext
     return onlineSubtitleOption(row, request.user!);
   });
 
-  app.get<{ Params: { id: string } }>('/api/online-subtitles/:id.vtt', { preHandler: requireUser }, async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/online-subtitles/:id.vtt', { preHandler: [requireUser, (request) => requireRemotePlayback(request, ctx)] }, async (request, reply) => {
     const row = db
       .select({ s: onlineSubtitles, libraryId: mediaFiles.libraryId })
       .from(onlineSubtitles)

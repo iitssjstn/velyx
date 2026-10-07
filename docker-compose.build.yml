@@ -9,6 +9,7 @@ services:
     restart: unless-stopped
     ports:
       - "${VIDALUNE_PORT:-3000}:3000"
+      - "${VIDALUNE_DIRECT_PORT:-32400}:32400"
     environment:
       TZ: ${TZ:-Europe/Amsterdam}
       PUID: ${PUID:-1000}

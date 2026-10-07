@@ -39,6 +39,8 @@ export interface CloudServer {
   version: string;
   /** The address the server's administrator set (null: none yet). */
   url: string | null;
+  /** Automatically provisioned direct HTTPS address once DNS, certificate, and port checks pass. */
+  directAccess?: { configured: boolean; url: string | null; port: number; dnsReady: boolean; tlsReady: boolean; portOpen: boolean } | null;
   /** Its address through the Vidalune relay, while the relay is on. */
   relayUrl?: string | null;
   relayConnected?: boolean;
@@ -114,9 +116,9 @@ export async function signInWithTicket(serverUrl: string, ticket: string, device
   return (await res.json()) as { token: string; user: import('./types').User };
 }
 
-/** The addresses to try for a server: its own first, then the relay. */
+/** Direct HTTPS first, then a legacy address, then the relay for control/API access. */
 export function serverAddresses(s: CloudServer): string[] {
-  return [s.url, s.relayUrl].filter((u): u is string => !!u);
+  return [s.directAccess?.url ?? null, s.url, s.relayUrl].filter((u): u is string => !!u);
 }
 
 /**

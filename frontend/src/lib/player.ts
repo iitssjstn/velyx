@@ -79,43 +79,40 @@ export async function selectDirectPlayback(info: PlaybackInfo, pageOrigin: strin
     return info;
   };
   const direct = info.directPlayback;
-  if (!direct?.baseUrls.length) return unavailable();
-  for (const candidate of direct.baseUrls) {
-    let base: URL;
-    try {
-      base = new URL(candidate);
-    } catch {
-      continue;
-    }
-    if (!['http:', 'https:'].includes(base.protocol)) continue;
-    if (base.origin === page.origin) {
-      if (!hostedApp) return info;
-      continue;
-    }
-    const probe = new URL(`/api/media/${info.file.id}/stream`, base.origin);
-    if (info.decision.optimized) probe.searchParams.set('optimized', String(info.decision.optimized.id));
-    probe.searchParams.set('cast', direct.token);
-    try {
-      const response = await fetchImpl(probe, { method: 'HEAD', mode: 'cors', credentials: 'omit', signal: AbortSignal.timeout(4000) });
-      if (!response.ok) continue;
-    } catch {
-      continue;
-    }
-    const withToken = (path: string) => {
-      const url = new URL(path, `${base.origin}/`);
-      url.searchParams.set('cast', direct.token);
-      return url.toString();
-    };
-    return {
-      ...info,
-      decision: {
-        ...info.decision,
-        streamUrl: withToken(info.decision.streamUrl),
-        ...(info.decision.hlsUrl ? { hlsUrl: withToken(info.decision.hlsUrl) } : {}),
-      },
-    };
+  if (!direct?.baseUrl) return unavailable();
+  let base: URL;
+  try {
+    base = new URL(direct.baseUrl);
+  } catch {
+    return unavailable();
   }
-  return unavailable();
+  if (!['http:', 'https:'].includes(base.protocol)) return unavailable();
+  if (base.origin === page.origin) return hostedApp ? unavailable() : info;
+  const probe = new URL(`/api/media/${info.file.id}/stream`, base.origin);
+  if (info.decision.optimized) probe.searchParams.set('optimized', String(info.decision.optimized.id));
+  probe.searchParams.set('cast', direct.token);
+  let response: Response;
+  try {
+    response = await fetchImpl(probe, { method: 'HEAD', mode: 'cors', credentials: 'omit', signal: AbortSignal.timeout(4000) });
+  } catch {
+    return unavailable();
+  }
+  if (response.status === 402) throw new Error(t('player.errors.remoteAccessRequired'));
+  if (!response.ok) return unavailable();
+  const withToken = (path: string) => {
+    const url = new URL(path, `${base.origin}/`);
+    url.searchParams.set('cast', direct.token);
+    return url.toString();
+  };
+  return {
+    ...info,
+    decision: {
+      ...info.decision,
+      streamUrl: withToken(info.decision.streamUrl),
+      ...(info.decision.hlsUrl ? { hlsUrl: withToken(info.decision.hlsUrl) } : {}),
+    },
+    subtitles: info.subtitles.map((subtitle) => ({ ...subtitle, url: withToken(subtitle.url) })),
+  };
 }
 
 /**
