@@ -25,17 +25,15 @@ describe('selectDirectPlayback', () => {
       hlsUrl: '/api/media/7/hls/index.m3u8?optimized=8',
       optimized: { id: 8, profile: 'compat-720p' },
     },
-    subtitles: [{ key: 'sub', kind: 'external', label: 'Dutch', language: 'nl', languageName: 'Dutch', title: null, forced: false, isDefault: false, url: '/api/subtitles/9.vtt' }],
-    directPlayback: { baseUrl: 'https://server-1.media.vidalune.com:18443/', token: 'signed-token' },
+    directPlayback: { baseUrls: ['https://media.example.com/'], token: 'signed-token' },
   } as PlaybackInfo;
 
   it('uses a reachable configured server for the stream and HLS manifest', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
     const result = await selectDirectPlayback(answer, 'https://app.example.com', fetchImpl);
-    expect(fetchImpl).toHaveBeenCalledWith(new URL('https://server-1.media.vidalune.com:18443/api/media/7/stream?optimized=8&cast=signed-token'), expect.objectContaining({ method: 'HEAD', mode: 'cors', credentials: 'omit' }));
-    expect(result.decision.streamUrl).toBe('https://server-1.media.vidalune.com:18443/api/media/7/stream?optimized=8&cast=signed-token');
-    expect(result.decision.hlsUrl).toBe('https://server-1.media.vidalune.com:18443/api/media/7/hls/index.m3u8?optimized=8&cast=signed-token');
-    expect(result.subtitles[0]?.url).toBe('https://server-1.media.vidalune.com:18443/api/subtitles/9.vtt?cast=signed-token');
+    expect(fetchImpl).toHaveBeenCalledWith(new URL('https://media.example.com/api/media/7/stream?optimized=8&cast=signed-token'), expect.objectContaining({ method: 'HEAD', mode: 'cors', credentials: 'omit' }));
+    expect(result.decision.streamUrl).toBe('https://media.example.com/api/media/7/stream?optimized=8&cast=signed-token');
+    expect(result.decision.hlsUrl).toBe('https://media.example.com/api/media/7/hls/index.m3u8?optimized=8&cast=signed-token');
   });
 
   it('keeps same-origin playback when the direct server cannot be reached', async () => {
@@ -46,24 +44,29 @@ describe('selectDirectPlayback', () => {
 
   it('does not probe when the configured server is already the page origin', async () => {
     const fetchImpl = vi.fn();
-    const sameOrigin = { ...answer, directPlayback: { ...answer.directPlayback!, baseUrl: 'https://app.example.com' } };
+    const sameOrigin = { ...answer, directPlayback: { ...answer.directPlayback!, baseUrls: ['https://app.example.com'] } };
     expect(await selectDirectPlayback(sameOrigin, 'https://app.example.com', fetchImpl)).toBe(sameOrigin);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('never falls back to the hosted site or relay when direct playback is unavailable', async () => {
+  it('tries the relay after the direct server cannot be reached on the hosted site', async () => {
+    const answerWithRelay = { ...answer, directPlayback: { ...answer.directPlayback!, baseUrls: ['https://media.example.com', 'https://relay.example.com'] } };
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    const result = await selectDirectPlayback(answerWithRelay, 'https://app.vidalune.com', fetchImpl);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(result.decision.streamUrl).toBe('https://relay.example.com/api/media/7/stream?optimized=8&cast=signed-token');
+  });
+
+  it('never falls back to the hosted site for video when no media connection works', async () => {
     const noDirectAddress = { ...answer, directPlayback: undefined };
     await expect(selectDirectPlayback(noDirectAddress, 'https://app.vidalune.com', vi.fn())).rejects.toThrow();
-    const sameOrigin = { ...answer, directPlayback: { ...answer.directPlayback!, baseUrl: 'https://app.vidalune.com' } };
+    const sameOrigin = { ...answer, directPlayback: { ...answer.directPlayback!, baseUrls: ['https://app.vidalune.com'] } };
     await expect(selectDirectPlayback(sameOrigin, 'https://app.vidalune.com', vi.fn())).rejects.toThrow();
     const unreachable = vi.fn().mockResolvedValue(new Response(null, { status: 503 }));
     await expect(selectDirectPlayback(answer, 'https://app.vidalune.com', unreachable)).rejects.toThrow();
     expect(unreachable).toHaveBeenCalledTimes(1);
-  });
-
-  it('shows the remote-access requirement when the direct server denies playback', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 402 }));
-    await expect(selectDirectPlayback(answer, 'https://app.vidalune.com', fetchImpl)).rejects.toThrow(/remote access/i);
   });
 });
 

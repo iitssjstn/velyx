@@ -42,15 +42,10 @@ export async function cloudRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const before = ctx.upnp.status();
     const status = await ctx.upnp.configure(body.enabled, body.externalPort);
     if (before.enabled !== body.enabled || before.externalPort !== body.externalPort) ctx.audit.record(body.enabled ? 'upnp.on' : 'upnp.off', { actor: request.user, ip: request.ip, detail: String(body.externalPort) });
-    await ctx.cloud.check().catch(() => undefined);
     return status;
   });
 
-  app.post('/api/admin/upnp/check', { preHandler: requireAdmin }, async () => {
-    const status = await ctx.upnp.renew();
-    await ctx.cloud.check().catch(() => undefined);
-    return status;
-  });
+  app.post('/api/admin/upnp/check', { preHandler: requireAdmin }, async () => ctx.upnp.renew());
 
   // ---- every user: their own Vidalune account, to sign in here from app.vidalune.com and the app
   app.get('/api/account/cloud', { preHandler: requireUser }, async (request) => {

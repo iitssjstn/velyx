@@ -27,8 +27,6 @@ if [ -n "${REPO_DIR:-}" ]; then
 fi
 test "$(stat -c %U /var/lib/vidalune)" = vidalune
 test "$(stat -c %G:%a /etc/vidalune/vidalune.env)" = vidalune:640
-grep -q '^DIRECT_TLS_PORT=8443$' /etc/vidalune/vidalune.env
-grep -q '^DIRECT_PUBLIC_PORT=8443$' /etc/vidalune/vidalune.env
 
 start() {
   setpriv --reuid=vidalune --regid=vidalune --init-groups -- env NODE_ENV=production HOST=127.0.0.1 PORT=3000 DATA_DIR=/var/lib/vidalune MEDIA_ROOTS=/ VIDALUNE_PACKAGE=deb FRONTEND_DIR=/opt/vidalune/app/frontend/dist \

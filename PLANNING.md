@@ -199,16 +199,11 @@ PR #100 is gemerged en release `v0.19.23` is gecontroleerd (APK + beide `.deb`'s
 
 - **Videostreams via FlareSolverr en traag afspelen** (gemeld 7 okt):
   de websiteplayer gebruikte hetzelfde origin als de website, waardoor `app.vidalune.com` alle
-  videobytes kon doorgeven. Een eerste poging om de handmatig ingestelde Server-URL en relay als
-  alternatieve mediahosts te gebruiken is teruggedraaid: de beheerder moet geen domein hoeven in te
-  vullen en dit ontdekte of provisionde geen directe HTTPS-verbinding.
-  Besluit 7 okt: iedere gekoppelde server krijgt automatisch een eigen direct HTTPS-adres. De
-  beheerder hoeft geen domein te registreren of in te vullen; buitenshuis volstaat één bereikbare
-  TCP-poort. `app.vidalune.com` blijft voor aanmelden, serverkeuze en bediening; videobytes,
-  byte-ranges en HLS gaan rechtstreeks naar de server, nooit via de accountsite of cloudrelay.
-  Detecteer en toon op de achtergrond of DNS, certificaat en poort bereikbaar zijn. Bij NAT helpt
-  UPnP optioneel met de mapping; anders geeft Vidalune de poort en concrete routerinstructies.
-  Toon een duidelijke diagnose bij CGNAT, dubbele NAT, ontbrekende poortmapping of TLS-fouten.
+  videobytes kon doorgeven. De player probeert nu eerst de Server-URL en daarna de ingeschakelde,
+  toegestane Vidalune-relay. Elke kandidaat wordt met een HEAD-verzoek en een bestandsspecifieke
+  token getest; de accountsite wordt nooit als videohost gebruikt. Zelfgehoste websites behouden
+  same-origin als terugval. Nog controleren op de installatie: directe host, relay-terugval, HLS,
+  audio/ondertitels, en dat geen videobytes via `app.vidalune.com` lopen.
 
 - **Voortgang wordt niet bewaard bij casten** (gemeld 2 okt; app-deel gebouwd in 0.19.11). Oorzaak: de server
   bewaart de voortgang niet zelf; de speler op de telefoon/in de browser stuurt elke 10 s de positie van
@@ -387,23 +382,24 @@ Maak de homepage visueel meer cinematografisch met een grotere full-bleed hero, 
 ### Compactere hero op de homepage
 Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op desktop het artwork meer ruimte naast de tekst en acties; behoud de persoonlijke hervatselectie en voortgang.
 
+## Versie 0.19.29
+
+### Automatische serververbinding teruggedraaid
+- Herstel de bestaande Server-URL- en relay-fallbackroute uit 0.19.27.
+- Verwijder automatische serverhostnames, Cloudflare DNS/TLS-provisioning en de directe HTTPS-listener van deze update.
+- Behoud lokale playback en de bestaande account-/relaywerking.
+- Lokaal groen: backend 45 tests, frontend 30 gerichte tests, Android-app 110 tests, cloud serverlink/Compose 2 gerichte tests, alle vier typechecks en backend/cloud/frontend-builds.
+- De volledige cloud-suite is op Windows niet geheel uitvoerbaar: twee installer-tests vereisen POSIX `sh` en een relaytest verwacht gebouwde accountpagina's; Linux-CI moet dit bevestigen.
+
 ## Versie 0.19.28
 
-### Automatische serververbinding en direct afspelen
-- Docker-image job `publish` faalde doordat ongeldige Docker Hub-credentials een 401 gaven. Docker Hub
-  is optioneel gemaakt: de GHCR-publicatie gaat door en Docker Hub-tags worden alleen gepubliceerd na
-  een geslaagde login.
-- Verwijder verplichte handmatige domeininvoer. Bij koppelen krijgt iedere server automatisch een eigen hostname onder het Vidalune-domein.
-- De accountservice gebruikt Cloudflare DNS-01 voor A/AAAA en certificaatvalidatie. Cloudflare-proxying staat uit op de directe hostname; TLS-privésleutels worden op de mediaserver gegenereerd en verlaten die niet.
-- De server meldt periodiek het waargenomen publieke IP en de ingestelde externe poort. De accountservice houdt DNS bij en controleert van buitenaf of de poort bereikbaar is.
-- De mediaserver bedient directe mediarequests via een afzonderlijke, configureerbare HTTPS-listener (standaard TCP 8443). De interne listenerpoort en publieke routerpoort kunnen apart worden ingesteld; UPnP kan de publieke poort automatisch mappen.
-- `app.vidalune.com` blijft aanmelden, serverkeuze en bediening afhandelen. Clients gebruiken het directe serveradres voor server-API's en halen video, byte-ranges, HLS-segmenten, ondertitels en artwork rechtstreeks van de mediaserver; ze gaan nooit via de accountsite of cloudrelay.
-- Verberg het handmatige Server-URL-veld als verbindingsvereiste. Toon automatisch status en instructies voor poortmapping, dubbele NAT/CGNAT, DNS, certificaat en bereikbaarheid. Als directe toegang faalt, meld dit duidelijk; proxy video niet stilzwijgend via de accountsite.
-- Externe DNS- en certificaatbeheer gebruiken Cloudflare-credentials die alleen als deployment secret op de accountservice staan; vraag serverbeheerders nooit om domein, DNS-token of certificaat.
-- Test koppelen zonder domeininstelling, intern afspelen, extern afspelen via één doorgestuurde poort, volledige films, hervatten, byte-range-seek, HLS, audio, ondertitels, IP-wijziging, certificaatvernieuwing en onbereikbare poort. Verifieer dat videobytes rechtstreeks tussen server en browser lopen.
-- Werk README, accountsite en Engelse/Nederlandse beheerteksten bij: buitenshuis gaat media rechtstreeks naar de server via het automatische HTTPS-adres; daarvoor is één bereikbare poort nodig. De accounttunnel is alleen voor bediening.
-- Lokaal groen vóór poortaanpassing: cloud DNS/TLS/direct-access/link (19), tunnelgrenzen (2), site/compose (2), heartbeat-IP-privacy (1), backend-versieasserties (27), backend media-gates (42), web player/Cast (24), app-typecheck, app-tests (110) en Android JS/Hermes-bundel-export, ESLint, backend/cloud/frontend-typechecks en backend/frontend/cloud-builds.
-- Poortwijziging: standaard HTTPS-listener/publice poort 8443, apart configureerbaar met `DIRECT_TLS_PORT` en `DIRECT_PUBLIC_PORT`; registratie/heartbeat sturen de effectieve poort, UPnP toont de ingestelde poort, Compose en `.deb` leveren de defaults, en migratie `0014_direct_port_8443` werkt het databaseschema bij.
-- CI-fix: de cloud-linkregistratietest verwacht nu ook `directPort: 8443`, dat sinds de poortconfiguratie in de registratiepayload zit.
-- Lokaal groen na wijziging: backend UPnP/remote/Cast (20 tests), cloud directe toegang/link/Compose en migratie, frontend volledig (64 bestanden, 282 tests), Android cloudselectie/i18n (11 tests), alle vier typechecks, backend/cloud/frontend-builds en ESLint (vier bestaande hookwaarschuwingen, geen fouten).
-- Nog te valideren: Android APK/native build (Android SDK en Java ontbreken hier), volledige Docker/.deb-installatie op Linux (Docker CLI ontbreekt hier), en live DNS, certificaat en bereikbaarheid van de geconfigureerde TCP-poort met `CLOUDFLARE_API_TOKEN` op de accountservice. Bestaande Docker-composebestanden met `32400:32400` moeten de nieuwe port mapping krijgen.
+### Accountservice-imagepublicatie
+- Docker Hub-publicatie is optioneel bij ontbrekende of ongeldige credentials; publicatie naar GHCR kan doorgaan.
+
+## Versie 0.19.27
+
+### Rechtstreeks webafspelen
+- Probeer de ingestelde Server-URL eerst en de ingeschakelde, toegestane Vidalune-relay daarna; valideer elke kandidaat met een HEAD-verzoek.
+- Gebruik op `app.vidalune.com` nooit de accountsite als videohost; meld duidelijk wanneer geen mediahost bereikbaar is. Zelfgehoste websites behouden hun same-origin-terugval.
+- Autoriseer externe mediarequests met een bestandsspecifieke ondertekende token; beperk CORS en CSP tot geconfigureerde mediakandidaten.
+- Controleer directe toegang, relay-terugval, onbereikbare kandidaten, HLS en audio-/ondertitelgedrag. Bevestig op de installatie van de eigenaar dat geen videobytes via `app.vidalune.com` lopen.

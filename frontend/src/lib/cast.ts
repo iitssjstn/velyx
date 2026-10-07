@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import type { PlaybackPrefs } from './prefs';
-import { t } from '../i18n';
 
 export type CastSubtitleStyle = Pick<PlaybackPrefs, 'subtitleSize' | 'subtitleColor' | 'subtitleBackground' | 'subtitleEdge'>;
 
@@ -33,7 +32,7 @@ export interface CastSubtitle {
 
 export interface CastSession {
   token: string;
-  directUrl: string | null;
+  relayUrl: string | null;
   serverUrl: string | null;
   expiresAt: number;
   contentType: string;
@@ -41,12 +40,15 @@ export interface CastSession {
   subtitles: CastSubtitle[];
 }
 
-/** The Chromecast must fetch media directly from the server; the account-site relay is never a media host. */
-export function castBase(origin: string, s: Pick<CastSession, 'directUrl' | 'serverUrl'>): string | null {
+/**
+ * The address the Chromecast uses for this server: the page's own; on app.vidalune.com (which only
+ * works with the browser's sign-in) the server's relay address; on "localhost" (the Chromecast is
+ * another device) the address set under Admin → Server.
+ */
+export function castBase(origin: string, s: Pick<CastSession, 'relayUrl' | 'serverUrl'>): string {
   const host = new URL(origin).hostname;
   const trim = (u: string) => u.replace(/\/+$/, '');
-  if (host === 'app.vidalune.com') return s.directUrl ? trim(s.directUrl) : null;
-  if (s.directUrl) return trim(s.directUrl);
+  if (host.startsWith('app.') && s.relayUrl) return trim(s.relayUrl);
   if ((host === 'localhost' || host === '127.0.0.1' || host === '::1') && s.serverUrl) return trim(s.serverUrl);
   return trim(origin);
 }
@@ -175,7 +177,6 @@ export function useCast(item: CastItem | null) {
       if (!session.current || session.current.expiresAt < Date.now() + 60_000 || audioOverride !== undefined) session.current = await api.post<CastSession>('/api/cast/session', { fileId: it.fileId, ...(audioIndex !== null ? { audioIndex } : {}), ...(it.optimizationId ? { optimizationId: it.optimizationId } : {}) });
       const s = session.current;
       const base = castBase(window.location.origin, s);
-      if (!base) throw new Error(t('player.errors.directServerRequired'));
       let start = 0;
       let startTime = at;
       if (s.decision.seek === 'restart' && at > 0) {

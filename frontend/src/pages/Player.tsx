@@ -1094,7 +1094,6 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           key={`${streamSrc}#${reloadKey}`}
           ref={videoRef}
           src={hlsUrl && HLS_SUPPORT === 'mse' ? undefined : (streamSrc ?? undefined)}
-          crossOrigin="anonymous"
           // Chrome on Android puts its own cast button over every video (it cannot be pressed in
           // this player and does not go away): off. Casting gets Vidalune's own button.
           disableRemotePlayback

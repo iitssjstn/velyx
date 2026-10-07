@@ -480,7 +480,7 @@ export interface PlaybackInfo {
   analysis: PlaybackAnalysis;
   file: MediaFileInfo;
   subtitles: SubtitleOption[];
-  directPlayback?: { baseUrl: string; token: string };
+  directPlayback?: { baseUrls: string[]; token: string };
   /** Subtitles can be searched online (an administrator set up OpenSubtitles). */
   onlineSubtitles?: boolean;
 }

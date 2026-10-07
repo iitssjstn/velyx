@@ -3,12 +3,11 @@ import { createLogger } from '../logger.js';
 import type { FetchLike } from './tmdb.js';
 import type { SettingsService } from './settings.js';
 import { RelayClient, type RelayProblem } from './relay-client.js';
-import { DEFAULT_DIRECT_TLS_PORT } from '../config.js';
 
 const log = createLogger('cloud');
 const TIMEOUT_MS = 10_000;
-/** Refresh dynamic IP, DNS and external port reachability often enough to recover quickly. */
-const HEARTBEAT_MS = 5 * 60_000;
+/** How often a linked server tells the account service it is still there. */
+const HEARTBEAT_MS = 30 * 60_000;
 /** When vidalune.com cannot be reached, remote access it confirmed keeps working this long. */
 export const REMOTE_GRACE_MS = 7 * 24 * 60 * 60_000;
 /** A server without remote access asks again at most this often (it may just have been given). */
@@ -28,8 +27,6 @@ export interface CloudStatus {
   serviceUrl: string;
   /** The relay: reachable at `url` without an open port (opt-in, only while linked). */
   relay: { enabled: boolean; url: string | null; connected: boolean; error: RelayProblem | null; allowed: boolean };
-  /** Automatically assigned direct hostname; certificate and listener may still be provisioning. */
-  directAccess: { configured: boolean; hostname: string; publicIp: string | null; port: number; dnsReady: boolean; tlsReady: boolean; portOpen: boolean; checkedAt: number | null; url: string | null } | null;
   /** Playing away from home works (linked, and the owner has remote access as last confirmed). */
   remoteAccess: boolean;
   /** Networks that also count as home, on top of the private ranges. */
@@ -55,8 +52,6 @@ export class CloudService {
       now?: () => number;
       /** Where this server listens: relayed requests are passed there. */
       localPort: number;
-      /** Public HTTPS port forwarded to the direct listener. */
-      directPublicPort?: () => number;
     },
   ) {
     this.relay = new RelayClient({ cloudUrl: deps.baseUrl, localPort: deps.localPort });
@@ -85,7 +80,6 @@ export class CloudService {
         // Whether the relay may be on (the owner has remote access, or someone who uses this server).
         allowed: (link?.relayUsable ?? link?.relayAllowed) !== false,
       },
-      directAccess: link?.directAccess ?? null,
       remoteAccess: !!link?.account && link.relayAllowed !== false && !!link.remoteConfirmedAt && this.now() - link.remoteConfirmedAt < REMOTE_GRACE_MS,
       homeNetworks: this.deps.settings.get().homeNetworks,
     };
@@ -93,21 +87,7 @@ export class CloudService {
 
   private about() {
     const s = this.deps.settings;
-    return { name: s.serverName().slice(0, 60), version: this.deps.version, url: s.serverUrl() || null, directPort: this.deps.directPublicPort?.() ?? DEFAULT_DIRECT_TLS_PORT };
-  }
-
-  private heartbeat() {
-    return {
-      ...this.about(),
-      directTlsReady: this.deps.settings.get().cloud?.directTlsReady ?? false,
-    };
-  }
-
-  setDirectTlsReady(ready: boolean): void {
-    const current = this.deps.settings.get().cloud;
-    if (!current || current.directTlsReady === ready) return;
-    this.deps.settings.update({ cloud: { ...current, directTlsReady: ready } });
-    void this.check().catch((err) => log.warn(`Could not report direct TLS status: ${(err as Error).message}`));
+    return { name: s.serverName().slice(0, 60), version: this.deps.version, url: s.serverUrl() || null };
   }
 
   /** `soft401`: a 401 is about the request (a used ticket), not about this server's registration. */
@@ -198,7 +178,7 @@ export class CloudService {
   async check(): Promise<CloudStatus> {
     const link = this.deps.settings.get().cloud;
     if (!link) return this.status();
-    const r = await this.call<{ linked: boolean; account: string | null; relay?: { enabled: boolean; url: string | null; allowed?: boolean; usable?: boolean }; directAccess?: CloudStatus['directAccess']; remoteUsers?: unknown[] }>('POST', '/api/server/heartbeat', this.heartbeat());
+    const r = await this.call<{ linked: boolean; account: string | null; relay?: { enabled: boolean; url: string | null; allowed?: boolean; usable?: boolean }; remoteUsers?: unknown[] }>('POST', '/api/server/heartbeat', this.about());
     const current = this.deps.settings.get().cloud;
     // The service decides: an unlinked server (unlinked on vidalune.com) has no relay any more.
     const relay = !!r.relay?.enabled;
@@ -209,7 +189,7 @@ export class CloudService {
     this.checkedAt = this.now();
     if (current) {
       const confirmed = r.account && (relayAllowed || remoteUsers.length > 0) ? this.now() : current.remoteConfirmedAt;
-      this.deps.settings.update({ cloud: { ...current, account: r.account, relay, relayUrl, relayAllowed, relayUsable, directAccess: r.directAccess ?? current.directAccess ?? null, remoteUsers, remoteConfirmedAt: confirmed } });
+      this.deps.settings.update({ cloud: { ...current, account: r.account, relay, relayUrl, relayAllowed, relayUsable, remoteUsers, remoteConfirmedAt: confirmed } });
     }
     if (r.account) this.code = null;
     this.syncRelay();
@@ -217,12 +197,6 @@ export class CloudService {
   }
 
   private checkedAt = 0;
-
-  /** Requests a certificate for this server's assigned hostname; its private key is never sent. */
-  async directCertificate(csr: string): Promise<{ hostname: string; certificate: string }> {
-    if (!this.deps.settings.get().cloud?.account) throw new HttpError(409, 'Link this server to a Vidalune account first.');
-    return this.call<{ hostname: string; certificate: string }>('POST', '/api/server/direct/certificate', { csr });
-  }
 
   /**
    * Whether this server may be used away from home: linked to a Vidalune account whose owner has
@@ -352,7 +326,7 @@ export class CloudService {
   /** Opens or closes the tunnel to match the settings. */
   private syncRelay() {
     const link = this.deps.settings.get().cloud;
-    if (link?.account) this.relay.start(`Server ${link.serverId}:${link.secret}`);
+    if (link?.account && link.relay) this.relay.start(`Server ${link.serverId}:${link.secret}`);
     else this.relay.stop();
   }
 

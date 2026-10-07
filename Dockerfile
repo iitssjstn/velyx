@@ -70,7 +70,7 @@ COPY docker/vidalune docker/velyx /usr/local/bin/
 RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh /usr/local/bin/vidalune /usr/local/bin/velyx \
  && mkdir -p /data /media
 
-EXPOSE 3000 8443
+EXPOSE 3000
 VOLUME ["/data"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \

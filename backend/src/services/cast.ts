@@ -48,7 +48,7 @@ export function verifyCastToken(secret: string, token: string | undefined, now =
 export function castPath(pathname: string): { fileId: number } | { subtitleId: number } | 'image' | null {
   let m = /^\/api\/media\/(\d+)\/(stream|remux|hls\/(?:index\.m3u8|init\.mp4|seg\/\d+\.m4s)|subtitles\/\d+\.vtt)$/.exec(pathname);
   if (m) return { fileId: Number(m[1]) };
-  m = /^\/api\/(?:subtitles|online-subtitles)\/(\d+)\.vtt$/.exec(pathname);
+  m = /^\/api\/subtitles\/(\d+)\.vtt$/.exec(pathname);
   if (m) return { subtitleId: Number(m[1]) };
   if (/^\/api\/images\/[\w-]+\/[\w.-]+$/.test(pathname)) return 'image';
   return null;
