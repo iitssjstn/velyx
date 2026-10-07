@@ -1,11 +1,11 @@
 name: Android app
 
-# Builds the Vidalune app as an installable APK after every release build on main, where the APK is
-# attached to the GitHub release of that version (or by hand: Actions -> Run workflow). Not on pull
-# requests, to save build minutes: CI runs the app's typecheck and tests there.
+# Builds the Vidalune app as an installable APK after the Debian packages are built and tested on
+# main, where the APK is attached to the same GitHub release. Not on pull requests, to save build
+# minutes: CI runs the app's typecheck and tests there.
 on:
   workflow_run:
-    workflows: ['Docker image']
+    workflows: ['Debian package']
     types: [completed]
     branches: [main]
   workflow_dispatch:
