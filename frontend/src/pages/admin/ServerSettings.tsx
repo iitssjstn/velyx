@@ -12,20 +12,20 @@ import { useT } from '../../i18n';
 import { SeerrSettings } from './SeerrSettings';
 import { TranscodingSettings } from './TranscodingSettings';
 
-/** Server name and TMDB configuration. The TMDB key is write-only: the API never returns it. */
+/** Server name and TMDB configuration. The TMDB key is write-only. */
 export function ServerSettingsPanel() {
   const qc = useQueryClient();
   const { refetchServer } = useAuth();
   const { t, tRich } = useT();
   const q = useQuery({ queryKey: ['admin', 'settings'], queryFn: () => api.get<ServerSettings>('/api/admin/settings') });
-  const [form, setForm] = useState({ serverName: '', serverUrl: '', tmdbLanguage: '', includeAdult: false, watchFolders: true, updateCheck: true, scanOnStartup: false, deferScansWhilePlaying: true, segmentDetection: true, segmentVideo: true, sharedDetection: false });
+  const [form, setForm] = useState({ serverName: '', tmdbLanguage: '', includeAdult: false, watchFolders: true, updateCheck: true, scanOnStartup: false, deferScansWhilePlaying: true, segmentDetection: true, segmentVideo: true, sharedDetection: false });
   // '' = use SCAN_INTERVAL_MINUTES from the environment
   const [interval, setScanInterval] = useState('');
   const [key, setKey] = useState('');
 
   useEffect(() => {
     if (!q.data) return;
-    setForm({ serverName: q.data.serverName, serverUrl: q.data.serverUrl, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult, watchFolders: q.data.watchFolders, updateCheck: q.data.updateCheck, scanOnStartup: q.data.scanOnStartup, deferScansWhilePlaying: q.data.deferScansWhilePlaying, segmentDetection: q.data.segmentDetection, segmentVideo: q.data.segmentVideo, sharedDetection: q.data.sharedDetection });
+    setForm({ serverName: q.data.serverName, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult, watchFolders: q.data.watchFolders, updateCheck: q.data.updateCheck, scanOnStartup: q.data.scanOnStartup, deferScansWhilePlaying: q.data.deferScansWhilePlaying, segmentDetection: q.data.segmentDetection, segmentVideo: q.data.segmentVideo, sharedDetection: q.data.sharedDetection });
     setScanInterval(q.data.scanIntervalSource === 'settings' ? String(q.data.scanIntervalMinutes) : '');
   }, [q.data]);
 
@@ -48,7 +48,7 @@ export function ServerSettingsPanel() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    save.mutate({ ...form, serverName: form.serverName.trim(), serverUrl: form.serverUrl.trim(), tmdbLanguage: form.tmdbLanguage.trim(), scanIntervalMinutes: interval === '' ? null : Number(interval) });
+    save.mutate({ ...form, serverName: form.serverName.trim(), tmdbLanguage: form.tmdbLanguage.trim(), scanIntervalMinutes: interval === '' ? null : Number(interval) });
   };
 
   return (

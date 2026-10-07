@@ -91,6 +91,16 @@ describe('Vidalune account page', () => {
     expect(lastPortWrite).toEqual({ publicPort: 32401 });
   });
 
+  it('shows why the automatic direct address is not ready', async () => {
+    setup({
+      ...linked,
+      directAccess: { configured: false, hostname: 'server-id.media.vidalune.com', port: 32400, dnsReady: false, tlsReady: false, portOpen: false, url: null },
+    }, {});
+    expect(await screen.findByText('server-id.media.vidalune.com')).toBeTruthy();
+    expect(screen.getByText('Automatic server addresses are not configured on the Vidalune account service.')).toBeTruthy();
+    expect(screen.getByText('Not reachable')).toBeTruthy();
+  });
+
   it('only describes manual router forwarding and has no UPnP controls', async () => {
     setup(off, {});
     expect(await screen.findByText('Direct connection')).toBeTruthy();
