@@ -9,8 +9,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.25** (PR #102): filmischer startscherm. Release `v0.19.25`
-  gecontroleerd (APK + beide `.deb`'s). Daarvoor 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.33** (PR #115): direct afspelen via één publieke serverpoort; release-tag `v0.19.33` staat gepubliceerd. Daarvoor 0.19.25 (PR #102, filmischer startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -424,3 +423,11 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - NAT-PMP/STUN/ICE/TURN zijn niet toegevoegd. TURN blijft expliciet geen standaard mediafallback.
 - Lokaal groen: backend cloud-link/Cast/remote-access/direct-porttests, cloud endpoint discovery en relaygrenzen/CSP, volledige frontendtests, app-tests, alle vier TypeScript-checks, backend/cloud/frontend-productiebuilds, frontend-Brotli-precompressie en Android Hermes-export.
 - Nog te valideren: native APK-build (Android SDK/Java ontbreken), Linux Docker/.deb-installatie en live WAN/NAT/TLS op echte router- en CGNAT-netwerken. De volledige cloud-suite heeft bekende Windows-only shell/static-asset fixturefouten; de relevante directe-toegang- en relaytests slagen.
+
+## Versie 0.19.34 (vervolgfix)
+
+### Eigen HTTPS-serverdomein toestaan in de hosted player
+- De CSP van `app.vidalune.com` staat de automatische `*.media.vidalune.com`-host toe, maar blokkeerde de HTTPS-origin van een geselecteerde server met een eigen domein.
+- Voeg alleen de HTTPS-origin van de geselecteerde server toe aan `connect-src` en `media-src`; behoud de bestaande automatische media-hostallowlist.
+- Regressietest in `cloud/test/relay.test.ts` voor een server op een eigen HTTPS-domein.
+- Nog te valideren: cloud relay-test lokaal en daarna CI/release.

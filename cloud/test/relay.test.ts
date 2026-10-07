@@ -82,8 +82,8 @@ afterEach(async () => {
 });
 
 /** Registers a server, links it to an account and turns its relay on. */
-async function linkedServerWithRelay() {
-  const reg = (await cloud.inject({ method: 'POST', url: '/api/server/register', payload: { name: 'Thuis', version: '0.10.3' } })).json();
+async function linkedServerWithRelay(serverUrl?: string) {
+  const reg = (await cloud.inject({ method: 'POST', url: '/api/server/register', payload: { name: 'Thuis', version: '0.10.3', ...(serverUrl ? { url: serverUrl } : {}) } })).json();
   const auth = `Server ${reg.id}:${reg.secret}`;
   expect((await cloud.inject({ method: 'POST', url: '/api/server/relay', headers: { authorization: auth }, payload: { enabled: true } })).statusCode).toBe(409);
   const signUp = await cloud.inject({ method: 'POST', url: '/api/account', payload: { email: 'justin@example.com', password: 'correct-horse' } });
@@ -142,10 +142,10 @@ describe('the relay', () => {
   });
 
   it('allows the managed media hostname in account-page CSP but never the relay host', async () => {
-    const s = await linkedServerWithRelay();
+    const s = await linkedServerWithRelay('https://media.custom.test:32400');
     client.start(s.auth);
     await until(() => cloud.relay.connected(s.id));
-    await cloud.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: s.auth }, remoteAddress: '192.168.1.20', payload: { name: 'Thuis', version: '0.19.29', localEndpoints: [{ type: 'lan', address: '192.168.1.50', port: 32400, protocol: 'https' }] } });
+    await cloud.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: s.auth }, remoteAddress: '192.168.1.20', payload: { name: 'Thuis', version: '0.19.29', url: 'https://media.custom.test:32400', localEndpoints: [{ type: 'lan', address: '192.168.1.50', port: 32400, protocol: 'https' }] } });
     const serverList = (await cloud.inject({ url: '/api/servers', headers: { cookie: s.cookie } })).json();
     expect(serverList[0].endpoints).toContainEqual(expect.objectContaining({ type: 'lan', address: '192.168.1.50', url: 'https://192.168.1.50:32400' }));
     const opened = await get('app.relay.test', `/_vl/open?server=${s.id}`, { cookie: s.cookie });
@@ -376,7 +376,9 @@ describe('the relay', () => {
     expect(home.body.toString()).toContain('<title>Vidalune</title>');
     expect(home.headers['content-security-policy']).toContain("media-src 'self' blob:");
     expect(home.headers['content-security-policy']).toContain('https://*.media.relay.test:*');
+    expect(home.headers['content-security-policy']).toContain('https://media.custom.test:32400');
     expect(home.headers['content-security-policy']).toContain('connect-src \'self\' https://*.media.relay.test:*');
+    expect(home.headers['content-security-policy']).toContain('connect-src \'self\' https://*.media.relay.test:* https://media.custom.test:32400');
     const info = await get(app, '/api/server/info', { cookie: cookies });
     expect(info.status).toBe(200);
     expect(JSON.parse(info.body.toString())).toMatchObject({ product: 'Vidalune' });
