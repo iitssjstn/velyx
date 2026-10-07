@@ -26,16 +26,16 @@ describe('selectDirectPlayback', () => {
       optimized: { id: 8, profile: 'compat-720p' },
     },
     subtitles: [{ key: 'sub', kind: 'external', label: 'Dutch', language: 'nl', languageName: 'Dutch', title: null, forced: false, isDefault: false, url: '/api/subtitles/9.vtt' }],
-    directPlayback: { baseUrl: 'https://server-1.media.vidalune.com:32400/', token: 'signed-token' },
+    directPlayback: { baseUrl: 'https://server-1.media.vidalune.com:18443/', token: 'signed-token' },
   } as PlaybackInfo;
 
   it('uses a reachable configured server for the stream and HLS manifest', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
     const result = await selectDirectPlayback(answer, 'https://app.example.com', fetchImpl);
-    expect(fetchImpl).toHaveBeenCalledWith(new URL('https://server-1.media.vidalune.com:32400/api/media/7/stream?optimized=8&cast=signed-token'), expect.objectContaining({ method: 'HEAD', mode: 'cors', credentials: 'omit' }));
-    expect(result.decision.streamUrl).toBe('https://server-1.media.vidalune.com:32400/api/media/7/stream?optimized=8&cast=signed-token');
-    expect(result.decision.hlsUrl).toBe('https://server-1.media.vidalune.com:32400/api/media/7/hls/index.m3u8?optimized=8&cast=signed-token');
-    expect(result.subtitles[0]?.url).toBe('https://server-1.media.vidalune.com:32400/api/subtitles/9.vtt?cast=signed-token');
+    expect(fetchImpl).toHaveBeenCalledWith(new URL('https://server-1.media.vidalune.com:18443/api/media/7/stream?optimized=8&cast=signed-token'), expect.objectContaining({ method: 'HEAD', mode: 'cors', credentials: 'omit' }));
+    expect(result.decision.streamUrl).toBe('https://server-1.media.vidalune.com:18443/api/media/7/stream?optimized=8&cast=signed-token');
+    expect(result.decision.hlsUrl).toBe('https://server-1.media.vidalune.com:18443/api/media/7/hls/index.m3u8?optimized=8&cast=signed-token');
+    expect(result.subtitles[0]?.url).toBe('https://server-1.media.vidalune.com:18443/api/subtitles/9.vtt?cast=signed-token');
   });
 
   it('keeps same-origin playback when the direct server cannot be reached', async () => {

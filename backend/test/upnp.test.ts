@@ -67,10 +67,11 @@ describe('opening a port on the router (UPnP)', () => {
   });
 
   it('is off until an administrator turns it on, then opens the port and says where', async () => {
-    expect((await env.app.inject({ url: '/api/admin/upnp', headers: { cookie: admin } })).json()).toMatchObject({ enabled: false, open: false });
+    expect(env.ctx.config.directTlsPort).toBe(8443);
+    expect((await env.app.inject({ url: '/api/admin/upnp', headers: { cookie: admin } })).json()).toMatchObject({ enabled: false, externalPort: 8443, open: false });
     expect(soapCalls).toEqual([]);
     const viewer = await createUser(env.app, admin, 'viewer');
-    expect((await put({ enabled: true, externalPort: 32400 }, viewer.cookie)).statusCode).toBe(403);
+    expect((await put({ enabled: true, externalPort: 18443 }, viewer.cookie)).statusCode).toBe(403);
     expect((await put({ enabled: true, externalPort: 80 })).statusCode).toBe(400);
 
     const on = await put({ enabled: true, externalPort: 43000 });

@@ -51,7 +51,7 @@ export const cloud: Messages['cloud'] = {
   directPending: 'Wordt ingesteld',
   directPortClosed: 'Niet bereikbaar; stuur TCP-poort {port} door naar deze server. Video buitenshuis vereist ook toegang op afstand.',
   upnpTitle: 'Poort openzetten op de router (UPnP)',
-  upnpIntro: 'Vraagt je router automatisch TCP-poort 32400 naar Vidalune door te sturen. Zonder UPnP kun je dezelfde poort handmatig doorsturen. De directe verbinding gebruikt het automatisch beveiligde serveradres; buitenshuis afspelen vereist nog steeds toegang op afstand.',
+  upnpIntro: 'Vraagt je router automatisch TCP-poort {port} naar Vidalune door te sturen. Zonder UPnP kun je die poort handmatig doorsturen. De directe verbinding gebruikt het automatisch beveiligde serveradres; buitenshuis afspelen vereist nog steeds toegang op afstand.',
   upnpPort: 'Poort op de router',
   upnpOn: 'Poort openzetten',
   upnpOff: 'Poort sluiten',

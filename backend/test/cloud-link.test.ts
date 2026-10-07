@@ -68,7 +68,7 @@ describe('linking to a Vidalune account', () => {
     expect(JSON.stringify(waiting)).not.toContain('secret-secret');
     expect(calls.map((c) => c.url.replace('https://vidalune.com', ''))).toEqual(['/api/server/register', '/api/server/code']);
     expect(calls[1].auth).toBe('Server srv-1:secret-secret-secret-secret');
-    expect(calls[0].body).toEqual({ name: 'Vidalune', version: expect.any(String), url: null });
+    expect(calls[0].body).toEqual({ name: 'Vidalune', version: expect.any(String), url: null, directPort: 8443 });
 
     linkedTo = 'justin@example.com';
     const linked = (await post('/api/admin/cloud/check')).json();

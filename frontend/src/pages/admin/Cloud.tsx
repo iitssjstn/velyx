@@ -54,7 +54,7 @@ function UpnpSection() {
         <Network className="size-5 text-accent" aria-hidden="true" />
         {t('cloud.upnpTitle')}
       </h2>
-      <p className="text-sm text-muted">{t('cloud.upnpIntro')}</p>
+          <p className="text-sm text-muted">{t('cloud.upnpIntro', { port: u.externalPort })}</p>
       {u.enabled && (
         <p className={u.open ? 'text-sm text-ok' : 'text-sm text-danger'} role="status">
           {u.open ? (u.address ? t('cloud.upnpOpen', { address: u.address }) : t('cloud.upnpOpenNoAddress', { port: u.externalPort })) : u.problem ? t(`cloud.upnpProblem.${u.problem}`) : null}
@@ -185,7 +185,7 @@ export function CloudPage() {
       {s.account && (
         <section className="panel space-y-3 p-5" aria-labelledby="direct-access-title">
           <h2 id="direct-access-title" className="font-display text-lg font-semibold">{t('cloud.directTitle')}</h2>
-          <p className="text-sm text-muted">{t('cloud.directIntro', { port: s.directAccess?.port ?? 32400 })}</p>
+          <p className="text-sm text-muted">{t('cloud.directIntro', { port: s.directAccess?.port ?? 8443 })}</p>
           {!s.directAccess ? (
             <p className="text-sm text-muted" role="status">{t('cloud.directWaiting')}</p>
           ) : !s.directAccess.configured ? (

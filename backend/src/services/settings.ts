@@ -2,7 +2,7 @@ import { DEFAULT_TRANSCODING, type TranscodingSettings } from '../playback/trans
 import { eq } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
 import { settings } from '../db/schema.js';
-import type { AppConfig } from '../config.js';
+import { DEFAULT_DIRECT_TLS_PORT, type AppConfig } from '../config.js';
 
 /** Which files the library clean-up suggests. Rules only suggest: nothing is deleted without review. */
 export interface CleanupRules {
@@ -183,7 +183,7 @@ const DEFAULTS: ServerSettings = {
   openSubtitlesPassword: '',
   cloud: null,
   homeNetworks: [],
-  upnp: { enabled: false, externalPort: 32400 },
+  upnp: { enabled: false, externalPort: DEFAULT_DIRECT_TLS_PORT },
   seerr: { url: '', apiKey: '' },
   sonarr: { url: '', apiKey: '' },
   radarr: { url: '', apiKey: '' },

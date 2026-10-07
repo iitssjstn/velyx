@@ -3,11 +3,11 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { castBase, castTextTrackStyle, castUrl } from './cast';
 
 describe('cast addresses', () => {
-  const s = { directUrl: 'https://server.media.vidalune.com:32400', serverUrl: 'http://192.168.1.10:3000/' };
+  const s = { directUrl: 'https://server.media.vidalune.com:18443', serverUrl: 'http://192.168.1.10:3000/' };
   it('uses the managed direct hostname for media and never the account site as a fallback', () => {
-    expect(castBase('http://192.168.1.10:3000', s)).toBe('https://server.media.vidalune.com:32400');
-    expect(castBase('https://app.vidalune.com', s)).toBe('https://server.media.vidalune.com:32400');
-    expect(castBase('http://localhost:5173', s)).toBe('https://server.media.vidalune.com:32400');
+    expect(castBase('http://192.168.1.10:3000', s)).toBe('https://server.media.vidalune.com:18443');
+    expect(castBase('https://app.vidalune.com', s)).toBe('https://server.media.vidalune.com:18443');
+    expect(castBase('http://localhost:5173', s)).toBe('https://server.media.vidalune.com:18443');
     expect(castBase('https://app.vidalune.com', { directUrl: null, serverUrl: null })).toBeNull();
   });
 

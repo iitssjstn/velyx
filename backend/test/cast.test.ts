@@ -51,16 +51,16 @@ describe('casting to a Chromecast', () => {
         serverId: 'server-id',
         secret: 'server-secret-at-least-20-characters',
         account: 'justin@example.com',
-        directAccess: { configured: true, hostname: 'server.media.vidalune.com', publicIp: null, port: 32400, dnsReady: true, tlsReady: true, portOpen: true, checkedAt: Date.now(), url: 'https://server.media.vidalune.com:32400' },
+        directAccess: { configured: true, hostname: 'server.media.vidalune.com', publicIp: null, port: 18443, dnsReady: true, tlsReady: true, portOpen: true, checkedAt: Date.now(), url: 'https://server.media.vidalune.com:18443' },
       },
     });
     await env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: admin }, payload: { serverUrl: 'https://legacy.example.com' } });
     const response = await env.app.inject({ method: 'POST', url: `/api/media/${dune.id}/playback`, headers: { cookie: admin }, payload: {} });
     const direct = response.json().directPlayback;
-    expect(direct.baseUrl).toBe('https://server.media.vidalune.com:32400');
+    expect(direct.baseUrl).toBe('https://server.media.vidalune.com:18443');
     expect(direct.baseUrl).not.toContain('legacy.example.com');
     expect(direct.token).toMatch(/^[\w-]+\.[\w-]+$/);
-    expect(response.headers['content-security-policy']).toContain('https://server.media.vidalune.com:32400');
+    expect(response.headers['content-security-policy']).toContain('https://server.media.vidalune.com:18443');
     expect(verifyCastToken(env.ctx.config.sessionSecret, direct.token)).toMatchObject({ userId: 1, fileId: dune.id, artwork: false });
     expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${direct.token}` })).statusCode).toBe(200);
     expect((await env.app.inject({ url: `/api/media/${arrival.id}/stream?cast=${direct.token}` })).statusCode).toBe(401);
