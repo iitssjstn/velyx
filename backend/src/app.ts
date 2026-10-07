@@ -48,12 +48,13 @@ import { registerRoutes } from './routes/index.js';
 import { NotificationService } from './services/notifications.js';
 import { CleanupScheduler } from './services/cleanup-scheduler.js';
 import { CloudService } from './services/cloud.js';
+import { UpnpService } from './services/upnp.js';
 import { SeerrService } from './services/seerr.js';
 import { ArrService } from './services/arr.js';
 import { OptimizationService } from './services/optimization.js';
 import { isLoopback } from './services/relay-client.js';
 import { libraries, onlineSubtitles as onlineSubtitleRows, subtitles as subtitleRows, users } from './db/schema.js';
-import { castPath, verifyPlaybackJwt } from './services/cast.js';
+import { castPath, verifyCastToken } from './services/cast.js';
 
 const log = createLogger('http');
 const SLOW_REQUEST_MS = 2000;
@@ -109,6 +110,8 @@ export interface AppContext {
   /** Link to a Vidalune account (opt-in). */
   cloud: CloudService;
   sharedDetection: SharedDetection;
+  /** Opening a port on the router (opt-in). */
+  upnp: UpnpService;
   /** Requests through Seerr (optional). */
   seerr: SeerrService;
   /** Optional Sonarr and Radarr connections (admin actions only). */
@@ -132,6 +135,8 @@ export interface BuildOptions {
   machineBusy?: () => boolean;
   /** Pause after each read while someone watches (tests: shorter). */
   segmentPaceMs?: number;
+  /** Where UPnP searches for the router (tests: a stand-in on localhost). */
+  ssdp?: { host: string; port: number };
   prober?: Prober;
   fetchImpl?: FetchLike;
   tmdbMinIntervalMs?: number;
@@ -183,7 +188,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     },
     onScanFailed: (libraryId, message) => notifications.notify('scanFailed', { library: libraryName(libraryId), reason: message }),
   });
-  const cloud = new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, directTlsPort: config.directTlsPort, directPublicPort: () => settings.get().directPublicPort, now: opts.cloudNow });
+  const cloud = new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, directTlsPort: config.directTlsPort, directPublicPort: () => settings.get().upnp.externalPort, now: opts.cloudNow });
   const sharedDetection = new SharedDetection(db, cloud, () => settings.get().sharedDetection);
   const segments: SegmentDetector = new SegmentDetector(db, opts.audioReader ?? ffmpegAudioReader(config.ffmpegPath), {
     enabled: () => settings.get().segmentDetection,
@@ -237,7 +242,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const openSubtitles = new OpenSubtitlesClient({ vidalune: cloud });
   const seerr = new SeerrService({ settings, fetchImpl: opts.fetchImpl });
   const arr = new ArrService({ settings, fetchImpl: opts.fetchImpl });
-  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, seerr, arr, transcoding, optimizations, hls: new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls')), startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.directTlsPort, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr, arr, transcoding, optimizations, hls: new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls')), startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {
@@ -351,7 +356,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     // subtitles and artwork, for the user who cast it — never anything else, never with a cookie.
     const castToken = (request.query as { cast?: unknown } | undefined)?.cast;
     if (castToken !== undefined) {
-      const claims = typeof castToken === 'string' ? await verifyPlaybackJwt(ctx.config.sessionSecret, castToken) : null;
+      const claims = typeof castToken === 'string' ? verifyCastToken(ctx.config.sessionSecret, castToken) : null;
       const target = castPath(request.url.split('?')[0]);
       if (!claims || !target || (request.method !== 'GET' && request.method !== 'HEAD')) return;
       const allowed =

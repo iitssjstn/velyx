@@ -164,15 +164,8 @@ export class DirectHttpsService {
         reply.writeHead(204, { 'Cache-Control': 'no-store' }).end();
         return;
       }
-      const directUrl = new URL(request.url ?? '/', `https://${hostname}`);
-      if (!directUrl.searchParams.get('cast')) {
-        reply.writeHead(401, { 'Cache-Control': 'no-store' }).end();
-        return;
-      }
       for (const header of FORWARDED_HEADERS) delete request.headers[header];
-      delete request.headers.cookie;
-      delete request.headers.authorization;
-      const target = castPath(directUrl.pathname);
+      const target = castPath((request.url ?? '/').split('?', 1)[0]!);
       if (!target || target === 'image') {
         reply.writeHead(404).end();
         return;

@@ -114,8 +114,8 @@ describe('linking to a Vidalune account', () => {
     expect((await post('/api/admin/cloud/check')).json().relay).toMatchObject({ allowed: true });
   });
 
-  it('reports the manually selected public port', async () => {
-    env.ctx.settings.update({ directPublicPort: 32400 });
+  it('reports the manually selected public port when UPnP is disabled', async () => {
+    env.ctx.settings.update({ upnp: { enabled: false, externalPort: 32400 } });
     await post('/api/admin/cloud/link');
     expect(calls[0]?.body).toMatchObject({ directPort: 32400 });
   });

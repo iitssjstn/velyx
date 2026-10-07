@@ -157,7 +157,7 @@ const HOME = {
     faq: [
       ['Does Vidalune see my media?', 'No. Your files stay on your server. Vidalune\'s services only know your email address and, per linked server, its name, version, observed public IP and connection status. Video streams directly from your server; the account tunnel carries controls only.'],
       ['What do I need?', 'A computer or NAS that is always on, with Docker, and your movies and series in folders on it. Vidalune needs very little: it never transcodes video.'],
-      ['Do I need to open ports on my router?', 'At home, no. To watch away from home, manually forward one TCP port to your server and enter that public port in its admin page. Vidalune provides the secure server address automatically, so you do not need your own domain.'],
+      ['Do I need to open ports on my router?', 'At home, no. To watch away from home, open one port to your server (or let UPnP do it). Vidalune provides the server address automatically, so you do not need your own domain.'],
       ['Can I share my server?', 'Yes. Make accounts for your household on your server; with remote access they can watch from anywhere too.'],
     ],
     ctaTitle: 'Ready to start?',
@@ -197,7 +197,7 @@ const HOME = {
     faq: [
       ['Ziet Vidalune mijn media?', 'Nee. Je bestanden blijven op je server. De diensten van Vidalune kennen alleen je e-mailadres en, per gekoppelde server, de naam, versie, waargenomen publieke IP en verbindingsstatus. Videobeeld gaat rechtstreeks van je server naar je apparaat; de accounttunnel is alleen voor bediening.'],
       ['Wat heb ik nodig?', 'Een computer of NAS die altijd aan staat, met Docker, en je films en series in mappen daarop. Vidalune vraagt heel weinig: het zet video nooit om.'],
-      ['Moet ik poorten openzetten in mijn router?', 'Thuis niet. Om buitenshuis te kijken stel je handmatig één TCP-doorschakeling in naar je server en vul je die publieke poort in op de beheerpagina. Vidalune regelt automatisch het beveiligde serveradres; een eigen domein is niet nodig.'],
+      ['Moet ik poorten openzetten in mijn router?', 'Thuis niet. Om buitenshuis te kijken moet één poort naar je server openstaan (of automatisch via UPnP). Vidalune regelt het serveradres; een eigen domein is niet nodig.'],
       ['Kan ik mijn server delen?', 'Ja. Maak accounts voor je huishouden op je server; met toegang op afstand kijken zij ook overal.'],
     ],
     ctaTitle: 'Klaar om te beginnen?',

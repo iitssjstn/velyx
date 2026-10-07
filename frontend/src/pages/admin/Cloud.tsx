@@ -20,26 +20,32 @@ export interface CloudStatus {
   homeNetworks: string[];
 }
 
-export interface DirectPortStatus {
-  publicPort: number;
-  internalPort: number;
+export interface UpnpStatus {
+  enabled: boolean;
+  externalPort: number;
+  open: boolean;
+  address: string | null;
+  problem: 'noRouter' | 'refused' | 'failed' | null;
+  checkedAt: number | null;
 }
 
 const KEY = ['admin', 'cloud'];
 
-/** Configure the public media port for manual router forwarding. */
+/** Configure the public media port; UPnP is an optional way to open it automatically. */
 function DirectConnectionSection() {
   const { t } = useT();
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['admin', 'direct-port'], queryFn: () => api.get<DirectPortStatus>('/api/admin/direct-port') });
+  const q = useQuery({ queryKey: ['admin', 'upnp'], queryFn: () => api.get<UpnpStatus>('/api/admin/upnp') });
   const [port, setPort] = useState<string | null>(null);
-  const done = (s: DirectPortStatus) => {
-    qc.setQueryData(['admin', 'direct-port'], s);
+  const done = (s: UpnpStatus) => {
+    qc.setQueryData(['admin', 'upnp'], s);
     setPort(null);
   };
-  const save = useMutation({ mutationFn: (body: { publicPort: number }) => api.put<DirectPortStatus>('/api/admin/direct-port', body), onSuccess: done, onError: (e) => toast.error(e) });
+  const save = useMutation({ mutationFn: (body: { enabled: boolean; externalPort: number }) => api.put<UpnpStatus>('/api/admin/upnp', body), onSuccess: done, onError: (e) => toast.error(e) });
+  const check = useMutation({ mutationFn: () => api.post<UpnpStatus>('/api/admin/upnp/check'), onSuccess: done, onError: (e) => toast.error(e) });
   if (!q.data) return null;
-  const chosen = Number(port ?? q.data.publicPort);
+  const u = q.data;
+  const chosen = Number(port ?? u.externalPort);
   const valid = Number.isInteger(chosen) && chosen >= 1024 && chosen <= 65535;
   return (
     <section className="panel space-y-3 p-5" aria-labelledby="direct-title">
@@ -47,14 +53,25 @@ function DirectConnectionSection() {
         <Network className="size-5 text-accent" aria-hidden="true" />
         {t('cloud.directTitle')}
       </h2>
-      <p className="text-sm text-muted">{t('cloud.directPortIntro', { port: q.data.internalPort })}</p>
+      <p className="text-sm text-muted">{t('cloud.upnpIntro')}</p>
+      {u.enabled && (
+        <p className={u.open ? 'text-sm text-ok' : 'text-sm text-danger'} role="status">
+          {u.open ? (u.address ? t('cloud.upnpOpen', { address: u.address }) : t('cloud.upnpOpenNoAddress', { port: u.externalPort })) : u.problem ? t(`cloud.upnpProblem.${u.problem}`) : null}
+        </p>
+      )}
       <div className="flex flex-wrap items-end gap-2">
         <div>
-          <label className="label" htmlFor="direct-port">{t('cloud.directPort')}</label>
-          <input id="direct-port" className="input w-32" type="number" min={1024} max={65535} value={port ?? String(q.data.publicPort)} onChange={(e) => setPort(e.target.value)} />
+          <label className="label" htmlFor="upnp-port">{t('cloud.upnpPort')}</label>
+          <input id="upnp-port" className="input w-32" type="number" min={1024} max={65535} value={port ?? String(u.externalPort)} onChange={(e) => setPort(e.target.value)} />
         </div>
         {port !== null && (
-          <Button size="sm" variant="secondary" disabled={!valid} loading={save.isPending} onClick={() => save.mutate({ publicPort: chosen })}>{t('common.save')}</Button>
+          <Button size="sm" variant="secondary" disabled={!valid} loading={save.isPending} onClick={() => save.mutate({ enabled: u.enabled, externalPort: chosen })}>{t('common.save')}</Button>
+        )}
+        <Button size="sm" variant={u.enabled ? 'secondary' : 'primary'} disabled={!valid} loading={save.isPending} onClick={() => save.mutate({ enabled: !u.enabled, externalPort: chosen })}>
+          {u.enabled ? t('cloud.upnpOff') : t('cloud.upnpOn')}
+        </Button>
+        {u.enabled && (
+          <Button size="sm" variant="ghost" icon={<RefreshCw className="size-4" />} loading={check.isPending} onClick={() => check.mutate()}>{t('cloud.upnpCheck')}</Button>
         )}
       </div>
     </section>

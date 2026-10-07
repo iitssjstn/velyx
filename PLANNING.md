@@ -207,7 +207,7 @@ PR #100 is gemerged en release `v0.19.23` is gecontroleerd (APK + beide `.deb`'s
   TCP-poort. `app.vidalune.com` blijft voor aanmelden, serverkeuze en bediening; videobytes,
   byte-ranges en HLS gaan rechtstreeks naar de server, nooit via de accountsite of cloudrelay.
   Detecteer en toon op de achtergrond of DNS, certificaat en poort bereikbaar zijn. Bij NAT helpt
-  De beheerder stelt de routerportforwarding handmatig in op de publieke TCP-poort die in Vidalune is opgegeven.
+  UPnP optioneel met de mapping; anders geeft Vidalune de poort en concrete routerinstructies.
   Toon een duidelijke diagnose bij CGNAT, dubbele NAT, ontbrekende poortmapping of TLS-fouten.
 
 - **Voortgang wordt niet bewaard bij casten** (gemeld 2 okt; app-deel gebouwd in 0.19.11). Oorzaak: de server
@@ -396,7 +396,7 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Verwijder verplichte handmatige domeininvoer. Bij koppelen krijgt iedere server automatisch een eigen hostname onder het Vidalune-domein.
 - De accountservice gebruikt Cloudflare DNS-01 voor A/AAAA en certificaatvalidatie. Cloudflare-proxying staat uit op de directe hostname; TLS-privésleutels worden op de mediaserver gegenereerd en verlaten die niet.
 - De server meldt periodiek het waargenomen publieke IP en de ingestelde externe poort. De accountservice houdt DNS bij en controleert van buitenaf of de poort bereikbaar is.
-- De mediaserver bedient directe mediarequests via een afzonderlijke HTTPS-listener (standaard TCP 32400); de beheerder stelt de publieke routerportforwarding handmatig in via Vidalune.
+- De mediaserver bedient directe mediarequests via een afzonderlijke configureerbare HTTPS-listener (standaard TCP 32400). UPnP kan de publieke poort automatisch mappen.
 - `app.vidalune.com` blijft aanmelden, serverkeuze en bediening afhandelen. Video, byte-ranges, HLS-segmenten en benodigde ondertitels gaan rechtstreeks van de mediaserver naar de browser; ze gaan nooit via de accountsite of cloudrelay.
 - Verberg het handmatige Server-URL-veld als verbindingsvereiste. Toon automatisch status en instructies voor poortmapping, dubbele NAT/CGNAT, DNS, certificaat en bereikbaarheid. Als directe toegang faalt, meld dit duidelijk; proxy video niet stilzwijgend via de accountsite.
 - Externe DNS- en certificaatbeheer gebruiken Cloudflare-credentials die alleen als deployment secret op de accountservice staan; vraag serverbeheerders nooit om domein, DNS-token of certificaat.
@@ -408,18 +408,17 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Lokaal groen: cloud DNS/TLS/direct-access/link (19), tunnelgrenzen (2), site/compose (2), heartbeat-IP-privacy (1), backend-versieasserties (27), backend media-gates (42), web player/Cast (24), app-typecheck, app-tests (110) en Android JS/Hermes-bundel-export, ESLint, backend/cloud/frontend-typechecks en backend/frontend/cloud-builds.
 - Nog te valideren: Android APK/native build (Android SDK en Java ontbreken hier); de volledige Docker/.deb-installatie op Linux (Docker CLI ontbreekt hier); live DNS, certificaat en de ingestelde TCP-poort met `CLOUDFLARE_API_TOKEN` op de accountservice.
 
-## Versie 0.19.31
+## Versie 0.19.30
 
 ### Endpoint discovery en directe media
 - De beheerder stelt de publieke TCP-poort in via de Vidalune-beheerpagina; DNS- en certificaatuitgifte blijven achtergrondwerk en hun interne voortgang wordt niet getoond.
 - Na het aanmaken van het DNS-01-record controleert de CA de DNS-uitdaging zelf; Vidalune wacht niet eerst op zijn eigen recursieve DNS-cache.
-- PR #110 is gemerged en `v0.19.30` is getagd. De UPnP-verwijdering en handmatige portforwarding volgen als `v0.19.31`.
+- PR #108 is gemerged als rollbackrelease `v0.19.29`; deze herstelde directe-media-uitwerking hoort daarom bij `v0.19.30`.
 - De geauthenticeerde server-heartbeat meldt private LAN-endpoint hints; de Account Service bepaalt het publieke IP uitsluitend uit de waargenomen requestbron.
-- De serverlijst/open-handshake geeft LAN-endpoints eerst, daarna de publieke HTTPS-host en bestaande adressen. Web/Android testen directe kandidaten en gebruiken een per-bestand HS256 playback-JWT van de mediaserver; de HTTPS-medialistener weigert requests zonder JWT.
-- De interne listener gebruikt standaard TCP 32400; de beheerder vult de publieke poort in op de website. Drizzle `0014` bewaart de listenerdefault en `0015` voegt LAN-endpoints toe.
+- De serverlijst/open-handshake geeft LAN-endpoints eerst, daarna de publieke HTTPS-host en bestaande adressen. Web/Android testen directe kandidaten en gebruiken de bestaande server-HMAC playbacktoken.
+- Interne listener en publieke poort blijven apart configureerbaar via `DIRECT_TLS_PORT` en `DIRECT_PUBLIC_PORT` (beide standaard 32400); Drizzle `0014` behoudt die default en `0015` voegt LAN-endpoints toe.
 - Relay/control blijft voor account, browsen en bediening. Relay en `app.vidalune.com`-API-proxy weigeren stream-, HLS-, subtitle- en playback-artworkbytes met HTTP 409.
 - De accountwebclient gebruikt de publiek beheerde HTTPS-host. Een browser kan een certificaat voor de verborgen host niet valideren wanneer hij rechtstreeks naar een RFC1918-IP gaat; Android test LAN best-effort en valt na TLS-/routefout terug op public.
-- Optionele split DNS kan dezelfde beheerde hostname binnenshuis naar het LAN-IP laten wijzen; publieke DNS blijft naar het waargenomen WAN-IP wijzen en de certificaat-hostnaam verandert niet.
 - NAT-PMP/STUN/ICE/TURN zijn niet toegevoegd. TURN blijft expliciet geen standaard mediafallback.
-- Lokaal groen: backend cloud-link/Cast/remote-access/direct-porttests, cloud endpoint discovery en relaygrenzen/CSP, volledige frontendtests, app-tests, alle vier TypeScript-checks, backend/cloud/frontend-productiebuilds, frontend-Brotli-precompressie en Android Hermes-export.
+- Lokaal groen: backend cloud-link/Cast/remote-access/UPnP (27 tests), cloud endpoint discovery (9) en relaygrenzen/CSP (3), volledige frontendtests (284), app-tests (111), alle vier TypeScript-checks, backend/cloud/frontend-productiebuilds, frontend-Brotli-precompressie en Android Hermes-export.
 - Nog te valideren: native APK-build (Android SDK/Java ontbreken), Linux Docker/.deb-installatie en live WAN/NAT/TLS op echte router- en CGNAT-netwerken. De volledige cloud-suite heeft bekende Windows-only shell/static-asset fixturefouten; de relevante directe-toegang- en relaytests slagen.

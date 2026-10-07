@@ -35,13 +35,13 @@ describe('installing Vidalune from vidalune.com', () => {
     const en = homePage('en', false, false, 'https://vidalune.example', version);
     expect(en).toContain('one port must be reachable for video away from home');
     expect(en).toContain('Direct HTTPS connection to your server');
-    expect(en).toContain('manually forward one TCP port to your server');
+    expect(en).toContain('open one port to your server');
     expect(en).not.toContain('relay reaches your server');
 
     const nl = homePage('nl', false, false, 'https://vidalune.example', version);
     expect(nl).toContain('moet één poort bereikbaar zijn');
     expect(nl).toContain('Rechtstreekse HTTPS-verbinding met je server');
-    expect(nl).toContain('handmatig één TCP-doorschakeling in naar je server');
+    expect(nl).toContain('moet één poort naar je server openstaan');
     expect(nl).not.toContain('relay je server');
   });
 
@@ -82,9 +82,9 @@ describe('installing Vidalune from vidalune.com', () => {
     const compose = await app.inject({ url: '/install/docker-compose.yml' });
     expect(compose.headers['content-disposition']).toContain('docker-compose.yml');
     expect(compose.body).toContain(`image: ${IMAGE}`);
-    expect(compose.body).toContain('"${DIRECT_TLS_PORT:-32400}:${DIRECT_TLS_PORT:-32400}"');
+    expect(compose.body).toContain('"${DIRECT_PUBLIC_PORT:-32400}:${DIRECT_TLS_PORT:-32400}"');
     expect(compose.body).toContain('DIRECT_TLS_PORT: ${DIRECT_TLS_PORT:-32400}');
-    expect(compose.body).not.toContain('DIRECT_PUBLIC_PORT');
+    expect(compose.body).toContain('DIRECT_PUBLIC_PORT: ${DIRECT_PUBLIC_PORT:-32400}');
     expect(compose.body).toContain('/media/movies:ro');
   });
 
