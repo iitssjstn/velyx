@@ -258,6 +258,20 @@ class Tunnel {
 /** Why the relay cannot pass a request on. */
 export type RelayProblem = 'offline' | 'off' | 'busy' | 'tooLarge' | 'failed';
 
+const MEDIA_BYTES_PATH = /^\/api\/(?:media\/\d+\/(?:stream|remux|hls\/(?:index\.m3u8|init\.mp4|seg\/\d+\.m4s)|subtitles\/\d+\.vtt)|(?:online-)?subtitles\/\d+\.vtt|images\/[^/]+\/[^/]+)$/;
+
+export function isRelayedMediaBytes(method: string, url: string | undefined): boolean {
+  return (method === 'GET' || method === 'HEAD') && MEDIA_BYTES_PATH.test((url ?? '/').split('?', 1)[0]!);
+}
+
+export function rejectRelayedMedia(res: ServerResponse, acceptLanguage: string | undefined): void {
+  const message = /^\s*nl\b/i.test(acceptLanguage ?? '')
+    ? 'Media wordt rechtstreeks vanaf je Vidalune-server geladen; gebruik het ingestelde serveradres.'
+    : 'Media is served directly from your Vidalune server; use its configured address.';
+  res.writeHead(409, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Vidalune-Direct-Playback': 'required' })
+    .end(JSON.stringify({ error: message, directPlayback: 'required' }));
+}
+
 const PROBLEMS: Record<RelayProblem, { status: number; en: string; nl: string }> = {
   offline: {
     status: 502,
@@ -472,6 +486,7 @@ export class Relay {
       if (row) this.recordError(row.id);
       return unavailable(req, res, 'off');
     }
+    if (isRelayedMediaBytes(req.method ?? '', req.url)) return rejectRelayedMedia(res, req.headers['accept-language']);
     const tunnel = this.tunnels.get(row.id);
     if (!tunnel) {
       this.recordError(row.id);

@@ -32,24 +32,21 @@ export interface CastSubtitle {
 
 export interface CastSession {
   token: string;
-  relayUrl: string | null;
   serverUrl: string | null;
   expiresAt: number;
   contentType: string;
   decision: { engine: string; streamUrl: string; seek: 'range' | 'restart'; durationSec: number | null; optimized?: { id: number; profile: 'compat-720p' | 'compat-1080p' } };
   subtitles: CastSubtitle[];
-}
+  }
 
 /**
- * The address the Chromecast uses for this server: the page's own; on app.vidalune.com (which only
- * works with the browser's sign-in) the server's relay address; on "localhost" (the Chromecast is
- * another device) the address set under Admin → Server.
+ * The address the Chromecast uses for this server: the page's own when it is the server, or the
+ * configured server address when the sender page is hosted elsewhere. Media never uses the relay.
  */
-export function castBase(origin: string, s: Pick<CastSession, 'relayUrl' | 'serverUrl'>): string {
+export function castBase(origin: string, s: Pick<CastSession, 'serverUrl'>): string {
   const host = new URL(origin).hostname;
   const trim = (u: string) => u.replace(/\/+$/, '');
-  if (host.startsWith('app.') && s.relayUrl) return trim(s.relayUrl);
-  if ((host === 'localhost' || host === '127.0.0.1' || host === '::1') && s.serverUrl) return trim(s.serverUrl);
+  if ((host.startsWith('app.') || host === 'localhost' || host === '127.0.0.1' || host === '::1') && s.serverUrl) return trim(s.serverUrl);
   return trim(origin);
 }
 

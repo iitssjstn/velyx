@@ -251,8 +251,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     // the file's keyframes first, and listing them reads the whole file: on a NAS that takes minutes
     // and starves the stream being watched. Copied video keeps the live stream.
     const hlsUrl = decision.hlsUrl?.includes('vt=1') ? decision.hlsUrl : undefined;
-    const relay = ctx.cloud.status().relay;
-    const mediaBases = [ctx.settings.serverUrl(), relay.enabled && relay.allowed ? relay.url : null];
+    const mediaBases = [ctx.settings.serverUrl()];
     const baseUrls = [...new Set(mediaBases.flatMap((candidate) => {
       if (!candidate) return [];
       try {
@@ -306,14 +305,10 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       : { ...decision, streamUrl: decision.streamUrl.replace(/\/remux(?=\?)/, '/hls/index.m3u8'), seek: 'range' as const };
     const expiresAt = Date.now() + CAST_TOKEN_MS;
     const token = signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt, artwork: true });
-    const cloud = ctx.settings.get().cloud;
     return {
       token,
       expiresAt,
-      // Where the Chromecast can reach this server when the page it was cast from cannot tell
-      // (app.vidalune.com works only with the browser's own sign-in): the relay, or the address
-      // set under Admin → Server.
-      relayUrl: cloud?.account && cloud.relay ? (cloud.relayUrl ?? null) : null,
+      // The Chromecast fetches media directly; it never uses the relay.
       serverUrl: ctx.settings.serverUrl() || null,
       decision: castDecision,
       contentType: decision.engine === 'direct' ? (file.container === 'webm' ? 'video/webm' : 'video/mp4') : 'application/vnd.apple.mpegurl',

@@ -385,10 +385,11 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 ## Versie 0.19.29
 
 ### Automatische serververbinding teruggedraaid
-- Herstel de bestaande Server-URL- en relay-fallbackroute uit 0.19.27.
+- Herstel de bestaande Server-URL-configuratie en relay voor bediening/bibliotheek uit 0.19.27.
+- Media, HLS, ondertitels en artwork gebruiken uitsluitend het ingestelde serveradres; relay- en accountproxy-byteverzoeken worden met HTTP 409 geweigerd.
 - Verwijder automatische serverhostnames, Cloudflare DNS/TLS-provisioning en de directe HTTPS-listener van deze update.
-- Behoud lokale playback en de bestaande account-/relaywerking.
-- Lokaal groen: backend 45 tests, frontend 30 gerichte tests, Android-app 110 tests, cloud serverlink/Compose 2 gerichte tests, alle vier typechecks en backend/cloud/frontend-builds.
+- Behoud lokale playback en account-/relaybediening; buitenshuis afspelen vereist een rechtstreeks bereikbaar Server-URL.
+- Lokaal groen: cloud relay/accountproxy-mediaweigering (1), backend Cast/remote (15), volledige frontend (281) en Android-app (110); alle vier typechecks geslaagd.
 - De volledige cloud-suite is op Windows niet geheel uitvoerbaar: twee installer-tests vereisen POSIX `sh` en een relaytest verwacht gebouwde accountpagina's; Linux-CI moet dit bevestigen.
 
 ## Versie 0.19.28

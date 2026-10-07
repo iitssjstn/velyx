@@ -32,6 +32,7 @@ describe('casting to a Chromecast', () => {
     const { admin, dune, arrival, mpeg2 } = await setup();
     const direct = (await session(admin, dune.id)).json();
     expect(direct).toMatchObject({ contentType: 'video/mp4', decision: { engine: 'direct', seek: 'range' } });
+    expect(direct).not.toHaveProperty('relayUrl');
     expect(direct.token).toMatch(/^[\w-]+\.[\w-]+$/);
     // MKV: repackaged (the Chromecast does not take MKV), never converted.
     const remux = (await session(admin, arrival.id)).json();
@@ -46,10 +47,12 @@ describe('casting to a Chromecast', () => {
 
   it('offers the configured server address for direct web playback with a file-scoped token', async () => {
     const { admin, dune, arrival } = await setup();
+    env.ctx.settings.update({ cloud: { serverId: 'server-id', secret: 'server-secret-at-least-20-characters', account: 'justin@example.com', relay: true, relayUrl: 'https://relay.example.com', relayAllowed: true } });
     await env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: admin }, payload: { serverUrl: 'https://media.example.com/' } });
     const response = await env.app.inject({ method: 'POST', url: `/api/media/${dune.id}/playback`, headers: { cookie: admin }, payload: {} });
     const direct = response.json().directPlayback;
     expect(direct.baseUrls).toEqual(['https://media.example.com']);
+    expect(direct.baseUrls).not.toContain('https://relay.example.com');
     expect(direct.token).toMatch(/^[\w-]+\.[\w-]+$/);
     expect(response.headers['content-security-policy']).toContain('https://media.example.com');
     expect(verifyCastToken(env.ctx.config.sessionSecret, direct.token)).toMatchObject({ userId: 1, fileId: dune.id, artwork: false });

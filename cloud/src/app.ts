@@ -13,7 +13,7 @@ import type { CloudConfig } from './config.js';
 import type { DB } from './db/client.js';
 import { accountActivity, accountSessions, accounts, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
-import { newSlug, Relay, relayMessage, type Rewrite } from './relay.js';
+import { isRelayedMediaBytes, newSlug, rejectRelayedMedia, Relay, relayMessage, type Rewrite } from './relay.js';
 import { composeFile, installPage, debInstallScript, installScript } from './install.js';
 import { homePage, pickLanguage } from './site.js';
 import { Community, communityRoutes } from './community.js';
@@ -166,6 +166,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
         }
         if (isAppHost(req) && config.frontendDir) {
           const url = req.url ?? '/';
+          if (isRelayedMediaBytes(req.method ?? '', url)) return rejectRelayedMedia(res, req.headers['accept-language']);
           if (url === APP_PREFIX || url.startsWith(`${APP_PREFIX}?`)) {
             res.writeHead(302, { Location: `${APP_PREFIX}/${url.slice(APP_PREFIX.length)}` }).end();
             return;

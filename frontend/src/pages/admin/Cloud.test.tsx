@@ -40,9 +40,10 @@ describe('Vidalune account page', () => {
     expect(screen.getByRole('link', { name: /Open the account page/ }).getAttribute('href')).toBe('https://vidalune.com/link#K7F3-Q9MA');
   });
 
-  it('turns the relay on, explaining that traffic then passes through vidalune.com', async () => {
+  it('turns the control relay on and says media stays direct', async () => {
     const calls = setup(linked, { '/api/admin/cloud/relay': relayed });
-    expect(await screen.findByText(/Nothing is stored/)).toBeTruthy();
+    expect(await screen.findByText(/relay carries control and browsing requests only/i)).toBeTruthy();
+    expect(screen.getByText(/Video, HLS, subtitles and artwork always load directly/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Turn the relay on' }));
     expect(calls).toContain('POST /api/admin/cloud/relay');
     expect(await screen.findByText('Reachable on app.vidalune.com and in the Vidalune app.')).toBeTruthy();
@@ -52,7 +53,7 @@ describe('Vidalune account page', () => {
 
   it('says the relay needs a subscription when the account has no remote access', async () => {
     const calls = setup({ ...linked, relay: { ...noRelay, allowed: false } }, {});
-    expect(await screen.findByText(/needs a subscription: on the Vidalune account justin@example.com/)).toBeTruthy();
+    expect(await screen.findByText(/needs remote access on the Vidalune account justin@example.com/)).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Turn the relay on' }) as HTMLButtonElement).disabled).toBe(true);
     expect(calls.sort()).toEqual(['GET /api/admin/cloud', 'GET /api/admin/upnp']);
   });
@@ -60,11 +61,11 @@ describe('Vidalune account page', () => {
   it('says whether playing away from home works, and saves home networks', async () => {
     const saved = { ...linked, remoteAccess: true, homeNetworks: ['100.64.0.0/10'] };
     const calls = setup({ ...linked }, { '/api/admin/cloud/home-networks': saved });
-    expect(await screen.findByText(/only users with a viewer subscription of their own can play/)).toBeTruthy();
+    expect(await screen.findByText(/playback needs remote access for the viewer or server owner and a directly reachable server address/)).toBeTruthy();
     await userEvent.type(screen.getByLabelText('Other networks that count as home'), '100.64.0.0/10');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(calls).toContain('PUT /api/admin/cloud/home-networks');
-    expect(await screen.findByText(/Playing away from home works/)).toBeTruthy();
+    expect(await screen.findByText(/Remote access is enabled for this server/)).toBeTruthy();
   });
 
   it('shows the linked account and unlinks after confirming', async () => {

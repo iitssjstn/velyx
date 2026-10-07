@@ -3,12 +3,12 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { castBase, castTextTrackStyle, castUrl } from './cast';
 
 describe('cast addresses', () => {
-  const s = { relayUrl: 'https://abcd.vidalune.com', serverUrl: 'http://192.168.1.10:3000/' };
-  it('use the page’s own address, the relay on app.vidalune.com, the server address on localhost', () => {
+  const s = { serverUrl: 'http://192.168.1.10:3000/' };
+  it('uses the configured server address, never the relay, when casting from the account site', () => {
     expect(castBase('http://192.168.1.10:3000', s)).toBe('http://192.168.1.10:3000');
-    expect(castBase('https://app.vidalune.com', s)).toBe('https://abcd.vidalune.com');
+    expect(castBase('https://app.vidalune.com', s)).toBe('http://192.168.1.10:3000');
     expect(castBase('http://localhost:5173', s)).toBe('http://192.168.1.10:3000');
-    expect(castBase('https://app.vidalune.com', { relayUrl: null, serverUrl: null })).toBe('https://app.vidalune.com');
+    expect(castBase('https://app.vidalune.com', { serverUrl: null })).toBe('https://app.vidalune.com');
   });
 
   it('carry the token, and a start for repackaged streams', () => {

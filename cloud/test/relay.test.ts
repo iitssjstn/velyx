@@ -116,6 +116,36 @@ describe('the relay', () => {
     expect([...serverProtocol.HOP_BY_HOP]).toEqual([...cloudProtocol.HOP_BY_HOP]);
   });
 
+  it('never relays media bytes but keeps control API requests available', async () => {
+    const s = await linkedServerWithRelay();
+    client.start(s.auth);
+    await until(() => cloud.relay.connected(s.id));
+    const appHost = 'app.relay.test';
+    const opened = await get(appHost, `/_vl/open?server=${s.id}`, { cookie: s.cookie });
+    const chosen = String(opened.headers['set-cookie']).match(new RegExp(`${SERVER_COOKIE}=([^;]+)`))![1];
+    const cookies = `${s.cookie}; ${SERVER_COOKIE}=${chosen}`;
+    expect((await get(appHost, '/api/server/info', { cookie: cookies })).status).toBe(200);
+
+    const mediaPaths = [
+      '/api/media/5/stream',
+      '/api/media/5/remux',
+      '/api/media/5/hls/index.m3u8',
+      '/api/media/5/hls/init.mp4',
+      '/api/media/5/hls/seg/1.m4s',
+      '/api/media/5/subtitles/1.vtt',
+      '/api/subtitles/7.vtt',
+      '/api/online-subtitles/8.vtt',
+      '/api/images/w342/poster.jpg',
+    ];
+    for (const url of mediaPaths) {
+      for (const response of [await get(s.host, url), await get(appHost, url, { cookie: cookies })]) {
+        expect(response.status).toBe(409);
+        expect(response.headers['x-vidalune-direct-playback']).toBe('required');
+        expect(response.body.toString()).toContain('directPlayback');
+      }
+    }
+  });
+
   it('knows relay addresses, and never gives out reserved names', async () => {
     expect(cloud.relay.slugOf({ headers: { host: 'abcd2345.relay.test' } } as http.IncomingMessage)).toBe('abcd2345');
     expect(cloud.relay.slugOf({ headers: { host: 'app.relay.test' } } as http.IncomingMessage)).toBeNull();
