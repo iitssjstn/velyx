@@ -60,7 +60,7 @@ describe('a Vidalune server and the account service', () => {
     expect(waiting.code!.linkUrl).toBe(`https://vidalune.example/link#${waiting.code!.code}`);
     expect(stored.cloud).toMatchObject({ serverId: expect.any(String), secret: expect.any(String) });
     // Only name, version and address leave the server.
-    for (const body of sent) for (const key of Object.keys(body as object)) expect(['name', 'version', 'url', 'directPort', 'directTlsReady']).toContain(key);
+    for (const body of sent) for (const key of Object.keys(body as object)) expect(['name', 'version', 'url']).toContain(key);
     expect(sent[0]).toEqual({ name: 'Thuis', version: '0.10.1', url: 'https://media.example.com' });
 
     // Someone signs in on the account page and enters the code.

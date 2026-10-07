@@ -20,8 +20,6 @@ import { Community, communityRoutes } from './community.js';
 import { detectionRoutes } from './detection.js';
 import { SubtitleError, SubtitleProxy, subtitleRoutes } from './subtitles.js';
 import { CeoError, ceoRoutes } from './ceo.js';
-import { CloudflareDns, publicAddress } from './cloudflare-dns.js';
-import { DirectCertificateIssuer } from './direct-certificate.js';
 
 const DAY = 86_400_000;
 export const SESSION_COOKIE = 'vl_session';
@@ -30,7 +28,7 @@ export const SERVER_COOKIE = 'vl_server';
 /** app.vidalune.com's own account pages live under this path; everything else is the chosen server. */
 export const APP_PREFIX = '/_vl';
 /** The web interface on app.vidalune.com gets the same policy as on a Vidalune server itself. */
-const appCsp = (directDomain: string) => `default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: https://*.${directDomain}:*; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self' https://www.gstatic.com; connect-src 'self' https://*.${directDomain}:*; object-src 'none'; frame-src https://www.youtube-nocookie.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'`;
+const APP_CSP = "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self' https://www.gstatic.com; connect-src 'self'; object-src 'none'; frame-src https://www.youtube-nocookie.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'";
 const SESSION_DAYS = 30;
 /** The Vidalune app stays signed in longer than a browser. */
 const APP_SESSION_DAYS = 180;
@@ -94,25 +92,10 @@ export interface CloudAppOptions {
   now?: () => number;
   /** Outgoing requests (health checks of other relays); tests pass their own. */
   fetchImpl?: typeof fetch;
-  /** Tests can replace ACME calls without contacting a certificate authority. */
-  directCertificateIssuer?: Pick<DirectCertificateIssuer, 'issue'>;
 }
 
 export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppOptions = {}): Promise<FastifyInstance> {
   const now = opts.now ?? Date.now;
-  const directDns = config.cloudflareApiToken
-    ? new CloudflareDns({ token: config.cloudflareApiToken, zoneName: config.cloudflareZoneName, fetchImpl: opts.fetchImpl })
-    : null;
-  const directHostname = (serverId: string) => `${serverId}.${config.directDomain}`;
-  const directCertificates = opts.directCertificateIssuer ?? (directDns
-    ? new DirectCertificateIssuer({
-        dataDir: config.dataDir,
-        directDomain: config.directDomain,
-        directoryUrl: config.directAcmeDirectoryUrl,
-        email: config.directAcmeEmail || undefined,
-        dns: directDns,
-      })
-    : null);
   const hops = config.trustProxy;
   const publicUrl = new URL(config.publicUrl);
   /** The service's own addresses: vidalune.com, and app.vidalune.com / www.vidalune.com that serve the same pages. */
@@ -140,8 +123,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       .map((m) => m.userRef);
   /** A server may use the relay when its owner has remote access, or someone who uses it has it for themselves. */
   const relayUsable = (serverId: string, accountId: number | null): boolean => accountId !== null && (ownerHasRemote(accountId) || remoteUsers(serverId).length > 0);
-  const controlAllowed = (_serverId: string, accountId: number | null): boolean => accountId !== null && db.select({ suspendedAt: accounts.suspendedAt }).from(accounts).where(eq(accounts.id, accountId)).get()?.suspendedAt === null;
-  const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops, allowed: relayUsable, controlAllowed, appUrl: config.frontendDir ? `${publicUrl.protocol}//app.${config.relayDomain}${publicUrl.port ? `:${publicUrl.port}` : ''}` : null, maxMbps: config.relayMaxMbps, limitMbps: (id) => db.select({ limit: servers.relayLimitMbps }).from(servers).where(eq(servers.id, id)).get()?.limit ?? config.relayServerMbps, now });
+  const relay = new Relay({ db, domain: config.relayDomain, scheme: publicUrl.protocol, port: publicUrl.port, trustProxy: hops, allowed: relayUsable, appUrl: config.frontendDir ? `${publicUrl.protocol}//app.${config.relayDomain}${publicUrl.port ? `:${publicUrl.port}` : ''}` : null, maxMbps: config.relayMaxMbps, limitMbps: (id) => db.select({ limit: servers.relayLimitMbps }).from(servers).where(eq(servers.id, id)).get()?.limit ?? config.relayServerMbps, now });
   /** app.vidalune.com: the Vidalune web interface for whichever server its visitor chose. */
   const appHost = `app.${config.relayDomain}`;
   /** Where app.vidalune.com is (null: this service does not serve the web interface there). */
@@ -230,21 +212,12 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const chosenServer = (token: string | undefined, serverId: string | undefined) => {
     const me = accountByToken(token);
     if (!me || !serverId) return { me, server: null };
-    const server = accessible(me.id).find((s) => s.id === serverId && relay.connected(s.id)) ?? null;
+    const server = accessible(me.id).find((s) => s.id === serverId && s.relayUrl) ?? null;
     return { me, server };
   };
 
   /** Passes /api and /sso on app.vidalune.com to the chosen server, through its tunnel. */
   function proxyToChosen(req: http.IncomingMessage, res: http.ServerResponse) {
-    const requestPath = (req.url ?? '/').split('?', 1)[0]!;
-    if ((req.method === 'GET' || req.method === 'HEAD') && (
-      /^\/api\/media\/\d+\/(?:stream|remux|hls\/(?:index\.m3u8|init\.mp4|seg\/\d+\.m4s)|subtitles\/\d+\.vtt)$/.test(requestPath) ||
-      /^\/api\/(?:subtitles|online-subtitles)\/\d+\.vtt$/.test(requestPath)
-    )) {
-      res.writeHead(409, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Vidalune-Direct-Playback': 'required' })
-        .end(JSON.stringify({ error: 'Connect to the server direct address for media playback.', directPlayback: 'required' }));
-      return;
-    }
     const cookies = cookiesOf(req);
     const get = (name: string) => cookies.find(([n]) => n === name)?.[1];
     const { me, server } = chosenServer(get(SESSION_COOKIE), get(SERVER_COOKIE));
@@ -407,7 +380,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     if (!appOrigin) throw new HttpError(404, 'Not found.');
     const { server: id } = z.object({ server: z.string().max(64) }).parse(request.body);
     const s = accessible(me.id).find((x) => x.id === id);
-    if (!s || !relay.connected(s.id)) throw new HttpError(404, 'Not found.');
+    if (!s || !s.relayUrl) throw new HttpError(404, 'Not found.');
     const token = newToken();
     const t = now();
     for (const [k, v] of handoffs) if (v.expiresAt < t) handoffs.delete(k);
@@ -456,11 +429,10 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     name: s.name,
     version: s.version,
     url: s.url,
-    directAccess: directAccessView(s),
     /** Its relay address while the relay is on (null: off). */
     relayUrl: relayUrl(s),
     /** The server's tunnel is open right now. */
-    relayConnected: s.relayEnabled && relay.connected(s.id),
+    relayConnected: relay.connected(s.id),
     lastSeenAt: s.lastSeenAt,
     online: s.lastSeenAt > now() - ONLINE_WINDOW || relay.connected(s.id),
   });
@@ -490,7 +462,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const { id } = z.object({ id: z.string().max(64) }).parse(request.params);
     const s = accessible(me.id).find((x) => x.id === id);
     if (!s) throw new HttpError(404, 'Not found.');
-    return { ticket: newTicket(id, me.id), addresses: [s.directAccess.url, s.url, s.relayUrl].filter(Boolean) };
+    return { ticket: newTicket(id, me.id), addresses: [s.url, s.relayUrl].filter(Boolean) };
   });
 
   function newTicket(serverId: string, accountId: number): string {
@@ -513,7 +485,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const id = wanted ?? request.cookies[SERVER_COOKIE];
     const s = id ? accessible(me.id).find((x) => x.id === id) : undefined;
     // Not (any more) theirs, or not reachable through the relay: choose again.
-    if (!s || !relay.connected(s.id)) return reply.redirect(`${APP_PREFIX}/servers?choose${s ? `&offline=${encodeURIComponent(s.id)}` : ''}`);
+    if (!s || !s.relayUrl || !relay.connected(s.id)) return reply.redirect(`${APP_PREFIX}/servers?choose${s ? `&offline=${encodeURIComponent(s.id)}` : ''}`);
     reply.setCookie(SERVER_COOKIE, s.id, { path: '/', httpOnly: true, sameSite: 'lax', secure: secureCookie, maxAge: 365 * 86_400 });
     return reply.header('Cache-Control', 'no-store').redirect(`/sso?ticket=${encodeURIComponent(newTicket(s.id, me.id))}`);
   });
@@ -627,19 +599,6 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     },
   });
 
-  const directAccessView = (s: typeof servers.$inferSelect) => ({
-    configured: !!directDns,
-    hostname: directHostname(s.id),
-    port: s.directPort,
-    dnsReady: s.directDnsReady,
-    tlsReady: s.directTlsReady,
-    portOpen: s.directPortOpen,
-    checkedAt: s.directPortCheckedAt,
-    url: s.directDnsReady && s.directTlsReady && s.directPortOpen ? `https://${directHostname(s.id)}${s.directPort === 443 ? '' : `:${s.directPort}`}` : null,
-  });
-
-  const directAccessHeartbeat = (s: typeof servers.$inferSelect) => ({ ...directAccessView(s), publicIp: s.publicIp });
-
   const serverStatus = (s: typeof servers.$inferSelect) => {
     const owner = s.accountId ? db.select().from(accounts).where(eq(accounts.id, s.accountId)).get() : undefined;
     // allowed: the owner has remote access (everyone may watch away from home); usable: the relay may
@@ -648,8 +607,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     return {
       linked: !!owner,
       account: owner?.email ?? null,
-      directAccess: directAccessHeartbeat(s),
-      relay: { enabled: s.relayEnabled && !!owner, allowed: hasRemote(owner), usable: relayUsable(s.id, s.accountId), url: owner ? relayUrl(s) : null, connected: s.relayEnabled && relay.connected(s.id) },
+      relay: { enabled: s.relayEnabled && !!owner, allowed: hasRemote(owner), usable: relayUsable(s.id, s.accountId), url: owner ? relayUrl(s) : null, connected: relay.connected(s.id) },
       remoteUsers: owner ? remoteUsers(s.id) : [],
     };
   };
@@ -677,61 +635,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   /** A server reports its name, version and address; the answer says whether it is linked, and to whom. */
   app.post('/api/server/heartbeat', async (request) => {
     const me = server(request);
-    const body = z.object({ name: serverName, version, url: serverUrl, directPort: z.number().int().min(1).max(65535).default(32400), directTlsReady: z.boolean().default(false) }).parse(request.body);
-    const publicIp = publicAddress(request.ip);
-    const checkedAt = now();
-    let dnsReady = false;
-    if (directDns && me.accountId && publicIp) {
-      try {
-        await directDns.upsertAddress(directHostname(me.id), publicIp);
-        dnsReady = true;
-      } catch (err) {
-        console.warn(`Direct DNS update failed for server ${me.id}: ${(err as Error).message}`);
-      }
-    } else if (directDns && !me.accountId) {
-      try {
-        await directDns.deleteAddress(directHostname(me.id));
-      } catch (err) {
-        console.warn(`Direct DNS cleanup failed for server ${me.id}: ${(err as Error).message}`);
-      }
-    }
-    const directPort = body.directPort;
-    const directTlsReady = body.directTlsReady;
-    let directPortOpen = false;
-    if (dnsReady && directTlsReady && config.cloudflareApiToken) {
-      const portPart = directPort === 443 ? '' : `:${directPort}`;
-      try {
-        const probe = await (opts.fetchImpl ?? fetch)(`https://${directHostname(me.id)}${portPart}/api/server/direct/health`, {
-          method: 'HEAD',
-          redirect: 'error',
-          signal: AbortSignal.timeout(5000),
-        });
-        directPortOpen = probe.status === 204;
-      } catch {
-        directPortOpen = false;
-      }
-    }
-    db.update(servers)
-      .set({ name: body.name, version: body.version, url: body.url ?? null, publicIp, directDnsReady: dnsReady, directDnsCheckedAt: checkedAt, directPort, directTlsReady, directPortOpen, directPortCheckedAt: checkedAt, lastSeenAt: checkedAt })
-      .where(eq(servers.id, me.id))
-      .run();
-    return serverStatus(db.select().from(servers).where(eq(servers.id, me.id)).get()!);
-  });
-
-  app.post('/api/server/direct/certificate', async (request) => {
-    const me = server(request);
-    if (!me.accountId) throw new HttpError(409, 'Link this server to a Vidalune account first.');
-    if (!directCertificates || !me.directDnsReady) throw new HttpError(503, 'Direct server DNS is not ready.');
-    limiter.check(`direct-certificate:${me.id}`, now());
-    const { csr } = z.object({ csr: z.string().min(1).max(30_000) }).parse(request.body);
-    const hostname = directHostname(me.id);
-    try {
-      const certificate = await directCertificates.issue(hostname, csr);
-      return { hostname, certificate };
-    } catch (err) {
-      console.warn(`Direct TLS certificate issuance failed for server ${me.id}: ${(err as Error).message}`);
-      throw new HttpError(502, 'Could not issue the direct server certificate. Check DNS and try again later.');
-    }
+    const body = z.object({ name: serverName, version, url: serverUrl }).parse(request.body);
+    db.update(servers).set({ name: body.name, version: body.version, url: body.url ?? null, lastSeenAt: now() }).where(eq(servers.id, me.id)).run();
+    return serverStatus(me);
   });
 
   /** The server's administrator turns the relay on or off (only for a linked server). */
@@ -747,6 +653,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       while (db.select({ id: servers.id }).from(servers).where(eq(servers.relaySlug, slug)).get());
     }
     db.update(servers).set({ relayEnabled: enabled, relaySlug: slug }).where(eq(servers.id, me.id)).run();
+    if (!enabled) relay.drop(me.id);
     return serverStatus(db.select().from(servers).where(eq(servers.id, me.id)).get()!).relay;
   });
 
@@ -1049,7 +956,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       allowedPath: (pathName, _root, request) => isAppHost(request.raw) && pathName !== '/index.html',
       setHeaders: (reply, file) => {
         reply.header('Cache-Control', /[/\\]assets[/\\]/.test(file) ? 'public, max-age=31536000, immutable' : 'no-cache');
-        reply.header('Content-Security-Policy', appCsp(config.directDomain));
+        reply.header('Content-Security-Policy', APP_CSP);
       },
     });
   }
@@ -1057,7 +964,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const appPage = (request: FastifyRequest, reply: FastifyReply) => {
     const { server } = chosenServer(request.cookies[SESSION_COOKIE], request.cookies[SERVER_COOKIE]);
     if (!server) return reply.redirect(`${APP_PREFIX}/servers`);
-    return reply.type('text/html').header('Cache-Control', 'no-cache').header('Content-Security-Policy', appCsp(config.directDomain)).send(fs.readFileSync(path.join(frontendDir!, 'index.html')));
+    return reply.type('text/html').header('Cache-Control', 'no-cache').header('Content-Security-Policy', APP_CSP).send(fs.readFileSync(path.join(frontendDir!, 'index.html')));
   };
   if (frontendDir) {
     app.get('/_app/', async (request, reply) => {

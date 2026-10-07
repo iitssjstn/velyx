@@ -74,8 +74,8 @@ describe('opening a port on the router (UPnP)', () => {
     expect((await put({ enabled: true, externalPort: 80 })).statusCode).toBe(400);
 
     const on = await put({ enabled: true, externalPort: 43000 });
-    expect(on.json()).toMatchObject({ enabled: true, externalPort: 43000, open: true, address: '203.0.113.9:43000', problem: null });
-    expect(mappings.get('43000')).toBe(`127.0.0.1:${env.ctx.config.directTlsPort}`);
+    expect(on.json()).toMatchObject({ enabled: true, externalPort: 43000, open: true, address: 'http://203.0.113.9:43000', problem: null });
+    expect(mappings.get('43000')).toBe(`127.0.0.1:${env.ctx.config.port}`);
 
     // Another port: the old one is closed.
     await put({ enabled: true, externalPort: 43001 });

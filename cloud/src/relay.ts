@@ -362,8 +362,6 @@ export class Relay {
       trustProxy: number;
       /** Whether the owner (account id) of a server may use the relay: they have remote access. */
       allowed: (serverId: string, accountId: number | null) => boolean;
-      /** Whether a linked, unsuspended server may keep its small account-control tunnel. */
-      controlAllowed: (serverId: string, accountId: number | null) => boolean;
       /** app.vidalune.com: browsers opening a relay address are sent there (null: not served). */
       appUrl?: string | null;
       /** What the relay may send in total, in Mbit/s (0: no limit). */
@@ -474,12 +472,6 @@ export class Relay {
       if (row) this.recordError(row.id);
       return unavailable(req, res, 'off');
     }
-        const DIRECT_MEDIA_PATH = /^\/api\/(?:media\/\d+\/(?:stream|remux|hls\/(?:index\.m3u8|init\.mp4|seg\/\d+\.m4s)|subtitles\/\d+\.vtt)|(?:online-)?subtitles\/\d+\.vtt)$/;
-        if ((req.method === 'GET' || req.method === 'HEAD') && DIRECT_MEDIA_PATH.test((req.url ?? '/').split('?', 1)[0]!)) {
-          res.writeHead(409, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Vidalune-Direct-Playback': 'required' })
-            .end(JSON.stringify({ error: 'Connect to the server direct address for media playback.', directPlayback: 'required' }));
-          return;
-        }
     const tunnel = this.tunnels.get(row.id);
     if (!tunnel) {
       this.recordError(row.id);
@@ -535,9 +527,9 @@ export class Relay {
     const m = /^Server ([\w-]{1,64}):([\w-]{20,200})$/.exec(req.headers.authorization ?? '');
     const row = m ? this.opts.db.select().from(servers).where(eq(servers.id, m[1])).get() : undefined;
     if (!row || !m || !crypto.timingSafeEqual(Buffer.from(row.secretHash), Buffer.from(sha256(m[2])))) return deny(401);
-    // Linked servers keep a control tunnel for account-site browsing even on the free plan.
-    // Public relay addresses are still gated in handleRequest; server-side remoteGate controls playback.
-    if (!this.opts.controlAllowed(row.id, row.accountId)) return deny(403);
+    if (!row.relayEnabled || !row.accountId) return deny(403);
+    // The owner has no remote access (any more): 402, so the server can say why.
+    if (!this.opts.allowed(row.id, row.accountId)) return deny(402);
     this.wss.handleUpgrade(req, socket, head, (ws) => {
       // One tunnel per server: a reconnect replaces the old one.
       this.tunnels.get(row.id)?.close();
@@ -567,8 +559,8 @@ export class Relay {
   /** Closes the tunnels of servers whose owner no longer has remote access. */
   dropUnallowed(): void {
     for (const id of [...this.tunnels.keys()]) {
-      const row = this.opts.db.select({ accountId: servers.accountId }).from(servers).where(eq(servers.id, id)).get();
-      if (!row || !this.opts.controlAllowed(id, row.accountId)) this.drop(id);
+      const row = this.opts.db.select({ accountId: servers.accountId, enabled: servers.relayEnabled }).from(servers).where(eq(servers.id, id)).get();
+      if (!row?.enabled || !this.opts.allowed(id, row.accountId)) this.drop(id);
     }
   }
 

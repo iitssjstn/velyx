@@ -44,28 +44,18 @@ describe('casting to a Chromecast', () => {
     expect((await env.app.inject({ method: 'POST', url: '/api/cast/session', payload: { fileId: dune.id } })).statusCode).toBe(401);
   });
 
-  it('offers only the automatically provisioned direct address for web playback', async () => {
+  it('offers the configured server address for direct web playback with a file-scoped token', async () => {
     const { admin, dune, arrival } = await setup();
-    env.ctx.settings.update({
-      cloud: {
-        serverId: 'server-id',
-        secret: 'server-secret-at-least-20-characters',
-        account: 'justin@example.com',
-        directAccess: { configured: true, hostname: 'server.media.vidalune.com', publicIp: null, port: 32400, dnsReady: true, tlsReady: true, portOpen: true, checkedAt: Date.now(), url: 'https://server.media.vidalune.com:32400' },
-      },
-    });
-    await env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: admin }, payload: { serverUrl: 'https://legacy.example.com' } });
+    await env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: admin }, payload: { serverUrl: 'https://media.example.com/' } });
     const response = await env.app.inject({ method: 'POST', url: `/api/media/${dune.id}/playback`, headers: { cookie: admin }, payload: {} });
     const direct = response.json().directPlayback;
-    expect(direct.baseUrl).toBe('https://server.media.vidalune.com:32400');
-    expect(direct.baseUrl).not.toContain('legacy.example.com');
+    expect(direct.baseUrls).toEqual(['https://media.example.com']);
     expect(direct.token).toMatch(/^[\w-]+\.[\w-]+$/);
-    expect(response.headers['content-security-policy']).toContain('https://server.media.vidalune.com:32400');
+    expect(response.headers['content-security-policy']).toContain('https://media.example.com');
     expect(verifyCastToken(env.ctx.config.sessionSecret, direct.token)).toMatchObject({ userId: 1, fileId: dune.id, artwork: false });
     expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${direct.token}` })).statusCode).toBe(200);
     expect((await env.app.inject({ url: `/api/media/${arrival.id}/stream?cast=${direct.token}` })).statusCode).toBe(401);
     expect((await env.app.inject({ url: `/api/images/w342/example.jpg?cast=${direct.token}` })).statusCode).toBe(401);
-    expect(castPath('/api/online-subtitles/9.vtt')).toEqual({ subtitleId: 9 });
   });
 
   it('lets the Chromecast fetch that file (and its subtitles and artwork) without signing in — nothing else', async () => {
@@ -149,7 +139,6 @@ describe('cast tokens', () => {
     expect(castPath('/api/media/5/remux')).toEqual({ fileId: 5 });
     expect(castPath('/api/media/5/subtitles/2.vtt')).toEqual({ fileId: 5 });
     expect(castPath('/api/subtitles/7.vtt')).toEqual({ subtitleId: 7 });
-    expect(castPath('/api/online-subtitles/7.vtt')).toEqual({ subtitleId: 7 });
     expect(castPath('/api/images/w342/a.jpg')).toBe('image');
     expect(castPath('/api/media/5/playback')).toBeNull();
     expect(castPath('/api/home')).toBeNull();
