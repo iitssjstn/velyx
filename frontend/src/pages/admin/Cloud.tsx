@@ -14,6 +14,15 @@ export interface CloudStatus {
   code: { code: string; expiresAt: number; linkUrl: string } | null;
   serviceUrl: string;
   relay: { enabled: boolean; url: string | null; connected: boolean; error: 'refused' | 'subscription' | 'unreachable' | 'closed' | null; allowed: boolean };
+  directAccess?: {
+    configured: boolean;
+    hostname: string;
+    port: number;
+    dnsReady: boolean;
+    tlsReady: boolean;
+    portOpen: boolean;
+    url: string | null;
+  } | null;
   /** Playing away from home works (linked, and the owner has remote access). */
   remoteAccess: boolean;
   /** Networks that also count as home. */
@@ -28,7 +37,7 @@ export interface DirectPortStatus {
 const KEY = ['admin', 'cloud'];
 
 /** Configure the public media port for manual router forwarding. */
-function DirectConnectionSection() {
+function DirectConnectionSection({ access }: { access: CloudStatus['directAccess'] }) {
   const { t } = useT();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['admin', 'direct-port'], queryFn: () => api.get<DirectPortStatus>('/api/admin/direct-port') });
@@ -48,6 +57,21 @@ function DirectConnectionSection() {
         {t('cloud.directTitle')}
       </h2>
       <p className="text-sm text-muted">{t('cloud.directPortIntro', { port: q.data.internalPort })}</p>
+      {access && (
+        <div className="space-y-2 border-t border-line/60 pt-3 text-sm" role="status" aria-live="polite">
+          <p>{t('cloud.directAddress')}: <span className="font-mono">{access.url ?? access.hostname}</span></p>
+          <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-3">
+            <div><dt className="text-faint">{t('cloud.directDns')}</dt><dd>{!access.configured ? t('cloud.directNotConfigured') : access.dnsReady ? t('cloud.directReady') : t('cloud.directWaiting')}</dd></div>
+            <div><dt className="text-faint">{t('cloud.directTls')}</dt><dd>{access.tlsReady ? t('cloud.directReady') : t('cloud.directWaiting')}</dd></div>
+            <div><dt className="text-faint">{t('cloud.directReachability')}</dt><dd>{access.portOpen ? t('cloud.directReady') : t('cloud.directNotReachable')}</dd></div>
+          </dl>
+          {!access.configured ? <p className="text-amber">{t('cloud.directDnsNotConfigured')}</p>
+            : !access.dnsReady ? <p className="text-amber">{t('cloud.directDnsWaiting')}</p>
+              : !access.tlsReady ? <p className="text-amber">{t('cloud.directTlsWaiting')}</p>
+                : !access.portOpen ? <p className="text-amber">{t('cloud.directPortNotReachable', { publicPort: q.data.publicPort, internalPort: q.data.internalPort })}</p>
+                  : <p className="text-ok">{t('cloud.directReady')}</p>}
+        </div>
+      )}
       <div className="flex flex-wrap items-end gap-2">
         <div>
           <label className="label" htmlFor="direct-port">{t('cloud.directPort')}</label>
@@ -220,7 +244,7 @@ export function CloudPage() {
         </form>
       </section>
 
-      <DirectConnectionSection />
+      <DirectConnectionSection access={s.directAccess} />
 
       <ConfirmModal open={confirming} title={t('cloud.unlinkTitle')} confirmLabel={t('cloud.unlink')} danger loading={unlink.isPending} onConfirm={() => unlink.mutate()} onClose={() => setConfirming(false)}>
         {t('cloud.unlinkConfirm')}

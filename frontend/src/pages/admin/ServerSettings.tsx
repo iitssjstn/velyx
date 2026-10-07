@@ -12,20 +12,20 @@ import { useT } from '../../i18n';
 import { SeerrSettings } from './SeerrSettings';
 import { TranscodingSettings } from './TranscodingSettings';
 
-/** Server name, optional public media URL and TMDB configuration. The TMDB key is write-only. */
+/** Server name and TMDB configuration. The TMDB key is write-only. */
 export function ServerSettingsPanel() {
   const qc = useQueryClient();
   const { refetchServer } = useAuth();
   const { t, tRich } = useT();
   const q = useQuery({ queryKey: ['admin', 'settings'], queryFn: () => api.get<ServerSettings>('/api/admin/settings') });
-  const [form, setForm] = useState({ serverName: '', serverUrl: '', tmdbLanguage: '', includeAdult: false, watchFolders: true, updateCheck: true, scanOnStartup: false, deferScansWhilePlaying: true, segmentDetection: true, segmentVideo: true, sharedDetection: false });
+  const [form, setForm] = useState({ serverName: '', tmdbLanguage: '', includeAdult: false, watchFolders: true, updateCheck: true, scanOnStartup: false, deferScansWhilePlaying: true, segmentDetection: true, segmentVideo: true, sharedDetection: false });
   // '' = use SCAN_INTERVAL_MINUTES from the environment
   const [interval, setScanInterval] = useState('');
   const [key, setKey] = useState('');
 
   useEffect(() => {
     if (!q.data) return;
-    setForm({ serverName: q.data.serverName, serverUrl: q.data.serverUrl, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult, watchFolders: q.data.watchFolders, updateCheck: q.data.updateCheck, scanOnStartup: q.data.scanOnStartup, deferScansWhilePlaying: q.data.deferScansWhilePlaying, segmentDetection: q.data.segmentDetection, segmentVideo: q.data.segmentVideo, sharedDetection: q.data.sharedDetection });
+    setForm({ serverName: q.data.serverName, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult, watchFolders: q.data.watchFolders, updateCheck: q.data.updateCheck, scanOnStartup: q.data.scanOnStartup, deferScansWhilePlaying: q.data.deferScansWhilePlaying, segmentDetection: q.data.segmentDetection, segmentVideo: q.data.segmentVideo, sharedDetection: q.data.sharedDetection });
     setScanInterval(q.data.scanIntervalSource === 'settings' ? String(q.data.scanIntervalMinutes) : '');
   }, [q.data]);
 
@@ -48,7 +48,7 @@ export function ServerSettingsPanel() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    save.mutate({ ...form, serverName: form.serverName.trim(), serverUrl: form.serverUrl.trim(), tmdbLanguage: form.tmdbLanguage.trim(), scanIntervalMinutes: interval === '' ? null : Number(interval) });
+    save.mutate({ ...form, serverName: form.serverName.trim(), tmdbLanguage: form.tmdbLanguage.trim(), scanIntervalMinutes: interval === '' ? null : Number(interval) });
   };
 
   return (
@@ -64,11 +64,6 @@ export function ServerSettingsPanel() {
             <label className="label" htmlFor="lang">{t('server.metadataLanguage')}</label>
             <input id="lang" className="input" placeholder="en-US" value={form.tmdbLanguage} onChange={(e) => setForm({ ...form, tmdbLanguage: e.target.value })} />
             <p className="mt-1 text-xs text-faint">{t('server.metadataLanguageHint')}</p>
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label" htmlFor="serverUrl">{t('server.url')}</label>
-            <input id="serverUrl" className="input" type="url" autoComplete="url" placeholder="https://media.example.com" value={form.serverUrl} onChange={(e) => setForm({ ...form, serverUrl: e.target.value })} />
-            <p className="mt-1 text-xs text-faint">{t('server.urlHint')}</p>
           </div>
           <label className="flex items-center gap-3 self-center text-sm">
             <input type="checkbox" className="size-4 accent-[var(--color-accent)]" checked={form.includeAdult} onChange={(e) => setForm({ ...form, includeAdult: e.target.checked })} />

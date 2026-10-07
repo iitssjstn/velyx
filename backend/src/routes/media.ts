@@ -32,6 +32,18 @@ export const capsBody = z
     containers: z.array(z.string().max(20)).max(30).optional(),
     videoCodecs: z.array(z.string().max(20)).max(30).optional(),
     audioCodecs: z.array(z.string().max(20)).max(30).optional(),
+
+function isAccountControlUrl(candidate: string, cloudUrl: string): boolean {
+  try {
+    const cloudHost = new URL(cloudUrl).hostname.toLowerCase();
+    const host = new URL(candidate).hostname.toLowerCase();
+    const accountHost = cloudHost.startsWith('app.') ? cloudHost.slice(4) : cloudHost;
+    const appHost = cloudHost.startsWith('app.') ? cloudHost : `app.${cloudHost}`;
+    return host === accountHost || host === appHost;
+  } catch {
+    return false;
+  }
+}
     tenBitCodecs: z.array(z.string().max(20)).max(30).optional(),
     hdr: z.boolean().optional(),
     audioTrackSwitching: z.boolean().optional(),
@@ -260,10 +272,12 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       type: 'lan' as const,
       url: `https://${endpoint.address.includes(':') ? `[${endpoint.address}]` : endpoint.address}:${endpoint.port}`,
     })) ?? [];
+    const publicEndpoints = [directAccess?.url, ctx.settings.serverUrl()]
+      .filter((url): url is string => !!url && !isAccountControlUrl(url, ctx.config.cloudUrl))
+      .map((url) => ({ type: 'public' as const, url }));
     const endpoints = [...new Map([
       ...localEndpoints,
-      ...(directAccess?.url ? [{ type: 'public' as const, url: directAccess.url }] : []),
-      ...(ctx.settings.serverUrl() ? [{ type: 'public' as const, url: ctx.settings.serverUrl() }] : []),
+      ...publicEndpoints,
     ].map((endpoint) => [endpoint.url, endpoint])).values()];
     const directPlayback = endpoints.length
       ? { endpoints, token: await signPlaybackJwt(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt: playbackJwtExpiresAt(file.durationSec), artwork: false }) }
@@ -310,11 +324,14 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const expiresAt = playbackJwtExpiresAt(file.durationSec);
     const token = await signPlaybackJwt(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt, artwork: true });
     const directUrl = ctx.cloud.status().directAccess?.url ?? null;
+    const publicDirectUrl = directUrl && !isAccountControlUrl(directUrl, ctx.config.cloudUrl) ? directUrl : null;
+    const configuredServerUrl = ctx.settings.serverUrl();
+    const publicServerUrl = configuredServerUrl && !isAccountControlUrl(configuredServerUrl, ctx.config.cloudUrl) ? configuredServerUrl : null;
     return {
       token,
       expiresAt,
-      directUrl,
-      serverUrl: ctx.cloud.status().directAccess?.url || ctx.settings.serverUrl() || null,
+      directUrl: publicDirectUrl,
+      serverUrl: publicDirectUrl || publicServerUrl,
       decision: castDecision,
       contentType: decision.engine === 'direct' ? (file.container === 'webm' ? 'video/webm' : 'video/mp4') : 'application/vnd.apple.mpegurl',
       // Text subtitles only (a Chromecast shows WebVTT), from this file.

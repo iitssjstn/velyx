@@ -434,8 +434,9 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 
 ## Versie 0.19.35 (vervolgfix)
 
-### Eigen media-URL instelbaar maken
-- De playback-response neemt de ingestelde server-URL mee als publiek endpoint, maar het beheerformulier exposeerde die opgeslagen waarde niet meer. Daardoor kon een oude waarde zoals `app.vidalune.com` actief blijven terwijl de eigen server via een domein werkte.
-- Maak de HTTPS-server-URL optioneel instelbaar; leeg houdt het automatisch toegewezen Vidalune-adres als standaard.
-- Regressietest controleert dat de eigen URL uit het formulier wordt opgeslagen; de bestaande backendtest controleert dat die URL als playback-endpoint wordt aangeboden.
-- Nog te valideren: lokale frontendtest en volledige CI.
+### Automatische directe playbackdiagnose
+- De playback-response mag de accountsite nooit als media-endpoint aanbieden. Video, audio, HLS en ondertitels gaan rechtstreeks van server naar player.
+- Toon de automatisch toegewezen hostname en DNS-, TLS- en poortstatus op de accountbeheerpagina, inclusief de ontbrekende stap.
+- Laat de automatische mediahost de enige publieke media-route blijven; geen handmatige domeininvoer.
+- Regressietests controleren dat `app.vidalune.com` geen media-endpoint wordt en dat provisioningstatus zichtbaar is.
+- Nog te valideren: backend- en frontendtests via CI en de productie-status van Cloudflare/ACME/port-forwarding.
