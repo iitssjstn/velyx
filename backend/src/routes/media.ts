@@ -251,21 +251,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     // the file's keyframes first, and listing them reads the whole file: on a NAS that takes minutes
     // and starves the stream being watched. Copied video keeps the live stream.
     const hlsUrl = decision.hlsUrl?.includes('vt=1') ? decision.hlsUrl : undefined;
-    const relay = ctx.cloud.status().relay;
-    const mediaBases = [ctx.settings.serverUrl(), relay.enabled && relay.allowed ? relay.url : null];
-    const baseUrls = [...new Set(mediaBases.flatMap((candidate) => {
-      if (!candidate) return [];
-      try {
-        const url = new URL(candidate);
-        return url.protocol === 'http:' || url.protocol === 'https:' ? [url.origin] : [];
-      } catch {
-        return [];
-      }
-    }))];
-    const directPlayback = !request.appDevice && baseUrls.length
-      ? { baseUrls, token: signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt: Date.now() + CAST_TOKEN_MS, artwork: false }) }
-      : undefined;
-    return { decision: { ...decision, hlsUrl, mode: analysis.mode }, analysis, file: fileInfo(file, external, sourceFile), subtitles: subtitleList(sourceFile, request.user!), onlineSubtitles: ctx.openSubtitles.configured, ...(directPlayback ? { directPlayback } : {}) };
+    return { decision: { ...decision, hlsUrl, mode: analysis.mode }, analysis, file: fileInfo(file, external, sourceFile), subtitles: subtitleList(sourceFile, request.user!), onlineSubtitles: ctx.openSubtitles.configured };
   });
 
   /**
@@ -305,7 +291,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       ? decision
       : { ...decision, streamUrl: decision.streamUrl.replace(/\/remux(?=\?)/, '/hls/index.m3u8'), seek: 'range' as const };
     const expiresAt = Date.now() + CAST_TOKEN_MS;
-    const token = signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt, artwork: true });
+    const token = signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt });
     const cloud = ctx.settings.get().cloud;
     return {
       token,

@@ -44,20 +44,6 @@ describe('casting to a Chromecast', () => {
     expect((await env.app.inject({ method: 'POST', url: '/api/cast/session', payload: { fileId: dune.id } })).statusCode).toBe(401);
   });
 
-  it('offers the configured server address for direct web playback with a file-scoped token', async () => {
-    const { admin, dune, arrival } = await setup();
-    await env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: admin }, payload: { serverUrl: 'https://media.example.com/' } });
-    const response = await env.app.inject({ method: 'POST', url: `/api/media/${dune.id}/playback`, headers: { cookie: admin }, payload: {} });
-    const direct = response.json().directPlayback;
-    expect(direct.baseUrls).toEqual(['https://media.example.com']);
-    expect(direct.token).toMatch(/^[\w-]+\.[\w-]+$/);
-    expect(response.headers['content-security-policy']).toContain('https://media.example.com');
-    expect(verifyCastToken(env.ctx.config.sessionSecret, direct.token)).toMatchObject({ userId: 1, fileId: dune.id, artwork: false });
-    expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${direct.token}` })).statusCode).toBe(200);
-    expect((await env.app.inject({ url: `/api/media/${arrival.id}/stream?cast=${direct.token}` })).statusCode).toBe(401);
-    expect((await env.app.inject({ url: `/api/images/w342/example.jpg?cast=${direct.token}` })).statusCode).toBe(401);
-  });
-
   it('lets the Chromecast fetch that file (and its subtitles and artwork) without signing in — nothing else', async () => {
     const { admin, dune, arrival } = await setup();
     const { token } = (await session(admin, dune.id)).json();
@@ -120,13 +106,9 @@ describe('casting to a Chromecast', () => {
 describe('cast tokens', () => {
   it('are signed, tied to one file and expire', () => {
     const t = signCastToken('secret', { userId: 3, fileId: 9, expiresAt: 2000 });
-    expect(verifyCastToken('secret', t, 1000)).toEqual({ userId: 3, fileId: 9, expiresAt: 2000, artwork: true });
+    expect(verifyCastToken('secret', t, 1000)).toEqual({ userId: 3, fileId: 9, expiresAt: 2000 });
     expect(verifyCastToken('secret', t, 2000)).toBeNull();
     expect(verifyCastToken('other', t, 1000)).toBeNull();
-    const artwork = signCastToken('secret', { userId: 3, fileId: 9, expiresAt: 2000, artwork: true });
-    expect(verifyCastToken('secret', artwork, 1000)).toEqual({ userId: 3, fileId: 9, expiresAt: 2000, artwork: true });
-    const mediaOnly = signCastToken('secret', { userId: 3, fileId: 9, expiresAt: 2000, artwork: false });
-    expect(verifyCastToken('secret', mediaOnly, 1000)).toEqual({ userId: 3, fileId: 9, expiresAt: 2000, artwork: false });
     const [body, mac] = t.split('.');
     const forged = `${Buffer.from('3.10.2000').toString('base64url')}.${mac}`;
     expect(verifyCastToken('secret', forged, 1000)).toBeNull();

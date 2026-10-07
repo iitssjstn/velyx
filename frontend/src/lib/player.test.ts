@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { pickSubtitle, playHref, preferredAudioIndex, resumePoint, selectDirectPlayback, startPosition, subtitleName, withParam } from './player';
-import type { PlaybackInfo } from './types';
+import { describe, expect, it } from 'vitest';
+import { pickSubtitle, playHref, preferredAudioIndex, resumePoint, startPosition, subtitleName, withParam } from './player';
 import { setLanguage } from '../i18n';
 import { detectCapabilities } from './codecs';
 import { normalizeLanguage, sameLanguage } from './prefs';
@@ -15,59 +14,6 @@ const sub = (key: string, language: string | null, extra: Partial<SubtitleOption
   isDefault: false,
   url: `/x/${key}`,
   ...extra,
-});
-
-describe('selectDirectPlayback', () => {
-  const answer = {
-    file: { id: 7 },
-    decision: {
-      streamUrl: '/api/media/7/stream?optimized=8',
-      hlsUrl: '/api/media/7/hls/index.m3u8?optimized=8',
-      optimized: { id: 8, profile: 'compat-720p' },
-    },
-    directPlayback: { baseUrls: ['https://media.example.com/'], token: 'signed-token' },
-  } as PlaybackInfo;
-
-  it('uses a reachable configured server for the stream and HLS manifest', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
-    const result = await selectDirectPlayback(answer, 'https://app.example.com', fetchImpl);
-    expect(fetchImpl).toHaveBeenCalledWith(new URL('https://media.example.com/api/media/7/stream?optimized=8&cast=signed-token'), expect.objectContaining({ method: 'HEAD', mode: 'cors', credentials: 'omit' }));
-    expect(result.decision.streamUrl).toBe('https://media.example.com/api/media/7/stream?optimized=8&cast=signed-token');
-    expect(result.decision.hlsUrl).toBe('https://media.example.com/api/media/7/hls/index.m3u8?optimized=8&cast=signed-token');
-  });
-
-  it('keeps same-origin playback when the direct server cannot be reached', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 503 }));
-    const result = await selectDirectPlayback(answer, 'https://app.example.com', fetchImpl);
-    expect(result).toBe(answer);
-  });
-
-  it('does not probe when the configured server is already the page origin', async () => {
-    const fetchImpl = vi.fn();
-    const sameOrigin = { ...answer, directPlayback: { ...answer.directPlayback!, baseUrls: ['https://app.example.com'] } };
-    expect(await selectDirectPlayback(sameOrigin, 'https://app.example.com', fetchImpl)).toBe(sameOrigin);
-    expect(fetchImpl).not.toHaveBeenCalled();
-  });
-
-  it('tries the relay after the direct server cannot be reached on the hosted site', async () => {
-    const answerWithRelay = { ...answer, directPlayback: { ...answer.directPlayback!, baseUrls: ['https://media.example.com', 'https://relay.example.com'] } };
-    const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(new Response(null, { status: 503 }))
-      .mockResolvedValueOnce(new Response(null, { status: 200 }));
-    const result = await selectDirectPlayback(answerWithRelay, 'https://app.vidalune.com', fetchImpl);
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
-    expect(result.decision.streamUrl).toBe('https://relay.example.com/api/media/7/stream?optimized=8&cast=signed-token');
-  });
-
-  it('never falls back to the hosted site for video when no media connection works', async () => {
-    const noDirectAddress = { ...answer, directPlayback: undefined };
-    await expect(selectDirectPlayback(noDirectAddress, 'https://app.vidalune.com', vi.fn())).rejects.toThrow();
-    const sameOrigin = { ...answer, directPlayback: { ...answer.directPlayback!, baseUrls: ['https://app.vidalune.com'] } };
-    await expect(selectDirectPlayback(sameOrigin, 'https://app.vidalune.com', vi.fn())).rejects.toThrow();
-    const unreachable = vi.fn().mockResolvedValue(new Response(null, { status: 503 }));
-    await expect(selectDirectPlayback(answer, 'https://app.vidalune.com', unreachable)).rejects.toThrow();
-    expect(unreachable).toHaveBeenCalledTimes(1);
-  });
 });
 
 describe('startPosition', () => {
