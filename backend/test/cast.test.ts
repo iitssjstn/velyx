@@ -78,9 +78,9 @@ describe('casting to a Chromecast', () => {
     const { admin, dune } = await setup();
     await env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: admin }, payload: { serverUrl: 'https://app.vidalune.com' } });
     const response = await env.app.inject({ method: 'POST', url: `/api/media/${dune.id}/playback`, headers: { cookie: admin }, payload: {} });
-    expect(response.json().directPlayback.endpoints.map((endpoint: { url: string }) => endpoint.url)).not.toContain('https://app.vidalune.com');
+    expect(response.json()).not.toHaveProperty('directPlayback');
     const cast = await session(admin, dune.id);
-    expect(cast.json().serverUrl).not.toBe('https://app.vidalune.com');
+    expect(cast.json()).toMatchObject({ directUrl: null, serverUrl: null });
   });
 
   it('lets the Chromecast fetch that file (and its subtitles and artwork) without signing in — nothing else', async () => {
