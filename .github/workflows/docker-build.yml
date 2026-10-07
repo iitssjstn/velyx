@@ -52,7 +52,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
-        if: env.DOCKERHUB_TOKEN != ''
+        id: dockerhub-login
+        if: env.DOCKERHUB_TOKEN != '' && env.DOCKERHUB_USERNAME != ''
+        continue-on-error: true
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
@@ -67,7 +69,7 @@ jobs:
           images: |
             ghcr.io/${{ github.repository_owner }}/vidalune
             ghcr.io/${{ github.repository_owner }}/velyx
-            name=docker.io/vidalune/vidalune,enable=${{ env.DOCKERHUB_TOKEN != '' }}
+            name=docker.io/vidalune/vidalune,enable=${{ steps.dockerhub-login.outcome == 'success' }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
@@ -90,7 +92,7 @@ jobs:
       # The page on Docker Hub. Needs a token that may also change the repository ("Read, Write,
       # Delete"); with a read/write token only the images are published and this step is skipped.
       - name: Docker Hub description
-        if: env.DOCKERHUB_TOKEN != '' && github.ref == 'refs/heads/main'
+        if: steps.dockerhub-login.outcome == 'success' && github.ref == 'refs/heads/main'
         continue-on-error: true
         uses: peter-evans/dockerhub-description@v4
         with:

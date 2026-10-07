@@ -390,6 +390,9 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 ## Versie 0.19.28
 
 ### Automatische serververbinding en direct afspelen
+- Docker-image job `publish` faalde doordat ongeldige Docker Hub-credentials een 401 gaven. Docker Hub
+  is optioneel gemaakt: de GHCR-publicatie gaat door en Docker Hub-tags worden alleen gepubliceerd na
+  een geslaagde login.
 - Verwijder verplichte handmatige domeininvoer. Bij koppelen krijgt iedere server automatisch een eigen hostname onder het Vidalune-domein.
 - De accountservice gebruikt Cloudflare DNS-01 voor A/AAAA en certificaatvalidatie. Cloudflare-proxying staat uit op de directe hostname; TLS-privésleutels worden op de mediaserver gegenereerd en verlaten die niet.
 - De server meldt periodiek het waargenomen publieke IP en de ingestelde externe poort. De accountservice houdt DNS bij en controleert van buitenaf of de poort bereikbaar is.
