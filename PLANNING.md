@@ -403,3 +403,10 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Gebruik op `app.vidalune.com` nooit de accountsite als videohost; meld duidelijk wanneer geen mediahost bereikbaar is. Zelfgehoste websites behouden hun same-origin-terugval.
 - Autoriseer externe mediarequests met een bestandsspecifieke ondertekende token; beperk CORS en CSP tot geconfigureerde mediakandidaten.
 - Controleer directe toegang, relay-terugval, onbereikbare kandidaten, HLS en audio-/ondertitelgedrag. Bevestig op de installatie van de eigenaar dat geen videobytes via `app.vidalune.com` lopen.
+
+## Versie 0.19.32
+
+### Direct playback tijdelijk teruggedraaid
+- Herstel het afspeelgedrag van `v0.19.29` na problemen met de directe verbinding.
+- Laat de direct-playimplementatie, endpoint discovery, ACME/DNS en JWT-wijzigingen in de bestaande featurebranches staan voor een latere hervatting.
+- Neem de APT-workflowfix mee, zodat de Debian-pakketten en APT-index vóór de nieuwe cloud-image worden gebouwd.
