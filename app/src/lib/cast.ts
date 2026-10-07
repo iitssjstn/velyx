@@ -29,7 +29,6 @@ export interface CastSubtitle {
 export interface CastSession {
   token: string;
   expiresAt: number;
-  relayUrl: string | null;
   serverUrl: string | null;
   contentType: string;
   decision: { engine: string; streamUrl: string; seek: 'range' | 'restart'; durationSec: number | null; optimized?: { id: number; profile: 'compat-720p' | 'compat-1080p' } };

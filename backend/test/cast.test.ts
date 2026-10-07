@@ -32,6 +32,7 @@ describe('casting to a Chromecast', () => {
     const { admin, dune, arrival, mpeg2 } = await setup();
     const direct = (await session(admin, dune.id)).json();
     expect(direct).toMatchObject({ contentType: 'video/mp4', decision: { engine: 'direct', seek: 'range' } });
+    expect(direct).not.toHaveProperty('relayUrl');
     expect(direct.token).toMatch(/^[\w-]+\.[\w-]+$/);
     // MKV: repackaged (the Chromecast does not take MKV), never converted.
     const remux = (await session(admin, arrival.id)).json();
@@ -44,18 +45,33 @@ describe('casting to a Chromecast', () => {
     expect((await env.app.inject({ method: 'POST', url: '/api/cast/session', payload: { fileId: dune.id } })).statusCode).toBe(401);
   });
 
-  it('offers the configured server address for direct web playback with a file-scoped token', async () => {
+  it('offers only the automatically provisioned direct address for web playback', async () => {
     const { admin, dune, arrival } = await setup();
-    await env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: admin }, payload: { serverUrl: 'https://media.example.com/' } });
+    env.ctx.settings.update({
+      cloud: {
+        serverId: 'server-id',
+        secret: 'server-secret-at-least-20-characters',
+        account: 'justin@example.com',
+        relay: true,
+        relayUrl: 'https://relay.example.com',
+        relayAllowed: true,
+        directAccess: { configured: true, hostname: 'server.media.vidalune.com', publicIp: null, port: 32400, dnsReady: true, tlsReady: true, portOpen: true, checkedAt: Date.now(), url: 'https://server.media.vidalune.com:32400', localEndpoints: [{ type: 'lan', address: '192.168.1.50', port: 32400, protocol: 'https' }] },
+      },
+    });
+    await env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: admin }, payload: { serverUrl: 'https://legacy.example.com' } });
     const response = await env.app.inject({ method: 'POST', url: `/api/media/${dune.id}/playback`, headers: { cookie: admin }, payload: {} });
     const direct = response.json().directPlayback;
-    expect(direct.baseUrls).toEqual(['https://media.example.com']);
+    expect(direct.endpoints.map((endpoint: { url: string }) => endpoint.url)).toEqual(['https://192.168.1.50:32400', 'https://server.media.vidalune.com:32400', 'https://legacy.example.com']);
     expect(direct.token).toMatch(/^[\w-]+\.[\w-]+$/);
-    expect(response.headers['content-security-policy']).toContain('https://media.example.com');
+    const csp = String(response.headers['content-security-policy']);
+    expect(csp).toContain('https://relay.example.com');
+    expect(csp).toContain('https://server.media.vidalune.com:32400');
+    expect(csp.split(';').find((directive) => directive.trim().startsWith('media-src'))).not.toContain('https://relay.example.com');
     expect(verifyCastToken(env.ctx.config.sessionSecret, direct.token)).toMatchObject({ userId: 1, fileId: dune.id, artwork: false });
     expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${direct.token}` })).statusCode).toBe(200);
     expect((await env.app.inject({ url: `/api/media/${arrival.id}/stream?cast=${direct.token}` })).statusCode).toBe(401);
     expect((await env.app.inject({ url: `/api/images/w342/example.jpg?cast=${direct.token}` })).statusCode).toBe(401);
+    expect(castPath('/api/online-subtitles/9.vtt')).toEqual({ subtitleId: 9 });
   });
 
   it('lets the Chromecast fetch that file (and its subtitles and artwork) without signing in — nothing else', async () => {
@@ -139,6 +155,7 @@ describe('cast tokens', () => {
     expect(castPath('/api/media/5/remux')).toEqual({ fileId: 5 });
     expect(castPath('/api/media/5/subtitles/2.vtt')).toEqual({ fileId: 5 });
     expect(castPath('/api/subtitles/7.vtt')).toEqual({ subtitleId: 7 });
+    expect(castPath('/api/online-subtitles/7.vtt')).toEqual({ subtitleId: 7 });
     expect(castPath('/api/images/w342/a.jpg')).toBe('image');
     expect(castPath('/api/media/5/playback')).toBeNull();
     expect(castPath('/api/home')).toBeNull();

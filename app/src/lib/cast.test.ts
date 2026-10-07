@@ -5,7 +5,6 @@ const url = (path: string) => `http://nas:3000${path.startsWith('/') ? path : `/
 const session = (seek: 'range' | 'restart'): CastSession => ({
   token: 'tok.en',
   expiresAt: 10_000_000,
-  relayUrl: null,
   serverUrl: null,
   contentType: 'video/mp4',
   decision: { engine: seek === 'range' ? 'direct' : 'remux', streamUrl: seek === 'range' ? '/api/media/5/stream' : '/api/media/5/remux?audio=1', seek, durationSec: 3000 },

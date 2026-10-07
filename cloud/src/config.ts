@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+export const DEFAULT_DIRECT_PORT = 8443;
+
 /** Settings of the Vidalune account service, from the environment. */
 export interface CloudConfig {
   port: number;
@@ -19,6 +21,16 @@ export interface CloudConfig {
   downloadDir: string;
   /** Relay addresses are <slug>.<relayDomain> (default: the host of PUBLIC_URL). */
   relayDomain: string;
+  /** Parent hostname for automatically provisioned direct server addresses. */
+  directDomain: string;
+  /** Cloudflare zone containing PUBLIC_URL (only used for direct DNS provisioning). */
+  cloudflareZoneName: string;
+  /** Runtime-only DNS token; never returned from an API or included in logs. */
+  cloudflareApiToken: string;
+  /** ACME directory used for server certificates; staging is useful for deployment tests. */
+  directAcmeDirectoryUrl: string;
+  /** Optional contact for certificate expiry notices. */
+  directAcmeEmail: string;
   /** Accounts that may use the admin page (/admin); they always have remote access themselves. */
   adminEmails: string[];
   /** Who may open the CEO panel (/ceo): customers, access, relays and growth. Separate from administrators. */
@@ -57,6 +69,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     dbPath: path.join(dataDir, 'cloud.db'),
     publicUrl,
     trustProxy: Math.max(0, int(env.TRUST_PROXY, 1)),
+    directDomain: (env.DIRECT_DOMAIN || `media.${new URL(publicUrl).hostname}`).toLowerCase(),
+    cloudflareZoneName: (env.CLOUDFLARE_ZONE_NAME || new URL(publicUrl).hostname).toLowerCase(),
+    cloudflareApiToken: env.CLOUDFLARE_API_TOKEN ?? '',
+    directAcmeDirectoryUrl: env.DIRECT_ACME_DIRECTORY_URL || 'https://acme-v02.api.letsencrypt.org/directory',
+    directAcmeEmail: (env.DIRECT_ACME_EMAIL || env.ADMIN_EMAILS?.split(/[\s,;]+/)[0] || '').trim().toLowerCase(),
     relayMaxMbps: Math.max(0, int(env.RELAY_MAX_MBPS, 900)),
     relayServerMbps: Math.max(0, int(env.RELAY_SERVER_MBPS, 0)),
     webDir: fs.existsSync(defaultWeb) ? defaultWeb : null,

@@ -44,6 +44,22 @@ describe('where a stream starts', () => {
     expect(await streamFrom(api(), answer('range', '/api/media/7/stream'), 600)).toEqual({ uri: 'http://vidalune.local/api/media/7/stream', offset: 0 });
   });
 
+  it('falls from LAN to public direct media and scopes the stream token to that file', async () => {
+    const playback = { ...answer('range', '/api/media/7/stream'), directPlayback: { token: 'scoped-token', endpoints: [
+      { type: 'lan' as const, url: 'https://192.168.1.50:32400' },
+      { type: 'public' as const, url: 'https://server.media.vidalune.com:32400' },
+    ] } };
+    const fetchImpl = vi.fn()
+      .mockRejectedValueOnce(new TypeError('LAN certificate did not validate'))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    const stream = await streamFrom(api(), playback, 600, fetchImpl);
+    expect(fetchImpl).toHaveBeenNthCalledWith(1, expect.objectContaining({ origin: 'https://192.168.1.50:32400' }), expect.objectContaining({ method: 'HEAD' }));
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, expect.objectContaining({ origin: 'https://server.media.vidalune.com:32400' }), expect.objectContaining({ method: 'HEAD' }));
+    expect(stream.uri).toBe('https://server.media.vidalune.com:32400/api/media/7/stream?cast=scoped-token');
+    expect(stream.mediaBase).toBe('https://server.media.vidalune.com:32400');
+    expect(stream.mediaToken).toBe('scoped-token');
+  });
+
   it('starts a remux stream at the keyframe the server names, and offsets positions by it', async () => {
     const a = api((url) => (url.includes('/keyframe?t=600.000') ? { start: 598.5, seek: 600 } : {}));
     expect(await streamFrom(a, answer('restart', '/api/media/7/remux?audio=1&ch=2'), 600)).toEqual({ uri: 'http://vidalune.local/api/media/7/remux?audio=1&ch=2&start=600.000', offset: 598.5 });
@@ -61,6 +77,7 @@ describe('where a stream starts', () => {
     const sub = { url: '/api/subtitles/3.vtt' } as SubtitleOption;
     expect(subtitleUrl(api(), sub, 0)).toBe('http://vidalune.local/api/subtitles/3.vtt');
     expect(subtitleUrl(api(), sub, 598.5)).toBe('http://vidalune.local/api/subtitles/3.vtt?offset=598.500');
+    expect(subtitleUrl(api(), sub, 598.5, { baseUrl: 'https://server.media.vidalune.com', token: 'scoped-token' })).toBe('https://server.media.vidalune.com/api/subtitles/3.vtt?offset=598.500&cast=scoped-token');
   });
 });
 
