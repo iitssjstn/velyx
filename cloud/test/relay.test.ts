@@ -153,6 +153,8 @@ describe('the relay', () => {
     const page = await get('app.relay.test', '/library/1', { cookie: `${s.cookie}; ${SERVER_COOKIE}=${serverCookie}`, accept: 'text/html', 'sec-fetch-mode': 'navigate' });
     expect(page.status).toBe(200);
     expect(page.headers['content-security-policy']).toContain('https://*.media.relay.test:*');
+    expect(page.headers['content-security-policy']).toContain('https://media.custom.test:32400');
+    expect(page.headers['content-security-policy']).toContain('connect-src \'self\' https://*.media.relay.test:* https://media.custom.test:32400');
     expect(page.headers['content-security-policy']).not.toContain(s.host);
   });
 
@@ -376,9 +378,7 @@ describe('the relay', () => {
     expect(home.body.toString()).toContain('<title>Vidalune</title>');
     expect(home.headers['content-security-policy']).toContain("media-src 'self' blob:");
     expect(home.headers['content-security-policy']).toContain('https://*.media.relay.test:*');
-    expect(home.headers['content-security-policy']).toContain('https://media.custom.test:32400');
     expect(home.headers['content-security-policy']).toContain('connect-src \'self\' https://*.media.relay.test:*');
-    expect(home.headers['content-security-policy']).toContain('connect-src \'self\' https://*.media.relay.test:* https://media.custom.test:32400');
     const info = await get(app, '/api/server/info', { cookie: cookies });
     expect(info.status).toBe(200);
     expect(JSON.parse(info.body.toString())).toMatchObject({ product: 'Vidalune' });
