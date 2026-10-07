@@ -41,16 +41,6 @@ export const cloud: Messages['cloud'] = {
   },
   relayNeedsLink: 'Koppel deze server eerst om de relay te gebruiken.',
   directTitle: 'Directe verbinding',
-  upnpIntro: 'Vul de publieke TCP-poort in die je router naar Vidalune doorstuurt. Met UPnP kan Vidalune de poort automatisch openzetten; anders stel je de doorsturing zelf in. Video buitenshuis vereist ook toegang op afstand.',
-  upnpPort: 'Publieke poort',
-  upnpOn: 'Poort openzetten',
-  upnpOff: 'Poort sluiten',
-  upnpCheck: 'Opnieuw controleren',
-  upnpOpen: 'De router heeft poort {address} doorgestuurd.',
-  upnpOpenNoAddress: 'Open op poort {port}.',
-  upnpProblem: {
-    noRouter: 'Er antwoordde geen router met UPnP. Zet UPnP aan op de router, of gebruik (in Docker) network_mode: host.',
-    refused: 'De router weigerde: deze poort is misschien in gebruik door een ander apparaat. Kies een andere poort.',
-    failed: 'De router antwoordde niet zoals verwacht. Probeer het opnieuw, of stel zelf port forwarding in.',
-  },
+  directPortIntro: 'Vul de publieke TCP-poort in. Stel in je router een TCP-doorschakeling in van deze poort naar poort {port} van deze server.',
+  directPort: 'Publieke poort',
 };

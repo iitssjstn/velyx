@@ -46,8 +46,6 @@ export interface AppConfig {
   cloudUrl: string;
   /** HTTPS listener for direct media requests; forward one public TCP port to this port. */
   directTlsPort: number;
-  /** Public TCP port the router forwards to the direct TLS listener. */
-  directPublicPort: number;
 }
 
 function bool(v: string | undefined, fallback: boolean): boolean {
@@ -146,7 +144,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     serverUrl: env.SERVER_URL ?? '',
     cloudUrl: (env.VIDALUNE_CLOUD_URL || 'https://vidalune.com').replace(/\/+$/, ''),
     directTlsPort: int(env.DIRECT_TLS_PORT, DEFAULT_DIRECT_TLS_PORT),
-    directPublicPort: int(env.DIRECT_PUBLIC_PORT, DEFAULT_DIRECT_TLS_PORT),
     ...overrides,
   };
   cfg.sessionSecret = overrides.sessionSecret ?? resolveSessionSecret(dataDir, env.SESSION_SECRET);

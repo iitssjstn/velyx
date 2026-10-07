@@ -143,8 +143,8 @@ export interface ServerSettings {
   cloud: CloudLink | null;
   /** Networks that also count as home ("100.64.0.0/10"), on top of the private ranges. */
   homeNetworks: string[];
-  /** Open a port on the router with UPnP (opt-in), and which one outside. */
-  upnp: { enabled: boolean; externalPort: number };
+  /** Public TCP port the administrator forwards to the direct TLS listener. */
+  directPublicPort: number;
   /** Seerr (optional): its address and API key; empty = not used. The key never leaves the server. */
   seerr: { url: string; apiKey: string };
   /** Sonarr/Radarr (optional): their API keys never leave the server. */
@@ -183,7 +183,7 @@ const DEFAULTS: ServerSettings = {
   openSubtitlesPassword: '',
   cloud: null,
   homeNetworks: [],
-  upnp: { enabled: false, externalPort: DEFAULT_DIRECT_TLS_PORT },
+  directPublicPort: DEFAULT_DIRECT_TLS_PORT,
   seerr: { url: '', apiKey: '' },
   sonarr: { url: '', apiKey: '' },
   radarr: { url: '', apiKey: '' },
@@ -201,8 +201,22 @@ export class SettingsService {
   private load(): ServerSettings {
     if (this.cache) return this.cache;
     const rows = this.db.select().from(settings).all();
-    const result: ServerSettings = { ...DEFAULTS, upnp: { enabled: false, externalPort: this.config.directPublicPort } };
+    const result: ServerSettings = { ...DEFAULTS, directPublicPort: this.config.directTlsPort };
+    const hasDirectPublicPort = rows.some((row) => row.key === 'directPublicPort');
     for (const row of rows) {
+      if (row.key === 'upnp') {
+        if (!hasDirectPublicPort) {
+          try {
+            const legacy = JSON.parse(row.value) as { externalPort?: unknown };
+            if (typeof legacy.externalPort === 'number' && Number.isInteger(legacy.externalPort) && legacy.externalPort >= 1024 && legacy.externalPort <= 65535) {
+              result.directPublicPort = legacy.externalPort;
+            }
+          } catch {
+            /* ignore a corrupt legacy UPnP setting */
+          }
+        }
+        continue;
+      }
       if (row.key in result) {
         try {
           (result as unknown as Record<string, unknown>)[row.key] = JSON.parse(row.value);

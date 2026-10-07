@@ -21,7 +21,7 @@ import { analyzePlayback } from '../playback/compatibility.js';
 import { clientProfile, deviceSupport, effectiveCapabilities, profileName } from '../playback/client-profile.js';
 import { requestLanguage } from '../i18n/index.js';
 import { isHomeRequest, isSamePublicAddress } from '../services/remote-access.js';
-import { CAST_TOKEN_MS, CHROMECAST_CAPS, signCastToken } from '../services/cast.js';
+import { CHROMECAST_CAPS, playbackJwtExpiresAt, signPlaybackJwt } from '../services/cast.js';
 import { createLogger } from '../logger.js';
 import type { ReadyOptimization } from '../services/optimization.js';
 
@@ -266,7 +266,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       ...(ctx.settings.serverUrl() ? [{ type: 'public' as const, url: ctx.settings.serverUrl() }] : []),
     ].map((endpoint) => [endpoint.url, endpoint])).values()];
     const directPlayback = endpoints.length
-      ? { endpoints, token: signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt: Date.now() + CAST_TOKEN_MS, artwork: false }) }
+      ? { endpoints, token: await signPlaybackJwt(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt: playbackJwtExpiresAt(file.durationSec), artwork: false }) }
       : undefined;
     return { decision: { ...decision, hlsUrl, mode: analysis.mode }, analysis, file: fileInfo(file, external, sourceFile), subtitles: subtitleList(sourceFile, request.user!), onlineSubtitles: ctx.openSubtitles.configured, ...(directPlayback ? { directPlayback } : {}) };
   });
@@ -307,8 +307,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const castDecision = decision.engine === 'direct'
       ? decision
       : { ...decision, streamUrl: decision.streamUrl.replace(/\/remux(?=\?)/, '/hls/index.m3u8'), seek: 'range' as const };
-    const expiresAt = Date.now() + CAST_TOKEN_MS;
-    const token = signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt, artwork: true });
+    const expiresAt = playbackJwtExpiresAt(file.durationSec);
+    const token = await signPlaybackJwt(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt, artwork: true });
     const directUrl = ctx.cloud.status().directAccess?.url ?? null;
     return {
       token,
