@@ -388,6 +388,8 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Herstel de bestaande Server-URL- en relay-fallbackroute uit 0.19.27.
 - Verwijder automatische serverhostnames, Cloudflare DNS/TLS-provisioning en de directe HTTPS-listener van deze update.
 - Behoud lokale playback en de bestaande account-/relaywerking.
+- Lokaal groen: backend 45 tests, frontend 30 gerichte tests, Android-app 110 tests, cloud serverlink/Compose 2 gerichte tests, alle vier typechecks en backend/cloud/frontend-builds.
+- De volledige cloud-suite is op Windows niet geheel uitvoerbaar: twee installer-tests vereisen POSIX `sh` en een relaytest verwacht gebouwde accountpagina's; Linux-CI moet dit bevestigen.
 
 ## Versie 0.19.28
 
