@@ -46,6 +46,7 @@ export const player: Messages['player'] = {
   backSeconds: '{seconds} seconden terug (←)',
   forwardSeconds: '{seconds} seconden vooruit (→)',
   errors: {
+    directServerRequired: 'Er is geen bereikbare verbinding om video af te spelen. Stel een Server-URL in via Beheer → Server of controleer de toegang op afstand via Beheer → Vidalune-account.',
     interrupted: 'De verbinding met de server is verbroken.',
     cannotPlay: 'Je browser kan dit bestand niet afspelen: {reasons}.',
     cannotDecode: 'Je browser kan dit bestand niet decoderen. Probeer Chrome of Edge, die de meeste formaten aankunnen.',

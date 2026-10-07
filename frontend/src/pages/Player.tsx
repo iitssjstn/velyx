@@ -29,7 +29,7 @@ import { api, ApiError, errorMessage, request } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
 import { getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
-import { addSeek, creditsPlaying, initialSubtitle, isTyping, preferredAudioIndex, SEEK_COMBINE_MS, skipAt, startPosition, subtitleName, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type PendingSeek, type SkipAction } from '../lib/player';
+import { addSeek, creditsPlaying, initialSubtitle, isTyping, preferredAudioIndex, SEEK_COMBINE_MS, selectDirectPlayback, skipAt, startPosition, subtitleName, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type PendingSeek, type SkipAction } from '../lib/player';
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo, SubtitleOption } from '../lib/types';
 import { defaultOnlineLanguage } from '../lib/online-subtitles';
 import { OnlineSubtitles } from '../components/OnlineSubtitles';
@@ -205,7 +205,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       });
       if (answer.decision.optimized) optimizationIds.current.set(file!.id, answer.decision.optimized.id);
       else optimizationIds.current.delete(file!.id);
-      return answer;
+      return selectDirectPlayback(answer, window.location.origin);
     },
   });
 
@@ -307,8 +307,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     };
     void import('hls.js').then(({ default: Hls }) => {
       if (destroyed) return;
-      const h = new Hls({ startPosition: pendingSeekRef.current ?? -1, maxBufferLength: 60, maxMaxBufferLength: 120, backBufferLength: 60, xhrSetup: (xhr) => {
-        xhr.withCredentials = true;
+      const h = new Hls({ startPosition: pendingSeekRef.current ?? -1, maxBufferLength: 60, maxMaxBufferLength: 120, backBufferLength: 60, xhrSetup: (xhr, url) => {
+        xhr.withCredentials = new URL(url, window.location.href).origin === window.location.origin;
       } });
       hls = h;
       let networkRetries = 0;

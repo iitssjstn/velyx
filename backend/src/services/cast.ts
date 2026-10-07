@@ -14,12 +14,14 @@ export interface CastClaims {
   userId: number;
   fileId: number;
   expiresAt: number;
+  artwork?: boolean;
 }
 
 const b64 = (buf: Buffer) => buf.toString('base64url');
 
 export function signCastToken(secret: string, claims: CastClaims): string {
-  const body = b64(Buffer.from(`${claims.userId}.${claims.fileId}.${claims.expiresAt}`));
+  const scope = claims.artwork === undefined ? '' : claims.artwork ? '.1' : '.0';
+  const body = b64(Buffer.from(`${claims.userId}.${claims.fileId}.${claims.expiresAt}${scope}`));
   const mac = b64(crypto.createHmac('sha256', `cast:${secret}`).update(body).digest());
   return `${body}.${mac}`;
 }
@@ -32,10 +34,11 @@ export function verifyCastToken(secret: string, token: string | undefined, now =
   const expected = b64(crypto.createHmac('sha256', `cast:${secret}`).update(body).digest());
   if (mac.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return null;
   const parts = Buffer.from(body, 'base64url').toString().split('.').map(Number);
-  if (parts.length !== 3 || parts.some((n) => !Number.isSafeInteger(n) || n <= 0)) return null;
-  const [userId, fileId, expiresAt] = parts;
+  if ((parts.length !== 3 && parts.length !== 4) || parts.slice(0, 3).some((n) => !Number.isSafeInteger(n) || n <= 0)) return null;
+  const [userId, fileId, expiresAt, artwork] = parts;
+  if (artwork !== undefined && artwork !== 0 && artwork !== 1) return null;
   if (expiresAt <= now) return null;
-  return { userId, fileId, expiresAt };
+  return { userId, fileId, expiresAt, artwork: artwork === undefined || artwork === 1 };
 }
 
 /**
