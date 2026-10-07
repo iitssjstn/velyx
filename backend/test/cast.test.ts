@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { addLibrary, createTestEnv, createUser, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
 import { mediaFiles, subtitles } from '../src/db/schema.js';
-import { castPath, signCastToken, verifyCastToken } from '../src/services/cast.js';
+import { castPath, playbackJwtExpiresAt, signPlaybackJwt, verifyPlaybackJwt } from '../src/services/cast.js';
 
 let env: TestEnv;
 afterEach(async () => env?.cleanup());
@@ -32,7 +32,8 @@ describe('casting to a Chromecast', () => {
     const { admin, dune, arrival, mpeg2 } = await setup();
     const direct = (await session(admin, dune.id)).json();
     expect(direct).toMatchObject({ contentType: 'video/mp4', decision: { engine: 'direct', seek: 'range' } });
-    expect(direct.token).toMatch(/^[\w-]+\.[\w-]+$/);
+    expect(direct).not.toHaveProperty('relayUrl');
+    expect(direct.token).toMatch(/^[\w-]+\.[\w-]+\.[\w-]+$/);
     // MKV: repackaged (the Chromecast does not take MKV), never converted.
     const remux = (await session(admin, arrival.id)).json();
     expect(remux).toMatchObject({ contentType: 'application/vnd.apple.mpegurl', decision: { engine: 'remux', seek: 'range' } });
@@ -44,18 +45,33 @@ describe('casting to a Chromecast', () => {
     expect((await env.app.inject({ method: 'POST', url: '/api/cast/session', payload: { fileId: dune.id } })).statusCode).toBe(401);
   });
 
-  it('offers the configured server address for direct web playback with a file-scoped token', async () => {
+  it('offers only the automatically provisioned direct address for web playback', async () => {
     const { admin, dune, arrival } = await setup();
-    await env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: admin }, payload: { serverUrl: 'https://media.example.com/' } });
+    env.ctx.settings.update({
+      cloud: {
+        serverId: 'server-id',
+        secret: 'server-secret-at-least-20-characters',
+        account: 'justin@example.com',
+        relay: true,
+        relayUrl: 'https://relay.example.com',
+        relayAllowed: true,
+        directAccess: { configured: true, hostname: 'server.media.vidalune.com', publicIp: null, port: 32400, dnsReady: true, tlsReady: true, portOpen: true, checkedAt: Date.now(), url: 'https://server.media.vidalune.com:32400', localEndpoints: [{ type: 'lan', address: '192.168.1.50', port: 32400, protocol: 'https' }] },
+      },
+    });
+    await env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: admin }, payload: { serverUrl: 'https://legacy.example.com' } });
     const response = await env.app.inject({ method: 'POST', url: `/api/media/${dune.id}/playback`, headers: { cookie: admin }, payload: {} });
     const direct = response.json().directPlayback;
-    expect(direct.baseUrls).toEqual(['https://media.example.com']);
-    expect(direct.token).toMatch(/^[\w-]+\.[\w-]+$/);
-    expect(response.headers['content-security-policy']).toContain('https://media.example.com');
-    expect(verifyCastToken(env.ctx.config.sessionSecret, direct.token)).toMatchObject({ userId: 1, fileId: dune.id, artwork: false });
+    expect(direct.endpoints.map((endpoint: { url: string }) => endpoint.url)).toEqual(['https://192.168.1.50:32400', 'https://server.media.vidalune.com:32400', 'https://legacy.example.com']);
+    expect(direct.token).toMatch(/^[\w-]+\.[\w-]+\.[\w-]+$/);
+    const csp = String(response.headers['content-security-policy']);
+    expect(csp).toContain('https://relay.example.com');
+    expect(csp).toContain('https://server.media.vidalune.com:32400');
+    expect(csp.split(';').find((directive) => directive.trim().startsWith('media-src'))).not.toContain('https://relay.example.com');
+    expect(await verifyPlaybackJwt(env.ctx.config.sessionSecret, direct.token)).toMatchObject({ userId: 1, fileId: dune.id, artwork: false });
     expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${direct.token}` })).statusCode).toBe(200);
     expect((await env.app.inject({ url: `/api/media/${arrival.id}/stream?cast=${direct.token}` })).statusCode).toBe(401);
     expect((await env.app.inject({ url: `/api/images/w342/example.jpg?cast=${direct.token}` })).statusCode).toBe(401);
+    expect(castPath('/api/online-subtitles/9.vtt')).toEqual({ subtitleId: 9 });
   });
 
   it('lets the Chromecast fetch that file (and its subtitles and artwork) without signing in — nothing else', async () => {
@@ -110,28 +126,37 @@ describe('casting to a Chromecast', () => {
     await env.app.inject({ method: 'PUT', url: `/api/users/${anna.id}`, headers: { cookie: admin }, payload: { disabled: true } });
     expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${token}` })).statusCode).toBe(401);
     const secret = env.ctx.config.sessionSecret;
-    const old = signCastToken(secret, { userId: 1, fileId: dune.id, expiresAt: Date.now() - 1000 });
+    const old = await signPlaybackJwt(secret, { userId: 1, fileId: dune.id, expiresAt: Date.now() - 1000 });
     expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${old}` })).statusCode).toBe(401);
     // A file the user may not see: the stream refuses it like any other request.
     expect(env.ctx.db.select().from(mediaFiles).where(eq(mediaFiles.id, dune.id)).get()).toBeTruthy();
   });
 });
 
-describe('cast tokens', () => {
-  it('are signed, tied to one file and expire', () => {
-    const t = signCastToken('secret', { userId: 3, fileId: 9, expiresAt: 2000 });
-    expect(verifyCastToken('secret', t, 1000)).toEqual({ userId: 3, fileId: 9, expiresAt: 2000, artwork: true });
-    expect(verifyCastToken('secret', t, 2000)).toBeNull();
-    expect(verifyCastToken('other', t, 1000)).toBeNull();
-    const artwork = signCastToken('secret', { userId: 3, fileId: 9, expiresAt: 2000, artwork: true });
-    expect(verifyCastToken('secret', artwork, 1000)).toEqual({ userId: 3, fileId: 9, expiresAt: 2000, artwork: true });
-    const mediaOnly = signCastToken('secret', { userId: 3, fileId: 9, expiresAt: 2000, artwork: false });
-    expect(verifyCastToken('secret', mediaOnly, 1000)).toEqual({ userId: 3, fileId: 9, expiresAt: 2000, artwork: false });
-    const [body, mac] = t.split('.');
-    const forged = `${Buffer.from('3.10.2000').toString('base64url')}.${mac}`;
-    expect(verifyCastToken('secret', forged, 1000)).toBeNull();
-    expect(verifyCastToken('secret', `${body}.${mac}.x`, 1000)).toBeNull();
-    expect(verifyCastToken('secret', undefined)).toBeNull();
+describe('playback JWTs', () => {
+  it('are standard HS256 JWTs, scoped to one file and expire exactly when claimed', async () => {
+    const t = await signPlaybackJwt('secret', { userId: 3, fileId: 9, expiresAt: 10_000 }, 1000);
+    const [header, body, signature] = t.split('.');
+    expect(JSON.parse(Buffer.from(header!, 'base64url').toString())).toEqual({ alg: 'HS256', typ: 'JWT' });
+    expect(JSON.parse(Buffer.from(body!, 'base64url').toString())).toMatchObject({ iss: 'vidalune-media', aud: 'vidalune-media', sub: '3', fileId: 9, scope: 'media:read', artwork: true, iat: 1, exp: 10 });
+    expect(signature).toBeTruthy();
+    expect(await verifyPlaybackJwt('secret', t, 1000)).toEqual({ userId: 3, fileId: 9, expiresAt: 10_000, artwork: true });
+    expect(await verifyPlaybackJwt('secret', t, 10_000)).toBeNull();
+    expect(await verifyPlaybackJwt('other', t, 1000)).toBeNull();
+    const mediaOnly = await signPlaybackJwt('secret', { userId: 3, fileId: 9, expiresAt: 10_000, artwork: false }, 1000);
+    expect(await verifyPlaybackJwt('secret', mediaOnly, 1000)).toMatchObject({ artwork: false });
+    const [, encoded, mac] = t.split('.');
+    const forgedPayload = { ...JSON.parse(Buffer.from(encoded!, 'base64url').toString()), fileId: 10 };
+    const forged = `${header}.${Buffer.from(JSON.stringify(forgedPayload)).toString('base64url')}.${mac}`;
+    expect(await verifyPlaybackJwt('secret', forged, 1000)).toBeNull();
+    expect(await verifyPlaybackJwt('secret', `${t}.x`, 1000)).toBeNull();
+    expect(await verifyPlaybackJwt('secret', undefined)).toBeNull();
+  });
+
+  it('bounds expiry to the selected playback session', () => {
+    const now = 1_000_000;
+    expect(playbackJwtExpiresAt(90 * 60, now)).toBe(now + 90 * 60_000 + 15 * 60_000);
+    expect(playbackJwtExpiresAt(24 * 60 * 60, now)).toBe(now + 8 * 60 * 60_000);
   });
 
   it('only open a file’s stream, subtitles and artwork', () => {
@@ -139,6 +164,7 @@ describe('cast tokens', () => {
     expect(castPath('/api/media/5/remux')).toEqual({ fileId: 5 });
     expect(castPath('/api/media/5/subtitles/2.vtt')).toEqual({ fileId: 5 });
     expect(castPath('/api/subtitles/7.vtt')).toEqual({ subtitleId: 7 });
+    expect(castPath('/api/online-subtitles/7.vtt')).toEqual({ subtitleId: 7 });
     expect(castPath('/api/images/w342/a.jpg')).toBe('image');
     expect(castPath('/api/media/5/playback')).toBeNull();
     expect(castPath('/api/home')).toBeNull();

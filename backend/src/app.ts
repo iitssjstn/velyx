@@ -48,13 +48,12 @@ import { registerRoutes } from './routes/index.js';
 import { NotificationService } from './services/notifications.js';
 import { CleanupScheduler } from './services/cleanup-scheduler.js';
 import { CloudService } from './services/cloud.js';
-import { UpnpService } from './services/upnp.js';
 import { SeerrService } from './services/seerr.js';
 import { ArrService } from './services/arr.js';
 import { OptimizationService } from './services/optimization.js';
 import { isLoopback } from './services/relay-client.js';
-import { libraries, subtitles as subtitleRows, users } from './db/schema.js';
-import { castPath, verifyCastToken } from './services/cast.js';
+import { libraries, onlineSubtitles as onlineSubtitleRows, subtitles as subtitleRows, users } from './db/schema.js';
+import { castPath, verifyPlaybackJwt } from './services/cast.js';
 
 const log = createLogger('http');
 const SLOW_REQUEST_MS = 2000;
@@ -110,8 +109,6 @@ export interface AppContext {
   /** Link to a Vidalune account (opt-in). */
   cloud: CloudService;
   sharedDetection: SharedDetection;
-  /** Opening a port on the router (opt-in). */
-  upnp: UpnpService;
   /** Requests through Seerr (optional). */
   seerr: SeerrService;
   /** Optional Sonarr and Radarr connections (admin actions only). */
@@ -135,8 +132,6 @@ export interface BuildOptions {
   machineBusy?: () => boolean;
   /** Pause after each read while someone watches (tests: shorter). */
   segmentPaceMs?: number;
-  /** Where UPnP searches for the router (tests: a stand-in on localhost). */
-  ssdp?: { host: string; port: number };
   prober?: Prober;
   fetchImpl?: FetchLike;
   tmdbMinIntervalMs?: number;
@@ -188,7 +183,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     },
     onScanFailed: (libraryId, message) => notifications.notify('scanFailed', { library: libraryName(libraryId), reason: message }),
   });
-  const cloud = new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, now: opts.cloudNow });
+  const cloud = new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, directTlsPort: config.directTlsPort, directPublicPort: () => settings.get().directPublicPort, now: opts.cloudNow });
   const sharedDetection = new SharedDetection(db, cloud, () => settings.get().sharedDetection);
   const segments: SegmentDetector = new SegmentDetector(db, opts.audioReader ?? ffmpegAudioReader(config.ffmpegPath), {
     enabled: () => settings.get().segmentDetection,
@@ -242,7 +237,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const openSubtitles = new OpenSubtitlesClient({ vidalune: cloud });
   const seerr = new SeerrService({ settings, fetchImpl: opts.fetchImpl });
   const arr = new ArrService({ settings, fetchImpl: opts.fetchImpl });
-  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, upnp: new UpnpService({ settings, localPort: config.port, fetchImpl: opts.fetchImpl, ssdp: opts.ssdp }), seerr, arr, transcoding, optimizations, hls: new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls')), startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, seerr, arr, transcoding, optimizations, hls: new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls')), startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {
@@ -311,7 +306,8 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   });
   app.addHook('onSend', async (_request, reply, payload) => {
     const relay = ctx.cloud.status().relay;
-    const origins = [ctx.settings.serverUrl(), relay.enabled && relay.allowed ? relay.url : null].flatMap((candidate) => {
+    const directAccess = ctx.cloud.status().directAccess;
+    const toOrigins = (candidates: Array<string | null | undefined>) => candidates.flatMap((candidate) => {
       if (!candidate) return [];
       try {
         const url = new URL(candidate);
@@ -320,11 +316,18 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
         return [];
       }
     });
-    if (!origins.length) return payload;
+    const relayOrigin = relay.enabled && relay.allowed && relay.url ? toOrigins([relay.url])[0] : null;
+    const mediaOrigins = [...new Set(toOrigins([
+      ctx.settings.serverUrl(),
+      directAccess?.url,
+      ...((directAccess?.localEndpoints ?? []).map((endpoint) => `https://${endpoint.address.includes(':') ? `[${endpoint.address}]` : endpoint.address}:${endpoint.port}`)),
+    ]).filter((origin) => origin !== relayOrigin))];
+    const controlOrigins = [...new Set([...mediaOrigins, ...(relayOrigin ? [relayOrigin] : [])])];
+    if (!controlOrigins.length && !mediaOrigins.length) return payload;
     const current = reply.getHeader('Content-Security-Policy');
     if (typeof current !== 'string') return payload;
     const directives = current.split(';').map((directive) => directive.trim());
-    for (const name of ['connect-src', 'media-src']) {
+    for (const [name, origins] of [['connect-src', controlOrigins], ['media-src', mediaOrigins]] as const) {
       for (const origin of origins) {
         const index = directives.findIndex((directive) => directive.startsWith(`${name} `));
         if (index < 0) directives.push(`${name} ${origin}`);
@@ -348,19 +351,20 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     // subtitles and artwork, for the user who cast it — never anything else, never with a cookie.
     const castToken = (request.query as { cast?: unknown } | undefined)?.cast;
     if (castToken !== undefined) {
-      const claims = typeof castToken === 'string' ? verifyCastToken(ctx.config.sessionSecret, castToken) : null;
+      const claims = typeof castToken === 'string' ? await verifyPlaybackJwt(ctx.config.sessionSecret, castToken) : null;
       const target = castPath(request.url.split('?')[0]);
       if (!claims || !target || (request.method !== 'GET' && request.method !== 'HEAD')) return;
       const allowed =
         (typeof target === 'string' && target === 'image' && claims.artwork === true) ||
         (typeof target === 'object' && 'fileId' in target && target.fileId === claims.fileId) ||
-        (typeof target === 'object' && 'subtitleId' in target && ctx.db.select({ file: subtitleRows.mediaFileId }).from(subtitleRows).where(eq(subtitleRows.id, target.subtitleId)).get()?.file === claims.fileId);
+        (typeof target === 'object' && 'subtitleId' in target && ctx.db.select({ file: subtitleRows.mediaFileId }).from(subtitleRows).where(eq(subtitleRows.id, target.subtitleId)).get()?.file === claims.fileId) ||
+        (typeof target === 'object' && 'subtitleId' in target && ctx.db.select({ file: onlineSubtitleRows.mediaFileId }).from(onlineSubtitleRows).where(eq(onlineSubtitleRows.id, target.subtitleId)).get()?.file === claims.fileId);
       if (!allowed) return;
       const u = ctx.db.select().from(users).where(eq(users.id, claims.userId)).get();
       if (!u || u.disabled) return;
       request.user = { id: u.id, username: u.username, displayName: u.displayName, role: u.role, avatarFile: u.avatarFile, language: isLanguage(u.language) ? u.language : DEFAULT_LANGUAGE };
       request.castFile = claims.fileId;
-      request.appDevice = 'Chromecast';
+      request.appDevice = claims.artwork === false ? null : 'Chromecast';
       return;
     }
     // The Vidalune app sends its token as "Authorization: Bearer …" instead of a cookie. Only tokens

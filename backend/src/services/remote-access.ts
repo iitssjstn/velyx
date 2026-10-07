@@ -60,6 +60,25 @@ export function isHomeAddress(ip: string, extra: string[] = []): boolean {
   return list.check(address, type);
 }
 
+function canonicalIp(value: string): string | null {
+  let address = value.trim();
+  if (address.toLowerCase().startsWith('::ffff:') && net.isIPv4(address.slice(7))) address = address.slice(7);
+  if (net.isIPv4(address)) return address;
+  if (!net.isIPv6(address)) return null;
+  try {
+    return new URL(`http://[${address}]/`).hostname.slice(1, -1).toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/** Same-home-WAN detection is only used after the direct port was externally verified open. */
+export function isSamePublicAddress(clientIp: string, serverPublicIp: string | null | undefined): boolean {
+  const client = canonicalIp(clientIp);
+  const server = serverPublicIp ? canonicalIp(serverPublicIp) : null;
+  return !!client && !!server && client === server;
+}
+
 /** Headers in which proxies, tunnels and CDNs pass on who really asked. */
 const FORWARD_HEADERS = ['x-forwarded-for', 'x-real-ip', 'cf-connecting-ip', 'true-client-ip', 'x-client-ip', 'fastly-client-ip', 'x-cluster-client-ip'];
 

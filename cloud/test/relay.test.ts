@@ -104,6 +104,16 @@ async function linkedServerWithRelay() {
   return { id: reg.id as string, auth, cookie, slug, host: `${slug}.relay.test`, accountId, bossCookie, grantId };
 }
 
+async function linkedServerWithoutRemoteAccess() {
+  const reg = (await cloud.inject({ method: 'POST', url: '/api/server/register', payload: { name: 'Thuis', version: '0.10.3' } })).json();
+  const auth = `Server ${reg.id}:${reg.secret}`;
+  const signUp = await cloud.inject({ method: 'POST', url: '/api/account', payload: { email: 'free@example.com', password: 'correct-horse' } });
+  const cookie = `${SESSION_COOKIE}=${signUp.cookies.find((c) => c.name === SESSION_COOKIE)!.value}`;
+  const { code } = (await cloud.inject({ method: 'POST', url: '/api/server/code', headers: { authorization: auth } })).json();
+  await cloud.inject({ method: 'POST', url: '/api/link', headers: { cookie }, payload: { code } });
+  return { id: reg.id as string, auth, cookie };
+}
+
 async function signUpAs(email: string) {
   const res = await cloud.inject({ method: 'POST', url: '/api/account', payload: { email, password: 'correct-horse' } });
   return `${SESSION_COOKIE}=${res.cookies.find((c) => c.name === SESSION_COOKIE)!.value}`;
@@ -114,6 +124,65 @@ describe('the relay', () => {
     expect(serverProtocol.FRAME).toEqual(cloudProtocol.FRAME);
     expect(serverProtocol.CHUNK).toBe(cloudProtocol.CHUNK);
     expect([...serverProtocol.HOP_BY_HOP]).toEqual([...cloudProtocol.HOP_BY_HOP]);
+  });
+
+  it('keeps account-site control available on a free linked server but never proxies media', async () => {
+    const s = await linkedServerWithoutRemoteAccess();
+    client.start(s.auth);
+    await until(() => cloud.relay.connected(s.id));
+    const app = 'app.relay.test';
+    const opened = await get(app, `/_vl/open?server=${s.id}`, { cookie: s.cookie });
+    expect(opened.status).toBe(302);
+    const chosen = String(opened.headers['set-cookie']).match(new RegExp(`${SERVER_COOKIE}=([^;]+)`))![1];
+    const cookies = `${s.cookie}; ${SERVER_COOKIE}=${chosen}`;
+    expect((await get(app, '/api/server/info', { cookie: cookies })).status).toBe(200);
+    const media = await get(app, '/api/media/5/stream', { cookie: cookies });
+    expect(media.status).toBe(409);
+    expect(media.headers['x-vidalune-direct-playback']).toBe('required');
+  });
+
+  it('allows the managed media hostname in account-page CSP but never the relay host', async () => {
+    const s = await linkedServerWithRelay();
+    client.start(s.auth);
+    await until(() => cloud.relay.connected(s.id));
+    await cloud.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: s.auth }, remoteAddress: '192.168.1.20', payload: { name: 'Thuis', version: '0.19.29', localEndpoints: [{ type: 'lan', address: '192.168.1.50', port: 32400, protocol: 'https' }] } });
+    const serverList = (await cloud.inject({ url: '/api/servers', headers: { cookie: s.cookie } })).json();
+    expect(serverList[0].endpoints).toContainEqual(expect.objectContaining({ type: 'lan', address: '192.168.1.50', url: 'https://192.168.1.50:32400' }));
+    const opened = await get('app.relay.test', `/_vl/open?server=${s.id}`, { cookie: s.cookie });
+    const serverCookie = String(opened.headers['set-cookie']).match(new RegExp(`${SERVER_COOKIE}=([^;]+)`))![1];
+    const page = await get('app.relay.test', '/library/1', { cookie: `${s.cookie}; ${SERVER_COOKIE}=${serverCookie}`, accept: 'text/html', 'sec-fetch-mode': 'navigate' });
+    expect(page.status).toBe(200);
+    expect(page.headers['content-security-policy']).toContain('https://*.media.relay.test:*');
+    expect(page.headers['content-security-policy']).not.toContain(s.host);
+  });
+
+  it('refuses media bytes on the public relay but keeps control and browsing available', async () => {
+    const s = await linkedServerWithRelay();
+    client.start(s.auth);
+    await until(() => cloud.relay.connected(s.id));
+    expect((await get(s.host, '/api/server/info')).status).toBe(200);
+    for (const path of [
+      '/api/media/5/stream?cast=file-token',
+      '/api/media/5/hls/index.m3u8?cast=file-token',
+      '/api/media/5/hls/seg/1.m4s?cast=file-token',
+      '/api/subtitles/3.vtt?cast=file-token',
+      '/api/online-subtitles/4.vtt?cast=file-token',
+      '/api/images/w780/poster.jpg?cast=file-token',
+    ]) {
+      const response = await get(s.host, path);
+      expect(response.status).toBe(409);
+      expect(response.headers['x-vidalune-direct-playback']).toBe('required');
+    }
+    expect((await get(s.host, '/api/images/w342/library-poster.jpg')).status).not.toBe(409);
+  });
+
+  it('keeps the control tunnel when the paid public relay is switched off', async () => {
+    const s = await linkedServerWithRelay();
+    client.start(s.auth);
+    await until(() => cloud.relay.connected(s.id));
+    await cloud.inject({ method: 'POST', url: '/api/server/relay', headers: { authorization: s.auth }, payload: { enabled: false } });
+    expect(cloud.relay.connected(s.id)).toBe(true);
+    expect((await cloud.inject({ url: '/api/servers', headers: { cookie: s.cookie } })).json()[0]).toMatchObject({ relayUrl: null, relayConnected: false, online: true });
   });
 
   it('knows relay addresses, and never gives out reserved names', async () => {
@@ -234,12 +303,13 @@ describe('the relay', () => {
     expect(off.body.toString()).toMatch(/its relay is off, or remote access is not active/);
   });
 
-  it('closes the tunnel when the relay is turned off or the server unlinked', async () => {
+  it('keeps the control tunnel when the public relay is turned off and closes it when the server is unlinked', async () => {
     const s = await linkedServerWithRelay();
     client.start(s.auth);
     await until(() => cloud.relay.connected(s.id));
     await cloud.inject({ method: 'POST', url: '/api/server/relay', headers: { authorization: s.auth }, payload: { enabled: false } });
-    await until(() => !cloud.relay.connected(s.id));
+    expect(cloud.relay.connected(s.id)).toBe(true);
+    expect((await cloud.inject({ url: '/api/servers', headers: { cookie: s.cookie } })).json()[0]).toMatchObject({ relayUrl: null, relayConnected: false, online: true });
     expect((await get(s.host, '/api/server/info')).status).toBe(502);
     // On again (same address), then unlinked by the owner on vidalune.com.
     expect((await cloud.inject({ method: 'POST', url: '/api/server/relay', headers: { authorization: s.auth }, payload: { enabled: true } })).json().url).toBe(`http://${s.host}`);
@@ -249,17 +319,23 @@ describe('the relay', () => {
     expect(db.select().from(servers).where(eq(servers.id, s.id)).get()!.relayEnabled).toBe(false);
   });
 
-  it('closes the tunnel when remote access is taken away, and the server learns why', async () => {
+  it('keeps the account control tunnel without remote access but disables public relay and media', async () => {
     const s = await linkedServerWithRelay();
     client.start(s.auth);
     await until(() => cloud.relay.connected(s.id));
+    const app = 'app.relay.test';
+    const opened = await get(app, `/_vl/open?server=${s.id}`, { cookie: s.cookie });
+    const serverCookie = String(opened.headers['set-cookie']).match(new RegExp(`${SERVER_COOKIE}=([^;]+)`))![1];
+    const chosenCookies = `${s.cookie}; ${SERVER_COOKIE}=${serverCookie}`;
     const taken = await cloud.inject({ method: 'DELETE', url: `/api/ceo/access/${s.grantId}`, headers: { cookie: s.bossCookie } });
     expect(taken.json()).toEqual({ ok: true });
-    await until(() => !cloud.relay.connected(s.id));
+    await until(() => cloud.relay.connected(s.id));
+    expect(client.status().connected).toBe(true);
     expect((await get(s.host, '/api/server/info')).status).toBe(502);
-    await until(() => client.status().error === 'subscription', 10_000);
     const beat = (await cloud.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: s.auth }, payload: { name: 'Thuis', version: '0.10.6' } })).json();
-    expect(beat.relay).toMatchObject({ enabled: true, allowed: false, url: null });
+    expect(beat.relay).toMatchObject({ enabled: true, allowed: false, url: null, connected: true });
+    expect((await get(app, '/api/server/info', { cookie: chosenCookies })).status).toBe(200);
+    expect((await get(app, '/api/media/5/stream', { cookie: chosenCookies })).status).toBe(409);
     // The server's addresses on vidalune.com no longer include the relay.
     const { addresses } = (await cloud.inject({ method: 'POST', url: `/api/servers/${s.id}/open`, headers: { cookie: s.cookie } })).json();
     expect(addresses).toEqual([]);
@@ -299,10 +375,15 @@ describe('the relay', () => {
     const home = await get(app, '/library/1', { cookie: cookies });
     expect(home.body.toString()).toContain('<title>Vidalune</title>');
     expect(home.headers['content-security-policy']).toContain("media-src 'self' blob:");
+    expect(home.headers['content-security-policy']).toContain('https://*.media.relay.test:*');
+    expect(home.headers['content-security-policy']).toContain('connect-src \'self\' https://*.media.relay.test:*');
     const info = await get(app, '/api/server/info', { cookie: cookies });
     expect(info.status).toBe(200);
     expect(JSON.parse(info.body.toString())).toMatchObject({ product: 'Vidalune' });
     expect(info.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
+    const relayedMedia = await get(app, '/api/media/3/stream', { cookie: cookies });
+    expect(relayedMedia.status).toBe(409);
+    expect(relayedMedia.headers['x-vidalune-direct-playback']).toBe('required');
 
     // The server's cookies are kept under its own prefix, and it never sees the account service's.
     const setup = await get(app, '/api/setup', { cookie: cookies, 'content-type': 'application/json', origin: 'http://app.relay.test' }, 'POST', JSON.stringify({ username: 'justin', password: 'correct-horse' }));
@@ -320,8 +401,9 @@ describe('the relay', () => {
     expect((await get(app, `/_vl/open?server=${s.id}`, { cookie: other })).headers.location).toBe('/_vl/servers?choose');
     expect((await get(app, '/api/server/info', { cookie: `${other}; ${SERVER_COOKIE}=${s.id}` })).status).toBe(401);
     await cloud.inject({ method: 'DELETE', url: `/api/ceo/access/${s.grantId}`, headers: { cookie: s.bossCookie } });
-    expect((await get(app, '/api/server/info', { cookie: cookies })).status).toBe(401);
-    expect((await get(app, '/', { cookie: cookies })).headers.location).toBe('/_vl/servers');
+    // The account control tunnel stays available to the owner; only the public relay is disabled.
+    expect((await get(app, '/api/server/info', { cookie: cookies })).status).toBe(200);
+    expect((await get(app, '/api/server/info', { cookie: `${other}; ${SERVER_COOKIE}=${s.id}` })).status).toBe(401);
   });
 
   it('hands a browser over from vidalune.com to app.<domain>, signed in, with the server chosen', async () => {

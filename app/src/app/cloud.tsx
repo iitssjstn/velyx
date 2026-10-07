@@ -157,7 +157,7 @@ export default function CloudAccountScreen() {
                 >
                   <Text style={[styles.body, { fontWeight: '600' }]}>{s.name}</Text>
                   <Text style={styles.muted}>
-                    {s.online ? t('cloud.online') : t('cloud.offline')} · {s.url ?? s.relayUrl ?? t('cloud.noAddress')}
+                    {s.online ? t('cloud.online') : t('cloud.offline')} · {s.directAccess?.url ?? s.url ?? s.relayUrl ?? t('cloud.noAddress')}
                   </Text>
                 </Pressable>
               ))}

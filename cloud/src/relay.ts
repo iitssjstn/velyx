@@ -258,6 +258,28 @@ class Tunnel {
 /** Why the relay cannot pass a request on. */
 export type RelayProblem = 'offline' | 'off' | 'busy' | 'tooLarge' | 'failed';
 
+const MEDIA_BYTES_PATH = /^\/api\/(?:media\/\d+\/(?:stream|remux|hls\/(?:index\.m3u8|init\.mp4|seg\/\d+\.m4s)|subtitles\/\d+\.vtt)|(?:online-)?subtitles\/\d+\.vtt)$/;
+
+export function isRelayedMediaBytes(method: string, url: string | undefined): boolean {
+  if (method !== 'GET' && method !== 'HEAD') return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(url ?? '/', 'http://relay.invalid');
+  } catch {
+    return false;
+  }
+  const playbackArtwork = /^\/api\/images\/[^/]+\/[^/]+$/.test(parsed.pathname) && parsed.searchParams.has('cast');
+  return playbackArtwork || MEDIA_BYTES_PATH.test(parsed.pathname);
+}
+
+export function rejectRelayedMedia(res: ServerResponse, acceptLanguage: string | undefined): void {
+  const message = /^\s*nl\b/i.test(acceptLanguage ?? '')
+    ? 'Media wordt rechtstreeks vanaf je Vidalune-server geladen; gebruik het ingestelde serveradres.'
+    : 'Media is served directly from your Vidalune server; use its configured address.';
+  res.writeHead(409, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Vidalune-Direct-Playback': 'required' })
+    .end(JSON.stringify({ error: message, directPlayback: 'required' }));
+}
+
 const PROBLEMS: Record<RelayProblem, { status: number; en: string; nl: string }> = {
   offline: {
     status: 502,
@@ -362,6 +384,8 @@ export class Relay {
       trustProxy: number;
       /** Whether the owner (account id) of a server may use the relay: they have remote access. */
       allowed: (serverId: string, accountId: number | null) => boolean;
+      /** Whether a linked, unsuspended server may keep its small account-control tunnel. */
+      controlAllowed: (serverId: string, accountId: number | null) => boolean;
       /** app.vidalune.com: browsers opening a relay address are sent there (null: not served). */
       appUrl?: string | null;
       /** What the relay may send in total, in Mbit/s (0: no limit). */
@@ -472,6 +496,7 @@ export class Relay {
       if (row) this.recordError(row.id);
       return unavailable(req, res, 'off');
     }
+    if (isRelayedMediaBytes(req.method ?? '', req.url)) return rejectRelayedMedia(res, req.headers['accept-language']);
     const tunnel = this.tunnels.get(row.id);
     if (!tunnel) {
       this.recordError(row.id);
@@ -527,9 +552,9 @@ export class Relay {
     const m = /^Server ([\w-]{1,64}):([\w-]{20,200})$/.exec(req.headers.authorization ?? '');
     const row = m ? this.opts.db.select().from(servers).where(eq(servers.id, m[1])).get() : undefined;
     if (!row || !m || !crypto.timingSafeEqual(Buffer.from(row.secretHash), Buffer.from(sha256(m[2])))) return deny(401);
-    if (!row.relayEnabled || !row.accountId) return deny(403);
-    // The owner has no remote access (any more): 402, so the server can say why.
-    if (!this.opts.allowed(row.id, row.accountId)) return deny(402);
+    // Linked servers keep a control tunnel for account-site browsing even on the free plan.
+    // Public relay addresses are still gated in handleRequest; server-side remoteGate controls playback.
+    if (!this.opts.controlAllowed(row.id, row.accountId)) return deny(403);
     this.wss.handleUpgrade(req, socket, head, (ws) => {
       // One tunnel per server: a reconnect replaces the old one.
       this.tunnels.get(row.id)?.close();
@@ -559,8 +584,8 @@ export class Relay {
   /** Closes the tunnels of servers whose owner no longer has remote access. */
   dropUnallowed(): void {
     for (const id of [...this.tunnels.keys()]) {
-      const row = this.opts.db.select({ accountId: servers.accountId, enabled: servers.relayEnabled }).from(servers).where(eq(servers.id, id)).get();
-      if (!row?.enabled || !this.opts.allowed(id, row.accountId)) this.drop(id);
+      const row = this.opts.db.select({ accountId: servers.accountId }).from(servers).where(eq(servers.id, id)).get();
+      if (!row || !this.opts.controlAllowed(id, row.accountId)) this.drop(id);
     }
   }
 
