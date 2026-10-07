@@ -411,6 +411,7 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 ## Versie 0.19.33
 
 ### Endpoint discovery en directe media
+- De cloud-image-workflow slaat nu ook overgeslagen Android-runs over; eerder startte die na een overgeslagen run door een mislukte Debian-build en faalde bij het ontbreken van releasepackages. Een mislukte APK-build blijft de websitepublicatie niet blokkeren.
 - De beheerder stelt de publieke TCP-poort in via de Vidalune-beheerpagina; DNS- en certificaatuitgifte blijven achtergrondwerk en hun interne voortgang wordt niet getoond.
 - Na het aanmaken van het DNS-01-record controleert de CA de DNS-uitdaging zelf; Vidalune wacht niet eerst op zijn eigen recursieve DNS-cache.
 - Direct play is opnieuw opgebouwd vanaf de rollbackrelease `v0.19.32`; één publieke serverpoort is instelbaar via de website en de featurebranches blijven als referentie behouden.
