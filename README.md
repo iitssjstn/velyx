@@ -123,11 +123,11 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-      - "${DIRECT_PUBLIC_PORT:-32400}:${DIRECT_TLS_PORT:-32400}"
+      - "${DIRECT_PUBLIC_PORT:-8443}:${DIRECT_TLS_PORT:-8443}"
     environment:
       TZ: Europe/Amsterdam
-      DIRECT_TLS_PORT: ${DIRECT_TLS_PORT:-32400}
-      DIRECT_PUBLIC_PORT: ${DIRECT_PUBLIC_PORT:-32400}
+      DIRECT_TLS_PORT: ${DIRECT_TLS_PORT:-8443}
+      DIRECT_PUBLIC_PORT: ${DIRECT_PUBLIC_PORT:-8443}
       # Run as the user/group that owns your media files (check with: id your-user)
       PUID: "1000"
       PGID: "1000"
@@ -205,8 +205,8 @@ These are **not needed** and deliberately not in the compose file. They exist fo
 | `SESSION_SECRET` | Fixed cookie-signing secret. When unset, one is generated once and stored in `data/.session-secret`. |
 | `VIDALUNE_CLOUD_URL` | The Vidalune account service (default `https://vidalune.com`). Only contacted after an administrator links the server. |
 | `VIDALUNE_UPDATE_URL` | Where new versions are announced (default: `https://vidalune.com/api/releases/latest`); `off` disables the check. |
-| `DIRECT_TLS_PORT` | `32400` | Internal HTTPS media listener port. In Docker, publish the external port to this container port. |
-| `DIRECT_PUBLIC_PORT` | `32400` | Public TCP port forwarded to the direct listener when UPnP is off. |
+| `DIRECT_TLS_PORT` | `8443` | Internal HTTPS media listener port. In Docker, publish the external port to this container port. |
+| `DIRECT_PUBLIC_PORT` | `8443` | Public TCP port forwarded to the direct listener when UPnP is off. |
 
 
 ### Example with optional settings
@@ -622,7 +622,7 @@ Vidalune can work with **Seerr**, so everyone on your server can ask for movies 
 
 **At home and away:** at home Vidalune is free and needs no account: devices in your home network (addresses such as `192.168.x.x`, `10.x.x.x`, `172.16–31.x.x`, and IPv6 local addresses) play everything. Linking a server to a Vidalune account makes it available on `app.vidalune.com`; no domain or address needs to be entered manually. The account tunnel handles sign-in, library browsing and controls; video, byte ranges, HLS, subtitles and playback artwork go directly to the server.
 
-**Playing away from home** needs remote access and one reachable TCP port. The public port is configurable on the server's Cloud page (default `32400`) and forwards to the internal direct HTTPS listener (default `32400`). Vidalune assigns the HTTPS hostname and certificate automatically in the background. UPnP can open the configured port; otherwise forward it manually. At home, video remains free. Without remote access or a reachable direct endpoint, playback explains why while browsing remains available. The server periodically checks account access; confirmed access remains valid for a week if vidalune.com is temporarily unavailable.
+**Playing away from home** needs remote access and one reachable TCP port. The public port is configurable with `DIRECT_PUBLIC_PORT` (default `8443`) and forwards to `DIRECT_TLS_PORT` (default `8443`). Vidalune assigns the HTTPS hostname and certificate automatically and checks DNS, TLS and port reachability. UPnP can open the configured port; otherwise forward it manually. At home, video remains free. Without remote access or a reachable direct endpoint, playback explains why while browsing remains available. The server periodically checks account access; confirmed access remains valid for a week if vidalune.com is temporarily unavailable.
 
 **Admin → Vidalune account → At home and away** shows the status and allows other private networks, such as a VPN between your own devices (`100.64.0.0/10`), to count as home. Behind a reverse proxy, set `TRUST_PROXY` so Vidalune sees the real visitor address (see [Running behind a reverse proxy](#running-behind-a-reverse-proxy)).
 

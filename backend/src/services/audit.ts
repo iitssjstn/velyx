@@ -57,7 +57,6 @@ export type AuditAction =
   | 'seerr.reset'
   | 'upnp.on'
   | 'upnp.off'
-  | 'upnp.port_changed'
   | 'invite.created'
   | 'invite.revoked'
   | 'invite.used'

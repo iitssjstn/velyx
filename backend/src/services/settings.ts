@@ -201,7 +201,7 @@ export class SettingsService {
   private load(): ServerSettings {
     if (this.cache) return this.cache;
     const rows = this.db.select().from(settings).all();
-    const result: ServerSettings = { ...DEFAULTS, upnp: { enabled: false, externalPort: this.config.directPublicPort } };
+    const result: ServerSettings = { ...DEFAULTS };
     for (const row of rows) {
       if (row.key in result) {
         try {

@@ -7,20 +7,17 @@ import { CloudPage, type CloudStatus, type UpnpStatus } from './Cloud';
 afterEach(() => vi.unstubAllGlobals());
 
 const noRelay = { enabled: false, url: null, connected: false, error: null, allowed: true };
-const off: CloudStatus = { enabled: false, account: null, code: null, serviceUrl: 'https://vidalune.com', relay: noRelay, remoteAccess: false, homeNetworks: [] };
-const waiting: CloudStatus = { enabled: true, account: null, code: { code: 'K7F3-Q9MA', expiresAt: Date.now() + 600_000, linkUrl: 'https://vidalune.com/link#K7F3-Q9MA' }, serviceUrl: 'https://vidalune.com', relay: noRelay, remoteAccess: false, homeNetworks: [] };
-const linked: CloudStatus = { enabled: true, account: 'justin@example.com', code: null, serviceUrl: 'https://vidalune.com', relay: noRelay, remoteAccess: false, homeNetworks: [] };
+const off: CloudStatus = { enabled: false, account: null, code: null, serviceUrl: 'https://vidalune.com', directAccess: null, relay: noRelay, remoteAccess: false, homeNetworks: [] };
+const waiting: CloudStatus = { enabled: true, account: null, code: { code: 'K7F3-Q9MA', expiresAt: Date.now() + 600_000, linkUrl: 'https://vidalune.com/link#K7F3-Q9MA' }, serviceUrl: 'https://vidalune.com', directAccess: null, relay: noRelay, remoteAccess: false, homeNetworks: [] };
+const linked: CloudStatus = { enabled: true, account: 'justin@example.com', code: null, serviceUrl: 'https://vidalune.com', directAccess: null, relay: noRelay, remoteAccess: false, homeNetworks: [] };
 const relayed: CloudStatus = { ...linked, relay: { enabled: true, url: 'https://k7f3q9ma.vidalune.com', connected: true, error: null, allowed: true } };
 
 const upnpOff: UpnpStatus = { enabled: false, externalPort: 32400, open: false, address: null, problem: null, checkedAt: null };
-let lastUpnpWrite: { enabled: boolean; externalPort: number } | null = null;
 
 function setup(initial: CloudStatus, answers: Record<string, CloudStatus | UpnpStatus>) {
   const calls: string[] = [];
-  lastUpnpWrite = null;
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     calls.push(`${init?.method ?? 'GET'} ${url}`);
-    if (url === '/api/admin/upnp' && init?.method === 'PUT') lastUpnpWrite = JSON.parse(String(init.body));
     const body = url === '/api/admin/upnp' ? (answers[url] ?? upnpOff) : url === '/api/admin/cloud' ? initial : answers[url] ?? initial;
     return new Response(JSON.stringify(body), { status: 200 });
   }));
@@ -79,28 +76,33 @@ describe('Vidalune account page', () => {
     expect(await screen.findByText('Not linked.')).toBeTruthy();
   });
 
-  it('lets the admin save the public port while UPnP is off and hides internal certificate status', async () => {
-    const calls = setup(linked, {});
+  it('shows DNS, certificate, and external port readiness for direct access', async () => {
+    const direct = {
+      configured: true,
+      hostname: 'server-1.media.vidalune.com',
+      port: 32400,
+      dnsReady: true,
+      tlsReady: true,
+      portOpen: true,
+      checkedAt: 1,
+      url: 'https://server-1.media.vidalune.com:32400',
+    };
+    setup({ ...linked, directAccess: direct }, {});
     expect(await screen.findByText('Direct connection')).toBeTruthy();
-    expect(screen.queryByText(/DNS address:/i)).toBeNull();
-    expect(screen.queryByText(/HTTPS certificate/i)).toBeNull();
-    const port = screen.getByLabelText('Public port');
-    await userEvent.clear(port);
-    await userEvent.type(port, '32401');
-    const section = port.closest('section')!;
-    await userEvent.click(within(section).getByRole('button', { name: 'Save' }));
-    expect(calls).toContain('PUT /api/admin/upnp');
-    expect(lastUpnpWrite).toEqual({ enabled: false, externalPort: 32401 });
+    expect(screen.getByText('DNS address: Ready')).toBeTruthy();
+    expect(screen.getByText('HTTPS certificate: Ready')).toBeTruthy();
+    expect(screen.getByText('External port: Ready')).toBeTruthy();
+    expect(screen.getByText(direct.url)).toBeTruthy();
   });
 
   it('opens a port on the router only when asked, and says where the server is reachable', async () => {
     const calls = setup(off, { 'PUT /api/admin/upnp': upnpOff, '/api/admin/upnp': upnpOff });
-    expect(await screen.findByText('Direct connection')).toBeTruthy();
+    expect(await screen.findByText('Open a port on the router (UPnP)')).toBeTruthy();
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
       calls.push(`${init?.method ?? 'GET'} ${url} ${init?.body ?? ''}`);
       return new Response(JSON.stringify({ enabled: true, externalPort: 43000, open: true, address: '203.0.113.9:43000', problem: null, checkedAt: 1 }), { status: 200 });
     }));
-    const port = screen.getByLabelText('Public port');
+    const port = screen.getByLabelText('Port on the router');
     await userEvent.clear(port);
     await userEvent.type(port, '43000');
     await userEvent.click(screen.getByRole('button', { name: 'Open the port' }));

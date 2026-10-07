@@ -58,9 +58,9 @@ export class DirectCertificateIssuer {
         if (challenge.type !== 'dns-01' || authz.identifier.value.toLowerCase() !== hostname) throw new Error('Unexpected ACME challenge for direct server certificate.');
         const digest = crypto.createHash('sha256').update(keyAuthorization).digest('base64url');
         const recordName = `_acme-challenge.${hostname}`;
-        // Let the CA retry its DNS lookup instead of waiting on a recursive resolver's cache.
         const recordId = await this.options.dns.createTxt(recordName, digest);
         txtRecords.set(keyAuthorization, recordId);
+        await this.options.dns.waitForTxt(recordName, digest);
       },
       challengeRemoveFn: async (_authz, _challenge, keyAuthorization) => {
         const recordId = txtRecords.get(keyAuthorization);

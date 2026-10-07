@@ -19,11 +19,11 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-      - "\${DIRECT_PUBLIC_PORT:-32400}:\${DIRECT_TLS_PORT:-32400}"
+      - "\${DIRECT_PUBLIC_PORT:-8443}:\${DIRECT_TLS_PORT:-8443}"
     environment:
       TZ: ${opts.tz ?? 'Europe/Amsterdam'}
-      DIRECT_TLS_PORT: \${DIRECT_TLS_PORT:-32400}
-      DIRECT_PUBLIC_PORT: \${DIRECT_PUBLIC_PORT:-32400}
+      DIRECT_TLS_PORT: \${DIRECT_TLS_PORT:-8443}
+      DIRECT_PUBLIC_PORT: \${DIRECT_PUBLIC_PORT:-8443}
       # The user and group that own your media files (see: id your-user)
       PUID: "${opts.puid ?? '1000'}"
       PGID: "${opts.pgid ?? '1000'}"

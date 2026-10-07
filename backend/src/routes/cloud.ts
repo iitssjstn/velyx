@@ -41,8 +41,7 @@ export async function cloudRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const body = z.object({ enabled: z.boolean(), externalPort: z.number().int().min(1024).max(65535) }).parse(request.body);
     const before = ctx.upnp.status();
     const status = await ctx.upnp.configure(body.enabled, body.externalPort);
-    if (before.enabled !== body.enabled) ctx.audit.record(body.enabled ? 'upnp.on' : 'upnp.off', { actor: request.user, ip: request.ip, detail: String(body.externalPort) });
-    else if (before.externalPort !== body.externalPort) ctx.audit.record('upnp.port_changed', { actor: request.user, ip: request.ip, detail: String(body.externalPort) });
+    if (before.enabled !== body.enabled || before.externalPort !== body.externalPort) ctx.audit.record(body.enabled ? 'upnp.on' : 'upnp.off', { actor: request.user, ip: request.ip, detail: String(body.externalPort) });
     await ctx.cloud.check().catch(() => undefined);
     return status;
   });
