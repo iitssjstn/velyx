@@ -12,7 +12,7 @@ import { useT } from '../../i18n';
 import { SeerrSettings } from './SeerrSettings';
 import { TranscodingSettings } from './TranscodingSettings';
 
-/** Server name/URL and TMDB configuration. The TMDB key is write-only: the API never returns it. */
+/** Server name and TMDB configuration. The TMDB key is write-only: the API never returns it. */
 export function ServerSettingsPanel() {
   const qc = useQueryClient();
   const { refetchServer } = useAuth();
@@ -59,11 +59,6 @@ export function ServerSettingsPanel() {
           <div>
             <label className="label" htmlFor="sname">{t('setup.serverName')}</label>
             <input id="sname" className="input" required maxLength={64} value={form.serverName} onChange={(e) => setForm({ ...form, serverName: e.target.value })} />
-          </div>
-          <div>
-            <label className="label" htmlFor="surl">{t('server.url')}</label>
-            <input id="surl" className="input" placeholder="https://vidalune.example.com" value={form.serverUrl} onChange={(e) => setForm({ ...form, serverUrl: e.target.value })} />
-            <p className="mt-1 text-xs text-faint">{t('server.urlHint')}</p>
           </div>
           <div>
             <label className="label" htmlFor="lang">{t('server.metadataLanguage')}</label>

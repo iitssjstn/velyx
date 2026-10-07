@@ -19,6 +19,7 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+      - "32400:32400"
     environment:
       TZ: ${opts.tz ?? 'Europe/Amsterdam'}
       # The user and group that own your media files (see: id your-user)

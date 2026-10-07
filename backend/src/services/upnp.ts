@@ -23,7 +23,7 @@ export interface UpnpStatus {
   externalPort: number;
   /** The router opened it: the server is reachable at `address`. */
   open: boolean;
-  /** http://<public address>:<port>, while open. */
+  /** Public IP and port for diagnostics only; use the automatically issued hostname for HTTPS. */
   address: string | null;
   problem: UpnpProblem | null;
   /** When the router last confirmed it. */
@@ -119,7 +119,7 @@ export class UpnpService {
         NewLeaseDuration: String(LEASE_S),
       });
       const ip = tag(await this.soap(g, 'GetExternalIPAddress', {}), 'NewExternalIPAddress');
-      this.state = { open: true, address: ip ? `http://${ip}:${externalPort}` : null, problem: null, checkedAt: this.now() };
+      this.state = { open: true, address: ip ? `${ip}:${externalPort}` : null, problem: null, checkedAt: this.now() };
     } catch (err) {
       const refused = err instanceof HttpError && err.statusCode === 409;
       if (!refused) this.gateway = null;

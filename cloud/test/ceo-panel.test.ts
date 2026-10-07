@@ -68,7 +68,7 @@ describe('the Control Center community page', () => {
     let saved: unknown = null;
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
       const json = (d: unknown) => new Response(JSON.stringify(d), { status: 200, headers: { 'content-type': 'application/json' } });
-      if (url === '/api/account') return json({ ceo: true, email: 'ceo@example.com', version: '0.19.27' });
+      if (url === '/api/account') return json({ ceo: true, email: 'ceo@example.com', version: '0.19.28' });
       if (url === '/api/ceo/community' && init?.method === 'PUT') {
         saved = JSON.parse(String(init.body));
         return json(saved);
