@@ -52,16 +52,21 @@ describe('casting to a Chromecast', () => {
         serverId: 'server-id',
         secret: 'server-secret-at-least-20-characters',
         account: 'justin@example.com',
-        directAccess: { configured: true, hostname: 'server.media.vidalune.com', publicIp: null, port: 32400, dnsReady: true, tlsReady: true, portOpen: true, checkedAt: Date.now(), url: 'https://server.media.vidalune.com:32400' },
+        relay: true,
+        relayUrl: 'https://relay.example.com',
+        relayAllowed: true,
+        directAccess: { configured: true, hostname: 'server.media.vidalune.com', publicIp: null, port: 32400, dnsReady: true, tlsReady: true, portOpen: true, checkedAt: Date.now(), url: 'https://server.media.vidalune.com:32400', localEndpoints: [{ type: 'lan', address: '192.168.1.50', port: 32400, protocol: 'https' }] },
       },
     });
     await env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: admin }, payload: { serverUrl: 'https://legacy.example.com' } });
     const response = await env.app.inject({ method: 'POST', url: `/api/media/${dune.id}/playback`, headers: { cookie: admin }, payload: {} });
     const direct = response.json().directPlayback;
-    expect(direct.baseUrl).toBe('https://server.media.vidalune.com:32400');
-    expect(direct.baseUrl).not.toContain('legacy.example.com');
+    expect(direct.endpoints.map((endpoint: { url: string }) => endpoint.url)).toEqual(['https://192.168.1.50:32400', 'https://server.media.vidalune.com:32400', 'https://legacy.example.com']);
     expect(direct.token).toMatch(/^[\w-]+\.[\w-]+$/);
-    expect(response.headers['content-security-policy']).toContain('https://server.media.vidalune.com:32400');
+    const csp = String(response.headers['content-security-policy']);
+    expect(csp).toContain('https://relay.example.com');
+    expect(csp).toContain('https://server.media.vidalune.com:32400');
+    expect(csp.split(';').find((directive) => directive.trim().startsWith('media-src'))).not.toContain('https://relay.example.com');
     expect(verifyCastToken(env.ctx.config.sessionSecret, direct.token)).toMatchObject({ userId: 1, fileId: dune.id, artwork: false });
     expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${direct.token}` })).statusCode).toBe(200);
     expect((await env.app.inject({ url: `/api/media/${arrival.id}/stream?cast=${direct.token}` })).statusCode).toBe(401);

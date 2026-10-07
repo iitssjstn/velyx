@@ -82,7 +82,9 @@ describe('installing Vidalune from vidalune.com', () => {
     const compose = await app.inject({ url: '/install/docker-compose.yml' });
     expect(compose.headers['content-disposition']).toContain('docker-compose.yml');
     expect(compose.body).toContain(`image: ${IMAGE}`);
-    expect(compose.body).toContain('"32400:32400"');
+    expect(compose.body).toContain('"${DIRECT_PUBLIC_PORT:-8443}:${DIRECT_TLS_PORT:-8443}"');
+    expect(compose.body).toContain('DIRECT_TLS_PORT: ${DIRECT_TLS_PORT:-8443}');
+    expect(compose.body).toContain('DIRECT_PUBLIC_PORT: ${DIRECT_PUBLIC_PORT:-8443}');
     expect(compose.body).toContain('/media/movies:ro');
   });
 

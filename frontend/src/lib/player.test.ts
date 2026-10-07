@@ -26,7 +26,7 @@ describe('selectDirectPlayback', () => {
       optimized: { id: 8, profile: 'compat-720p' },
     },
     subtitles: [{ key: 'sub', kind: 'external', label: 'Dutch', language: 'nl', languageName: 'Dutch', title: null, forced: false, isDefault: false, url: '/api/subtitles/9.vtt' }],
-    directPlayback: { baseUrl: 'https://server-1.media.vidalune.com:32400/', token: 'signed-token' },
+    directPlayback: { endpoints: [{ type: 'public', url: 'https://server-1.media.vidalune.com:32400/' }], token: 'signed-token' },
   } as PlaybackInfo;
 
   it('uses a reachable configured server for the stream and HLS manifest', async () => {
@@ -38,6 +38,31 @@ describe('selectDirectPlayback', () => {
     expect(result.subtitles[0]?.url).toBe('https://server-1.media.vidalune.com:32400/api/subtitles/9.vtt?cast=signed-token');
   });
 
+  it('falls from an unreachable LAN endpoint to the public HTTPS endpoint', async () => {
+    const fetchImpl = vi.fn()
+      .mockRejectedValueOnce(new TypeError('LAN endpoint certificate or route is unavailable'))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    const candidates = { ...answer, directPlayback: { token: 'signed-token', endpoints: [
+      { type: 'lan' as const, url: 'https://192.168.1.50:32400' },
+      { type: 'public' as const, url: 'https://server-1.media.vidalune.com:32400' },
+    ] } };
+    const result = await selectDirectPlayback(candidates, 'https://192.168.1.20:3000', fetchImpl);
+    expect(fetchImpl).toHaveBeenNthCalledWith(1, expect.objectContaining({ origin: 'https://192.168.1.50:32400' }), expect.any(Object));
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, expect.objectContaining({ origin: 'https://server-1.media.vidalune.com:32400' }), expect.any(Object));
+    expect(result.decision.streamUrl).toContain('https://server-1.media.vidalune.com:32400/');
+  });
+
+  it('uses only the public HTTPS endpoint from app.vidalune.com because browser TLS cannot validate a private IP', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    const candidates = { ...answer, directPlayback: { token: 'signed-token', endpoints: [
+      { type: 'lan' as const, url: 'https://192.168.1.50:32400' },
+      { type: 'public' as const, url: 'https://server-1.media.vidalune.com:32400' },
+    ] } };
+    await selectDirectPlayback(candidates, 'https://app.vidalune.com', fetchImpl);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledWith(expect.objectContaining({ origin: 'https://server-1.media.vidalune.com:32400' }), expect.any(Object));
+  });
+
   it('keeps same-origin playback when the direct server cannot be reached', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 503 }));
     const result = await selectDirectPlayback(answer, 'https://app.example.com', fetchImpl);
@@ -46,7 +71,7 @@ describe('selectDirectPlayback', () => {
 
   it('does not probe when the configured server is already the page origin', async () => {
     const fetchImpl = vi.fn();
-    const sameOrigin = { ...answer, directPlayback: { ...answer.directPlayback!, baseUrl: 'https://app.example.com' } };
+    const sameOrigin = { ...answer, directPlayback: { ...answer.directPlayback!, endpoints: [{ type: 'public' as const, url: 'https://app.example.com' }] } };
     expect(await selectDirectPlayback(sameOrigin, 'https://app.example.com', fetchImpl)).toBe(sameOrigin);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -54,7 +79,7 @@ describe('selectDirectPlayback', () => {
   it('never falls back to the hosted site or relay when direct playback is unavailable', async () => {
     const noDirectAddress = { ...answer, directPlayback: undefined };
     await expect(selectDirectPlayback(noDirectAddress, 'https://app.vidalune.com', vi.fn())).rejects.toThrow();
-    const sameOrigin = { ...answer, directPlayback: { ...answer.directPlayback!, baseUrl: 'https://app.vidalune.com' } };
+    const sameOrigin = { ...answer, directPlayback: { ...answer.directPlayback!, endpoints: [{ type: 'public' as const, url: 'https://app.vidalune.com' }] } };
     await expect(selectDirectPlayback(sameOrigin, 'https://app.vidalune.com', vi.fn())).rejects.toThrow();
     const unreachable = vi.fn().mockResolvedValue(new Response(null, { status: 503 }));
     await expect(selectDirectPlayback(answer, 'https://app.vidalune.com', unreachable)).rejects.toThrow();

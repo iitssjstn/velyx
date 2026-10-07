@@ -45,7 +45,7 @@ export const player = {
   backSeconds: 'Back {seconds} seconds (←)',
   forwardSeconds: 'Forward {seconds} seconds (→)',
   errors: {
-    directServerRequired: 'The direct server connection is not reachable. Check under Admin → Vidalune account that DNS, HTTPS, and TCP port 32400 are ready.',
+    directServerRequired: 'The direct server connection is not reachable. Check under Admin → Vidalune account that DNS, HTTPS, and the configured TCP port are ready.',
     remoteAccessRequired: 'Video away from home needs remote access on this server’s Vidalune account or your own viewer subscription.',
     interrupted: 'The connection to the server was interrupted.',
     cannotPlay: 'Your browser cannot play this file: {reasons}.',

@@ -258,10 +258,18 @@ class Tunnel {
 /** Why the relay cannot pass a request on. */
 export type RelayProblem = 'offline' | 'off' | 'busy' | 'tooLarge' | 'failed';
 
-const MEDIA_BYTES_PATH = /^\/api\/(?:media\/\d+\/(?:stream|remux|hls\/(?:index\.m3u8|init\.mp4|seg\/\d+\.m4s)|subtitles\/\d+\.vtt)|(?:online-)?subtitles\/\d+\.vtt|images\/[^/]+\/[^/]+)$/;
+const MEDIA_BYTES_PATH = /^\/api\/(?:media\/\d+\/(?:stream|remux|hls\/(?:index\.m3u8|init\.mp4|seg\/\d+\.m4s)|subtitles\/\d+\.vtt)|(?:online-)?subtitles\/\d+\.vtt)$/;
 
 export function isRelayedMediaBytes(method: string, url: string | undefined): boolean {
-  return (method === 'GET' || method === 'HEAD') && MEDIA_BYTES_PATH.test((url ?? '/').split('?', 1)[0]!);
+  if (method !== 'GET' && method !== 'HEAD') return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(url ?? '/', 'http://relay.invalid');
+  } catch {
+    return false;
+  }
+  const playbackArtwork = /^\/api\/images\/[^/]+\/[^/]+$/.test(parsed.pathname) && parsed.searchParams.has('cast');
+  return playbackArtwork || MEDIA_BYTES_PATH.test(parsed.pathname);
 }
 
 export function rejectRelayedMedia(res: ServerResponse, acceptLanguage: string | undefined): void {
@@ -488,12 +496,7 @@ export class Relay {
       if (row) this.recordError(row.id);
       return unavailable(req, res, 'off');
     }
-        const DIRECT_MEDIA_PATH = /^\/api\/(?:media\/\d+\/(?:stream|remux|hls\/(?:index\.m3u8|init\.mp4|seg\/\d+\.m4s)|subtitles\/\d+\.vtt)|(?:online-)?subtitles\/\d+\.vtt)$/;
-        if ((req.method === 'GET' || req.method === 'HEAD') && DIRECT_MEDIA_PATH.test((req.url ?? '/').split('?', 1)[0]!)) {
-          res.writeHead(409, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Vidalune-Direct-Playback': 'required' })
-            .end(JSON.stringify({ error: 'Connect to the server direct address for media playback.', directPlayback: 'required' }));
-          return;
-        }
+    if (isRelayedMediaBytes(req.method ?? '', req.url)) return rejectRelayedMedia(res, req.headers['accept-language']);
     const tunnel = this.tunnels.get(row.id);
     if (!tunnel) {
       this.recordError(row.id);

@@ -39,9 +39,17 @@ async function linkServer(auth: string) {
   const link = await app.inject({ method: 'POST', url: '/api/server/code', headers: { authorization: auth } });
   const result = await app.inject({ method: 'POST', url: '/api/link', headers: { cookie }, payload: { code: link.json().code } });
   expect(result.statusCode).toBe(200);
+  return cookie;
 }
 
 describe('automatic direct DNS', () => {
+  it('rejects a public address mislabeled as a LAN endpoint', async () => {
+    const { auth } = await setup(async () => { throw new Error('Invalid endpoints must be rejected before network calls.'); });
+    await linkServer(auth);
+    const response = await app.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: auth }, payload: { name: 'Thuis', version: '0.19.29', localEndpoints: [{ type: 'lan', address: '8.8.8.8', port: 32400, protocol: 'https' }] } });
+    expect(response.statusCode).toBe(400);
+  });
+
   it('sets an unproxied server hostname from the address observed by the account service', async () => {
     const writes: Array<Record<string, unknown>> = [];
     const fetchImpl: typeof fetch = async (input, init) => {
@@ -55,20 +63,28 @@ describe('automatic direct DNS', () => {
       throw new Error(`Unexpected Cloudflare request: ${url.pathname}`);
     };
     const { id, auth } = await setup(fetchImpl);
-    await linkServer(auth);
+    const cookie = await linkServer(auth);
 
     const heartbeat = await app.inject({
       method: 'POST',
       url: '/api/server/heartbeat',
       headers: { authorization: auth },
       remoteAddress: '8.8.8.8',
-      payload: { name: 'Thuis', version: '0.19.27' },
+      payload: { name: 'Thuis', version: '0.19.29', publicIp: '203.0.113.99', localEndpoints: [{ type: 'lan', address: '192.168.1.50', port: 32400, protocol: 'https' }] },
     });
 
     expect(heartbeat.statusCode).toBe(200);
     expect(heartbeat.json().directAccess).toMatchObject({ hostname: `${id}.media.vidalune.com`, dnsReady: true });
+    expect(heartbeat.json().directAccess.localEndpoints).toEqual([{ type: 'lan', address: '192.168.1.50', port: 32400, protocol: 'https' }]);
+    expect(heartbeat.json().directAccess.endpoints).toContainEqual(expect.objectContaining({ type: 'public', address: '8.8.8.8', protocol: 'https' }));
     expect(writes).toEqual([expect.objectContaining({ type: 'A', name: `${id}.media.vidalune.com`, content: '8.8.8.8', proxied: false })]);
     expect(db.select().from(servers).get()?.publicIp).toBe('8.8.8.8');
+    const listed = (await app.inject({ url: '/api/servers', headers: { cookie } })).json();
+    expect(listed[0].endpoints[0]).toMatchObject({ type: 'lan', address: '192.168.1.50', port: 32400, protocol: 'https' });
+    const opened = await app.inject({ method: 'POST', url: `/api/servers/${id}/open`, headers: { cookie } });
+    expect(opened.json().addresses[0]).toBe('https://192.168.1.50:32400');
+    expect(opened.json().endpoints).toEqual(listed[0].endpoints);
+    expect((await app.inject({ url: '/api/servers', headers: { cookie: `${SESSION_COOKIE}=invalid` } })).statusCode).toBe(401);
     expect(JSON.stringify(heartbeat.json())).not.toContain('test-token');
   });
 

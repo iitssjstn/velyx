@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { isIP } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
@@ -9,7 +10,7 @@ import fastifyHelmet from '@fastify/helmet';
 import fastifyStatic from '@fastify/static';
 import { and, desc, eq, gt, isNotNull, isNull, lt } from 'drizzle-orm';
 import { z, ZodError } from 'zod';
-import type { CloudConfig } from './config.js';
+import { DEFAULT_DIRECT_PORT, type CloudConfig } from './config.js';
 import type { DB } from './db/client.js';
 import { accountActivity, accountSessions, accounts, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
@@ -24,6 +25,41 @@ import { CloudflareDns, publicAddress } from './cloudflare-dns.js';
 import { DirectCertificateIssuer } from './direct-certificate.js';
 
 const DAY = 86_400_000;
+
+interface LanEndpoint {
+  type: 'lan';
+  address: string;
+  port: number;
+  protocol: 'https';
+}
+
+function isPrivateEndpointAddress(address: string): boolean {
+  const version = isIP(address);
+  if (version === 4) {
+    const [first, second] = address.split('.').map(Number);
+    return first === 10 || (first === 172 && second! >= 16 && second! <= 31) || (first === 192 && second === 168) || (first === 100 && second! >= 64 && second! <= 127);
+  }
+  return version === 6 && /^(?:fc|fd)/i.test(address);
+}
+
+const localEndpointSchema = z.object({
+  type: z.literal('lan'),
+  address: z.string().max(45).refine(isPrivateEndpointAddress, 'LAN endpoints must use a private address.'),
+  port: z.number().int().min(1).max(65535),
+  protocol: z.literal('https'),
+});
+
+function storedLocalEndpoints(value: string): LanEndpoint[] {
+  try {
+    const parsed = z.array(localEndpointSchema).max(16).safeParse(JSON.parse(value));
+    return parsed.success ? parsed.data : [];
+  } catch {
+    return [];
+  }
+}
+
+const endpointUrl = (endpoint: LanEndpoint) => `https://${endpoint.address.includes(':') ? `[${endpoint.address}]` : endpoint.address}:${endpoint.port}`;
+
 export const SESSION_COOKIE = 'vl_session';
 /** app.vidalune.com: the server this browser chose (its pages and API are passed through to it). */
 export const SERVER_COOKIE = 'vl_server';
@@ -458,6 +494,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     version: s.version,
     url: s.url,
     directAccess: directAccessView(s),
+    endpoints: serverEndpoints(s),
     /** Its relay address while the relay is on (null: off). */
     relayUrl: relayUrl(s),
     /** The server's tunnel is open right now. */
@@ -488,10 +525,12 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
    */
   app.post('/api/servers/:id/open', async (request) => {
     const me = account(request);
+    limiter.check(`server-open:${me.id}`, now());
     const { id } = z.object({ id: z.string().max(64) }).parse(request.params);
     const s = accessible(me.id).find((x) => x.id === id);
     if (!s) throw new HttpError(404, 'Not found.');
-    return { ticket: newTicket(id, me.id), addresses: [s.directAccess.url, s.url, s.relayUrl].filter(Boolean) };
+    const lanAddresses = s.endpoints.filter((endpoint) => endpoint.type === 'lan').map((endpoint) => endpoint.url);
+    return { ticket: newTicket(id, me.id), addresses: [...lanAddresses, s.directAccess.url, s.url, s.relayUrl].filter((address): address is string => !!address), endpoints: s.endpoints };
   });
 
   function newTicket(serverId: string, accountId: number): string {
@@ -632,6 +671,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     configured: !!directDns,
     hostname: directHostname(s.id),
     port: s.directPort,
+    localEndpoints: storedLocalEndpoints(s.localEndpoints),
     dnsReady: s.directDnsReady,
     tlsReady: s.directTlsReady,
     portOpen: s.directPortOpen,
@@ -639,7 +679,20 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     url: s.directDnsReady && s.directTlsReady && s.directPortOpen ? `https://${directHostname(s.id)}${s.directPort === 443 ? '' : `:${s.directPort}`}` : null,
   });
 
-  const directAccessHeartbeat = (s: typeof servers.$inferSelect) => ({ ...directAccessView(s), publicIp: s.publicIp });
+  const serverEndpoints = (s: typeof servers.$inferSelect) => {
+    const local = storedLocalEndpoints(s.localEndpoints).map((endpoint) => ({ ...endpoint, url: endpointUrl(endpoint) }));
+    const publicEndpoint = s.publicIp ? [{
+      type: 'public' as const,
+      address: s.publicIp,
+      port: s.directPort,
+      protocol: 'https' as const,
+      url: directAccessView(s).url,
+      reachable: s.directPortOpen,
+    }] : [];
+    return [...local, ...publicEndpoint];
+  };
+
+  const directAccessHeartbeat = (s: typeof servers.$inferSelect) => ({ ...directAccessView(s), publicIp: s.publicIp, endpoints: serverEndpoints(s) });
 
   const serverStatus = (s: typeof servers.$inferSelect) => {
     const owner = s.accountId ? db.select().from(accounts).where(eq(accounts.id, s.accountId)).get() : undefined;
@@ -657,11 +710,11 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   app.post('/api/server/register', async (request) => {
     limiter.check(`register:${request.ip}`, now());
-    const body = z.object({ name: serverName, version, url: serverUrl }).parse(request.body);
+    const body = z.object({ name: serverName, version, url: serverUrl, localEndpoints: z.array(localEndpointSchema).max(16).default([]), directPort: z.number().int().min(1).max(65535).default(DEFAULT_DIRECT_PORT) }).parse(request.body);
     const id = crypto.randomUUID();
     const secret = newToken();
     const t = now();
-    db.insert(servers).values({ id, secretHash: sha256(secret), name: body.name, version: body.version, url: body.url ?? null, createdAt: t, lastSeenAt: t }).run();
+    db.insert(servers).values({ id, secretHash: sha256(secret), name: body.name, version: body.version, url: body.url ?? null, localEndpoints: JSON.stringify(body.localEndpoints), directPort: body.directPort, createdAt: t, lastSeenAt: t }).run();
     return { id, secret };
   });
 
@@ -678,7 +731,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   /** A server reports its name, version and address; the answer says whether it is linked, and to whom. */
   app.post('/api/server/heartbeat', async (request) => {
     const me = server(request);
-    const body = z.object({ name: serverName, version, url: serverUrl, directPort: z.number().int().min(1).max(65535).default(32400), directTlsReady: z.boolean().default(false) }).parse(request.body);
+    limiter.check(`heartbeat:${me.id}`, now());
+    const body = z.object({ name: serverName, version, url: serverUrl, localEndpoints: z.array(localEndpointSchema).max(16).default([]), directPort: z.number().int().min(1).max(65535).default(DEFAULT_DIRECT_PORT), directTlsReady: z.boolean().default(false) }).parse(request.body);
     const publicIp = publicAddress(request.ip);
     const checkedAt = now();
     let dnsReady = false;
@@ -713,7 +767,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       }
     }
     db.update(servers)
-      .set({ name: body.name, version: body.version, url: body.url ?? null, publicIp, directDnsReady: dnsReady, directDnsCheckedAt: checkedAt, directPort, directTlsReady, directPortOpen, directPortCheckedAt: checkedAt, lastSeenAt: checkedAt })
+      .set({ name: body.name, version: body.version, url: body.url ?? null, localEndpoints: JSON.stringify(body.localEndpoints), publicIp, directDnsReady: dnsReady, directDnsCheckedAt: checkedAt, directPort, directTlsReady, directPortOpen, directPortCheckedAt: checkedAt, lastSeenAt: checkedAt })
       .where(eq(servers.id, me.id))
       .run();
     return serverStatus(db.select().from(servers).where(eq(servers.id, me.id)).get()!);
@@ -1056,7 +1110,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   }
   /** A page of the web interface: the app itself, once there is a server to show; else choose one. */
   const appPage = (request: FastifyRequest, reply: FastifyReply) => {
-    const { server } = chosenServer(request.cookies[SESSION_COOKIE], request.cookies[SERVER_COOKIE]);
+    const cookies = cookiesOf(request.raw);
+    const get = (name: string) => cookies.find(([cookieName]) => cookieName === name)?.[1];
+    const { server } = chosenServer(get(SESSION_COOKIE), get(SERVER_COOKIE));
     if (!server) return reply.redirect(`${APP_PREFIX}/servers`);
     return reply.type('text/html').header('Cache-Control', 'no-cache').header('Content-Security-Policy', appCsp(config.directDomain)).send(fs.readFileSync(path.join(frontendDir!, 'index.html')));
   };

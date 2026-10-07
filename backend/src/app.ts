@@ -188,7 +188,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     },
     onScanFailed: (libraryId, message) => notifications.notify('scanFailed', { library: libraryName(libraryId), reason: message }),
   });
-  const cloud = new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, directPublicPort: () => settings.get().upnp.enabled ? settings.get().upnp.externalPort : config.directPublicPort, now: opts.cloudNow });
+  const cloud = new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, directTlsPort: config.directTlsPort, directPublicPort: () => settings.get().upnp.enabled ? settings.get().upnp.externalPort : config.directPublicPort, now: opts.cloudNow });
   const sharedDetection = new SharedDetection(db, cloud, () => settings.get().sharedDetection);
   const segments: SegmentDetector = new SegmentDetector(db, opts.audioReader ?? ffmpegAudioReader(config.ffmpegPath), {
     enabled: () => settings.get().segmentDetection,
@@ -311,7 +311,8 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   });
   app.addHook('onSend', async (_request, reply, payload) => {
     const relay = ctx.cloud.status().relay;
-    const origins = [ctx.settings.serverUrl(), ctx.cloud.status().directAccess?.url, relay.enabled && relay.allowed ? relay.url : null].flatMap((candidate) => {
+    const directAccess = ctx.cloud.status().directAccess;
+    const toOrigins = (candidates: Array<string | null | undefined>) => candidates.flatMap((candidate) => {
       if (!candidate) return [];
       try {
         const url = new URL(candidate);
@@ -320,11 +321,18 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
         return [];
       }
     });
-    if (!origins.length) return payload;
+    const relayOrigin = relay.enabled && relay.allowed && relay.url ? toOrigins([relay.url])[0] : null;
+    const mediaOrigins = [...new Set(toOrigins([
+      ctx.settings.serverUrl(),
+      directAccess?.url,
+      ...((directAccess?.localEndpoints ?? []).map((endpoint) => `https://${endpoint.address.includes(':') ? `[${endpoint.address}]` : endpoint.address}:${endpoint.port}`)),
+    ]).filter((origin) => origin !== relayOrigin))];
+    const controlOrigins = [...new Set([...mediaOrigins, ...(relayOrigin ? [relayOrigin] : [])])];
+    if (!controlOrigins.length && !mediaOrigins.length) return payload;
     const current = reply.getHeader('Content-Security-Policy');
     if (typeof current !== 'string') return payload;
     const directives = current.split(';').map((directive) => directive.trim());
-    for (const name of ['connect-src', 'media-src']) {
+    for (const [name, origins] of [['connect-src', controlOrigins], ['media-src', mediaOrigins]] as const) {
       for (const origin of origins) {
         const index = directives.findIndex((directive) => directive.startsWith(`${name} `));
         if (index < 0) directives.push(`${name} ${origin}`);

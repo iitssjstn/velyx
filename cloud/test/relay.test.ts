@@ -141,6 +141,41 @@ describe('the relay', () => {
     expect(media.headers['x-vidalune-direct-playback']).toBe('required');
   });
 
+  it('allows the managed media hostname in account-page CSP but never the relay host', async () => {
+    const s = await linkedServerWithRelay();
+    client.start(s.auth);
+    await until(() => cloud.relay.connected(s.id));
+    await cloud.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: s.auth }, remoteAddress: '192.168.1.20', payload: { name: 'Thuis', version: '0.19.29', localEndpoints: [{ type: 'lan', address: '192.168.1.50', port: 32400, protocol: 'https' }] } });
+    const serverList = (await cloud.inject({ url: '/api/servers', headers: { cookie: s.cookie } })).json();
+    expect(serverList[0].endpoints).toContainEqual(expect.objectContaining({ type: 'lan', address: '192.168.1.50', url: 'https://192.168.1.50:32400' }));
+    const opened = await get('app.relay.test', `/_vl/open?server=${s.id}`, { cookie: s.cookie });
+    const serverCookie = String(opened.headers['set-cookie']).match(new RegExp(`${SERVER_COOKIE}=([^;]+)`))![1];
+    const page = await get('app.relay.test', '/library/1', { cookie: `${s.cookie}; ${SERVER_COOKIE}=${serverCookie}`, accept: 'text/html', 'sec-fetch-mode': 'navigate' });
+    expect(page.status).toBe(200);
+    expect(page.headers['content-security-policy']).toContain('https://*.media.relay.test:*');
+    expect(page.headers['content-security-policy']).not.toContain(s.host);
+  });
+
+  it('refuses media bytes on the public relay but keeps control and browsing available', async () => {
+    const s = await linkedServerWithRelay();
+    client.start(s.auth);
+    await until(() => cloud.relay.connected(s.id));
+    expect((await get(s.host, '/api/server/info')).status).toBe(200);
+    for (const path of [
+      '/api/media/5/stream?cast=file-token',
+      '/api/media/5/hls/index.m3u8?cast=file-token',
+      '/api/media/5/hls/seg/1.m4s?cast=file-token',
+      '/api/subtitles/3.vtt?cast=file-token',
+      '/api/online-subtitles/4.vtt?cast=file-token',
+      '/api/images/w780/poster.jpg?cast=file-token',
+    ]) {
+      const response = await get(s.host, path);
+      expect(response.status).toBe(409);
+      expect(response.headers['x-vidalune-direct-playback']).toBe('required');
+    }
+    expect((await get(s.host, '/api/images/w342/library-poster.jpg')).status).not.toBe(409);
+  });
+
   it('keeps the control tunnel when the paid public relay is switched off', async () => {
     const s = await linkedServerWithRelay();
     client.start(s.auth);

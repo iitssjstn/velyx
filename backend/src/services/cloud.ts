@@ -1,8 +1,11 @@
+import os from 'node:os';
+import { isIP } from 'node:net';
 import { HttpError } from '../http-error.js';
 import { createLogger } from '../logger.js';
 import type { FetchLike } from './tmdb.js';
 import type { SettingsService } from './settings.js';
 import { RelayClient, type RelayProblem } from './relay-client.js';
+import { DEFAULT_DIRECT_TLS_PORT } from '../config.js';
 
 const log = createLogger('cloud');
 const TIMEOUT_MS = 10_000;
@@ -12,6 +15,31 @@ const HEARTBEAT_MS = 5 * 60_000;
 export const REMOTE_GRACE_MS = 7 * 24 * 60 * 60_000;
 /** A server without remote access asks again at most this often (it may just have been given). */
 const RECHECK_MS = 2 * 60_000;
+
+export interface LocalEndpoint {
+  type: 'lan';
+  address: string;
+  port: number;
+  protocol: 'https';
+}
+
+function isPrivateAddress(address: string): boolean {
+  const version = isIP(address);
+  if (version === 4) {
+    const [first, second] = address.split('.').map(Number);
+    return first === 10 || (first === 172 && second! >= 16 && second! <= 31) || (first === 192 && second === 168) || (first === 100 && second! >= 64 && second! <= 127);
+  }
+  if (version === 6) return /^(?:fc|fd)/i.test(address);
+  return false;
+}
+
+/** Private interface addresses are endpoint hints only; the account service observes the WAN IP itself. */
+export function localEndpoints(port: number, interfaces = os.networkInterfaces()): LocalEndpoint[] {
+  const addresses = Object.values(interfaces).flatMap((items) => items ?? [])
+    .filter((item) => !item.internal && isPrivateAddress(item.address))
+    .map((item) => item.address);
+  return [...new Set(addresses)].map((address) => ({ type: 'lan', address, port, protocol: 'https' }));
+}
 
 /** Whether playing away from home is allowed, and why not. */
 export type RemoteAccess = 'allowed' | 'not_linked' | 'no_subscription';
@@ -28,7 +56,7 @@ export interface CloudStatus {
   /** The relay: reachable at `url` without an open port (opt-in, only while linked). */
   relay: { enabled: boolean; url: string | null; connected: boolean; error: RelayProblem | null; allowed: boolean };
   /** Automatically assigned direct hostname; certificate and listener may still be provisioning. */
-  directAccess: { configured: boolean; hostname: string; publicIp: string | null; port: number; dnsReady: boolean; tlsReady: boolean; portOpen: boolean; checkedAt: number | null; url: string | null } | null;
+  directAccess: { configured: boolean; hostname: string; publicIp: string | null; port: number; dnsReady: boolean; tlsReady: boolean; portOpen: boolean; checkedAt: number | null; url: string | null; localEndpoints: LocalEndpoint[] } | null;
   /** Playing away from home works (linked, and the owner has remote access as last confirmed). */
   remoteAccess: boolean;
   /** Networks that also count as home, on top of the private ranges. */
@@ -56,6 +84,8 @@ export class CloudService {
       localPort: number;
       /** Public HTTPS port forwarded to the direct listener. */
       directPublicPort?: () => number;
+      /** The local HTTPS listener port (also used to report LAN endpoint hints). */
+      directTlsPort?: number;
     },
   ) {
     this.relay = new RelayClient({ cloudUrl: deps.baseUrl, localPort: deps.localPort });
@@ -84,7 +114,10 @@ export class CloudService {
         // Whether the relay may be on (the owner has remote access, or someone who uses this server).
         allowed: (link?.relayUsable ?? link?.relayAllowed) !== false,
       },
-      directAccess: link?.directAccess ?? null,
+      directAccess: link?.directAccess ? {
+        ...link.directAccess,
+        localEndpoints: link.directAccess.localEndpoints ?? localEndpoints(this.deps.directTlsPort ?? DEFAULT_DIRECT_TLS_PORT),
+      } : null,
       remoteAccess: !!link?.account && link.relayAllowed !== false && !!link.remoteConfirmedAt && this.now() - link.remoteConfirmedAt < REMOTE_GRACE_MS,
       homeNetworks: this.deps.settings.get().homeNetworks,
     };
@@ -92,13 +125,13 @@ export class CloudService {
 
   private about() {
     const s = this.deps.settings;
-    return { name: s.serverName().slice(0, 60), version: this.deps.version, url: s.serverUrl() || null };
+    return { name: s.serverName().slice(0, 60), version: this.deps.version, url: s.serverUrl() || null, directPort: this.deps.directPublicPort?.() ?? DEFAULT_DIRECT_TLS_PORT, localEndpoints: localEndpoints(this.deps.directTlsPort ?? DEFAULT_DIRECT_TLS_PORT) };
   }
 
   private heartbeat() {
     return {
       ...this.about(),
-      directPort: this.deps.directPublicPort?.() ?? 32400,
+      directPort: this.deps.directPublicPort?.() ?? DEFAULT_DIRECT_TLS_PORT,
       directTlsReady: this.deps.settings.get().cloud?.directTlsReady ?? false,
     };
   }

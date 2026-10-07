@@ -255,9 +255,18 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     // the file's keyframes first, and listing them reads the whole file: on a NAS that takes minutes
     // and starves the stream being watched. Copied video keeps the live stream.
     const hlsUrl = decision.hlsUrl?.includes('vt=1') ? decision.hlsUrl : undefined;
-    const directUrl = ctx.cloud.status().directAccess?.url;
-    const directPlayback = !request.appDevice && directUrl
-      ? { baseUrl: directUrl, token: signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt: Date.now() + CAST_TOKEN_MS, artwork: false }) }
+    const directAccess = ctx.cloud.status().directAccess;
+    const localEndpoints = directAccess?.localEndpoints.map((endpoint) => ({
+      type: 'lan' as const,
+      url: `https://${endpoint.address.includes(':') ? `[${endpoint.address}]` : endpoint.address}:${endpoint.port}`,
+    })) ?? [];
+    const endpoints = [...new Map([
+      ...localEndpoints,
+      ...(directAccess?.url ? [{ type: 'public' as const, url: directAccess.url }] : []),
+      ...(ctx.settings.serverUrl() ? [{ type: 'public' as const, url: ctx.settings.serverUrl() }] : []),
+    ].map((endpoint) => [endpoint.url, endpoint])).values()];
+    const directPlayback = endpoints.length
+      ? { endpoints, token: signCastToken(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt: Date.now() + CAST_TOKEN_MS, artwork: false }) }
       : undefined;
     return { decision: { ...decision, hlsUrl, mode: analysis.mode }, analysis, file: fileInfo(file, external, sourceFile), subtitles: subtitleList(sourceFile, request.user!), onlineSubtitles: ctx.openSubtitles.configured, ...(directPlayback ? { directPlayback } : {}) };
   });
@@ -305,7 +314,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       token,
       expiresAt,
       directUrl,
-      serverUrl: ctx.settings.serverUrl() || null,
+      serverUrl: ctx.cloud.status().directAccess?.url || ctx.settings.serverUrl() || null,
       decision: castDecision,
       contentType: decision.engine === 'direct' ? (file.container === 'webm' ? 'video/webm' : 'video/mp4') : 'application/vnd.apple.mpegurl',
       // Text subtitles only (a Chromecast shows WebVTT), from this file.

@@ -49,7 +49,7 @@ export const cloud = {
   directPending: 'Setting up',
   directPortClosed: 'Not reachable; forward TCP port {port} to this server. Video away from home also needs remote access.',
   upnpTitle: 'Open a port on the router (UPnP)',
-  upnpIntro: 'Asks your router to forward TCP port 32400 to Vidalune automatically. Without UPnP, you can forward the same port manually. The direct connection uses its automatically secured server address; playing away from home still needs remote access.',
+  upnpIntro: 'Asks your router to forward TCP port {port} to Vidalune automatically. Without UPnP, forward that port manually. Video uses the direct server address and still needs remote access away from home.',
   upnpPort: 'Port on the router',
   upnpOn: 'Open the port',
   upnpOff: 'Close the port',
