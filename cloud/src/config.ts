@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const DEFAULT_DIRECT_PORT = 32400;
 
@@ -51,8 +52,9 @@ const int = (v: string | undefined, fallback: number) => {
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Partial<CloudConfig> = {}): CloudConfig {
   const dataDir = path.resolve(overrides.dataDir ?? env.DATA_DIR ?? path.join(process.cwd(), 'data'));
   fs.mkdirSync(dataDir, { recursive: true });
-  const defaultWeb = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'web');
-  const defaultFrontend = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'frontend', 'dist');
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  const defaultWeb = path.resolve(moduleDir, '..', 'web');
+  const defaultFrontend = path.resolve(moduleDir, '..', '..', 'frontend', 'dist');
   const frontendDir = env.FRONTEND_DIR ? path.resolve(env.FRONTEND_DIR) : defaultFrontend;
   const publicUrl = (env.PUBLIC_URL ?? 'https://vidalune.com').replace(/\/+$/, '');
   return {
@@ -80,7 +82,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     relayMaxMbps: Math.max(0, int(env.RELAY_MAX_MBPS, 900)),
     relayServerMbps: Math.max(0, int(env.RELAY_SERVER_MBPS, 0)),
     webDir: fs.existsSync(defaultWeb) ? defaultWeb : null,
-    downloadDir: path.resolve(env.DOWNLOAD_DIR ?? path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'downloads')),
+    downloadDir: path.resolve(env.DOWNLOAD_DIR ?? path.join(moduleDir, '..', 'downloads')),
     frontendDir: fs.existsSync(path.join(frontendDir, 'index.html')) ? frontendDir : null,
     ...overrides,
   };

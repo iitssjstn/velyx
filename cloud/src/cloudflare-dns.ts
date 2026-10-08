@@ -103,7 +103,7 @@ export class CloudflareDns {
   ) {}
 
   async authoritativeNameServers(): Promise<string[]> {
-    await (this.zoneId ??= this.findZone());
+    await this.getZoneId();
     if (!this.authoritativeServers.length) throw new Error('Cloudflare did not return authoritative nameservers for the configured zone.');
     return [...this.authoritativeServers];
   }
@@ -115,7 +115,7 @@ export class CloudflareDns {
     if (!name.endsWith(`.${zone}`) || name === zone || !/^[a-z0-9.-]+$/.test(name)) throw new Error('Direct hostname is outside the configured Cloudflare zone.');
     if (addressType !== 4 && addressType !== 6) throw new Error('Server address is not a valid IP address.');
 
-    const zoneId = await (this.zoneId ??= this.findZone());
+    const zoneId = await this.getZoneId();
     const type = addressType === 4 ? 'A' : 'AAAA';
     const query = new URLSearchParams({ name });
     const records = await this.request<DNSRecord[]>(`/zones/${zoneId}/dns_records?${query}`);
@@ -149,7 +149,7 @@ export class CloudflareDns {
 
   /** Every record in the zone (that is what the plan limit counts) and the address records this service made. */
   async listRecords(): Promise<{ total: number; direct: Array<{ name: string; type: 'A' | 'AAAA' }> }> {
-    const zoneId = await (this.zoneId ??= this.findZone());
+    const zoneId = await this.getZoneId();
     const query = new URLSearchParams({ per_page: '5000' });
     const records = await this.request<DNSRecord[]>(`/zones/${zoneId}/dns_records?${query}`);
     const direct: Array<{ name: string; type: 'A' | 'AAAA' }> = [];
@@ -163,7 +163,7 @@ export class CloudflareDns {
     const name = hostname.toLowerCase().replace(/\.$/, '');
     const zone = this.options.zoneName.toLowerCase().replace(/\.$/, '');
     if (!name.endsWith(`.${zone}`) || name === zone || !/^[a-z0-9.-]+$/.test(name)) throw new Error('Direct hostname is outside the configured Cloudflare zone.');
-    const zoneId = await (this.zoneId ??= this.findZone());
+    const zoneId = await this.getZoneId();
     const query = new URLSearchParams({ name });
     const records = await this.request<DNSRecord[]>(`/zones/${zoneId}/dns_records?${query}`);
     for (const record of records) {
@@ -175,7 +175,7 @@ export class CloudflareDns {
     const name = hostname.toLowerCase().replace(/\.$/, '');
     const zone = this.options.zoneName.toLowerCase().replace(/\.$/, '');
     if (!name.endsWith(`.${zone}`) || name === zone || !/^[a-z0-9._-]+$/.test(name)) throw new Error('TXT hostname is outside the configured Cloudflare zone.');
-    const zoneId = await (this.zoneId ??= this.findZone());
+    const zoneId = await this.getZoneId();
     const query = new URLSearchParams({ type: 'TXT', name });
     const records = await this.request<DNSRecord[]>(`/zones/${zoneId}/dns_records?${query}`);
     const txtRecords = records.filter((record) => record.type === 'TXT');
@@ -190,12 +190,20 @@ export class CloudflareDns {
   }
 
   async deleteTxt(recordId: string): Promise<void> {
-    const zoneId = await (this.zoneId ??= this.findZone());
+    const zoneId = await this.getZoneId();
     await this.deleteRecord(zoneId, recordId);
   }
 
   private deleteRecord(zoneId: string, recordId: string): Promise<{ id: string }> {
     return this.request<{ id: string }>(`/zones/${zoneId}/dns_records/${recordId}`, { method: 'DELETE' });
+  }
+
+  private getZoneId(): Promise<string> {
+    this.zoneId ??= this.findZone().catch((error) => {
+      this.zoneId = null;
+      throw error;
+    });
+    return this.zoneId;
   }
 
   private async findZone(): Promise<string> {

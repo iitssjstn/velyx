@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { autoOpenServer, CLOUD_ACCOUNT_KEY, CloudError, connectPending, createCloud, PENDING_CONNECT_KEY, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudServer, type KeyStore } from './cloud';
 
 const answer = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
+
+afterEach(() => vi.useRealTimers());
 
 describe('Vidalune account service', () => {
   it('signs in as the app and sends the token afterwards', async () => {
@@ -16,6 +18,32 @@ describe('Vidalune account service', () => {
     await cloud.servers(account.token);
     expect(calls[1]!.url).toBe('https://vidalune.example/api/servers');
     expect(calls[1]!.init.headers).toMatchObject({ Authorization: `Bearer ${'t'.repeat(43)}` });
+  });
+
+  it('keeps the cloud timeout active while reading the response body', async () => {
+    vi.useFakeTimers();
+    const fetchImpl: typeof fetch = async (_input, init) => new Response(new ReadableStream({
+      start(controller) {
+        init!.signal!.addEventListener('abort', () => controller.error(new Error('aborted')));
+      },
+    }));
+    const request = createCloud(fetchImpl, 'https://vidalune.example', 100).servers('token');
+    const rejection = expect(request).rejects.toThrow(new CloudError('unreachable'));
+    await vi.advanceTimersByTimeAsync(100);
+    await rejection;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('times out a ticket sign-in that never answers', async () => {
+    vi.useFakeTimers();
+    const fetchImpl: typeof fetch = (_input, init) => new Promise((_resolve, reject) => {
+      init!.signal!.addEventListener('abort', () => reject(new Error('aborted')));
+    });
+    const request = signInWithTicket('https://server.example', 'ticket', 'phone', 'ua', fetchImpl, 100);
+    const rejection = expect(request).rejects.toThrow('aborted');
+    await vi.advanceTimersByTimeAsync(100);
+    await rejection;
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('turns answers into problems the app can explain', async () => {

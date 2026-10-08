@@ -69,7 +69,7 @@ export class LibraryWatcher {
       return;
     }
     try {
-      const watcher = fs.watch(dir, { recursive: true, persistent: false }, (_event, filename) => this.onEvent(id, filename));
+      const watcher = fs.watch(dir, { recursive: true, persistent: false }, (event, filename) => this.onEvent(id, filename, event));
       watcher.on('error', (err) => {
         log.warn(`Stopped watching library ${id} (${dir}): ${err.message}. Scheduled scans still apply.`);
         this.errors.set(id, err.message);
@@ -100,15 +100,23 @@ export class LibraryWatcher {
     this.timers.delete(id);
   }
 
-  /** Only media-relevant changes count: videos, subtitles, and folders (a moved/deleted folder has no extension). */
-  private onEvent(id: number, filename: string | Buffer | null): void {
+  /** Folder names can contain dots; a removed entry can no longer be classified with stat. */
+  private onEvent(id: number, filename: string | Buffer | null, event: string): void {
     if (!this.enabled) return;
     const name = filename ? String(filename) : '';
     if (name) {
       const base = path.basename(name);
       if (base.startsWith('.') || /\.(part|partial|tmp|!qb)$/i.test(base)) return;
       const ext = path.extname(base);
-      if (ext && !isVideoFile(base) && !isSubtitleFile(base)) return;
+      if (ext && !isVideoFile(base) && !isSubtitleFile(base)) {
+        const root = this.watchers.get(id)?.path;
+        if (!root) return;
+        try {
+          if (!fs.statSync(path.join(root, name)).isDirectory()) return;
+        } catch (error) {
+          if (event !== 'rename' || (error as NodeJS.ErrnoException).code !== 'ENOENT') return;
+        }
+      }
     }
     const existing = this.timers.get(id);
     if (existing) clearTimeout(existing);

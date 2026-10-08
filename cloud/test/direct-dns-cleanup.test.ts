@@ -70,6 +70,16 @@ describe('direct DNS clean-up', () => {
     expect(db.select().from(servers).where(eq(servers.id, 'quiet')).get()?.directDnsReady).toBe(true);
   });
 
+  it('keeps a server that sends a heartbeat while its probe is running', async () => {
+    addServer('returning', { linked: true, lastSeenAt: NOW - SILENT_MS - 1 });
+    const { result, deleted } = sweep(['returning.media.vidalune.com'], () => {
+      db.update(servers).set({ lastSeenAt: NOW }).where(eq(servers.id, 'returning')).run();
+      return false;
+    });
+    expect(await result).toMatchObject({ used: 1, removed: 0 });
+    expect(deleted).toEqual([]);
+  });
+
   it('leaves records outside the direct domain alone', async () => {
     const { result, deleted } = sweep(['www.vidalune.com', 'x.other.example']);
     expect(await result).toMatchObject({ removed: 0 });

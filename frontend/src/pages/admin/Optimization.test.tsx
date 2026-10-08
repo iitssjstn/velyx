@@ -12,12 +12,12 @@ const running = { ...base, id: 1, profile: 'compat-720p', status: 'processing', 
 const waiting = { ...base, id: 2, fileId: 8, profile: 'compat-1080p', status: 'queued', progress: 0, position: 1, showId: 9, title: 'Severance', season: 1, episode: 2, episodeTitle: 'Half Loop' };
 const failed = { ...base, id: 3, fileId: 9, profile: 'compat-720p', status: 'failed', progress: 0, movieId: 6, title: 'Alien', year: 1979, error: 'Not enough free space on the Vidalune data disk for this copy.' };
 
-function setup(queue: unknown) {
+function setup(queue: unknown, answer?: (url: string, method: string) => unknown) {
   const calls: Array<{ url: string; method: string; body?: string }> = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET';
     calls.push({ url, method, body: typeof init?.body === 'string' ? init.body : undefined });
-    return new Response(JSON.stringify(method === 'GET' ? queue : {}), { status: 200, headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify(answer?.(url, method) ?? (method === 'GET' ? queue : {})), { status: 200, headers: { 'content-type': 'application/json' } });
   }));
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -54,8 +54,47 @@ describe('OptimizationPage', () => {
     expect(calls.some((call) => call.url === '/api/admin/optimizations/3' && call.method === 'DELETE')).toBe(true);
   });
 
-  it('explains how to make the first copy when the queue is empty', async () => {
+  it('offers creation controls even when the queue is empty', async () => {
     setup({ paused: false, items: [] });
     expect(await screen.findByText('No optimized copies')).toBeTruthy();
+    expect(screen.getByRole('searchbox', { name: 'Search library' })).toBeTruthy();
+  });
+
+  it('optimizes a selected movie source in the admin page and refreshes the queue', async () => {
+    const calls = setup({ paused: false, items: [] }, (url, method) => {
+      if (url.startsWith('/api/search')) return { movies: [{ id: 5, title: 'Heat', year: 1995 }], shows: [], episodes: [] };
+      if (url === '/api/movies/5') return { files: [{ id: 7, fileName: 'Heat.mkv', height: 2160, size: 1000 }, { id: 8, fileName: 'Heat-alt.mkv', height: 1080, size: 500 }] };
+      if (url === '/api/admin/media/8/optimizations' && method === 'POST') return { variant: { id: 4, profile: 'compat-1080p', status: 'queued', progress: 0 } };
+      if (url.includes('/media/') && url.endsWith('/optimizations')) return { variants: [] };
+    });
+    const user = userEvent.setup();
+    await user.type(await screen.findByRole('searchbox', { name: 'Search library' }), 'Heat');
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Choose a title' }), 'movie:5');
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Source file' }), '8');
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Copy profile' }), 'compat-1080p');
+    await user.click(screen.getByRole('button', { name: 'Optimize' }));
+    expect(calls.some((call) => call.url === '/api/admin/media/8/optimizations' && call.method === 'POST' && call.body === '{"profile":"compat-1080p"}')).toBe(true);
+    expect(calls.filter((call) => call.url === '/api/admin/optimizations')).toHaveLength(2);
+  });
+
+  it('selects a show season and episode before optimizing its source', async () => {
+    const calls = setup({ paused: false, items: [] }, (url, method) => {
+      if (url.startsWith('/api/search')) return { movies: [], shows: [{ id: 9, title: 'Severance', year: 2022 }], episodes: [] };
+      if (url === '/api/shows/9') return { seasons: [{ seasonNumber: 1 }, { seasonNumber: 2 }] };
+      if (url === '/api/shows/9/seasons/1') return { episodes: [{ id: 21, seasonNumber: 1, episodeNumber: 1, title: 'First' }] };
+      if (url === '/api/shows/9/seasons/2') return { episodes: [{ id: 22, seasonNumber: 2, episodeNumber: 1, title: 'Second' }] };
+      if (url === '/api/episodes/21') return { files: [{ id: 71, fileName: 'S01E01.mkv', height: 1080, size: 1000 }] };
+      if (url === '/api/episodes/22') return { files: [{ id: 72, fileName: 'S02E01.mkv', height: 1080, size: 1000 }] };
+      if (url === '/api/admin/media/72/optimizations' && method === 'POST') return { variant: { id: 5, profile: 'compat-720p', status: 'queued', progress: 0 } };
+      if (url.includes('/media/') && url.endsWith('/optimizations')) return { variants: [] };
+    });
+    const user = userEvent.setup();
+    await user.type(await screen.findByRole('searchbox', { name: 'Search library' }), 'Severance');
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Choose a title' }), 'show:9');
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Season' }), '2');
+    expect(await screen.findByRole('option', { name: 'S02E01 · Second' })).toBeTruthy();
+    await screen.findByRole('option', { name: /S02E01.mkv/ });
+    await user.click(await screen.findByRole('button', { name: 'Optimize' }));
+    expect(calls.some((call) => call.url === '/api/admin/media/72/optimizations' && call.method === 'POST')).toBe(true);
   });
 });

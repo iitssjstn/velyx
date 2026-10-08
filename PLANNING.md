@@ -9,7 +9,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.41** (PR #124, juiste DNS-01-TXT-waarde; afspelen werkt in productie). Open: PR #125 (0.19.42, optimalisatiewachtrij) en 0.19.43 (DNS-opschoning). Daarvoor 0.19.37 (PR #120): verificatie van de ACME-TXT-record bij autoritatieve Cloudflare-nameservers; tag, APK, beide `.deb`-pakketten en images gepubliceerd. Daarvoor 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints en automatische verbindingsdiagnose), 0.19.34 (PR #117, CSP voor het geselecteerde serverdomein), 0.19.33 (PR #115, direct afspelen via één publieke serverpoort), 0.19.25 (PR #102, filmischer startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste merge: **0.19.43** (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij). Tag `v0.19.43` bestaat; volledigheid van de releasebestanden opnieuw controleren voor publicatie van 0.19.44. Bugfix 0.19.44 in voorbereiding na een repo-brede controleronde. Daarvoor 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -38,7 +38,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - **Nooit links naar de chat/sessie** in pull requests, PR-teksten of commitberichten.
 - Na een merge: controleren dat release `v<versie>` de APK en beide `.deb`-bestanden (amd64 en arm64) heeft.
 - Bij een nieuwe versie: `app/app.json` (version + versionCode), alle `package.json`'s, de versies in
-  `backend/test/auth.test.ts` en `backend/test/authorization.test.ts`, en de lockfiles bijwerken.
+  de lockfiles bijwerken. De versietests lezen `APP_VERSION`; geen vaste versietekst meer aanpassen.
 - **Zuinig met GitHub-buildminuten** (de eigenaar zat op 90%, 2 okt): pas pushen als een versie klaar
   en lokaal getest is; planning-updates meesturen met code in plaats van apart. Sinds 0.19.9 draaien
   APK, `.deb`'s en de arm64-test alleen bij een release (na de merge), niet bij PR-pushes; CI draait
@@ -539,3 +539,19 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - DELETE /api/server (de server wist zichzelf) verwijdert het record nu eerst.
 - Het CEO-overzicht toont de DNS-records in gebruik tegen DNS_RECORD_LIMIT (standaard 200) en waarschuwt vanaf 80 %. De accountservice logt dezelfde waarschuwing.
 - Niet gebouwd: stap 2 (groter plan) en stap 3 (eigen autoritatieve DNS), zie "DNS-recordlimiet" hierboven.
+
+## Versie 0.19.44 (repo-brede bugfixronde)
+
+- Correctie op verzoek van de eigenaar: de bediening voor compatibele kopieën hoort onder Beheer > Optimalisatie, niet onder film-/afleveringsdetails. Beheer krijgt bibliotheekzoeken, film-/serie-/afleveringkeuze, bronbestandskeuze en 720p/1080p-profielen; starten/verwijderen ververst de wachtrij. De oude detailbediening is verwijderd.
+- Eigenaar bevestigde op 8 okt dat release 0.19.43 compleet is (APK en beide `.deb`-pakketten) en gaf toestemming om deze bugfixversie te committen, pushen en als PR te openen.
+- Gevraagd 8 okt: hele repo controleren, niet alleen de vorige PR. Controle omvat backend, frontend, cloud, app, CI en verpakkingsscripts; dit is geen garantie dat er geen andere bugs bestaan.
+- DNS-opruiming: heartbeat opnieuw controleren na de poortprobe; een server die tijdens de probe terugkomt blijft behouden.
+- Cloudflare: mislukte zonezoekactie niet permanent cachen; volgende poging kan herstellen zonder herstart.
+- Backend: echte bestandsnaam tonen op Windows; legale mapnamen die met twee punten beginnen niet als traversal afwijzen.
+- Cloud: `fileURLToPath` voor lokale pagina-, frontend- en downloadpaden; herstelt 404's op Windows en ondersteunt spaties in installatiepaden.
+- App: cloudtime-out blijft actief tijdens het lezen van de body; ticketaanmelding krijgt ook een time-out.
+- Webplayer: castlisteners opruimen bij sluiten; fouten bij castseek tonen in plaats van een onbehandelde promise rejection.
+- Mapwatcher: verplaatste/verwijderde mediafolders met punten in hun naam herkennen; gedeeltelijke downloads blijven genegeerd.
+- Backupfixtures: SQLite-handles sluiten, CRLF-archiefuitvoer ondersteunen en CLI met Node/tsx uitvoeren in plaats van de platformspecifieke npx-wrapper. Alle elf backuptests slagen lokaal.
+- Gerichte regressietests toegevoegd of bestaande tests uitgebreid. Eindcontroles na de versiebump; Linux FFmpeg-, shell-, Docker- en native APK-controles blijven nodig op CI.
+- Eindcontrole: frontend 289 tests en app 113 tests slagen; cloud 122 tests slagen, drie installer-shelltests zijn hier niet uitvoerbaar. Backend 514 geslaagd in de volledige ronde voor de watcherfix; daarna alle vijf watchertests geslaagd. Resterend: FFmpeg ontbreekt, symlinkrechten ontbreken en een worker-timingtest is op deze machine niet stabiel. Productiebuilds en alle vier typechecks slagen; lint heeft vier bestaande hookwaarschuwingen en geen fouten.

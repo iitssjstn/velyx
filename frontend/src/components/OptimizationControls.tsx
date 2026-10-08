@@ -30,7 +30,10 @@ export function OptimizationControls({ fileId, compact = false }: { fileId: numb
     queryFn: () => api.get<OptimizationState>(`/api/admin/media/${fileId}/optimizations`),
     refetchInterval: (query) => (query.state.data?.variants.some((variant) => variant.status === 'queued' || variant.status === 'processing') ? 2000 : false),
   });
-  const refresh = () => void qc.invalidateQueries({ queryKey });
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey });
+    void qc.invalidateQueries({ queryKey: ['admin', 'optimizations'] });
+  };
   const create = useMutation({
     mutationFn: (selected: Profile) => api.post<{ variant: Variant }>(`/api/admin/media/${fileId}/optimizations`, { profile: selected }),
     onSuccess: (result) => {

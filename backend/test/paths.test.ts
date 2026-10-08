@@ -20,6 +20,8 @@ describe('path helpers', () => {
     expect(isInside('/media', '/media')).toBe(true);
     expect(isInside('/media', '/media2/a.mkv')).toBe(false);
     expect(isInside('/media', '/media/../etc/passwd')).toBe(false);
+    expect(isInside('/media', '/media/..films/a.mkv')).toBe(true);
+    expect(isInside('/media', '/')).toBe(false);
   });
 
   it('recognizes filesystem roots and detects overlap after resolving paths', () => {

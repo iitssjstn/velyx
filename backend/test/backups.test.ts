@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
 import { MigrationError, migrationsFolder, openDatabase } from '../src/db/client.js';
@@ -89,7 +90,7 @@ describe('verification', () => {
     const archive = createFullBackup(env.ctx.db, env.ctx.config.dataDir, env.ctx.config.backupDir);
     expect(verifyBackup(archive)).toMatchObject({ ok: true, info: { users: 1 } });
     // Subtitles fetched online cannot be rebuilt (downloads are limited), so the archive keeps them.
-    const listing = spawnSync('tar', ['-tzf', archive]).stdout.toString().split('\n');
+    const listing = spawnSync('tar', ['-tzf', archive]).stdout.toString().split(/\r?\n/);
     expect(listing).toContain('subtitles/4-21.vtt');
   });
 
@@ -101,11 +102,21 @@ describe('verification', () => {
     expect(verifyBackup(path.join(dir, 'missing.db')).errors[0]).toMatch(/does not exist/);
 
     const foreign = path.join(dir, 'foreign.db');
-    new Database(foreign).exec('CREATE TABLE notes (id INTEGER)');
+    const foreignDb = new Database(foreign);
+    try {
+      foreignDb.exec('CREATE TABLE notes (id INTEGER)');
+    } finally {
+      foreignDb.close();
+    }
     expect(verifyBackup(foreign).errors.join(' ')).toMatch(/Not a complete Vidalune database/);
 
     const newer = path.join(dir, 'newer.db');
-    openDatabase(newer).$client.exec("INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('future', 1)");
+    const newerDb = openDatabase(newer);
+    try {
+      newerDb.$client.exec("INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('future', 1)");
+    } finally {
+      newerDb.$client.close();
+    }
     expect(verifyBackup(newer).errors.join(' ')).toMatch(/newer version of Vidalune/);
 
     // A damaged page inside an otherwise valid database fails the integrity check.
@@ -158,7 +169,12 @@ describe('restore', () => {
 describe('migration safety', () => {
   it('refuses to open a database from a newer Vidalune', () => {
     const file = path.join(tmp(), 'v.db');
-    openDatabase(file).$client.exec("INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('future', 1)");
+    const newerDb = openDatabase(file);
+    try {
+      newerDb.$client.exec("INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('future', 1)");
+    } finally {
+      newerDb.$client.close();
+    }
     expect(() => openDatabase(file)).toThrow(MigrationError);
     expect(() => openDatabase(file)).toThrow(/newer version of Vidalune/);
   });
@@ -214,7 +230,7 @@ describe('CLI', () => {
     await setupAdmin(env.app);
     await env.ctx.backups.create('manual');
     const run = (...args: string[]) =>
-      execFileSync('npx', ['tsx', 'src/cli.ts', ...args], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, DATA_DIR: env!.ctx.config.dataDir, SESSION_SECRET: 'test-secret-test-secret-1234' }, encoding: 'utf8' });
+      execFileSync(process.execPath, [fileURLToPath(import.meta.resolve('tsx/cli')), 'src/cli.ts', ...args], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, DATA_DIR: env!.ctx.config.dataDir, SESSION_SECRET: 'test-secret-test-secret-1234' }, encoding: 'utf8' });
     expect(run('backup', 'list')).toMatch(/manual .* vidalune-manual-/);
     expect(run('backup', 'verify')).toMatch(/^OK +vidalune-manual-.*\(1 users/m);
   }, 60000);
