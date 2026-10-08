@@ -89,7 +89,7 @@ export class DirectCertificateIssuer {
     const timeoutMs = this.options.dnsPropagationTimeoutMs ?? DNS_PROPAGATION_TIMEOUT_MS;
     const pollMs = this.options.dnsPropagationPollMs ?? DNS_PROPAGATION_POLL_MS;
     const deadline = Date.now() + timeoutMs;
-    let lastResult = 'TXT record is not visible yet';
+    let lastResult: string;
 
     while (true) {
       try {
