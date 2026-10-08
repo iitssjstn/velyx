@@ -162,7 +162,11 @@ export class CloudflareDns {
     const zoneId = await (this.zoneId ??= this.findZone());
     const query = new URLSearchParams({ type: 'TXT', name });
     const records = await this.request<DNSRecord[]>(`/zones/${zoneId}/dns_records?${query}`);
-    const existing = records.find((record) => record.content === content);
+    const txtRecords = records.filter((record) => record.type === 'TXT');
+    const existing = txtRecords.find((record) => record.content === content);
+    for (const stale of txtRecords) {
+      if (stale.id !== existing?.id) await this.deleteRecord(zoneId, stale.id);
+    }
     if (existing) return existing.id;
     const input: TXTRecordInput = { type: 'TXT', name, content, ttl: 120, comment: 'Vidalune TLS validation' };
     const created = await this.request<DNSRecord>(`/zones/${zoneId}/dns_records`, { method: 'POST', body: JSON.stringify(input) });

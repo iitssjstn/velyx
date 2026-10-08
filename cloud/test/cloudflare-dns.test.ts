@@ -117,6 +117,23 @@ describe('Cloudflare direct DNS records', () => {
     expect(calls[3]).toMatchObject({ url: 'https://cf.test/zones/zone-1/dns_records/txt-1', init: expect.objectContaining({ method: 'DELETE' }) });
   });
 
+  it('removes old TXT challenge values before adding a new one', async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push({ url, method });
+      if (url.includes('/zones?')) return json([{ id: 'zone-1', name: 'vidalune.com' }]);
+      if (url.includes('/dns_records?')) return json([{ id: 'stale-1', type: 'TXT', name: '_acme-challenge.server.media.vidalune.com', content: 'old-challenge', proxied: false }]);
+      if (method === 'DELETE') return json({ id: 'stale-1' });
+      return json({ id: 'new-challenge' });
+    };
+    const dns = new CloudflareDns({ token: 'test-token', zoneName: 'vidalune.com', fetchImpl, apiBase: 'https://cf.test' });
+
+    await expect(dns.createTxt('_acme-challenge.server.media.vidalune.com', 'current-challenge')).resolves.toBe('new-challenge');
+    expect(calls.map((call) => call.method)).toEqual(['GET', 'GET', 'DELETE', 'POST']);
+  });
+
   it('rejects hostnames outside the configured zone and invalid IP addresses without a request', async () => {
     const fetchImpl = vi.fn<typeof fetch>();
     const dns = new CloudflareDns({ token: 'test-token', zoneName: 'vidalune.com', fetchImpl });
