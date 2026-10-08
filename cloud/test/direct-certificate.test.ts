@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -12,6 +13,13 @@ afterEach(() => {
 });
 
 describe('direct server certificates', () => {
+  it('publishes the dns-01 value that acme-client hands out without hashing it again', async () => {
+    const client = new acme.Client({ directoryUrl: 'https://acme.example/directory', accountKey: await acme.crypto.createPrivateEcdsaKey() });
+    const challenge = { type: 'http-01', url: 'https://acme.example/challenge/1', status: 'pending', token: 'token' } as unknown as Parameters<typeof client.getChallengeKeyAuthorization>[0];
+    const raw = await client.getChallengeKeyAuthorization(challenge);
+    const dns = await client.getChallengeKeyAuthorization({ ...challenge, type: 'dns-01' } as typeof challenge);
+    expect(dns).toBe(createHash('sha256').update(raw).digest('base64url'));
+  });
   it('binds ACME DNS-01 to the assigned hostname and removes the challenge record', async () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-acme-'));
     const hostname = 'server-1.media.vidalune.com';
@@ -25,18 +33,18 @@ describe('direct server certificates', () => {
     } as unknown as CloudflareDns;
     const createClient = vi.fn(() => ({
       auto: async (options: acme.ClientAutoOptions) => {
-        const keyAuthorization = 'challenge-token.thumbprint';
+        const txtValue = 'dns01-digest-from-acme-client';
         const challenge: Parameters<acme.ClientAutoOptions['challengeCreateFn']>[1] = { type: 'dns-01', url: 'https://acme.example/challenge/1', token: 'challenge-token', status: 'pending' };
         const authorization = { identifier: { type: 'dns', value: hostname } } as acme.Authorization;
         await options.challengeCreateFn(
           authorization,
           challenge,
-          keyAuthorization,
+          txtValue,
         );
         await options.challengeRemoveFn(
           authorization,
           challenge,
-          keyAuthorization,
+          txtValue,
         );
         return 'issued certificate chain';
       },
@@ -58,10 +66,8 @@ describe('direct server certificates', () => {
     });
 
     const certificate = await issuer.issue(hostname, csr.toString());
-    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('challenge-token.thumbprint'));
-    const expected = Buffer.from(digest).toString('base64url');
     expect(certificate).toBe('issued certificate chain');
-    expect(records).toEqual([['_acme-challenge.server-1.media.vidalune.com', expected], ['deleted', 'txt-record-1']]);
+    expect(records).toEqual([['_acme-challenge.server-1.media.vidalune.com', 'dns01-digest-from-acme-client'], ['deleted', 'txt-record-1']]);
     expect(publicQueries).toBe(4);
     expect(optionsOf(createClient).directoryUrl).toBe('https://acme-staging.example/directory');
     if (process.platform !== 'win32') expect(fs.statSync(path.join(dir, 'direct-acme-account.key')).mode & 0o777).toBe(0o600);
