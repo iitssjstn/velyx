@@ -261,7 +261,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const playAfterLoadRef = useRef(true);
   const restartTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const subKeyRef = useRef<string | null>(null);
-  const [activeTrack, setActiveTrack] = useState<{ video: HTMLVideoElement; track: TextTrack } | null>(null);
+  const [activeTrack, setActiveTrack] = useState<{ video: HTMLVideoElement; track: TextTrack; stream: string | null; load: number } | null>(null);
   const [subDelay, setSubDelay] = useState(0);
 
   const info = playback.data;
@@ -518,17 +518,17 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       subKeyRef.current = key;
       const v = videoRef.current;
       if (!v) return;
-      let selected: TextTrack | null = null;
+      const element = Array.from(v.querySelectorAll('track')).find((track) => track.dataset.subtitleKey === key);
+      const selected = element?.track ?? null;
       for (let i = 0; i < v.textTracks.length; i++) {
         const track = v.textTracks[i]!;
         // "hidden" loads the cues without the browser drawing them; SubtitleOverlay renders them.
-        const on = subs[i]?.key === key;
-        track.mode = on ? 'hidden' : 'disabled';
-        if (on) selected = track;
+        track.mode = track === selected ? 'hidden' : 'disabled';
       }
-      setActiveTrack(selected ? { video: v, track: selected } : null);
+      if (selected) selected.mode = 'hidden';
+      setActiveTrack(selected && !v.seeking ? { video: v, track: selected, stream: streamSrc, load: reloadKey } : null);
     },
-    [subs],
+    [streamSrc, reloadKey],
   );
 
   /** A subtitle picked by the viewer: apply it and remember the choice for the next episode or movie. */
@@ -1123,7 +1123,9 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           onWaiting={() => (videoRef.current?.readyState ?? 0) < HAVE_FUTURE_DATA && setBuffering(true)}
           onPlaying={() => setBuffering(false)}
           onCanPlay={() => setBuffering(false)}
+          onSeeking={() => setActiveTrack(null)}
           onSeeked={() => {
+            selectSubtitle(subKeyRef.current);
             const v = videoRef.current;
             if (v && item.data && startedRef.current) void saveProgress(item.data, offset + v.currentTime, totalDuration || v.duration);
           }}
@@ -1140,13 +1142,13 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         >
           {subs.map((s) => (
             // Live streams start at `offset`, so their cues are shifted by the server to match.
-            <track key={s.key} kind="subtitles" src={offset > 0 ? withParam(s.url, 'offset', offset.toFixed(3)) : s.url} label={s.label} srcLang={s.language ?? undefined} />
+            <track key={s.key} data-subtitle-key={s.key} kind="subtitles" src={offset > 0 ? withParam(s.url, 'offset', offset.toFixed(3)) : s.url} label={s.label} srcLang={s.language ?? undefined} onLoadCapture={() => selectSubtitle(subKeyRef.current)} />
           ))}
         </video>
       )}
 
       {/* The chosen subtitle stays selected while minimized; it is only not drawn on the small video. */}
-      {!mini && !postPlay && <SubtitleOverlay video={activeTrack?.video ?? null} track={activeTrack?.track ?? null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />}
+      {!mini && !postPlay && <SubtitleOverlay video={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.video : null} track={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.track : null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />}
 
       {!mini && cast.active && (
         <div className="pointer-events-none absolute inset-0 z-10 hidden place-items-center bg-bg/80 md:grid" role="status">

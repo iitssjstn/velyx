@@ -104,6 +104,14 @@ describe('tracks', () => {
 });
 
 describe('subtitles', () => {
+  it('follows forward and backward seeks on the absolute file clock after remux restarts', () => {
+    const cues = parseVtt('WEBVTT\n\n00:00:09.000 --> 00:00:12.000\nEarly line\n\n00:10:00.000 --> 00:10:03.000\nLater line');
+    expect(cueTextAt(cues, 10)).toBe('Early line');
+    expect(cueTextAt(cues, 598 + 3)).toBe('Later line');
+    expect(cueTextAt(cues, 598 + 10)).toBe('');
+    expect(cueTextAt(cues, 8 + 2)).toBe('Early line');
+  });
+
   it('reads cues and shows what is on screen at a moment', () => {
     const cues = parseVtt('WEBVTT\n\n1\n00:00:01.000 --> 00:00:03.500 line:90%\n<i>Hallo</i> daar &amp; hier\n\n00:01:02.000 --> 00:01:04.000\nTot ziens\n\n00:01:03.000 --> 00:01:05.000\n- Doei\n\nbroken --> cue\nx\n');
     expect(cues).toEqual([

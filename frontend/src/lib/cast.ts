@@ -133,6 +133,8 @@ export function useCast(item: CastItem | null) {
   const session = useRef<CastSession | null>(null);
   const offset = useRef(0);
   const itemRef = useRef(item);
+  const subtitleKey = useRef(item?.subtitleKey ?? null);
+  if (itemRef.current?.fileId !== item?.fileId || itemRef.current?.subtitleKey !== item?.subtitleKey) subtitleKey.current = item?.subtitleKey ?? null;
   itemRef.current = item;
 
   useEffect(() => {
@@ -216,9 +218,15 @@ export function useCast(item: CastItem | null) {
       const request = new chromeCast.media.LoadRequest(media);
       request.currentTime = startTime;
       request.autoplay = true;
-      const chosen = s.subtitles.findIndex((sub) => sub.key === it.subtitleKey);
+      const requestedSubtitle = subtitleKey.current;
+      const chosen = s.subtitles.findIndex((sub) => sub.key === requestedSubtitle);
       request.activeTrackIds = chosen >= 0 ? [chosen + 1] : [];
       await castSession.loadMedia(request);
+      if (subtitleKey.current !== requestedSubtitle && player.current && controller.current) {
+        const latest = s.subtitles.findIndex((sub) => sub.key === subtitleKey.current);
+        player.current.activeTrackIds = latest >= 0 ? [latest + 1] : [];
+        controller.current.setActiveTrackIds();
+      }
       setState((st) => ({ ...st, active: true, device: castSession.getCastDevice()?.friendlyName ?? null, time: at, playing: true, volume: player.current.volumeLevel ?? st.volume, muted: Boolean(player.current.isMuted), error: null }));
     },
     [],
@@ -271,6 +279,7 @@ export function useCast(item: CastItem | null) {
   }, [load]);
 
   const setSubtitle = useCallback((key: string | null) => {
+    subtitleKey.current = key;
     if (!session.current || !player.current || !controller.current) return;
     const index = session.current.subtitles.findIndex((subtitle) => subtitle.key === key);
     player.current.activeTrackIds = index >= 0 ? [index + 1] : [];
