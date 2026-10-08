@@ -51,11 +51,18 @@ describe('playback optimization profiles', () => {
 
   it('can resume at a checkpoint and write independently playable segments', () => {
     const args = optimizationArgs({ profile: 'compat-720p', input: '/in.mkv', output: '/parts/part-%06d.ts', video: encodeArgs('software'), startSec: 120, segment: { list: '/parts/active.csv', startNumber: 2, seconds: 60 } });
-    expect(args[args.indexOf('-ss') + 1]).toBe('120');
+    expect(args[args.indexOf('-ss') + 1]).toBe('119.999000');
     expect(args.indexOf('-ss')).toBeLessThan(args.indexOf('-i'));
     expect(args[args.indexOf('-segment_start_number') + 1]).toBe('2');
     expect(args[args.indexOf('-segment_format') + 1]).toBe('mpegts');
     expect(args).not.toContain('+faststart');
+  });
+
+  it('seeks before a rounded NTSC checkpoint rather than skipping its next frame', () => {
+    const args = optimizationArgs({ profile: 'compat-720p', input: '/in.mkv', output: '/out.ts', video: encodeArgs('software'), startSec: 1.001011 });
+    expect(args[args.indexOf('-ss') + 1]).toBe('1.000011');
+    const nearStart = optimizationArgs({ profile: 'compat-720p', input: '/in.mkv', output: '/out.ts', video: encodeArgs('software'), startSec: 0.0005 });
+    expect(nearStart[nearStart.indexOf('-ss') + 1]).toBe('0.000000');
   });
 
   it('does not count the load of the copy itself when judging whether the machine is busy', () => {
@@ -224,14 +231,18 @@ describe('playback optimization profiles', () => {
     expect(part.status, part.stderr).toBe(0);
     checkpoint.capture(false);
     expect(checkpoint.nextIndex).toBe(1);
-    const offset = checkpoint.offset;
+    const stateFile = path.join(checkpoint.directory, 'checkpoint.json');
+    const saved = JSON.parse(fs.readFileSync(stateFile, 'utf8')) as { parts: { endSec: number }[] };
+    saved.parts[0]!.endSec += 0.000001;
+    fs.writeFileSync(stateFile, JSON.stringify(saved));
+    const offset = saved.parts[0]!.endSec;
     const runner = env.ctx.optimizations as unknown as { runFfmpeg: (...args: unknown[]) => Promise<void> };
     const calls = vi.spyOn(runner, 'runFfmpeg');
     try {
       env.ctx.optimizations.queue(file.id, 'compat-720p');
       await vi.waitFor(() => expect(env.ctx.optimizations.list(file.id)[0]?.status).toBe('ready'), { timeout: 30_000 });
       const encoding = calls.mock.calls.find((call) => (call[1] as string[]).includes('-segment_start_number'))![1] as string[];
-      expect(encoding[encoding.indexOf('-ss') + 1]).toBe(String(offset));
+      expect(encoding[encoding.indexOf('-ss') + 1]).toBe(Math.max(0, offset - 0.001).toFixed(6));
       expect(encoding[encoding.indexOf('-segment_start_number') + 1]).toBe('1');
       const probe = spawnSync(env.ctx.config.ffprobePath, ['-v', 'error', '-count_frames', '-show_entries', 'format=duration:stream=codec_name,duration,start_time,nb_read_frames', '-of', 'json', output], { encoding: 'utf8' });
       expect(probe.status, probe.stderr).toBe(0);
@@ -239,7 +250,10 @@ describe('playback optimization profiles', () => {
       expect(Number(result.format.duration)).toBeGreaterThan(3.9);
       expect(Number(result.format.duration)).toBeLessThan(4.3);
       expect(Math.abs(Number(result.streams[0]!.duration) - Number(result.streams[1]!.duration))).toBeLessThan(0.15);
-      expect(Number(result.streams[0]!.nb_read_frames)).toBe(96);
+      const sourceProbe = spawnSync(env.ctx.config.ffprobePath, ['-v', 'error', '-count_frames', '-select_streams', 'v:0', '-show_entries', 'stream=nb_read_frames', '-of', 'json', sourcePath], { encoding: 'utf8' });
+      expect(sourceProbe.status, sourceProbe.stderr).toBe(0);
+      const original = JSON.parse(sourceProbe.stdout) as { streams: { nb_read_frames: string }[] };
+      expect(Number(result.streams[0]!.nb_read_frames), `resume offset=${offset}`).toBe(Number(original.streams[0]!.nb_read_frames));
       expect(fs.existsSync(checkpoint.directory)).toBe(false);
     } finally {
       calls.mockRestore();

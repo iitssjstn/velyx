@@ -50,9 +50,11 @@ export function optimizationArgs(options: {
     const index = output.indexOf(option);
     if (index >= 0 && !(option === '-b:v' && output[index + 1] === '0')) output[index + 1] = value;
   }
+  // CSV and container time bases can round a boundary past the next source frame.
+  const seek = options.startSec ? Math.max(0, options.startSec - 0.001).toFixed(6) : null;
   return [
     ...options.video.input,
-    ...(options.startSec ? ['-ss', String(options.startSec)] : []),
+    ...(seek !== null ? ['-ss', seek] : []),
     '-i', options.input,
     '-map', '0:v:0',
     '-map', '0:a?',
