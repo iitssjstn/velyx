@@ -43,6 +43,20 @@ describe('Cloudflare direct DNS records', () => {
     await expect(dns.authoritativeNameServers()).resolves.toEqual(['ns1.cloudflare.test', 'ns2.cloudflare.test']);
   });
 
+  it('retries zone discovery after a temporary failure', async () => {
+    let attempts = 0;
+    const fetchImpl: typeof fetch = async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('temporary outage');
+      return json([{ id: 'zone-1', name: 'vidalune.com', name_servers: ['ns1.cloudflare.test'] }]);
+    };
+    const dns = new CloudflareDns({ token: 'test-token', zoneName: 'vidalune.com', fetchImpl });
+    await expect(dns.authoritativeNameServers()).rejects.toThrow('temporary outage');
+    await expect(dns.authoritativeNameServers()).resolves.toEqual(['ns1.cloudflare.test']);
+    await expect(dns.authoritativeNameServers()).resolves.toEqual(['ns1.cloudflare.test']);
+    expect(attempts).toBe(2);
+  });
+
   it('updates changed addresses and skips writes when the record is current', async () => {
     const updates: Array<{ url: string; init?: RequestInit }> = [];
     const fetchImpl: typeof fetch = async (input, init) => {

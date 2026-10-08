@@ -47,6 +47,7 @@ function fakeSdk() {
     setOptions: vi.fn(),
     getCastState: () => 'NOT_CONNECTED',
     addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
     getCurrentSession: () => current,
     requestSession: vi.fn(async () => {
       current = session;
@@ -55,7 +56,7 @@ function fakeSdk() {
       current = null;
     }),
   };
-  const controller = { addEventListener: (type: string, cb: () => void) => listeners.set(type, cb), playOrPause: vi.fn(), seek: vi.fn() };
+  const controller = { addEventListener: (type: string, cb: () => void) => listeners.set(type, cb), removeEventListener: vi.fn((type: string) => listeners.delete(type)), playOrPause: vi.fn(), seek: vi.fn() };
   class Obj {
     [k: string]: unknown;
     constructor(...args: unknown[]) {
@@ -72,7 +73,7 @@ function fakeSdk() {
     RemotePlayerController: function RemotePlayerController() {
       return controller;
     },
-    RemotePlayerEventType: { CURRENT_TIME_CHANGED: 'time', IS_PAUSED_CHANGED: 'paused', IS_CONNECTED_CHANGED: 'connected' },
+    RemotePlayerEventType: { CURRENT_TIME_CHANGED: 'time', IS_PAUSED_CHANGED: 'paused', IS_CONNECTED_CHANGED: 'connected', VOLUME_LEVEL_CHANGED: 'volume', IS_MUTED_CHANGED: 'muted' },
   };
   const chrome = {
     cast: {
@@ -132,7 +133,7 @@ describe('casting from the player', () => {
     );
     const { useCast } = await import('./cast');
     const locate = vi.fn(async (t: number) => ({ offset: t - 2, seek: t - 2 }));
-    const { result } = renderHook(() => useCast({ fileId: 5, audioIndex: 1, title: 'Dune', subtitle: '2021', posterPath: '/back.jpg', subtitleKey: 'emb-3', subtitleStyle: { subtitleSize: 'large', subtitleColor: 'yellow', subtitleBackground: 'none', subtitleEdge: 'shadow' }, locate }));
+    const { result, unmount } = renderHook(() => useCast({ fileId: 5, audioIndex: 1, title: 'Dune', subtitle: '2021', posterPath: '/back.jpg', subtitleKey: 'emb-3', subtitleStyle: { subtitleSize: 'large', subtitleColor: 'yellow', subtitleBackground: 'none', subtitleEdge: 'shadow' }, locate }));
     await waitFor(() => expect(sdk.context.setOptions).toHaveBeenCalled());
     await act(() => result.current.start(600));
     expect(posts[0]).toMatchObject({ url: '/api/cast/session', body: { fileId: 5, audioIndex: 1 } });
@@ -152,7 +153,14 @@ describe('casting from the player', () => {
     expect(sdk.loaded[1].url).toContain('start=1198.000');
     act(() => result.current.togglePlay());
     expect(sdk.controller.playOrPause).toHaveBeenCalled();
+    locate.mockRejectedValueOnce(new Error('seek unavailable'));
+    act(() => result.current.seek(1800));
+    await waitFor(() => expect(result.current.error).toBe('seek unavailable'));
     act(() => result.current.stop());
     expect(result.current.active).toBe(false);
+    unmount();
+    expect(sdk.context.removeEventListener).toHaveBeenCalledWith('caststatechanged', expect.any(Function));
+    expect(sdk.controller.removeEventListener).toHaveBeenCalledTimes(5);
+    expect(sdk.listeners.size).toBe(0);
   });
 });

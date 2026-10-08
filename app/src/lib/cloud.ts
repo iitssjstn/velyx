@@ -70,21 +70,21 @@ export function createCloud(fetchImpl: typeof fetch = fetch, baseUrl = CLOUD_URL
   async function request<T>(method: string, path: string, token: string | null, body?: unknown): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    let res: Response;
     try {
-      res = await fetchImpl(`${baseUrl}${path}`, {
+      const res = await fetchImpl(`${baseUrl}${path}`, {
         method,
         headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: body ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
-    } catch {
+      if (!res.ok) throw new CloudError(res.status === 401 && token ? 'signedOut' : problemFor(res.status));
+      return (await res.json()) as T;
+    } catch (error) {
+      if (error instanceof CloudError) throw error;
       throw new CloudError('unreachable');
     } finally {
       clearTimeout(timer);
     }
-    if (!res.ok) throw new CloudError(res.status === 401 && token ? 'signedOut' : problemFor(res.status));
-    return (await res.json()) as T;
   }
 
   return {
@@ -104,17 +104,24 @@ export class TicketError extends Error {}
  * Signs in on a server with a ticket from the account service: the Vidalune account is the only
  * sign-in. When the server refuses, the reason it gives (already in the account's language).
  */
-export async function signInWithTicket(serverUrl: string, ticket: string, deviceName: string, userAgent: string, fetchImpl: typeof fetch = fetch) {
-  const res = await fetchImpl(`${serverUrl}/api/auth/app/ticket`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': userAgent },
-    body: JSON.stringify({ ticket, deviceName }),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new TicketError(typeof body.error === 'string' && body.error ? body.error : '');
+export async function signInWithTicket(serverUrl: string, ticket: string, deviceName: string, userAgent: string, fetchImpl: typeof fetch = fetch, timeoutMs = 15_000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetchImpl(`${serverUrl}/api/auth/app/ticket`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': userAgent },
+      body: JSON.stringify({ ticket, deviceName }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new TicketError(typeof body.error === 'string' && body.error ? body.error : '');
+    }
+    return (await res.json()) as { token: string; user: import('./types').User };
+  } finally {
+    clearTimeout(timer);
   }
-  return (await res.json()) as { token: string; user: import('./types').User };
 }
 
 /** Direct HTTPS first, then a legacy address, then the relay for control/API access. */

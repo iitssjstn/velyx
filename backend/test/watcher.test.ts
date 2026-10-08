@@ -50,6 +50,9 @@ describe('automatic library updates (folder watching)', () => {
     fs.renameSync(outside, path.join(env.mediaDir, 'movies', 'Heat.1995.1080p'));
     await settle();
     expect(await titles()).toEqual(['Alien', 'Heat']);
+    fs.rmSync(path.join(env.mediaDir, 'movies', 'Heat.1995.1080p'), { recursive: true });
+    await settle();
+    expect(await titles()).toEqual(['Alien']);
   });
 
   it('ignores unrelated files and partial downloads', async () => {

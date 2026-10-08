@@ -137,6 +137,7 @@ export function useCast(item: CastItem | null) {
 
   useEffect(() => {
     let alive = true;
+    let cleanup: (() => void) | undefined;
     void loadCastSdk().then((f) => {
       if (!alive || !f) return;
       framework.current = f;
@@ -150,16 +151,24 @@ export function useCast(item: CastItem | null) {
       player.current = new f.RemotePlayer();
       controller.current = new f.RemotePlayerController(player.current);
       const c = controller.current;
-      c.addEventListener(f.RemotePlayerEventType.CURRENT_TIME_CHANGED, () => setState((st) => ({ ...st, time: offset.current + (player.current.currentTime ?? 0) })));
-      c.addEventListener(f.RemotePlayerEventType.IS_PAUSED_CHANGED, () => setState((st) => ({ ...st, playing: !player.current.isPaused })));
-      c.addEventListener(f.RemotePlayerEventType.VOLUME_LEVEL_CHANGED, () => setState((st) => ({ ...st, volume: player.current.volumeLevel ?? st.volume })));
-      c.addEventListener(f.RemotePlayerEventType.IS_MUTED_CHANGED, () => setState((st) => ({ ...st, muted: Boolean(player.current.isMuted) })));
-      c.addEventListener(f.RemotePlayerEventType.IS_CONNECTED_CHANGED, () => {
-        if (!player.current.isConnected) setState((st) => ({ ...st, active: false, device: null }));
-      });
+      const listeners: Array<[string, () => void]> = [
+        [f.RemotePlayerEventType.CURRENT_TIME_CHANGED, () => setState((st) => ({ ...st, time: offset.current + (player.current.currentTime ?? 0) }))],
+        [f.RemotePlayerEventType.IS_PAUSED_CHANGED, () => setState((st) => ({ ...st, playing: !player.current.isPaused }))],
+        [f.RemotePlayerEventType.VOLUME_LEVEL_CHANGED, () => setState((st) => ({ ...st, volume: player.current.volumeLevel ?? st.volume }))],
+        [f.RemotePlayerEventType.IS_MUTED_CHANGED, () => setState((st) => ({ ...st, muted: Boolean(player.current.isMuted) }))],
+        [f.RemotePlayerEventType.IS_CONNECTED_CHANGED, () => {
+          if (!player.current.isConnected) setState((st) => ({ ...st, active: false, device: null }));
+        }],
+      ];
+      for (const [type, listener] of listeners) c.addEventListener(type, listener);
+      cleanup = () => {
+        context.removeEventListener(f.CastContextEventType.CAST_STATE_CHANGED, update);
+        for (const [type, listener] of listeners) c.removeEventListener(type, listener);
+      };
     });
     return () => {
       alive = false;
+      cleanup?.();
     };
   }, []);
 
@@ -275,7 +284,7 @@ export function useCast(item: CastItem | null) {
       const t = Math.max(0, target);
       setState((st) => ({ ...st, time: t }));
       // A repackaged stream starts again from the new spot; a file as it is seeks by itself.
-      if (s.decision.seek === 'restart') void load(t);
+      if (s.decision.seek === 'restart') void load(t).catch((error) => setState((st) => ({ ...st, error: error instanceof Error ? error.message : String(error) })));
       else {
         player.current.currentTime = t;
         controller.current.seek();

@@ -60,7 +60,8 @@ export async function sweepDirectDns(options: {
     const batch = silent.slice(i, i + PROBE_BATCH);
     const answers = await Promise.all(batch.map((server) => probe(server.name, server.port)));
     for (const [index, server] of batch.entries()) {
-      if (!answers[index]) await remove(server.name, server.id, 'silent and unreachable');
+      const current = db.select().from(servers).where(eq(servers.id, server.id)).get();
+      if (!answers[index] && (!current || now() - current.lastSeenAt >= SILENT_MS)) await remove(server.name, server.id, 'silent and unreachable');
     }
   }
 

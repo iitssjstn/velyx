@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { and, asc, count, desc, eq, inArray, or, sql, type SQLWrapper } from 'drizzle-orm';
 import { z } from 'zod';
@@ -42,7 +43,7 @@ function escapeLike(q: string): string {
 export function fileInfo(f: FileRow, externalSubs: Array<typeof subtitles.$inferSelect> = [], subtitleSource: FileRow = f) {
   return {
     id: f.id,
-    fileName: f.path.split('/').pop() ?? f.path,
+    fileName: path.basename(f.path),
     size: f.size,
     container: f.container,
     durationSec: f.durationSec,
