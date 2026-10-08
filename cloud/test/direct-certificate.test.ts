@@ -51,7 +51,7 @@ describe('direct server certificates', () => {
       resolveTxtAt: async (address, name) => {
         expect(name).toBe('_acme-challenge.server-1.media.vidalune.com');
         publicQueries += 1;
-        return publicQueries > 2 ? [[records[0]![1]]] : [];
+        return publicQueries > 2 ? [[records[0]![1]]] : [[records[0]![1]], ['stale-challenge']];
       },
       dnsPropagationPollMs: 0,
     });

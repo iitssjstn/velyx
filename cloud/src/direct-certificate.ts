@@ -88,14 +88,15 @@ export class DirectCertificateIssuer {
       const visible = await Promise.all(nameServers.map(async (nameServer) => {
         try {
           const addresses = await (this.options.resolveNameServerAddresses ?? this.resolveNameServerAddresses.bind(this))(nameServer);
-          for (const address of addresses) {
+          if (!addresses.length) return false;
+          const answerSets = await Promise.all(addresses.map(async (address) => {
             try {
-              const answers = await (this.options.resolveTxtAt ?? this.resolveTxtAt.bind(this))(address, name);
-              if (answers.some((record) => record.join('') === expected)) return true;
+              return await (this.options.resolveTxtAt ?? this.resolveTxtAt.bind(this))(address, name);
             } catch {
-              // This nameserver has not published the challenge yet, or could not be queried.
+              return [];
             }
-          }
+          }));
+          return answerSets.every((answers) => answers.length > 0 && answers.every((record) => record.join('') === expected));
         } catch {
           // Retry temporary nameserver lookup failures until the propagation deadline.
         }
