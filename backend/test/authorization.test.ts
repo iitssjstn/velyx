@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { APP_VERSION } from '../src/version.js';
 import { addLibrary, createTestEnv, createUser, setupAdmin, type TestEnv } from './helpers.js';
 
 let env: TestEnv;
@@ -116,7 +117,7 @@ describe('library management', () => {
 
   it('shows the application version on the dashboard', async () => {
     const res = await env.app.inject({ url: '/api/admin/dashboard', headers: { cookie: admin } });
-    expect(res.json()).toMatchObject({ version: '0.19.41', counts: { movies: 0, shows: 0, users: 1 } });
+    expect(res.json()).toMatchObject({ version: APP_VERSION, counts: { movies: 0, shows: 0, users: 1 } });
   });
 
   it('never returns the TMDB key from the settings API', async () => {
