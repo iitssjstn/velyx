@@ -3,7 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { HardDriveDownload, PauseCircle, RotateCcw, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api';
+import { useDebounced } from '../../lib/hooks';
+import type { MovieDetail, SearchResults, SeasonDetail, ShowDetail } from '../../lib/types';
 import { episodeCode, formatBytes } from '../../lib/format';
+import { OptimizationControls } from '../../components/OptimizationControls';
 import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/Modal';
 import { EmptyState, ErrorState, PageLoader } from '../../components/States';
@@ -43,6 +46,104 @@ const TONE: Record<Status, string> = {
 
 const ORDER: Status[] = ['processing', 'queued', 'failed', 'stale', 'ready'];
 
+function OptimizationSource() {
+  const { t } = useT();
+  const [text, setText] = useState('');
+  const [target, setTarget] = useState('');
+  const [seasonNumber, setSeasonNumber] = useState<number | null>(null);
+  const [episodeId, setEpisodeId] = useState<number | null>(null);
+  const [fileId, setFileId] = useState<number | null>(null);
+  const search = useDebounced(text.trim(), 200);
+  const [kind, rawId] = target.split(':');
+  const id = Number(rawId);
+  const results = useQuery({
+    queryKey: ['search', search],
+    enabled: search.length > 0,
+    queryFn: () => api.get<SearchResults>(`/api/search?q=${encodeURIComponent(search)}`),
+  });
+  const show = useQuery({
+    queryKey: ['show', id],
+    enabled: kind === 'show',
+    queryFn: () => api.get<ShowDetail>(`/api/shows/${id}`),
+  });
+  const seasons = show.data?.seasons ?? [];
+  const currentSeason = seasons.some((season) => season.seasonNumber === seasonNumber) ? seasonNumber : (seasons.find((season) => season.seasonNumber > 0) ?? seasons[0])?.seasonNumber;
+  const season = useQuery({
+    queryKey: ['show', id, 'season', currentSeason],
+    enabled: kind === 'show' && currentSeason !== undefined && currentSeason !== null,
+    queryFn: () => api.get<SeasonDetail>(`/api/shows/${id}/seasons/${currentSeason}`),
+  });
+  const episodes = season.data?.episodes ?? [];
+  const currentEpisode = episodes.some((episode) => episode.id === episodeId) ? episodeId : episodes[0]?.id;
+  const sourceKind = kind === 'show' ? 'episode' : kind;
+  const sourceId = kind === 'show' ? currentEpisode : id;
+  const source = useQuery({
+    queryKey: ['admin', 'optimization-source', sourceKind, sourceId],
+    enabled: (sourceKind === 'movie' || sourceKind === 'episode') && Boolean(sourceId),
+    queryFn: () => api.get<Pick<MovieDetail, 'files'>>(`/api/${sourceKind === 'movie' ? 'movies' : 'episodes'}/${sourceId}`),
+  });
+  const files = source.data?.files ?? [];
+  const selectedFile = files.find((file) => file.id === fileId) ?? files[0];
+  const options = [
+    ...(results.data?.movies ?? []).map((movie) => ({ value: `movie:${movie.id}`, label: `${movie.title}${movie.year ? ` (${movie.year})` : ''}` })),
+    ...(results.data?.shows ?? []).map((item) => ({ value: `show:${item.id}`, label: `${item.title}${item.year ? ` (${item.year})` : ''}` })),
+    ...(results.data?.episodes ?? []).map((episode) => ({ value: `episode:${episode.id}`, label: `${episode.showTitle} · ${episodeCode(episode.seasonNumber, episode.episodeNumber)}${episode.title ? ` · ${episode.title}` : ''}` })),
+  ];
+  const error = results.error ?? show.error ?? season.error ?? source.error;
+
+  return (
+    <section className="space-y-3 border-b border-line/60 pb-6" aria-label={t('optimization.create')}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="space-y-1 text-sm">
+          <span>{t('optimization.pick.search')}</span>
+          <input type="search" className="input w-full" value={text} onChange={(event) => {
+            setText(event.target.value);
+            setTarget('');
+            setSeasonNumber(null);
+            setEpisodeId(null);
+            setFileId(null);
+          }} />
+        </label>
+        {options.length > 0 && <label className="space-y-1 text-sm">
+          <span>{t('optimization.pick.title')}</span>
+          <select className="input w-full" value={target} onChange={(event) => {
+            setTarget(event.target.value);
+            setSeasonNumber(null);
+            setEpisodeId(null);
+            setFileId(null);
+          }}>
+            <option value="">{t('optimization.pick.title')}</option>
+            {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>}
+        {kind === 'show' && seasons.length > 0 && <label className="space-y-1 text-sm">
+          <span>{t('optimization.pick.season')}</span>
+          <select className="input w-full" value={currentSeason ?? ''} onChange={(event) => { setSeasonNumber(Number(event.target.value)); setEpisodeId(null); setFileId(null); }}>
+            {seasons.map((item) => <option key={item.seasonNumber} value={item.seasonNumber}>{t('series.season', { n: item.seasonNumber })}</option>)}
+          </select>
+        </label>}
+        {kind === 'show' && episodes.length > 0 && <label className="space-y-1 text-sm">
+          <span>{t('optimization.pick.episode')}</span>
+          <select className="input w-full" value={currentEpisode ?? ''} onChange={(event) => { setEpisodeId(Number(event.target.value)); setFileId(null); }}>
+            {episodes.map((episode) => <option key={episode.id} value={episode.id}>{episodeCode(episode.seasonNumber, episode.episodeNumber)}{episode.title ? ` · ${episode.title}` : ''}</option>)}
+          </select>
+        </label>}
+        {files.length > 0 && <label className="space-y-1 text-sm sm:col-span-2">
+          <span>{t('optimization.sourceVersion')}</span>
+          <select className="input w-full" value={selectedFile?.id ?? ''} onChange={(event) => setFileId(Number(event.target.value))}>
+            {files.map((file) => <option key={file.id} value={file.id}>{file.fileName} · {file.height ? `${file.height}p` : t('optimization.unknownQuality')} · {formatBytes(file.size)}</option>)}
+          </select>
+        </label>}
+      </div>
+      {(results.isFetching || show.isFetching || season.isFetching || source.isFetching) && <p role="status" className="text-sm text-muted">{t('common.loading')}</p>}
+      {error && <ErrorState error={error} onRetry={() => { void results.refetch(); if (kind === 'show') { void show.refetch(); if (currentSeason !== undefined) void season.refetch(); } if (sourceId) void source.refetch(); }} />}
+      {search && !results.isFetching && !results.error && options.length === 0 && <p className="text-sm text-muted">{t('optimization.pick.noResults')}</p>}
+      {((source.isSuccess && files.length === 0) || (kind === 'show' && season.isSuccess && episodes.length === 0)) && <p className="text-sm text-muted">{t('optimization.pick.noFiles')}</p>}
+      {selectedFile && <OptimizationControls key={selectedFile.id} fileId={selectedFile.id} compact />}
+    </section>
+  );
+}
+
 export function OptimizationPage() {
   const { t } = useT();
   const qc = useQueryClient();
@@ -80,8 +181,9 @@ export function OptimizationPage() {
     <div className="space-y-6">
       <div>
         <h2 className="font-display text-xl font-semibold">{t('optimization.queue.title')}</h2>
-        <p className="mt-1 max-w-3xl text-sm text-muted">{t('optimization.queue.intro')}</p>
       </div>
+
+      <OptimizationSource />
 
       {paused && (
         <p role="status" className="panel flex items-center gap-2 p-3 text-sm text-amber">

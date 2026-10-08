@@ -542,6 +542,7 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 
 ## Versie 0.19.44 (repo-brede bugfixronde)
 
+- Correctie op verzoek van de eigenaar: de bediening voor compatibele kopieën hoort onder Beheer > Optimalisatie, niet onder film-/afleveringsdetails. Beheer krijgt bibliotheekzoeken, film-/serie-/afleveringkeuze, bronbestandskeuze en 720p/1080p-profielen; starten/verwijderen ververst de wachtrij. De oude detailbediening is verwijderd.
 - Eigenaar bevestigde op 8 okt dat release 0.19.43 compleet is (APK en beide `.deb`-pakketten) en gaf toestemming om deze bugfixversie te committen, pushen en als PR te openen.
 - Gevraagd 8 okt: hele repo controleren, niet alleen de vorige PR. Controle omvat backend, frontend, cloud, app, CI en verpakkingsscripts; dit is geen garantie dat er geen andere bugs bestaan.
 - DNS-opruiming: heartbeat opnieuw controleren na de poortprobe; een server die tijdens de probe terugkomt blijft behouden.
