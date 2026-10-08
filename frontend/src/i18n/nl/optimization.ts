@@ -21,4 +21,15 @@ export const optimization: Messages['optimization'] = {
   removeText: 'Alleen de gegenereerde kopie wordt verwijderd. Het originele mediabestand blijft onaangeroerd.',
   removed: 'Geoptimaliseerde kopie verwijderd.',
   status: { queued: 'In wachtrij', processing: 'Bezig', ready: 'Klaar', failed: 'Mislukt', stale: 'Verouderd' },
+  queue: {
+    title: 'Optimalisatiewachtrij',
+    intro: 'Compatibele kopieën worden een voor een gemaakt, met maximaal vier kernen. Een kopie pauzeert zolang iemand kijkt en de server druk is, en tijdens een bibliotheekscan. Maak een kopie vanaf de pagina van een film of aflevering.',
+    paused: 'Gepauzeerd: iemand kijkt en de server is druk, of er loopt een bibliotheekscan. De kopie gaat daarna vanzelf verder.',
+    emptyTitle: 'Geen geoptimaliseerde kopieën',
+    empty: 'Open een film of aflevering en kies Optimaliseren om een compatibele kopie te maken.',
+    loadError: 'De optimalisatiewachtrij kon niet worden geladen.',
+    position: 'Plek {n} in de wachtrij',
+    unknownTitle: 'Onbekende titel',
+    open: 'Titel openen',
+  },
 };

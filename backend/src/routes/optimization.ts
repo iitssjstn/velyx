@@ -9,6 +9,12 @@ import { OPTIMIZATION_PROFILES, type OptimizationProfile } from '../services/opt
 const profileSchema = z.enum(['compat-720p', 'compat-1080p']);
 
 export async function optimizationRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
+  app.get('/api/admin/optimizations', { preHandler: requireAdmin }, async (request) => {
+    const lang = requestLanguage(request);
+    const { paused, items } = ctx.optimizations.overview();
+    return { paused, items: items.map((item) => ({ ...item, error: item.error ? tr(lang, item.error) : null })) };
+  });
+
   app.get<{ Params: { fileId: string } }>('/api/admin/media/:fileId/optimizations', { preHandler: requireAdmin }, async (request) => {
     const fileId = parseId(request.params.fileId);
       const lang = requestLanguage(request);

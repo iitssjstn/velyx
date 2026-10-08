@@ -194,7 +194,18 @@ PR #100 is gemerged en release `v0.19.23` is gecontroleerd (APK + beide `.deb`'s
 - Begeleid de beheerder door bestaande bibliotheken, TMDB, ondertiteling, relay, Seerr, Sonarr en Radarr.
 - Herken bestaande configuratie, maak optionele stappen overslaan en later hervatten, en behoud de instellingen van Docker- en `.deb`-installaties.
 
+### Mee te nemen in de eerstvolgende update (alleen onthouden, nog niet bouwen)
+- Meld Docker-interne adressen (zoals `172.18.0.14`) niet meer als `lan`-endpoint in `localEndpoints` (`backend/src/services/cloud.ts`); ze zijn onbereikbaar voor andere apparaten. Een Docker-adres is niet betrouwbaar te onderscheiden van een echt LAN-adres in hetzelfde bereik; bedenk eerst hoe (bijvoorbeeld de bridge-interfaces overslaan). Gemeld 8 okt.
+
 ## Gemeld tijdens het testen
+
+- **Kwaliteitsoptimizer: plek en snelheid** (gemeld 8 okt; besloten en gebouwd in 0.19.42).
+  1. De bediening (`OptimizationControls`) staat onderaan de film- en afleveringspagina's en blijft daar.
+     Daarnaast komt een beheerpagina met wachtrij, zodat de beheerder kan volgen wat bezig is, wat wacht en
+     waarom iets mislukt is.
+  2. Het maken van een kopie duurde te lang (`-threads 1`, `veryfast`, volledige pauze zodra iemand kijkt).
+     Besloten: alle kernen (maximaal vier), een snellere x264-preset, en alleen pauzeren als de server
+     druk is; de CPU-prioriteit blijft ongewijzigd (nice 10).
 
 - **Videostreams via FlareSolverr en traag afspelen** (gemeld 7 okt):
   de websiteplayer gebruikte hetzelfde origin als de website, waardoor `app.vidalune.com` alle
@@ -491,4 +502,17 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - `acme-client` geeft voor DNS-01 al de SHA-256-digest door als TXT-waarde (`client.js` `getChallengeKeyAuthorization`, `verify.js` vergelijkt die waarde). Onze code hashte die waarde nog een keer, dus Let's Encrypt kon nooit de juiste TXT-record vinden.
 - Publiceer de doorgegeven waarde ongewijzigd; de eigen propagatiecheck gebruikt dezelfde waarde.
 - Een test legt het gedrag van de bibliotheek vast (dns-01-waarde is de digest van de ruwe key authorization) en de issuer-test verwacht nu de ongewijzigde waarde.
-- Nog te valideren: CI en live certificaatuitgifte na deployment van de cloudimage.
+- Gevalideerd in productie: CI en live certificaatuitgifte; afspelen via `app.vidalune.com` werkt.
+
+## Versie 0.19.42 (optimizerwachtrij en snellere kopieën)
+
+### Beheerpagina Optimalisatie
+- Nieuw tabblad Optimalisatie onder Beheer: wat bezig is (met voortgang), wat wacht (met plek in de rij), mislukte en verouderde kopieën met de foutmelding, en klare kopieën met grootte.
+- Opnieuw proberen en verwijderen vanaf de pagina; een kopie die wordt gemaakt kan niet worden verwijderd. De pagina vernieuwt zichzelf zolang er iets wacht of bezig is.
+- Toont wanneer de kopie op pauze staat omdat er gescand wordt of iemand kijkt terwijl de server druk is.
+- Backend: GET /api/admin/optimizations (alleen beheerder, zonder bestandspaden).
+
+### Sneller maken
+- ffmpeg gebruikt alle kernen (maximaal vier) in plaats van één, en de software-x264-preset is superfast in plaats van eryfast.
+- Pauzeren (SIGSTOP) gebeurt alleen nog als er gescand wordt, of als er gekeken wordt én de server druk is. De eigen belasting van de kopie telt niet mee voor die beoordeling (machineBusy(ownLoad)), anders zou de kopie zichzelf pauzeren.
+- CPU-prioriteit blijft nice 10, zodat kijkers voorrang houden.

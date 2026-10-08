@@ -14,6 +14,7 @@ import { CleanupPage } from './Cleanup';
 import { NotificationsPage, useUnreadNotifications } from './Notifications';
 import { CloudPage } from './Cloud';
 import { ArrSettingsPage } from './ArrSettings';
+import { OptimizationPage } from './Optimization';
 import { useT, type MessageKey } from '../../i18n';
 
 const TABS: Array<{ to: string; label: MessageKey }> = [
@@ -24,6 +25,7 @@ const TABS: Array<{ to: string; label: MessageKey }> = [
   { to: 'metadata', label: 'admin.tabs.metadata' },
   { to: 'health', label: 'admin.tabs.health' },
   { to: 'intros', label: 'admin.tabs.intros' },
+  { to: 'optimization', label: 'admin.tabs.optimization' },
   { to: 'cleanup', label: 'admin.tabs.cleanup' },
   { to: 'notifications', label: 'admin.tabs.notifications' },
   { to: 'cloud', label: 'admin.tabs.cloud' },
@@ -65,6 +67,7 @@ export default function AdminLayout() {
         <Route path="metadata" element={<MetadataPage />} />
         <Route path="health" element={<HealthPage />} />
         <Route path="intros" element={<SegmentsPage />} />
+        <Route path="optimization" element={<OptimizationPage />} />
         <Route path="cleanup" element={<CleanupPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="cloud" element={<CloudPage />} />

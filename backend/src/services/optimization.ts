@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { and, asc, eq } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
-import { libraries, mediaFiles, optimizedMedia } from '../db/schema.js';
+import { episodes, libraries, mediaFiles, movies, optimizedMedia, shows } from '../db/schema.js';
 import { HttpError } from '../http-error.js';
 import type { ProbeResult } from './probe.js';
 import type { LimitedProber } from './probe-queue.js';
@@ -21,16 +21,25 @@ export const OPTIMIZATION_PROFILES: Record<OptimizationProfile, { width: number;
   'compat-1080p': { width: 1920, height: 1080, maxBitrate: '8M', maxBuffer: '16M' },
 };
 
+/** Encoding threads: every core up to four. */
+export function optimizationThreads(): number {
+  return Math.max(1, Math.min(4, os.availableParallelism()));
+}
+
 /** Builds a bounded H.264/AAC MP4 copy; it never writes beside the source file. */
 export function optimizationArgs(options: {
   profile: OptimizationProfile;
   input: string;
   output: string;
   video: VideoEncode;
+  threads?: number;
 }): string[] {
   const { width, height, maxBitrate, maxBuffer } = OPTIMIZATION_PROFILES[options.profile];
   const scale = `scale=w='min(iw,${width})':h='min(ih,${height})':force_original_aspect_ratio=decrease:force_divisible_by=2`;
   const output = [...options.video.output];
+  // superfast encodes about twice as fast as veryfast, for a slightly larger copy.
+  const presetIndex = output.indexOf('-preset');
+  if (presetIndex >= 0 && output[presetIndex + 1] === 'veryfast') output[presetIndex + 1] = 'superfast';
   const filterIndex = output.indexOf('-vf');
   if (filterIndex >= 0) output[filterIndex + 1] = `${scale},${output[filterIndex + 1]}`;
   else output.unshift('-vf', scale);
@@ -51,7 +60,7 @@ export function optimizationArgs(options: {
     '-b:a', '160k',
     '-ac', '2',
     '-movflags', '+faststart',
-    '-threads', '1',
+    '-threads', String(options.threads ?? optimizationThreads()),
     '-progress', 'pipe:1',
     '-nostats',
     '-f', 'mp4',
@@ -77,11 +86,27 @@ export interface ReadyOptimization extends OptimizationView {
   probe: ProbeResult;
 }
 
+/** One copy in the admin queue, with what it belongs to. */
+export interface OptimizationQueueItem extends OptimizationView {
+  fileId: number;
+  /** 1 = next in line (only while queued). */
+  position: number | null;
+  movieId: number | null;
+  showId: number | null;
+  title: string | null;
+  year: number | null;
+  season: number | null;
+  episode: number | null;
+  episodeTitle: string | null;
+}
+
 export class OptimizationService {
   readonly outputDir: string;
   private readonly waiting: number[] = [];
   private readonly queued = new Set<number>();
   private running = false;
+  /** The running conversion is on hold because someone is watching and the server is busy, or a scan runs. */
+  private paused = false;
   private activeTask: Promise<void> | null = null;
   private stopped = false;
   private timer: NodeJS.Timeout | null = null;
@@ -95,7 +120,8 @@ export class OptimizationService {
       probe: LimitedProber;
       transcoding: TranscodingService;
       settings: SettingsService;
-      busy: () => boolean;
+      /** `ownLoad`: processors this conversion itself keeps busy, so it does not count against itself. */
+      busy: (ownLoad: number) => boolean;
     },
   ) {
     this.outputDir = path.join(deps.dataDir, 'optimized');
@@ -109,6 +135,47 @@ export class OptimizationService {
   list(mediaFileId: number): OptimizationView[] {
     const source = this.source(mediaFileId);
     return this.deps.db.select().from(optimizedMedia).where(eq(optimizedMedia.mediaFileId, mediaFileId)).orderBy(asc(optimizedMedia.profile)).all().map((row) => this.view(row, source.file.size, source.file.mtimeMs));
+  }
+
+  /** Every copy of every title for the admin queue: running first, then waiting, failed, outdated and finished. */
+  overview(): { paused: boolean; items: OptimizationQueueItem[] } {
+    const rows = this.deps.db
+      .select({
+        variant: optimizedMedia,
+        file: mediaFiles,
+        movieTitle: movies.title,
+        movieYear: movies.year,
+        showId: episodes.showId,
+        showTitle: shows.title,
+        season: episodes.seasonNumber,
+        episode: episodes.episodeNumber,
+        episodeTitle: episodes.title,
+      })
+      .from(optimizedMedia)
+      .innerJoin(mediaFiles, eq(mediaFiles.id, optimizedMedia.mediaFileId))
+      .leftJoin(movies, eq(movies.id, mediaFiles.movieId))
+      .leftJoin(episodes, eq(episodes.id, mediaFiles.episodeId))
+      .leftJoin(shows, eq(shows.id, episodes.showId))
+      .all();
+    const items = rows.map((row): OptimizationQueueItem => {
+      const view = this.view(row.variant, row.file.size, row.file.mtimeMs);
+      const place = this.waiting.indexOf(row.variant.id);
+      return {
+        ...view,
+        fileId: row.file.id,
+        position: view.status === 'queued' && place >= 0 ? place + 1 : null,
+        movieId: row.file.movieId,
+        showId: row.showId,
+        title: row.movieTitle ?? row.showTitle,
+        year: row.movieYear,
+        season: row.season,
+        episode: row.episode,
+        episodeTitle: row.episodeTitle,
+      };
+    });
+    const rank: Record<OptimizationStatus, number> = { processing: 0, queued: 1, failed: 2, stale: 3, ready: 4 };
+    items.sort((a, b) => rank[a.status] - rank[b.status] || (a.position ?? 0) - (b.position ?? 0) || b.updatedAt - a.updatedAt);
+    return { paused: this.paused, items };
   }
 
   queue(mediaFileId: number, profile: OptimizationProfile): OptimizationView {
@@ -272,7 +339,7 @@ export class OptimizationService {
 
   private async pump(): Promise<void> {
     if (this.running || this.stopped || this.waiting.length === 0) return;
-    if (this.deps.busy()) {
+    if (this.deps.busy(0)) {
       this.kick(10_000);
       return;
     }
@@ -309,8 +376,9 @@ export class OptimizationService {
       const preference = this.deps.settings.get().transcoding.encoder;
       const encoder = pickEncoder(preference, support) ?? pickEncoder('auto', support);
       if (!encoder) throw new Error('No working video encoder is available on this server.');
-      const args = optimizationArgs({ profile: row.profile, input, output: tempPath, video: encodeArgs(encoder, support.vaapi) });
-      await this.runFfmpeg(id, args, source.file.durationSec ?? 0);
+      const threads = optimizationThreads();
+      const args = optimizationArgs({ profile: row.profile, input, output: tempPath, video: encodeArgs(encoder, support.vaapi), threads });
+      await this.runFfmpeg(id, args, source.file.durationSec ?? 0, threads);
       if (this.stopped) throw new Error('Optimization stopped while the server was shutting down.');
       const probe = await this.deps.probe(tempPath);
       if (this.stopped) throw new Error('Optimization stopped while the server was shutting down.');
@@ -325,10 +393,11 @@ export class OptimizationService {
       this.deps.db.update(optimizedMedia).set({ status: this.stopped ? 'queued' : 'failed', progress: 0, error: this.stopped ? null : message, updatedAt: Date.now() }).where(eq(optimizedMedia.id, id)).run();
     } finally {
       this.child = null;
+      this.paused = false;
     }
   }
 
-  private runFfmpeg(id: number, args: string[], durationSec: number): Promise<void> {
+  private runFfmpeg(id: number, args: string[], durationSec: number, threads: number): Promise<void> {
     return new Promise((resolve, reject) => {
       const child = spawn(this.deps.ffmpegPath, ['-hide_banner', '-nostdin', '-v', 'error', ...args], { stdio: ['pipe', 'pipe', 'pipe'] });
       this.child = child;
@@ -339,11 +408,12 @@ export class OptimizationService {
       let paused = false;
       const pauseWhileBusy = () => {
         if (process.platform === 'win32' || !child.pid) return;
-        const busy = this.deps.busy();
+        const busy = this.deps.busy(paused ? 0 : threads);
         if (busy === paused) return;
         try {
           process.kill(child.pid, busy ? 'SIGSTOP' : 'SIGCONT');
           paused = busy;
+          this.paused = busy;
         } catch {
           /* Process may have exited while status changed. */
         }
