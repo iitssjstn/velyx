@@ -1,4 +1,5 @@
 import { act, render, screen } from '@testing-library/react';
+import { useLayoutEffect } from 'react';
 import { describe, expect, it } from 'vitest';
 import { SubtitleOverlay } from './SubtitleOverlay';
 import { DEFAULT_PREFS } from '../lib/prefs';
@@ -11,6 +12,25 @@ function track(cues: { startTime: number; endTime: number; text: string }[]): Te
 const frame = () => act(() => new Promise((r) => requestAnimationFrame(() => r(undefined))));
 
 describe('SubtitleOverlay', () => {
+  it('hides old cues in the commit that changes the video, before passive effects clear state', async () => {
+    const commits: boolean[] = [];
+    function Probe({ video, selected }: { video: HTMLVideoElement | null; selected: TextTrack | null }) {
+      useLayoutEffect(() => {
+        commits.push(screen.queryByText('Old subtitle') !== null);
+      }, [video, selected]);
+      return <SubtitleOverlay video={video} track={selected} delay={0} prefs={DEFAULT_PREFS} controlsVisible={false} />;
+    }
+    const video = { currentTime: 10 } as HTMLVideoElement;
+    const selected = track([{ startTime: 9, endTime: 12, text: 'Old subtitle' }]);
+    const view = render(<Probe video={video} selected={selected} />);
+    await frame();
+    expect(screen.getByText('Old subtitle')).toBeTruthy();
+    view.rerender(<Probe video={null} selected={null} />);
+    expect(commits.at(-1)).toBe(false);
+    view.rerender(<Probe video={{ currentTime: 60 } as HTMLVideoElement} selected={track([])} />);
+    expect(commits.at(-1)).toBe(false);
+  });
+
   it('drops the previous language at once when another subtitle is chosen', async () => {
     const video = { currentTime: 10 } as HTMLVideoElement;
     const english = track([{ startTime: 9, endTime: 12, text: 'Hello there' }]);
