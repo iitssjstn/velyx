@@ -146,14 +146,14 @@ export class CloudService {
   /** `soft401`: a 401 is about the request (a used ticket), not about this server's registration. */
   /** `soft402`: pass a 402 (no remote access) on instead of a generic failure. */
   /** `pass`: statuses passed on as they are (with the service's message) instead of a generic failure. */
-  private async call<T>(method: string, path: string, body?: unknown, auth = true, soft401 = false, soft402 = false, pass: number[] = []): Promise<T> {
+  private async call<T>(method: string, path: string, body?: unknown, auth = true, soft401 = false, soft402 = false, pass: number[] = [], timeoutMs = TIMEOUT_MS): Promise<T> {
     const link = this.deps.settings.get().cloud;
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (auth && link) headers.Authorization = `Server ${link.serverId}:${link.secret}`;
     let res: Response;
     try {
-      res = await (this.deps.fetchImpl ?? fetch)(`${this.deps.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(TIMEOUT_MS) });
+      res = await (this.deps.fetchImpl ?? fetch)(`${this.deps.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) });
     } catch (err) {
       log.warn(`Vidalune account service not reachable: ${(err as Error).message}`);
       throw new HttpError(502, 'Could not reach the Vidalune account service. Try again later.');
@@ -254,7 +254,7 @@ export class CloudService {
   /** Requests a certificate for this server's assigned hostname; its private key is never sent. */
   async directCertificate(csr: string): Promise<{ hostname: string; certificate: string }> {
     if (!this.deps.settings.get().cloud?.account) throw new HttpError(409, 'Link this server to a Vidalune account first.');
-    return this.call<{ hostname: string; certificate: string }>('POST', '/api/server/direct/certificate', { csr });
+    return this.call<{ hostname: string; certificate: string }>('POST', '/api/server/direct/certificate', { csr }, true, false, false, [409, 429, 502, 503], 45_000);
   }
 
   /**

@@ -439,4 +439,5 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Toon de automatisch toegewezen hostname en DNS-, TLS- en poortstatus op de accountbeheerpagina, inclusief de ontbrekende stap.
 - Laat de automatische mediahost de enige publieke media-route blijven; geen handmatige domeininvoer.
 - Regressietests controleren dat `app.vidalune.com` geen media-endpoint wordt en dat provisioningstatus zichtbaar is.
+- Wacht na het publiceren van de ACME DNS-01 TXT-record op zichtbaarheid via publieke DNS voordat de certificaatautoriteit valideert; begrens de wachttijd en certificaataanvraag.
 - Nog te valideren: backend- en frontendtests via CI en de productie-status van Cloudflare/ACME/port-forwarding.
