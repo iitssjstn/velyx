@@ -5,6 +5,18 @@ import * as acme from 'acme-client';
 import type { CloudflareDns } from './cloudflare-dns.js';
 
 type AcmeClient = Pick<acme.Client, 'auto'>;
+const DNS_PROPAGATION_TIMEOUT_MS = 30_000;
+const DNS_PROPAGATION_POLL_MS = 1_000;
+const DNS_QUERY_TIMEOUT_MS = 5_000;
+
+interface DohAnswer {
+  data?: string;
+}
+
+interface DohResponse {
+  Status?: number;
+  Answer?: DohAnswer[];
+}
 
 /** Issues one server's publicly trusted certificate without ever receiving its private TLS key. */
 export class DirectCertificateIssuer {
@@ -19,6 +31,9 @@ export class DirectCertificateIssuer {
       email?: string;
       dns: CloudflareDns;
       createClient?: (options: acme.ClientOptions) => AcmeClient;
+      fetchImpl?: typeof fetch;
+      dnsPropagationTimeoutMs?: number;
+      dnsPropagationPollMs?: number;
     },
   ) {}
 
@@ -52,15 +67,14 @@ export class DirectCertificateIssuer {
       termsOfServiceAgreed: true,
       challengePriority: ['dns-01'],
       // The library compares the raw key authorization; DNS-01 publishes its SHA-256 digest.
-      // The CA performs the authoritative challenge validation after our DNS API confirms the write.
       skipChallengeVerification: true,
       challengeCreateFn: async (authz, challenge, keyAuthorization) => {
         if (challenge.type !== 'dns-01' || authz.identifier.value.toLowerCase() !== hostname) throw new Error('Unexpected ACME challenge for direct server certificate.');
         const digest = crypto.createHash('sha256').update(keyAuthorization).digest('base64url');
         const recordName = `_acme-challenge.${hostname}`;
-        // Let the CA retry its DNS lookup instead of waiting on a recursive resolver's cache.
         const recordId = await this.options.dns.createTxt(recordName, digest);
         txtRecords.set(keyAuthorization, recordId);
+        await this.waitForTxt(recordName, digest);
       },
       challengeRemoveFn: async (_authz, _challenge, keyAuthorization) => {
         const recordId = txtRecords.get(keyAuthorization);
@@ -69,6 +83,39 @@ export class DirectCertificateIssuer {
         await this.options.dns.deleteTxt(recordId);
       },
     });
+  }
+
+  private async waitForTxt(name: string, expected: string): Promise<void> {
+    const timeoutMs = this.options.dnsPropagationTimeoutMs ?? DNS_PROPAGATION_TIMEOUT_MS;
+    const pollMs = this.options.dnsPropagationPollMs ?? DNS_PROPAGATION_POLL_MS;
+    const deadline = Date.now() + timeoutMs;
+    let lastResult = 'TXT record is not visible yet';
+
+    while (true) {
+      try {
+        const query = new URL('https://cloudflare-dns.com/dns-query');
+        query.searchParams.set('name', name);
+        query.searchParams.set('type', 'TXT');
+        const response = await (this.options.fetchImpl ?? fetch)(query, {
+          headers: { accept: 'application/dns-json' },
+          signal: AbortSignal.timeout(DNS_QUERY_TIMEOUT_MS),
+        });
+        if (response.ok) {
+          const answer = await response.json() as DohResponse;
+          if (answer.Answer?.some((record) => record.data?.replace(/^"|"$/g, '') === expected)) return;
+          lastResult = answer.Status === 3 ? 'public DNS resolver returned NXDOMAIN' : 'TXT challenge is not visible in public DNS yet';
+        } else {
+          lastResult = `public DNS resolver returned HTTP ${response.status}`;
+        }
+      } catch (err) {
+        lastResult = `public DNS lookup failed: ${(err as Error).message}`;
+      }
+
+      if (Date.now() >= deadline) break;
+      await new Promise((resolve) => setTimeout(resolve, pollMs));
+    }
+
+    throw new Error(`ACME DNS-01 TXT record did not propagate within ${timeoutMs} ms: ${lastResult}.`);
   }
 
   private accountKeyFile(): string {

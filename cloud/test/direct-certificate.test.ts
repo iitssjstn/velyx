@@ -17,10 +17,16 @@ describe('direct server certificates', () => {
     const hostname = 'server-1.media.vidalune.com';
     const [, csr] = await acme.crypto.createCsr({ commonName: hostname, altNames: [hostname] });
     const records: Array<[string, string]> = [];
-    const waitForTxt = vi.fn();
+    let publicQueries = 0;
+    const fetchImpl = vi.fn(async () => {
+      publicQueries += 1;
+      const visible = publicQueries > 1;
+      return new Response(JSON.stringify(visible
+        ? { Status: 0, Answer: [{ data: `"${records[0]![1]}"` }] }
+        : { Status: 3 }), { status: 200 });
+    });
     const dns = {
       createTxt: async (name: string, value: string) => { records.push([name, value]); return 'txt-record-1'; },
-      waitForTxt,
       deleteTxt: async (id: string) => { records.push(['deleted', id]); },
     } as unknown as CloudflareDns;
     const createClient = vi.fn(() => ({
@@ -47,6 +53,8 @@ describe('direct server certificates', () => {
       directoryUrl: 'https://acme-staging.example/directory',
       dns,
       createClient,
+      fetchImpl,
+      dnsPropagationPollMs: 0,
     });
 
     const certificate = await issuer.issue(hostname, csr.toString());
@@ -54,7 +62,7 @@ describe('direct server certificates', () => {
     const expected = Buffer.from(digest).toString('base64url');
     expect(certificate).toBe('issued certificate chain');
     expect(records).toEqual([['_acme-challenge.server-1.media.vidalune.com', expected], ['deleted', 'txt-record-1']]);
-    expect(waitForTxt).not.toHaveBeenCalled();
+    expect(publicQueries).toBe(2);
     expect(optionsOf(createClient).directoryUrl).toBe('https://acme-staging.example/directory');
     if (process.platform !== 'win32') expect(fs.statSync(path.join(dir, 'direct-acme-account.key')).mode & 0o777).toBe(0o600);
   });
