@@ -41,7 +41,6 @@ export const cloud = {
   directTitle: 'Direct connection',
   directPortIntro: 'Enter the public TCP port. In your router, forward that TCP port to port {port} on this server.',
   directPort: 'Public port',
-  directAddress: 'Automatic server address',
   directDns: 'DNS',
   directTls: 'HTTPS certificate',
   directReachability: 'Public port reachability',

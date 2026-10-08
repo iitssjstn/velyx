@@ -59,7 +59,6 @@ function DirectConnectionSection({ access }: { access: CloudStatus['directAccess
       <p className="text-sm text-muted">{t('cloud.directPortIntro', { port: q.data.internalPort })}</p>
       {access && (
         <div className="space-y-2 border-t border-line/60 pt-3 text-sm" role="status" aria-live="polite">
-          <p>{t('cloud.directAddress')}: <span className="font-mono">{access.url ?? access.hostname}</span></p>
           <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-3">
             <div><dt className="text-faint">{t('cloud.directDns')}</dt><dd>{!access.configured ? t('cloud.directNotConfigured') : access.dnsReady ? t('cloud.directReady') : t('cloud.directWaiting')}</dd></div>
             <div><dt className="text-faint">{t('cloud.directTls')}</dt><dd>{access.tlsReady ? t('cloud.directReady') : t('cloud.directWaiting')}</dd></div>
