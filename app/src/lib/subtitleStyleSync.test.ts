@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SUBTITLE_STYLE } from './subtitleStyle';
-import { createSubtitleStyleSync, subtitlePreferencesReady } from './subtitleStyleSync';
+import { createSubtitleStyleSync, subtitlePreferencesReady, subtitleStyleAccountScope } from './subtitleStyleSync';
 
 const local = { ...DEFAULT_SUBTITLE_STYLE, color: 'yellow' as const, castDefaults: false };
 const account = { ...DEFAULT_SUBTITLE_STYLE, size: 'large' as const };
-const setup = () => {
+let nextScope = 0;
+const setup = (scope = `test-${++nextScope}`) => {
   const options = {
+    scope,
     readDevice: vi.fn().mockResolvedValue(local),
     writeDevice: vi.fn().mockResolvedValue(undefined),
     writeAccount: vi.fn().mockResolvedValue(undefined),
@@ -18,6 +20,75 @@ const setup = () => {
 };
 
 describe('account subtitle style sync', () => {
+  it('keeps account/server scope across endpoint changes but separates users and servers', () => {
+    const session = { cloudServerId: 'server-one', serverUrl: 'https://old', userId: 1 };
+    expect(subtitleStyleAccountScope(session)).toBe(subtitleStyleAccountScope({ ...session, serverUrl: 'https://new' }));
+    expect(subtitleStyleAccountScope(session)).not.toBe(subtitleStyleAccountScope({ ...session, userId: 2 }));
+    expect(subtitleStyleAccountScope(session)).not.toBe(subtitleStyleAccountScope({ ...session, cloudServerId: 'server-two' }));
+  });
+
+  it('orders in-flight account saves across episodes and skips unmounted queued edits', async () => {
+    const first = setup('two-episode-account');
+    const second = setup('two-episode-account');
+    let finish!: () => void;
+    let stored = DEFAULT_SUBTITLE_STYLE;
+    first.options.writeAccount.mockImplementationOnce((style) => new Promise<void>((resolve) => {
+      finish = () => { stored = style; resolve(); };
+    }));
+    second.options.writeAccount.mockImplementation(async (style) => { stored = style; });
+    const oldSave = first.sync.save(local);
+    await vi.waitFor(() => expect(first.options.writeAccount).toHaveBeenCalledTimes(1));
+    const obsolete = first.sync.save(DEFAULT_SUBTITLE_STYLE);
+    first.options.active = () => false;
+    const newSave = second.sync.save(account);
+    await vi.waitFor(() => expect(second.options.writeDevice).toHaveBeenCalledWith(account));
+    expect(second.options.writeAccount).not.toHaveBeenCalled();
+    finish();
+    await Promise.all([oldSave, obsolete, newSave]);
+    expect(first.options.writeAccount).toHaveBeenCalledTimes(1);
+    expect(second.options.writeAccount).toHaveBeenCalledWith(account);
+    expect(stored).toEqual(account);
+    expect(first.options.saved).not.toHaveBeenCalled();
+  });
+
+  it('orders device writes across episodes and skips obsolete unmounted writes', async () => {
+    const first = setup();
+    const second = setup();
+    let finish!: () => void;
+    let stored = DEFAULT_SUBTITLE_STYLE;
+    first.options.writeDevice.mockImplementationOnce((style) => new Promise<void>((resolve) => {
+      finish = () => { stored = style; resolve(); };
+    }));
+    second.options.writeDevice.mockImplementation(async (style) => { stored = style; });
+    const oldSave = first.sync.save(local);
+    await vi.waitFor(() => expect(first.options.writeDevice).toHaveBeenCalledTimes(1));
+    const obsolete = first.sync.save(DEFAULT_SUBTITLE_STYLE);
+    first.options.active = () => false;
+    const newSave = second.sync.save(account);
+    expect(second.options.writeDevice).not.toHaveBeenCalled();
+    finish();
+    await Promise.all([oldSave, obsolete, newSave]);
+    expect(first.options.writeDevice).toHaveBeenCalledTimes(1);
+    expect(stored).toEqual(account);
+  });
+
+  it('uses the latest API endpoint and cache key when a queued save begins after reconnect', async () => {
+    const { options } = setup();
+    const oldApi = vi.fn().mockResolvedValue(undefined);
+    const newApi = vi.fn().mockResolvedValue(undefined);
+    const connection = { current: { put: oldApi, serverUrl: 'https://old' } };
+    const cache = vi.fn();
+    options.writeAccount.mockImplementation((style) => connection.current.put('/api/account/preferences', { subtitleStyle: style }));
+    options.saved.mockImplementation((style) => cache([connection.current.serverUrl, 'account-prefs'], style));
+    const sync = createSubtitleStyleSync(options);
+    const saving = sync.save(account);
+    connection.current = { put: newApi, serverUrl: 'https://new' };
+    await saving;
+    expect(oldApi).not.toHaveBeenCalled();
+    expect(newApi).toHaveBeenCalledWith('/api/account/preferences', { subtitleStyle: account });
+    expect(cache).toHaveBeenCalledWith(['https://new', 'account-prefs'], account);
+  });
+
   it('does not mount playback before delayed account preferences resolve', async () => {
     const { options, sync } = setup();
     expect(subtitlePreferencesReady({ isLoading: true, isFetching: true, isFetchedAfterMount: false })).toBe(false);

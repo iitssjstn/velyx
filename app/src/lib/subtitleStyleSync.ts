@@ -1,5 +1,20 @@
 import { readSubtitleStyle, type SubtitleStyle } from './subtitleStyle';
 
+const accountQueues = new Map<string, Promise<unknown>>();
+let deviceQueue: Promise<unknown> = Promise.resolve();
+
+export function subtitleStyleAccountScope(session: { cloudServerId: string | null; serverUrl: string | null; userId: number | null }): string {
+  return JSON.stringify([session.cloudServerId ?? session.serverUrl, session.userId]);
+}
+
+function enqueueAccount(scope: string, write: () => Promise<void>): Promise<unknown> {
+  const pending = (accountQueues.get(scope) ?? Promise.resolve()).catch(() => undefined).then(write);
+  accountQueues.set(scope, pending);
+  const cleanup = () => { if (accountQueues.get(scope) === pending) accountQueues.delete(scope); };
+  void pending.then(cleanup, cleanup);
+  return pending;
+}
+
 /** Wait for the first account response, even with stale cache; never interrupt existing playback. */
 export function subtitlePreferencesReady(query: { isLoading: boolean; isFetching: boolean; isFetchedAfterMount: boolean }): boolean {
   return !query.isLoading && (!query.isFetching || query.isFetchedAfterMount);
@@ -7,6 +22,7 @@ export function subtitlePreferencesReady(query: { isLoading: boolean; isFetching
 
 /** Account choices win at startup; without an account style, keep this device's choices. */
 export function createSubtitleStyleSync(options: {
+  scope: string;
   readDevice: () => Promise<SubtitleStyle>;
   writeDevice: (style: SubtitleStyle) => Promise<void>;
   writeAccount: (style: SubtitleStyle) => Promise<unknown>;
@@ -16,11 +32,9 @@ export function createSubtitleStyleSync(options: {
   active: () => boolean;
 }) {
   let revision = 0;
-  let deviceQueue: Promise<unknown> = Promise.resolve();
-  let accountQueue: Promise<unknown> = Promise.resolve();
   const writeDevice = (style: SubtitleStyle, expected: number) => {
     deviceQueue = deviceQueue.catch(() => undefined).then(() => {
-      if (revision === expected) return options.writeDevice(style);
+      if (options.active() && revision === expected) return options.writeDevice(style);
     });
     return deviceQueue;
   };
@@ -38,7 +52,8 @@ export function createSubtitleStyleSync(options: {
       const expected = ++revision;
       options.change(style);
       const device = writeDevice(style, expected);
-      accountQueue = accountQueue.catch(() => undefined).then(async () => {
+      const account = enqueueAccount(options.scope, async () => {
+        if (!options.active() || revision !== expected) return;
         try {
           await options.writeAccount(style);
           if (options.active() && revision === expected) options.saved(style);
@@ -46,7 +61,7 @@ export function createSubtitleStyleSync(options: {
           if (options.active() && revision === expected) options.failed(error);
         }
       });
-      return Promise.all([device, accountQueue]);
+      return Promise.all([device, account]);
     },
   };
 }

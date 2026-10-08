@@ -20,7 +20,7 @@ import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAud
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
 import { rememberSubtitle, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
 import { DEFAULT_SUBTITLE_STYLE, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
-import { createSubtitleStyleSync, subtitlePreferencesReady } from '../../../lib/subtitleStyleSync';
+import { createSubtitleStyleSync, subtitlePreferencesReady, subtitleStyleAccountScope } from '../../../lib/subtitleStyleSync';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
 import { errorMessage } from '../../../lib/connection';
 import { useSession } from '../../../lib/session';
@@ -122,7 +122,7 @@ function Problem({ message }: { message: string }) {
 }
 
 function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs: Prefs | null; startAt: number | null; onCastingChange: (active: boolean) => void }) {
-  const { api, t, serverUrl, language } = useSession();
+  const { api, t, serverUrl, language, cloudServerId, user } = useSession();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
   const player = useVideoPlayer(null, (p) => {
@@ -155,12 +155,16 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   const [screenHeight, setScreenHeight] = useState(360);
   const [styleSaveFailed, setStyleSaveFailed] = useState(false);
   const styleAlive = useRef(true);
+  const styleConnection = useRef({ api, serverUrl, cloudServerId, userId: user?.id ?? null });
+  styleConnection.current = { api, serverUrl, cloudServerId, userId: user?.id ?? null };
   const styleSync = useRef<ReturnType<typeof createSubtitleStyleSync> | null>(null);
   if (!styleSync.current) {
+    const scope = subtitleStyleAccountScope(styleConnection.current);
     styleSync.current = createSubtitleStyleSync({
+      scope,
       readDevice: storedSubtitleStyle,
       writeDevice: storeSubtitleStyle,
-      writeAccount: (style) => api.put('/api/account/preferences', { subtitleStyle: style }),
+      writeAccount: (style) => styleConnection.current.api.put('/api/account/preferences', { subtitleStyle: style }),
       change: (style) => {
         styleRef.current = style;
         setSubStyle(style);
@@ -168,10 +172,10 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
       },
       saved: (style) => {
         setStyleSaveFailed(false);
-        qc.setQueryData<Prefs>([serverUrl, 'account-prefs'], (current) => current ? { ...current, subtitleStyle: style } : current);
+        qc.setQueryData<Prefs>([styleConnection.current.serverUrl, 'account-prefs'], (current) => current ? { ...current, subtitleStyle: style } : current);
       },
       failed: () => setStyleSaveFailed(true),
-      active: () => styleAlive.current,
+      active: () => styleAlive.current && subtitleStyleAccountScope(styleConnection.current) === scope,
     });
   }
   useEffect(() => {

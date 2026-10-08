@@ -261,13 +261,14 @@ export function useCast(item: CastItem | null) {
       const chosen = s.subtitles.findIndex((sub) => sub.key === requestedSubtitle);
       request.activeTrackIds = chosen >= 0 ? [chosen + 1] : [];
       await castSession.loadMedia(request);
-      await setStyle();
       if (subtitleKey.current !== requestedSubtitle && player.current && controller.current) {
         const latest = s.subtitles.findIndex((sub) => sub.key === subtitleKey.current);
         player.current.activeTrackIds = latest >= 0 ? [latest + 1] : [];
         controller.current.setActiveTrackIds();
       }
       setState((st) => ({ ...st, active: true, device: castSession.getCastDevice()?.friendlyName ?? null, time: at, playing: true, volume: player.current.volumeLevel ?? st.volume, muted: Boolean(player.current.isMuted), error: null }));
+      // Styling must not prevent takeover of a video that is already playing on the TV.
+      await setStyle().catch((error) => setState((st) => ({ ...st, error: error instanceof Error ? error.message : String(error) })));
     },
     [setStyle],
   );

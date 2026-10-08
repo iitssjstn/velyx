@@ -56,7 +56,10 @@ function fakeSdk() {
   };
   const applied: unknown[] = [];
   const mediaSession = {
-    editTracksInfo: vi.fn((request: { textTrackStyle: unknown }, success: () => void) => { applied.push(request.textTrackStyle); success(); }),
+    editTracksInfo: vi.fn((request: { textTrackStyle: unknown }, success: () => void, failure: (error: unknown) => void) => {
+      if (!request.textTrackStyle) failure(new Error('Missing style'));
+      else { applied.push(request.textTrackStyle); success(); }
+    }),
   };
   let current: typeof session | null = null;
   const context = {
@@ -121,6 +124,28 @@ function fakeSdk() {
 
 describe('casting from the player', () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it('takes over successful playback even when the receiver rejects both subtitle styles', async () => {
+    vi.resetModules();
+    const sdk = fakeSdk();
+    vi.stubGlobal('chrome', sdk.chrome);
+    vi.spyOn(document.head, 'append').mockImplementation(() => {
+      (window as unknown as { cast: unknown }).cast = { framework: sdk.framework };
+      setTimeout(() => (window as unknown as { __onGCastApiAvailable: (ok: boolean) => void }).__onGCastApiAvailable(true));
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      token: 'tok', expiresAt: Date.now() + 3_600_000, directUrl: null, serverUrl: null, contentType: 'video/mp4',
+      decision: { engine: 'direct', streamUrl: '/api/media/5/stream', seek: 'range', durationSec: 3000 }, subtitles: [],
+    }), { status: 200 })));
+    sdk.mediaSession.editTracksInfo.mockImplementation((_request, _success, failure) => failure(new Error('Style unsupported')));
+    const { useCast } = await import('./cast');
+    const { result, unmount } = renderHook(() => useCast({ fileId: 5, audioIndex: null, title: 'Dune', subtitleKey: null, locate: async () => ({ offset: 0, seek: 0 }) }));
+    await waitFor(() => expect(sdk.context.setOptions).toHaveBeenCalled());
+    await act(() => result.current.start(0));
+    expect(sdk.loaded).toHaveLength(1);
+    expect(result.current).toMatchObject({ active: true, playing: true, device: 'Woonkamer', error: 'Style unsupported' });
+    unmount();
+  });
 
   it('continues on the TV where the page was, with the token, subtitles and a start for repackaged streams', async () => {
     vi.resetModules();
