@@ -43,7 +43,6 @@ export const cloud: Messages['cloud'] = {
   directTitle: 'Directe verbinding',
   directPortIntro: 'Vul de publieke TCP-poort in. Stel in je router een TCP-doorschakeling in van deze poort naar poort {port} van deze server.',
   directPort: 'Publieke poort',
-  directAddress: 'Automatisch serveradres',
   directDns: 'DNS-status',
   directTls: 'HTTPS-certificaat',
   directReachability: 'Bereikbaarheid publieke poort',

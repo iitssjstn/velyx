@@ -36,6 +36,13 @@ describe('Cloudflare direct DNS records', () => {
     expect((calls[0]?.init?.headers as Record<string, string>).Authorization).toBe('Bearer test-token');
   });
 
+  it('returns the authoritative nameservers from the configured Cloudflare zone', async () => {
+    const fetchImpl: typeof fetch = async () => json([{ id: 'zone-1', name: 'vidalune.com', name_servers: ['ns1.cloudflare.test', 'ns2.cloudflare.test'] }]);
+    const dns = new CloudflareDns({ token: 'test-token', zoneName: 'vidalune.com', fetchImpl, apiBase: 'https://cf.test' });
+
+    await expect(dns.authoritativeNameServers()).resolves.toEqual(['ns1.cloudflare.test', 'ns2.cloudflare.test']);
+  });
+
   it('updates changed addresses and skips writes when the record is current', async () => {
     const updates: Array<{ url: string; init?: RequestInit }> = [];
     const fetchImpl: typeof fetch = async (input, init) => {

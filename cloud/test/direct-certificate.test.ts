@@ -18,16 +18,10 @@ describe('direct server certificates', () => {
     const [, csr] = await acme.crypto.createCsr({ commonName: hostname, altNames: [hostname] });
     const records: Array<[string, string]> = [];
     let publicQueries = 0;
-    const fetchImpl = vi.fn(async () => {
-      publicQueries += 1;
-      const visible = publicQueries > 1;
-      return new Response(JSON.stringify(visible
-        ? { Status: 0, Answer: [{ data: `"${records[0]![1]}"` }] }
-        : { Status: 3 }), { status: 200 });
-    });
     const dns = {
       createTxt: async (name: string, value: string) => { records.push([name, value]); return 'txt-record-1'; },
       deleteTxt: async (id: string) => { records.push(['deleted', id]); },
+      authoritativeNameServers: async () => ['ns1.cloudflare.test', 'ns2.cloudflare.test'],
     } as unknown as CloudflareDns;
     const createClient = vi.fn(() => ({
       auto: async (options: acme.ClientAutoOptions) => {
@@ -53,7 +47,12 @@ describe('direct server certificates', () => {
       directoryUrl: 'https://acme-staging.example/directory',
       dns,
       createClient,
-      fetchImpl,
+      resolveNameServerAddresses: async (nameServer) => [nameServer === 'ns1.cloudflare.test' ? '192.0.2.53' : '192.0.2.54'],
+      resolveTxtAt: async (address, name) => {
+        expect(name).toBe('_acme-challenge.server-1.media.vidalune.com');
+        publicQueries += 1;
+        return publicQueries > 2 ? [[records[0]![1]]] : [];
+      },
       dnsPropagationPollMs: 0,
     });
 
@@ -62,7 +61,7 @@ describe('direct server certificates', () => {
     const expected = Buffer.from(digest).toString('base64url');
     expect(certificate).toBe('issued certificate chain');
     expect(records).toEqual([['_acme-challenge.server-1.media.vidalune.com', expected], ['deleted', 'txt-record-1']]);
-    expect(publicQueries).toBe(2);
+    expect(publicQueries).toBe(4);
     expect(optionsOf(createClient).directoryUrl).toBe('https://acme-staging.example/directory');
     if (process.platform !== 'win32') expect(fs.statSync(path.join(dir, 'direct-acme-account.key')).mode & 0o777).toBe(0o600);
   });
