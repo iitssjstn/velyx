@@ -58,6 +58,92 @@ function renderPlayer() {
 
 const spinnerShown = () => screen.queryAllByLabelText('Loading').length > 0;
 
+describe('subtitles after seeking', () => {
+  it('drops the old stream subtitle and loads shifted cues after a remux seek', async () => {
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      let body: unknown = {};
+      if (url === '/api/movies/3') body = MOVIE;
+      if (url === '/api/media/3/playback') body = { ...PLAYBACK, decision: { ...PLAYBACK.decision, engine: 'remux', seek: 'restart', streamUrl: '/api/media/3/remux?audio=1' }, subtitles: [{ key: 'ext-1', kind: 'external', label: 'English', language: 'eng', forced: false, isDefault: true, url: '/api/subtitles/1.vtt' }] };
+      if (url === '/api/account/preferences') body = { audioLanguage: '', subtitleLanguage: 'eng', subtitleFallback: '', subtitleMode: 'always' };
+      if (url.startsWith('/api/media/3/keyframe')) body = { start: 118, seek: 118 };
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    renderPlayer();
+    const oldVideo = await vi.waitFor(() => {
+      const video = document.querySelector('video');
+      if (!video?.querySelector('track')) throw new Error('no video track');
+      return video;
+    });
+    const oldState = fakeVideo(oldVideo);
+    oldState.currentTime = 10;
+    const oldTrack = { mode: 'disabled', cues: [{ startTime: 9, endTime: 12, text: 'Subtitle before remux seek' }] };
+    Object.defineProperty(oldVideo, 'textTracks', { configurable: true, value: { length: 1, 0: oldTrack } });
+    Object.defineProperty(oldVideo.querySelector('track'), 'track', { configurable: true, value: oldTrack });
+    fireEvent.loadedMetadata(oldVideo);
+    expect(await screen.findByText('Subtitle before remux seek')).toBeTruthy();
+    fireEvent.keyDown(window, { key: '5' });
+    const newVideo = await vi.waitFor(() => {
+      const video = document.querySelector('video');
+      if (!video || video === oldVideo) throw new Error('stream has not restarted');
+      return video;
+    });
+    expect(screen.queryByText('Subtitle before remux seek')).toBeNull();
+    expect(newVideo.getAttribute('src')).toBe('/api/media/3/remux?audio=1&start=118.000');
+    expect(newVideo.querySelector('track')?.getAttribute('src')).toBe('/api/subtitles/1.vtt?offset=118.000');
+    const state = fakeVideo(newVideo);
+    state.currentTime = 2;
+    const newTrack = { mode: 'disabled', cues: [{ startTime: 1, endTime: 4, text: 'Subtitle after remux seek' }] };
+    Object.defineProperty(newVideo, 'textTracks', { configurable: true, value: { length: 1, 0: newTrack } });
+    Object.defineProperty(newVideo.querySelector('track'), 'track', { configurable: true, value: newTrack });
+    fireEvent.loadedMetadata(newVideo);
+    fireEvent.load(newVideo.querySelector('track')!);
+    expect(await screen.findByText('Subtitle after remux seek')).toBeTruthy();
+  });
+
+  it('reattaches the chosen subtitle when its text track becomes available after video metadata', async () => {
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      let body: unknown = {};
+      if (url === '/api/movies/3') body = MOVIE;
+      if (url === '/api/media/3/playback') body = { ...PLAYBACK, subtitles: [{ key: 'ext-1', kind: 'external', label: 'English', language: 'eng', forced: false, isDefault: true, url: '/api/subtitles/1.vtt' }] };
+      if (url === '/api/account/preferences') body = { audioLanguage: '', subtitleLanguage: 'eng', subtitleFallback: '', subtitleMode: 'always' };
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    renderPlayer();
+    const video = await vi.waitFor(() => {
+      const element = document.querySelector('video');
+      if (!element?.querySelector('track')) throw new Error('subtitle track not mounted');
+      return element;
+    });
+    const state = fakeVideo(video);
+    const tracks = { length: 0 };
+    Object.defineProperty(video, 'textTracks', { configurable: true, value: tracks });
+    fireEvent.loadedMetadata(video);
+    state.currentTime = 30;
+    fireEvent.seeked(video);
+    const track = { mode: 'disabled', cues: [{ startTime: 29, endTime: 32, text: 'Subtitle at the new position' }] };
+    const native = { mode: 'showing', cues: [{ startTime: 29, endTime: 32, text: 'Wrong native caption' }] };
+    Object.assign(tracks, { length: 2, 0: native, 1: track });
+    Object.defineProperty(video.querySelector('track'), 'track', { configurable: true, value: track });
+    fireEvent.load(video.querySelector('track')!);
+    expect(await screen.findByText('Subtitle at the new position')).toBeTruthy();
+    expect(track.mode).toBe('hidden');
+    expect(native.mode).toBe('disabled');
+    expect(screen.queryByText('Wrong native caption')).toBeNull();
+    act(() => { track.cues.push({ startTime: 59, endTime: 62, text: 'Subtitle further ahead' }); });
+    fireEvent.seeking(video);
+    expect(screen.queryByText('Subtitle at the new position')).toBeNull();
+    state.currentTime = 60;
+    fireEvent.seeked(video);
+    expect(await screen.findByText('Subtitle further ahead')).toBeTruthy();
+    state.currentTime = 30;
+    fireEvent.seeking(video);
+    fireEvent.seeked(video);
+    expect(await screen.findByText('Subtitle at the new position')).toBeTruthy();
+  });
+});
+
 describe('the loading spinner of the player', () => {
   it('goes away once the picture moves, also when the browser never reports "playing" again', async () => {
     renderPlayer();

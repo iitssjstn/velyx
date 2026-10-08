@@ -14,7 +14,7 @@ import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
 import { castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
-import { castLoadRequest, castTrackIds, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from '../../../lib/cast';
+import { castLoadRequest, castTrackIds, loadCastWithCurrentSubtitle, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
@@ -259,7 +259,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
       setOffset(from);
       setTime(Math.max(0, at - from));
       setEnded(false);
-      await client.loadMedia(request);
+      await loadCastWithCurrentSubtitle({ request, session: s.session, subtitleKey: () => subtitleRef.current?.key ?? null, load: (media) => client.loadMedia(media), select: (ids) => client.setActiveTrackIds(ids) });
     },
     [api, client, item.fileId, item.title, item.subtitle, item.artwork, subStyle],
   );

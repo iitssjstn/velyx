@@ -125,6 +125,20 @@ export function castTrackIds(session: CastSession | null, subtitleKey: string | 
   return i >= 0 ? [i + 1] : [];
 }
 
+export async function loadCastWithCurrentSubtitle(options: {
+  request: CastLoadRequest;
+  session: CastSession;
+  subtitleKey: () => string | null;
+  load: (request: CastLoadRequest) => Promise<unknown>;
+  select: (ids: number[]) => Promise<unknown>;
+}): Promise<void> {
+  const requested = options.subtitleKey();
+  options.request.activeTrackIds = castTrackIds(options.session, requested);
+  await options.load(options.request);
+  const current = options.subtitleKey();
+  if (current !== requested) await options.select(castTrackIds(options.session, current));
+}
+
 /**
  * Opens Google's Chromecast list. On Android it can only open through a native cast button on the
  * screen (the player keeps an invisible one); `false` means it did not open, which is said instead

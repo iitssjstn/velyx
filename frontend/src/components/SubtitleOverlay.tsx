@@ -21,16 +21,21 @@ export function SubtitleOverlay({
   prefs: PlaybackPrefs;
   controlsVisible: boolean;
 }) {
-  const [lines, setLines] = useState<{ key: string; spans: CueSpan[] }[]>([]);
+  const [caption, setCaption] = useState<{
+    video: HTMLVideoElement;
+    track: TextTrack;
+    delay: number;
+    lines: { key: string; spans: CueSpan[] }[];
+  } | null>(null);
 
   useEffect(() => {
     if (!video || !track) {
-      setLines([]);
+      setCaption(null);
       return;
     }
     // Another track (or file): the lines of the previous one go at once, also while the new
     // track's cues are still loading (an embedded subtitle can take a while to be extracted).
-    setLines([]);
+    setCaption(null);
     let raf = 0;
     let lastKey = '';
     const tick = () => {
@@ -46,7 +51,7 @@ export function SubtitleOverlay({
       const key = active.map((c) => `${c.startTime}-${c.text}`).join('|');
       if (key !== lastKey) {
         lastKey = key;
-        setLines(active.flatMap((c, ci) => parseCueText(c.text).map((spans, li) => ({ key: `${c.startTime}-${ci}-${li}`, spans }))));
+        setCaption({ video, track, delay, lines: active.flatMap((c, ci) => parseCueText(c.text).map((spans, li) => ({ key: `${c.startTime}-${ci}-${li}`, spans }))) });
       }
       raf = requestAnimationFrame(tick);
     };
@@ -54,7 +59,7 @@ export function SubtitleOverlay({
     return () => cancelAnimationFrame(raf);
   }, [video, track, delay]);
 
-  if (!lines.length) return null;
+  if (!caption || caption.video !== video || caption.track !== track || caption.delay !== delay || !caption.lines.length) return null;
   const style = subtitleLineStyle(prefs);
   return (
     <div
@@ -62,7 +67,7 @@ export function SubtitleOverlay({
       style={{ bottom: subtitleBottom(controlsVisible, prefs.subtitlePosition), fontSize: style.fontSize }}
       aria-live="off"
     >
-      {lines.map((line) => (
+      {caption.lines.map((line) => (
         <div key={line.key} className="max-w-full">
           <span style={style}>
             {line.spans.map((s, i) => (

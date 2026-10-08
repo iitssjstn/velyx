@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { castAddress, castLoadRequest, castTextTrackStyle, castTrackIds, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from './cast';
+import { castAddress, castLoadRequest, castTextTrackStyle, castTrackIds, loadCastWithCurrentSubtitle, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from './cast';
 
 const url = (path: string) => `http://nas:3000${path.startsWith('/') ? path : `/${path}`}`;
 const session = (seek: 'range' | 'restart'): CastSession => ({
@@ -64,6 +64,21 @@ describe('casting from the app', () => {
     expect(request.mediaInfo.metadata).toEqual({ type: 'generic', title: 'Dune' });
     // From the start: no keyframe needed.
     expect(castLoadRequest({ session: session('restart'), url, title: 'Dune', subtitle: null, artwork: null, at: 0, keyframe: null, subtitleKey: null }).request.mediaInfo.contentUrl).toBe('http://nas:3000/api/media/5/remux?audio=1&cast=tok.en');
+  });
+
+  it.each(['emb-3', null])('preserves a subtitle change to %s during a cast seek reload', async (next) => {
+    const source = session('restart');
+    let selected: string | null = 'ext-2';
+    const { request } = castLoadRequest({ session: source, url, title: 'Dune', subtitle: null, artwork: null, at: 600, keyframe: { offset: 598, seek: 598.5 }, subtitleKey: selected });
+    let loaded!: () => void;
+    const selections: number[][] = [];
+    const loading = loadCastWithCurrentSubtitle({ request, session: source, subtitleKey: () => selected, load: () => new Promise<void>((resolve) => { loaded = resolve; }), select: async (ids) => { selections.push(ids); } });
+    expect(request.activeTrackIds).toEqual([1]);
+    selected = next;
+    loaded();
+    await loading;
+    expect(selections).toEqual([next === null ? [] : [2]]);
+    expect(request.mediaInfo.mediaTracks[1]!.contentId).toContain('offset=598.000');
   });
 
   it('switches subtitles on the TV and asks for a new session in time, or for another audio track', () => {

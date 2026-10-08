@@ -35,7 +35,7 @@ describe('Cast subtitle style', () => {
 function fakeSdk() {
   const loaded: Array<{ url: string; type: string; currentTime: number; tracks: Array<{ trackContentId: string }>; active: number[]; textTrackStyle: unknown }> = [];
   const listeners = new Map<string, () => void>();
-  const remote = { currentTime: 0, isPaused: false, isConnected: true };
+  const remote = { currentTime: 0, isPaused: false, isConnected: true, activeTrackIds: [] as number[] };
   const session = {
     loadMedia: vi.fn(async (req: { media: { contentId: string; contentType: string; tracks: Array<{ trackContentId: string }>; textTrackStyle: unknown }; currentTime: number; activeTrackIds: number[] }) => {
       loaded.push({ url: req.media.contentId, type: req.media.contentType, currentTime: req.currentTime, tracks: req.media.tracks, active: req.activeTrackIds, textTrackStyle: req.media.textTrackStyle });
@@ -56,7 +56,7 @@ function fakeSdk() {
       current = null;
     }),
   };
-  const controller = { addEventListener: (type: string, cb: () => void) => listeners.set(type, cb), removeEventListener: vi.fn((type: string) => listeners.delete(type)), playOrPause: vi.fn(), seek: vi.fn() };
+  const controller = { addEventListener: (type: string, cb: () => void) => listeners.set(type, cb), removeEventListener: vi.fn((type: string) => listeners.delete(type)), playOrPause: vi.fn(), seek: vi.fn(), setActiveTrackIds: vi.fn() };
   class Obj {
     [k: string]: unknown;
     constructor(...args: unknown[]) {
@@ -148,9 +148,32 @@ describe('casting from the player', () => {
     act(() => sdk.listeners.get('time')!());
     expect(result.current.time).toBe(608);
     // Seeking a repackaged stream loads it again from there.
+    act(() => result.current.setSubtitle(null));
     await act(async () => result.current.seek(1200));
     await waitFor(() => expect(sdk.loaded).toHaveLength(2));
     expect(sdk.loaded[1].url).toContain('start=1198.000');
+    expect(sdk.loaded[1].active).toEqual([]);
+    expect(sdk.loaded[1].tracks[0].trackContentId).toContain('offset=1198.000');
+    let located!: (result: { offset: number; seek: number }) => void;
+    locate.mockImplementationOnce(() => new Promise((resolve) => { located = resolve; }));
+    act(() => result.current.seek(1500));
+    act(() => result.current.setSubtitle('emb-3'));
+    await act(async () => located({ offset: 1498, seek: 1498 }));
+    await waitFor(() => expect(sdk.loaded).toHaveLength(3));
+    expect(sdk.loaded[2].active).toEqual([1]);
+    const castSession = sdk.context.getCurrentSession()!;
+    const loadMedia = castSession.loadMedia.getMockImplementation()!;
+    let finishLoad!: () => void;
+    castSession.loadMedia.mockImplementationOnce(async (request) => {
+      await new Promise<void>((resolve) => { finishLoad = resolve; });
+      await loadMedia(request);
+      sdk.remote.activeTrackIds = [...request.activeTrackIds];
+    });
+    const loading = result.current.reload(1600);
+    await waitFor(() => expect(finishLoad).toBeTypeOf('function'));
+    act(() => result.current.setSubtitle(null));
+    await act(async () => { finishLoad(); await loading; });
+    expect(sdk.remote.activeTrackIds).toEqual([]);
     act(() => result.current.togglePlay());
     expect(sdk.controller.playOrPause).toHaveBeenCalled();
     locate.mockRejectedValueOnce(new Error('seek unavailable'));
