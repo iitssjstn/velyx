@@ -54,6 +54,21 @@ describe('OptimizationPage', () => {
     expect(calls.some((call) => call.url === '/api/admin/optimizations/3' && call.method === 'DELETE')).toBe(true);
   });
 
+  it('stops a running copy and resumes it with its saved progress', async () => {
+    let paused = false;
+    const calls = setup({ paused: false, items: [running] }, (url, method) => {
+      if (url === '/api/admin/optimizations/1/stop' && method === 'POST') { paused = true; return { ok: true }; }
+      if (url === '/api/admin/optimizations') return { paused: false, items: [{ ...running, status: paused ? 'paused' : 'processing', progress: 42 }] };
+      if (url === '/api/admin/media/7/optimizations' && method === 'POST') return { variant: { ...running, status: 'queued' } };
+    });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Stop: Heat' }));
+    await user.click(await screen.findByRole('button', { name: 'Resume' }));
+    expect(screen.getByText('42%')).toBeTruthy();
+    expect(calls.some((call) => call.url === '/api/admin/optimizations/1/stop' && call.method === 'POST')).toBe(true);
+    expect(calls.some((call) => call.url === '/api/admin/media/7/optimizations' && call.body === '{"profile":"compat-720p"}')).toBe(true);
+  });
+
   it('offers creation controls even when the queue is empty', async () => {
     setup({ paused: false, items: [] });
     expect(await screen.findByText('No optimized copies')).toBeTruthy();

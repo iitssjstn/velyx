@@ -10,6 +10,9 @@ export const optimization: Messages['optimization'] = {
   unknownQuality: 'Onbekende kwaliteit',
   create: 'Optimaliseren',
   retry: 'Opnieuw proberen',
+  stop: 'Stoppen',
+  stopped: 'Optimalisatie gestopt. Voortgang bewaard.',
+  resume: 'Hervatten',
   queued: 'In wachtrij',
   processing: 'Bezig met optimaliseren',
   ready: 'Klaar',
@@ -20,7 +23,7 @@ export const optimization: Messages['optimization'] = {
   removeTitle: 'Geoptimaliseerde kopie verwijderen?',
   removeText: 'Alleen de gegenereerde kopie wordt verwijderd. Het originele mediabestand blijft onaangeroerd.',
   removed: 'Geoptimaliseerde kopie verwijderd.',
-  status: { queued: 'In wachtrij', processing: 'Bezig', ready: 'Klaar', failed: 'Mislukt', stale: 'Verouderd' },
+  status: { queued: 'In wachtrij', processing: 'Bezig', ready: 'Klaar', failed: 'Mislukt', stale: 'Verouderd', paused: 'Gestopt door beheerder' },
   pick: {
     search: 'Bibliotheek doorzoeken',
     title: 'Titel kiezen',

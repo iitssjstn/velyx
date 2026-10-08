@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { HardDriveDownload, PauseCircle, RotateCcw, Trash2 } from 'lucide-react';
+import { HardDriveDownload, PauseCircle, Play, RotateCcw, Square, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useDebounced } from '../../lib/hooks';
 import type { MovieDetail, SearchResults, SeasonDetail, ShowDetail } from '../../lib/types';
@@ -13,7 +13,7 @@ import { EmptyState, ErrorState, PageLoader } from '../../components/States';
 import { toast } from '../../components/Toast';
 import { useT } from '../../i18n';
 
-type Status = 'queued' | 'processing' | 'ready' | 'failed' | 'stale';
+type Status = 'queued' | 'processing' | 'ready' | 'failed' | 'stale' | 'paused';
 
 interface QueueItem {
   id: number;
@@ -42,9 +42,10 @@ const TONE: Record<Status, string> = {
   ready: 'bg-ok/15 text-ok',
   failed: 'bg-danger/15 text-danger',
   stale: 'bg-amber/15 text-amber',
+  paused: 'bg-raised text-muted',
 };
 
-const ORDER: Status[] = ['processing', 'queued', 'failed', 'stale', 'ready'];
+const ORDER: Status[] = ['processing', 'queued', 'paused', 'failed', 'stale', 'ready'];
 
 function OptimizationSource() {
   const { t } = useT();
@@ -153,7 +154,18 @@ export function OptimizationPage() {
     queryFn: () => api.get<Queue>('/api/admin/optimizations'),
     refetchInterval: (query) => (query.state.data?.items.some((item) => item.status === 'queued' || item.status === 'processing') ? 2000 : false),
   });
-  const refresh = () => void qc.invalidateQueries({ queryKey: ['admin', 'optimizations'] });
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ['admin', 'optimizations'] });
+    void qc.invalidateQueries({ queryKey: ['optimizations'] });
+  };
+  const stop = useMutation({
+    mutationFn: (item: QueueItem) => api.post(`/api/admin/optimizations/${item.id}/stop`),
+    onSuccess: () => {
+      toast.success(t('optimization.stopped'));
+      refresh();
+    },
+    onError: (error) => toast.error(error),
+  });
   const retry = useMutation({
     mutationFn: (item: QueueItem) => api.post(`/api/admin/media/${item.fileId}/optimizations`, { profile: item.profile }),
     onSuccess: () => {
@@ -217,9 +229,14 @@ export function OptimizationPage() {
                     </div>
                     <span className="text-xs text-muted">{profileLabel(item)}{item.outputSize ? ` · ${formatBytes(item.outputSize)}` : ''}</span>
                     <span className={`rounded-full px-2 py-0.5 text-xs ${TONE[item.status]}`}>{t(`optimization.status.${item.status}`)}</span>
-                    {(item.status === 'failed' || item.status === 'stale') && (
-                      <Button size="sm" variant="secondary" icon={<RotateCcw className="size-4" />} loading={retry.isPending && retry.variables?.id === item.id} onClick={() => retry.mutate(item)}>
-                        {t('optimization.retry')}
+                    {(item.status === 'queued' || item.status === 'processing') && (
+                      <Button size="sm" variant="secondary" icon={<Square className="size-4" />} loading={stop.isPending && stop.variables?.id === item.id} aria-label={`${t('optimization.stop')}: ${name}`} onClick={() => stop.mutate(item)}>
+                        {t('optimization.stop')}
+                      </Button>
+                    )}
+                    {(item.status === 'failed' || item.status === 'stale' || item.status === 'paused') && (
+                      <Button size="sm" variant="secondary" icon={item.status === 'paused' ? <Play className="size-4" /> : <RotateCcw className="size-4" />} loading={retry.isPending && retry.variables?.id === item.id} disabled={stop.isPending && stop.variables?.id === item.id} onClick={() => retry.mutate(item)}>
+                        {item.status === 'paused' ? t('optimization.resume') : t('optimization.retry')}
                       </Button>
                     )}
                     <button
@@ -227,15 +244,15 @@ export function OptimizationPage() {
                       className="grid size-8 place-items-center rounded-full hover:bg-raised hover:text-danger disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-inherit"
                       aria-label={`${t('optimization.remove')}: ${name}`}
                       title={t('optimization.remove')}
-                      disabled={item.status === 'processing'}
+                      disabled={item.status === 'processing' || (stop.isPending && stop.variables?.id === item.id)}
                       onClick={() => setRemoving(item)}
                     >
                       <Trash2 className="size-4" />
                     </button>
                   </div>
-                  {item.status === 'processing' && (
+                  {(item.status === 'processing' || item.status === 'paused') && (
                     <div className="space-y-1">
-                      <div className="flex justify-between gap-2 text-xs text-muted"><span>{t('optimization.processing')}</span><span>{item.progress}%</span></div>
+                      <div className="flex justify-between gap-2 text-xs text-muted"><span>{t(`optimization.status.${item.status}`)}</span><span>{item.progress}%</span></div>
                       <progress className="h-1.5 w-full accent-[var(--color-accent)]" max={100} value={item.progress} aria-label={`${name}: ${t('optimization.processing')}`} />
                     </div>
                   )}

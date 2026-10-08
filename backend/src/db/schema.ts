@@ -295,7 +295,7 @@ export const optimizedMedia = sqliteTable(
       .notNull()
       .references(() => mediaFiles.id, { onDelete: 'cascade' }),
     profile: text('profile', { enum: ['compat-720p', 'compat-1080p'] }).notNull(),
-    status: text('status', { enum: ['queued', 'processing', 'ready', 'failed'] }).notNull().default('queued'),
+    status: text('status', { enum: ['queued', 'processing', 'ready', 'failed', 'paused'] }).notNull().default('queued'),
     progress: integer('progress').notNull().default(0),
     outputPath: text('output_path').notNull(),
     sourceSize: integer('source_size').notNull(),

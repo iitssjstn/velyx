@@ -6,8 +6,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { machineBusy } from '../src/app.js';
 import { encodeArgs } from '../src/playback/transcode.js';
-import { OPTIMIZATION_PROFILES, optimizationArgs, optimizationThreads, type OptimizationProfile } from '../src/services/optimization.js';
+import { OptimizationService, OPTIMIZATION_PROFILES, optimizationArgs, optimizationThreads, type OptimizationProfile } from '../src/services/optimization.js';
 import { mediaFiles, optimizedMedia } from '../src/db/schema.js';
+import { OptimizationCheckpoint } from '../src/services/optimization-checkpoint.js';
+import { limitProber } from '../src/services/probe-queue.js';
 import { addLibrary, createTestEnv, createUser, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
 
 let env: TestEnv;
@@ -25,7 +27,7 @@ describe('playback optimization profiles', () => {
       const args = optimizationArgs({ profile, input: '/media/source.mkv', output: '/data/optimized/result.mp4', video: encodeArgs('software') });
       expect(args).toContain('/media/source.mkv');
       expect(args).toContain('/data/optimized/result.mp4');
-      expect(args).toContain(`scale=w='min(iw,${dimensions.width})':h='min(ih,${dimensions.height})':force_original_aspect_ratio=decrease:force_divisible_by=2`);
+      expect(args).toContain(`scale=w='min(iw,${dimensions.width})':h='min(ih,${dimensions.height})':force_original_aspect_ratio=decrease,pad=ceil(iw/2)*2:ceil(ih/2)*2`);
       expect(args).toContain('libx264');
       expect(args).toContain('yuv420p');
       expect(args).toContain('aac');
@@ -47,6 +49,15 @@ describe('playback optimization profiles', () => {
     expect(args[args.indexOf('-threads') + 1]).toBe('2');
   });
 
+  it('can resume at a checkpoint and write independently playable segments', () => {
+    const args = optimizationArgs({ profile: 'compat-720p', input: '/in.mkv', output: '/parts/part-%06d.ts', video: encodeArgs('software'), startSec: 120, segment: { list: '/parts/active.csv', startNumber: 2, seconds: 60 } });
+    expect(args[args.indexOf('-ss') + 1]).toBe('120');
+    expect(args.indexOf('-ss')).toBeLessThan(args.indexOf('-i'));
+    expect(args[args.indexOf('-segment_start_number') + 1]).toBe('2');
+    expect(args[args.indexOf('-segment_format') + 1]).toBe('mpegts');
+    expect(args).not.toContain('+faststart');
+  });
+
   it('does not count the load of the copy itself when judging whether the machine is busy', () => {
     const cores = Math.max(1, os.cpus().length);
     const load = vi.spyOn(os, 'loadavg').mockReturnValue([cores * 0.8, 0, 0]);
@@ -56,6 +67,44 @@ describe('playback optimization profiles', () => {
     } finally {
       load.mockRestore();
     }
+  });
+
+  it('preserves completed checkpoints across restarts and discards the unfinished segment', () => {
+    const output = path.join(env.dir, 'checkpoint.mp4');
+    const options = { sourceSize: 100, sourceMtimeMs: 10, durationSec: 180, video: encodeArgs('software') };
+    const checkpoint = new OptimizationCheckpoint(output, options);
+    checkpoint.prepare();
+    touch(path.join(checkpoint.directory, 'part-000000.ts'));
+    touch(path.join(checkpoint.directory, 'part-000001.ts'));
+    fs.writeFileSync(checkpoint.list, 'part-000000.ts,0,60\npart-000001.ts,60,80\n');
+    checkpoint.capture(false);
+    expect(checkpoint.offset).toBe(60);
+    const restored = new OptimizationCheckpoint(output, options);
+    expect(restored.offset).toBe(60);
+    restored.prepare();
+    expect(fs.existsSync(path.join(restored.directory, 'part-000001.ts'))).toBe(false);
+    expect(fs.existsSync(path.join(restored.directory, 'part-000000.ts'))).toBe(true);
+    expect(restored.nextIndex).toBe(1);
+    fs.writeFileSync(restored.list, 'part-000001.ts,0,60\n');
+    touch(path.join(restored.directory, 'part-000001.ts'));
+    restored.capture(false);
+    expect(restored.offset).toBe(120);
+    expect(new OptimizationCheckpoint(output, { ...options, sourceMtimeMs: 11 }).offset).toBe(0);
+  });
+
+  it('remembers completed encoding across restart even when container duration includes an audio tail', () => {
+    const output = path.join(env.dir, 'completed.mp4');
+    const options = { sourceSize: 100, sourceMtimeMs: 10, durationSec: 120.032, video: encodeArgs('software') };
+    const checkpoint = new OptimizationCheckpoint(output, options);
+    checkpoint.prepare();
+    touch(path.join(checkpoint.directory, 'part-000000.ts'));
+    touch(path.join(checkpoint.directory, 'part-000001.ts'));
+    fs.writeFileSync(checkpoint.list, 'part-000000.ts,0,60\npart-000001.ts,60,120\n');
+    checkpoint.capture(true);
+    expect(checkpoint.complete).toBe(true);
+    expect(new OptimizationCheckpoint(output, options).complete).toBe(true);
+    fs.rmSync(path.join(checkpoint.directory, 'part-000001.ts'));
+    expect(new OptimizationCheckpoint(output, options).complete).toBe(false);
   });
 
   it('queues and removes a copy only for an administrator without exposing its data path', async () => {
@@ -93,6 +142,154 @@ describe('playback optimization profiles', () => {
     expect(removed.json()).toEqual({ ok: true });
     expect(env.ctx.db.select().from(optimizedMedia).all()).toHaveLength(0);
   });
+
+  it('allows only admins to stop and resume a queued task, keeping its progress', async () => {
+    const viewer = await createUser(env.app, admin, 'viewer');
+    touch(path.join(env.mediaDir, 'Movies', 'Queued Film.mkv'));
+    await addLibrary(env, admin, 'movies', 'Movies');
+    await env.ctx.optimizations.stop();
+    const file = env.ctx.db.select().from(mediaFiles).get()!;
+    const queued = env.ctx.optimizations.queue(file.id, 'compat-720p');
+    env.ctx.db.update(optimizedMedia).set({ progress: 50 }).where(eq(optimizedMedia.id, queued.id)).run();
+    const stopUrl = `/api/admin/optimizations/${queued.id}/stop`;
+    expect((await env.app.inject({ method: 'POST', url: stopUrl, headers: { cookie: viewer.cookie } })).statusCode).toBe(403);
+    expect((await env.app.inject({ method: 'POST', url: stopUrl, headers: { cookie: admin } })).statusCode).toBe(200);
+    expect(env.ctx.optimizations.list(file.id)[0]).toMatchObject({ status: 'paused', progress: 50 });
+    expect((await env.app.inject({ method: 'POST', url: `/api/admin/media/${file.id}/optimizations`, headers: { cookie: admin }, payload: { profile: 'compat-720p' } })).json().variant).toMatchObject({ status: 'queued', progress: 50 });
+    expect((await env.app.inject({ method: 'POST', url: '/api/admin/optimizations/invalid/stop', headers: { cookie: admin } })).statusCode).toBe(400);
+    expect((await env.app.inject({ method: 'POST', url: '/api/admin/optimizations/99999/stop', headers: { cookie: admin } })).statusCode).toBe(404);
+  });
+
+  it('stops a task during encoder detection and does not restart manually stopped tasks', async () => {
+    touch(path.join(env.mediaDir, 'Movies', 'Stop Film.mkv'));
+    await addLibrary(env, admin, 'movies', 'Movies');
+    const file = env.ctx.db.select().from(mediaFiles).get()!;
+    let finishDetection!: (support: { software: boolean; vaapi: null; nvenc: boolean; checkedAt: number }) => void;
+    env.ctx.transcoding.support = null;
+    const detection = vi.spyOn(env.ctx.transcoding, 'detect').mockImplementation(() => new Promise((resolve) => { finishDetection = resolve; }));
+    try {
+      const queued = env.ctx.optimizations.queue(file.id, 'compat-720p');
+      await vi.waitFor(() => expect(detection).toHaveBeenCalled());
+      const stopping = env.ctx.optimizations.pause(queued.id);
+      expect(() => env.ctx.optimizations.remove(queued.id)).toThrow(/Wait for optimization/);
+      expect(() => env.ctx.optimizations.queue(file.id, 'compat-720p')).toThrow(/Wait for optimization/);
+      finishDetection({ software: true, vaapi: null, nvenc: false, checkedAt: 0 });
+      await stopping;
+      expect(env.ctx.optimizations.list(file.id)[0]?.status).toBe('paused');
+      await env.ctx.optimizations.stop();
+      env.ctx.optimizations = new OptimizationService({ db: env.ctx.db, dataDir: env.ctx.config.dataDir, ffmpegPath: env.ctx.config.ffmpegPath, probe: limitProber(async () => fakeProbe(), 1), transcoding: env.ctx.transcoding, settings: env.ctx.settings, busy: () => true });
+      expect(env.ctx.optimizations.list(file.id)[0]?.status).toBe('paused');
+      expect(env.ctx.optimizations.overview().items[0]?.position).toBeNull();
+    } finally {
+      detection.mockRestore();
+    }
+  });
+
+  it('requeues interrupted work on restart without deleting its checkpoints or resetting progress', async () => {
+    touch(path.join(env.mediaDir, 'Movies', 'Restart Film.mkv'));
+    await addLibrary(env, admin, 'movies', 'Movies');
+    await env.ctx.optimizations.stop();
+    const file = env.ctx.db.select().from(mediaFiles).get()!;
+    env.ctx.db.update(mediaFiles).set({ durationSec: 120 }).where(eq(mediaFiles.id, file.id)).run();
+    const task = env.ctx.optimizations.queue(file.id, 'compat-720p');
+    const row = env.ctx.db.select().from(optimizedMedia).get()!;
+    const checkpoint = new OptimizationCheckpoint(row.outputPath, { sourceSize: file.size, sourceMtimeMs: file.mtimeMs, durationSec: 120, video: encodeArgs('software') });
+    checkpoint.prepare();
+    touch(path.join(checkpoint.directory, 'part-000000.ts'));
+    fs.writeFileSync(checkpoint.list, 'part-000000.ts,0,60\n');
+    checkpoint.capture(false);
+    env.ctx.db.update(optimizedMedia).set({ status: 'processing', progress: 50 }).where(eq(optimizedMedia.id, task.id)).run();
+    env.ctx.optimizations = new OptimizationService({ db: env.ctx.db, dataDir: env.ctx.config.dataDir, ffmpegPath: env.ctx.config.ffmpegPath, probe: limitProber(async () => fakeProbe(), 1), transcoding: env.ctx.transcoding, settings: env.ctx.settings, busy: () => true });
+    expect(env.ctx.optimizations.list(file.id)[0]).toMatchObject({ status: 'queued', progress: 50 });
+    expect(fs.existsSync(path.join(checkpoint.directory, 'part-000000.ts'))).toBe(true);
+    expect(new OptimizationCheckpoint(row.outputPath, { sourceSize: file.size, sourceMtimeMs: file.mtimeMs, durationSec: 120, video: encodeArgs('software') }).offset).toBe(60);
+    env.ctx.optimizations.remove(task.id);
+    expect(fs.existsSync(checkpoint.directory)).toBe(false);
+  });
+
+  it.each(['24', '24000/1001'])('resumes a real %s fps encode without losing frames', async (rate) => {
+    const sourcePath = path.join(env.mediaDir, 'Movies', 'Resume Film.mkv');
+    fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+    const source = spawnSync(env.ctx.config.ffmpegPath, ['-hide_banner', '-nostdin', '-v', 'error', '-f', 'lavfi', '-i', `testsrc2=size=320x240:rate=${rate}`, '-f', 'lavfi', '-i', 'sine=frequency=1000:sample_rate=48000', '-t', '4', '-shortest', '-c:v', 'mpeg2video', '-c:a', 'mp2', sourcePath], { encoding: 'utf8', timeout: 20_000 });
+    expect(source.status, source.stderr).toBe(0);
+    await addLibrary(env, admin, 'movies', 'Movies');
+    const file = env.ctx.db.select().from(mediaFiles).get()!;
+    env.ctx.db.update(mediaFiles).set({ durationSec: 4 }).where(eq(mediaFiles.id, file.id)).run();
+    const output = path.join(env.ctx.optimizations.outputDir, String(file.id), 'compat-720p.mp4');
+    const checkpoint = new OptimizationCheckpoint(output, { sourceSize: file.size, sourceMtimeMs: file.mtimeMs, durationSec: 4, video: encodeArgs('software'), segmentSeconds: 1 });
+    checkpoint.prepare();
+    const args = optimizationArgs({ profile: 'compat-720p', input: sourcePath, output: path.join(checkpoint.directory, 'part-%06d.ts'), video: checkpoint.video, segment: { list: checkpoint.list, startNumber: 0, seconds: 1 } });
+    args.splice(args.length - 1, 0, '-t', '1.5');
+    const part = spawnSync(env.ctx.config.ffmpegPath, ['-hide_banner', '-nostdin', '-v', 'error', ...args], { encoding: 'utf8', timeout: 20_000 });
+    expect(part.status, part.stderr).toBe(0);
+    checkpoint.capture(false);
+    expect(checkpoint.nextIndex).toBe(1);
+    const offset = checkpoint.offset;
+    const runner = env.ctx.optimizations as unknown as { runFfmpeg: (...args: unknown[]) => Promise<void> };
+    const calls = vi.spyOn(runner, 'runFfmpeg');
+    try {
+      env.ctx.optimizations.queue(file.id, 'compat-720p');
+      await vi.waitFor(() => expect(env.ctx.optimizations.list(file.id)[0]?.status).toBe('ready'), { timeout: 30_000 });
+      const encoding = calls.mock.calls.find((call) => (call[1] as string[]).includes('-segment_start_number'))![1] as string[];
+      expect(encoding[encoding.indexOf('-ss') + 1]).toBe(String(offset));
+      expect(encoding[encoding.indexOf('-segment_start_number') + 1]).toBe('1');
+      const probe = spawnSync(env.ctx.config.ffprobePath, ['-v', 'error', '-count_frames', '-show_entries', 'format=duration:stream=codec_name,duration,start_time,nb_read_frames', '-of', 'json', output], { encoding: 'utf8' });
+      expect(probe.status, probe.stderr).toBe(0);
+      const result = JSON.parse(probe.stdout) as { format: { duration: string }; streams: { codec_name: string; duration: string; start_time: string; nb_read_frames: string }[] };
+      expect(Number(result.format.duration)).toBeGreaterThan(3.9);
+      expect(Number(result.format.duration)).toBeLessThan(4.3);
+      expect(Math.abs(Number(result.streams[0]!.duration) - Number(result.streams[1]!.duration))).toBeLessThan(0.15);
+      expect(Number(result.streams[0]!.nb_read_frames)).toBe(96);
+      expect(fs.existsSync(checkpoint.directory)).toBe(false);
+    } finally {
+      calls.mockRestore();
+    }
+  }, 40_000);
+
+  it.each(['administrator', 'update'] as const)('preserves checkpoints when a running FFmpeg job is stopped by %s', async (reason) => {
+    const sourcePath = path.join(env.mediaDir, 'Movies', 'Live stop.mkv');
+    fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+    const source = spawnSync(env.ctx.config.ffmpegPath, ['-hide_banner', '-nostdin', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=24', '-f', 'lavfi', '-i', 'sine=frequency=1000:sample_rate=48000', '-t', '4', '-shortest', '-c:v', 'mpeg2video', '-c:a', 'mp2', sourcePath], { encoding: 'utf8', timeout: 20_000 });
+    expect(source.status, source.stderr).toBe(0);
+    await addLibrary(env, admin, 'movies', 'Movies');
+    const file = env.ctx.db.select().from(mediaFiles).get()!;
+    env.ctx.db.update(mediaFiles).set({ durationSec: 4 }).where(eq(mediaFiles.id, file.id)).run();
+    const output = path.join(env.ctx.optimizations.outputDir, String(file.id), 'compat-720p.mp4');
+    const options = { sourceSize: file.size, sourceMtimeMs: file.mtimeMs, durationSec: 4, video: encodeArgs('software'), segmentSeconds: 1 };
+    new OptimizationCheckpoint(output, options);
+    const worker = env.ctx.optimizations as unknown as { runFfmpeg(id: number, args: string[], duration: number, threads: number, start?: number, checkpoint?: () => void, cwd?: string): Promise<void> };
+    const original = worker.runFfmpeg.bind(worker);
+    const runner = vi.spyOn(worker, 'runFfmpeg').mockImplementation((id, args, ...rest) => original(id, args.includes('-segment_start_number') ? ['-re', ...args] : args, ...rest));
+    try {
+      const task = env.ctx.optimizations.queue(file.id, 'compat-720p');
+      await vi.waitFor(() => {
+        const saved = JSON.parse(fs.readFileSync(path.join(`${output}.parts`, 'checkpoint.json'), 'utf8')) as { parts: unknown[] };
+        expect(saved.parts.length).toBeGreaterThan(0);
+        expect(env.ctx.optimizations.list(file.id)[0]?.status).toBe('processing');
+      }, { timeout: 15_000 });
+      if (reason === 'administrator') {
+        const result = await env.app.inject({ method: 'POST', url: `/api/admin/optimizations/${task.id}/stop`, headers: { cookie: admin } });
+        expect(result.statusCode).toBe(200);
+      } else await env.ctx.optimizations.stop();
+      const stopped = env.ctx.optimizations.list(file.id)[0]!;
+      expect(stopped.status).toBe(reason === 'administrator' ? 'paused' : 'queued');
+      expect(stopped.progress).toBeGreaterThan(0);
+      expect(stopped.progress).toBeLessThan(100);
+      await env.ctx.optimizations.stop();
+      const offset = new OptimizationCheckpoint(output, options).offset;
+      expect(offset).toBeGreaterThan(0);
+      env.ctx.optimizations = new OptimizationService({ db: env.ctx.db, dataDir: env.ctx.config.dataDir, ffmpegPath: env.ctx.config.ffmpegPath, probe: limitProber(async () => fakeProbe({ container: 'mp4', durationSec: 4 }), 1), transcoding: env.ctx.transcoding, settings: env.ctx.settings, busy: () => false });
+      if (reason === 'administrator') {
+        expect(env.ctx.optimizations.list(file.id)[0]?.status).toBe('paused');
+        env.ctx.optimizations.queue(file.id, 'compat-720p');
+      }
+      await vi.waitFor(() => expect(env.ctx.optimizations.list(file.id)[0]?.status).toBe('ready'), { timeout: 15_000 });
+      expect(fs.existsSync(output)).toBe(true);
+      expect(fs.existsSync(`${output}.parts`)).toBe(false);
+    } finally {
+      runner.mockRestore();
+    }
+  }, 40_000);
 
   it('automatically plays a ready compatible copy when the source needs video transcoding', async () => {
     const sourcePath = path.join(env.mediaDir, 'Movies', 'Needs conversion.avi');
@@ -171,7 +368,7 @@ describe('playback optimization profiles', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       status = env.ctx.optimizations.list(file.id)[0]!.status;
     }
-    expect(status).toBe('ready');
+    expect(status, env.ctx.optimizations.list(file.id)[0]!.error ?? undefined).toBe('ready');
     const output = env.ctx.db.select().from(optimizedMedia).get()!;
     const probe = spawnSync(env.ctx.config.ffprobePath, [
       '-v', 'error', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', output.outputPath,

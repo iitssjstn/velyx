@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, HardDriveDownload, Trash2 } from 'lucide-react';
+import { Check, HardDriveDownload, Square, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { Button } from './Button';
 import { ConfirmModal } from './Modal';
@@ -11,7 +11,7 @@ type Profile = 'compat-720p' | 'compat-1080p';
 interface Variant {
   id: number;
   profile: Profile;
-  status: 'queued' | 'processing' | 'ready' | 'failed' | 'stale';
+  status: 'queued' | 'processing' | 'ready' | 'failed' | 'stale' | 'paused';
   progress: number;
   outputSize: number | null;
   error: string | null;
@@ -43,6 +43,14 @@ export function OptimizationControls({ fileId, compact = false }: { fileId: numb
     },
     onError: (error) => toast.error(error),
   });
+  const stop = useMutation({
+    mutationFn: (variantId: number) => api.post(`/api/admin/optimizations/${variantId}/stop`),
+    onSuccess: () => {
+      refresh();
+      toast.success(t('optimization.stopped'));
+    },
+    onError: (error) => toast.error(error),
+  });
   const remove = useMutation({
     mutationFn: (variantId: number) => api.del(`/api/admin/optimizations/${variantId}`),
     onSuccess: () => {
@@ -70,7 +78,7 @@ export function OptimizationControls({ fileId, compact = false }: { fileId: numb
           <option value="compat-1080p">{t('optimization.p1080')}</option>
         </select>
         <Button size="sm" variant="secondary" icon={<HardDriveDownload className="size-4" />} loading={create.isPending} disabled={active || selected?.status === 'ready' || q.isLoading} onClick={() => create.mutate(profile)}>
-          {selected?.status === 'failed' || selected?.status === 'stale' ? t('optimization.retry') : t('optimization.create')}
+          {selected?.status === 'paused' ? t('optimization.resume') : selected?.status === 'failed' || selected?.status === 'stale' ? t('optimization.retry') : t('optimization.create')}
         </Button>
       </div>
       {!compact && <p className="text-xs text-muted">{t('optimization.originalKept')}</p>}
@@ -88,7 +96,8 @@ export function OptimizationControls({ fileId, compact = false }: { fileId: numb
           {variants.map((variant) => (
             <li key={variant.id} className="flex items-center gap-2 text-xs text-muted">
               <span className="flex-1">{variant.profile === 'compat-720p' ? t('optimization.p720') : t('optimization.p1080')} · {t(`optimization.status.${variant.status}`)}</span>
-              <button type="button" className="grid size-8 place-items-center rounded-full hover:bg-raised hover:text-danger" aria-label={t('optimization.remove')} title={t('optimization.remove')} onClick={() => setRemoving(variant)}><Trash2 className="size-4" /></button>
+              {(variant.status === 'queued' || variant.status === 'processing') && <Button size="sm" variant="secondary" icon={<Square className="size-4" />} loading={stop.isPending && stop.variables === variant.id} onClick={() => stop.mutate(variant.id)}>{t('optimization.stop')}</Button>}
+              <button type="button" className="grid size-8 place-items-center rounded-full hover:bg-raised hover:text-danger disabled:opacity-40" aria-label={t('optimization.remove')} title={t('optimization.remove')} disabled={variant.status === 'processing' || (stop.isPending && stop.variables === variant.id)} onClick={() => setRemoving(variant)}><Trash2 className="size-4" /></button>
             </li>
           ))}
         </ul>

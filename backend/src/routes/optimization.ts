@@ -28,6 +28,11 @@ export async function optimizationRoutes(app: FastifyInstance, ctx: AppContext):
     return { variant: ctx.optimizations.queue(fileId, body.profile) };
   });
 
+  app.post<{ Params: { id: string } }>('/api/admin/optimizations/:id/stop', { preHandler: requireAdmin }, async (request) => {
+    await ctx.optimizations.pause(parseId(request.params.id));
+    return { ok: true };
+  });
+
   app.delete<{ Params: { id: string } }>('/api/admin/optimizations/:id', { preHandler: requireAdmin }, async (request) => {
     ctx.optimizations.remove(parseId(request.params.id));
     return { ok: true };

@@ -9,6 +9,9 @@ export const optimization = {
   unknownQuality: 'Unknown quality',
   create: 'Optimize',
   retry: 'Retry',
+  stop: 'Stop',
+  stopped: 'Optimization stopped. Progress saved.',
+  resume: 'Resume',
   queued: 'Queued',
   processing: 'Optimizing',
   ready: 'Ready',
@@ -19,7 +22,7 @@ export const optimization = {
   removeTitle: 'Remove optimized copy?',
   removeText: 'This removes only the generated copy. The original media stays untouched.',
   removed: 'Optimized copy removed.',
-  status: { queued: 'Queued', processing: 'In progress', ready: 'Ready', failed: 'Failed', stale: 'Out of date' },
+  status: { queued: 'Queued', processing: 'In progress', ready: 'Ready', failed: 'Failed', stale: 'Out of date', paused: 'Stopped by administrator' },
   pick: {
     search: 'Search library',
     title: 'Choose a title',
