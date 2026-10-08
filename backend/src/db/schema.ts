@@ -28,6 +28,8 @@ export const users = sqliteTable('users', {
   prefSubtitleFallback: text('pref_subtitle_fallback').notNull().default(''),
   /** remember = reuse the last choice; always; foreign = only when the audio is in another language; forced; off. */
   prefSubtitleMode: text('pref_subtitle_mode', { enum: ['remember', 'always', 'foreign', 'forced', 'off'] }).notNull().default('remember'),
+  /** JSON account style; null preserves each device's local subtitle settings. */
+  prefSubtitleStyle: text('pref_subtitle_style'),
   /** Skipping detected intros / credits: never offer, offer a button (ask), or skip automatically. */
   prefSkipIntro: text('pref_skip_intro', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
   prefSkipCredits: text('pref_skip_credits', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),

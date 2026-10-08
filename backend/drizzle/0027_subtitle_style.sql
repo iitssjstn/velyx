@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `pref_subtitle_style` text;

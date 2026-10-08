@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { api } from './api';
 
 /** Per-browser playback preferences. Stored in localStorage (never credentials). */
 export type SubtitleSize = 'small' | 'medium' | 'large' | 'xlarge';
@@ -18,6 +19,8 @@ export interface PlaybackPrefs {
   subtitleColor: SubtitleColor;
   subtitleBackground: SubtitleBackground;
   subtitleEdge: SubtitleEdge;
+  /** Use the TV preset instead of the custom size, colour, background and edge. */
+  castSubtitleDefaults: boolean;
   /** Extra distance from the bottom, in percent of the player height (0–20). */
   subtitlePosition: number;
   audioLanguage: string;
@@ -45,6 +48,7 @@ export const DEFAULT_PREFS: PlaybackPrefs = {
   subtitleColor: 'white',
   subtitleBackground: 'none',
   subtitleEdge: 'shadow',
+  castSubtitleDefaults: true,
   subtitlePosition: 0,
   audioLanguage: '',
   audioOutput: 'stereo',
@@ -59,11 +63,50 @@ export const DEFAULT_PREFS: PlaybackPrefs = {
 const KEY = 'velyx.playback';
 const listeners = new Set<() => void>();
 let current: PlaybackPrefs = load();
+let accountGeneration = 0;
+let accountActive = false;
+let styleRevision = 0;
+let pendingSave = Promise.resolve();
+
+export const CAST_SUBTITLE_DEFAULTS = { subtitleSize: 'medium', subtitleColor: 'white', subtitleBackground: 'translucent', subtitleEdge: 'outline' } as const;
+
+export function readSubtitlePrefs(raw: Partial<PlaybackPrefs>): Pick<PlaybackPrefs, 'subtitleSize' | 'subtitleColor' | 'subtitleBackground' | 'subtitleEdge' | 'subtitlePosition' | 'castSubtitleDefaults'> {
+  return {
+    subtitleSize: ['small', 'medium', 'large', 'xlarge'].includes(raw.subtitleSize ?? '') ? raw.subtitleSize! : 'medium',
+    subtitleColor: raw.subtitleColor === 'yellow' ? 'yellow' : 'white',
+    subtitleBackground: ['none', 'translucent', 'solid'].includes(raw.subtitleBackground ?? '') ? raw.subtitleBackground! : 'none',
+    subtitleEdge: ['shadow', 'outline', 'none'].includes(raw.subtitleEdge ?? '') ? raw.subtitleEdge! : 'shadow',
+    subtitlePosition: typeof raw.subtitlePosition === 'number' && Number.isFinite(raw.subtitlePosition) ? Math.max(0, Math.min(20, Math.round(raw.subtitlePosition / 5) * 5)) : 0,
+    castSubtitleDefaults: typeof raw.castSubtitleDefaults === 'boolean' ? raw.castSubtitleDefaults : !['subtitleSize', 'subtitleColor', 'subtitleBackground', 'subtitleEdge'].some((key) => key in raw),
+  };
+}
+
+type AccountSubtitleStyle = { size: SubtitleSize; color: SubtitleColor; background: SubtitleBackground; edge: SubtitleEdge; position: number; castDefaults?: boolean };
+
+/** Account style wins on sign-in; edits made while it loads win over that older response. */
+export function syncSubtitlePrefs(): () => void {
+  const generation = ++accountGeneration;
+  const revision = styleRevision;
+  accountActive = true;
+  void api.get<{ subtitleStyle?: AccountSubtitleStyle | null }>('/api/account/preferences').then(({ subtitleStyle: s }) => {
+    if (!s || generation !== accountGeneration || revision !== styleRevision) return;
+    current = { ...current, ...readSubtitlePrefs({ subtitleSize: s.size, subtitleColor: s.color, subtitleBackground: s.background, subtitleEdge: s.edge, subtitlePosition: s.position, castSubtitleDefaults: s.castDefaults ?? false }) };
+    persist();
+  }).catch(() => undefined);
+  return () => {
+    if (generation === accountGeneration) {
+      accountActive = false;
+      ++accountGeneration;
+    }
+  };
+}
 
 function load(): PlaybackPrefs {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? { ...DEFAULT_PREFS, ...(JSON.parse(raw) as Partial<PlaybackPrefs>) } : { ...DEFAULT_PREFS };
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    const saved = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Partial<PlaybackPrefs> : {};
+    return { ...DEFAULT_PREFS, ...saved, ...readSubtitlePrefs(saved) };
   } catch {
     return { ...DEFAULT_PREFS };
   }
@@ -75,6 +118,24 @@ export function getPrefs(): PlaybackPrefs {
 
 export function setPrefs(patch: Partial<PlaybackPrefs>): void {
   current = { ...current, ...patch };
+  const styleChanged = ['subtitleSize', 'subtitleColor', 'subtitleBackground', 'subtitleEdge', 'subtitlePosition', 'castSubtitleDefaults'].some((key) => key in patch);
+  if (styleChanged) {
+    ++styleRevision;
+    // Editing a custom appearance explicitly opts out of the TV preset.
+    if (patch.castSubtitleDefaults === undefined && ['subtitleSize', 'subtitleColor', 'subtitleBackground', 'subtitleEdge'].some((key) => key in patch)) current.castSubtitleDefaults = false;
+    current = { ...current, ...readSubtitlePrefs(current) };
+    if (accountActive) {
+      const generation = accountGeneration;
+      const subtitleStyle: AccountSubtitleStyle = { size: current.subtitleSize, color: current.subtitleColor, background: current.subtitleBackground, edge: current.subtitleEdge, position: current.subtitlePosition, castDefaults: current.castSubtitleDefaults };
+      pendingSave = pendingSave.then(async () => {
+        if (accountActive && generation === accountGeneration) await api.put('/api/account/preferences', { subtitleStyle });
+      }).catch(() => undefined);
+    }
+  }
+  persist();
+}
+
+function persist(): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(current));
   } catch {

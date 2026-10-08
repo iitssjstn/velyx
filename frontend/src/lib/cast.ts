@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api';
-import type { PlaybackPrefs } from './prefs';
+import { CAST_SUBTITLE_DEFAULTS, readSubtitlePrefs, type PlaybackPrefs } from './prefs';
 import { t } from '../i18n';
 
-export type CastSubtitleStyle = Pick<PlaybackPrefs, 'subtitleSize' | 'subtitleColor' | 'subtitleBackground' | 'subtitleEdge'>;
+export type CastSubtitleStyle = Pick<PlaybackPrefs, 'subtitleSize' | 'subtitleColor' | 'subtitleBackground' | 'subtitleEdge'> & Partial<Pick<PlaybackPrefs, 'castSubtitleDefaults'>>;
 
 export function castTextTrackStyle(style?: CastSubtitleStyle) {
-  const current = style ?? { subtitleSize: 'medium', subtitleColor: 'white', subtitleBackground: 'none', subtitleEdge: 'shadow' };
+  const saved = readSubtitlePrefs(style ?? {});
+  const current = saved.castSubtitleDefaults ? CAST_SUBTITLE_DEFAULTS : saved;
   return {
     fontFamily: 'sans-serif',
     fontGenericFamily: 'SANS_SERIF',
@@ -16,6 +17,15 @@ export function castTextTrackStyle(style?: CastSubtitleStyle) {
     edgeType: { shadow: 'DROP_SHADOW', outline: 'OUTLINE', none: 'NONE' }[current.subtitleEdge],
     edgeColor: '#000000FF',
   };
+}
+
+/** Unsupported styles fall back without reloading or interrupting the video. */
+export async function applyCastSubtitleStyle(style: CastSubtitleStyle | undefined, apply: (style: ReturnType<typeof castTextTrackStyle>) => Promise<void>): Promise<void> {
+  try {
+    await apply(castTextTrackStyle(style));
+  } catch {
+    await apply(castTextTrackStyle());
+  }
 }
 
 /**
@@ -136,9 +146,36 @@ export function useCast(item: CastItem | null) {
   const subtitleKey = useRef(item?.subtitleKey ?? null);
   if (itemRef.current?.fileId !== item?.fileId || itemRef.current?.subtitleKey !== item?.subtitleKey) subtitleKey.current = item?.subtitleKey ?? null;
   itemRef.current = item;
+  const styleKey = JSON.stringify(item?.subtitleStyle);
+  const styleUpdates = useRef(Promise.resolve());
+  const mounted = useRef(true);
+  const setStyle = useCallback(() => {
+    const context = framework.current?.CastContext.getInstance();
+    const mediaSession = context?.getCurrentSession()?.getMediaSession?.();
+    if (!mediaSession?.editTracksInfo) return Promise.resolve();
+    const update = styleUpdates.current.catch(() => undefined).then(async () => {
+      // Serialize updates and read the latest choice after a delayed receiver response.
+      while (mounted.current && context.getCurrentSession()?.getMediaSession?.() === mediaSession) {
+        const requested = itemRef.current?.subtitleStyle;
+        await applyCastSubtitleStyle(requested, (style) => new Promise<void>((resolve, reject) => {
+          const request = new w.chrome.cast.media.EditTracksInfoRequest();
+          request.textTrackStyle = Object.assign(new w.chrome.cast.media.TextTrackStyle(), style);
+          mediaSession.editTracksInfo(request, resolve, reject);
+        }));
+        if (JSON.stringify(requested) === JSON.stringify(itemRef.current?.subtitleStyle)) return;
+      }
+    });
+    styleUpdates.current = update;
+    return update;
+  }, []);
+
+  useEffect(() => {
+    if (state.active) void setStyle().catch((error) => setState((st) => ({ ...st, error: error instanceof Error ? error.message : String(error) })));
+  }, [state.active, styleKey, setStyle]);
 
   useEffect(() => {
     let alive = true;
+    mounted.current = true;
     let cleanup: (() => void) | undefined;
     void loadCastSdk().then((f) => {
       if (!alive || !f) return;
@@ -170,6 +207,7 @@ export function useCast(item: CastItem | null) {
     });
     return () => {
       alive = false;
+      mounted.current = false;
       cleanup?.();
     };
   }, []);
@@ -197,7 +235,8 @@ export function useCast(item: CastItem | null) {
       } else offset.current = 0;
       const media = new chromeCast.media.MediaInfo(castUrl(base, s.decision.streamUrl, s.token, start), s.contentType);
       media.streamType = chromeCast.media.StreamType.BUFFERED;
-      media.textTrackStyle = Object.assign(new chromeCast.media.TextTrackStyle(), castTextTrackStyle(it.subtitleStyle));
+      // Receiver defaults remain usable even when it cannot apply a custom style.
+      media.textTrackStyle = Object.assign(new chromeCast.media.TextTrackStyle(), castTextTrackStyle());
       const meta = new chromeCast.media.GenericMediaMetadata();
       meta.title = it.title;
       if (it.subtitle) meta.subtitle = it.subtitle;
@@ -222,6 +261,7 @@ export function useCast(item: CastItem | null) {
       const chosen = s.subtitles.findIndex((sub) => sub.key === requestedSubtitle);
       request.activeTrackIds = chosen >= 0 ? [chosen + 1] : [];
       await castSession.loadMedia(request);
+      await setStyle();
       if (subtitleKey.current !== requestedSubtitle && player.current && controller.current) {
         const latest = s.subtitles.findIndex((sub) => sub.key === subtitleKey.current);
         player.current.activeTrackIds = latest >= 0 ? [latest + 1] : [];
@@ -229,7 +269,7 @@ export function useCast(item: CastItem | null) {
       }
       setState((st) => ({ ...st, active: true, device: castSession.getCastDevice()?.friendlyName ?? null, time: at, playing: true, volume: player.current.volumeLevel ?? st.volume, muted: Boolean(player.current.isMuted), error: null }));
     },
-    [],
+    [setStyle],
   );
 
   /** Picks a Chromecast (the browser's own list) and continues there from `at`. */

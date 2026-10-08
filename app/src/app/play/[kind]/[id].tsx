@@ -14,12 +14,13 @@ import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
 import { castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
-import { castLoadRequest, castTrackIds, loadCastWithCurrentSubtitle, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from '../../../lib/cast';
+import { applyCastTextTrackStyle, castLoadRequest, castTrackIds, loadCastWithCurrentSubtitle, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
 import { rememberSubtitle, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
-import { DEFAULT_SUBTITLE_STYLE, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
+import { DEFAULT_SUBTITLE_STYLE, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
+import { createSubtitleStyleSync, subtitlePreferencesReady } from '../../../lib/subtitleStyleSync';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
 import { errorMessage } from '../../../lib/connection';
 import { useSession } from '../../../lib/session';
@@ -49,6 +50,7 @@ interface Item {
 }
 
 interface Prefs extends SubtitlePrefs {
+  subtitleStyle?: SubtitleStyle | null;
   skipIntro?: SkipMode;
   skipCredits?: SkipMode;
   skipRecap?: SkipMode;
@@ -98,7 +100,7 @@ export default function Player() {
       <StatusBar hidden={!castActive} />
       {item.error ? (
         <Problem message={errorMessage(item.error, t)} />
-      ) : item.data && !prefs.isLoading ? (
+      ) : item.data && subtitlePreferencesReady(prefs) ? (
         <Playback key={`${item.data.kind}-${item.data.id}`} item={item.data} prefs={prefs.data ?? null} startAt={startParam !== undefined ? Number(startParam) : null} onCastingChange={setCastActive} />
       ) : (
         <View style={styles.center}>
@@ -146,21 +148,47 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   const [cues, setCues] = useState<Cue[]>([]);
   /** How subtitles look (kept on this device) and their timing for this playback (+ is later). */
   const [subStyle, setSubStyle] = useState<SubtitleStyle>(DEFAULT_SUBTITLE_STYLE);
+  const styleRef = useRef(subStyle);
+  styleRef.current = subStyle;
+  const [castStyleFallback, setCastStyleFallback] = useState(false);
   const [subDelay, setSubDelay] = useState(0);
   const [screenHeight, setScreenHeight] = useState(360);
-  useEffect(() => {
-    let alive = true;
-    void storedSubtitleStyle().then((st) => alive && setSubStyle(st));
-    return () => {
-      alive = false;
-    };
-  }, []);
-  const changeStyle = (patch: Partial<SubtitleStyle>) =>
-    setSubStyle((current) => {
-      const next = { ...current, ...patch };
-      void storeSubtitleStyle(next);
-      return next;
+  const [styleSaveFailed, setStyleSaveFailed] = useState(false);
+  const styleAlive = useRef(true);
+  const styleSync = useRef<ReturnType<typeof createSubtitleStyleSync> | null>(null);
+  if (!styleSync.current) {
+    styleSync.current = createSubtitleStyleSync({
+      readDevice: storedSubtitleStyle,
+      writeDevice: storeSubtitleStyle,
+      writeAccount: (style) => api.put('/api/account/preferences', { subtitleStyle: style }),
+      change: (style) => {
+        styleRef.current = style;
+        setSubStyle(style);
+        setStyleSaveFailed(false);
+      },
+      saved: (style) => {
+        setStyleSaveFailed(false);
+        qc.setQueryData<Prefs>([serverUrl, 'account-prefs'], (current) => current ? { ...current, subtitleStyle: style } : current);
+      },
+      failed: () => setStyleSaveFailed(true),
+      active: () => styleAlive.current,
     });
+  }
+  useEffect(() => {
+    styleAlive.current = true;
+    void styleSync.current!.load(prefs?.subtitleStyle ?? null).catch(() => undefined);
+    return () => {
+      styleAlive.current = false;
+    };
+    // Account/device priority is decided once; edits win over delayed reads during playback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const changeStyle = (patch: Partial<SubtitleStyle>) => {
+    const next = editSubtitleStyle(styleRef.current, patch);
+    void styleSync.current!.save(next).catch(() => {
+      if (styleAlive.current) setStyleSaveFailed(true);
+    });
+  };
   const [ended, setEnded] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [nextDismissed, setNextDismissed] = useState(false);
@@ -214,6 +242,16 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   // A Chromecast picked with the cast button: the video continues there (the Chromecast fetches
   // it itself with a short-lived token for this file) and this player becomes its remote control.
   const client = useRemoteMediaClient();
+  const clientRef = useRef(client);
+  clientRef.current = client;
+  const mounted = useRef(true);
+  const castLoadId = useRef(0);
+  const castLoading = useRef(false);
+  const styleQueue = useRef<Promise<unknown>>(Promise.resolve());
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; castLoadId.current++; };
+  }, []);
   const castDevice = useCastDevice();
   const mediaStatus = useMediaStatus();
   // The TV's position (file time) while casting, as last reported; saved when casting ends.
@@ -242,34 +280,72 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   const subtitleRef = useRef<SubtitleOption | null>(null);
   subtitleRef.current = subtitle;
 
+  const castFailed = useCallback(
+    (err: unknown, stop = true) => {
+      if (!mounted.current) return;
+      Alert.alert(t('player.castFailed'), errorMessage(err, t));
+      if (stop) void CastContext.getSessionManager().endCurrentSession(true).catch(() => undefined);
+    },
+    [t],
+  );
+  const applyCastStyle = useCallback(() => {
+    const target = client;
+    const active = () => mounted.current && target !== null && target === clientRef.current && castingRef.current && !castLoading.current;
+    const pending = styleQueue.current.catch(() => undefined).then(async () => {
+      if (!target || !active()) return;
+      const fallback = await applyCastTextTrackStyle({
+        style: () => styleRef.current,
+        apply: (style) => target.setTextTrackStyle(style),
+        active,
+        fallback: (error) => castFailed(new Error(`${t('subtitleStyle.castFallback')}\n${errorMessage(error, t)}`), false),
+      });
+      if (active() && fallback !== null) setCastStyleFallback(fallback);
+    });
+    styleQueue.current = pending;
+    return pending;
+  }, [client, castFailed, t]);
+
   /** Loads the file on the Chromecast from `at` seconds (for an audio track). */
   const castLoad = useCallback(
     async (at: number, audio: number | null) => {
       if (!client) return;
-      setLoading(true);
-      let s = castSession.current;
-      if (!s || !sessionUsable(s.session, audio, s.audio)) {
-        const session = await api.post<CastSession>('/api/cast/session', { fileId: item.fileId, ...(audio !== null ? { audioIndex: audio } : {}), ...(answer?.file.id === item.fileId && answer.decision.optimized ? { optimizationId: answer.decision.optimized.id } : {}) });
-        s = castSession.current = { session, audio };
+      const loadId = ++castLoadId.current;
+      const active = () => mounted.current && clientRef.current === client && castLoadId.current === loadId && castingRef.current;
+      castLoading.current = true;
+      try {
+        setLoading(true);
+        let s = castSession.current;
+        if (!s || !sessionUsable(s.session, audio, s.audio)) {
+          const session = await api.post<CastSession>('/api/cast/session', { fileId: item.fileId, ...(audio !== null ? { audioIndex: audio } : {}), ...(answer?.file.id === item.fileId && answer.decision.optimized ? { optimizationId: answer.decision.optimized.id } : {}) });
+          if (!active()) return;
+          s = castSession.current = { session, audio };
+        }
+        if (!s.session.serverUrl) throw new Error(t('player.noDirectEndpoint'));
+        // A repackaged stream starts at the keyframe before `at`.
+        const keyframe = s.session.decision.seek === 'restart' && at > 0 ? await api.get<{ start: number; seek: number }>(`/api/media/${item.fileId}/keyframe?t=${at.toFixed(3)}${s.session.decision.optimized ? `&optimized=${s.session.decision.optimized.id}` : ''}`).then((r) => ({ offset: r.start, seek: r.seek })) : null;
+        if (!active()) return;
+        // Load the safe TV preset first; unsupported custom styling must not prevent playback.
+        const { request, offset: from } = castLoadRequest({ session: s.session, url: (path) => new URL(path, `${s!.session.serverUrl}/`).toString(), title: item.title, subtitle: item.subtitle, artwork: imagePath(item.poster ?? item.artwork, 'w780'), at, keyframe, subtitleKey: subtitleRef.current?.key ?? null });
+        setOffset(from);
+        setTime(Math.max(0, at - from));
+        setEnded(false);
+        await loadCastWithCurrentSubtitle({ request, session: s.session, subtitleKey: () => subtitleRef.current?.key ?? null, load: (media) => client.loadMedia(media), select: (ids) => client.setActiveTrackIds(ids), active });
+        if (active()) {
+          castLoading.current = false;
+          await applyCastStyle().catch((error) => castFailed(error, false));
+        }
+      } catch (error) {
+        if (active()) throw error;
+      } finally {
+        if (castLoadId.current === loadId) castLoading.current = false;
       }
-      if (!s.session.serverUrl) throw new Error(t('player.noDirectEndpoint'));
-      // A repackaged stream starts at the keyframe before `at`.
-      const keyframe = s.session.decision.seek === 'restart' && at > 0 ? await api.get<{ start: number; seek: number }>(`/api/media/${item.fileId}/keyframe?t=${at.toFixed(3)}${s.session.decision.optimized ? `&optimized=${s.session.decision.optimized.id}` : ''}`).then((r) => ({ offset: r.start, seek: r.seek })) : null;
-      const { request, offset: from } = castLoadRequest({ session: s.session, url: (path) => new URL(path, `${s!.session.serverUrl}/`).toString(), title: item.title, subtitle: item.subtitle, artwork: imagePath(item.poster ?? item.artwork, 'w780'), at, keyframe, subtitleKey: subtitleRef.current?.key ?? null, subtitleStyle: subStyle });
-      setOffset(from);
-      setTime(Math.max(0, at - from));
-      setEnded(false);
-      await loadCastWithCurrentSubtitle({ request, session: s.session, subtitleKey: () => subtitleRef.current?.key ?? null, load: (media) => client.loadMedia(media), select: (ids) => client.setActiveTrackIds(ids) });
     },
-    [api, client, item.fileId, item.title, item.subtitle, item.artwork, subStyle],
+    [api, client, item.fileId, item.title, item.subtitle, item.artwork, item.poster, answer, t, applyCastStyle, castFailed],
   );
-  const castFailed = useCallback(
-    (err: unknown) => {
-      Alert.alert(t('player.castFailed'), errorMessage(err, t));
-      void CastContext.getSessionManager().endCurrentSession(true);
-    },
-    [t],
-  );
+  useEffect(() => {
+    setCastStyleFallback(false);
+    if (casting && client && !castLoading.current) void applyCastStyle().catch((error) => castFailed(error, false));
+  }, [subStyle, casting, client, applyCastStyle, castFailed]);
 
   /** Asks the server how to play the file on this device (for an audio track), then plays from `at`. */
   const decide = useCallback(
@@ -790,7 +866,6 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
                 />
               ) : null}
               {!casting && <>
-              {!casting && <>
               <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('player.seekStep')}</Text>
               <Segmented
                 label={t('player.seekStepHint')}
@@ -802,27 +877,35 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
                 }}
                 options={SEEK_STEPS.map((s) => [String(s), `${s} s`] as [string, string])}
               />
+              </>}
               <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('subtitleStyle.title')}</Text>
+              {styleSaveFailed && <Text style={styles.muted}>{t('subtitleStyle.accountSaveFailed')}</Text>}
+              <Segmented label={t('subtitleStyle.castMode')} value={subStyle.castDefaults ? 'default' : 'custom'} onChange={(v) => changeStyle({ castDefaults: v === 'default' })} options={[['default', t('subtitleStyle.tvDefault')], ['custom', t('subtitleStyle.custom')]]} />
+              {casting && <Text style={styles.muted}>{t('subtitleStyle.castLimitations')}</Text>}
+              {casting && castStyleFallback && <Text style={styles.muted}>{t('subtitleStyle.castFallback')}</Text>}
+              <Text style={styles.label}>{t('subtitleStyle.preview')}</Text>
+              <View style={{ minHeight: 88, alignItems: 'center', justifyContent: 'center', backgroundColor: '#182332', padding: 8, borderRadius: radius.md }}>
+                <Text style={subtitleTextStyle(casting ? (castStyleFallback ? TV_SUBTITLE_STYLE : castSubtitlePreview(subStyle)) : subStyle, 220)}>{t('subtitleStyle.previewText')}</Text>
+              </View>
               <Segmented label={t('subtitleStyle.size')} value={subStyle.size} onChange={(v) => changeStyle({ size: v })} options={[['small', 'S'], ['medium', 'M'], ['large', 'L'], ['xlarge', 'XL']]} />
               <Segmented label={t('subtitleStyle.color')} value={subStyle.color} onChange={(v) => changeStyle({ color: v })} options={[['white', t('subtitleStyle.white')], ['yellow', t('subtitleStyle.yellow')]]} />
               <Segmented label={t('subtitleStyle.background')} value={subStyle.background} onChange={(v) => changeStyle({ background: v })} options={[['none', t('subtitleStyle.none')], ['translucent', t('subtitleStyle.dimmed')], ['solid', t('subtitleStyle.solid')]]} />
               <Segmented label={t('subtitleStyle.edge')} value={subStyle.edge} onChange={(v) => changeStyle({ edge: v })} options={[['shadow', t('subtitleStyle.shadow')], ['outline', t('subtitleStyle.outline')], ['none', t('subtitleStyle.none')]]} />
               <Stepper
                 label={t('subtitleStyle.position')}
+                hint={t('subtitleStyle.castLimitations')}
                 value={subStyle.position === 0 ? t('subtitleStyle.bottom') : `+${subStyle.position}%`}
                 onMinus={() => changeStyle({ position: clampPosition(subStyle.position - 5) })}
                 onPlus={() => changeStyle({ position: clampPosition(subStyle.position + 5) })}
               />
-              <Stepper
+              {!casting && <Stepper
                 label={t('subtitleStyle.sync')}
                 hint={t('subtitleStyle.syncHint')}
                 value={subDelay === 0 ? t('subtitleStyle.inSync') : `${subDelay > 0 ? '+' : ''}${subDelay.toFixed(1)} s`}
                 onMinus={() => setSubDelay((d) => stepDelay(d, -1))}
                 onPlus={() => setSubDelay((d) => stepDelay(d, 1))}
                 onReset={subDelay !== 0 ? () => setSubDelay(0) : undefined}
-              />
-              </>}
-              </>}
+              />}
             </ScrollView>
           </Pressable>
         </Pressable>

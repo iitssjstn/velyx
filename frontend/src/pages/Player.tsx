@@ -36,6 +36,7 @@ import { OnlineSubtitles } from '../components/OnlineSubtitles';
 import { toast } from '../components/Toast';
 import { Spinner } from '../components/States';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
+import { CastSubtitleSettings } from '../components/CastSubtitleSettings';
 import { PlaybackBadge, PlaybackUnavailable } from '../components/PlaybackDetails';
 import { UpNext } from '../components/UpNext';
 import { useCast } from '../lib/cast';
@@ -338,7 +339,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // ---------------------------------------------------------------- casting (Chromecast)
   const cast = useCast(
     file && item.data
-      ? { fileId: file.id, audioIndex: info?.file.id === file.id ? info.decision.audioIndex : null, optimizationId: info?.file.id === file.id ? info.decision.optimized?.id : undefined, title: item.data.title, subtitle: item.data.subtitle, posterPath: item.data.poster ?? item.data.backdrop, subtitleKey: subKey, subtitleStyle: { subtitleSize: prefs.subtitleSize, subtitleColor: prefs.subtitleColor, subtitleBackground: prefs.subtitleBackground, subtitleEdge: prefs.subtitleEdge }, locate: (target) => locateStart(file.id, target, info?.file.id === file.id ? info.decision.optimized?.id : undefined) }
+      ? { fileId: file.id, audioIndex: info?.file.id === file.id ? info.decision.audioIndex : null, optimizationId: info?.file.id === file.id ? info.decision.optimized?.id : undefined, title: item.data.title, subtitle: item.data.subtitle, posterPath: item.data.poster ?? item.data.backdrop, subtitleKey: subKey, subtitleStyle: { subtitleSize: prefs.subtitleSize, subtitleColor: prefs.subtitleColor, subtitleBackground: prefs.subtitleBackground, subtitleEdge: prefs.subtitleEdge, castSubtitleDefaults: prefs.castSubtitleDefaults }, locate: (target) => locateStart(file.id, target, info?.file.id === file.id ? info.decision.optimized?.id : undefined) }
       : null,
   );
   const castingRef = useRef(false);
@@ -1489,6 +1490,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
                       <p className="px-4 pt-2 text-xs text-faint">{t('player.imageSubtitles')}</p>
                     )}
                     <div className="mt-2 space-y-3 border-t border-line/60 px-4 pt-3 pb-1">
+                      {cast.active && <CastSubtitleSettings />}
+                      {!cast.active && <>
                       <Segmented label={t('subtitleStyle.size')} value={prefs.subtitleSize} onChange={(v) => setPrefs({ subtitleSize: v })} options={[['small', 'S'], ['medium', 'M'], ['large', 'L'], ['xlarge', 'XL']]} />
                       <Segmented label={t('subtitleStyle.color')} value={prefs.subtitleColor} onChange={(v) => setPrefs({ subtitleColor: v })} options={[['white', t('subtitleStyle.white')], ['yellow', t('subtitleStyle.yellow')]]} />
                       <Segmented label={t('subtitleStyle.background')} value={prefs.subtitleBackground} onChange={(v) => setPrefs({ subtitleBackground: v })} options={[['none', t('subtitleStyle.none')], ['translucent', t('player.dim')], ['solid', t('player.solid')]]} />
@@ -1507,6 +1510,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
                         onPlus={() => setSubDelay((d) => Math.round((d + 0.5) * 10) / 10)}
                         onReset={subDelay !== 0 ? () => setSubDelay(0) : undefined}
                       />
+                      </>}
                     </div>
                   </>
                 )}
@@ -1718,6 +1722,7 @@ function MobileCastRemote({
           {sheet === 'tracks' && <div className="max-h-[50vh] space-y-4 overflow-y-auto">
             <section><h3 className="mb-2 text-xs font-semibold text-faint">{t('player.audioTrack')}</h3>{audio.length ? audio.map((choice) => <button key={choice.id} type="button" onClick={() => { onSelectAudio(Number(choice.id)); close(); }} className={`block min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm ${choice.selected ? 'bg-raised text-accent' : 'text-ink hover:bg-raised'}`}>{choice.label}</button>) : <p className="text-sm text-muted">{t('player.noAudioTracks')}</p>}</section>
             <section><h3 className="mb-2 text-xs font-semibold text-faint">{t('playback.subtitles')}</h3>{subtitles.map((choice) => <button key={String(choice.id)} type="button" onClick={() => { onSelectSubtitle(choice.id === null ? null : String(choice.id)); close(); }} className={`block min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm ${choice.selected ? 'bg-raised text-accent' : 'text-ink hover:bg-raised'}`}>{choice.label}</button>)}</section>
+            <CastSubtitleSettings />
           </div>}
           {sheet === 'more' && <button type="button" onClick={() => { close(); onStop(); }} className="min-h-12 w-full rounded-lg bg-danger/15 px-4 text-left font-semibold text-danger hover:bg-danger/25">{t('player.stopCasting')}</button>}
         </section>

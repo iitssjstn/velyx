@@ -383,6 +383,14 @@ The player can send what you are watching to a **Chromecast** or a TV with **Chr
 - Subtitles are shown by the TV (text subtitles: separate files and the ones inside the video); image-based subtitles and subtitles from OpenSubtitles are not cast.
 - Seeking in a repackaged stream starts it again from the new spot (a second or two), as in the browser.
 
+### Cast subtitle appearance
+
+Use **Account → Playback → Subtitles** on the website, or the subtitle menu in the Android player (also while casting). The **TV subtitle preset** uses medium, screen-relative sans-serif text, white letters, a translucent black background and a black outline. You can instead choose small through extra-large text, white or yellow, transparent/dimmed/solid backgrounds, and shadow/outline/no edge. Editing these choices turns off the TV preset; the preview updates immediately and changes are sent to an active cast without restarting video.
+
+Styles are saved to your signed-in media-server account and cached in browser localStorage or the app's device storage. At sign-in (web) or player opening (app), the account style takes priority; if none exists or the server is unavailable, the device choice is used. New edits win over an account response still loading. Failed saves remain local for that session; an older account choice takes priority on the next successful load. Existing saved styles are preserved during migration; the TV preset is enabled for users without a saved style. Synchronisation is between clients signed into the same media-server account, not between unrelated servers.
+
+Chromecast and Cast-enabled TVs use the standard receiver. It controls subtitle position, safe margins, line height and maximum line width; the local player's position setting cannot move captions on the TV. Previews are approximate, and different receivers can render differently or silently ignore attributes. If a custom-style update is rejected, Vidalune retries with the TV preset; a disconnected receiver still reports an error. No custom receiver or support for other casting protocols is added.
+
 ## Installing Vidalune as an app
 
 Vidalune can be installed from the browser, so it opens from its own icon like an app, full screen without the address bar. Nothing is downloaded from an app store: the app is your own Vidalune server, and it updates itself whenever you update the server.

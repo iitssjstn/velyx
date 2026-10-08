@@ -87,6 +87,14 @@ const passwordBody = z.object({
 });
 const avatarBody = z.object({ dataUrl: z.string().max(3 * 1024 * 1024) });
 const language = z.string().trim().toLowerCase().regex(/^([a-z]{2,3})?$/, 'Use a language code like en or nl');
+const subtitleStyleSchema = z.object({
+  size: z.enum(['small', 'medium', 'large', 'xlarge']),
+  color: z.enum(['white', 'yellow']),
+  background: z.enum(['none', 'translucent', 'solid']),
+  edge: z.enum(['shadow', 'outline', 'none']),
+  position: z.number().int().min(0).max(20).multipleOf(5),
+  castDefaults: z.boolean().default(false),
+}).strict();
 const preferencesBody = z.object({
   audioLanguage: language.optional(),
   subtitleLanguage: language.optional(),
@@ -95,10 +103,21 @@ const preferencesBody = z.object({
   skipIntro: z.enum(['never', 'ask', 'always']).optional(),
   skipCredits: z.enum(['never', 'ask', 'always']).optional(),
   skipRecap: z.enum(['never', 'ask', 'always']).optional(),
+  subtitleStyle: subtitleStyleSchema.nullable().optional(),
 });
 
+function accountSubtitleStyle(stored: string | null): z.infer<typeof subtitleStyleSchema> | null {
+  if (stored === null) return null;
+  try {
+    const parsed = subtitleStyleSchema.safeParse(JSON.parse(stored));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
 function preferencesView(u: typeof users.$inferSelect) {
-  return { audioLanguage: u.prefAudioLanguage, subtitleLanguage: u.prefSubtitleLanguage, subtitleFallback: u.prefSubtitleFallback, subtitleMode: u.prefSubtitleMode, skipIntro: u.prefSkipIntro, skipCredits: u.prefSkipCredits, skipRecap: u.prefSkipRecap };
+  return { audioLanguage: u.prefAudioLanguage, subtitleLanguage: u.prefSubtitleLanguage, subtitleFallback: u.prefSubtitleFallback, subtitleMode: u.prefSubtitleMode, skipIntro: u.prefSkipIntro, skipCredits: u.prefSkipCredits, skipRecap: u.prefSkipRecap, subtitleStyle: accountSubtitleStyle(u.prefSubtitleStyle) };
 }
 
 const AVATAR_TYPES: Record<string, { ext: string; magic: (b: Buffer) => boolean }> = {
@@ -389,6 +408,7 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
         ...(b.skipIntro !== undefined ? { prefSkipIntro: b.skipIntro } : {}),
         ...(b.skipCredits !== undefined ? { prefSkipCredits: b.skipCredits } : {}),
         ...(b.skipRecap !== undefined ? { prefSkipRecap: b.skipRecap } : {}),
+        ...(b.subtitleStyle !== undefined ? { prefSubtitleStyle: b.subtitleStyle === null ? null : JSON.stringify(b.subtitleStyle) } : {}),
         updatedAt: Date.now(),
       })
       .where(eq(users.id, request.user!.id))

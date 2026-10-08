@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { castBase, castTextTrackStyle, castUrl } from './cast';
+import { applyCastSubtitleStyle, castBase, castTextTrackStyle, castUrl } from './cast';
 
 describe('cast addresses', () => {
   const s = { directUrl: 'https://server.media.vidalune.com:32400', serverUrl: 'http://192.168.1.10:3000/' };
@@ -18,6 +18,17 @@ describe('cast addresses', () => {
 });
 
 describe('Cast subtitle style', () => {
+  it('uses a high-contrast TV default and validates unsupported saved values', () => {
+    expect(castTextTrackStyle()).toMatchObject({ fontScale: 1, foregroundColor: '#FFFFFFFF', backgroundColor: '#00000099', edgeType: 'OUTLINE' });
+    expect(castTextTrackStyle({ subtitleSize: 'invalid', subtitleColor: 'pink', subtitleBackground: 'bad', subtitleEdge: 'bad' } as never)).toMatchObject({ fontScale: 1, foregroundColor: '#FFFFFFFF', backgroundColor: '#00000000', edgeType: 'DROP_SHADOW' });
+  });
+  it('falls back to the TV preset when a receiver rejects a custom style', async () => {
+    const apply = vi.fn().mockRejectedValueOnce(new Error('Unsupported')).mockResolvedValueOnce(undefined);
+    await applyCastSubtitleStyle({ subtitleSize: 'large', subtitleColor: 'yellow', subtitleBackground: 'none', subtitleEdge: 'none' }, apply);
+    expect(apply).toHaveBeenNthCalledWith(2, castTextTrackStyle());
+    const failed = vi.fn().mockRejectedValue(new Error('Disconnected'));
+    await expect(applyCastSubtitleStyle(undefined, failed)).rejects.toThrow('Disconnected');
+  });
   it('maps saved preferences to readable receiver settings', () => {
     expect(castTextTrackStyle({ subtitleSize: 'large', subtitleColor: 'yellow', subtitleBackground: 'none', subtitleEdge: 'outline' })).toEqual({
       fontFamily: 'sans-serif',
@@ -37,10 +48,15 @@ function fakeSdk() {
   const listeners = new Map<string, () => void>();
   const remote = { currentTime: 0, isPaused: false, isConnected: true, activeTrackIds: [] as number[] };
   const session = {
+    getMediaSession: () => mediaSession,
     loadMedia: vi.fn(async (req: { media: { contentId: string; contentType: string; tracks: Array<{ trackContentId: string }>; textTrackStyle: unknown }; currentTime: number; activeTrackIds: number[] }) => {
       loaded.push({ url: req.media.contentId, type: req.media.contentType, currentTime: req.currentTime, tracks: req.media.tracks, active: req.activeTrackIds, textTrackStyle: req.media.textTrackStyle });
     }),
     getCastDevice: () => ({ friendlyName: 'Woonkamer' }),
+  };
+  const applied: unknown[] = [];
+  const mediaSession = {
+    editTracksInfo: vi.fn((request: { textTrackStyle: unknown }, success: () => void) => { applied.push(request.textTrackStyle); success(); }),
   };
   let current: typeof session | null = null;
   const context = {
@@ -86,6 +102,7 @@ function fakeSdk() {
           this.contentType = contentType;
         },
         TextTrackStyle: Obj,
+        EditTracksInfoRequest: Obj,
         StreamType: { BUFFERED: 'BUFFERED' },
         GenericMediaMetadata: Obj,
         Track: function Track(this: Record<string, unknown>, id: number) {
@@ -99,7 +116,7 @@ function fakeSdk() {
       },
     },
   };
-  return { framework, chrome, loaded, context, controller, remote, listeners };
+  return { framework, chrome, loaded, context, controller, remote, listeners, applied, mediaSession };
 }
 
 describe('casting from the player', () => {
@@ -133,14 +150,27 @@ describe('casting from the player', () => {
     );
     const { useCast } = await import('./cast');
     const locate = vi.fn(async (t: number) => ({ offset: t - 2, seek: t - 2 }));
-    const { result, unmount } = renderHook(() => useCast({ fileId: 5, audioIndex: 1, title: 'Dune', subtitle: '2021', posterPath: '/back.jpg', subtitleKey: 'emb-3', subtitleStyle: { subtitleSize: 'large', subtitleColor: 'yellow', subtitleBackground: 'none', subtitleEdge: 'shadow' }, locate }));
+    const { result, unmount, rerender } = renderHook(({ color }: { color: 'white' | 'yellow' }) => useCast({ fileId: 5, audioIndex: 1, title: 'Dune', subtitle: '2021', posterPath: '/back.jpg', subtitleKey: 'emb-3', subtitleStyle: { subtitleSize: 'large', subtitleColor: color, subtitleBackground: 'none', subtitleEdge: 'shadow' }, locate }), { initialProps: { color: 'yellow' } });
     await waitFor(() => expect(sdk.context.setOptions).toHaveBeenCalled());
     await act(() => result.current.start(600));
     expect(posts[0]).toMatchObject({ url: '/api/cast/session', body: { fileId: 5, audioIndex: 1 } });
     expect(locate).toHaveBeenCalledWith(600);
     expect(sdk.loaded[0]).toMatchObject({ url: `${location.origin}/api/media/5/remux?audio=aac&start=598.000&cast=tok`, type: 'video/mp4', currentTime: 2, active: [1] });
     expect(sdk.loaded[0].tracks[0].trackContentId).toBe(`${location.origin}/api/media/5/subtitles/3.vtt?offset=598.000&cast=tok`);
-    expect(sdk.loaded[0].textTrackStyle).toMatchObject({ fontFamily: 'sans-serif', fontScale: 1.2, foregroundColor: '#FFE14DFF', backgroundColor: '#00000000', edgeType: 'DROP_SHADOW' });
+    expect(sdk.loaded[0].textTrackStyle).toMatchObject({ fontScale: 1, foregroundColor: '#FFFFFFFF', backgroundColor: '#00000099', edgeType: 'OUTLINE' });
+    expect(sdk.applied.at(-1)).toMatchObject({ fontScale: 1.2, foregroundColor: '#FFE14DFF', backgroundColor: '#00000000', edgeType: 'DROP_SHADOW' });
+    rerender({ color: 'white' });
+    await waitFor(() => expect(sdk.applied.at(-1)).toMatchObject({ foregroundColor: '#FFFFFFFF' }));
+    expect(sdk.loaded).toHaveLength(1);
+    let finishStyle!: () => void;
+    sdk.mediaSession.editTracksInfo.mockImplementationOnce((request, success) => {
+      finishStyle = () => { sdk.applied.push(request.textTrackStyle); success(); };
+    });
+    rerender({ color: 'yellow' });
+    await waitFor(() => expect(finishStyle).toBeTypeOf('function'));
+    rerender({ color: 'white' });
+    await act(async () => { finishStyle(); });
+    await waitFor(() => expect(sdk.applied.at(-1)).toMatchObject({ foregroundColor: '#FFFFFFFF' }));
     expect(result.current).toMatchObject({ active: true, device: 'Woonkamer', time: 600 });
 
     // The TV's position counts from where its stream started.
@@ -171,8 +201,10 @@ describe('casting from the player', () => {
     });
     const loading = result.current.reload(1600);
     await waitFor(() => expect(finishLoad).toBeTypeOf('function'));
+    rerender({ color: 'yellow' });
     act(() => result.current.setSubtitle(null));
     await act(async () => { finishLoad(); await loading; });
+    expect(sdk.applied.at(-1)).toMatchObject({ foregroundColor: '#FFE14DFF' });
     expect(sdk.remote.activeTrackIds).toEqual([]);
     act(() => result.current.togglePlay());
     expect(sdk.controller.playOrPause).toHaveBeenCalled();

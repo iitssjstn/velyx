@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SUBTITLE_STYLE, clampPosition, readSubtitleStyle, stepDelay, subtitleBottom, subtitleFontSize, subtitleTextStyle } from './subtitleStyle';
+import { DEFAULT_SUBTITLE_STYLE, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, readSubtitleStyle, stepDelay, subtitleBottom, subtitleFontSize, subtitleTextStyle } from './subtitleStyle';
 
 describe('reading a stored subtitle style', () => {
   it('falls back to the defaults for nothing or garbage', () => {
@@ -8,7 +8,12 @@ describe('reading a stored subtitle style', () => {
     expect(readSubtitleStyle({ size: 'huge', color: 'red', position: 'high' })).toEqual(DEFAULT_SUBTITLE_STYLE);
   });
   it('keeps valid choices', () => {
-    expect(readSubtitleStyle({ size: 'large', color: 'yellow', background: 'solid', edge: 'outline', position: 10 })).toEqual({ size: 'large', color: 'yellow', background: 'solid', edge: 'outline', position: 10 });
+    expect(readSubtitleStyle({ size: 'large', color: 'yellow', background: 'solid', edge: 'outline', position: 10 })).toEqual({ size: 'large', color: 'yellow', background: 'solid', edge: 'outline', position: 10, castDefaults: false });
+  });
+  it('preserves an explicit TV preference and migrates old defaults as custom', () => {
+    expect(readSubtitleStyle({ ...DEFAULT_SUBTITLE_STYLE, castDefaults: false }).castDefaults).toBe(false);
+    expect(readSubtitleStyle({ size: 'medium', color: 'white', background: 'none', edge: 'shadow', position: 0 }).castDefaults).toBe(false);
+    expect(readSubtitleStyle({ ...DEFAULT_SUBTITLE_STYLE, color: 'yellow' }).castDefaults).toBe(true);
   });
   it('keeps the position within 0–20 in steps of 5', () => {
     expect(clampPosition(-5)).toBe(0);
@@ -19,6 +24,21 @@ describe('reading a stored subtitle style', () => {
 });
 
 describe('how subtitles look', () => {
+  it('previews the TV default without changing local choices', () => {
+    const local = { ...DEFAULT_SUBTITLE_STYLE, color: 'yellow' as const, size: 'xlarge' as const };
+    expect(castSubtitlePreview(local)).toEqual(TV_SUBTITLE_STYLE);
+    expect(subtitleTextStyle(castSubtitlePreview(local), 220)).toMatchObject({ color: '#ffffff', backgroundColor: 'rgba(0,0,0,0.55)', textShadowRadius: 3 });
+    expect(subtitleTextStyle(local, 220).color).toBe('#ffe14d');
+    expect(castSubtitlePreview({ ...local, castDefaults: false })).toMatchObject({ color: 'yellow', size: 'xlarge' });
+  });
+  it('turns custom mode on for appearance edits, not local position edits', () => {
+    for (const patch of [{ size: 'small' as const }, { color: 'yellow' as const }, { background: 'solid' as const }, { edge: 'none' as const }]) {
+      expect(editSubtitleStyle(DEFAULT_SUBTITLE_STYLE, patch).castDefaults).toBe(false);
+    }
+    expect(editSubtitleStyle(DEFAULT_SUBTITLE_STYLE, { position: 10 }).castDefaults).toBe(true);
+    const custom = editSubtitleStyle(DEFAULT_SUBTITLE_STYLE, { color: 'yellow' });
+    expect(editSubtitleStyle(custom, { castDefaults: true })).toMatchObject({ castDefaults: true, color: 'yellow' });
+  });
   it('grows with the size choice and the screen', () => {
     expect(subtitleFontSize('small', 400)).toBeLessThan(subtitleFontSize('medium', 400));
     expect(subtitleFontSize('large', 400)).toBeLessThan(subtitleFontSize('xlarge', 400));
