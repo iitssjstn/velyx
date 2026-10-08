@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import { Resolver } from 'node:dns/promises';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -58,20 +57,19 @@ export class DirectCertificateIssuer {
       ...(this.options.email ? { email: this.options.email } : {}),
       termsOfServiceAgreed: true,
       challengePriority: ['dns-01'],
-      // The library compares the raw key authorization; DNS-01 publishes its SHA-256 digest.
+      // For dns-01 acme-client already passes the SHA-256 digest, which is the TXT value itself.
       skipChallengeVerification: true,
-      challengeCreateFn: async (authz, challenge, keyAuthorization) => {
+      challengeCreateFn: async (authz, challenge, txtValue) => {
         if (challenge.type !== 'dns-01' || authz.identifier.value.toLowerCase() !== hostname) throw new Error('Unexpected ACME challenge for direct server certificate.');
-        const digest = crypto.createHash('sha256').update(keyAuthorization).digest('base64url');
         const recordName = `_acme-challenge.${hostname}`;
-        const recordId = await this.options.dns.createTxt(recordName, digest);
-        txtRecords.set(keyAuthorization, recordId);
-        await this.waitForTxt(recordName, digest);
+        const recordId = await this.options.dns.createTxt(recordName, txtValue);
+        txtRecords.set(txtValue, recordId);
+        await this.waitForTxt(recordName, txtValue);
       },
-      challengeRemoveFn: async (_authz, _challenge, keyAuthorization) => {
-        const recordId = txtRecords.get(keyAuthorization);
+      challengeRemoveFn: async (_authz, _challenge, txtValue) => {
+        const recordId = txtRecords.get(txtValue);
         if (!recordId) return;
-        txtRecords.delete(keyAuthorization);
+        txtRecords.delete(txtValue);
         await this.options.dns.deleteTxt(recordId);
       },
     });

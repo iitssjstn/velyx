@@ -483,4 +483,12 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Een afgeronde uitgifte blijft 10 minuten beschikbaar, zodat een verloren antwoord geen tweede certificaat bij Let's Encrypt aanvraagt (limiet: 5 identieke certificaten per week).
 - De mediaserver bewaart zijn privésleutel vóór de aanvraag en stuurt een sleutel-id mee; een certificaat dat niet bij de sleutel past wordt geweigerd.
 - Tests: pending/gedeelde job/bewaard resultaat, mislukte uitgifte, gedraaide sleutel en het pollen van de mediaserver.
-- Nog te valideren: CI en live certificaatuitgifte na deployment.
+- Gepubliceerd; de uitgifte liep nu door, maar Let's Encrypt weigerde de TXT-waarde (`Incorrect TXT record`).
+
+## Versie 0.19.41 (juiste DNS-01-TXT-waarde)
+
+### Oorzaak van alle certificaatfouten
+- `acme-client` geeft voor DNS-01 al de SHA-256-digest door als TXT-waarde (`client.js` `getChallengeKeyAuthorization`, `verify.js` vergelijkt die waarde). Onze code hashte die waarde nog een keer, dus Let's Encrypt kon nooit de juiste TXT-record vinden.
+- Publiceer de doorgegeven waarde ongewijzigd; de eigen propagatiecheck gebruikt dezelfde waarde.
+- Een test legt het gedrag van de bibliotheek vast (dns-01-waarde is de digest van de ruwe key authorization) en de issuer-test verwacht nu de ongewijzigde waarde.
+- Nog te valideren: CI en live certificaatuitgifte na deployment van de cloudimage.
