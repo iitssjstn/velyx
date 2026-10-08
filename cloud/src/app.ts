@@ -142,6 +142,17 @@ export interface CloudAppOptions {
   fetchImpl?: typeof fetch;
   /** Tests can replace ACME calls without contacting a certificate authority. */
   directCertificateIssuer?: Pick<DirectCertificateIssuer, 'issue'>;
+  /** How long a certificate request waits for the issuance before answering "pending" (tests: 0). */
+  directCertificateWaitMs?: number;
+}
+
+/** A finished certificate stays available for the server's next request, in case the answer was lost. */
+const CERTIFICATE_KEEP_MS = 10 * 60_000;
+interface CertificateJob {
+  keyId: string;
+  promise: Promise<void>;
+  result?: { certificate: string } | { failed: true };
+  finishedAt?: number;
 }
 
 export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppOptions = {}): Promise<FastifyInstance> {
@@ -783,20 +794,54 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     return serverStatus(db.select().from(servers).where(eq(servers.id, me.id)).get()!);
   });
 
-  app.post('/api/server/direct/certificate', async (request) => {
+  const certificateJobs = new Map<string, CertificateJob>();
+
+  app.post('/api/server/direct/certificate', async (request, reply) => {
     const me = server(request);
     if (!me.accountId) throw new HttpError(409, 'Link this server to a Vidalune account first.');
     if (!directCertificates || !me.directDnsReady) throw new HttpError(503, 'Direct server DNS is not ready.');
+    const { csr, keyId } = z.object({ csr: z.string().min(1).max(30_000), keyId: z.string().regex(/^[a-f0-9]{64}$/).optional() }).parse(request.body);
     limiter.check(`direct-certificate:${me.id}`, now());
-    const { csr } = z.object({ csr: z.string().min(1).max(30_000) }).parse(request.body);
     const hostname = directHostname(me.id);
-    try {
-      const certificate = await directCertificates.issue(hostname, csr);
-      return { hostname, certificate };
-    } catch (err) {
-      console.warn(`Direct TLS certificate issuance failed for server ${me.id}: ${(err as Error).message}`);
+    if (!keyId) {
+      try {
+        return { hostname, certificate: await directCertificates.issue(hostname, csr) };
+      } catch (err) {
+        console.warn(`Direct TLS certificate issuance failed for server ${me.id}: ${(err as Error).message}`);
+        throw new HttpError(502, 'Could not issue the direct server certificate. Check DNS and try again later.');
+      }
+    }
+
+    let job = certificateJobs.get(me.id);
+    if (job && job.keyId !== keyId && !job.result) return reply.code(202).send({ pending: true });
+    if (job?.result && (job.keyId !== keyId || now() - job.finishedAt! > CERTIFICATE_KEEP_MS)) {
+      certificateJobs.delete(me.id);
+      job = undefined;
+    }
+    if (!job) {
+      const started: CertificateJob = { keyId, promise: Promise.resolve() };
+      started.promise = directCertificates.issue(hostname, csr).then(
+        (certificate) => {
+          started.result = { certificate };
+          started.finishedAt = now();
+        },
+        (err) => {
+          console.warn(`Direct TLS certificate issuance failed for server ${me.id}: ${(err as Error).message}`);
+          started.result = { failed: true };
+          started.finishedAt = now();
+        },
+      );
+      certificateJobs.set(me.id, started);
+      job = started;
+    }
+    const current = job;
+    await Promise.race([current.promise, new Promise<void>((resolve) => setTimeout(resolve, opts.directCertificateWaitMs ?? 25_000).unref())]);
+    if (!current.result) return reply.code(202).send({ pending: true });
+    if ('failed' in current.result) {
+      certificateJobs.delete(me.id);
       throw new HttpError(502, 'Could not issue the direct server certificate. Check DNS and try again later.');
     }
+    return { hostname, certificate: current.result.certificate };
   });
 
   /** The server's administrator turns the relay on or off (only for a linked server). */

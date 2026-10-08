@@ -474,4 +474,13 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Negeer nameserveradressen die niet antwoorden; een nameserver telt als gereed zodra de bereikbare adressen uitsluitend de actuele challenge geven.
 - Toon per adres de foutcode in de logregel, zodat een mislukte propagatie diagnosticeerbaar blijft.
 - Test een IPv6-adres dat time-out geeft naast een werkend IPv4-adres.
+- Gepubliceerd. Productie toonde daarna dat de certificaataanvraag langer duurt dan de 45 seconden die de mediaserver wacht.
+
+## Versie 0.19.40 (asynchrone certificaatuitgifte)
+
+### Certificaat op de achtergrond uitgeven
+- De accountservice start de uitgifte in de achtergrond en antwoordt na maximaal 25 seconden `202 pending`; de mediaserver vraagt elke 10 seconden opnieuw met dezelfde sleutel.
+- Een afgeronde uitgifte blijft 10 minuten beschikbaar, zodat een verloren antwoord geen tweede certificaat bij Let's Encrypt aanvraagt (limiet: 5 identieke certificaten per week).
+- De mediaserver bewaart zijn privésleutel vóór de aanvraag en stuurt een sleutel-id mee; een certificaat dat niet bij de sleutel past wordt geweigerd.
+- Tests: pending/gedeelde job/bewaard resultaat, mislukte uitgifte, gedraaide sleutel en het pollen van de mediaserver.
 - Nog te valideren: CI en live certificaatuitgifte na deployment.

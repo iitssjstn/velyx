@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import https from 'node:https';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey, randomUUID, X509Certificate } from 'node:crypto';
 import * as acme from 'acme-client';
 import type { FastifyInstance } from 'fastify';
 import type { CloudService } from './cloud.js';
@@ -13,6 +13,7 @@ const CHECK_MS = 60_000;
 const RENEW_BEFORE_MS = 30 * 24 * 60 * 60_000;
 const INITIAL_RETRY_MS = 30_000;
 const MAX_RETRY_MS = 6 * 60 * 60_000;
+const PENDING_POLL_MS = 10_000;
 export const DIRECT_HEALTH_PATH = '/api/server/direct/health';
 const FORWARDED_HEADERS = [
   'forwarded',
@@ -28,11 +29,15 @@ const FORWARDED_HEADERS = [
   'x-cluster-client-ip',
 ];
 
+/** The account service is still issuing the certificate; not a failure. */
+class CertificatePending extends Error {}
+
 /** HTTPS media-only listener on the forwarded TCP port; TLS keys stay in the server data directory. */
 export class DirectHttpsService {
   private listener: https.Server | null = null;
   private hostname: string | null = null;
   private timer: NodeJS.Timeout | null = null;
+  private pollTimer: NodeJS.Timeout | null = null;
   private working: Promise<void> | null = null;
   private retryAt = 0;
   private retryMs = INITIAL_RETRY_MS;
@@ -58,7 +63,9 @@ export class DirectHttpsService {
 
   stop(): void {
     if (this.timer) clearInterval(this.timer);
+    if (this.pollTimer) clearTimeout(this.pollTimer);
     this.timer = null;
+    this.pollTimer = null;
     this.listener?.close();
     this.listener = null;
     this.hostname = null;
@@ -71,6 +78,12 @@ export class DirectHttpsService {
       this.retryAt = 0;
       this.retryMs = INITIAL_RETRY_MS;
     }).catch((err) => {
+      if (err instanceof CertificatePending) {
+        log.info('Waiting for the Vidalune account service to issue the certificate');
+        this.pollTimer = setTimeout(() => void this.refresh(), PENDING_POLL_MS);
+        this.pollTimer.unref();
+        return;
+      }
       this.retryAt = (this.options.now?.() ?? Date.now()) + this.retryMs;
       this.retryMs = Math.min(this.retryMs * 2, MAX_RETRY_MS);
       log.warn(`Direct HTTPS setup is waiting; retry scheduled: ${(err as Error).message}`);
@@ -98,15 +111,35 @@ export class DirectHttpsService {
       return;
     }
 
-    const privateKey = existing?.key ?? await acme.crypto.createPrivateEcdsaKey();
+    const privateKey = existing?.key ?? await this.loadOrCreateKey(keyFile);
+    const keyId = createHash('sha256').update(createPublicKey(privateKey).export({ type: 'spki', format: 'der' })).digest('hex');
     const [, csr] = await acme.crypto.createCsr({ commonName: access.hostname, altNames: [access.hostname] }, privateKey);
-    const issued = await this.options.cloud.directCertificate(csr.toString());
-    if (issued.hostname !== access.hostname || !this.certificateMatches(issued.certificate, access.hostname)) throw new Error('Issued certificate does not match this server hostname.');
+    const issued = await this.options.cloud.directCertificate(csr.toString(), keyId);
+    if ('pending' in issued) throw new CertificatePending();
+    if (issued.hostname !== access.hostname || !this.certificateMatches(issued.certificate, access.hostname) || !this.matchesKey(issued.certificate, privateKey)) throw new Error('Issued certificate does not match this server hostname and key.');
 
-    await fs.promises.mkdir(path.dirname(keyFile), { recursive: true });
-    await this.atomicWrite(keyFile, privateKey);
     await this.atomicWrite(certFile, issued.certificate);
     await this.listen(access.hostname, privateKey, issued.certificate);
+  }
+
+  /** The key is kept before the request, so a retry asks for the certificate of the same key. */
+  private async loadOrCreateKey(keyFile: string): Promise<Buffer> {
+    try {
+      return await fs.promises.readFile(keyFile);
+    } catch {
+      const key = await acme.crypto.createPrivateEcdsaKey();
+      await fs.promises.mkdir(path.dirname(keyFile), { recursive: true });
+      await this.atomicWrite(keyFile, key);
+      return key;
+    }
+  }
+
+  private matchesKey(certificate: string, key: Buffer): boolean {
+    try {
+      return new X509Certificate(certificate).checkPrivateKey(createPrivateKey(key));
+    } catch {
+      return false;
+    }
   }
 
   private async readPair(keyFile: string, certFile: string): Promise<{ key: Buffer; certificate: string } | null> {
