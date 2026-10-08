@@ -459,11 +459,19 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Verberg het automatisch toegewezen hostname-adres in de beheerinterface; behoud alleen de verbindingsstatus.
 - De release is compleet: tag, APK, beide `.deb`-pakketten en images gepubliceerd.
 
-## Versie 0.19.38 (stale ACME TXT-fix)
+## Versie 0.19.38
 
 ### Oude TXT-challenges opruimen
 - De autoritatieve servers bevatten meerdere TXT-waarden voor `_acme-challenge.<server>.media.vidalune.com`; Let’s Encrypt meldde `Incorrect TXT record`.
 - Verwijder bestaande TXT-challenges op die exacte serverhost vóór een nieuwe challenge wordt toegevoegd.
 - Ga pas verder als alle autoritatieve serveradressen uitsluitend de actuele challengewaarde teruggeven.
 - Test Cloudflare-opruiming en wachten bij een gemengde oude/nieuwe TXT-response.
-- Nog te valideren: ACME/Cloudflare-CI en live certificaatuitgifte na deployment.
+- Productie toonde `0/2` autoritatieve nameservers: de controle eiste antwoord van elk nameserveradres, ook IPv6, dat in Docker onbereikbaar is.
+
+## Versie 0.19.39 (onbereikbare nameserveradressen)
+
+### Autoritatieve TXT-controle zonder IPv6-afhankelijkheid
+- Negeer nameserveradressen die niet antwoorden; een nameserver telt als gereed zodra de bereikbare adressen uitsluitend de actuele challenge geven.
+- Toon per adres de foutcode in de logregel, zodat een mislukte propagatie diagnosticeerbaar blijft.
+- Test een IPv6-adres dat time-out geeft naast een werkend IPv4-adres.
+- Nog te valideren: CI en live certificaatuitgifte na deployment.

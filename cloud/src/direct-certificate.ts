@@ -83,28 +83,35 @@ export class DirectCertificateIssuer {
     const deadline = Date.now() + timeoutMs;
     const nameServers = await this.options.dns.authoritativeNameServers();
     let lastResult: string;
+    const errorCode = (err: unknown) => (err as NodeJS.ErrnoException).code ?? 'ERROR';
 
     while (true) {
+      const problems: string[] = [];
       const visible = await Promise.all(nameServers.map(async (nameServer) => {
         try {
           const addresses = await (this.options.resolveNameServerAddresses ?? this.resolveNameServerAddresses.bind(this))(nameServer);
-          if (!addresses.length) return false;
-          const answerSets = await Promise.all(addresses.map(async (address) => {
+          if (!addresses.length) {
+            problems.push(`${nameServer}: no address`);
+            return false;
+          }
+          const answerSets: string[][][] = [];
+          await Promise.all(addresses.map(async (address) => {
             try {
-              return await (this.options.resolveTxtAt ?? this.resolveTxtAt.bind(this))(address, name);
-            } catch {
-              return [];
+              answerSets.push(await (this.options.resolveTxtAt ?? this.resolveTxtAt.bind(this))(address, name));
+            } catch (err) {
+              // An address we cannot reach (often IPv6 inside Docker) says nothing about the record.
+              problems.push(`${address}: ${errorCode(err)}`);
             }
           }));
-          return answerSets.every((answers) => answers.length > 0 && answers.every((record) => record.join('') === expected));
-        } catch {
-          // Retry temporary nameserver lookup failures until the propagation deadline.
+          return answerSets.length > 0 && answerSets.every((answers) => answers.length > 0 && answers.every((record) => record.join('') === expected));
+        } catch (err) {
+          problems.push(`${nameServer}: ${errorCode(err)}`);
+          return false;
         }
-        return false;
       }));
       const visibleCount = visible.filter(Boolean).length;
       if (visibleCount === nameServers.length) return;
-      lastResult = `TXT challenge is visible on ${visibleCount}/${nameServers.length} authoritative Cloudflare nameservers`;
+      lastResult = `TXT challenge is visible on ${visibleCount}/${nameServers.length} authoritative Cloudflare nameservers${problems.length ? ` (${problems.join(', ')})` : ''}`;
 
       if (Date.now() >= deadline) break;
       await new Promise((resolve) => setTimeout(resolve, pollMs));
