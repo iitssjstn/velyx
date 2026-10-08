@@ -47,9 +47,10 @@ describe('direct server certificates', () => {
       directoryUrl: 'https://acme-staging.example/directory',
       dns,
       createClient,
-      resolveNameServerAddresses: async (nameServer) => [nameServer === 'ns1.cloudflare.test' ? '192.0.2.53' : '192.0.2.54'],
+      resolveNameServerAddresses: async (nameServer) => [nameServer === 'ns1.cloudflare.test' ? '192.0.2.53' : '192.0.2.54', '2001:db8::53'],
       resolveTxtAt: async (address, name) => {
         expect(name).toBe('_acme-challenge.server-1.media.vidalune.com');
+        if (address.includes(':')) throw Object.assign(new Error('unreachable'), { code: 'ETIMEOUT' });
         publicQueries += 1;
         return publicQueries > 2 ? [[records[0]![1]]] : [[records[0]![1]], ['stale-challenge']];
       },
