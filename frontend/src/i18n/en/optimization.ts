@@ -20,4 +20,15 @@ export const optimization = {
   removeText: 'This removes only the generated copy. The original media stays untouched.',
   removed: 'Optimized copy removed.',
   status: { queued: 'Queued', processing: 'In progress', ready: 'Ready', failed: 'Failed', stale: 'Out of date' },
+  queue: {
+    title: 'Optimization queue',
+    intro: 'Compatible copies are made one at a time, on up to four cores. A copy pauses while someone is watching and the server is busy, and while a library scan runs. Create a copy from a movie or episode page.',
+    paused: 'On hold: someone is watching and the server is busy, or a library scan is running. The copy continues by itself afterwards.',
+    emptyTitle: 'No optimized copies',
+    empty: 'Open a movie or episode and choose Optimize to make a compatible copy.',
+    loadError: 'The optimization queue could not be loaded.',
+    position: 'Place {n} in the queue',
+    unknownTitle: 'Unknown title',
+    open: 'Open title',
+  },
 };

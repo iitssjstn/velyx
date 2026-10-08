@@ -65,7 +65,11 @@ interface DNSRecord {
   name: string;
   content: string;
   proxied: boolean;
+  comment?: string | null;
 }
+
+/** Marks the address records this service made, so a clean-up never touches the others in the zone. */
+const DIRECT_COMMENT = 'Vidalune direct server access';
 
 interface DNSRecordInput {
   type: 'A' | 'AAAA';
@@ -127,7 +131,7 @@ export class CloudflareDns {
       content: address,
       ttl: 120,
       proxied: false,
-      comment: 'Vidalune direct server access',
+      comment: DIRECT_COMMENT,
     };
     if (existing) {
       if (existing.content === address && existing.proxied === false) return;
@@ -141,6 +145,18 @@ export class CloudflareDns {
       method: 'POST',
       body: JSON.stringify(input),
     });
+  }
+
+  /** Every record in the zone (that is what the plan limit counts) and the address records this service made. */
+  async listRecords(): Promise<{ total: number; direct: Array<{ name: string; type: 'A' | 'AAAA' }> }> {
+    const zoneId = await (this.zoneId ??= this.findZone());
+    const query = new URLSearchParams({ per_page: '5000' });
+    const records = await this.request<DNSRecord[]>(`/zones/${zoneId}/dns_records?${query}`);
+    const direct: Array<{ name: string; type: 'A' | 'AAAA' }> = [];
+    for (const record of records) {
+      if ((record.type === 'A' || record.type === 'AAAA') && record.comment === DIRECT_COMMENT) direct.push({ name: record.name.toLowerCase(), type: record.type });
+    }
+    return { total: records.length, direct };
   }
 
   async deleteAddress(hostname: string): Promise<void> {

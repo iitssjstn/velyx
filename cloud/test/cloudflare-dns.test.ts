@@ -98,6 +98,22 @@ describe('Cloudflare direct DNS records', () => {
     expect(deleted).toEqual(['a-1', 'aaaa-1']);
   });
 
+  it('lists every record for the plan limit but reports only its own address records', async () => {
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      if (url.includes('/zones?')) return json([{ id: 'zone-1', name: 'vidalune.com' }]);
+      return json([
+        { id: '1', type: 'A', name: 'S.media.vidalune.com', content: '8.8.8.8', proxied: false, comment: 'Vidalune direct server access' },
+        { id: '2', type: 'AAAA', name: 'www.vidalune.com', content: '2606:4700:4700::1111', proxied: false, comment: null },
+        { id: '3', type: 'TXT', name: '_acme-challenge.s.media.vidalune.com', content: 'x', proxied: false, comment: 'Vidalune TLS validation' },
+        { id: '4', type: 'A', name: 'mail.vidalune.com', content: '8.8.4.4', proxied: true },
+      ]);
+    };
+    const dns = new CloudflareDns({ token: 'test-token', zoneName: 'vidalune.com', fetchImpl, apiBase: 'https://cf.test' });
+
+    expect(await dns.listRecords()).toEqual({ total: 4, direct: [{ name: 's.media.vidalune.com', type: 'A' }] });
+  });
+
   it('creates and removes a DNS-01 TXT record only inside the configured zone', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetchImpl: typeof fetch = async (input, init) => {

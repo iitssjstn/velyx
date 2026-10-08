@@ -9,7 +9,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.37** (PR #120): verificatie van de ACME-TXT-record bij autoritatieve Cloudflare-nameservers; tag, APK, beide `.deb`-pakketten en images gepubliceerd. Daarvoor 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints en automatische verbindingsdiagnose), 0.19.34 (PR #117, CSP voor het geselecteerde serverdomein), 0.19.33 (PR #115, direct afspelen via één publieke serverpoort), 0.19.25 (PR #102, filmischer startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.41** (PR #124, juiste DNS-01-TXT-waarde; afspelen werkt in productie). Open: PR #125 (0.19.42, optimalisatiewachtrij) en 0.19.43 (DNS-opschoning). Daarvoor 0.19.37 (PR #120): verificatie van de ACME-TXT-record bij autoritatieve Cloudflare-nameservers; tag, APK, beide `.deb`-pakketten en images gepubliceerd. Daarvoor 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints en automatische verbindingsdiagnose), 0.19.34 (PR #117, CSP voor het geselecteerde serverdomein), 0.19.33 (PR #115, direct afspelen via één publieke serverpoort), 0.19.25 (PR #102, filmischer startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -194,7 +194,32 @@ PR #100 is gemerged en release `v0.19.23` is gecontroleerd (APK + beide `.deb`'s
 - Begeleid de beheerder door bestaande bibliotheken, TMDB, ondertiteling, relay, Seerr, Sonarr en Radarr.
 - Herken bestaande configuratie, maak optionele stappen overslaan en later hervatten, en behoud de instellingen van Docker- en `.deb`-installaties.
 
+### Mee te nemen in de eerstvolgende update (alleen onthouden, nog niet bouwen)
+- Meld Docker-interne adressen (zoals `172.18.0.14`) niet meer als `lan`-endpoint in `localEndpoints` (`backend/src/services/cloud.ts`); ze zijn onbereikbaar voor andere apparaten. Een Docker-adres is niet betrouwbaar te onderscheiden van een echt LAN-adres in hetzelfde bereik; bedenk eerst hoe (bijvoorbeeld de bridge-interfaces overslaan). Gemeld 8 okt.
+
+### DNS-recordlimiet (gemeld 8 okt; stap 1 gebouwd in 0.19.43, stap 2 en 3 alleen onthouden)
+Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebruik op 8 okt). Elke gekoppelde server kost één A-/AAAA-record (`upsertAddress`), dus er passen ongeveer 180 servers; de tijdelijke ACME-TXT-records hebben ook een vrije plek nodig.
+1. **Opschonen van weesrecords** (eerst, klein):
+   - Record verwijderen als de server niet meer actief is. Primair signaal is **heartbeatstilte** (`lastSeenAt` ouder dan een grens, bijvoorbeeld 24 uur), omdat de heartbeat een uitgaande verbinding is die ook door NAT en firewalls heen werkt. De bestaande poortprobe (`HEAD https://<host>:<poort>/api/server/direct/health`, nu in de heartbeat) is alleen een tweede controle vóór het verwijderen, en moet daarom ook los van een heartbeat kunnen draaien.
+   - Een server die terugkomt maakt het record bij de eerstvolgende heartbeat (binnen 5 minuten) vanzelf opnieuw aan; het certificaat en de sleutel staan op de server en blijven geldig. Verwijderen is dus goedkoop en veilig.
+   - Gaten die nu al bestaan: `DELETE /api/server` (server wist zichzelf) en de `prune`, die na 30 dagen stilte de serverrij verwijdert, laten het record staan, en met de rij is dan ook de koppeling weg. Verwijder het record eerst, en vergelijk daarnaast periodiek de records met het commentaar `Vidalune direct server access` bij Cloudflare met de serverlijst in de database.
+   - Waarschuw in het CEO-paneel bij ~160 van 200 records. Twee records wezen op 8 okt naar hetzelfde IP (`86.82.78.47`); controleer of een daarvan een oude testserver is.
+2. **Meer ruimte kopen**: een hoger Cloudflare-plan heeft een veel hogere recordlimiet; zoek het exacte aantal op in het dashboard.
+3. **Geen record per server meer** (groot, pas plannen zodra het richting ~100 servers gaat): eigen autoritatieve DNS voor een subdomein.
+   - Delegeer bijvoorbeeld `media.vidalune.com` bij Cloudflare met twee NS-records naar eigen nameservers; de accountservice (of een kleine aparte DNS-dienst) beantwoordt `<id>.media.vidalune.com` uit de database. Dan is er geen recordlimiet en zijn wijzigingen direct.
+   - De DNS-01-uitdaging voor certificaten moet daar ook beantwoord worden (TXT uit eigen opslag of via een CNAME van `_acme-challenge`); de bestaande uitgifteketen (`cloud/src/direct-certificate.ts`) blijft verder gelijk.
+   - Nadeel: een eigen DNS-dienst die altijd bereikbaar moet zijn (minimaal twee nameservers, UDP en TCP poort 53), met bewaking. Valideer eerst of Cloudflare NS-delegatie van een subdomein op jouw plan toestaat.
+   - Let ook op de Let's Encrypt-limiet van ongeveer 50 nieuwe certificaten per week per hoofddomein (controleer in hun documentatie); die geldt los van DNS en kan bij een piek aan nieuwe klanten eerder knellen.
+
 ## Gemeld tijdens het testen
+
+- **Kwaliteitsoptimizer: plek en snelheid** (gemeld 8 okt; besloten en gebouwd in 0.19.42).
+  1. De bediening (`OptimizationControls`) staat onderaan de film- en afleveringspagina's en blijft daar.
+     Daarnaast komt een beheerpagina met wachtrij, zodat de beheerder kan volgen wat bezig is, wat wacht en
+     waarom iets mislukt is.
+  2. Het maken van een kopie duurde te lang (`-threads 1`, `veryfast`, volledige pauze zodra iemand kijkt).
+     Besloten: alle kernen (maximaal vier), een snellere x264-preset, en alleen pauzeren als de server
+     druk is; de CPU-prioriteit blijft ongewijzigd (nice 10).
 
 - **Videostreams via FlareSolverr en traag afspelen** (gemeld 7 okt):
   de websiteplayer gebruikte hetzelfde origin als de website, waardoor `app.vidalune.com` alle
@@ -491,4 +516,26 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - `acme-client` geeft voor DNS-01 al de SHA-256-digest door als TXT-waarde (`client.js` `getChallengeKeyAuthorization`, `verify.js` vergelijkt die waarde). Onze code hashte die waarde nog een keer, dus Let's Encrypt kon nooit de juiste TXT-record vinden.
 - Publiceer de doorgegeven waarde ongewijzigd; de eigen propagatiecheck gebruikt dezelfde waarde.
 - Een test legt het gedrag van de bibliotheek vast (dns-01-waarde is de digest van de ruwe key authorization) en de issuer-test verwacht nu de ongewijzigde waarde.
-- Nog te valideren: CI en live certificaatuitgifte na deployment van de cloudimage.
+- Gevalideerd in productie: CI en live certificaatuitgifte; afspelen via `app.vidalune.com` werkt.
+
+## Versie 0.19.42 (optimizerwachtrij en snellere kopieën)
+
+### Beheerpagina Optimalisatie
+- Nieuw tabblad Optimalisatie onder Beheer: wat bezig is (met voortgang), wat wacht (met plek in de rij), mislukte en verouderde kopieën met de foutmelding, en klare kopieën met grootte.
+- Opnieuw proberen en verwijderen vanaf de pagina; een kopie die wordt gemaakt kan niet worden verwijderd. De pagina vernieuwt zichzelf zolang er iets wacht of bezig is.
+- Toont wanneer de kopie op pauze staat omdat er gescand wordt of iemand kijkt terwijl de server druk is.
+- Backend: GET /api/admin/optimizations (alleen beheerder, zonder bestandspaden).
+
+### Sneller maken
+- ffmpeg gebruikt alle kernen (maximaal vier) in plaats van één, en de software-x264-preset is superfast in plaats van eryfast.
+- Pauzeren (SIGSTOP) gebeurt alleen nog als er gescand wordt, of als er gekeken wordt én de server druk is. De eigen belasting van de kopie telt niet mee voor die beoordeling (machineBusy(ownLoad)), anders zou de kopie zichzelf pauzeren.
+- CPU-prioriteit blijft nice 10, zodat kijkers voorrang houden.
+
+## Versie 0.19.43 (DNS-opschoning)
+
+### Records van verdwenen servers verwijderen
+- Elk uur (en een minuut na het starten) vergelijkt de accountservice de adresrecords in de Cloudflare-zone met de serverlijst. Alleen records met het commentaar Vidalune direct server access onder DIRECT_DOMAIN worden aangeraakt.
+- Een record gaat weg als de server niet meer in de database staat, niet meer aan een account gekoppeld is, of als de heartbeat 24 uur stil is én de directe poort niet antwoordt (HEAD op /api/server/direct/health). Een server die weer meldt, krijgt zijn record binnen 5 minuten terug.
+- DELETE /api/server (de server wist zichzelf) verwijdert het record nu eerst.
+- Het CEO-overzicht toont de DNS-records in gebruik tegen DNS_RECORD_LIMIT (standaard 200) en waarschuwt vanaf 80 %. De accountservice logt dezelfde waarschuwing.
+- Niet gebouwd: stap 2 (groter plan) en stap 3 (eigen autoritatieve DNS), zie "DNS-recordlimiet" hierboven.

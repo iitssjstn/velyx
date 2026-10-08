@@ -23,6 +23,7 @@ import { SubtitleError, SubtitleProxy, subtitleRoutes } from './subtitles.js';
 import { CeoError, ceoRoutes } from './ceo.js';
 import { CloudflareDns, publicAddress } from './cloudflare-dns.js';
 import { DirectCertificateIssuer } from './direct-certificate.js';
+import { sweepDirectDns } from './direct-dns-cleanup.js';
 
 const DAY = 86_400_000;
 
@@ -161,6 +162,27 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     ? new CloudflareDns({ token: config.cloudflareApiToken, zoneName: config.cloudflareZoneName, fetchImpl: opts.fetchImpl })
     : null;
   const directHostname = (serverId: string) => `${serverId}.${config.directDomain}`;
+  /** Whether the server's direct listener answers from outside its network. */
+  const probeDirect = async (hostname: string, port: number): Promise<boolean> => {
+    try {
+      const res = await (opts.fetchImpl ?? fetch)(`https://${hostname}${port === 443 ? '' : `:${port}`}/api/server/direct/health`, { method: 'HEAD', redirect: 'error', signal: AbortSignal.timeout(5000) });
+      return res.status === 204;
+    } catch {
+      return false;
+    }
+  };
+  /** What the last clean-up found: records in use against what the Cloudflare plan allows. */
+  let dnsUsage: { used: number; limit: number; checkedAt: number } | null = null;
+  const runDnsSweep = async (): Promise<void> => {
+    if (!directDns) return;
+    try {
+      const result = await sweepDirectDns({ db, dns: directDns, directDomain: config.directDomain, now, probe: probeDirect, log: (message) => console.info(message) });
+      dnsUsage = { used: result.used, limit: config.dnsRecordLimit, checkedAt: result.checkedAt };
+      if (result.used >= config.dnsRecordLimit * 0.8) console.warn(`DNS records: ${result.used} of ${config.dnsRecordLimit} in use; free up space or raise the limit.`);
+    } catch (err) {
+      console.warn(`DNS clean-up failed: ${(err as Error).message}`);
+    }
+  };
   const directCertificates = opts.directCertificateIssuer ?? (directDns
     ? new DirectCertificateIssuer({
         dataDir: config.dataDir,
@@ -774,19 +796,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const directPort = body.directPort;
     const directTlsReady = body.directTlsReady;
     let directPortOpen = false;
-    if (dnsReady && directTlsReady && config.cloudflareApiToken) {
-      const portPart = directPort === 443 ? '' : `:${directPort}`;
-      try {
-        const probe = await (opts.fetchImpl ?? fetch)(`https://${directHostname(me.id)}${portPart}/api/server/direct/health`, {
-          method: 'HEAD',
-          redirect: 'error',
-          signal: AbortSignal.timeout(5000),
-        });
-        directPortOpen = probe.status === 204;
-      } catch {
-        directPortOpen = false;
-      }
-    }
+    if (dnsReady && directTlsReady && config.cloudflareApiToken) directPortOpen = await probeDirect(directHostname(me.id), directPort);
     db.update(servers)
       .set({ name: body.name, version: body.version, url: body.url ?? null, localEndpoints: JSON.stringify(body.localEndpoints), publicIp, directDnsReady: dnsReady, directDnsCheckedAt: checkedAt, directPort, directTlsReady, directPortOpen, directPortCheckedAt: checkedAt, lastSeenAt: checkedAt })
       .where(eq(servers.id, me.id))
@@ -980,6 +990,14 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   app.delete('/api/server', async (request) => {
     const me = server(request);
     relay.drop(me.id);
+    // The row goes too, so afterwards nothing could tell which record was this server's.
+    if (directDns) {
+      try {
+        await directDns.deleteAddress(directHostname(me.id));
+      } catch (err) {
+        console.warn(`Direct DNS cleanup failed for server ${me.id}: ${(err as Error).message}`);
+      }
+    }
     db.delete(servers).where(eq(servers.id, me.id)).run();
     return { ok: true };
   });
@@ -996,6 +1014,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     accessChanged: () => relay.dropUnallowed(),
     signOut: (accountId) => void db.delete(accountSessions).where(eq(accountSessions.accountId, accountId)).run(),
     fetchImpl: opts.fetchImpl,
+    directDnsUsage: () => dnsUsage,
   });
   app.decorate('ceoMonitor', ceo.monitor);
 
@@ -1125,6 +1144,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       .run();
   };
   app.decorate('prune', prune);
+  app.decorate('sweepDirectDns', runDnsSweep);
 
   if (config.webDir && fs.existsSync(path.join(config.webDir, 'index.html'))) {
     const webDir = config.webDir;
@@ -1188,6 +1208,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 declare module 'fastify' {
   interface FastifyInstance {
     prune: () => void;
+    /** Removes the DNS records of servers that are gone (hourly); logs its findings, never throws. */
+    sweepDirectDns: () => Promise<void>;
     relay: Relay;
     /** Checks the relays and writes down their state (every five minutes). */
     ceoMonitor: () => Promise<void>;

@@ -122,9 +122,9 @@ export interface AppContext {
   startedAt: number;
 }
 
-/** More than 60 % of the processors in use (load average; always false where there is none). */
-export function machineBusy(): boolean {
-  return os.loadavg()[0] / Math.max(1, os.cpus().length) > 0.6;
+/** More than 60 % of the processors in use (load average; always false where there is none). `ownLoad` is load we cause ourselves. */
+export function machineBusy(ownLoad = 0): boolean {
+  return Math.max(0, os.loadavg()[0] - ownLoad) / Math.max(1, os.cpus().length) > 0.6;
 }
 
 export interface BuildOptions {
@@ -207,7 +207,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   playback.register(new RemuxEngine(config.ffmpegPath, () => transcoding.current()));
   // Last: only what neither plays as it is nor after repackaging is converted, when that is on.
   playback.register(new TranscodeEngine(() => transcoding.current()));
-  const optimizations = new OptimizationService({ db, dataDir: config.dataDir, ffmpegPath: config.ffmpegPath, probe, transcoding, settings, busy: () => scans.active || streams.active().length > 0 });
+  const optimizations = new OptimizationService({ db, dataDir: config.dataDir, ffmpegPath: config.ffmpegPath, probe, transcoding, settings, busy: (ownLoad) => scans.active || (streams.active().length > 0 && (opts.machineBusy ? opts.machineBusy() : machineBusy(ownLoad))) });
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
   const storage = new StorageService(db, config);
   // Critically low disk space pauses scans (which write artwork and rows); they resume on their own.

@@ -1,10 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { machineBusy } from '../src/app.js';
 import { encodeArgs } from '../src/playback/transcode.js';
-import { OPTIMIZATION_PROFILES, optimizationArgs, type OptimizationProfile } from '../src/services/optimization.js';
+import { OPTIMIZATION_PROFILES, optimizationArgs, optimizationThreads, type OptimizationProfile } from '../src/services/optimization.js';
 import { mediaFiles, optimizedMedia } from '../src/db/schema.js';
 import { addLibrary, createTestEnv, createUser, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
 
@@ -30,12 +32,31 @@ describe('playback optimization profiles', () => {
       expect(args[args.indexOf('-maxrate') + 1]).toBe(dimensions.maxBitrate);
       expect(args).toContain('0:a?');
       expect(args).toContain('+faststart');
-      expect(args).toContain('1');
+      expect(args[args.indexOf('-threads') + 1]).toBe(String(optimizationThreads()));
+      expect(args[args.indexOf('-preset') + 1]).toBe('superfast');
       expect(args).toContain('-progress');
       expect(args).toContain('pipe:1');
       expect(args).not.toContain('-c:s');
     },
   );
+
+  it('uses every core up to four unless told otherwise', () => {
+    expect(optimizationThreads()).toBeGreaterThanOrEqual(1);
+    expect(optimizationThreads()).toBeLessThanOrEqual(4);
+    const args = optimizationArgs({ profile: 'compat-720p', input: '/in.mkv', output: '/out.mp4', video: encodeArgs('software'), threads: 2 });
+    expect(args[args.indexOf('-threads') + 1]).toBe('2');
+  });
+
+  it('does not count the load of the copy itself when judging whether the machine is busy', () => {
+    const cores = Math.max(1, os.cpus().length);
+    const load = vi.spyOn(os, 'loadavg').mockReturnValue([cores * 0.8, 0, 0]);
+    try {
+      expect(machineBusy()).toBe(true);
+      expect(machineBusy(cores * 0.8)).toBe(false);
+    } finally {
+      load.mockRestore();
+    }
+  });
 
   it('queues and removes a copy only for an administrator without exposing its data path', async () => {
     const viewer = await createUser(env.app, admin, 'viewer');
@@ -58,6 +79,16 @@ describe('playback optimization profiles', () => {
 
     const listed = await env.app.inject({ url: `/api/admin/media/${file!.id}/optimizations`, headers: { cookie: admin } });
     expect(listed.json().variants).toHaveLength(1);
+
+    expect((await env.app.inject({ url: '/api/admin/optimizations', headers: { cookie: viewer.cookie } })).statusCode).toBe(403);
+    const queue = await env.app.inject({ url: '/api/admin/optimizations', headers: { cookie: admin } });
+    expect(queue.statusCode).toBe(200);
+    expect(queue.body).not.toContain(env.dir);
+    expect(queue.json().paused).toBe(false);
+    expect(queue.json().items).toHaveLength(1);
+    expect(queue.json().items[0]).toMatchObject({ fileId: file!.id, profile: 'compat-720p', status: 'queued', movieId: file!.movieId, showId: null, season: null });
+    expect(typeof queue.json().items[0].title).toBe('string');
+
     const removed = await env.app.inject({ method: 'DELETE', url: `/api/admin/optimizations/${queued.json().variant.id}`, headers: { cookie: admin } });
     expect(removed.json()).toEqual({ ok: true });
     expect(env.ctx.db.select().from(optimizedMedia).all()).toHaveLength(0);
