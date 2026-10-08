@@ -69,6 +69,8 @@ export interface CeoDeps {
   signOut: (accountId: number) => void;
   /** Health checks of other relays (tests pass their own). */
   fetchImpl?: typeof fetch;
+  /** DNS records in use against the zone's limit, as of the last clean-up (null: not known). */
+  directDnsUsage?: () => { used: number; limit: number; checkedAt: number } | null;
 }
 
 /** The grant that counts now: not taken back, started, not ended (the latest one when several). */
@@ -455,6 +457,7 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): { monitor: () =>
         online: Number(db.select({ n: sql<number>`count(*)` }).from(servers).where(and(isNotNull(servers.accountId), gte(servers.lastSeenAt, t - 2 * HOUR))).get()?.n ?? 0),
         connected: live.tunnels,
       },
+      dns: deps.directDnsUsage?.() ?? null,
       activity: db.select().from(ceoEvents).orderBy(desc(ceoEvents.at), desc(ceoEvents.id)).limit(8).all().map(eventView),
     };
   });

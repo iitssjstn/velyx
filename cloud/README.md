@@ -57,6 +57,7 @@ interface (see *app.vidalune.com* below).
 | `DIRECT_DOMAIN` | `media.<PUBLIC_URL hostname>` | Parent domain for automatically assigned direct server hostnames. |
 | `CLOUDFLARE_ZONE_NAME` | `<PUBLIC_URL hostname>` | Cloudflare zone that contains `DIRECT_DOMAIN`. |
 | `CLOUDFLARE_API_TOKEN` | (empty) | Runtime-only token for DNS updates. Scope it to Zone DNS Edit and Zone Read for this zone. Keep it in the account service host's secret/environment configuration; a GitHub Actions secret is not passed to the running container automatically. |
+| `DNS_RECORD_LIMIT` | `200` | How many DNS records your Cloudflare plan allows in the zone. Every linked server uses one; the Control Center warns at 80 %. An hourly clean-up removes the records of servers that are gone, unlinked, or silent for a day and unreachable. |
 | `DIRECT_ACME_DIRECTORY_URL` | Let's Encrypt production | ACME directory used to issue publicly trusted certificates. Use the Let's Encrypt staging directory only for deployment tests. |
 | `DIRECT_ACME_EMAIL` | first `ADMIN_EMAILS` address | Optional contact for certificate expiry notices. |
 

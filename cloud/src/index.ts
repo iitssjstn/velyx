@@ -9,6 +9,9 @@ app.prune();
 setInterval(() => app.prune(), 60 * 60 * 1000).unref();
 void app.ceoMonitor();
 setInterval(() => void app.ceoMonitor(), 5 * 60 * 1000).unref();
+// Servers get a minute after a restart to report in before silent ones are looked at.
+setTimeout(() => void app.sweepDirectDns(), 60_000).unref();
+setInterval(() => void app.sweepDirectDns(), 60 * 60 * 1000).unref();
 await app.listen({ port: config.port, host: config.host });
 console.log(`Vidalune account service on http://${config.host}:${config.port} (${config.publicUrl})`);
 

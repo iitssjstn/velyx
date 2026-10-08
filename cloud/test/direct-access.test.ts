@@ -171,6 +171,57 @@ describe('automatic direct DNS', () => {
     expect(heartbeat.json().directAccess.dnsReady).toBe(false);
   });
 
+  it('removes the address when the server deletes itself from the account service', async () => {
+    let hostname = '';
+    const deleted: string[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/zones') && !init?.method) return Response.json({ success: true, result: [{ id: 'zone-1', name: 'vidalune.com' }] });
+      if (url.pathname.endsWith('/dns_records') && !init?.method) return Response.json({ success: true, result: [{ id: 'record-1', type: 'A', name: hostname, content: '8.8.8.8', proxied: false }] });
+      if (init?.method === 'DELETE') {
+        deleted.push(url.pathname.split('/').at(-1)!);
+        return Response.json({ success: true, result: { id: deleted.at(-1) } });
+      }
+      throw new Error(`Unexpected Cloudflare request: ${url.pathname}`);
+    };
+    const { id, auth } = await setup(fetchImpl);
+    hostname = `${id}.media.vidalune.com`;
+
+    const response = await app.inject({ method: 'DELETE', url: '/api/server', headers: { authorization: auth } });
+    expect(response.statusCode).toBe(200);
+    expect(deleted).toEqual(['record-1']);
+    expect(db.select().from(servers).all()).toHaveLength(0);
+  });
+
+  it('sweeps the address records of servers that are unlinked or unknown, and only ours', async () => {
+    const ours = 'Vidalune direct server access';
+    let known = '';
+    const deleted: string[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/zones') && !init?.method) return Response.json({ success: true, result: [{ id: 'zone-1', name: 'vidalune.com' }] });
+      if (url.pathname.endsWith('/dns_records') && !init?.method) {
+        const all = [
+          { id: 'unlinked-1', type: 'A', name: known, content: '8.8.8.8', proxied: false, comment: ours },
+          { id: 'ghost-1', type: 'A', name: 'ghost.media.vidalune.com', content: '8.8.4.4', proxied: false, comment: ours },
+          { id: 'www-1', type: 'A', name: 'www.vidalune.com', content: '1.1.1.1', proxied: false, comment: null },
+        ];
+        const name = url.searchParams.get('name');
+        return Response.json({ success: true, result: name ? all.filter((record) => record.name === name) : all });
+      }
+      if (init?.method === 'DELETE') {
+        deleted.push(url.pathname.split('/').at(-1)!);
+        return Response.json({ success: true, result: { id: deleted.at(-1) } });
+      }
+      throw new Error(`Unexpected Cloudflare request: ${url.pathname}`);
+    };
+    const { id } = await setup(fetchImpl);
+    known = `${id}.media.vidalune.com`;
+
+    await app.sweepDirectDns();
+    expect(deleted.sort()).toEqual(['ghost-1', 'unlinked-1']);
+  });
+
   it('issues a certificate only for a linked server after its direct DNS is ready', async () => {
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = new URL(String(input));

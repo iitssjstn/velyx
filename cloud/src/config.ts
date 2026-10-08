@@ -27,6 +27,8 @@ export interface CloudConfig {
   cloudflareZoneName: string;
   /** Runtime-only DNS token; never returned from an API or included in logs. */
   cloudflareApiToken: string;
+  /** How many DNS records the Cloudflare plan allows in the zone (every linked server uses one). */
+  dnsRecordLimit: number;
   /** ACME directory used for server certificates; staging is useful for deployment tests. */
   directAcmeDirectoryUrl: string;
   /** Optional contact for certificate expiry notices. */
@@ -72,6 +74,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     directDomain: (env.DIRECT_DOMAIN || `media.${new URL(publicUrl).hostname}`).toLowerCase(),
     cloudflareZoneName: (env.CLOUDFLARE_ZONE_NAME || new URL(publicUrl).hostname).toLowerCase(),
     cloudflareApiToken: env.CLOUDFLARE_API_TOKEN ?? '',
+    dnsRecordLimit: Math.max(1, int(env.DNS_RECORD_LIMIT, 200)),
     directAcmeDirectoryUrl: env.DIRECT_ACME_DIRECTORY_URL || 'https://acme-v02.api.letsencrypt.org/directory',
     directAcmeEmail: (env.DIRECT_ACME_EMAIL || env.ADMIN_EMAILS?.split(/[\s,;]+/)[0] || '').trim().toLowerCase(),
     relayMaxMbps: Math.max(0, int(env.RELAY_MAX_MBPS, 900)),
