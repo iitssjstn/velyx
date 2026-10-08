@@ -251,10 +251,10 @@ export class CloudService {
 
   private checkedAt = 0;
 
-  /** Requests a certificate for this server's assigned hostname; its private key is never sent. */
-  async directCertificate(csr: string): Promise<{ hostname: string; certificate: string }> {
+  /** Requests a certificate for this server's assigned hostname; its private key is never sent. `pending`: still being issued, ask again. */
+  async directCertificate(csr: string, keyId: string): Promise<{ hostname: string; certificate: string } | { pending: true }> {
     if (!this.deps.settings.get().cloud?.account) throw new HttpError(409, 'Link this server to a Vidalune account first.');
-    return this.call<{ hostname: string; certificate: string }>('POST', '/api/server/direct/certificate', { csr }, true, false, false, [409, 429, 502, 503], 45_000);
+    return this.call<{ hostname: string; certificate: string } | { pending: true }>('POST', '/api/server/direct/certificate', { csr, keyId }, true, false, false, [409, 429, 502, 503], 45_000);
   }
 
   /**

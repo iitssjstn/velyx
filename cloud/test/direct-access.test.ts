@@ -18,7 +18,7 @@ afterEach(async () => {
   if (dir) fs.rmSync(dir, { recursive: true, force: true });
 });
 
-async function setup(fetchImpl: typeof fetch, directCertificateIssuer?: { issue(hostname: string, csr: string): Promise<string> }) {
+async function setup(fetchImpl: typeof fetch, directCertificateIssuer?: { issue(hostname: string, csr: string): Promise<string> }, directCertificateWaitMs?: number) {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-direct-'));
   const config = loadConfig({
     DATA_DIR: dir,
@@ -27,7 +27,7 @@ async function setup(fetchImpl: typeof fetch, directCertificateIssuer?: { issue(
     DIRECT_DOMAIN: 'media.vidalune.com',
   }, { webDir: null, frontendDir: null });
   db = openDatabase(config.dbPath);
-  app = await buildCloudApp(config, db, { fetchImpl, directCertificateIssuer });
+  app = await buildCloudApp(config, db, { fetchImpl, directCertificateIssuer, directCertificateWaitMs });
   const registration = await app.inject({ method: 'POST', url: '/api/server/register', payload: { name: 'Thuis', version: '0.19.27' } });
   const { id, secret } = registration.json();
   return { id, auth: `Server ${id}:${secret}` };
@@ -188,5 +188,64 @@ describe('automatic direct DNS', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ hostname: `${id}.media.vidalune.com`, certificate: 'certificate-chain' });
     expect(issued).toEqual([{ hostname: `${id}.media.vidalune.com`, csr: 'server-csr' }]);
+  });
+
+  describe('background certificate issuance', () => {
+    const cloudflare: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/zones') && !init?.method) return Response.json({ success: true, result: [{ id: 'zone-1', name: 'vidalune.com' }] });
+      if (url.pathname.endsWith('/dns_records') && !init?.method) return Response.json({ success: true, result: [] });
+      if (url.pathname.endsWith('/dns_records') && init?.method === 'POST') return Response.json({ success: true, result: { id: 'record-1' } });
+      throw new Error(`Unexpected Cloudflare request: ${url.pathname}`);
+    };
+    const keyId = 'a'.repeat(64);
+    const readyServer = async (issuer: { issue(hostname: string, csr: string): Promise<string> }) => {
+      const { id, auth } = await setup(cloudflare, issuer, 0);
+      await linkServer(auth);
+      await app.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: auth }, remoteAddress: '8.8.8.8', payload: { name: 'Thuis', version: '0.19.39' } });
+      const request = (requestedKeyId = keyId) => app.inject({ method: 'POST', url: '/api/server/direct/certificate', headers: { authorization: auth }, payload: { csr: 'server-csr', keyId: requestedKeyId } });
+      return { id, request };
+    };
+
+    it('answers pending while issuing, shares the job and keeps the finished certificate', async () => {
+      let finish!: (certificate: string) => void;
+      const issued: string[] = [];
+      const { id, request } = await readyServer({ issue: (_hostname, csr) => { issued.push(csr); return new Promise<string>((resolve) => { finish = resolve; }); } });
+
+      expect((await request()).statusCode).toBe(202);
+      expect((await request()).json()).toEqual({ pending: true });
+      expect(issued).toHaveLength(1);
+
+      finish('certificate-chain');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const done = await request();
+      expect(done.statusCode).toBe(200);
+      expect(done.json()).toEqual({ hostname: `${id}.media.vidalune.com`, certificate: 'certificate-chain' });
+      expect((await request()).json().certificate).toBe('certificate-chain');
+      expect(issued).toHaveLength(1);
+    });
+
+    it('reports a failed issuance once and starts a new one on the next request', async () => {
+      let attempts = 0;
+      const { request } = await readyServer({ issue: async () => { attempts += 1; throw new Error('ACME failed'); } });
+
+      expect((await request()).statusCode).toBe(502);
+      expect((await request()).statusCode).toBe(502);
+      expect(attempts).toBe(2);
+    });
+
+    it('does not return a pending certificate job for a rotated server key', async () => {
+      const finishes: Array<(certificate: string) => void> = [];
+      const { request } = await readyServer({ issue: async () => new Promise<string>((resolve) => finishes.push(resolve)) });
+
+      expect((await request('a'.repeat(64))).statusCode).toBe(202);
+      expect((await request('b'.repeat(64))).statusCode).toBe(202);
+      expect(finishes).toHaveLength(1);
+      finishes[0]!('old-key-certificate');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect((await request('b'.repeat(64))).statusCode).toBe(202);
+      expect(finishes).toHaveLength(2);
+    });
   });
 });
