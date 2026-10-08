@@ -9,7 +9,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.34** (PR #117): hosted player staat nu de HTTPS-origin van het geselecteerde serverdomein toe; tag, APK en beide `.deb`-pakketten gepubliceerd. Daarvoor 0.19.33 (PR #115, direct afspelen via één publieke serverpoort), 0.19.25 (PR #102, filmischer startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.35** (PR #118): directe media-endpoints en automatische verbindingsdiagnose; `v0.19.35`-tag en Docker-images gepubliceerd. Daarvoor 0.19.34 (PR #117, CSP voor het geselecteerde serverdomein), 0.19.33 (PR #115, direct afspelen via één publieke serverpoort), 0.19.25 (PR #102, filmischer startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -432,11 +432,22 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Regressietest in `cloud/test/relay.test.ts` voor een server op een eigen HTTPS-domein.
 - Release-tag, APK, beide `.deb`-bestanden en cloud-image gepubliceerd.
 
-## Versie 0.19.35 (vervolgfix)
+## Versie 0.19.35
 
 ### Automatische directe playbackdiagnose
 - De playback-response mag de accountsite nooit als media-endpoint aanbieden. Video, audio, HLS en ondertitels gaan rechtstreeks van server naar player.
 - Toon de automatisch toegewezen hostname en DNS-, TLS- en poortstatus op de accountbeheerpagina, inclusief de ontbrekende stap.
 - Laat de automatische mediahost de enige publieke media-route blijven; geen handmatige domeininvoer.
 - Regressietests controleren dat `app.vidalune.com` geen media-endpoint wordt en dat provisioningstatus zichtbaar is.
-- Nog te valideren: backend- en frontendtests via CI en de productie-status van Cloudflare/ACME/port-forwarding.
+- De accountsite wordt uit web- en Chromecast-media-endpoints gefilterd; zonder direct endpoint gaat er geen media via Vidalune.com.
+- Beheer toont automatisch serveradres en DNS-, TLS- en poortstatus; geen handmatige domeininvoer.
+- Release-tag en Docker-images gepubliceerd.
+
+## Versie 0.19.36 (ACME-vervolgfix)
+
+### Wachten op DNS-01-propagatie
+- De cloudlog toonde dat Let’s Encrypt `NXDOMAIN` kreeg voor `_acme-challenge.<server>.media.vidalune.com` direct na het aanmaken van de tijdelijke TXT-record.
+- Wacht maximaal 30 seconden tot de exacte TXT-waarde via publieke DNS-over-HTTPS zichtbaar is voordat de ACME-validatie start; verwijder het TXT-record na de challenge.
+- Geef de mediaserver maximaal 45 seconden voor de certificaataanvraag en log de concrete provisioningfout veilig.
+- Regressietest simuleert eerst `NXDOMAIN` en daarna zichtbaarheid van de challenge.
+- Nog te valideren: CI, deployment van cloudimage `0.19.36`, daarna automatische certificaatuitgifte op de gekoppelde server.
