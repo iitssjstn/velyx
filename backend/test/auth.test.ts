@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { APP_VERSION } from '../src/version.js';
 import { createTestEnv, createUser, cookieFrom, setupAdmin, type TestEnv } from './helpers.js';
 
 let env: TestEnv;
@@ -12,7 +13,7 @@ afterEach(async () => {
 describe('first-run setup', () => {
   it('reports that setup is required until an admin exists', async () => {
     const before = await env.app.inject({ url: '/api/server/info' });
-    expect(before.json()).toMatchObject({ product: 'Vidalune', version: '0.19.41', setupRequired: true });
+    expect(before.json()).toMatchObject({ product: 'Vidalune', version: APP_VERSION, setupRequired: true });
     await setupAdmin(env.app);
     const after = await env.app.inject({ url: '/api/server/info' });
     expect(after.json().setupRequired).toBe(false);
