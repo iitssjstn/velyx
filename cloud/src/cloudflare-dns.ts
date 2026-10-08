@@ -56,6 +56,7 @@ interface CloudflareEnvelope<T> {
 interface Zone {
   id: string;
   name: string;
+  name_servers?: string[];
 }
 
 interface DNSRecord {
@@ -86,6 +87,7 @@ interface TXTRecordInput {
 /** Manages only direct-playback DNS records inside one configured Cloudflare zone. */
 export class CloudflareDns {
   private zoneId: Promise<string> | null = null;
+  private authoritativeServers: string[] = [];
 
   constructor(
     private readonly options: {
@@ -95,6 +97,12 @@ export class CloudflareDns {
       apiBase?: string;
     },
   ) {}
+
+  async authoritativeNameServers(): Promise<string[]> {
+    await (this.zoneId ??= this.findZone());
+    if (!this.authoritativeServers.length) throw new Error('Cloudflare did not return authoritative nameservers for the configured zone.');
+    return [...this.authoritativeServers];
+  }
 
   async upsertAddress(hostname: string, address: string): Promise<void> {
     const name = hostname.toLowerCase().replace(/\.$/, '');
@@ -175,6 +183,7 @@ export class CloudflareDns {
     const zones = await this.request<Zone[]>(`/zones?${query}`);
     const zone = zones.find((candidate) => candidate.name.toLowerCase() === this.options.zoneName.toLowerCase());
     if (!zone) throw new Error('Configured Cloudflare zone was not found or the token cannot read it.');
+    this.authoritativeServers = zone.name_servers ?? [];
     return zone.id;
   }
 

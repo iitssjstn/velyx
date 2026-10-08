@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { Resolver } from 'node:dns/promises';
 import fs from 'node:fs';
 import path from 'node:path';
 import * as acme from 'acme-client';
@@ -7,16 +8,6 @@ import type { CloudflareDns } from './cloudflare-dns.js';
 type AcmeClient = Pick<acme.Client, 'auto'>;
 const DNS_PROPAGATION_TIMEOUT_MS = 30_000;
 const DNS_PROPAGATION_POLL_MS = 1_000;
-const DNS_QUERY_TIMEOUT_MS = 5_000;
-
-interface DohAnswer {
-  data?: string;
-}
-
-interface DohResponse {
-  Status?: number;
-  Answer?: DohAnswer[];
-}
 
 /** Issues one server's publicly trusted certificate without ever receiving its private TLS key. */
 export class DirectCertificateIssuer {
@@ -31,7 +22,8 @@ export class DirectCertificateIssuer {
       email?: string;
       dns: CloudflareDns;
       createClient?: (options: acme.ClientOptions) => AcmeClient;
-      fetchImpl?: typeof fetch;
+      resolveNameServerAddresses?: (nameServer: string) => Promise<string[]>;
+      resolveTxtAt?: (address: string, name: string) => Promise<string[][]>;
       dnsPropagationTimeoutMs?: number;
       dnsPropagationPollMs?: number;
     },
@@ -89,33 +81,50 @@ export class DirectCertificateIssuer {
     const timeoutMs = this.options.dnsPropagationTimeoutMs ?? DNS_PROPAGATION_TIMEOUT_MS;
     const pollMs = this.options.dnsPropagationPollMs ?? DNS_PROPAGATION_POLL_MS;
     const deadline = Date.now() + timeoutMs;
+    const nameServers = await this.options.dns.authoritativeNameServers();
     let lastResult: string;
 
     while (true) {
-      try {
-        const query = new URL('https://cloudflare-dns.com/dns-query');
-        query.searchParams.set('name', name);
-        query.searchParams.set('type', 'TXT');
-        const response = await (this.options.fetchImpl ?? fetch)(query, {
-          headers: { accept: 'application/dns-json' },
-          signal: AbortSignal.timeout(DNS_QUERY_TIMEOUT_MS),
-        });
-        if (response.ok) {
-          const answer = await response.json() as DohResponse;
-          if (answer.Answer?.some((record) => record.data?.replace(/^"|"$/g, '') === expected)) return;
-          lastResult = answer.Status === 3 ? 'public DNS resolver returned NXDOMAIN' : 'TXT challenge is not visible in public DNS yet';
-        } else {
-          lastResult = `public DNS resolver returned HTTP ${response.status}`;
+      const visible = await Promise.all(nameServers.map(async (nameServer) => {
+        try {
+          const addresses = await (this.options.resolveNameServerAddresses ?? this.resolveNameServerAddresses.bind(this))(nameServer);
+          for (const address of addresses) {
+            try {
+              const answers = await (this.options.resolveTxtAt ?? this.resolveTxtAt.bind(this))(address, name);
+              if (answers.some((record) => record.join('') === expected)) return true;
+            } catch {
+              // This nameserver has not published the challenge yet, or could not be queried.
+            }
+          }
+        } catch {
+          // Retry temporary nameserver lookup failures until the propagation deadline.
         }
-      } catch (err) {
-        lastResult = `public DNS lookup failed: ${(err as Error).message}`;
-      }
+        return false;
+      }));
+      const visibleCount = visible.filter(Boolean).length;
+      if (visibleCount === nameServers.length) return;
+      lastResult = `TXT challenge is visible on ${visibleCount}/${nameServers.length} authoritative Cloudflare nameservers`;
 
       if (Date.now() >= deadline) break;
       await new Promise((resolve) => setTimeout(resolve, pollMs));
     }
 
     throw new Error(`ACME DNS-01 TXT record did not propagate within ${timeoutMs} ms: ${lastResult}.`);
+  }
+
+  private async resolveNameServerAddresses(nameServer: string): Promise<string[]> {
+    const resolver = new Resolver();
+    const [ipv4, ipv6] = await Promise.all([
+      resolver.resolve4(nameServer).catch(() => []),
+      resolver.resolve6(nameServer).catch(() => []),
+    ]);
+    return [...ipv4, ...ipv6];
+  }
+
+  private resolveTxtAt(address: string, name: string): Promise<string[][]> {
+    const resolver = new Resolver();
+    resolver.setServers([address]);
+    return resolver.resolveTxt(name);
   }
 
   private accountKeyFile(): string {

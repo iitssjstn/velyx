@@ -9,7 +9,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- Laatste release: **0.19.35** (PR #118): directe media-endpoints en automatische verbindingsdiagnose; `v0.19.35`-tag en Docker-images gepubliceerd. Daarvoor 0.19.34 (PR #117, CSP voor het geselecteerde serverdomein), 0.19.33 (PR #115, direct afspelen via één publieke serverpoort), 0.19.25 (PR #102, filmischer startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.36** (PR #119): ACME DNS-01-wachtstap; tag, Docker-images en Debian-pakketten gepubliceerd, Android-build nog lopend. Daarvoor 0.19.35 (PR #118, directe media-endpoints en automatische verbindingsdiagnose), 0.19.34 (PR #117, CSP voor het geselecteerde serverdomein), 0.19.33 (PR #115, direct afspelen via één publieke serverpoort), 0.19.25 (PR #102, filmischer startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -443,11 +443,18 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Beheer toont automatisch serveradres en DNS-, TLS- en poortstatus; geen handmatige domeininvoer.
 - Release-tag en Docker-images gepubliceerd.
 
-## Versie 0.19.36 (ACME-vervolgfix)
+## Versie 0.19.36
 
 ### Wachten op DNS-01-propagatie
 - De cloudlog toonde dat Let’s Encrypt `NXDOMAIN` kreeg voor `_acme-challenge.<server>.media.vidalune.com` direct na het aanmaken van de tijdelijke TXT-record.
-- Wacht maximaal 30 seconden tot de exacte TXT-waarde via publieke DNS-over-HTTPS zichtbaar is voordat de ACME-validatie start; verwijder het TXT-record na de challenge.
-- Geef de mediaserver maximaal 45 seconden voor de certificaataanvraag en log de concrete provisioningfout veilig.
+- Wacht op zichtbaarheid via publieke DNS-over-HTTPS voordat de ACME-validatie start; verwijder het TXT-record na de challenge.
 - Regressietest simuleert eerst `NXDOMAIN` en daarna zichtbaarheid van de challenge.
-- Nog te valideren: CI, deployment van cloudimage `0.19.36`, daarna automatische certificaatuitgifte op de gekoppelde server.
+- Geïmplementeerd, maar productie-DNS toont dat recursieve resolvers de eerdere NXDOMAIN blijven cachen.
+
+## Versie 0.19.37 (autoritatieve DNS-vervolgfix)
+
+### ACME TXT-record direct bij Cloudflare verifiëren
+- De mediaserver rapporteerde `NXDOMAIN` voor de ACME-TXT-record; publieke A-record en Cloudflare-zone-delegatie zijn wel zichtbaar.
+- Controleer de TXT-record rechtstreeks bij alle autoritatieve Cloudflare-nameservers, niet via een recursieve resolver met negatieve cache.
+- Verberg het automatisch toegewezen hostname-adres in de beheerinterface; behoud alleen de verbindingsstatus.
+- Nog te valideren: DNS-/ACME-tests, CI en live certificaatuitgifte na deployment.
