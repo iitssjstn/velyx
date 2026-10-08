@@ -1,6 +1,6 @@
 {
   "name": "@vidalune/backend",
-  "version": "0.19.44",
+  "version": "0.19.45",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -21,6 +21,7 @@
     "@node-rs/argon2": "^2.2.1",
     "acme-client": "^5.4.0",
     "better-sqlite3": "^13.0.3",
+    "csv-parse": "^7.0.3",
     "drizzle-orm": "^0.45.3",
     "fastify": "^5.12.5",
     "jose": "^6.2.12",
