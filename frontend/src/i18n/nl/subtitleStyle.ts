@@ -1,5 +1,9 @@
 import type { Messages } from '../index';
 export const subtitleStyle: Messages['subtitleStyle'] = {
+  castDefault: 'Tv-standaardstijl gebruiken',
+  castPreview: 'Benadering van ondertitels op tv',
+  castHint: 'Bewaard in je account, met lokale opslag als terugval. Cast bepaalt positie, marges, regelhoogte en breedte; niet-ondersteunde stijlen vallen terug op de tv-standaard. Het voorbeeld is een benadering.',
+  accountSaveFailed: 'Accountsynchronisatie mislukt. Je ondertitelkeuzes blijven op dit apparaat.',
   size: 'Grootte',
   small: 'Klein',
   medium: 'Middel',

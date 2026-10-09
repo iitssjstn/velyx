@@ -10,6 +10,7 @@ import { subtitleLineStyle } from '../lib/subtitles';
 import { detectCapabilities } from '../lib/codecs';
 import type { DeviceFormat, DeviceReport, HistoryEntry, User } from '../lib/types';
 import { Avatar } from '../components/Avatar';
+import { CastSubtitleSettings } from '../components/CastSubtitleSettings';
 import { Button } from '../components/Button';
 import { toast } from '../components/Toast';
 import { SessionList } from '../components/SessionList';
@@ -377,6 +378,7 @@ function PlaybackSettings() {
       </Section>
       <Section title={t('settings.subtitles.title')} description={t('settings.subtitles.description')}>
         <SubtitlePreview />
+        <div className="my-4"><CastSubtitleSettings /></div>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <PrefSelect label={t('subtitleStyle.size')} value={prefs.subtitleSize} onChange={(v) => setPrefs({ subtitleSize: v })} options={[['small', t('subtitleStyle.small')], ['medium', t('subtitleStyle.medium')], ['large', t('subtitleStyle.large')], ['xlarge', t('subtitleStyle.xlarge')]]} />
           <PrefSelect label={t('subtitleStyle.color')} value={prefs.subtitleColor} onChange={(v) => setPrefs({ subtitleColor: v })} options={[['white', t('subtitleStyle.white')], ['yellow', t('subtitleStyle.yellow')]]} />

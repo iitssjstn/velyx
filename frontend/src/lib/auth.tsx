@@ -4,6 +4,7 @@ import { ApiError, api, onUnauthorized } from './api';
 import type { ServerInfo, User } from './types';
 import { currentLanguage, isLanguage, setLanguage } from '../i18n';
 import { markSignedOut } from './vidalune';
+import { syncSubtitlePrefs } from './prefs';
 
 /** Switches the interface to the signed-in user's language (their choice wins over the browser's). */
 async function applyLanguage(user: Pick<User, 'language'>): Promise<void> {
@@ -51,6 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [qc],
   );
+
+  const userId = me.data?.id;
+  useEffect(() => {
+    if (userId) return syncSubtitlePrefs();
+  }, [userId]);
 
   useEffect(() => {
     onUnauthorized(() => {

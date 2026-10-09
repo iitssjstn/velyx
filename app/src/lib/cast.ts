@@ -4,10 +4,11 @@
  * player becomes its remote control. What to load is worked out here, without React Native, so it
  * is tested with Vitest; the player hands it to react-native-google-cast.
  */
-import { DEFAULT_SUBTITLE_STYLE, type SubtitleStyle } from './subtitleStyle';
+import { DEFAULT_SUBTITLE_STYLE, castSubtitlePreview, readSubtitleStyle, type SubtitleStyle } from './subtitleStyle';
 import type { MediaStreamType, TextTrackStyle } from 'react-native-google-cast';
 
 export function castTextTrackStyle(style: SubtitleStyle = DEFAULT_SUBTITLE_STYLE): TextTrackStyle {
+  style = castSubtitlePreview(style);
   return {
     fontFamily: 'sans-serif',
     fontGenericFamily: 'sansSerif',
@@ -17,6 +18,42 @@ export function castTextTrackStyle(style: SubtitleStyle = DEFAULT_SUBTITLE_STYLE
     edgeType: ({ shadow: 'dropShadow', outline: 'outline', none: 'none' } as const)[style.edge],
     edgeColor: '#000000FF',
   };
+}
+
+/** Retry rejected custom styles with the TV preset; the caller reports the original failure. */
+export async function applyCastTextTrackStyle(options: {
+  style: () => SubtitleStyle;
+  apply: (style: TextTrackStyle) => Promise<unknown>;
+  active?: () => boolean;
+  fallback: (error: unknown) => void;
+}): Promise<boolean | null> {
+  const active = options.active ?? (() => true);
+  while (active()) {
+    let fallback = false;
+    const requested = options.style();
+    const unchanged = () => JSON.stringify(readSubtitleStyle(options.style())) === JSON.stringify(readSubtitleStyle(requested));
+    try {
+      await options.apply(castTextTrackStyle(requested));
+    } catch (error) {
+      if (!active()) return null;
+      if (!unchanged()) continue;
+      if (readSubtitleStyle(requested).castDefaults) throw error;
+      try {
+        await options.apply(castTextTrackStyle());
+      } catch (fallbackError) {
+        if (!active()) return null;
+        if (!unchanged()) continue;
+        throw fallbackError;
+      }
+      if (!active()) return null;
+      if (!unchanged()) continue;
+      fallback = true;
+      options.fallback(error);
+    }
+    if (!active()) return null;
+    if (unchanged()) return fallback;
+  }
+  return null;
 }
 
 export interface CastSubtitle {
@@ -131,10 +168,12 @@ export async function loadCastWithCurrentSubtitle(options: {
   subtitleKey: () => string | null;
   load: (request: CastLoadRequest) => Promise<unknown>;
   select: (ids: number[]) => Promise<unknown>;
+  active?: () => boolean;
 }): Promise<void> {
   const requested = options.subtitleKey();
   options.request.activeTrackIds = castTrackIds(options.session, requested);
   await options.load(options.request);
+  if (options.active && !options.active()) return;
   const current = options.subtitleKey();
   if (current !== requested) await options.select(castTrackIds(options.session, current));
 }

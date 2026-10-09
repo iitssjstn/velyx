@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { castAddress, castLoadRequest, castTextTrackStyle, castTrackIds, loadCastWithCurrentSubtitle, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from './cast';
+import { describe, expect, it, vi } from 'vitest';
+import { DEFAULT_SUBTITLE_STYLE } from './subtitleStyle';
+import { applyCastTextTrackStyle, castAddress, castLoadRequest, castTextTrackStyle, castTrackIds, loadCastWithCurrentSubtitle, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from './cast';
 
 const url = (path: string) => `http://nas:3000${path.startsWith('/') ? path : `/${path}`}`;
 const session = (seek: 'range' | 'restart'): CastSession => ({
@@ -28,7 +29,7 @@ describe('casting from the app', () => {
     expect(request.mediaInfo.metadata).toEqual({ type: 'generic', title: 'Dune', subtitle: '2021', images: [{ url: 'http://nas:3000/api/images/w780/back.jpg?cast=tok.en' }] });
     expect(request.mediaInfo.mediaTracks[1]).toEqual({ id: 2, type: 'text', subtype: 'subtitles', contentId: 'http://nas:3000/api/media/5/subtitles/3.vtt?cast=tok.en', contentType: 'text/vtt', name: 'Nederlands', language: 'nl' });
     expect(request.mediaInfo.streamType).toBe('BUFFERED');
-    expect(request.mediaInfo.textTrackStyle).toMatchObject({ fontScale: 1, foregroundColor: '#FFFFFFFF', backgroundColor: '#00000000', edgeType: 'dropShadow' });
+    expect(request.mediaInfo.textTrackStyle).toMatchObject({ fontFamily: 'sans-serif', fontGenericFamily: 'sansSerif', fontScale: 1, foregroundColor: '#FFFFFFFF', backgroundColor: '#00000099', edgeType: 'outline', edgeColor: '#000000FF' });
   });
 
   it('maps saved app subtitle preferences to the Cast receiver style', () => {
@@ -36,6 +37,97 @@ describe('casting from the app', () => {
     expect(castTextTrackStyle(style)).toMatchObject({ fontFamily: 'sans-serif', fontGenericFamily: 'sansSerif', fontScale: 1.2, foregroundColor: '#FFE14DFF', backgroundColor: '#00000000', edgeType: 'outline' });
     const { request } = castLoadRequest({ session: session('range'), url, title: 'Dune', subtitle: null, artwork: null, at: 0, keyframe: null, subtitleKey: null, subtitleStyle: style });
     expect(request.mediaInfo.textTrackStyle).toMatchObject({ fontScale: 1.2, foregroundColor: '#FFE14DFF', edgeType: 'outline' });
+  });
+  it('validates corrupt custom styles and ignores local positioning', () => {
+    expect(castTextTrackStyle({ ...DEFAULT_SUBTITLE_STYLE, castDefaults: false, size: 'invalid' } as never)).toMatchObject({ fontScale: 1 });
+    expect(castTextTrackStyle({ ...DEFAULT_SUBTITLE_STYLE, castDefaults: false, position: 20 })).toEqual(castTextTrackStyle({ ...DEFAULT_SUBTITLE_STYLE, castDefaults: false, position: 0 }));
+    expect(castTextTrackStyle({ ...DEFAULT_SUBTITLE_STYLE, size: 'xlarge', color: 'yellow' })).toEqual(castTextTrackStyle());
+  });
+
+  it('applies live custom styles and falls back visibly on rejection', async () => {
+    const style = { ...DEFAULT_SUBTITLE_STYLE, castDefaults: false, color: 'yellow' as const };
+    const rejected = new Error('Unsupported style');
+    const apply = vi.fn().mockRejectedValueOnce(rejected).mockResolvedValue(undefined);
+    const fallback = vi.fn();
+    expect(await applyCastTextTrackStyle({ style: () => style, apply, fallback })).toBe(true);
+    expect(apply.mock.calls.map(([value]) => value.foregroundColor)).toEqual(['#FFE14DFF', '#FFFFFFFF']);
+    expect(fallback).toHaveBeenCalledWith(rejected);
+  });
+
+  it('surfaces failures when even the TV default cannot be applied', async () => {
+    const fallback = vi.fn();
+    const apply = vi.fn().mockRejectedValue(new Error('Disconnected'));
+    await expect(applyCastTextTrackStyle({ style: () => DEFAULT_SUBTITLE_STYLE, apply, fallback })).rejects.toThrow('Disconnected');
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(fallback).not.toHaveBeenCalled();
+    await expect(applyCastTextTrackStyle({ style: () => ({ ...DEFAULT_SUBTITLE_STYLE, castDefaults: false }), apply, fallback })).rejects.toThrow('Disconnected');
+  });
+
+  it('reapplies the latest style after a pending update finishes', async () => {
+    let current = DEFAULT_SUBTITLE_STYLE;
+    let finish!: () => void;
+    const apply = vi.fn().mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; })).mockResolvedValue(undefined);
+    const update = applyCastTextTrackStyle({ style: () => current, apply, fallback: vi.fn() });
+    current = { ...DEFAULT_SUBTITLE_STYLE, castDefaults: false, color: 'yellow' };
+    finish();
+    expect(await update).toBe(false);
+    expect(apply.mock.calls[1][0].foregroundColor).toBe('#FFE14DFF');
+  });
+
+  it('uses the newest preference after an in-flight load completes', async () => {
+    const source = session('range');
+    let current = DEFAULT_SUBTITLE_STYLE;
+    let finish!: () => void;
+    const { request } = castLoadRequest({ session: source, url, title: 'Dune', subtitle: null, artwork: null, at: 0, keyframe: null, subtitleKey: null });
+    const apply = vi.fn().mockResolvedValue(undefined);
+    const loading = loadCastWithCurrentSubtitle({ request, session: source, subtitleKey: () => null, load: () => new Promise<void>((resolve) => { finish = resolve; }), select: vi.fn() })
+      .then(() => applyCastTextTrackStyle({ style: () => current, apply, fallback: vi.fn() }));
+    current = { ...DEFAULT_SUBTITLE_STYLE, castDefaults: false, size: 'large', color: 'yellow' };
+    finish();
+    await loading;
+    expect(apply).toHaveBeenCalledWith(expect.objectContaining({ fontScale: 1.2, foregroundColor: '#FFE14DFF' }));
+  });
+
+  it('does not restore subtitle selection when a pending load is no longer active', async () => {
+    const source = session('range');
+    let selected: string | null = null;
+    let finish!: () => void;
+    let active = true;
+    const { request } = castLoadRequest({ session: source, url, title: 'Dune', subtitle: null, artwork: null, at: 0, keyframe: null, subtitleKey: null });
+    const select = vi.fn();
+    const loading = loadCastWithCurrentSubtitle({ request, session: source, subtitleKey: () => selected, load: () => new Promise<void>((resolve) => { finish = resolve; }), select, active: () => active });
+    selected = 'ext-2';
+    active = false;
+    finish();
+    await loading;
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it('does not fall back, report errors or update again after unmount', async () => {
+    let active = true;
+    let reject!: (error: Error) => void;
+    const apply = vi.fn(() => new Promise<void>((_resolve, no) => { reject = no; }));
+    const fallback = vi.fn();
+    const update = applyCastTextTrackStyle({ style: () => ({ ...DEFAULT_SUBTITLE_STYLE, castDefaults: false }), apply, fallback, active: () => active });
+    active = false;
+    reject(new Error('Disconnected'));
+    expect(await update).toBeNull();
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it('ignores a fallback rejection after disconnecting', async () => {
+    let active = true;
+    let reject!: (error: Error) => void;
+    const apply = vi.fn().mockRejectedValueOnce(new Error('Unsupported style')).mockImplementationOnce(() => new Promise<void>((_resolve, no) => { reject = no; }));
+    const fallback = vi.fn();
+    const style = { ...DEFAULT_SUBTITLE_STYLE, castDefaults: false };
+    const update = applyCastTextTrackStyle({ style: () => style, apply, fallback, active: () => active });
+    await vi.waitFor(() => expect(apply).toHaveBeenCalledTimes(2));
+    active = false;
+    reject(new Error('Disconnected'));
+    expect(await update).toBeNull();
+    expect(fallback).not.toHaveBeenCalled();
   });
 
   it('loads remuxed casts as finite HLS with the full file duration', () => {
@@ -115,4 +207,3 @@ describe('tvFilePosition', () => {
     expect(tvFilePosition(0, Number.NaN)).toBeNull();
   });
 });
-

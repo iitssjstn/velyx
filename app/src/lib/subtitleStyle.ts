@@ -15,9 +15,12 @@ export interface SubtitleStyle {
   edge: SubtitleEdge;
   /** Extra distance from the bottom, in percent of the picture height (0–20, steps of 5). */
   position: number;
+  /** Use the readable TV preset without changing the local subtitle choices. */
+  castDefaults?: boolean;
 }
 
-export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = { size: 'medium', color: 'white', background: 'none', edge: 'shadow', position: 0 };
+export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = { size: 'medium', color: 'white', background: 'none', edge: 'shadow', position: 0, castDefaults: true };
+export const TV_SUBTITLE_STYLE: SubtitleStyle = { ...DEFAULT_SUBTITLE_STYLE, background: 'translucent', edge: 'outline' };
 
 const SIZES: SubtitleSize[] = ['small', 'medium', 'large', 'xlarge'];
 const COLORS: SubtitleColor[] = ['white', 'yellow'];
@@ -30,13 +33,25 @@ const pick = <T extends string>(list: T[], value: unknown, fallback: T): T => (l
 export function readSubtitleStyle(raw: unknown): SubtitleStyle {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const d = DEFAULT_SUBTITLE_STYLE;
+  const hasLegacyStyle = SIZES.includes(o.size as SubtitleSize) || COLORS.includes(o.color as SubtitleColor) || BACKGROUNDS.includes(o.background as SubtitleBackground) || EDGES.includes(o.edge as SubtitleEdge) || (typeof o.position === 'number' && Number.isFinite(o.position));
   return {
     size: pick(SIZES, o.size, d.size),
     color: pick(COLORS, o.color, d.color),
     background: pick(BACKGROUNDS, o.background, d.background),
     edge: pick(EDGES, o.edge, d.edge),
     position: clampPosition(typeof o.position === 'number' ? o.position : d.position),
+    castDefaults: typeof o.castDefaults === 'boolean' ? o.castDefaults : !hasLegacyStyle,
   };
+}
+
+export function editSubtitleStyle(style: SubtitleStyle, patch: Partial<SubtitleStyle>): SubtitleStyle {
+  const custom = ['size', 'color', 'background', 'edge'].some((key) => key in patch);
+  return readSubtitleStyle({ ...style, ...patch, ...(custom ? { castDefaults: false } : {}) });
+}
+
+export function castSubtitlePreview(style: SubtitleStyle): SubtitleStyle {
+  const valid = readSubtitleStyle(style);
+  return valid.castDefaults ? TV_SUBTITLE_STYLE : valid;
 }
 
 export function clampPosition(p: number): number {

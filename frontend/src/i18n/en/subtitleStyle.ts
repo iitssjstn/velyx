@@ -1,4 +1,8 @@
 export const subtitleStyle = {
+  castDefault: 'Use TV subtitle preset',
+  castPreview: 'Approximate TV subtitle preview',
+  castHint: 'Saved to your account, with local storage as fallback. Cast controls position, margins, line height and width; unsupported styles fall back to the TV preset. Preview is approximate.',
+  accountSaveFailed: 'Account sync failed. Your subtitle choices remain on this device.',
   size: 'Size',
   small: 'Small',
   medium: 'Medium',

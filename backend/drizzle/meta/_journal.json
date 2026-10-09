@@ -190,6 +190,13 @@
       "when": 1791299769852,
       "tag": "0026_next_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1791499295228,
+      "tag": "0027_subtitle_style",
+      "breakpoints": true
     }
   ]
 }
