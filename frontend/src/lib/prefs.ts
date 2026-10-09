@@ -67,6 +67,7 @@ let accountGeneration = 0;
 let accountActive = false;
 let styleRevision = 0;
 let pendingSave = Promise.resolve();
+let accountSaveFailed = false;
 
 export const CAST_SUBTITLE_DEFAULTS = { subtitleSize: 'medium', subtitleColor: 'white', subtitleBackground: 'translucent', subtitleEdge: 'outline' } as const;
 
@@ -88,6 +89,7 @@ export function syncSubtitlePrefs(): () => void {
   const generation = ++accountGeneration;
   const revision = styleRevision;
   accountActive = true;
+  setAccountSaveFailed(false);
   void api.get<{ subtitleStyle?: AccountSubtitleStyle | null }>('/api/account/preferences').then(({ subtitleStyle: s }) => {
     if (!s || generation !== accountGeneration || revision !== styleRevision) return;
     current = { ...current, ...readSubtitlePrefs({ subtitleSize: s.size, subtitleColor: s.color, subtitleBackground: s.background, subtitleEdge: s.edge, subtitlePosition: s.position, castSubtitleDefaults: s.castDefaults ?? false }) };
@@ -97,8 +99,25 @@ export function syncSubtitlePrefs(): () => void {
     if (generation === accountGeneration) {
       accountActive = false;
       ++accountGeneration;
+      setAccountSaveFailed(false);
     }
   };
+}
+
+function setAccountSaveFailed(failed: boolean): void {
+  if (accountSaveFailed === failed) return;
+  accountSaveFailed = failed;
+  listeners.forEach((l) => l());
+}
+
+export function useSubtitleStyleSaveFailed(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+    () => accountSaveFailed,
+  );
 }
 
 function load(): PlaybackPrefs {
@@ -126,9 +145,16 @@ export function setPrefs(patch: Partial<PlaybackPrefs>): void {
     current = { ...current, ...readSubtitlePrefs(current) };
     if (accountActive) {
       const generation = accountGeneration;
+      const revision = styleRevision;
       const subtitleStyle: AccountSubtitleStyle = { size: current.subtitleSize, color: current.subtitleColor, background: current.subtitleBackground, edge: current.subtitleEdge, position: current.subtitlePosition, castDefaults: current.castSubtitleDefaults };
+      setAccountSaveFailed(false);
       pendingSave = pendingSave.then(async () => {
-        if (accountActive && generation === accountGeneration) await api.put('/api/account/preferences', { subtitleStyle });
+        if (!accountActive || generation !== accountGeneration || revision !== styleRevision) return;
+        try {
+          await api.put('/api/account/preferences', { subtitleStyle });
+        } catch {
+          if (accountActive && generation === accountGeneration && revision === styleRevision) setAccountSaveFailed(true);
+        }
       }).catch(() => undefined);
     }
   }

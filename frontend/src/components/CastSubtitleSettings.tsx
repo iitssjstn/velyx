@@ -1,9 +1,10 @@
 import { useT } from '../i18n';
-import { CAST_SUBTITLE_DEFAULTS, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
+import { CAST_SUBTITLE_DEFAULTS, setPrefs, usePrefs, useSubtitleStyleSaveFailed, type PlaybackPrefs } from '../lib/prefs';
 import { subtitleLineStyle } from '../lib/subtitles';
 
 export function CastSubtitleSettings() {
   const prefs = usePrefs();
+  const saveFailed = useSubtitleStyleSaveFailed();
   const { t } = useT();
   const style = subtitleLineStyle(prefs.castSubtitleDefaults ? CAST_SUBTITLE_DEFAULTS : prefs);
   const choices = [
@@ -29,6 +30,7 @@ export function CastSubtitleSettings() {
           </select>
         </label>
       ))}
+      {saveFailed && <p role="status" className="text-xs text-danger">{t('subtitleStyle.accountSaveFailed')}</p>}
       <p className="text-xs text-muted">{t('subtitleStyle.castHint')}</p>
     </div>
   );
