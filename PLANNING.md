@@ -13,6 +13,17 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Cast-stijl lokaal gecontroleerd: 304 webtests, 148 apptests en 51 gerichte backendtests slagen; web/backend/app-typechecks en web-productiebuild slagen. Gewijzigde webcode heeft geen lintfouten (drie bestaande player-hookwaarschuwingen); app-TypeScript-lint slaagt. Echte Chromecast/telefoon en volledige film op de NAS blijven te testen; browsertool was niet beschikbaar.
 - Aanvullende review: castovername blijft werken wanneer stijltoepassing mislukt; app-saves worden over afleveringswissels heen geserialiseerd en gebruiken na herverbinden de actuele API. Regressies toegevoegd; read-only vervolgcontrole vindt geen significante problemen. Automatische review kon niet starten door ontbrekend model; CodeQL-analyse technisch mislukt, dus geen geldige securityuitslag.
 - PR #131 follow-up: web meldt nu mislukte ondertitelstijl-accountopslag; de lokale keuze blijft behouden. Gerichte webtests (6) en typecheck slagen.
+- Repo-review en fixronde (10 okt, op verzoek van de eigenaar, nog geen versie gekozen): ondertitels liepen na
+  vooruitspoelen verschoven bij live remux/transcode van bestanden waarvan de tijdstempels niet bij 0 beginnen
+  (MPEG-TS-opnames). `seekLanding` (`backend/src/playback/remux.ts`) telt nu vanaf het begin van het bestand
+  (`-start_at_zero`, net als HLS en de uitgepakte ondertitels) en geeft ook een landing na het doel door
+  (MPEG-TS spoelt op bytes). Geldt voor web, app en casten. Regressietest met echte FFmpeg vergelijkt het
+  eerste frame van de remuxstream met het frame op de landing (MPEG-TS en MKV met B-frames); faalt op de oude
+  code. App-lockfile: alleen `shell-quote` (kritiek) en `source-map-js` bijgewerkt; de overige app-advisories
+  zitten in Expo-tooling en vragen een major upgrade; `node-forge` (via `acme-client`) heeft geen gepatchte
+  versie. Backend 555 tests, app 148 tests, backend-typecheck en lint slagen. Bewust niet gedaan: `Player.tsx`
+  opsplitsen (eerst de spinner-bug op echte hardware reproduceren) en Docker-adressen in `localEndpoints`
+  (vraagt eerst een besluit over herkenning).
 
 - Laatste release: **0.19.45** (PR #129, hervatbare en stopbare optimalisaties). Tag `v0.19.45` en merge gecontroleerd; eigenaar bevestigde dat APK en beide `.deb`-pakketten compleet zijn. In voorbereiding: 0.19.46, ondertitels na vooruitspoelen op website en casten. Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
@@ -431,9 +442,6 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Externe DNS- en certificaatbeheer gebruiken Cloudflare-credentials die alleen als deployment secret op de accountservice staan; vraag serverbeheerders nooit om domein, DNS-token of certificaat.
 - Test koppelen zonder domeininstelling, intern afspelen, extern afspelen via één doorgestuurde poort, volledige films, hervatten, byte-range-seek, HLS, audio, ondertitels, IP-wijziging, certificaatvernieuwing en onbereikbare poort. Verifieer dat videobytes rechtstreeks tussen server en browser lopen.
 - Werk README, accountsite en Engelse/Nederlandse beheerteksten bij: buitenshuis gaat media rechtstreeks naar de server via het automatische HTTPS-adres; daarvoor is één bereikbare poort nodig. De accounttunnel is alleen voor bediening.
-- Lokaal groen: cloud DNS/TLS/direct-access/link (19), tunnelgrenzen (2), site/compose (2), backend-versieasserties (27), backend media-gates (42), web player/Cast (24), backend/cloud/frontend-typechecks en backend/frontend/cloud-builds.
-- Lokaal groen: cloud DNS/TLS/direct-access/link (19), tunnelgrenzen (2), site/compose (2), heartbeat-IP-privacy (1), backend-versieasserties (27), backend media-gates (42), web player/Cast (24), backend/cloud/frontend-typechecks en backend/frontend/cloud-builds.
-- Lokaal groen: cloud DNS/TLS/direct-access/link (19), tunnelgrenzen (2), site/compose (2), heartbeat-IP-privacy (1), backend-versieasserties (27), backend media-gates (42), web player/Cast (24), app-typecheck en app-tests (110), ESLint, backend/cloud/frontend-typechecks en backend/frontend/cloud-builds.
 - Lokaal groen: cloud DNS/TLS/direct-access/link (19), tunnelgrenzen (2), site/compose (2), heartbeat-IP-privacy (1), backend-versieasserties (27), backend media-gates (42), web player/Cast (24), app-typecheck, app-tests (110) en Android JS/Hermes-bundel-export, ESLint, backend/cloud/frontend-typechecks en backend/frontend/cloud-builds.
 - Nog te valideren: Android APK/native build (Android SDK en Java ontbreken hier); de volledige Docker/.deb-installatie op Linux (Docker CLI ontbreekt hier); live DNS, certificaat en de ingestelde TCP-poort met `CLOUDFLARE_API_TOKEN` op de accountservice.
 
