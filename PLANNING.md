@@ -338,6 +338,27 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
     corrigeren: die zit in de ondertitel-URL's, dus de tracks zouden herladen en de voortgang verspringen.
     Let op: MPEG-TS heeft geen index, dus uitzoeken leest het hele bestand; daarom alleen binnen het
     tijdvak. Helpt ook de HLS-opstarttijd (zie 0.19.12).
+  - **Geplande taken onder Beheer** (voorstel eigenaar 11 okt, nog niet bouwen): periodiek werk staat nu
+    verspreid (scan in `scan-manager.ts`, back-up in `backup-scheduler.ts`, detectiesync, vertalingen en
+    opruimen als losse timers in `backend/src/index.ts`). Eén pagina **Beheer > Geplande taken** met per
+    taak aan/uit, schema, laatste uitvoering en resultaat, volgende uitvoering en "Nu uitvoeren".
+    - Planner binnen de backend, geen systeem-cron: de Docker-container heeft geen cron en het werk moet
+      weten of er gekeken wordt. Eén taak tegelijk (twee cores); zware taken pauzeren als iemand kijkt.
+    - Eén model, twee weergaven op dezelfde pagina. **Eenvoudig:** één onderhoudsvenster (instelbaar,
+      bijvoorbeeld 02:00–06:00) en per taak aan/uit. **Geavanceerd** (schakelaar, alleen weergave): per
+      taak een eigen schema of cron-expressie, met uitleg in gewone taal en de volgende uitvoering eronder,
+      Zod-validatie op de server en een waarschuwing bij overlappende zware taken.
+    - Terug naar eenvoudig: een eigen schema blijft gelden en wordt nooit stil gewist; de eenvoudige
+      weergave toont bij die taak duidelijk "Eigen schema: …" met een link naar geavanceerd en een knop
+      "terug naar het venster".
+    - Einde van het venster: geen nieuwe taak meer starten (de rest gaat de volgende nacht als eerste);
+      een lopende taak mag af zolang niemand kijkt. Gaat iemand kijken, dan stopt een op te knippen taak
+      (keyframes, ondertitels, per bestand) op een veilig punt en gaat de volgende nacht verder; een niet
+      op te knippen taak (back-up) pauzeert tot niemand meer kijkt.
+    - Niet uit te zetten en niet getoond: onzichtbaar onderhoud zoals certificaatvernieuwing en het
+      opruimen van sessies.
+    - Bestaande instellingen (scaninterval, back-upschema) ongewijzigd overnemen bij de upgrade; Drizzle-
+      migratie, alleen beheerder, Engels en Nederlands, tests voor planner, venstereinde en migratie.
   - Rustig uitvoeren (lage prioriteit, TMDB-limiet), stoppen aan het einde van het venster en de
     volgende nacht verder waar hij was. Handmatig starten kan altijd.
   - Past bij het onderhoudsvenster van punt 3 hieronder (prestaties).
