@@ -122,6 +122,8 @@ export interface CastState {
   available: boolean;
   /** Playing on a Chromecast now. */
   active: boolean;
+  /** The file the TV was given (null while not casting): another file means the TV is still on the old one. */
+  fileId: number | null;
   device: string | null;
   /** Position in the file (seconds). */
   time: number;
@@ -136,7 +138,7 @@ export interface CastState {
  * (a repackaged stream is loaded again from the new spot), and the position while it plays.
  */
 export function useCast(item: CastItem | null) {
-  const [state, setState] = useState<CastState>({ available: false, active: false, device: null, time: 0, playing: false, volume: 1, muted: false, error: null });
+  const [state, setState] = useState<CastState>({ available: false, active: false, fileId: null, device: null, time: 0, playing: false, volume: 1, muted: false, error: null });
   const framework = useRef<any>(null);
   const player = useRef<any>(null);
   const controller = useRef<any>(null);
@@ -145,6 +147,8 @@ export function useCast(item: CastItem | null) {
   const itemRef = useRef(item);
   const subtitleKey = useRef(item?.subtitleKey ?? null);
   if (itemRef.current?.fileId !== item?.fileId || itemRef.current?.subtitleKey !== item?.subtitleKey) subtitleKey.current = item?.subtitleKey ?? null;
+  // The cast session (its token and stream) belongs to one file: another file needs a new one.
+  if (itemRef.current?.fileId !== item?.fileId) session.current = null;
   itemRef.current = item;
   const styleKey = JSON.stringify(item?.subtitleStyle);
   const styleUpdates = useRef(Promise.resolve());
@@ -196,7 +200,7 @@ export function useCast(item: CastItem | null) {
         [f.RemotePlayerEventType.VOLUME_LEVEL_CHANGED, () => setState((st) => ({ ...st, volume: player.current.volumeLevel ?? st.volume }))],
         [f.RemotePlayerEventType.IS_MUTED_CHANGED, () => setState((st) => ({ ...st, muted: Boolean(player.current.isMuted) }))],
         [f.RemotePlayerEventType.IS_CONNECTED_CHANGED, () => {
-          if (!player.current.isConnected) setState((st) => ({ ...st, active: false, device: null }));
+          if (!player.current.isConnected) setState((st) => ({ ...st, active: false, fileId: null, device: null }));
         }],
       ];
       for (const [type, listener] of listeners) c.addEventListener(type, listener);
@@ -266,7 +270,7 @@ export function useCast(item: CastItem | null) {
         player.current.activeTrackIds = latest >= 0 ? [latest + 1] : [];
         controller.current.setActiveTrackIds();
       }
-      setState((st) => ({ ...st, active: true, device: castSession.getCastDevice()?.friendlyName ?? null, time: at, playing: true, volume: player.current.volumeLevel ?? st.volume, muted: Boolean(player.current.isMuted), error: null }));
+      setState((st) => ({ ...st, active: true, fileId: it.fileId, device: castSession.getCastDevice()?.friendlyName ?? null, time: at, playing: true, volume: player.current.volumeLevel ?? st.volume, muted: Boolean(player.current.isMuted), error: null }));
       // Styling must not prevent takeover of a video that is already playing on the TV.
       await setStyle().catch((error) => setState((st) => ({ ...st, error: error instanceof Error ? error.message : String(error) })));
     },
@@ -295,7 +299,7 @@ export function useCast(item: CastItem | null) {
 
   const stop = useCallback(() => {
     framework.current?.CastContext.getInstance().endCurrentSession(true);
-    setState((st) => ({ ...st, active: false, device: null }));
+    setState((st) => ({ ...st, active: false, fileId: null, device: null }));
   }, []);
 
   const togglePlay = useCallback(() => controller.current?.playOrPause(), []);

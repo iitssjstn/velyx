@@ -189,17 +189,28 @@ class Tunnel {
     const { res } = stream;
     switch (frame.type) {
       case FRAME.response: {
-        let head: { status: number; headers: Record<string, string | string[]> };
+        // What a server sends is not trusted: a broken head (bad JSON, an invalid status or header, a
+        // second head) fails this one request, never the account service (writeHead throws on those).
         try {
-          head = JSON.parse(frame.payload.toString());
+          if (stream.started) throw new Error('second response head');
+          const head = JSON.parse(frame.payload.toString()) as { status?: unknown; headers?: unknown };
+          if (!Number.isInteger(head.status) || (head.status as number) < 100 || (head.status as number) > 999) throw new Error('invalid status');
+          const headers: Record<string, string | string[]> = {};
+          if (head.headers && typeof head.headers === 'object') {
+            for (const [k, v] of Object.entries(head.headers)) {
+              if (typeof v !== 'string' && !(Array.isArray(v) && v.every((x) => typeof x === 'string'))) continue;
+              if (!HOP_BY_HOP.has(k.toLowerCase())) headers[k.toLowerCase()] = v;
+            }
+          }
+          stream.rewrite.response?.(headers);
+          res.writeHead(head.status as number, headers);
+          stream.started = true;
         } catch {
-          return this.reset(frame.stream);
+          this.reset(frame.stream);
+          this.errors++;
+          if (stream.started || res.headersSent) res.destroy();
+          else unavailable(stream.req, res, 'failed');
         }
-        const headers: Record<string, string | string[]> = {};
-        for (const [k, v] of Object.entries(head.headers ?? {})) if (!HOP_BY_HOP.has(k.toLowerCase())) headers[k.toLowerCase()] = v;
-        stream.rewrite.response?.(headers);
-        stream.started = true;
-        res.writeHead(head.status, headers);
         break;
       }
       case FRAME.responseBody: {

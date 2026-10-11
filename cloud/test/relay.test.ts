@@ -248,6 +248,22 @@ describe('the relay', () => {
     expect(all[2].body.equals(big)).toBe(true);
   });
 
+  it('fails only the request when a server sends a broken response head, never the account service', async () => {
+    const s = await linkedServerWithRelay();
+    client.start(s.auth);
+    await until(() => client.status().connected && cloud.relay.connected(s.id));
+    // A server that sends an impossible status, a header Node refuses, or no JSON at all.
+    const real = (client as unknown as { send: (type: number, id: number, payload?: Buffer | string) => void }).send.bind(client);
+    for (const head of [JSON.stringify({ status: 99999, headers: {} }), JSON.stringify({ status: 200, headers: { 'x-bad': 'a\nb' } }), 'not json']) {
+      (client as unknown as { send: typeof real }).send = (type, id, payload) => real(type, id, type === serverProtocol.FRAME.response ? head : payload);
+      const res = await get(s.host, '/api/server/info');
+      expect(res.status).toBe(502);
+    }
+    (client as unknown as { send: typeof real }).send = real;
+    // The account service is still up and the tunnel still works.
+    expect((await get(s.host, '/api/server/info')).status).toBe(200);
+  });
+
   it('tells the server who is asking, not what the visitor claims', async () => {
     const s = await linkedServerWithRelay();
     client.start(s.auth);

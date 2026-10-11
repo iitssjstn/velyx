@@ -31,7 +31,17 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   0, dus een landing na het doel geeft geen negatieve tijd. Geen garantie op foutloosheid; een volledige
   handmatige review van alle code en tests op echte hardware zijn niet gedaan.
 - **Bugaudit 11 okt** (workflow: 5 zoekers per gebied, elke vondst door een skeptische controleur getoetst;
-  alleen lezen). 15 bevestigd, nog niets opgelost; de eigenaar kiest wat er gerepareerd wordt.
+  alleen lezen). 15 bevestigd. Op verzoek van de eigenaar ("los op wat het belangrijkste is") opgelost:
+  1, 2, 3 en 5, elk met een regressietest die op de oude code faalt. Daarbij gevonden en opgelost: een
+  HLS-run die halverwege opnieuw start, schreef tijden vanaf 0 terwijl de speler de init van de eerste run
+  houdt (elke ver-spoelactie met HLS, ook op de Chromecast); nu `-hls_segment_options
+  movflags=+frag_discont` (FFmpeg 6.1 hier getest; bevestigen met 5.1 in Docker/.deb). De oude test leek
+  een herstart te dekken maar kreeg het stuk uit de eerste run. Bug 8 wacht op een besluit van de
+  eigenaar (geen e-mailverificatie: aanmelden voor beheeradressen blokkeren, een setupcode, of eerst
+  controleren dat alle beheeradressen al een account hebben). Bug 2: de cast-hook (`fileId`, nieuwe
+  sessie per bestand) is getest; de koppeling in `Player.tsx` (tv laadt de nieuwe aflevering, browser
+  speelt niet mee, geen opslag of aftellen met de oude tv-positie) heeft nog geen eigen test en moet op
+  een echte Chromecast worden bevestigd. Backend 557, frontend 306, cloud 126 tests slagen.
   - Hoog: (1) `backend/src/playback/hls.ts:348` opgeruimde HLS-stukken komen via `read()` terug in `done`,
     terugspoelen geeft dan 500 (ENOENT); met echte FFmpeg gereproduceerd. (2) `frontend/src/pages/Player.tsx:621`
     volgende aflevering tijdens casten: tv blijft op de oude, browser speelt de nieuwe met geluid, en de

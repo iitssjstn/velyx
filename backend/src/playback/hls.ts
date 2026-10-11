@@ -133,6 +133,9 @@ export function hlsArgs(input: string, videoCodec: string | null, plan: RemuxPla
   args.push(
     '-sn', '-dn', '-map_metadata', '-1', '-map_chapters', '-1', '-max_muxing_queue_size', '2048',
     '-f', 'hls',
+    // A run that starts further in otherwise writes its pieces' times from 0 (and puts the start in its
+    // own init, which the player never gets: it keeps the first run's). frag_discont keeps the file's times.
+    '-hls_segment_options', 'movflags=+frag_discont',
     // Copied: a new piece at every keyframe. Converted: every GRID_SECONDS, where the keyframes are forced.
     '-hls_time', encode ? String(GRID_SECONDS) : '0.01',
     '-hls_segment_type', 'fmp4', '-hls_flags', 'temp_file', '-hls_fmp4_init_filename', 'init.mp4',
@@ -151,6 +154,8 @@ interface Session {
   from: number;
   /** Pieces finished (listed by FFmpeg). */
   done: Set<number>;
+  /** Pieces tidy() removed: the run's list still names them, so read() must not mark them done again. */
+  tidied: Set<number>;
   /** The run ended (all pieces up to the end made, or it failed). */
   ended: boolean;
   failed: string | null;
@@ -271,7 +276,8 @@ export class HlsSessions {
     if (!s.done.has(n)) {
       // Close ahead of the run: wait for it. Behind it or far ahead: start again from here.
       const ahead = Math.max(s.from, ...s.done);
-      const close = s.child && !s.ended && n >= s.from && (layoutSeconds(s.layout, ahead, n) < 30 || n <= ahead + 3);
+      // A piece behind what the run made is one tidy() removed: this run will not make it again.
+      const close = s.child && !s.ended && n >= s.from && n >= ahead && (layoutSeconds(s.layout, ahead, n) < 30 || n <= ahead + 3);
       if (!close) this.start(s, src, n);
     }
     this.resume(s);
@@ -294,7 +300,7 @@ export class HlsSessions {
         this.drop(oldest);
       }
       const dir = fs.mkdtempSync(path.join(this.baseDir, 's-'));
-      s = { key: src.key, dir, child: null, from: 0, done: new Set(), ended: false, failed: null, paused: false, lastRequested: 0, lastUsed: Date.now(), encode: !!src.encode, layout: src.layout, init: null };
+      s = { key: src.key, dir, child: null, from: 0, done: new Set(), tidied: new Set(), ended: false, failed: null, paused: false, lastRequested: 0, lastUsed: Date.now(), encode: !!src.encode, layout: src.layout, init: null };
       this.sessions.set(src.key, s);
     }
     return s;
@@ -304,6 +310,7 @@ export class HlsSessions {
     this.stop(s);
     // Pieces from here on are made again by this run: until it lists them, they may be half rewritten.
     for (const n of s.done) if (n >= from) s.done.delete(n);
+    for (const n of s.tidied) if (n >= from) s.tidied.delete(n);
     // The old run's list would mark those pieces finished again (and make the run look far ahead).
     fs.rmSync(path.join(s.dir, 'index.m3u8'), { force: true });
     s.from = from;
@@ -345,7 +352,10 @@ export class HlsSessions {
     } catch {
       return;
     }
-    for (const m of text.matchAll(/seg(\d+)\.m4s/g)) s.done.add(Number(m[1]));
+    for (const m of text.matchAll(/seg(\d+)\.m4s/g)) {
+      const n = Number(m[1]);
+      if (!s.tidied.has(n)) s.done.add(n);
+    }
     if (s.init === null && s.done.size) {
       const kept = path.join(s.dir, 'init-ready.mp4');
       try {
@@ -394,6 +404,7 @@ export class HlsSessions {
     for (const n of s.done) {
       if (n >= s.lastRequested - 8) continue;
       s.done.delete(n);
+      s.tidied.add(n);
       fs.rm(path.join(s.dir, `seg${n}.m4s`), { force: true }, () => undefined);
     }
   }

@@ -431,17 +431,30 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     if (!cast.active && was) seekTo(cast.time);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cast.active]);
+  // The TV's position belongs to the file it plays: after the next episode starts here, it is the old
+  // episode's until the TV has the new one (otherwise it would count as near the end of this one too).
+  const castHere = cast.active && file !== undefined && file !== null && cast.fileId === file.id;
   useEffect(() => {
-    if (!cast.active) return;
+    if (!castHere) return;
     setTime(cast.time);
     setPlaying(cast.playing);
-  }, [cast.active, cast.time, cast.playing]);
+  }, [castHere, cast.time, cast.playing]);
   const castSaved = useRef(0);
   useEffect(() => {
-    if (!cast.active || !item.data || Date.now() - castSaved.current < SAVE_INTERVAL_MS) return;
+    if (!castHere || !item.data || Date.now() - castSaved.current < SAVE_INTERVAL_MS) return;
     castSaved.current = Date.now();
     void saveProgress(item.data, cast.time, totalDuration);
-  }, [cast.active, cast.time, item.data, totalDuration]);
+  }, [castHere, cast.time, item.data, totalDuration]);
+  // Another file while casting (the next episode): it goes to the TV, from where it should start.
+  const castLoading = useRef<number | null>(null);
+  useEffect(() => {
+    if (!cast.active || !file || !item.data || cast.fileId === file.id || askResume || castLoading.current === file.id) return;
+    castLoading.current = file.id;
+    void cast.reload(start).catch((err) => toast.error(t('player.castFailed', { reason: err instanceof Error ? err.message : String(err) }))).finally(() => {
+      castLoading.current = null;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cast.active, cast.fileId, file?.id, item.data, askResume, start]);
   useEffect(() => {
     if (cast.error) toast.error(t('player.castFailed', { reason: cast.error }));
   }, [cast.error]);
@@ -698,7 +711,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       // A new stream (seek or audio switch) re-created the text tracks: restore the chosen subtitle.
       selectSubtitle(subKeyRef.current);
     }
-    if (playAfterLoadRef.current) {
+    // While casting, the TV plays: the page only keeps the picture ready.
+    if (playAfterLoadRef.current && !castingRef.current) {
       void v.play().catch(() => {
         // Autoplay with sound can be blocked; the user just presses play.
         setPlaying(false);

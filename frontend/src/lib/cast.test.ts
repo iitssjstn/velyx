@@ -147,6 +147,38 @@ describe('casting from the player', () => {
     unmount();
   });
 
+  it('gets a new cast session for another file (the next episode) and says which file the TV has', async () => {
+    vi.resetModules();
+    const sdk = fakeSdk();
+    vi.stubGlobal('chrome', sdk.chrome);
+    vi.spyOn(document.head, 'append').mockImplementation(() => {
+      (window as unknown as { cast: unknown }).cast = { framework: sdk.framework };
+      setTimeout(() => (window as unknown as { __onGCastApiAvailable: (ok: boolean) => void }).__onGCastApiAvailable(true));
+    });
+    const sessions: number[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+      const { fileId } = JSON.parse(String(init?.body)) as { fileId: number };
+      sessions.push(fileId);
+      return new Response(JSON.stringify({
+        token: `tok${fileId}`, expiresAt: Date.now() + 3_600_000, directUrl: null, serverUrl: null, contentType: 'video/mp4',
+        decision: { engine: 'direct', streamUrl: `/api/media/${fileId}/stream`, seek: 'range', durationSec: 2500 }, subtitles: [],
+      }), { status: 200 });
+    }));
+    const { useCast } = await import('./cast');
+    const { result, rerender, unmount } = renderHook(({ fileId }: { fileId: number }) => useCast({ fileId, audioIndex: null, title: 'Show', subtitleKey: null, locate: async () => ({ offset: 0, seek: 0 }) }), { initialProps: { fileId: 5 } });
+    await waitFor(() => expect(sdk.context.setOptions).toHaveBeenCalled());
+    await act(() => result.current.start(2400));
+    expect(result.current.fileId).toBe(5);
+    // The next episode opens on the page: the TV is still on episode 5 until it is given episode 6.
+    rerender({ fileId: 6 });
+    expect(result.current).toMatchObject({ active: true, fileId: 5 });
+    await act(() => result.current.reload(0));
+    expect(sessions).toEqual([5, 6]);
+    expect(sdk.loaded.at(-1)).toMatchObject({ url: `${location.origin}/api/media/6/stream?cast=tok6`, currentTime: 0 });
+    expect(result.current).toMatchObject({ active: true, fileId: 6, time: 0 });
+    unmount();
+  });
+
   it('continues on the TV where the page was, with the token, subtitles and a start for repackaged streams', async () => {
     vi.resetModules();
     const sdk = fakeSdk();
