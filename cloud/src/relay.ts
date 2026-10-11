@@ -271,6 +271,27 @@ export type RelayProblem = 'offline' | 'off' | 'busy' | 'tooLarge' | 'failed';
 
 const MEDIA_BYTES_PATH = /^\/api\/(?:media\/\d+\/(?:stream|remux|hls\/(?:index\.m3u8|init\.mp4|seg\/\d+\.m4s)|subtitles\/\d+\.vtt)|(?:online-)?subtitles\/\d+\.vtt)$/;
 
+/**
+ * The path as the server's router sees it: percent-decoded, repeated and trailing slashes dropped.
+ * null when it cannot be decoded (the router would not take it as written either).
+ */
+function routerPath(pathname: string): string | null {
+  try {
+    const decoded = pathname.split('/').map((part) => decodeURIComponent(part)).join('/');
+    return decoded.replace(/\/{2,}/g, '/').replace(/(.)\/$/, '$1');
+  } catch {
+    return null;
+  }
+}
+
+/** Media bytes (video, pieces, subtitles) by path, however the path is spelled. */
+export function isMediaBytesPath(pathname: string): boolean {
+  const path = routerPath(pathname);
+  // Undecodable: refused under /api rather than risk letting media through.
+  if (path === null) return pathname.startsWith('/api/');
+  return MEDIA_BYTES_PATH.test(path);
+}
+
 export function isRelayedMediaBytes(method: string, url: string | undefined): boolean {
   if (method !== 'GET' && method !== 'HEAD') return false;
   let parsed: URL;
@@ -279,8 +300,9 @@ export function isRelayedMediaBytes(method: string, url: string | undefined): bo
   } catch {
     return false;
   }
-  const playbackArtwork = /^\/api\/images\/[^/]+\/[^/]+$/.test(parsed.pathname) && parsed.searchParams.has('cast');
-  return playbackArtwork || MEDIA_BYTES_PATH.test(parsed.pathname);
+  const path = routerPath(parsed.pathname) ?? parsed.pathname;
+  const playbackArtwork = /^\/api\/images\/[^/]+\/[^/]+$/.test(path) && parsed.searchParams.has('cast');
+  return playbackArtwork || isMediaBytesPath(parsed.pathname);
 }
 
 export function rejectRelayedMedia(res: ServerResponse, acceptLanguage: string | undefined): void {

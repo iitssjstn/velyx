@@ -136,9 +136,11 @@ describe('the relay', () => {
     const chosen = String(opened.headers['set-cookie']).match(new RegExp(`${SERVER_COOKIE}=([^;]+)`))![1];
     const cookies = `${s.cookie}; ${SERVER_COOKIE}=${chosen}`;
     expect((await get(app, '/api/server/info', { cookie: cookies })).status).toBe(200);
-    const media = await get(app, '/api/media/5/stream', { cookie: cookies });
-    expect(media.status).toBe(409);
-    expect(media.headers['x-vidalune-direct-playback']).toBe('required');
+    for (const path of ['/api/media/5/stream', '/api/media/5/%73tream', '/api/media/5/stream/', '/api/online-%73ubtitles/4.vtt']) {
+      const media = await get(app, path, { cookie: cookies });
+      expect(media.status).toBe(409);
+      expect(media.headers['x-vidalune-direct-playback']).toBe('required');
+    }
   });
 
   it('allows the managed media hostname in account-page CSP but never the relay host', async () => {
@@ -170,6 +172,13 @@ describe('the relay', () => {
       '/api/subtitles/3.vtt?cast=file-token',
       '/api/online-subtitles/4.vtt?cast=file-token',
       '/api/images/w780/poster.jpg?cast=file-token',
+      // However the path is spelled, the server's router reads the same media route.
+      '/api/media/5/%73tream?cast=file-token',
+      '/api/media/5/hls/seg/1%2Em4s?cast=file-token',
+      '/api/media//5/stream?cast=file-token',
+      '/api/media/5/stream/?cast=file-token',
+      '/api/%73ubtitles/3.vtt?cast=file-token',
+      '/api/media/5/%E0%A4%A',
     ]) {
       const response = await get(s.host, path);
       expect(response.status).toBe(409);
