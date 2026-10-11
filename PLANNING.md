@@ -301,6 +301,12 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Titel kiezen onder Beheer > Optimalisatie is omslachtig** (gemeld 11 okt, screenshot; nog niet bouwen):
+  eerst typen en dan de titel nog eens uit een dropdown kiezen. Wens: geen dropdown, maar de zoekresultaten
+  als kaartjes met poster (metadata) en titel/jaar; klikken kiest de titel. Hergebruik `quickItems`
+  (`frontend/src/lib/search.ts`) en `Artwork`, net als `QuickSearch`. Ook de wachtrijregels kunnen de poster
+  tonen. Bespreken als leeropdracht voor de eigenaar.
+
 - **Kwaliteitsoptimizer: plek en snelheid** (gemeld 8 okt; besloten en gebouwd in 0.19.42).
   1. De bediening (`OptimizationControls`) staat onderaan de film- en afleveringspagina's en blijft daar.
      Daarnaast komt een beheerpagina met wachtrij, zodat de beheerder kan volgen wat bezig is, wat wacht en
