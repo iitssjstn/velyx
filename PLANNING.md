@@ -80,6 +80,15 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
     playback-JWT voor het ene bestand opent ook een externe ondertitel van een ander bestand bij een
     id-botsing tussen twee tabellen.
 
+- **Schijf vervangen of leeggemaakt** (must fix van de eigenaar, 11 okt; gebouwd): een lege bibliotheekmap
+  met bekende bestanden liet de oude titels voor altijd staan, omdat een lege nieuwe schijf er voor de
+  scanner hetzelfde uitziet als een niet-gekoppelde schijf (in Docker is de map in beide gevallen een
+  mount). Automatisch wissen is daarom niet veilig. Nu: de scan houdt de titels, zet de bibliotheek op status
+  `empty` ("N files kept") en Beheer > Bibliotheken toont dat met de knop "Titels verwijderen"; na
+  bevestiging scant hij met `confirmEmpty` en verwijdert de verdwenen titels (kijkgeschiedenis 90 dagen
+  bewaard via de bestaande retire-logica). Alleen beheerder, Zod, auditlog, Engels en Nederlands. Tests:
+  backend (vasthouden, bevestigen, alleen beheerder) en frontend (melding, bevestigen, verzoek). Backend 560
+  en frontend 309 tests slagen.
 - Laatste release: **0.19.45** (PR #129, hervatbare en stopbare optimalisaties). Tag `v0.19.45` en merge gecontroleerd; eigenaar bevestigde dat APK en beide `.deb`-pakketten compleet zijn. In voorbereiding: 0.19.46, ondertitels na vooruitspoelen op website en casten. Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),

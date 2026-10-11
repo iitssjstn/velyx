@@ -11,6 +11,8 @@ export interface ScanJob {
   refreshMetadata: boolean;
   /** Probe every file again instead of only new and changed ones. */
   full: boolean;
+  /** The administrator confirmed that an empty folder is meant to be empty. */
+  confirmEmpty?: boolean;
 }
 
 export interface ScanHooks {
@@ -122,17 +124,18 @@ export class ScanManager {
     return this.running?.libraryId === libraryId || this.queue.some((j) => j.libraryId === libraryId);
   }
 
-  enqueue(libraryId: number, refreshMetadata = false, full = false): boolean {
+  enqueue(libraryId: number, refreshMetadata = false, full = false, confirmEmpty = false): boolean {
     const queued = this.queue.find((j) => j.libraryId === libraryId);
     if (queued) {
       queued.refreshMetadata ||= refreshMetadata;
       queued.full ||= full;
+      queued.confirmEmpty ||= confirmEmpty;
       return false;
     }
     // A scan that is still listing folders will see the change itself. One that is past that point
     // would miss it, so a follow-up scan is queued (cheap: unchanged files are not probed again).
-    if (this.running?.libraryId === libraryId && !refreshMetadata && !full && this.running.progress.phase === 'discovering') return false;
-    this.queue.push({ libraryId, refreshMetadata, full });
+    if (this.running?.libraryId === libraryId && !refreshMetadata && !full && !confirmEmpty && this.running.progress.phase === 'discovering') return false;
+    this.queue.push({ libraryId, refreshMetadata, full, confirmEmpty });
     void this.pump();
     return true;
   }
@@ -211,6 +214,7 @@ export class ScanManager {
       const summary: ScanSummary = await this.scanner.scan(job.libraryId, {
         refreshMetadata: job.refreshMetadata,
         full: job.full,
+        confirmEmpty: job.confirmEmpty,
         checkpoint: this.checkpoint,
         onProgress: (p) => {
           if (this.running) this.running.progress = p;
@@ -220,9 +224,11 @@ export class ScanManager {
       if (summary.metadataUnmatched) parts.push(`${summary.metadataUnmatched} need review`);
       if (summary.unparsed) parts.push(`${summary.unparsed} not recognized`);
       if (summary.failed) parts.push(`${summary.failed} failed`);
+      // An empty folder with known files: kept, and the administrator is asked (a new drive, or not mounted).
+      const empty = summary.keptEmpty > 0;
       this.db
         .update(libraries)
-        .set({ lastScanAt: Date.now(), lastScanStatus: 'ok', lastScanMessage: parts.join(', '), lastSuccessAt: Date.now(), lastScanDurationMs: summary.durationMs })
+        .set({ lastScanAt: Date.now(), lastScanStatus: empty ? 'empty' : 'ok', lastScanMessage: empty ? `${summary.keptEmpty} files kept` : parts.join(', '), lastSuccessAt: Date.now(), lastScanDurationMs: summary.durationMs })
         .where(eq(libraries.id, job.libraryId))
         .run();
       this.hooks.onScanDone?.(job.libraryId, summary);

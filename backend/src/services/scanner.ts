@@ -39,6 +39,11 @@ export interface ScanOptions {
   onProgress?: (p: ScanProgress) => void;
   /** Awaited between files; resolves when the scan may continue (used to pause scans). */
   checkpoint?: () => Promise<void>;
+  /**
+   * The administrator confirmed that an empty folder is really empty (a new or wiped drive): its
+   * files are removed. Without it an empty folder keeps everything, as an unmounted drive looks the same.
+   */
+  confirmEmpty?: boolean;
 }
 
 export interface ScanSummary {
@@ -52,6 +57,8 @@ export interface ScanSummary {
   metadataMatched: number;
   metadataUnmatched: number;
   durationMs: number;
+  /** Files kept because the folder was empty (unmounted, or a new drive the administrator has to confirm). */
+  keptEmpty: number;
 }
 
 interface DiscoveredFiles {
@@ -148,7 +155,7 @@ export class LibraryScanner {
     if (!lib) throw new Error(`Library ${libraryId} not found`);
     if (isFilesystemRoot(lib.path)) throw new Error('A library cannot use a filesystem root path.');
     const report = (p: ScanProgress) => opts.onProgress?.(p);
-    const summary: ScanSummary = { found: 0, added: 0, updated: 0, unchanged: 0, removed: 0, failed: 0, unparsed: 0, metadataMatched: 0, metadataUnmatched: 0, durationMs: 0 };
+    const summary: ScanSummary = { found: 0, added: 0, updated: 0, unchanged: 0, removed: 0, failed: 0, unparsed: 0, metadataMatched: 0, metadataUnmatched: 0, durationMs: 0, keptEmpty: 0 };
 
     log.info(`Library scan started: ${lib.name} (${lib.path})${opts.full ? ' — re-analysing every file' : ''}`);
     report({ phase: 'discovering', processed: 0, total: 0 });
@@ -285,8 +292,9 @@ export class LibraryScanner {
       log.warn(`Keeping ${notSeen.length - missing.length} files in ${lib.name}: ${unreadable.length} folder(s) could not be read (${unreadable.slice(0, 3).join(', ')})`);
     }
     const lastFiles = new Map<string, FileSnapshot>();
-    if (candidates.length === 0 && existing.size > 0) {
+    if (candidates.length === 0 && existing.size > 0 && !opts.confirmEmpty) {
       log.warn(`No media found in ${lib.path} but ${existing.size} files are known — skipping removal in case the drive is not mounted`);
+      summary.keptEmpty = existing.size;
     } else if (missing.length > 0) {
       for (const f of missing) {
         const key = itemKey(f);

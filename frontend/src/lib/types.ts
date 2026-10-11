@@ -619,7 +619,8 @@ export interface Library {
   path: string;
   createdAt: number;
   lastScanAt: number | null;
-  lastScanStatus: 'ok' | 'error' | 'running' | null;
+  /** 'empty': the folder was empty while files were known; they were kept until the administrator confirms. */
+  lastScanStatus: 'ok' | 'error' | 'running' | 'empty' | null;
   lastScanMessage: string | null;
   itemCount: number;
   fileCount: number;
