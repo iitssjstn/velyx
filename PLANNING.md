@@ -31,7 +31,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   0, dus een landing na het doel geeft geen negatieve tijd. Geen garantie op foutloosheid; een volledige
   handmatige review van alle code en tests op echte hardware zijn niet gedaan.
 - **Bugaudit 11 okt** (workflow: 5 zoekers per gebied, elke vondst door een skeptische controleur getoetst;
-  alleen lezen). 17 bevestigd, nog niets opgelost; de eigenaar kiest wat er gerepareerd wordt.
+  alleen lezen). 15 bevestigd, nog niets opgelost; de eigenaar kiest wat er gerepareerd wordt.
   - Hoog: (1) `backend/src/playback/hls.ts:348` opgeruimde HLS-stukken komen via `read()` terug in `done`,
     terugspoelen geeft dan 500 (ENOENT); met echte FFmpeg gereproduceerd. (2) `frontend/src/pages/Player.tsx:621`
     volgende aflevering tijdens casten: tv blijft op de oude, browser speelt de nieuwe met geluid, en de
