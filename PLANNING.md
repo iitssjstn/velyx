@@ -30,6 +30,29 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   staan in de afhankelijkheden. Alle plekken die doel minus landing rekenen (web, app, casten) begrenzen op
   0, dus een landing na het doel geeft geen negatieve tijd. Geen garantie op foutloosheid; een volledige
   handmatige review van alle code en tests op echte hardware zijn niet gedaan.
+- **Bugaudit 11 okt** (workflow: 5 zoekers per gebied, elke vondst door een skeptische controleur getoetst;
+  alleen lezen). 17 bevestigd, nog niets opgelost; de eigenaar kiest wat er gerepareerd wordt.
+  - Hoog: (1) `backend/src/playback/hls.ts:348` opgeruimde HLS-stukken komen via `read()` terug in `done`,
+    terugspoelen geeft dan 500 (ENOENT); met echte FFmpeg gereproduceerd. (2) `frontend/src/pages/Player.tsx:621`
+    volgende aflevering tijdens casten: tv blijft op de oude, browser speelt de nieuwe met geluid, en de
+    tv-positie wordt bij de nieuwe aflevering opgeslagen. (3) `cloud/src/relay.ts:202` een gekoppelde server
+    kan met een ongeldige statuscode in een responseframe de hele accountservice laten crashen
+    (`writeHead` gooit buiten try/catch). (4) `app/src/app/cloud.tsx:104` aanmelden via het Vidalune-account
+    gebruikt een verouderde sessie, waardoor de nieuwe server wordt overschreven of gewist.
+  - Middel: (5) `backend/src/services/scanner.ts:80` een tijdelijk onleesbare submap (NAS-fout) telt als leeg:
+    titels en hun geoptimaliseerde kopieën worden verwijderd. (6) `backend/src/playback/remux.ts:286`
+    conversielimiet telt HLS-conversies niet mee; daarna krijgt de eerste kijker een 503 midden in de film.
+    (7) `Player.tsx:386` keyframe-opvraag op de website negeert de geoptimaliseerde kopie, dus klok en
+    ondertitels verschuiven. (8) `cloud/src/app.ts:439` niet-geregistreerde `ADMIN_EMAILS`/`CEO_EMAILS`-adressen
+    kan iedereen via aanmelden claimen. (9) `app/.../play/[kind]/[id].tsx:561` openen van een hervatbare
+    remux-/relaytitel slaat direct positie 0 op en wist het hervatpunt. (10) `cloud/src/relay.ts:261`
+    procent-gecodeerde mediapaden omzeilen de regel dat video nooit via relay/app.vidalune.com gaat.
+  - Laag: (11) `frontend/src/lib/cast.ts:322` en (12) `app/.../[id].tsx:224` gelijktijdige spoelacties kunnen
+    in de verkeerde volgorde eindigen. (13) `cloud/src/cloudflare-dns.ts:126` DNS houdt maar één adresfamilie
+    (A of AAAA) en wisselt mee met de heartbeat. (14) `cloud/src/ceo.ts:1165` geplande toegang wordt niet
+    toegepast als de dienst bij de start langer dan 10 minuten plat lag. (15) `backend/src/app.ts:360` een
+    playback-JWT voor het ene bestand opent ook een externe ondertitel van een ander bestand bij een
+    id-botsing tussen twee tabellen.
 
 - Laatste release: **0.19.45** (PR #129, hervatbare en stopbare optimalisaties). Tag `v0.19.45` en merge gecontroleerd; eigenaar bevestigde dat APK en beide `.deb`-pakketten compleet zijn. In voorbereiding: 0.19.46, ondertitels na vooruitspoelen op website en casten. Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
