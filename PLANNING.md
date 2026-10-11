@@ -322,7 +322,22 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
     die is binnengehaald (bijvoorbeeld via Seerr), of een vervangen bestand. Die worden meteen
     toegevoegd en herkend, ook binnen het nachtelijke venster en overdag.
   - **Zwaar achtergrondwerk, ook 's nachts:** intro-, recap- en aftitelingdetectie, ondertitels
-    vooraf uitpakken, analyses en opruimen.
+    vooraf uitpakken, keyframes vooraf uitzoeken (zie hieronder), analyses en opruimen.
+  - **Besluit eigenaar (11 okt):** zoveel mogelijk werk binnen het tijdvak dat de beheerder instelt.
+    Alleen wat een kijker of een wijziging direct nodig heeft (nieuw/vervangen bestand, verversen bij
+    aanklikken, afspelen zelf) gebeurt erbuiten.
+  - **Keyframes vooraf uitzoeken en bewaren** (besproken 11 okt, nog niet bouwen): na spoelen vraagt de
+    speler `/api/media/:id/keyframe`; `seekLanding` (`backend/src/playback/remux.ts`) start daarvoor
+    FFmpeg met een time-out van 15 s en valt daarna terug op het doel, waardoor ondertitels en voortgang
+    een paar seconden verschoven lopen. Op trage hardware (NAS in slaapstand, scan of optimalisatie
+    tegelijk) gebeurt dat vaker. Besluit: de time-out niet verhogen (de kijker wacht dan langer op de
+    spinner), maar de keyframes per bestand binnen het tijdvak uitzoeken (zoals `readKeyframes` in
+    `hls.ts`) en bewaren; ze veranderen niet zolang het bestand gelijk blijft. Bij spoelen dan het
+    keyframe uit de opslag nemen. Bij een lege opslag én een time-out eerlijk `exact: false` teruggeven,
+    zodat de speler weet dat de offset een gok is, in plaats van stil het doel. De offset niet achteraf
+    corrigeren: die zit in de ondertitel-URL's, dus de tracks zouden herladen en de voortgang verspringen.
+    Let op: MPEG-TS heeft geen index, dus uitzoeken leest het hele bestand; daarom alleen binnen het
+    tijdvak. Helpt ook de HLS-opstarttijd (zie 0.19.12).
   - Rustig uitvoeren (lage prioriteit, TMDB-limiet), stoppen aan het einde van het venster en de
     volgende nacht verder waar hij was. Handmatig starten kan altijd.
   - Past bij het onderhoudsvenster van punt 3 hieronder (prestaties).
