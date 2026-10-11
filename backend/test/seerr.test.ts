@@ -11,7 +11,7 @@ let calls: Array<{ method: string; path: string; key: string | null; body: unkno
 /** Request id → [request status, media status]. */
 let states: Map<number, [number, number]>;
 /** Seerr's own record per title ("movie/603"): its id, status, requests and seasons. */
-let media: Map<string, { id: number; status: number; requests: Array<{ id: number; status: number }>; seasons?: Array<{ seasonNumber: number; status: number }> }>;
+let media: Map<string, { id: number; status: number; requests: Array<{ id: number; status: number; is4k?: boolean; seasons?: Array<{ seasonNumber: number }> }>; seasons?: Array<{ seasonNumber: number; status: number }> }>;
 const fakeSeerr = async (url: string, init?: RequestInit) => {
   const u = new URL(url);
   if (u.host !== 'seerr.local:5055') throw new Error('network disabled in tests');
@@ -63,8 +63,9 @@ const fakeSeerr = async (url: string, init?: RequestInit) => {
     states.set(id, [1, 2]);
     const key = `${body.mediaType}/${body.mediaId}`;
     const m = media.get(key) ?? { id: 900 + media.size, status: 2, requests: [] };
-    m.requests.push({ id, status: 1 });
-    if (Array.isArray(body.seasons)) m.seasons = [...(m.seasons ?? []), ...body.seasons.map((n: number) => ({ seasonNumber: n, status: 2 }))];
+    // As Seerr does: a request waiting for approval names its seasons; the title's own seasons change
+    // only once it is approved.
+    m.requests.push({ id, status: 1, ...(Array.isArray(body.seasons) ? { seasons: body.seasons.map((n: number) => ({ seasonNumber: n })) } : {}) });
     media.set(key, m);
     return json({ id, status: 1, media: { status: 2 } }, 201);
   }
@@ -330,6 +331,13 @@ describe('Seerr', () => {
     expect((await ask(null)).statusCode).toBe(200);
     expect(calls.filter((c) => c.path === '/request' && c.method === 'POST').at(-1)?.body).toMatchObject({ seasons: [2] });
     expect((await ask([1, 2])).statusCode).toBe(409);
+    // Every season asked for and none approved yet: nothing left to request, so the page offers no button.
+    const all = (await env.app.inject({ url: '/api/seerr/tv/1399', headers: { cookie: viewer.cookie } })).json();
+    expect(all.seasons.map((x: { state: string | null }) => x.state)).toEqual(['requested', 'requested']);
+    // A 4K request (not Vidalune's) and a declined one leave a season open.
+    media.set('tv/1399', { id: 970, status: 2, requests: [{ id: 1, status: 1, is4k: true, seasons: [{ seasonNumber: 1 }] }, { id: 2, status: 3, seasons: [{ seasonNumber: 2 }] }] });
+    const other = (await env.app.inject({ url: '/api/seerr/tv/1399', headers: { cookie: viewer.cookie } })).json();
+    expect(other.seasons.map((x: { state: string | null }) => x.state)).toEqual([null, 'declined']);
 
     const similar = (await env.app.inject({ url: '/api/seerr/movie/603/recommendations', headers: { cookie: viewer.cookie } })).json();
     expect(similar.results.map((r: { title: string; mediaType: string }) => [r.title, r.mediaType])).toEqual([

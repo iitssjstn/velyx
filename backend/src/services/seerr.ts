@@ -55,9 +55,13 @@ export interface SeerrDetails extends SeerrResult {
 interface RawMedia {
   id?: number;
   status?: number;
-  requests?: Array<{ id?: number; status?: number }>;
+  /** A show's request names its seasons; they are on the title's own seasons only once approved. */
+  requests?: Array<{ id?: number; status?: number; is4k?: boolean; seasons?: Array<{ seasonNumber?: number }> }>;
   seasons?: Array<{ seasonNumber?: number; status?: number }>;
 }
+
+/** The requests Vidalune makes and shows (not 4K ones). */
+const ownRequests = (media: RawMedia | undefined) => (media?.requests ?? []).filter((r) => !r.is4k);
 
 /**
  * Seerr's numbers: a request is 1 pending approval, 2 approved, 3 declined (newer: 4 failed,
@@ -78,7 +82,8 @@ const yearOf = (d: unknown) => (typeof d === 'string' && /^\d{4}/.test(d) ? Numb
 
 function mediaState(media: RawMedia | undefined): RequestState | null {
   if (!media) return null;
-  const last = media.requests?.[media.requests.length - 1];
+  const requests = ownRequests(media);
+  const last = requests[requests.length - 1];
   return requestState(last?.status, media.status);
 }
 
@@ -192,7 +197,15 @@ export class SeerrService {
     const seasonState = (n: number): RequestState | null => {
       const st = media?.seasons?.find((m) => m.seasonNumber === n)?.status;
       // Seasons carry the media numbers: 2 pending, 3 processing, 4 partly, 5 available.
-      return st === 5 ? 'available' : st === 4 ? 'partiallyAvailable' : st === 3 ? 'processing' : st === 2 ? 'requested' : null;
+      if (st === 5) return 'available';
+      if (st === 4) return 'partiallyAvailable';
+      if (st === 3) return 'processing';
+      // Requested but not approved yet: only the request names the season (Seerr adds it to the
+      // title's seasons once approved). The latest request for it says where it stands.
+      const asked = ownRequests(media).filter((r) => r.seasons?.some((s) => s.seasonNumber === n));
+      const last = asked[asked.length - 1];
+      if (last) return requestState(last.status, undefined);
+      return st === 2 ? 'requested' : null;
     };
     const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null);
     const credits = (x.credits as { cast?: Array<Record<string, unknown>> } | undefined)?.cast ?? [];

@@ -89,7 +89,15 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   bewaard via de bestaande retire-logica). Alleen beheerder, Zod, auditlog, Engels en Nederlands. Tests:
   backend (vasthouden, bevestigen, alleen beheerder) en frontend (melding, bevestigen, verzoek). Backend 560
   en frontend 309 tests slagen.
-- Laatste release: **0.19.46** (ondertitels na vooruitspoelen); release `v0.19.46` gecontroleerd op 11 okt: APK en beide `.deb`-pakketten aanwezig. In voorbereiding: **0.19.47** (zie hieronder), op verzoek van de eigenaar ("merge alles") als PR geopend en gemerged zodra CI groen is. Daarvoor 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- **Aanvraagknop blijft staan na aanvragen** (gemeld door de eigenaar 11 okt; opgelost op de branch, nog
+  geen versie): bij een serie las `details()` in `backend/src/services/seerr.ts` alleen de seizoenstatus van
+  de titel (`mediaInfo.seasons`). Seerr zet een seizoen daar pas na goedkeuring in; zolang een aanvraag
+  wacht, staat het seizoen alleen in die aanvraag (`mediaInfo.requests[].seasons`). Daardoor bleven alle
+  seizoenen "open" en de knop zichtbaar, op web en in de app (die dezelfde status van de server krijgt). Nu
+  telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
+  zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
+  slagen. Uitgebracht in 0.19.48.
+- Laatste release: **0.19.47** (PR #132, gemerged 11 okt op verzoek van de eigenaar na groene CI); release `v0.19.47` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -723,4 +731,11 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1947) en beide lockfiles bijgewerkt.
 - Na de merge: release `v0.19.47` controleren (APK en beide `.deb`'s). Op echte hardware te testen:
   volgende aflevering tijdens casten, app-bugs 9 en 12, en `frag_discont` met FFmpeg 5.1 (Debian 12).
+
+## Versie 0.19.48 (aanvraagknop na aanvragen)
+
+- Op verzoek van de eigenaar ("maak het klaar en merge het", 11 okt): de fix voor de aanvraagknop die bij
+  een serie bleef staan zolang een aanvraag op goedkeuring wacht (zie "Stand van zaken"). Versie in alle
+  `package.json`'s, `app/app.json` (versionCode 1948) en beide lockfiles bijgewerkt.
+- Na de merge: release `v0.19.48` controleren (APK en beide `.deb`'s).
 
