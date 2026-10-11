@@ -351,10 +351,16 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
     - Terug naar eenvoudig: een eigen schema blijft gelden en wordt nooit stil gewist; de eenvoudige
       weergave toont bij die taak duidelijk "Eigen schema: …" met een link naar geavanceerd en een knop
       "terug naar het venster".
-    - Einde van het venster: geen nieuwe taak meer starten (de rest gaat de volgende nacht als eerste);
-      een lopende taak mag af zolang niemand kijkt. Gaat iemand kijken, dan stopt een op te knippen taak
-      (keyframes, ondertitels, per bestand) op een veilig punt en gaat de volgende nacht verder; een niet
-      op te knippen taak (back-up) pauzeert tot niemand meer kijkt.
+    - Na het venster (aanvulling eigenaar 11 okt): ook nieuwe taken oppakken zolang de server stil is.
+      Instelling "Ook buiten het venster werken als de server stil is", standaard aan; de uitleg noemt
+      waarom iemand hem uitzet (stroomprijs, slapende NAS-schijven, geluid). Buiten het venster pas
+      (verder)gaan na bijvoorbeeld 15 minuten zonder kijkers, zodat een korte stream (trailer) de taak
+      niet steeds laat stoppen en starten.
+    - Opent iemand een stream, dan stopt de taak op een veilig punt en gaat later verder (binnen het
+      venster zodra het weer stil is, anders na de wachttijd of in het volgende venster). Nooit verwerkte
+      gegevens verliezen: elke taak bewaart na elk afgerond stuk (bestand, segment) een opslagpunt, zoals
+      de optimizer sinds 0.19.45; niet urenlang pauzeren met SIGSTOP (een herstart of update gooit dat
+      werk weg). Uitzondering: een afgebroken back-up begint de volgende keer opnieuw (klein werk).
     - Niet uit te zetten en niet getoond: onzichtbaar onderhoud zoals certificaatvernieuwing en het
       opruimen van sessies.
     - Bestaande instellingen (scaninterval, back-upschema) ongewijzigd overnemen bij de upgrade; Drizzle-
