@@ -361,6 +361,11 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   - alle tekstondertitels van een bestand in **één** leesronde uitpakken (één keer lezen voor alle talen);
   - dat vooraf op de achtergrond doen (lage prioriteit, na de scan of bij de start van het afspelen);
   - in de speler "Ondertitel laden…" tonen, en een melding als het mislukt.
+  - Gemeld door de eigenaar (11 okt): ondertitels verschijnen merkbaar later en nergens is te zien dat er
+    iets laadt. Oorzaak bevestigd in de code: de website laadt de ondertitel via een `<track>`-element
+    (`Player.tsx`) zonder laad- of foutstatus, en de server leest voor een ingebouwde ondertitel eerst het
+    hele bestand. Bij een groot 4K-bestand op de NAS, terwijl de optimizer de twee cores gebruikt, duurt dat
+    lang. Nog niet bouwen; eerst bespreken.
 - **HLS en ondertitels**: gecontroleerd, geen fout gevonden. Ondertitels zijn losse WebVTT-bestanden;
   de HLS-tijdlijn (`-copyts -start_at_zero`) en de uitgepakte ondertitels beginnen allebei bij het
   begin van het bestand, en de live stream verschuift de ondertitels met `?offset=`.
