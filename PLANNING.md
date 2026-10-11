@@ -301,6 +301,13 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **HDR wordt niet omgezet naar SDR** (gevonden 11 okt bij een 4K-HDR-optimalisatie van de eigenaar; nog
+  niet bouwen): `optimization.ts` en `transcode.ts` schalen alleen; zonder tonemapping ziet een H.264-kopie
+  of live conversie van een HDR-bron er op gewone schermen grauw en flets uit. Oplossing: bij HDR-bron
+  (bt2020/PQ/HLG) tonemappen (software `zscale`+`tonemap`, of op de GPU, bijvoorbeeld `tonemap_vaapi` /
+  `vpp_qsv`), met test op een korte HDR-fixture. De eigenaar zoekt nieuwe serverhardware; Intel met Quick
+  Sync maakt dit en de conversies veel sneller.
+
 - **Titel kiezen onder Beheer > Optimalisatie is omslachtig** (gemeld 11 okt, screenshot; nog niet bouwen):
   eerst typen en dan de titel nog eens uit een dropdown kiezen. Wens: geen dropdown, maar de zoekresultaten
   als kaartjes met poster (metadata) en titel/jaar; klikken kiest de titel. Hergebruik `quickItems`
