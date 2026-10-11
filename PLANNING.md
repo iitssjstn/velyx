@@ -363,6 +363,11 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
       werk weg). Uitzondering: een afgebroken back-up begint de volgende keer opnieuw (klein werk).
     - Niet uit te zetten en niet getoond: onzichtbaar onderhoud zoals certificaatvernieuwing en het
       opruimen van sessies.
+    - "Iemand kijkt" is nu `streams.active()` (`backend/src/services/streams.ts`): in de laatste 60 s
+      (`ACTIVE_MS`) een streamverzoek (`touch`) of voortgangsupdate (`progress`). Een spelende cast telt
+      mee (de tv haalt zelf bytes op en de telefoon/browser slaat elke 10 s op), net als een kijker
+      buitenshuis. Een gepauzeerde film of cast telt na ongeveer een minuut niet meer: binnen het venster
+      kan dan een taak starten; bewust beslissen of dat zo moet blijven.
     - Bestaande instellingen (scaninterval, back-upschema) ongewijzigd overnemen bij de upgrade; Drizzle-
       migratie, alleen beheerder, Engels en Nederlands, tests voor planner, venstereinde en migratie.
   - Rustig uitvoeren (lage prioriteit, TMDB-limiet), stoppen aan het einde van het venster en de
