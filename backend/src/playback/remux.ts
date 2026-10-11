@@ -217,6 +217,8 @@ export class RemuxEngine implements PlaybackEngine {
     private readonly ffmpegPath: string,
     /** Video transcoding when the administrator turned it on (null: off). */
     private readonly transcoding: () => { encode: VideoEncode; maxStreams: number | null } | null = () => null,
+    /** Videos converted elsewhere (HLS pieces): they count towards the same limit. */
+    private readonly convertingElsewhere: () => number = () => 0,
   ) {}
 
   decide(file: MediaFileRow, caps: ClientCapabilities, options: PlaybackOptions = {}): PlaybackDecision | null {
@@ -283,7 +285,7 @@ export class RemuxEngine implements PlaybackEngine {
       if (!t) return reply.code(403).send({ error: tr(lang, 'Video conversion is turned off on this server.') });
       // Seeking starts a new stream: the one it replaces stops first and does not count.
       for (const [child, k] of this.transcodes) if (k === key) child.kill('SIGKILL');
-      const running = [...this.transcodes.values()].filter((k) => k !== key).length;
+      const running = [...this.transcodes.values()].filter((k) => k !== key).length + this.convertingElsewhere();
       if (t.maxStreams !== null && running >= t.maxStreams) return reply.code(503).send({ error: tr(lang, 'The server is already converting {n} videos, its limit. Try again in a moment.', { n: t.maxStreams }) });
       encode = t.encode;
     }

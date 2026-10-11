@@ -252,6 +252,11 @@ export class HlsSessions {
     return [...this.sessions.values()].filter((s) => s.child && !s.ended).length;
   }
 
+  /** A converting session for `key` exists: that viewer was let in, its next pieces count as one stream. */
+  convertingFor(key: string): boolean {
+    return Boolean(this.sessions.get(key)?.encode);
+  }
+
   /** Sessions whose video is converted (for the conversion limit), other than `key`. */
   convertingOther(key: string): number {
     return [...this.sessions.values()].filter((s) => s.encode && s.key !== key && s.child && !s.ended).length;
