@@ -179,6 +179,39 @@ describe('casting from the player', () => {
     unmount();
   });
 
+  it('lets only the latest of quick seeks reach the TV, whichever keyframe answer comes first', async () => {
+    vi.resetModules();
+    const sdk = fakeSdk();
+    vi.stubGlobal('chrome', sdk.chrome);
+    vi.spyOn(document.head, 'append').mockImplementation(() => {
+      (window as unknown as { cast: unknown }).cast = { framework: sdk.framework };
+      setTimeout(() => (window as unknown as { __onGCastApiAvailable: (ok: boolean) => void }).__onGCastApiAvailable(true));
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      token: 'tok', expiresAt: Date.now() + 3_600_000, directUrl: null, serverUrl: null, contentType: 'video/mp4',
+      decision: { engine: 'remux', streamUrl: '/api/media/5/remux?audio=1', seek: 'restart', durationSec: 3000 }, subtitles: [],
+    }), { status: 200 })));
+    const { useCast } = await import('./cast');
+    // The keyframe for the first seek answers late, the one for the second at once.
+    const pending: Array<() => void> = [];
+    const locate = vi.fn((t: number) => new Promise<{ offset: number; seek: number }>((resolve) => {
+      if (t === 600) pending.push(() => resolve({ offset: 598, seek: 598 }));
+      else resolve({ offset: t, seek: t });
+    }));
+    const { result, unmount } = renderHook(() => useCast({ fileId: 5, audioIndex: 1, title: 'Dune', subtitleKey: null, locate }));
+    await waitFor(() => expect(sdk.context.setOptions).toHaveBeenCalled());
+    await act(() => result.current.start(0));
+    act(() => result.current.seek(600));
+    await waitFor(() => expect(pending).toHaveLength(1));
+    act(() => result.current.seek(1200));
+    await waitFor(() => expect(sdk.loaded.at(-1)?.url).toContain('start=1200.000'));
+    await act(async () => pending[0]!());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(sdk.loaded.at(-1)?.url).toContain('start=1200.000');
+    expect(sdk.loaded.some((l: { url: string }) => l.url.includes('start=598.000'))).toBe(false);
+    unmount();
+  });
+
   it('continues on the TV where the page was, with the token, subtitles and a start for repackaged streams', async () => {
     vi.resetModules();
     const sdk = fakeSdk();

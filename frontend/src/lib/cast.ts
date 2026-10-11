@@ -144,6 +144,8 @@ export function useCast(item: CastItem | null) {
   const controller = useRef<any>(null);
   const session = useRef<CastSession | null>(null);
   const offset = useRef(0);
+  // Quick seeks each load the stream again: only the latest may reach the TV, whatever finishes first.
+  const loads = useRef(0);
   const itemRef = useRef(item);
   const subtitleKey = useRef(item?.subtitleKey ?? null);
   if (itemRef.current?.fileId !== item?.fileId || itemRef.current?.subtitleKey !== item?.subtitleKey) subtitleKey.current = item?.subtitleKey ?? null;
@@ -223,9 +225,11 @@ export function useCast(item: CastItem | null) {
       const f = framework.current;
       const castSession = f?.CastContext.getInstance().getCurrentSession();
       if (!it || !castSession) return;
+      const loadId = ++loads.current;
       const chromeCast = w.chrome.cast;
       const audioIndex = audioOverride === undefined ? it.audioIndex : audioOverride;
       if (!session.current || session.current.expiresAt < Date.now() + 60_000 || audioOverride !== undefined) session.current = await api.post<CastSession>('/api/cast/session', { fileId: it.fileId, ...(audioIndex !== null ? { audioIndex } : {}), ...(it.optimizationId ? { optimizationId: it.optimizationId } : {}) });
+      if (loadId !== loads.current) return;
       const s = session.current;
       const base = castBase(window.location.origin, s);
       if (!base) throw new Error(t('player.errors.directServerRequired'));
@@ -233,6 +237,7 @@ export function useCast(item: CastItem | null) {
       let startTime = at;
       if (s.decision.seek === 'restart' && at > 0) {
         const k = await it.locate(at);
+        if (loadId !== loads.current) return;
         start = k.seek;
         offset.current = k.offset;
         startTime = Math.max(0, at - k.offset);
