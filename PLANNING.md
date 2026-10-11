@@ -437,6 +437,17 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Ideeën (nog niet besloten)
 
+- **Rollen beheren op de website** (idee eigenaar 11 okt, nog niet bouwen): in het CEO-paneel een
+  bestaand account een rol geven of afnemen (bijvoorbeeld beheerder, CEO) in plaats van via
+  `ADMIN_EMAILS`/`CEO_EMAILS`.
+  - Rol opslaan bij het account (id) in de database, niet bij een e-mailadres: dan kan niemand rechten
+    claimen door zich met een adres aan te melden (lost bug 8 uit de audit structureel op).
+  - De env-variabelen alleen nog als noodsleutel/eerste CEO bij een lege database; bij de upgrade de
+    huidige adressen eenmalig als rol overnemen (Drizzle-migratie), bestaande toegang blijft gelijk.
+  - Alleen een CEO kan rollen wijzigen; de laatste CEO kan zichzelf niet degraderen (buitensluiten).
+  - Elke wijziging in de auditlog (wie, wat, wanneer); Zod-validatie en autorisatie; tests.
+  - Liefst samen met e-mailverificatie, zodat een rol alleen naar een geverifieerd account gaat.
+
 - **Eigen cast-speler (Custom Web Receiver)** — wens van de eigenaar (2 okt), **nog niet bouwen** (hij
   test eerst). Moet een **volledige speler** zijn: alles wat mensen op de website en in de app gebruiken.
   Dus onder meer Vidalune-uitstraling met laadscherm (achtergrond, titel), eigen bediening/voortgang,
