@@ -7,6 +7,7 @@ import { onlineManager } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import { getLocales } from 'expo-localization';
 import { createApi, type Api } from './api';
+import { createStoredSession } from './storedSession';
 import { appUserAgent } from './auth';
 import { connectionState, type Connection } from './connection';
 import { RECONNECT_EVERY_MS, findReachable, reconnectOrder } from './reconnect';
@@ -82,18 +83,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => sub.remove();
   }, []);
 
+  // Every change starts from the latest session, not from `stored` of the render that made the callback.
+  const store = useMemo(
+    () =>
+      createStoredSession<Stored>(async (next) => {
+        setStored(next);
+        if (next) await SecureStore.setItemAsync(STORE_KEY, JSON.stringify(next));
+        else await SecureStore.deleteItemAsync(STORE_KEY);
+      }),
+    [],
+  );
+
   useEffect(() => {
     SecureStore.getItemAsync(STORE_KEY)
-      .then((raw) => setStored(raw ? (JSON.parse(raw) as Stored) : null))
-      .catch(() => setStored(null))
+      .then((raw) => (raw ? (JSON.parse(raw) as Stored) : null))
+      .catch(() => null)
+      .then((value) => {
+        store.load(value);
+        setStored(value);
+      })
       .finally(() => setReady(true));
-  }, []);
+  }, [store]);
 
-  const save = useCallback(async (next: Stored | null) => {
-    setStored(next);
-    if (next) await SecureStore.setItemAsync(STORE_KEY, JSON.stringify(next));
-    else await SecureStore.deleteItemAsync(STORE_KEY);
-  }, []);
+  const save = useCallback((next: Stored | null) => store.save(next), [store]);
 
   // The account's language wins; before signing in, the phone's.
   const language: Language = stored?.user?.language ?? pickLanguage(getLocales().map((l) => l.languageTag));
@@ -109,10 +121,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         onReachable: (reachable) => setServerReachable(reachable),
         onUnauthorized: () => {
           setSessionEnded(true);
-          void save(stored ? { ...stored, token: null, user: null } : null);
+          void store.change((s) => ({ ...s, token: null, user: null }));
         },
       }),
-    [stored, save, language],
+    [stored, store, language],
   );
 
   // The account as the server knows it now (the name or language may have changed on the website).
@@ -123,7 +135,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     api
       .get<{ user: User }>('/api/auth/me')
       .then(({ user }) => {
-        if (alive && stored && JSON.stringify(user) !== JSON.stringify(stored.user)) void save({ ...stored, user });
+        if (alive && stored && JSON.stringify(user) !== JSON.stringify(stored.user)) void store.change((s) => ({ ...s, user }));
       })
       .catch(() => undefined);
     return () => {
@@ -162,7 +174,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const found = await findReachable(reconnectOrder(stored.serverUrl, stored.addresses), fetch);
       if (stop) return;
       if (found) {
-        if (found !== stored.serverUrl) await save({ ...stored, serverUrl: found });
+        if (found !== stored.serverUrl) await store.change((s) => ({ ...s, serverUrl: found }));
         setServerReachable(true);
       } else timer = setTimeout(() => void attempt(), RECONNECT_EVERY_MS);
     };
@@ -171,7 +183,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       stop = true;
       clearTimeout(timer);
     };
-  }, [signedIn, stored, serverReachable, active, deviceOnline, save]);
+  }, [signedIn, stored, serverReachable, active, deviceOnline, store]);
 
   const value: SessionValue = {
     ready,
@@ -192,9 +204,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     forgetServer: () => save(null),
     signIn: (token, user) => {
       setSessionEnded(false);
-      return save(stored ? { ...stored, token, user } : null);
+      return store.change((s) => ({ ...s, token, user }));
     },
-    updateUser: (user) => save(stored ? { ...stored, user } : null),
+    updateUser: (user) => store.change((s) => ({ ...s, user })),
     signOut: async () => {
       try {
         await api.post('/api/auth/logout');
@@ -202,7 +214,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         /* the token simply expires on the server */
       }
       // Opened with the Vidalune account: back to its list of servers (not signed straight back in).
-      await save(stored && !stored.cloudServerId ? { ...stored, token: null, user: null } : null);
+      await store.change((s) => (s.cloudServerId ? null : { ...s, token: null, user: null }));
     },
   };
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
