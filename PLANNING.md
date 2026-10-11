@@ -89,7 +89,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   bewaard via de bestaande retire-logica). Alleen beheerder, Zod, auditlog, Engels en Nederlands. Tests:
   backend (vasthouden, bevestigen, alleen beheerder) en frontend (melding, bevestigen, verzoek). Backend 560
   en frontend 309 tests slagen.
-- Laatste release: **0.19.45** (PR #129, hervatbare en stopbare optimalisaties). Tag `v0.19.45` en merge gecontroleerd; eigenaar bevestigde dat APK en beide `.deb`-pakketten compleet zijn. In voorbereiding: 0.19.46, ondertitels na vooruitspoelen op website en casten. Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.46** (ondertitels na vooruitspoelen); release `v0.19.46` gecontroleerd op 11 okt: APK en beide `.deb`-pakketten aanwezig. In voorbereiding: **0.19.47** (zie hieronder), op verzoek van de eigenaar ("merge alles") als PR geopend en gemerged zodra CI groen is. Daarvoor 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -712,3 +712,15 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Gerichte web/player/cast/overlaychecks: 13 geslaagd. Gerichte app/cast/playbackchecks: 30 geslaagd. Een echte telefoon/Chromecast en volledige-filmtest blijven nodig; browsercontrole is in deze omgeving eerder door netwerkbeleid geblokkeerd.
 - Eindcontrole 0.19.46: alle 295 frontendtests en 116 apptests slagen; 27 backend-auth-/autorisatietests slagen na de versiebump. Root- en app-typechecks, productiebuilds en lint (geen fouten, vier bestaande waarschuwingen) slagen.
 - CI vond oude tekst in de render direct na een remux-streamwissel: wissen in een passive effect was te laat. Captions dragen nu hun video-, track- en timingidentiteit en zijn in dezelfde render ongeldig als die verandert. Extra test controleert dit in de commit vóór passive effecten; de oorspronkelijke onmiddellijke seekassertion blijft ongewijzigd. Alle 296 frontendtests, frontend-typecheck en lint (geen nieuwe fouten) slagen lokaal; CI opnieuw laten bevestigen.
+
+## Versie 0.19.47 (cast-ondertitelstijl, bugaudit en vervangen schijf)
+
+- Bevat PR #131 (verbeterde cast-ondertitelstijl, na de 0.19.46-tag gemerged) en alles van branch
+  `claude/sweet-meitner-2lgfrj`: ondertitelverschuiving na spoelen bij MPEG-TS, alle bevestigde bugs uit de
+  audit van 11 okt behalve 8, de HLS-herstarttijden (`frag_discont`), de bevestiging bij een leeggemaakte of
+  vervangen schijf, `shell-quote`/`source-map-js` in de app-lockfile en de planning-updates. Details staan
+  onder "Stand van zaken".
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1947) en beide lockfiles bijgewerkt.
+- Na de merge: release `v0.19.47` controleren (APK en beide `.deb`'s). Op echte hardware te testen:
+  volgende aflevering tijdens casten, app-bugs 9 en 12, en `frag_discont` met FFmpeg 5.1 (Debian 12).
+
