@@ -47,6 +47,17 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   sessie per bestand) is getest; de koppeling in `Player.tsx` (tv laadt de nieuwe aflevering, browser
   speelt niet mee, geen opslag of aftellen met de oude tv-positie) heeft nog geen eigen test en moet op
   een echte Chromecast worden bevestigd. Backend 557, frontend 306, cloud 126 tests slagen.
+  - Nacht 11 okt, op verzoek van de eigenaar ("fix alle bugs"): ook 4, 6, 7, 9, 10, 11, 12, 13, 14 en 15
+    opgelost (8 bewust niet, zie besluit). Elk met een regressietest die op de oude code faalt, behalve 9
+    en 12: die zitten in het React Native-afspeelscherm van de app, waar geen testomgeving voor is; op een
+    telefoon testen (titel openen en zonder afspelen sluiten: hervatpunt blijft; snel twee keer spoelen bij
+    een remux-titel: de laatste positie wint). Bug 4 kreeg een testbare hulpmodule
+    (`app/src/lib/storedSession.ts`). Bug 13: het record van de andere adresfamilie blijft staan tot die
+    familie een dag niet gemeld is (bijgehouden in het geheugen van de accountservice; na een herstart telt
+    de dag opnieuw). Bug 14: een start of einde van toegang wordt toegepast als die ná de laatste
+    planwijziging van het account valt, ongeacht hoe lang de dienst plat lag. Eindcontrole: backend 559,
+    frontend 308, cloud 128 en app 150 tests slagen; alle typechecks en productiebuilds slagen; lint 0
+    fouten (de vier bekende waarschuwingen).
   - Hoog: (1) `backend/src/playback/hls.ts:348` opgeruimde HLS-stukken komen via `read()` terug in `done`,
     terugspoelen geeft dan 500 (ENOENT); met echte FFmpeg gereproduceerd. (2) `frontend/src/pages/Player.tsx:621`
     volgende aflevering tijdens casten: tv blijft op de oude, browser speelt de nieuwe met geluid, en de
