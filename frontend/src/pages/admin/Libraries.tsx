@@ -245,6 +245,8 @@ export function LibrariesPanel() {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Library | null>(null);
   const [deleting, setDeleting] = useState<Library | null>(null);
+  // A library whose folder came back empty: the administrator confirms the drive was replaced or wiped.
+  const [emptied, setEmptied] = useState<Library | null>(null);
   const [issues, setIssues] = useState<Library | null>(null);
 
   const q = useQuery({
@@ -372,6 +374,11 @@ export function LibrariesPanel() {
                     </div>
                   ) : l.queued ? (
                     <span className="text-muted">{t('libraries.waiting')}</span>
+                  ) : l.lastScanStatus === 'empty' ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span className="text-amber">{t('libraries.driveEmpty', { count: l.fileCount })}</span>
+                      <Button variant="secondary" onClick={() => setEmptied(l)}>{t('libraries.driveEmptyConfirm')}</Button>
+                    </div>
                   ) : l.lastScanStatus === 'error' ? (
                     <span className="text-danger">{t('libraries.lastFailed', { when: formatRelative(l.lastScanAt), message: l.lastScanMessage ?? '' })}</span>
                   ) : (
@@ -394,6 +401,21 @@ export function LibrariesPanel() {
         {editing && <LibraryForm initial={editing} mediaRoots={mediaRoots} onDone={() => setEditing(null)} />}
       </Modal>
       {issues && <IssuesModal library={issues} onClose={() => setIssues(null)} />}
+      <ConfirmModal
+        open={Boolean(emptied)}
+        title={t('libraries.driveEmptyTitle')}
+        confirmLabel={t('libraries.driveEmptyConfirm')}
+        danger
+        loading={action.isPending}
+        onClose={() => setEmptied(null)}
+        onConfirm={() => {
+          if (!emptied) return;
+          action.mutate({ url: `/api/libraries/${emptied.id}/scan`, body: { confirmEmpty: true } });
+          setEmptied(null);
+        }}
+      >
+        {t('libraries.driveEmptyText', { name: emptied?.name ?? '', path: emptied?.path ?? '', count: emptied?.fileCount ?? 0 })}
+      </ConfirmModal>
       <ConfirmModal
         open={Boolean(deleting)}
         title={t('libraries.removeTitle')}

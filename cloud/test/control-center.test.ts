@@ -189,6 +189,27 @@ describe('Control Center: access', () => {
   });
 });
 
+describe('Control Center: access after downtime', () => {
+  it('starts and ends access whose date passed while the service was down', async () => {
+    const ceo = await signUp('ceo@example.com');
+    await signUp('e@example.com');
+    await signUp('f@example.com');
+    await call(ceo, 'POST', '/api/ceo/access', { email: 'e@example.com', type: 'test', startsAt: clock + DAY, until: clock + 30 * DAY });
+    await call(ceo, 'POST', '/api/ceo/access', { email: 'f@example.com', type: 'customer', days: 1 });
+    expect(db.select().from(accounts).where(eq(accounts.email, 'f@example.com')).get()?.plan).toBe('remote');
+    // The service was down from just before E's start until three hours after it (and F's end).
+    clock += DAY + 3 * 60 * 60_000;
+    await app.ceoMonitor();
+    expect(db.select().from(accounts).where(eq(accounts.email, 'e@example.com')).get()?.plan).toBe('remote');
+    expect(db.select().from(accounts).where(eq(accounts.email, 'f@example.com')).get()?.plan).toBe('free');
+    // Applied once: a later round leaves the plan as it is.
+    const changed = db.select().from(accounts).where(eq(accounts.email, 'e@example.com')).get()?.planChangedAt;
+    clock += SAMPLE_MS;
+    await app.ceoMonitor();
+    expect(db.select().from(accounts).where(eq(accounts.email, 'e@example.com')).get()?.planChangedAt).toBe(changed);
+  });
+});
+
 describe('Control Center: relays', () => {
   it('checks relays, keeps their uptime and history, and notes when one goes offline', async () => {
     const ceo = await signUp('ceo@example.com');

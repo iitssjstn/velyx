@@ -39,6 +39,11 @@ export interface ScanOptions {
   onProgress?: (p: ScanProgress) => void;
   /** Awaited between files; resolves when the scan may continue (used to pause scans). */
   checkpoint?: () => Promise<void>;
+  /**
+   * The administrator confirmed that an empty folder is really empty (a new or wiped drive): its
+   * files are removed. Without it an empty folder keeps everything, as an unmounted drive looks the same.
+   */
+  confirmEmpty?: boolean;
 }
 
 export interface ScanSummary {
@@ -52,23 +57,32 @@ export interface ScanSummary {
   metadataMatched: number;
   metadataUnmatched: number;
   durationMs: number;
+  /** Files kept because the folder was empty (unmounted, or a new drive the administrator has to confirm). */
+  keptEmpty: number;
 }
 
 interface DiscoveredFiles {
   videos: string[];
   subtitlesByDir: Map<string, string[]>;
+  /** Folders that exist but could not be read (a NAS hiccup, a permission change): their files are not gone. */
+  unreadable: string[];
 }
+
+/** A folder that is really gone, as opposed to one that could not be read just now. */
+const isGone = (err: unknown) => ['ENOENT', 'ENOTDIR'].includes((err as NodeJS.ErrnoException)?.code ?? '');
 
 export async function discoverFiles(root: string): Promise<DiscoveredFiles> {
   const videos: string[] = [];
   const subtitlesByDir = new Map<string, string[]>();
   const visited = new Set<string>();
+  const unreadable: string[] = [];
 
   async function walk(dir: string): Promise<void> {
     let real: string;
     try {
       real = await fsp.realpath(dir);
-    } catch {
+    } catch (err) {
+      if (!isGone(err)) unreadable.push(dir);
       return;
     }
     if (visited.has(real)) return; // symlink loop protection
@@ -78,6 +92,7 @@ export async function discoverFiles(root: string): Promise<DiscoveredFiles> {
       entries = await fsp.readdir(dir, { withFileTypes: true });
     } catch (err) {
       log.warn(`Cannot read folder ${dir}`, err);
+      if (!isGone(err)) unreadable.push(dir);
       return;
     }
     for (const entry of entries) {
@@ -90,7 +105,9 @@ export async function discoverFiles(root: string): Promise<DiscoveredFiles> {
           const st = await fsp.stat(full);
           isDir = st.isDirectory();
           isFile = st.isFile();
-        } catch {
+        } catch (err) {
+          // A link to a share that does not answer: what is behind it is not gone.
+          if (!isGone(err)) unreadable.push(full);
           continue;
         }
       }
@@ -109,7 +126,7 @@ export async function discoverFiles(root: string): Promise<DiscoveredFiles> {
 
   await walk(root);
   videos.sort();
-  return { videos, subtitlesByDir };
+  return { videos, subtitlesByDir, unreadable };
 }
 
 async function mapLimit<T>(items: T[], limit: number, fn: (item: T, i: number) => Promise<void>): Promise<void> {
@@ -138,7 +155,7 @@ export class LibraryScanner {
     if (!lib) throw new Error(`Library ${libraryId} not found`);
     if (isFilesystemRoot(lib.path)) throw new Error('A library cannot use a filesystem root path.');
     const report = (p: ScanProgress) => opts.onProgress?.(p);
-    const summary: ScanSummary = { found: 0, added: 0, updated: 0, unchanged: 0, removed: 0, failed: 0, unparsed: 0, metadataMatched: 0, metadataUnmatched: 0, durationMs: 0 };
+    const summary: ScanSummary = { found: 0, added: 0, updated: 0, unchanged: 0, removed: 0, failed: 0, unparsed: 0, metadataMatched: 0, metadataUnmatched: 0, durationMs: 0, keptEmpty: 0 };
 
     log.info(`Library scan started: ${lib.name} (${lib.path})${opts.full ? ' — re-analysing every file' : ''}`);
     report({ phase: 'discovering', processed: 0, total: 0 });
@@ -151,7 +168,7 @@ export class LibraryScanner {
     }
     if (!rootStat.isDirectory()) throw new Error(`${lib.path} is not a folder`);
 
-    const { videos, subtitlesByDir } = await discoverFiles(lib.path);
+    const { videos, subtitlesByDir, unreadable } = await discoverFiles(lib.path);
     const candidates = videos.filter((v) => !isExtraFile(path.relative(lib.path, v)));
     summary.found = candidates.length;
     log.info(`Found ${candidates.length} media files in ${lib.name}`);
@@ -267,10 +284,17 @@ export class LibraryScanner {
 
     // ---- removals
     report({ phase: 'cleaning', processed: 0, total: 0 });
-    const missing = [...existing.values()].filter((f) => !seen.has(f.path));
+    // Files in a folder that could not be read this time are not missing: they stay until a scan sees them.
+    const insideUnreadable = (file: string) => unreadable.some((dir) => file === dir || file.startsWith(dir.endsWith(path.sep) ? dir : dir + path.sep));
+    const notSeen = [...existing.values()].filter((f) => !seen.has(f.path));
+    const missing = notSeen.filter((f) => !insideUnreadable(f.path));
+    if (missing.length < notSeen.length) {
+      log.warn(`Keeping ${notSeen.length - missing.length} files in ${lib.name}: ${unreadable.length} folder(s) could not be read (${unreadable.slice(0, 3).join(', ')})`);
+    }
     const lastFiles = new Map<string, FileSnapshot>();
-    if (candidates.length === 0 && existing.size > 0) {
+    if (candidates.length === 0 && existing.size > 0 && !opts.confirmEmpty) {
       log.warn(`No media found in ${lib.path} but ${existing.size} files are known — skipping removal in case the drive is not mounted`);
+      summary.keptEmpty = existing.size;
     } else if (missing.length > 0) {
       for (const f of missing) {
         const key = itemKey(f);

@@ -14,7 +14,7 @@ import { DEFAULT_DIRECT_PORT, type CloudConfig } from './config.js';
 import type { DB } from './db/client.js';
 import { accountActivity, accountSessions, accounts, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
-import { isRelayedMediaBytes, newSlug, rejectRelayedMedia, Relay, relayMessage, type Rewrite } from './relay.js';
+import { isMediaBytesPath, isRelayedMediaBytes, newSlug, rejectRelayedMedia, Relay, relayMessage, type Rewrite } from './relay.js';
 import { composeFile, installPage, debInstallScript, installScript } from './install.js';
 import { homePage, pickLanguage } from './site.js';
 import { Community, communityRoutes } from './community.js';
@@ -317,10 +317,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   /** Passes /api and /sso on app.vidalune.com to the chosen server, through its tunnel. */
   function proxyToChosen(req: http.IncomingMessage, res: http.ServerResponse) {
     const requestPath = (req.url ?? '/').split('?', 1)[0]!;
-    if ((req.method === 'GET' || req.method === 'HEAD') && (
-      /^\/api\/media\/\d+\/(?:stream|remux|hls\/(?:index\.m3u8|init\.mp4|seg\/\d+\.m4s)|subtitles\/\d+\.vtt)$/.test(requestPath) ||
-      /^\/api\/(?:subtitles|online-subtitles)\/\d+\.vtt$/.test(requestPath)
-    )) {
+    if ((req.method === 'GET' || req.method === 'HEAD') && isMediaBytesPath(requestPath)) {
       res.writeHead(409, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Vidalune-Direct-Playback': 'required' })
         .end(JSON.stringify({ error: 'Connect to the server direct address for media playback.', directPlayback: 'required' }));
       return;

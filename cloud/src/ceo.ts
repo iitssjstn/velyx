@@ -1158,11 +1158,16 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): { monitor: () =>
     try {
       const t = deps.now();
       const at = t - (t % SAMPLE_MS);
-      // Access that starts (or ended) since the last round: the plan follows.
+      // Access that started (or ended) after the account's plan was last set: the plan follows. Not a
+      // window around now, so a start or end that passed while this service was down is applied too.
       for (const r of db
         .selectDistinct({ accountId: accessGrants.accountId })
         .from(accessGrants)
-        .where(and(isNull(accessGrants.revokedAt), sql`(${accessGrants.startsAt} between ${t - 2 * SAMPLE_MS} and ${t}) or (${accessGrants.endsAt} between ${t - 2 * SAMPLE_MS} and ${t})`))
+        .innerJoin(accounts, eq(accounts.id, accessGrants.accountId))
+        .where(and(
+          isNull(accessGrants.revokedAt),
+          sql`((${accessGrants.startsAt} <= ${t} and ${accessGrants.startsAt} > coalesce(${accounts.planChangedAt}, -1)) or (${accessGrants.endsAt} <= ${t} and ${accessGrants.endsAt} > coalesce(${accounts.planChangedAt}, -1)))`,
+        ))
         .all())
         applyGrants(r.accountId, 'schedule');
       const main = mainRelay();

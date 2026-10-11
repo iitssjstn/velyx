@@ -101,6 +101,32 @@ describe('subtitles after seeking', () => {
     expect(await screen.findByText('Subtitle after remux seek')).toBeTruthy();
   });
 
+  it('asks where the optimized copy starts after a seek, not the original file', async () => {
+    const keyframes: string[] = [];
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      let body: unknown = {};
+      if (url === '/api/movies/3') body = MOVIE;
+      if (url === '/api/media/3/playback') body = { ...PLAYBACK, decision: { ...PLAYBACK.decision, engine: 'remux', seek: 'restart', streamUrl: '/api/media/3/remux?audio=1&optimized=7', optimized: { id: 7 } } };
+      if (url.startsWith('/api/media/3/keyframe')) {
+        keyframes.push(url);
+        body = { start: 118, seek: 118 };
+      }
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    renderPlayer();
+    const video = await vi.waitFor(() => {
+      const v = document.querySelector('video');
+      if (!v) throw new Error('no video');
+      return v;
+    });
+    fakeVideo(video);
+    fireEvent.loadedMetadata(video);
+    fireEvent.keyDown(window, { key: '5' });
+    await vi.waitFor(() => expect(keyframes).toHaveLength(1));
+    expect(keyframes[0]).toBe('/api/media/3/keyframe?t=120.004&optimized=7');
+  });
+
   it('reattaches the chosen subtitle when its text track becomes available after video metadata', async () => {
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);

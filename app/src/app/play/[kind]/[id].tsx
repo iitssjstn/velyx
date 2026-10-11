@@ -212,6 +212,10 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   /** A stream is loaded and ready (the player exists before that, without a video). */
   const streamReady = useRef(false);
   const lastSave = useRef(0);
+  /** The video really played here (or on the TV): before that, the position is not known and is never saved. */
+  const begun = useRef(false);
+  /** Counts loads: a seek that started later wins, whichever stream answer comes back first. */
+  const loads = useRef(0);
   /** The caps of the current stream; after a failed first try, the safer second-try caps. */
   const capsRef = useRef<PlaybackCaps>(playbackCaps(deviceDecoders()));
   const triedFallback = useRef(false);
@@ -225,8 +229,10 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
     async (a: PlaybackAnswer, at: number, autoplay = true) => {
       // Playing on a Chromecast: the phone stays quiet.
       if (castingRef.current) return;
+      const loadId = ++loads.current;
       setLoading(true);
       const s = await streamFrom(api, a, at);
+      if (loadId !== loads.current) return;
       setMediaEndpoint(s.mediaBase && s.mediaToken ? { baseUrl: s.mediaBase, token: s.mediaToken } : null);
       setOffset(s.offset);
       setTime(Math.max(0, at - s.offset));
@@ -236,6 +242,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
       streamReady.current = false;
       setEnded(false);
       await player.replaceAsync({ uri: s.uri, headers: s.mediaToken ? {} : api.headers(), metadata: { title: item.title, artist: item.subtitle ?? undefined } });
+      if (loadId !== loads.current) return;
       if (autoplay && !castingRef.current) player.play();
       else setLoading(false);
     },
@@ -542,7 +549,9 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
     [api, duration, item.kind, item.id],
   );
   useEffect(() => {
-    if (playing && !casting) void save(position);
+    if (!playing || casting) return;
+    begun.current = true;
+    void save(position);
   }, [playing, casting, position, save]);
   // While casting: shown and saved straight from the TV's progress reports (every 10 s at most), so it
   // also happens while the app is in the background.
@@ -551,12 +560,14 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
     const at = tvFilePosition(offset, streamSec);
     if (at === null) return;
     tvPosition.current = at;
+    begun.current = true;
     setTime(streamSec);
     void save(at);
   };
   // The last known position, for saving when leaving (the native player may be gone by then).
   const saveRef = useRef<() => unknown>(() => undefined);
-  saveRef.current = () => save(position, true);
+  // Opened and left (or paused) before anything played: the saved resume point stays as it was.
+  saveRef.current = () => (begun.current ? save(position, true) : undefined);
   useEffect(() => {
     if (!playing && answer) void saveRef.current();
   }, [playing, answer]);

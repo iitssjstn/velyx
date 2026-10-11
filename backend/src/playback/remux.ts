@@ -11,6 +11,8 @@ const log = createLogger('remux');
 const COPYABLE_AUDIO = new Set(['aac', 'mp3']);
 
 const MAX_PROCESSES = 6;
+/** A seek never lands more than this after the target (a few keyframe intervals); further means a misread. */
+const MAX_LANDING_AFTER_TARGET_SEC = 10;
 
 export interface RemuxPlan {
   audioIndex: number | null;
@@ -215,6 +217,8 @@ export class RemuxEngine implements PlaybackEngine {
     private readonly ffmpegPath: string,
     /** Video transcoding when the administrator turned it on (null: off). */
     private readonly transcoding: () => { encode: VideoEncode; maxStreams: number | null } | null = () => null,
+    /** Videos converted elsewhere (HLS pieces): they count towards the same limit. */
+    private readonly convertingElsewhere: () => number = () => 0,
   ) {}
 
   decide(file: MediaFileRow, caps: ClientCapabilities, options: PlaybackOptions = {}): PlaybackDecision | null {
@@ -249,10 +253,14 @@ export class RemuxEngine implements PlaybackEngine {
    * Where a stream requested with ?start=`target` really begins: the video keyframe FFmpeg lands on.
    * Found by running FFmpeg with the very same seek and reading the first packet's timestamp, so it
    * always matches the stream (demuxers differ in which keyframe they pick). Reading one packet is fast.
+   * -start_at_zero counts from the file's start, like the subtitles and HLS pieces: files whose
+   * timestamps do not begin at 0 (MPEG-TS recordings) otherwise gave a landing that was off by that
+   * start, and the subtitles ran that far behind after a seek. Byte-seeking demuxers (MPEG-TS) can
+   * land just after the target; the stream then really begins there, so that is what is returned.
    */
   seekLanding(absolutePath: string, target: number): Promise<number> {
     if (target <= 0) return Promise.resolve(0);
-    const args = ['-v', 'error', '-nostdin', '-noaccurate_seek', '-ss', target.toFixed(3), '-copyts', '-i', absolutePath, '-map', '0:v:0', '-c', 'copy', '-frames:v', '1', '-f', 'framemd5', '-'];
+    const args = ['-v', 'error', '-nostdin', '-noaccurate_seek', '-ss', target.toFixed(3), '-copyts', '-start_at_zero', '-i', absolutePath, '-map', '0:v:0', '-c', 'copy', '-frames:v', '1', '-f', 'framemd5', '-'];
     return new Promise((resolve) => {
       execFile(this.ffmpegPath, args, { timeout: 15000, maxBuffer: 1024 * 1024 }, (err, stdout) => {
         const landing = err ? null : parseFramemd5Start(String(stdout));
@@ -261,7 +269,8 @@ export class RemuxEngine implements PlaybackEngine {
           resolve(target);
           return;
         }
-        resolve(Math.max(0, Math.min(landing, target)));
+        // Far past the target is not a landing but a misread: keep the target then.
+        resolve(landing > target + MAX_LANDING_AFTER_TARGET_SEC ? target : Math.max(0, landing));
       });
     });
   }
@@ -276,7 +285,7 @@ export class RemuxEngine implements PlaybackEngine {
       if (!t) return reply.code(403).send({ error: tr(lang, 'Video conversion is turned off on this server.') });
       // Seeking starts a new stream: the one it replaces stops first and does not count.
       for (const [child, k] of this.transcodes) if (k === key) child.kill('SIGKILL');
-      const running = [...this.transcodes.values()].filter((k) => k !== key).length;
+      const running = [...this.transcodes.values()].filter((k) => k !== key).length + this.convertingElsewhere();
       if (t.maxStreams !== null && running >= t.maxStreams) return reply.code(503).send({ error: tr(lang, 'The server is already converting {n} videos, its limit. Try again in a moment.', { n: t.maxStreams }) });
       encode = t.encode;
     }

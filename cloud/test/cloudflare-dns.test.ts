@@ -87,10 +87,46 @@ describe('Cloudflare direct DNS records', () => {
       if (url.includes('/dns_records?')) return json([{ id: 'old-a', type: 'A', name: 's.media.vidalune.com', content: '8.8.8.8', proxied: false }]);
       return json({ id: 'record-1' });
     };
-    const dns = new CloudflareDns({ token: 'test-token', zoneName: 'vidalune.com', fetchImpl, apiBase: 'https://cf.test' });
+    let now = 1_000_000;
+    const dns = new CloudflareDns({ token: 'test-token', zoneName: 'vidalune.com', fetchImpl, apiBase: 'https://cf.test', now: () => now });
 
+    // Reached over IPv6 now: the IPv4 record stays (the server may still have it).
     await dns.upsertAddress('s.media.vidalune.com', '2606:4700:4700::1111');
-    expect(methods).toEqual(['GET', 'GET', 'DELETE', 'POST']);
+    expect(methods).toEqual(['GET', 'GET', 'POST']);
+    // A day without IPv4 reports: the server lost it, the record goes.
+    now += 24 * 60 * 60_000 + 1;
+    methods.length = 0;
+    await dns.upsertAddress('s.media.vidalune.com', '2606:4700:4700::1111');
+    expect(methods).toEqual(['GET', 'DELETE', 'POST']);
+  });
+
+  it('keeps both records of a server that reaches the service over IPv4 and IPv6 in turn', async () => {
+    const records = new Map<string, { id: string; type: string; name: string; content: string; proxied: boolean }>();
+    const deleted: string[] = [];
+    let id = 0;
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = String(input);
+      if (url.includes('/zones?')) return json([{ id: 'zone-1', name: 'vidalune.com' }]);
+      if (url.includes('/dns_records?')) return json([...records.values()]);
+      if (init?.method === 'DELETE') {
+        const rid = url.split('/').pop()!;
+        deleted.push(rid);
+        for (const [k, r] of records) if (r.id === rid) records.delete(k);
+        return json({ id: rid });
+      }
+      const body = JSON.parse(String(init?.body)) as { type: string; name: string; content: string; proxied: boolean };
+      const rid = url.match(/dns_records\/([^/?]+)$/)?.[1] ?? `r${++id}`;
+      records.set(body.type, { id: rid, ...body });
+      return json({ id: rid });
+    };
+    let now = 1_000_000;
+    const dns = new CloudflareDns({ token: 'test-token', zoneName: 'vidalune.com', fetchImpl, apiBase: 'https://cf.test', now: () => now });
+    for (let i = 0; i < 6; i++) {
+      now += 5 * 60_000;
+      await dns.upsertAddress('s.media.vidalune.com', i % 2 ? '2606:4700:4700::1111' : '8.8.8.8');
+    }
+    expect(deleted).toEqual([]);
+    expect([...records.keys()].sort()).toEqual(['A', 'AAAA']);
   });
 
   it('deletes only address records when a server is unlinked', async () => {

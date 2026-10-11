@@ -75,6 +75,25 @@ describe('HLS pieces', () => {
     }
   });
 
+  it('makes a piece again when the viewer goes back to one that was tidied away', async () => {
+    // A keyframe every second: enough pieces for the player to get well past the first ones.
+    const long = path.join(dir, 'Long.mkv');
+    execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=25', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '40', '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '25', '-keyint_min', '25', '-sc_threshold', '0', '-c:a', 'ac3', '-y', long]);
+    const sessions = new HlsSessions('ffmpeg', 'ffprobe', path.join(dir, 'cache-tidy'));
+    try {
+      const layout = await sessions.layout('9', long, 40, false);
+      const src: HlsSource = { key: 'u1:9:a', input: long, videoCodec: 'h264', plan, layout, encode: null };
+      const init = await sessions.init(src);
+      for (let n = 0; n <= 20; n++) await sessions.segment(src, n);
+      // Piece 2 was removed once the player passed piece 10; the run is still going.
+      const back = await sessions.segment(src, 2);
+      expect(fs.existsSync(back)).toBe(true);
+      expect(Math.abs(startOf([init, back]) - 2)).toBeLessThan(0.2);
+    } finally {
+      sessions.stopAll();
+    }
+  });
+
   it('finds the keyframes in the background once, and keeps them for the next start of the server', async () => {
     const kdir = path.join(dir, 'keyframes');
     const first = new HlsSessions('ffmpeg', 'ffprobe', path.join(dir, 'cache-k'), kdir);

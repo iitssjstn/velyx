@@ -336,18 +336,18 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return { ok: true };
   });
 
-  const scanBody = z.object({ refreshMetadata: z.boolean().optional(), full: z.boolean().optional() }).default({});
+  const scanBody = z.object({ refreshMetadata: z.boolean().optional(), full: z.boolean().optional(), confirmEmpty: z.boolean().optional() }).default({});
 
   app.post<{ Params: { id: string } }>('/api/libraries/:id/scan', { preHandler: requireAdmin }, async (request) => {
     const id = parseId(request.params.id);
     const library = db.select({ id: libraries.id, path: libraries.path }).from(libraries).where(eq(libraries.id, id)).get();
     if (!library) throw notFound('Library');
     if (isFilesystemRoot(library.path)) throw new HttpError(400, 'A library cannot use a filesystem root path.');
-    const { refreshMetadata: refresh = false, full = false } = scanBody.parse(request.body ?? {});
+    const { refreshMetadata: refresh = false, full = false, confirmEmpty = false } = scanBody.parse(request.body ?? {});
     if (refresh && !ctx.tmdb.configured) throw new HttpError(400, 'Add a TMDB API key in Admin → Metadata to refresh metadata.');
-    ctx.scans.enqueue(id, refresh, full);
+    ctx.scans.enqueue(id, refresh, full, confirmEmpty);
     const name = db.select({ name: libraries.name }).from(libraries).where(eq(libraries.id, id)).get()?.name;
-    ctx.audit.record('library.scan', { actor: request.user, ip: request.ip, target: name, detail: [refresh ? 'with metadata refresh' : null, full ? 're-analysing every file' : null].filter(Boolean).join(', ') || null });
+    ctx.audit.record('library.scan', { actor: request.user, ip: request.ip, target: name, detail: [refresh ? 'with metadata refresh' : null, full ? 're-analysing every file' : null, confirmEmpty ? 'empty folder confirmed: missing files removed' : null].filter(Boolean).join(', ') || null });
     return { queued: true };
   });
 

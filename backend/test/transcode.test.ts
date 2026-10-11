@@ -109,4 +109,17 @@ describe('converting video an administrator turned on', () => {
     expect(res.inUse).toBeNull();
     expect((await playback(admin, mpeg2.id)).json().analysis.mode).toBe('unsupported');
   });
+  it('counts HLS and repackaged conversions against one limit, and never cuts off a viewer who was let in', async () => {
+    const { admin, mpeg2 } = await setup();
+    await configure(admin, { enabled: true, encoder: 'auto', maxStreams: 1 });
+    const hls = env.ctx.hls as unknown as { convertingOther: (key: string) => number; convertingFor: (key: string) => boolean };
+    // Someone else converts through HLS: a new converted stream elsewhere is refused.
+    hls.convertingOther = () => 1;
+    hls.convertingFor = () => false;
+    expect((await env.app.inject({ url: `/api/media/${mpeg2.id}/remux?audio=1&vt=1`, headers: { cookie: admin } })).statusCode).toBe(503);
+    expect((await env.app.inject({ url: `/api/media/${mpeg2.id}/hls/index.m3u8?audio=1&vt=1`, headers: { cookie: admin } })).statusCode).toBe(503);
+    // That viewer's own next request (its session exists) is not refused.
+    hls.convertingFor = () => true;
+    expect((await env.app.inject({ url: `/api/media/${mpeg2.id}/hls/index.m3u8?audio=1&vt=1`, headers: { cookie: admin } })).statusCode).not.toBe(503);
+  });
 });

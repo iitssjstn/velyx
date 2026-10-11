@@ -66,3 +66,37 @@ describe('choosing a library folder', () => {
     expect((await screen.findByRole('alert')).textContent).toContain("sudo setfacl -R -m u:vidalune:rX '/srv/private'");
   });
 });
+
+describe('a library whose folder came back empty', () => {
+  it('keeps the titles, says why, and removes them only after the administrator confirms', async () => {
+    const posts: Array<{ url: string; body: unknown }> = [];
+    const library = {
+      id: 4, name: 'Movies', type: 'movies', path: '/media/movies', createdAt: 0, lastScanAt: Date.now(), lastScanStatus: 'empty', lastScanMessage: '12 files kept',
+      lastScanDurationMs: 10, lastSuccessAt: Date.now(), lastFailureAt: null, itemCount: 12, fileCount: 12, available: true, scanning: null, queued: false, watching: false, watchError: null, restricted: false,
+    };
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const json = (d: unknown) => new Response(JSON.stringify(d), { status: 200 });
+      if (init?.method === 'POST') {
+        posts.push({ url, body: JSON.parse(String(init.body)) });
+        return json({ queued: true });
+      }
+      if (url === '/api/libraries') return json({ libraries: [library], mediaRoots: ['/media'] });
+      if (url === '/api/libraries/scan-status') return json({ status: 'idle', running: null, queued: [], paused: null, lastSuccess: null, lastFailure: null, schedule: { intervalMinutes: 360, nextAt: null, waitingForPlayback: false } });
+      return json({});
+    }));
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <LibrariesPanel />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText(/The folder was empty at the last scan. The 12 files Vidalune knows are kept/)).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Remove titles' }));
+    expect(await screen.findByText(/The folder \/media\/movies of “Movies” is empty/)).toBeTruthy();
+    expect(posts).toEqual([]);
+    const buttons = screen.getAllByRole('button', { name: 'Remove titles' });
+    await userEvent.click(buttons[buttons.length - 1]!);
+    await vi.waitFor(() => expect(posts).toEqual([{ url: '/api/libraries/4/scan', body: { confirmEmpty: true } }]));
+  });
+});

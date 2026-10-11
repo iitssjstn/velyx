@@ -13,8 +13,83 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Cast-stijl lokaal gecontroleerd: 304 webtests, 148 apptests en 51 gerichte backendtests slagen; web/backend/app-typechecks en web-productiebuild slagen. Gewijzigde webcode heeft geen lintfouten (drie bestaande player-hookwaarschuwingen); app-TypeScript-lint slaagt. Echte Chromecast/telefoon en volledige film op de NAS blijven te testen; browsertool was niet beschikbaar.
 - Aanvullende review: castovername blijft werken wanneer stijltoepassing mislukt; app-saves worden over afleveringswissels heen geserialiseerd en gebruiken na herverbinden de actuele API. Regressies toegevoegd; read-only vervolgcontrole vindt geen significante problemen. Automatische review kon niet starten door ontbrekend model; CodeQL-analyse technisch mislukt, dus geen geldige securityuitslag.
 - PR #131 follow-up: web meldt nu mislukte ondertitelstijl-accountopslag; de lokale keuze blijft behouden. Gerichte webtests (6) en typecheck slagen.
+- Repo-review en fixronde (10 okt, op verzoek van de eigenaar, nog geen versie gekozen): ondertitels liepen na
+  vooruitspoelen verschoven bij live remux/transcode van bestanden waarvan de tijdstempels niet bij 0 beginnen
+  (MPEG-TS-opnames). `seekLanding` (`backend/src/playback/remux.ts`) telt nu vanaf het begin van het bestand
+  (`-start_at_zero`, net als HLS en de uitgepakte ondertitels) en geeft ook een landing na het doel door
+  (MPEG-TS spoelt op bytes). Geldt voor web, app en casten. Regressietest met echte FFmpeg vergelijkt het
+  eerste frame van de remuxstream met het frame op de landing (MPEG-TS en MKV met B-frames); faalt op de oude
+  code. App-lockfile: alleen `shell-quote` (kritiek) en `source-map-js` bijgewerkt; de overige app-advisories
+  zitten in Expo-tooling en vragen een major upgrade; `node-forge` (via `acme-client`) heeft geen gepatchte
+  versie. Backend 555 tests, app 148 tests, backend-typecheck en lint slagen. Bewust niet gedaan: `Player.tsx`
+  opsplitsen (eerst de spinner-bug op echte hardware reproduceren) en Docker-adressen in `localEndpoints`
+  (vraagt eerst een besluit over herkenning).
+- Volledige automatische controle (11 okt, op de branch met de ondertitelfix): backend 555, frontend 305,
+  cloud 125 en app 148 tests slagen; alle vijf typechecks en de productiebuilds slagen; lint 0 fouten en
+  vier bestaande hookwaarschuwingen (`Genres.tsx`, `Player.tsx`), nagekeken: geen bug, de gebruikte velden
+  staan in de afhankelijkheden. Alle plekken die doel minus landing rekenen (web, app, casten) begrenzen op
+  0, dus een landing na het doel geeft geen negatieve tijd. Geen garantie op foutloosheid; een volledige
+  handmatige review van alle code en tests op echte hardware zijn niet gedaan.
+- **Bugaudit 11 okt** (workflow: 5 zoekers per gebied, elke vondst door een skeptische controleur getoetst;
+  alleen lezen). 15 bevestigd. Op verzoek van de eigenaar ("los op wat het belangrijkste is") opgelost:
+  1, 2, 3 en 5, elk met een regressietest die op de oude code faalt. Daarbij gevonden en opgelost: een
+  HLS-run die halverwege opnieuw start, schreef tijden vanaf 0 terwijl de speler de init van de eerste run
+  houdt (elke ver-spoelactie met HLS, ook op de Chromecast); nu `-hls_segment_options
+  movflags=+frag_discont` (FFmpeg 6.1 hier getest; bevestigen met 5.1 in Docker/.deb). De oude test leek
+  een herstart te dekken maar kreeg het stuk uit de eerste run. Bug 8 wacht op een besluit van de
+  eigenaar (geen e-mailverificatie: aanmelden voor beheeradressen blokkeren, een setupcode, of eerst
+  controleren dat alle beheeradressen al een account hebben). Eigenaar (11 okt): `ADMIN_EMAILS` en
+  `CEO_EMAILS` bevatten hetzelfde adres, waarmee hij het CEO-paneel gebruikt; dat account bestaat dus en
+  er is nu geen risico. Besluit: nu niets bouwen; bij het e-mailsysteem verificatie toevoegen. Let op bij
+  een nieuw beheeradres: eerst zelf het account aanmaken, daarna pas in de env zetten. Zelfde gat zonder
+  beheerrechten: een account dat de CEO aanmaakt (nog zonder wachtwoord) kan iedereen met dat adres
+  claimen via aanmelden, inclusief de gegeven toegang; ook dit oplossen met e-mailverificatie. Bug 2: de cast-hook (`fileId`, nieuwe
+  sessie per bestand) is getest; de koppeling in `Player.tsx` (tv laadt de nieuwe aflevering, browser
+  speelt niet mee, geen opslag of aftellen met de oude tv-positie) heeft nog geen eigen test en moet op
+  een echte Chromecast worden bevestigd. Backend 557, frontend 306, cloud 126 tests slagen.
+  - Nacht 11 okt, op verzoek van de eigenaar ("fix alle bugs"): ook 4, 6, 7, 9, 10, 11, 12, 13, 14 en 15
+    opgelost (8 bewust niet, zie besluit). Elk met een regressietest die op de oude code faalt, behalve 9
+    en 12: die zitten in het React Native-afspeelscherm van de app, waar geen testomgeving voor is; op een
+    telefoon testen (titel openen en zonder afspelen sluiten: hervatpunt blijft; snel twee keer spoelen bij
+    een remux-titel: de laatste positie wint). Bug 4 kreeg een testbare hulpmodule
+    (`app/src/lib/storedSession.ts`). Bug 13: het record van de andere adresfamilie blijft staan tot die
+    familie een dag niet gemeld is (bijgehouden in het geheugen van de accountservice; na een herstart telt
+    de dag opnieuw). Bug 14: een start of einde van toegang wordt toegepast als die ná de laatste
+    planwijziging van het account valt, ongeacht hoe lang de dienst plat lag. Eindcontrole: backend 559,
+    frontend 308, cloud 128 en app 150 tests slagen; alle typechecks en productiebuilds slagen; lint 0
+    fouten (de vier bekende waarschuwingen).
+  - Hoog: (1) `backend/src/playback/hls.ts:348` opgeruimde HLS-stukken komen via `read()` terug in `done`,
+    terugspoelen geeft dan 500 (ENOENT); met echte FFmpeg gereproduceerd. (2) `frontend/src/pages/Player.tsx:621`
+    volgende aflevering tijdens casten: tv blijft op de oude, browser speelt de nieuwe met geluid, en de
+    tv-positie wordt bij de nieuwe aflevering opgeslagen. (3) `cloud/src/relay.ts:202` een gekoppelde server
+    kan met een ongeldige statuscode in een responseframe de hele accountservice laten crashen
+    (`writeHead` gooit buiten try/catch). (4) `app/src/app/cloud.tsx:104` aanmelden via het Vidalune-account
+    gebruikt een verouderde sessie, waardoor de nieuwe server wordt overschreven of gewist.
+  - Middel: (5) `backend/src/services/scanner.ts:80` een tijdelijk onleesbare submap (NAS-fout) telt als leeg:
+    titels en hun geoptimaliseerde kopieën worden verwijderd. (6) `backend/src/playback/remux.ts:286`
+    conversielimiet telt HLS-conversies niet mee; daarna krijgt de eerste kijker een 503 midden in de film.
+    (7) `Player.tsx:386` keyframe-opvraag op de website negeert de geoptimaliseerde kopie, dus klok en
+    ondertitels verschuiven. (8) `cloud/src/app.ts:439` niet-geregistreerde `ADMIN_EMAILS`/`CEO_EMAILS`-adressen
+    kan iedereen via aanmelden claimen. (9) `app/.../play/[kind]/[id].tsx:561` openen van een hervatbare
+    remux-/relaytitel slaat direct positie 0 op en wist het hervatpunt. (10) `cloud/src/relay.ts:261`
+    procent-gecodeerde mediapaden omzeilen de regel dat video nooit via relay/app.vidalune.com gaat.
+  - Laag: (11) `frontend/src/lib/cast.ts:322` en (12) `app/.../[id].tsx:224` gelijktijdige spoelacties kunnen
+    in de verkeerde volgorde eindigen. (13) `cloud/src/cloudflare-dns.ts:126` DNS houdt maar één adresfamilie
+    (A of AAAA) en wisselt mee met de heartbeat. (14) `cloud/src/ceo.ts:1165` geplande toegang wordt niet
+    toegepast als de dienst bij de start langer dan 10 minuten plat lag. (15) `backend/src/app.ts:360` een
+    playback-JWT voor het ene bestand opent ook een externe ondertitel van een ander bestand bij een
+    id-botsing tussen twee tabellen.
 
-- Laatste release: **0.19.45** (PR #129, hervatbare en stopbare optimalisaties). Tag `v0.19.45` en merge gecontroleerd; eigenaar bevestigde dat APK en beide `.deb`-pakketten compleet zijn. In voorbereiding: 0.19.46, ondertitels na vooruitspoelen op website en casten. Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- **Schijf vervangen of leeggemaakt** (must fix van de eigenaar, 11 okt; gebouwd): een lege bibliotheekmap
+  met bekende bestanden liet de oude titels voor altijd staan, omdat een lege nieuwe schijf er voor de
+  scanner hetzelfde uitziet als een niet-gekoppelde schijf (in Docker is de map in beide gevallen een
+  mount). Automatisch wissen is daarom niet veilig. Nu: de scan houdt de titels, zet de bibliotheek op status
+  `empty` ("N files kept") en Beheer > Bibliotheken toont dat met de knop "Titels verwijderen"; na
+  bevestiging scant hij met `confirmEmpty` en verwijdert de verdwenen titels (kijkgeschiedenis 90 dagen
+  bewaard via de bestaande retire-logica). Alleen beheerder, Zod, auditlog, Engels en Nederlands. Tests:
+  backend (vasthouden, bevestigen, alleen beheerder) en frontend (melding, bevestigen, verzoek). Backend 560
+  en frontend 309 tests slagen.
+- Laatste release: **0.19.46** (ondertitels na vooruitspoelen); release `v0.19.46` gecontroleerd op 11 okt: APK en beide `.deb`-pakketten aanwezig. In voorbereiding: **0.19.47** (zie hieronder), op verzoek van de eigenaar ("merge alles") als PR geopend en gemerged zodra CI groen is. Daarvoor 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -311,7 +386,54 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
     die is binnengehaald (bijvoorbeeld via Seerr), of een vervangen bestand. Die worden meteen
     toegevoegd en herkend, ook binnen het nachtelijke venster en overdag.
   - **Zwaar achtergrondwerk, ook 's nachts:** intro-, recap- en aftitelingdetectie, ondertitels
-    vooraf uitpakken, analyses en opruimen.
+    vooraf uitpakken, keyframes vooraf uitzoeken (zie hieronder), analyses en opruimen.
+  - **Besluit eigenaar (11 okt):** zoveel mogelijk werk binnen het tijdvak dat de beheerder instelt.
+    Alleen wat een kijker of een wijziging direct nodig heeft (nieuw/vervangen bestand, verversen bij
+    aanklikken, afspelen zelf) gebeurt erbuiten.
+  - **Keyframes vooraf uitzoeken en bewaren** (besproken 11 okt, nog niet bouwen): na spoelen vraagt de
+    speler `/api/media/:id/keyframe`; `seekLanding` (`backend/src/playback/remux.ts`) start daarvoor
+    FFmpeg met een time-out van 15 s en valt daarna terug op het doel, waardoor ondertitels en voortgang
+    een paar seconden verschoven lopen. Op trage hardware (NAS in slaapstand, scan of optimalisatie
+    tegelijk) gebeurt dat vaker. Besluit: de time-out niet verhogen (de kijker wacht dan langer op de
+    spinner), maar de keyframes per bestand binnen het tijdvak uitzoeken (zoals `readKeyframes` in
+    `hls.ts`) en bewaren; ze veranderen niet zolang het bestand gelijk blijft. Bij spoelen dan het
+    keyframe uit de opslag nemen. Bij een lege opslag én een time-out eerlijk `exact: false` teruggeven,
+    zodat de speler weet dat de offset een gok is, in plaats van stil het doel. De offset niet achteraf
+    corrigeren: die zit in de ondertitel-URL's, dus de tracks zouden herladen en de voortgang verspringen.
+    Let op: MPEG-TS heeft geen index, dus uitzoeken leest het hele bestand; daarom alleen binnen het
+    tijdvak. Helpt ook de HLS-opstarttijd (zie 0.19.12).
+  - **Geplande taken onder Beheer** (voorstel eigenaar 11 okt, nog niet bouwen): periodiek werk staat nu
+    verspreid (scan in `scan-manager.ts`, back-up in `backup-scheduler.ts`, detectiesync, vertalingen en
+    opruimen als losse timers in `backend/src/index.ts`). Eén pagina **Beheer > Geplande taken** met per
+    taak aan/uit, schema, laatste uitvoering en resultaat, volgende uitvoering en "Nu uitvoeren".
+    - Planner binnen de backend, geen systeem-cron: de Docker-container heeft geen cron en het werk moet
+      weten of er gekeken wordt. Eén taak tegelijk (twee cores); zware taken pauzeren als iemand kijkt.
+    - Eén model, twee weergaven op dezelfde pagina. **Eenvoudig:** één onderhoudsvenster (instelbaar,
+      bijvoorbeeld 02:00–06:00) en per taak aan/uit. **Geavanceerd** (schakelaar, alleen weergave): per
+      taak een eigen schema of cron-expressie, met uitleg in gewone taal en de volgende uitvoering eronder,
+      Zod-validatie op de server en een waarschuwing bij overlappende zware taken.
+    - Terug naar eenvoudig: een eigen schema blijft gelden en wordt nooit stil gewist; de eenvoudige
+      weergave toont bij die taak duidelijk "Eigen schema: …" met een link naar geavanceerd en een knop
+      "terug naar het venster".
+    - Na het venster (aanvulling eigenaar 11 okt): ook nieuwe taken oppakken zolang de server stil is.
+      Instelling "Ook buiten het venster werken als de server stil is", standaard aan; de uitleg noemt
+      waarom iemand hem uitzet (stroomprijs, slapende NAS-schijven, geluid). Buiten het venster pas
+      (verder)gaan na bijvoorbeeld 15 minuten zonder kijkers, zodat een korte stream (trailer) de taak
+      niet steeds laat stoppen en starten.
+    - Opent iemand een stream, dan stopt de taak op een veilig punt en gaat later verder (binnen het
+      venster zodra het weer stil is, anders na de wachttijd of in het volgende venster). Nooit verwerkte
+      gegevens verliezen: elke taak bewaart na elk afgerond stuk (bestand, segment) een opslagpunt, zoals
+      de optimizer sinds 0.19.45; niet urenlang pauzeren met SIGSTOP (een herstart of update gooit dat
+      werk weg). Uitzondering: een afgebroken back-up begint de volgende keer opnieuw (klein werk).
+    - Niet uit te zetten en niet getoond: onzichtbaar onderhoud zoals certificaatvernieuwing en het
+      opruimen van sessies.
+    - "Iemand kijkt" is nu `streams.active()` (`backend/src/services/streams.ts`): in de laatste 60 s
+      (`ACTIVE_MS`) een streamverzoek (`touch`) of voortgangsupdate (`progress`). Een spelende cast telt
+      mee (de tv haalt zelf bytes op en de telefoon/browser slaat elke 10 s op), net als een kijker
+      buitenshuis. Een gepauzeerde film of cast telt na ongeveer een minuut niet meer: binnen het venster
+      kan dan een taak starten; bewust beslissen of dat zo moet blijven.
+    - Bestaande instellingen (scaninterval, back-upschema) ongewijzigd overnemen bij de upgrade; Drizzle-
+      migratie, alleen beheerder, Engels en Nederlands, tests voor planner, venstereinde en migratie.
   - Rustig uitvoeren (lage prioriteit, TMDB-limiet), stoppen aan het einde van het venster en de
     volgende nacht verder waar hij was. Handmatig starten kan altijd.
   - Past bij het onderhoudsvenster van punt 3 hieronder (prestaties).
@@ -334,6 +456,17 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   pagina. Telt mee voor SEO. Bijhouden bij elke release.
 
 ## Ideeën (nog niet besloten)
+
+- **Rollen beheren op de website** (idee eigenaar 11 okt, nog niet bouwen): in het CEO-paneel een
+  bestaand account een rol geven of afnemen (bijvoorbeeld beheerder, CEO) in plaats van via
+  `ADMIN_EMAILS`/`CEO_EMAILS`.
+  - Rol opslaan bij het account (id) in de database, niet bij een e-mailadres: dan kan niemand rechten
+    claimen door zich met een adres aan te melden (lost bug 8 uit de audit structureel op).
+  - De env-variabelen alleen nog als noodsleutel/eerste CEO bij een lege database; bij de upgrade de
+    huidige adressen eenmalig als rol overnemen (Drizzle-migratie), bestaande toegang blijft gelijk.
+  - Alleen een CEO kan rollen wijzigen; de laatste CEO kan zichzelf niet degraderen (buitensluiten).
+  - Elke wijziging in de auditlog (wie, wat, wanneer); Zod-validatie en autorisatie; tests.
+  - Liefst samen met e-mailverificatie, zodat een rol alleen naar een geverifieerd account gaat.
 
 - **Eigen cast-speler (Custom Web Receiver)** — wens van de eigenaar (2 okt), **nog niet bouwen** (hij
   test eerst). Moet een **volledige speler** zijn: alles wat mensen op de website en in de app gebruiken.
@@ -431,9 +564,6 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Externe DNS- en certificaatbeheer gebruiken Cloudflare-credentials die alleen als deployment secret op de accountservice staan; vraag serverbeheerders nooit om domein, DNS-token of certificaat.
 - Test koppelen zonder domeininstelling, intern afspelen, extern afspelen via één doorgestuurde poort, volledige films, hervatten, byte-range-seek, HLS, audio, ondertitels, IP-wijziging, certificaatvernieuwing en onbereikbare poort. Verifieer dat videobytes rechtstreeks tussen server en browser lopen.
 - Werk README, accountsite en Engelse/Nederlandse beheerteksten bij: buitenshuis gaat media rechtstreeks naar de server via het automatische HTTPS-adres; daarvoor is één bereikbare poort nodig. De accounttunnel is alleen voor bediening.
-- Lokaal groen: cloud DNS/TLS/direct-access/link (19), tunnelgrenzen (2), site/compose (2), backend-versieasserties (27), backend media-gates (42), web player/Cast (24), backend/cloud/frontend-typechecks en backend/frontend/cloud-builds.
-- Lokaal groen: cloud DNS/TLS/direct-access/link (19), tunnelgrenzen (2), site/compose (2), heartbeat-IP-privacy (1), backend-versieasserties (27), backend media-gates (42), web player/Cast (24), backend/cloud/frontend-typechecks en backend/frontend/cloud-builds.
-- Lokaal groen: cloud DNS/TLS/direct-access/link (19), tunnelgrenzen (2), site/compose (2), heartbeat-IP-privacy (1), backend-versieasserties (27), backend media-gates (42), web player/Cast (24), app-typecheck en app-tests (110), ESLint, backend/cloud/frontend-typechecks en backend/frontend/cloud-builds.
 - Lokaal groen: cloud DNS/TLS/direct-access/link (19), tunnelgrenzen (2), site/compose (2), heartbeat-IP-privacy (1), backend-versieasserties (27), backend media-gates (42), web player/Cast (24), app-typecheck, app-tests (110) en Android JS/Hermes-bundel-export, ESLint, backend/cloud/frontend-typechecks en backend/frontend/cloud-builds.
 - Nog te valideren: Android APK/native build (Android SDK en Java ontbreken hier); de volledige Docker/.deb-installatie op Linux (Docker CLI ontbreekt hier); live DNS, certificaat en de ingestelde TCP-poort met `CLOUDFLARE_API_TOKEN` op de accountservice.
 
@@ -582,3 +712,15 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Gerichte web/player/cast/overlaychecks: 13 geslaagd. Gerichte app/cast/playbackchecks: 30 geslaagd. Een echte telefoon/Chromecast en volledige-filmtest blijven nodig; browsercontrole is in deze omgeving eerder door netwerkbeleid geblokkeerd.
 - Eindcontrole 0.19.46: alle 295 frontendtests en 116 apptests slagen; 27 backend-auth-/autorisatietests slagen na de versiebump. Root- en app-typechecks, productiebuilds en lint (geen fouten, vier bestaande waarschuwingen) slagen.
 - CI vond oude tekst in de render direct na een remux-streamwissel: wissen in een passive effect was te laat. Captions dragen nu hun video-, track- en timingidentiteit en zijn in dezelfde render ongeldig als die verandert. Extra test controleert dit in de commit vóór passive effecten; de oorspronkelijke onmiddellijke seekassertion blijft ongewijzigd. Alle 296 frontendtests, frontend-typecheck en lint (geen nieuwe fouten) slagen lokaal; CI opnieuw laten bevestigen.
+
+## Versie 0.19.47 (cast-ondertitelstijl, bugaudit en vervangen schijf)
+
+- Bevat PR #131 (verbeterde cast-ondertitelstijl, na de 0.19.46-tag gemerged) en alles van branch
+  `claude/sweet-meitner-2lgfrj`: ondertitelverschuiving na spoelen bij MPEG-TS, alle bevestigde bugs uit de
+  audit van 11 okt behalve 8, de HLS-herstarttijden (`frag_discont`), de bevestiging bij een leeggemaakte of
+  vervangen schijf, `shell-quote`/`source-map-js` in de app-lockfile en de planning-updates. Details staan
+  onder "Stand van zaken".
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1947) en beide lockfiles bijgewerkt.
+- Na de merge: release `v0.19.47` controleren (APK en beide `.deb`'s). Op echte hardware te testen:
+  volgende aflevering tijdens casten, app-bugs 9 en 12, en `frag_discont` met FFmpeg 5.1 (Debian 12).
+

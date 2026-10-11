@@ -1,6 +1,7 @@
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addLibrary, createTestEnv, rescan, setupAdmin, touch, type TestEnv } from './helpers.js';
 
 let env: TestEnv;
@@ -86,6 +87,50 @@ describe('movie scanning', () => {
     fs.rmSync(path.join(root, 'Alien (1979).mkv'));
     await rescan(env, lib.id);
     expect((await get('/api/movies')).total).toBe(1);
+  });
+
+  it('keeps the files of a folder that cannot be read this time (a NAS hiccup), and still removes deleted ones', async () => {
+    const root = path.join(env.mediaDir, 'movies');
+    touch(path.join(root, 'Alien (1979)', 'Alien (1979).mkv'));
+    touch(path.join(root, 'Heat (1995)', 'Heat (1995).mkv'));
+    touch(path.join(root, 'Dune (2021)', 'Dune (2021).mkv'));
+    const lib = await addLibrary(env, admin, 'movies', 'movies');
+    fs.rmSync(path.join(root, 'Dune (2021)'), { recursive: true });
+    const unreadable = path.join(root, 'Heat (1995)');
+    const readdir = fsp.readdir.bind(fsp);
+    const spy = vi.spyOn(fsp, 'readdir').mockImplementation(((dir: fs.PathLike, ...rest: unknown[]) => {
+      if (String(dir) === unreadable) return Promise.reject(Object.assign(new Error('EIO: i/o error'), { code: 'EIO' }));
+      return (readdir as (...a: unknown[]) => unknown)(dir, ...rest);
+    }) as typeof fsp.readdir);
+    try {
+      await rescan(env, lib.id);
+    } finally {
+      spy.mockRestore();
+    }
+    const titles = (await get('/api/movies')).items.map((m: { title: string }) => m.title).sort();
+    expect(titles).toEqual(['Alien', 'Heat']);
+  });
+
+  it('removes the titles of an empty folder once the administrator confirms the drive was replaced', async () => {
+    const root = path.join(env.mediaDir, 'movies');
+    touch(path.join(root, 'Alien (1979).mkv'));
+    touch(path.join(root, 'Heat (1995).mkv'));
+    const lib = await addLibrary(env, admin, 'movies', 'movies');
+    // A new, empty drive in the same place: kept for now (it looks like an unmounted one) and flagged.
+    fs.rmSync(path.join(root, 'Alien (1979).mkv'));
+    fs.rmSync(path.join(root, 'Heat (1995).mkv'));
+    await rescan(env, lib.id);
+    expect((await get('/api/movies')).total).toBe(2);
+    expect((await get('/api/libraries')).libraries[0]).toMatchObject({ lastScanStatus: 'empty', lastScanMessage: '2 files kept', fileCount: 2 });
+    // Confirmed by the administrator: the old titles go.
+    const res = await env.app.inject({ method: 'POST', url: `/api/libraries/${lib.id}/scan`, headers: { cookie: admin }, payload: { confirmEmpty: true } });
+    expect(res.statusCode).toBe(200);
+    await env.ctx.scans.whenIdle();
+    expect((await get('/api/movies')).total).toBe(0);
+    expect((await get('/api/libraries')).libraries[0]).toMatchObject({ lastScanStatus: 'ok', fileCount: 0 });
+    // Only an administrator can confirm.
+    const viewer = await env.app.inject({ method: 'POST', url: `/api/libraries/${lib.id}/scan`, payload: { confirmEmpty: true } });
+    expect(viewer.statusCode).toBe(401);
   });
 
   it('marks the scan as failed when the folder disappears', async () => {

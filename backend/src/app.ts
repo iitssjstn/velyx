@@ -204,7 +204,8 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const playback = new PlaybackRegistry();
   playback.register(new DirectPlayEngine());
   const transcoding = new TranscodingService(config.ffmpegPath, () => settings.get().transcoding, opts.encoderDetector);
-  playback.register(new RemuxEngine(config.ffmpegPath, () => transcoding.current()));
+  const hls = new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls'));
+  playback.register(new RemuxEngine(config.ffmpegPath, () => transcoding.current(), () => hls.convertingOther('')));
   // Last: only what neither plays as it is nor after repackaging is converted, when that is on.
   playback.register(new TranscodeEngine(() => transcoding.current()));
   const optimizations = new OptimizationService({ db, dataDir: config.dataDir, ffmpegPath: config.ffmpegPath, probe, transcoding, settings, busy: (ownLoad) => scans.active || (streams.active().length > 0 && (opts.machineBusy ? opts.machineBusy() : machineBusy(ownLoad))) });
@@ -237,7 +238,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const openSubtitles = new OpenSubtitlesClient({ vidalune: cloud });
   const seerr = new SeerrService({ settings, fetchImpl: opts.fetchImpl });
   const arr = new ArrService({ settings, fetchImpl: opts.fetchImpl });
-  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, seerr, arr, transcoding, optimizations, hls: new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls')), startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, seerr, arr, transcoding, optimizations, hls, startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {
@@ -357,8 +358,8 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
       const allowed =
         (typeof target === 'string' && target === 'image' && claims.artwork === true) ||
         (typeof target === 'object' && 'fileId' in target && target.fileId === claims.fileId) ||
-        (typeof target === 'object' && 'subtitleId' in target && ctx.db.select({ file: subtitleRows.mediaFileId }).from(subtitleRows).where(eq(subtitleRows.id, target.subtitleId)).get()?.file === claims.fileId) ||
-        (typeof target === 'object' && 'subtitleId' in target && ctx.db.select({ file: onlineSubtitleRows.mediaFileId }).from(onlineSubtitleRows).where(eq(onlineSubtitleRows.id, target.subtitleId)).get()?.file === claims.fileId);
+        (typeof target === 'object' && 'subtitleId' in target && target.table === 'subtitles' && ctx.db.select({ file: subtitleRows.mediaFileId }).from(subtitleRows).where(eq(subtitleRows.id, target.subtitleId)).get()?.file === claims.fileId) ||
+        (typeof target === 'object' && 'subtitleId' in target && target.table === 'online' && ctx.db.select({ file: onlineSubtitleRows.mediaFileId }).from(onlineSubtitleRows).where(eq(onlineSubtitleRows.id, target.subtitleId)).get()?.file === claims.fileId);
       if (!allowed) return;
       const u = ctx.db.select().from(users).where(eq(users.id, claims.userId)).get();
       if (!u || u.disabled) return;

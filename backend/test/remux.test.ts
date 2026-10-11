@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PlaybackRegistry, type MediaFileRow } from '../src/playback/engine.js';
 import { DirectPlayEngine } from '../src/playback/direct-play.js';
@@ -119,5 +123,40 @@ describe('remux helpers', () => {
     const vtt = 'WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nEarly\n\n00:00:21.000 --> 00:00:23.500 line:90%\nLate\n\n01:00:00.000 --> 01:00:01.000\nHour\n';
     expect(shiftVtt(vtt, 20)).toBe('WEBVTT\n\n00:00:01.000 --> 00:00:03.500 line:90%\nLate\n\n00:59:40.000 --> 00:59:41.000\nHour\n');
     expect(shiftVtt(vtt, 0)).toBe(vtt);
+  });
+});
+
+describe('seek landing', () => {
+  /** MD5s of the decoded video frames of `file`, in order. */
+  const frames = (file: string, limit?: number) =>
+    execFileSync('ffmpeg', ['-v', 'error', '-i', file, '-map', '0:v:0', ...(limit ? ['-frames:v', String(limit)] : []), '-f', 'framemd5', '-'], { maxBuffer: 64 * 1024 * 1024 })
+      .toString()
+      .split('\n')
+      .filter((l) => l && !l.startsWith('#'))
+      .map((l) => l.split(',').pop()!.trim());
+
+  it('returns where the stream really begins, counted from the file start, also when its timestamps do not start at 0', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-landing-'));
+    try {
+      // An MPEG-TS recording: timestamps begin 10 s in, a keyframe every 2 s.
+      const ts = path.join(dir, 'Recording.ts');
+      execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=25', '-t', '40', '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '50', '-keyint_min', '50', '-sc_threshold', '0', '-output_ts_offset', '10', '-f', 'mpegts', '-y', ts]);
+      // A typical MKV for comparison: starts at 0, with B-frames.
+      const mkv = path.join(dir, 'Movie.mkv');
+      execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=25', '-t', '40', '-c:v', 'libx264', '-preset', 'veryfast', '-bf', '2', '-g', '50', '-keyint_min', '50', '-sc_threshold', '0', '-y', mkv]);
+      const engine = new RemuxEngine('ffmpeg');
+      for (const [file, target] of [[ts, 7.5], [ts, 25.3], [mkv, 7.5], [mkv, 25.3]] as const) {
+        const all = frames(file);
+        const landing = await engine.seekLanding(file, target);
+        expect(Math.abs(landing - target)).toBeLessThan(4);
+        // The remux stream the player gets for this seek starts on the very frame at `landing` seconds
+        // into the file (25 fps), so subtitles shifted by `landing` line up with it.
+        const out = path.join(dir, `stream-${path.basename(file)}-${target}.mp4`);
+        fs.writeFileSync(out, execFileSync('ffmpeg', remuxArgs(file, 'h264', { audioIndex: null, copyAudio: false }, target), { maxBuffer: 64 * 1024 * 1024 }));
+        expect(frames(out, 1)[0]).toBe(all[Math.round(landing * 25)]);
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
