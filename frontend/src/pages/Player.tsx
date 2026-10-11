@@ -367,7 +367,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     }
     let cancelled = false;
     setStream(null);
-    locateStart(info.file.id, target).then((r) => !cancelled && setStream({ base, ...r }));
+    locateStart(info.file.id, target, info.decision.optimized?.id).then((r) => !cancelled && setStream({ base, ...r }));
     return () => {
       cancelled = true;
     };
@@ -387,7 +387,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         setBuffering(true);
         // What plays now is about to be replaced (a skip or seek): it must not carry on under the spinner.
         v?.pause();
-        const r = await locateStart(info.file.id, target);
+        const r = await locateStart(info.file.id, target, info.decision.optimized?.id);
         const cur = streamRef.current;
         // The same stream as now (a seek near where it started): the address does not change, so
         // nothing would load and the spinner would stay. Seek in what is there instead.
