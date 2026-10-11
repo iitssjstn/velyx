@@ -358,8 +358,8 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
       const allowed =
         (typeof target === 'string' && target === 'image' && claims.artwork === true) ||
         (typeof target === 'object' && 'fileId' in target && target.fileId === claims.fileId) ||
-        (typeof target === 'object' && 'subtitleId' in target && ctx.db.select({ file: subtitleRows.mediaFileId }).from(subtitleRows).where(eq(subtitleRows.id, target.subtitleId)).get()?.file === claims.fileId) ||
-        (typeof target === 'object' && 'subtitleId' in target && ctx.db.select({ file: onlineSubtitleRows.mediaFileId }).from(onlineSubtitleRows).where(eq(onlineSubtitleRows.id, target.subtitleId)).get()?.file === claims.fileId);
+        (typeof target === 'object' && 'subtitleId' in target && target.table === 'subtitles' && ctx.db.select({ file: subtitleRows.mediaFileId }).from(subtitleRows).where(eq(subtitleRows.id, target.subtitleId)).get()?.file === claims.fileId) ||
+        (typeof target === 'object' && 'subtitleId' in target && target.table === 'online' && ctx.db.select({ file: onlineSubtitleRows.mediaFileId }).from(onlineSubtitleRows).where(eq(onlineSubtitleRows.id, target.subtitleId)).get()?.file === claims.fileId);
       if (!allowed) return;
       const u = ctx.db.select().from(users).where(eq(users.id, claims.userId)).get();
       if (!u || u.disabled) return;

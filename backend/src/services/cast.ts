@@ -68,11 +68,12 @@ export async function verifyPlaybackJwt(secret: string, token: string | undefine
  * What a cast token opens: this file's stream (as it is, or repackaged), its subtitles and the
  * artwork. Returns the file id a path belongs to, 'image' for artwork, or null.
  */
-export function castPath(pathname: string): { fileId: number } | { subtitleId: number } | 'image' | null {
+export function castPath(pathname: string): { fileId: number } | { subtitleId: number; table: 'subtitles' | 'online' } | 'image' | null {
   let m = /^\/api\/media\/(\d+)\/(stream|remux|hls\/(?:index\.m3u8|init\.mp4|seg\/\d+\.m4s)|subtitles\/\d+\.vtt)$/.exec(pathname);
   if (m) return { fileId: Number(m[1]) };
-  m = /^\/api\/(?:subtitles|online-subtitles)\/(\d+)\.vtt$/.exec(pathname);
-  if (m) return { subtitleId: Number(m[1]) };
+  // Two tables with their own ids: the one the address names is the one checked.
+  m = /^\/api\/(subtitles|online-subtitles)\/(\d+)\.vtt$/.exec(pathname);
+  if (m) return { subtitleId: Number(m[2]), table: m[1] === 'subtitles' ? 'subtitles' : 'online' };
   if (/^\/api\/images\/[\w-]+\/[\w.-]+$/.test(pathname)) return 'image';
   return null;
 }

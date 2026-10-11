@@ -2,7 +2,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { addLibrary, createTestEnv, createUser, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
-import { mediaFiles, subtitles } from '../src/db/schema.js';
+import { mediaFiles, onlineSubtitles, subtitles } from '../src/db/schema.js';
 import { castPath, playbackJwtExpiresAt, signPlaybackJwt, verifyPlaybackJwt } from '../src/services/cast.js';
 
 let env: TestEnv;
@@ -71,7 +71,18 @@ describe('casting to a Chromecast', () => {
     expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${direct.token}` })).statusCode).toBe(200);
     expect((await env.app.inject({ url: `/api/media/${arrival.id}/stream?cast=${direct.token}` })).statusCode).toBe(401);
     expect((await env.app.inject({ url: `/api/images/w342/example.jpg?cast=${direct.token}` })).statusCode).toBe(401);
-    expect(castPath('/api/online-subtitles/9.vtt')).toEqual({ subtitleId: 9 });
+    expect(castPath('/api/online-subtitles/9.vtt')).toEqual({ subtitleId: 9, table: 'online' });
+    expect(castPath('/api/subtitles/9.vtt')).toEqual({ subtitleId: 9, table: 'subtitles' });
+  });
+
+  it('opens a subtitle only when the table the address names has it for the cast file', async () => {
+    const { dune, arrival } = await setup();
+    // The same id in both tables: an online subtitle of Dune, a local subtitle of Arrival.
+    env.ctx.db.insert(onlineSubtitles).values({ id: 900, mediaFileId: dune.id, providerFileId: 1, language: 'en', fileName: 'dune-en.vtt' }).run();
+    env.ctx.db.insert(subtitles).values({ id: 900, mediaFileId: arrival.id, path: '/media/arrival.srt', format: 'srt', label: 'English' }).run();
+    const token = await signPlaybackJwt(env.ctx.config.sessionSecret, { userId: 1, fileId: dune.id, expiresAt: Date.now() + 60_000 });
+    expect((await env.app.inject({ url: `/api/subtitles/900.vtt?cast=${token}` })).statusCode).toBe(401);
+    expect((await env.app.inject({ url: `/api/online-subtitles/900.vtt?cast=${token}` })).statusCode).not.toBe(401);
   });
 
   it('never advertises Vidalune account hosts as media endpoints', async () => {
@@ -172,8 +183,8 @@ describe('playback JWTs', () => {
     expect(castPath('/api/media/5/stream')).toEqual({ fileId: 5 });
     expect(castPath('/api/media/5/remux')).toEqual({ fileId: 5 });
     expect(castPath('/api/media/5/subtitles/2.vtt')).toEqual({ fileId: 5 });
-    expect(castPath('/api/subtitles/7.vtt')).toEqual({ subtitleId: 7 });
-    expect(castPath('/api/online-subtitles/7.vtt')).toEqual({ subtitleId: 7 });
+    expect(castPath('/api/subtitles/7.vtt')).toEqual({ subtitleId: 7, table: 'subtitles' });
+    expect(castPath('/api/online-subtitles/7.vtt')).toEqual({ subtitleId: 7, table: 'online' });
     expect(castPath('/api/images/w342/a.jpg')).toBe('image');
     expect(castPath('/api/media/5/playback')).toBeNull();
     expect(castPath('/api/home')).toBeNull();
