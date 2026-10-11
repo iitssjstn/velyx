@@ -38,7 +38,12 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   movflags=+frag_discont` (FFmpeg 6.1 hier getest; bevestigen met 5.1 in Docker/.deb). De oude test leek
   een herstart te dekken maar kreeg het stuk uit de eerste run. Bug 8 wacht op een besluit van de
   eigenaar (geen e-mailverificatie: aanmelden voor beheeradressen blokkeren, een setupcode, of eerst
-  controleren dat alle beheeradressen al een account hebben). Bug 2: de cast-hook (`fileId`, nieuwe
+  controleren dat alle beheeradressen al een account hebben). Eigenaar (11 okt): `ADMIN_EMAILS` en
+  `CEO_EMAILS` bevatten hetzelfde adres, waarmee hij het CEO-paneel gebruikt; dat account bestaat dus en
+  er is nu geen risico. Besluit: nu niets bouwen; bij het e-mailsysteem verificatie toevoegen. Let op bij
+  een nieuw beheeradres: eerst zelf het account aanmaken, daarna pas in de env zetten. Zelfde gat zonder
+  beheerrechten: een account dat de CEO aanmaakt (nog zonder wachtwoord) kan iedereen met dat adres
+  claimen via aanmelden, inclusief de gegeven toegang; ook dit oplossen met e-mailverificatie. Bug 2: de cast-hook (`fileId`, nieuwe
   sessie per bestand) is getest; de koppeling in `Player.tsx` (tv laadt de nieuwe aflevering, browser
   speelt niet mee, geen opslag of aftellen met de oude tv-positie) heeft nog geen eigen test en moet op
   een echte Chromecast worden bevestigd. Backend 557, frontend 306, cloud 126 tests slagen.
