@@ -70,6 +70,8 @@ interface DNSRecord {
 
 /** Marks the address records this service made, so a clean-up never touches the others in the zone. */
 const DIRECT_COMMENT = 'Vidalune direct server access';
+/** How long an address family that is no longer reported keeps its record (one server, IPv4 and IPv6). */
+const OTHER_FAMILY_KEPT_MS = 24 * 60 * 60_000;
 
 interface DNSRecordInput {
   type: 'A' | 'AAAA';
@@ -92,6 +94,9 @@ interface TXTRecordInput {
 export class CloudflareDns {
   private zoneId: Promise<string> | null = null;
   private authoritativeServers: string[] = [];
+  /** When each hostname last reported an IPv4 and an IPv6 address (since this service started). */
+  private readonly familySeen = new Map<string, { 4?: number; 6?: number }>();
+  private readonly startedAt: number;
 
   constructor(
     private readonly options: {
@@ -99,8 +104,15 @@ export class CloudflareDns {
       zoneName: string;
       fetchImpl?: typeof fetch;
       apiBase?: string;
+      now?: () => number;
     },
-  ) {}
+  ) {
+    this.startedAt = this.now();
+  }
+
+  private now(): number {
+    return this.options.now ? this.options.now() : Date.now();
+  }
 
   async authoritativeNameServers(): Promise<string[]> {
     await this.getZoneId();
@@ -123,7 +135,17 @@ export class CloudflareDns {
     const currentType = records.filter((record) => record.type === type);
     if (currentType.length > 1) throw new Error('Multiple matching Cloudflare DNS records exist.');
 
-    for (const stale of records) if (stale.type !== type) await this.deleteRecord(zoneId, stale.id);
+    // A server with IPv4 and IPv6 reaches this service over either: the other family's record stays
+    // until that family has not been reported for a day (then the server really lost it).
+    const now = this.now();
+    const seen = this.familySeen.get(name) ?? {};
+    seen[addressType] = now;
+    this.familySeen.set(name, seen);
+    const other = addressType === 4 ? 6 : 4;
+    for (const stale of records) {
+      if (stale.type === type) continue;
+      if (now - (seen[other] ?? this.startedAt) > OTHER_FAMILY_KEPT_MS) await this.deleteRecord(zoneId, stale.id);
+    }
     const existing = currentType[0];
     const input: DNSRecordInput = {
       type,
