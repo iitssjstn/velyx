@@ -68,18 +68,18 @@ const SECTIONS = GROUPS.flatMap((g) => g.items);
 function SideNav({ unread }: { unread: number }) {
   const { t } = useT();
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {GROUPS.map((group) => (
         <div key={group.label}>
-          <h2 className="mb-2 px-3 text-[11px] font-semibold tracking-wider text-muted uppercase">{t(group.label)}</h2>
+          <h2 className="mb-2 px-3 text-xs font-semibold tracking-wider text-muted uppercase">{t(group.label)}</h2>
           <ul className="space-y-0.5">
             {group.items.map(({ to, label, icon: Icon }) => (
               <li key={to}>
                 <NavLink
                   to={`/admin/${to}`}
-                  className={({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${isActive ? 'bg-accent/15 font-medium text-ink' : 'text-muted hover:bg-raised/60 hover:text-ink'}`}
+                  className={({ isActive }) => `flex items-center gap-3.5 rounded-lg px-3 py-2 text-[15px] transition ${isActive ? 'bg-accent/15 font-medium text-ink' : 'text-muted hover:bg-raised/60 hover:text-ink'}`}
                 >
-                  <Icon className="size-4 shrink-0" aria-hidden />
+                  <Icon className="size-5 shrink-0" aria-hidden />
                   <span className="min-w-0 flex-1 truncate">{t(label)}</span>
                   {to === 'notifications' && unread > 0 && (
                     <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-ink" aria-label={t('notifications.unread', { count: unread })}>
@@ -105,25 +105,30 @@ export default function AdminLayout() {
   useEffect(() => setOpen(false), [pathname]);
   const current = SECTIONS.find((s) => pathname.startsWith(`/admin/${s.to}`));
   return (
-    <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-8">
-      <h1 className="font-display text-3xl font-semibold tracking-tight">{t('admin.title')}</h1>
-      <div className="mt-6 md:grid md:grid-cols-[14rem_minmax(0,1fr)] md:gap-8">
-        <nav aria-label={t('admin.sections')} className="mb-6 md:mb-0">
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-controls="admin-sections"
-            onClick={() => setOpen((o) => !o)}
-            className="flex w-full items-center justify-between rounded-lg border border-line/60 bg-raised/50 px-3 py-2.5 text-sm md:hidden"
-          >
-            <span>{current ? t(current.label) : t('admin.sections')}</span>
-            <ChevronDown className={`size-4 transition ${open ? 'rotate-180' : ''}`} aria-hidden />
-          </button>
-          <div id="admin-sections" className={`${open ? 'mt-3 block' : 'hidden'} rounded-xl border border-line/60 p-3 md:sticky md:top-24 md:mt-0 md:block md:max-h-[calc(100vh-7rem)] md:overflow-y-auto`}>
-            <SideNav unread={unread} />
-          </div>
-        </nav>
-        <div className="min-w-0">
+    <div className="md:flex">
+      {/* From tablet width on, the navigation sits against the left edge of the screen, the full height below the top bar. */}
+      <nav
+        aria-label={t('admin.sections')}
+        className="no-scrollbar px-4 pt-8 md:sticky md:top-16 md:h-[calc(100dvh-4rem)] md:w-64 md:shrink-0 md:overflow-y-auto md:border-r md:border-line/60 md:bg-surface/50 md:px-4 md:py-6 lg:w-72"
+      >
+        <h1 className="mb-6 font-display text-3xl font-semibold tracking-tight md:hidden">{t('admin.title')}</h1>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls="admin-sections"
+          onClick={() => setOpen((o) => !o)}
+          className="flex w-full items-center justify-between rounded-lg border border-line/60 bg-raised/50 px-3 py-2.5 text-sm md:hidden"
+        >
+          <span>{current ? t(current.label) : t('admin.sections')}</span>
+          <ChevronDown className={`size-4 transition ${open ? 'rotate-180' : ''}`} aria-hidden />
+        </button>
+        <div id="admin-sections" className={`${open ? 'mt-3 block rounded-xl border border-line/60 p-3' : 'hidden'} md:mt-0 md:block md:rounded-none md:border-0 md:p-0`}>
+          <SideNav unread={unread} />
+        </div>
+      </nav>
+      <div className="min-w-0 flex-1 px-4 pt-6 sm:px-8 md:pt-8 xl:px-12">
+        <div className="mx-auto max-w-[100rem]">
+          <h1 className="mb-8 hidden font-display text-3xl font-semibold tracking-tight md:block">{t('admin.title')}</h1>
       <Routes>
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
