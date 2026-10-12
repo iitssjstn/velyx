@@ -791,3 +791,26 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   getoonde servertijd klopt.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1949) en beide lockfiles bijgewerkt.
 - PR #134 gemerged 12 okt; release `v0.19.49` gecontroleerd: APK en beide `.deb`'s aanwezig.
+
+## Versie 0.19.50 (spoelen binnen één stream)
+
+- Gemeld door de eigenaar (12 okt): bij vooruitspoelen zie je de achtergrondfoto in plaats van de film. Oorzaak:
+  bij een remux (video gekopieerd, bv. MKV met DTS) maakt de website bij elk spoelen een nieuwe stream; het
+  nieuwe `<video>`-element toont de `poster` tot het eerste beeld. HLS (stukjes, één stream) werd voor gekopieerde
+  video op de website niet gebruikt, omdat de keyframes eerst het hele bestand lezen. Besluit eigenaar: "Ja, ik
+  wil dat het bekijken van een film/serie echt het beste gevoel is".
+- De achtergrondtaak (Beheer > Server, nu "Bestanden vooraf klaarzetten voor afspelen") zoekt per bestand ook de
+  keyframes (`HlsSessions.learn`, lage prioriteit, stopbaar, niets half bewaard; een kijker die wacht houdt het
+  lezen gaande). Alleen voor bestanden die niet overal direct spelen (`needsKeyframes`: niet MP4/M4V/MOV met
+  H.264 en AAC/MP3). Twee leesrondes per bestand (ondertitels met FFmpeg, keyframes met FFprobe); samenvoegen
+  kan later. Zijn de keyframes bekend, dan biedt `/api/media/:id/playback` de website HLS aan voor gekopieerde
+  video: spoelen blijft in één stream, gemaakte stukjes komen direct terug.
+- Terugval zolang de keyframes nog niet bekend zijn: de speler tekent vóór de nieuwe stream het laatste beeld op
+  een `<canvas>` boven de video, tot het eerste nieuwe beeld er is (geen achtergrondfoto meer).
+- Niet veranderd: de app (eigen speler) en `seekLanding`; de Chromecast gebruikte al HLS.
+- Tests: keyframes stoppen/aanhaken (echte FFprobe), achtergrondtaak (alleen nodige bestanden, stoppen bij kijken,
+  mislukt pas opnieuw na wijziging), HLS-aanbod na keyframes (faalt op oude code), speler houdt het laatste beeld
+  vast (faalt zonder de wijziging). Backend 580, frontend 312, cloud 128, app 150 tests; typechecks, lint (4 bekende
+  waarschuwingen) en builds slagen. Op echte hardware te testen: na een nacht in het venster een MKV met DTS
+  vooruit/terug spoelen op de website.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1950) en beide lockfiles bijgewerkt.

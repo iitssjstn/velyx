@@ -101,6 +101,45 @@ describe('subtitles after seeking', () => {
     expect(await screen.findByText('Subtitle after remux seek')).toBeTruthy();
   });
 
+  it('keeps the last picture on screen while a remux stream restarts, instead of the artwork', async () => {
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      let body: unknown = {};
+      if (url === '/api/movies/3') body = MOVIE;
+      if (url === '/api/media/3/playback') body = { ...PLAYBACK, decision: { ...PLAYBACK.decision, engine: 'remux', seek: 'restart', streamUrl: '/api/media/3/remux?audio=1' } };
+      if (url.startsWith('/api/media/3/keyframe')) body = { start: 118, seek: 118 };
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    const drawImage = vi.fn();
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+    try {
+      renderPlayer();
+      const oldVideo = await vi.waitFor(() => document.querySelector('video') ?? Promise.reject(new Error('no video')));
+      const state = fakeVideo(oldVideo);
+      state.readyState = 4;
+      Object.defineProperty(oldVideo, 'videoWidth', { configurable: true, get: () => 1920 });
+      Object.defineProperty(oldVideo, 'videoHeight', { configurable: true, get: () => 800 });
+      fireEvent.loadedMetadata(oldVideo);
+      fireEvent.loadedData(oldVideo);
+      const canvas = document.querySelector('canvas')!;
+      expect(canvas.classList.contains('hidden')).toBe(true);
+      fireEvent.keyDown(window, { key: '5' });
+      const newVideo = await vi.waitFor(() => {
+        const video = document.querySelector('video');
+        if (!video || video === oldVideo) throw new Error('stream has not restarted');
+        return video;
+      });
+      // The old picture was drawn, full size, and covers the new stream until it shows a frame.
+      expect(drawImage).toHaveBeenCalledWith(oldVideo, 0, 0);
+      expect([canvas.width, canvas.height]).toEqual([1920, 800]);
+      expect(canvas.classList.contains('hidden')).toBe(false);
+      fireEvent.loadedData(newVideo);
+      await vi.waitFor(() => expect(canvas.classList.contains('hidden')).toBe(true));
+    } finally {
+      getContext.mockRestore();
+    }
+  });
+
   it('asks where the optimized copy starts after a seek, not the original file', async () => {
     const keyframes: string[] = [];
     vi.mocked(fetch).mockImplementation(async (input) => {

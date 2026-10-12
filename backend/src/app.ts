@@ -214,13 +214,13 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   playback.register(new TranscodeEngine(() => transcoding.current()));
   const optimizations = new OptimizationService({ db, dataDir: config.dataDir, ffmpegPath: config.ffmpegPath, probe, transcoding, settings, busy: (ownLoad) => scans.active || (streams.active().length > 0 && (opts.machineBusy ? opts.machineBusy() : machineBusy(ownLoad))) });
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
-  // Subtitles are extracted ahead of time: in the maintenance window, or once nobody has watched for a while.
+  // Subtitles and keyframes are prepared ahead of time: in the maintenance window, or once nobody has watched for a while.
   const subtitlePrefetch: SubtitlePrefetcher = new SubtitlePrefetcher(db, subtitleExtractor, {
     enabled: () => settings.get().subtitlePrefetch,
     busy: () => (scans.active ? 'scan' : streams.active().length > 0 ? 'playback' : null),
     inWindow: () => inMaintenanceWindow(new Date(), settings.get().maintenanceStart, settings.get().maintenanceEnd),
     outsideWindow: () => settings.get().maintenanceOutside,
-  });
+  }, hls);
   const storage = new StorageService(db, config);
   // Critically low disk space pauses scans (which write artwork and rows); they resume on their own.
   const disk = new DiskMonitor(storage, (level, info) => {

@@ -10,7 +10,7 @@ import { onlineSubtitleOption } from './online-subtitles.js';
 import { resolveMediaPath } from '../services/paths.js';
 import { readSubtitleAsVtt, shiftVtt } from '../services/subtitles.js';
 import { parseRemuxQuery, remuxQueryKey, type RemuxEngine, type RemuxQuery, type VideoEncode } from '../playback/remux.js';
-import { playlist as hlsPlaylist, type HlsSource } from '../playback/hls.js';
+import { keyframesKey, playlist as hlsPlaylist, type HlsSource } from '../playback/hls.js';
 import { isValidImageRequest } from '../services/images.js';
 import { languageName } from '../services/parser.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
@@ -225,8 +225,6 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     }
   }
 
-  /** Identifies a file's keyframes: a changed file (size, time) is read again. */
-  const hlsLayoutKey = (file: typeof mediaFiles.$inferSelect) => `${file.id}:${file.size}:${file.mtimeMs}`;
 
   // Playback analysis contains no media bytes. Keep it available through the account control tunnel;
   // the direct stream, remux, HLS segments and subtitle bodies enforce remote access themselves.
@@ -263,10 +261,11 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const sourceFile = loaded.sourceFile;
     const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, sourceFile.id)).all();
     const analysis = analyzePlayback(file, caps, decision, ua, confidence, lang, request.appDevice);
-    // Pieces (HLS) only for converted video, which is cut on a fixed grid. Copied video would need
-    // the file's keyframes first, and listing them reads the whole file: on a NAS that takes minutes
-    // and starves the stream being watched. Copied video keeps the live stream.
-    const hlsUrl = decision.hlsUrl?.includes('vt=1') ? decision.hlsUrl : undefined;
+    // Pieces (HLS): converted video is cut on a fixed grid. Copied video is cut at its keyframes, and
+    // listing them reads the whole file (minutes on a NAS, starving the stream being watched): only
+    // once they were found ahead of time (Admin → Server, prepared in the maintenance window).
+    // Until then copied video keeps the live stream.
+    const hlsUrl = decision.hlsUrl && (decision.hlsUrl.includes('vt=1') || ctx.hls.ready(keyframesKey(file))) ? decision.hlsUrl : undefined;
     const directAccess = ctx.cloud.status().directAccess;
     const localEndpoints = directAccess?.localEndpoints.map((endpoint) => ({
       type: 'lan' as const,
@@ -383,7 +382,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       }
       encode = t.encode;
     }
-    const layout = await ctx.hls.layout(hlsLayoutKey(file), abs, file.durationSec ?? 0, vt);
+    const layout = await ctx.hls.layout(keyframesKey(file), abs, file.durationSec ?? 0, vt);
     return { key, input: abs, videoCodec: file.videoCodec, plan: parsed.plan, layout, encode };
   }
   const hlsLoad = (request: FastifyRequest<{ Params: { id: string } }>) => {

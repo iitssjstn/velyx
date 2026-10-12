@@ -70,7 +70,7 @@ function setup() {
 describe('preparing subtitles ahead of time', () => {
   it('shows how many files are still to do and saves turning it off', async () => {
     const saved = setup();
-    const box = (await screen.findByRole('checkbox', { name: /Prepare subtitles ahead of time/ })) as HTMLInputElement;
+    const box = (await screen.findByRole('checkbox', { name: /Prepare files for playback ahead of time/ })) as HTMLInputElement;
     expect(box.checked).toBe(true);
     expect(screen.getByText('12 files still to do.')).toBeTruthy();
     await userEvent.click(box);
