@@ -1,6 +1,7 @@
 import type { Messages } from '../index';
 export const admin: Messages['admin'] = {
   title: 'Beheer',
+  integrationsIntro: 'Optionele diensten waarmee Vidalune kan samenwerken. Vidalune werkt ook volledig zonder.',
   sections: 'Onderdelen van beheer',
   groups: {
     monitoring: 'Systeembewaking',
@@ -9,6 +10,9 @@ export const admin: Messages['admin'] = {
     users: 'Gebruikers en rechten',
   },
   tabs: {
+    integrations: 'Koppelingen',
+    playback: 'Afspelen',
+    maintenance: 'Onderhoud',
     dashboard: 'Dashboard',
     activity: 'Activiteit',
     libraries: 'Bibliotheken',
@@ -24,6 +28,5 @@ export const admin: Messages['admin'] = {
     backup: 'Back-up',
     notifications: 'Meldingen',
     cloud: 'Vidalune-account',
-    arr: 'Sonarr en Radarr',
   },
 };

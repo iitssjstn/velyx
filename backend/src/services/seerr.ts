@@ -88,7 +88,7 @@ function mediaState(media: RawMedia | undefined): RequestState | null {
 }
 
 /**
- * The optional connection to Seerr (Admin → Server): people search for movies and shows that are
+ * The optional connection to Seerr (Admin → Integrations): people search for movies and shows that are
  * not in the library and request them. The API key stays on this server; the browser and the app
  * only talk to Vidalune. Without it configured, nothing here is used and nothing is contacted.
  */
@@ -118,7 +118,7 @@ export class SeerrService {
       log.warn(`Seerr not reachable: ${(err as Error).message}`);
       throw new HttpError(502, timeout ? 'Seerr did not answer in time. Try again later.' : 'Could not reach Seerr. Check its address.');
     }
-    if (res.status === 401 || res.status === 403) throw new HttpError(502, 'Seerr refused the API key. Check it under Admin → Server.');
+    if (res.status === 401 || res.status === 403) throw new HttpError(502, 'Seerr refused the API key. Check it under Admin → Integrations.');
     if (res.status === 404) throw new HttpError(404, 'Seerr does not know this title.');
     if (res.status === 409) throw new HttpError(409, 'This has already been requested.');
     if (!res.ok) {

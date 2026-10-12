@@ -1,5 +1,6 @@
 import type { Messages } from '../index';
 export const segments: Messages['segments'] = {
+  settingsTitle: 'Detectie-instellingen',
   sources: {
     chapters: 'hoofdstukken',
     video: 'beeld',

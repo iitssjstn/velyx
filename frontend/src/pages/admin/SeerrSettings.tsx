@@ -11,7 +11,7 @@ interface SeerrConfig {
   version?: string | null;
 }
 
-/** Admin → Server: the optional connection to Seerr (the key is never shown again). */
+/** Admin → Integrations: the optional connection to Seerr (the key is never shown again). */
 export function SeerrSettings() {
   const { t } = useT();
   const qc = useQueryClient();

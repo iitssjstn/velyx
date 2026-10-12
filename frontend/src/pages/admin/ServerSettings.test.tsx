@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -7,10 +7,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 vi.mock('../../lib/auth', () => ({
   useAuth: () => ({ user: { id: 1, username: 'justin', role: 'admin' }, refetchServer: () => undefined }),
 }));
-
-// Panels with their own settings: not part of this test.
-vi.mock('./SeerrSettings', () => ({ SeerrSettings: () => null }));
-vi.mock('./TranscodingSettings', () => ({ TranscodingSettings: () => null }));
 
 import { ServerSettingsPanel } from './ServerSettings';
 
@@ -67,28 +63,17 @@ function setup() {
   return saved;
 }
 
-describe('preparing subtitles ahead of time', () => {
-  it('shows how many files are still to do and saves turning it off', async () => {
+describe('the Server page', () => {
+  it('shows the server itself and saves only its name and the update check', async () => {
     const saved = setup();
-    const box = (await screen.findByRole('checkbox', { name: /Prepare files for playback ahead of time/ })) as HTMLInputElement;
-    expect(box.checked).toBe(true);
-    expect(screen.getByText('12 files still to do.')).toBeTruthy();
-    await userEvent.click(box);
-    await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]!);
+    const name = await screen.findByLabelText('Server name');
+    expect(screen.getByText('Vidalune 0.19.49')).toBeTruthy();
+    expect(screen.queryByLabelText('From')).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: /Scan automatically when files are added/ })).toBeNull();
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Living room');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await vi.waitFor(() => expect(saved).toHaveLength(1));
-    expect(saved[0]).toMatchObject({ subtitlePrefetch: false });
-  });
-
-  it('saves the maintenance window and whether to work outside it, and shows the server time', async () => {
-    const saved = setup();
-    const from = (await screen.findByLabelText('From')) as HTMLInputElement;
-    expect(from.value).toBe('02:00');
-    expect(screen.getByText(/It is 14:03 on the server \(Europe\/Amsterdam\)/)).toBeTruthy();
-    fireEvent.change(from, { target: { value: '23:00' } });
-    fireEvent.change(screen.getByLabelText('Until'), { target: { value: '05:00' } });
-    await userEvent.click(screen.getByRole('checkbox', { name: /Also work outside the window/ }));
-    await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]!);
-    await vi.waitFor(() => expect(saved).toHaveLength(1));
-    expect(saved[0]).toMatchObject({ maintenanceStart: '23:00', maintenanceEnd: '05:00', maintenanceOutside: false });
+    expect(saved[0]).toEqual({ serverName: 'Living room', updateCheck: true });
   });
 });

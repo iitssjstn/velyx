@@ -9,6 +9,7 @@ import { ConfirmModal, Modal } from '../../components/Modal';
 import { EmptyState, ErrorState, PageLoader } from '../../components/States';
 import { toast } from '../../components/Toast';
 import { intlLocale, t, useT, type MessageKey } from '../../i18n';
+import { DetectionSettings } from './SettingsPanels';
 
 type Confidence = 'high' | 'medium' | 'low';
 
@@ -303,7 +304,7 @@ export function SegmentsPage() {
       <div className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-sm ${status.state === 'disabled' ? 'border-amber/30 bg-amber/5' : 'border-line bg-raised/50'}`} role="status">
         <SkipForward className="size-4 shrink-0 text-muted" />
         <p className="flex-1">{statusLine(status)}</p>
-        {status.state === 'disabled' && <Link to="/admin/server" className="text-accent underline-offset-4 hover:underline">{t('audit.groups.serverSettings')}</Link>}
+        {status.state === 'disabled' && <a href="#detection-settings" className="text-accent underline-offset-4 hover:underline">{t('segments.settingsTitle')}</a>}
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -372,6 +373,7 @@ export function SegmentsPage() {
         </section>
       )}
 
+      <DetectionSettings />
       <ConfirmModal
         open={confirmAll}
         title={t('segments.allTitle')}

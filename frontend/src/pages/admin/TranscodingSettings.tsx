@@ -14,7 +14,7 @@ interface TranscodingState {
   active: number;
 }
 
-/** Admin → Server: converting video the device cannot play (opt-in), and which encoder does it. */
+/** Admin → Playback: converting video the device cannot play (opt-in), and which encoder does it. */
 export function TranscodingSettings() {
   const { t } = useT();
   const qc = useQueryClient();

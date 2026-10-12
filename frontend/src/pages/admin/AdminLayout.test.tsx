@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 vi.mock('./Dashboard', () => ({ DashboardPage: () => <p>dashboard page</p> }));
 vi.mock('./Logs', () => ({ LogsPage: () => <p>logs page</p> }));
 vi.mock('./Backup', () => ({ BackupPage: () => <p>backup page</p> }));
+vi.mock('./Integrations', () => ({ IntegrationsPage: () => <p>integrations page</p> }));
 
 import AdminLayout from './AdminLayout';
 
@@ -35,7 +36,7 @@ describe('admin side navigation', () => {
     }
     const links = within(nav).getAllByRole('link');
     expect(links.map((l) => l.getAttribute('href')).sort()).toEqual(
-      ['dashboard', 'activity', 'logs', 'audit', 'notifications', 'libraries', 'metadata', 'health', 'intros', 'optimization', 'cleanup', 'arr', 'cloud', 'server', 'backup', 'users']
+      ['dashboard', 'activity', 'logs', 'audit', 'notifications', 'libraries', 'metadata', 'health', 'intros', 'playback', 'optimization', 'cleanup', 'integrations', 'cloud', 'maintenance', 'server', 'backup', 'users']
         .map((s) => `/admin/${s}`)
         .sort(),
     );
@@ -53,5 +54,11 @@ describe('admin side navigation', () => {
     await userEvent.click(screen.getByRole('link', { name: 'Backup' }));
     expect(screen.getByText('backup page')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Backup' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('sends the old Sonarr & Radarr address to Integrations', async () => {
+    setup('/admin/arr');
+    expect(await screen.findByText('integrations page')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Integrations' }).getAttribute('aria-current')).toBe('page');
   });
 });

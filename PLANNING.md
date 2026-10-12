@@ -97,7 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- In PR: **0.19.52** (zijbalk tegen de rand). Laatste release: **0.19.51** (PR #136, zijbalk in Beheer; gemerged 12 okt op verzoek van de eigenaar na groene CI); release `v0.19.51` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- In PR: **0.19.53** (beheerinstellingen op de juiste pagina). Laatste release: **0.19.52** (PR #137, zijbalk tegen de rand; gemerged 12 okt op verzoek van de eigenaar na groene CI); release `v0.19.52` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -845,3 +845,24 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Backend 580, frontend 314, cloud 128 en app 150 tests slagen; typechecks, lint (4 bekende waarschuwingen) en
   builds slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1952) en beide lockfiles bijgewerkt.
+- PR #137 gemerged 12 okt; release `v0.19.52` gecontroleerd: APK en beide `.deb`'s aanwezig.
+
+## Versie 0.19.53 (beheerinstellingen op de juiste pagina)
+
+- Gemeld door de eigenaar (12 okt): "ik zie dingen op plekken staan waar het eigenlijk niet hoort". Beheer > Server was
+  een verzamelbak. Nu staat elke instelling op de pagina van haar onderwerp:
+  - Server: alleen servernaam, updatemelding, versie en mediamappen.
+  - Bibliotheken: Scannen (schema, map bewaken, scannen bij start, uitstellen tijdens kijken).
+  - Metadata: TMDB-sleutel, metadatataal en volwassen titels, boven de lijst met na te kijken titels (ook zonder sleutel).
+  - Intro's en aftiteling: Detectie-instellingen (aan/uit, beeld, delen met andere servers); de statusregel linkt ernaar.
+  - Nieuw **Afspelen** (onder Inhoud en bibliotheken): video omzetten (transcoding) en online ondertitels.
+  - Nieuw **Onderhoud**: onderhoudsvenster, buiten het venster werken en bestanden vooraf klaarzetten.
+  - Nieuw **Koppelingen** (vervangt Sonarr en Radarr): Seerr plus Sonarr en Radarr; `/admin/arr` stuurt door.
+- Elk paneel slaat alleen zijn eigen velden op (de API accepteerde al losse velden; backend ongewijzigd). Gedeelde hook
+  `useServerSettings`, panelen in `SettingsPanels.tsx`, pagina's `Playback.tsx` en `Integrations.tsx`.
+- Verwijzingen "Admin → Server" bijgewerkt in de README, foutmeldingen (Seerr → Koppelingen, video omzetten → Afspelen),
+  de setuptekst (TMDB → Metadata) en Gezondheid; Engels en Nederlands.
+- Tests: de onderhoudstests verhuisd naar `SettingsPanels.test.tsx`, plus per paneel "slaat alleen eigen velden op",
+  Server-pagina, navigatie met de nieuwe onderdelen en doorsturen van `/admin/arr`. Backend 580, frontend 319, cloud 128
+  en app 150 tests slagen; typechecks, lint (4 bekende waarschuwingen) en builds slagen. Screenshots naar de eigenaar.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1953) en beide lockfiles bijgewerkt.
