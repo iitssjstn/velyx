@@ -1,6 +1,12 @@
 export const admin = {
   title: 'Administration',
   sections: 'Admin sections',
+  groups: {
+    monitoring: 'System monitoring',
+    content: 'Content & libraries',
+    integrations: 'Integrations & maintenance',
+    users: 'Users & permissions',
+  },
   tabs: {
     dashboard: 'Dashboard',
     activity: 'Activity',

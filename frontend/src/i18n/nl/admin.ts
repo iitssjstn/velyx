@@ -2,6 +2,12 @@ import type { Messages } from '../index';
 export const admin: Messages['admin'] = {
   title: 'Beheer',
   sections: 'Onderdelen van beheer',
+  groups: {
+    monitoring: 'Systeembewaking',
+    content: 'Inhoud en bibliotheken',
+    integrations: 'Koppelingen en onderhoud',
+    users: 'Gebruikers en rechten',
+  },
   tabs: {
     dashboard: 'Dashboard',
     activity: 'Activiteit',
