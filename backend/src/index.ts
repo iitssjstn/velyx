@@ -62,6 +62,7 @@ async function main(): Promise<void> {
   setInterval(translate, 30 * 60 * 1000).unref();
   // Episodes added while Vidalune was off (or never analysed) get their intros/credits found later on.
   setTimeout(() => ctx.segments.enqueuePending(), 3 * 60 * 1000).unref();
+  ctx.subtitlePrefetch.start();
   ctx.watcher.sync(ctx.settings.get().watchFolders);
   ctx.backups.start();
   ctx.disk.start();
@@ -91,6 +92,7 @@ async function main(): Promise<void> {
     log.info(`Received ${signal}, shutting down`);
     ctx.scans.stop();
     ctx.segments.stop();
+    ctx.subtitlePrefetch.stop();
     ctx.streams.stop();
     ctx.watcher.stop();
     ctx.backups.stop();

@@ -27,6 +27,7 @@ import { LibraryWatcher } from './services/watcher.js';
 import { createFfprobe, type Prober } from './services/probe.js';
 import { limitProber, type LimitedProber } from './services/probe-queue.js';
 import { EmbeddedSubtitleExtractor } from './services/subtitles.js';
+import { SubtitlePrefetcher } from './services/subtitle-prefetch.js';
 import { LibraryAccess } from './services/access.js';
 import { AuditLog } from './services/audit.js';
 import { BackupScheduler } from './services/backup-scheduler.js';
@@ -88,6 +89,7 @@ export interface AppContext {
   watcher: LibraryWatcher;
   playback: PlaybackRegistry;
   subtitleExtractor: EmbeddedSubtitleExtractor;
+  subtitlePrefetch: SubtitlePrefetcher;
   access: LibraryAccess;
   audit: AuditLog;
   backups: BackupScheduler;
@@ -177,6 +179,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     onIdle: () => {
       segments.enqueuePending();
       cleanupScheduler.run();
+      subtitlePrefetch.poke();
     },
     onScanDone: (libraryId, summary) => {
       if (summary.added > 0) notifications.notify('newMedia', { library: libraryName(libraryId), count: summary.added });
@@ -210,6 +213,11 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   playback.register(new TranscodeEngine(() => transcoding.current()));
   const optimizations = new OptimizationService({ db, dataDir: config.dataDir, ffmpegPath: config.ffmpegPath, probe, transcoding, settings, busy: (ownLoad) => scans.active || (streams.active().length > 0 && (opts.machineBusy ? opts.machineBusy() : machineBusy(ownLoad))) });
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
+  // Subtitles of new files are extracted ahead of time once nobody has watched for a while.
+  const subtitlePrefetch: SubtitlePrefetcher = new SubtitlePrefetcher(db, subtitleExtractor, {
+    enabled: () => settings.get().subtitlePrefetch,
+    busy: () => (scans.active ? 'scan' : streams.active().length > 0 ? 'playback' : null),
+  });
   const storage = new StorageService(db, config);
   // Critically low disk space pauses scans (which write artwork and rows); they resume on their own.
   const disk = new DiskMonitor(storage, (level, info) => {
@@ -238,7 +246,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const openSubtitles = new OpenSubtitlesClient({ vidalune: cloud });
   const seerr = new SeerrService({ settings, fetchImpl: opts.fetchImpl });
   const arr = new ArrService({ settings, fetchImpl: opts.fetchImpl });
-  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, seerr, arr, transcoding, optimizations, hls, startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, subtitlePrefetch, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, seerr, arr, transcoding, optimizations, hls, startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {

@@ -25,6 +25,13 @@ export const server = {
   sharedDetection: 'Share detection with other Vidalune servers',
   sharedDetectionHint: 'Through vidalune.com: where recaps, intros and credits are (by TMDB show, season and episode, with the episode’s length) and short audio fingerprints of intros and credits — no titles, files, users or what anyone watches. What other servers agree on fills what was not found here, and results show how many servers agree. Works on with local detection when vidalune.com cannot be reached.',
   segmentVideoHint: 'Looks at keyframes of the last minutes (small and at low priority), which also finds credits whose music changes every episode. Uses more CPU than sound alone.',
+  subtitlePrefetch: 'Prepare subtitles ahead of time',
+  subtitlePrefetchHint: 'Extracts the subtitles inside video files (such as SRT and ASS) in the background, so they appear at once when someone picks one. Starts when nobody has watched for 15 minutes and no scan runs, does one file at a time at low priority, and stops when someone starts watching. Every file is read once in full, so the first round over a large library can take a few nights.',
+  subtitlePrefetchPending: {
+    one: '{count} file still to do.',
+    other: '{count} files still to do.',
+  },
+  subtitlePrefetchDone: 'All subtitles are ready.',
   mediaRoots: 'Media roots (MEDIA_ROOTS)',
   tmdbTitle: 'TMDB metadata',
   tmdbText: 'Posters, descriptions, cast and episode titles come from The Movie Database. The key stays on the server and is never sent to browsers.',

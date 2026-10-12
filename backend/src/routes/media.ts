@@ -476,7 +476,9 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const track = (file.subtitleTracks ?? []).find((t) => t.index === index);
     if (!Number.isInteger(index) || !track) throw notFound('Subtitle track');
     if (!track.textBased) throw new HttpError(415, 'Image-based subtitles (PGS/VobSub) cannot be shown in the browser without converting them, which Vidalune does not do. Use a text subtitle (SRT/ASS) instead.');
-    const vtt = shiftVtt(await ctx.subtitleExtractor.extract(file.id, file.mtimeMs, abs, index), offsetParam(request.query));
+    // The file's other text subtitles come along in the same read of the file.
+    const also = (file.subtitleTracks ?? []).filter((t) => t.textBased).map((t) => t.index);
+    const vtt = shiftVtt(await ctx.subtitleExtractor.extract(file.id, file.mtimeMs, abs, index, { also, sizeBytes: file.size }), offsetParam(request.query));
     return reply.type('text/vtt; charset=utf-8').header('Cache-Control', 'private, max-age=3600').send(vtt);
   });
 

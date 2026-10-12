@@ -26,6 +26,13 @@ export const server: Messages['server'] = {
   sharedDetection: 'Detectie delen met andere Vidalune-servers',
   sharedDetectionHint: 'Via vidalune.com: waar recaps, intro’s en aftitelingen zitten (per TMDB-serie, seizoen en aflevering, met de lengte van de aflevering) en korte audio-vingerafdrukken van intro’s en aftitelingen — geen titels, bestanden, gebruikers of kijkgedrag. Wat andere servers eens zijn vult aan wat hier niet werd gevonden, en bij resultaten staat hoeveel servers het eens zijn. Werkt gewoon door met eigen detectie als vidalune.com niet bereikbaar is.',
   segmentVideoHint: 'Bekijkt keyframes van de laatste minuten (klein en met lage prioriteit), waardoor ook aftitelingen worden gevonden waarvan de muziek per aflevering verschilt. Kost meer CPU dan alleen geluid.',
+  subtitlePrefetch: 'Ondertitels vooraf klaarzetten',
+  subtitlePrefetchHint: 'Pakt de ondertitels in videobestanden (zoals SRT en ASS) op de achtergrond uit, zodat ze meteen verschijnen als iemand er een kiest. Begint als er 15 minuten niemand heeft gekeken en er geen scan loopt, doet één bestand tegelijk met lage prioriteit, en stopt zodra iemand gaat kijken. Elk bestand wordt één keer helemaal gelezen, dus de eerste ronde over een grote bibliotheek kan een paar nachten duren.',
+  subtitlePrefetchPending: {
+    one: 'Nog {count} bestand te doen.',
+    other: 'Nog {count} bestanden te doen.',
+  },
+  subtitlePrefetchDone: 'Alle ondertitels staan klaar.',
   mediaRoots: 'Mediamappen (MEDIA_ROOTS)',
   tmdbTitle: 'TMDB-metadata',
   tmdbText: 'Posters, beschrijvingen, cast en afleveringstitels komen van The Movie Database. De sleutel blijft op de server en wordt nooit naar browsers gestuurd.',

@@ -18,14 +18,14 @@ export function ServerSettingsPanel() {
   const { refetchServer } = useAuth();
   const { t, tRich } = useT();
   const q = useQuery({ queryKey: ['admin', 'settings'], queryFn: () => api.get<ServerSettings>('/api/admin/settings') });
-  const [form, setForm] = useState({ serverName: '', tmdbLanguage: '', includeAdult: false, watchFolders: true, updateCheck: true, scanOnStartup: false, deferScansWhilePlaying: true, segmentDetection: true, segmentVideo: true, sharedDetection: false });
+  const [form, setForm] = useState({ serverName: '', tmdbLanguage: '', includeAdult: false, watchFolders: true, updateCheck: true, scanOnStartup: false, deferScansWhilePlaying: true, segmentDetection: true, segmentVideo: true, sharedDetection: false, subtitlePrefetch: true });
   // '' = use SCAN_INTERVAL_MINUTES from the environment
   const [interval, setScanInterval] = useState('');
   const [key, setKey] = useState('');
 
   useEffect(() => {
     if (!q.data) return;
-    setForm({ serverName: q.data.serverName, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult, watchFolders: q.data.watchFolders, updateCheck: q.data.updateCheck, scanOnStartup: q.data.scanOnStartup, deferScansWhilePlaying: q.data.deferScansWhilePlaying, segmentDetection: q.data.segmentDetection, segmentVideo: q.data.segmentVideo, sharedDetection: q.data.sharedDetection });
+    setForm({ serverName: q.data.serverName, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult, watchFolders: q.data.watchFolders, updateCheck: q.data.updateCheck, scanOnStartup: q.data.scanOnStartup, deferScansWhilePlaying: q.data.deferScansWhilePlaying, segmentDetection: q.data.segmentDetection, segmentVideo: q.data.segmentVideo, sharedDetection: q.data.sharedDetection, subtitlePrefetch: q.data.subtitlePrefetch });
     setScanInterval(q.data.scanIntervalSource === 'settings' ? String(q.data.scanIntervalMinutes) : '');
   }, [q.data]);
 
@@ -134,6 +134,18 @@ export function ServerSettingsPanel() {
             <span>
               {t('server.sharedDetection')}
               <span className="block text-xs text-faint">{t('server.sharedDetectionHint')}</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3 text-sm">
+            <input type="checkbox" className="mt-0.5 size-4 accent-[var(--color-accent)]" checked={form.subtitlePrefetch} onChange={(e) => setForm({ ...form, subtitlePrefetch: e.target.checked })} />
+            <span>
+              {t('server.subtitlePrefetch')}
+              <span className="block text-xs text-faint">{t('server.subtitlePrefetchHint')}</span>
+              {s.subtitlePrefetch && (
+                <span className="block text-xs text-muted">
+                  {s.subtitlePrefetchStatus.pending > 0 ? t('server.subtitlePrefetchPending', { count: s.subtitlePrefetchStatus.pending }) : t('server.subtitlePrefetchDone')}
+                </span>
+              )}
             </span>
           </label>
         </fieldset>

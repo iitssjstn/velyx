@@ -448,7 +448,8 @@ The app follows your account's language (English or Dutch). Before signing in, i
 ## Subtitles and audio tracks
 
 - External `.srt` (UTF-8, UTF-16 and Windows-1252 are detected) and `.vtt` files are converted to WebVTT on the fly.
-- Embedded text subtitles (SRT, ASS/SSA, MP4 text) are extracted with FFmpeg once and cached.
+- Embedded text subtitles (SRT, ASS/SSA, MP4 text) are extracted with FFmpeg once and cached. FFmpeg has to read the whole video file for that, so all text subtitles of a file are extracted in that one read: picking another language afterwards is instant.
+- **Prepare subtitles ahead of time** (**Admin → Server**, on by default): extracts these subtitles in the background, so they appear at once when someone picks one, also in a large file on a NAS. It starts when nobody has watched for 15 minutes and no scan runs, newest files first, one file at a time at the lowest priority, and stops the file it is reading as soon as someone starts watching (that file is read again later). Every file is read once in full, so the first round over a large library can take a few nights; after that only new and replaced files. The page shows how many files are still to do.
 - Image-based subtitles (PGS, VobSub) cannot be shown in the browser without converting them, which Vidalune does not do. Use text subtitles (SRT, ASS, WebVTT) instead.
 - Vidalune draws subtitles itself, so they look the same in every browser and move above the player controls when those are shown.
 - The subtitle menu names each subtitle by its language, plus its title when there are several in one language (*English · SDH*, *English · Commentary*).

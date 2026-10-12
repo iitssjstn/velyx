@@ -364,8 +364,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   - Gemeld door de eigenaar (11 okt): ondertitels verschijnen merkbaar later en nergens is te zien dat er
     iets laadt. Oorzaak bevestigd in de code: de website laadt de ondertitel via een `<track>`-element
     (`Player.tsx`) zonder laad- of foutstatus, en de server leest voor een ingebouwde ondertitel eerst het
-    hele bestand. Bij een groot 4K-bestand op de NAS, terwijl de optimizer de twee cores gebruikt, duurt dat
-    lang. Nog niet bouwen; eerst bespreken.
+    hele bestand (27 GB over de NAS duurt minuten; de optimizer stond uit). Vooraf uitpakken en één
+    leesronde per bestand gebouwd in 0.19.49 (zie daar); de laad-/foutmelding in de speler nog niet.
 - **HLS en ondertitels**: gecontroleerd, geen fout gevonden. Ondertitels zijn losse WebVTT-bestanden;
   de HLS-tijdlijn (`-copyts -start_at_zero`) en de uitgepakte ondertitels beginnen allebei bij het
   begin van het bestand, en de live stream verschuift de ondertitels met `?offset=`.
@@ -757,3 +757,27 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   `package.json`'s, `app/app.json` (versionCode 1948) en beide lockfiles bijgewerkt.
 - PR #133 gemerged 11 okt; release `v0.19.48` gecontroleerd: APK en beide `.deb`'s aanwezig.
 
+## Versie 0.19.49 (ondertitels vooraf klaarzetten)
+
+- Op verzoek van de eigenaar ("Bouw het", 12 okt), na zijn melding dat ondertitels lang op zich laten wachten.
+- Eén leesronde per bestand: vraagt een kijker een ingebouwde ondertitel op, dan schrijft FFmpeg alle
+  tekstondertitels van dat bestand in dezelfde keer (`EmbeddedSubtitleExtractor.extract` met `also`). Lukt
+  dat niet, dan alleen de gevraagde. Een tweede kijker of de achtergrondtaak wacht op een lopende leesronde
+  in plaats van een tweede te starten. Time-out: 10 minuten, of langer voor grote bestanden (10 MB/s).
+- `SubtitlePrefetcher` (`backend/src/services/subtitle-prefetch.ts`): pakt op de achtergrond de
+  tekstondertitels van alle bestanden uit, nieuwste eerst, één bestand tegelijk met nice 19. Begint pas als
+  er 15 minuten niemand kijkt en er geen scan loopt; stopt het bestand dat hij leest zodra iemand gaat kijken
+  (niets half bewaard, later opnieuw), behalve als een kijker op juist die ondertitel wacht. Een mislukt
+  bestand wordt pas opnieuw geprobeerd als het bestand verandert (in het geheugen; na een herstart opnieuw).
+  Na elke scan wordt hij gewekt. Dezelfde cachebestanden als voorheen, dus de speler hoeft niets te weten.
+- Beheer > Server: schakelaar "Ondertitels vooraf klaarzetten" (standaard aan) met hoeveel bestanden nog te
+  doen zijn. Engels en Nederlands; README bijgewerkt.
+- Nog niet: het tijdvak van de geplande taken (bestaat nog niet; dit wordt daar later een taak van) en de
+  melding "Ondertitel laden…" in de speler.
+- Tests: echte FFmpeg (alle sporen in één leesronde, stoppen zonder halve bestanden, kijker die aanhaakt,
+  kijker precies bij het stoppen, verzoek via de route) en de planning van de taak (wachten op stilte, scan,
+  uit, stoppen bij kijken, mislukt pas opnieuw na wijziging); frontend: schakelaar en aantal. Backend 570,
+  frontend 310, cloud 128, app 150 tests slagen; alle typechecks, lint (0 fouten, 4 bekende
+  waarschuwingen) en de productiebuilds slagen. Op de NAS te testen: een groot bestand zonder kijkers een
+  kwartier laten staan en daarna een ondertitel kiezen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1949) en beide lockfiles bijgewerkt.
