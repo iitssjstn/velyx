@@ -18,14 +18,14 @@ export function ServerSettingsPanel() {
   const { refetchServer } = useAuth();
   const { t, tRich } = useT();
   const q = useQuery({ queryKey: ['admin', 'settings'], queryFn: () => api.get<ServerSettings>('/api/admin/settings') });
-  const [form, setForm] = useState({ serverName: '', tmdbLanguage: '', includeAdult: false, watchFolders: true, updateCheck: true, scanOnStartup: false, deferScansWhilePlaying: true, segmentDetection: true, segmentVideo: true, sharedDetection: false });
+  const [form, setForm] = useState({ serverName: '', tmdbLanguage: '', includeAdult: false, watchFolders: true, updateCheck: true, scanOnStartup: false, deferScansWhilePlaying: true, segmentDetection: true, segmentVideo: true, sharedDetection: false, subtitlePrefetch: true, maintenanceStart: '02:00', maintenanceEnd: '06:00', maintenanceOutside: true });
   // '' = use SCAN_INTERVAL_MINUTES from the environment
   const [interval, setScanInterval] = useState('');
   const [key, setKey] = useState('');
 
   useEffect(() => {
     if (!q.data) return;
-    setForm({ serverName: q.data.serverName, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult, watchFolders: q.data.watchFolders, updateCheck: q.data.updateCheck, scanOnStartup: q.data.scanOnStartup, deferScansWhilePlaying: q.data.deferScansWhilePlaying, segmentDetection: q.data.segmentDetection, segmentVideo: q.data.segmentVideo, sharedDetection: q.data.sharedDetection });
+    setForm({ serverName: q.data.serverName, tmdbLanguage: q.data.tmdbLanguage, includeAdult: q.data.includeAdult, watchFolders: q.data.watchFolders, updateCheck: q.data.updateCheck, scanOnStartup: q.data.scanOnStartup, deferScansWhilePlaying: q.data.deferScansWhilePlaying, segmentDetection: q.data.segmentDetection, segmentVideo: q.data.segmentVideo, sharedDetection: q.data.sharedDetection, subtitlePrefetch: q.data.subtitlePrefetch, maintenanceStart: q.data.maintenanceStart, maintenanceEnd: q.data.maintenanceEnd, maintenanceOutside: q.data.maintenanceOutside });
     setScanInterval(q.data.scanIntervalSource === 'settings' ? String(q.data.scanIntervalMinutes) : '');
   }, [q.data]);
 
@@ -134,6 +134,44 @@ export function ServerSettingsPanel() {
             <span>
               {t('server.sharedDetection')}
               <span className="block text-xs text-faint">{t('server.sharedDetectionHint')}</span>
+            </span>
+          </label>
+        </fieldset>
+        <fieldset className="space-y-4 border-t border-line/60 pt-5">
+          <legend className="sr-only">{t('server.maintenance')}</legend>
+          <h3 className="font-display text-base font-semibold">{t('server.maintenance')}</h3>
+          <p className="text-sm text-muted">{t('server.maintenanceText')}</p>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="mstart">{t('server.maintenanceStart')}</label>
+              <input id="mstart" type="time" className="input" required value={form.maintenanceStart} onChange={(e) => setForm({ ...form, maintenanceStart: e.target.value })} />
+            </div>
+            <div>
+              <label className="label" htmlFor="mend">{t('server.maintenanceEnd')}</label>
+              <input id="mend" type="time" className="input" required value={form.maintenanceEnd} onChange={(e) => setForm({ ...form, maintenanceEnd: e.target.value })} />
+            </div>
+          </div>
+          <p className="text-xs text-faint">{t('server.maintenanceServerTime', { time: s.serverTime, zone: s.serverTimeZone })}</p>
+          <label className="flex items-start gap-3 text-sm">
+            <input type="checkbox" className="mt-0.5 size-4 accent-[var(--color-accent)]" checked={form.maintenanceOutside} onChange={(e) => setForm({ ...form, maintenanceOutside: e.target.checked })} />
+            <span>
+              {t('server.maintenanceOutside')}
+              <span className="block text-xs text-faint">{t('server.maintenanceOutsideHint')}</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3 text-sm">
+            <input type="checkbox" className="mt-0.5 size-4 accent-[var(--color-accent)]" checked={form.subtitlePrefetch} onChange={(e) => setForm({ ...form, subtitlePrefetch: e.target.checked })} />
+            <span>
+              {t('server.subtitlePrefetch')}
+              <span className="block text-xs text-faint">{t('server.subtitlePrefetchHint')}</span>
+              {s.subtitlePrefetch && (
+                <span className="block text-xs text-muted">
+                  {s.subtitlePrefetchStatus.pending > 0 ? t('server.subtitlePrefetchPending', { count: s.subtitlePrefetchStatus.pending }) : t('server.subtitlePrefetchDone')}
+                </span>
+              )}
+              {s.subtitlePrefetch && s.subtitlePrefetchStatus.pending > 0 && s.subtitlePrefetchStatus.waitingFor === 'window' && (
+                <span className="block text-xs text-muted">{t('server.subtitlePrefetchWaitsForWindow')}</span>
+              )}
             </span>
           </label>
         </fieldset>

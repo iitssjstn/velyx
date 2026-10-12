@@ -120,6 +120,13 @@ export interface ServerSettings {
   /** Scheduled scans wait while someone is watching (up to a few hours). */
   deferScansWhilePlaying: boolean;
   /** Look for intros and credits in the background (audio only; it waits while a scan runs or while people watch on a busy machine). */
+  /** Maintenance window for heavy background work, local server time ("HH:MM"; may run past midnight). */
+  maintenanceStart: string;
+  maintenanceEnd: string;
+  /** Background work may also run outside the window once the server has been quiet for a while. */
+  maintenanceOutside: boolean;
+  /** Extract embedded text subtitles ahead of time while the server is quiet. */
+  subtitlePrefetch: boolean;
   segmentDetection: boolean;
   /** Also recognise end credits in the picture (keyframes of the last minutes, low resolution). */
   segmentVideo: boolean;
@@ -172,6 +179,10 @@ const DEFAULTS: ServerSettings = {
   scanOnStartup: false,
   deferScansWhilePlaying: true,
   segmentDetection: true,
+  subtitlePrefetch: true,
+  maintenanceStart: '02:00',
+  maintenanceEnd: '06:00',
+  maintenanceOutside: true,
   segmentVideo: true,
   sharedDetection: false,
   cleanupRules: DEFAULT_CLEANUP_RULES,

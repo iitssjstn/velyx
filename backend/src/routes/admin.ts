@@ -21,6 +21,7 @@ import { backupPath, cancelRestore, snapshotDatabase, pendingRestore, stageResto
 import { createLogger } from '../logger.js';
 import { requestLanguage } from '../i18n/index.js';
 import type { RemuxEngine } from '../playback/remux.js';
+import { TIME_OF_DAY } from '../services/maintenance-window.js';
 
 const log = createLogger('admin');
 
@@ -67,6 +68,10 @@ const settingsBody = z.object({
   scanOnStartup: z.boolean().optional(),
   deferScansWhilePlaying: z.boolean().optional(),
   segmentDetection: z.boolean().optional(),
+  subtitlePrefetch: z.boolean().optional(),
+  maintenanceStart: z.string().regex(TIME_OF_DAY, 'Use a time like 02:00').optional(),
+  maintenanceEnd: z.string().regex(TIME_OF_DAY, 'Use a time like 06:00').optional(),
+  maintenanceOutside: z.boolean().optional(),
   segmentVideo: z.boolean().optional(),
   sharedDetection: z.boolean().optional(),
   updateCheck: z.boolean().optional(),
@@ -522,6 +527,14 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       segmentDetection: s.segmentDetection,
       segmentVideo: s.segmentVideo,
       sharedDetection: s.sharedDetection,
+      subtitlePrefetch: s.subtitlePrefetch,
+      subtitlePrefetchStatus: ctx.subtitlePrefetch.status(),
+      maintenanceStart: s.maintenanceStart,
+      maintenanceEnd: s.maintenanceEnd,
+      maintenanceOutside: s.maintenanceOutside,
+      // The window is in the server's own time (TZ): shown so the administrator can check it.
+      serverTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
+      serverTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
   };
 
@@ -575,12 +588,13 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (rest.scanIntervalMinutes !== undefined) ctx.scans.configureSchedule(ctx.settings.scanIntervalMinutes());
     if (rest.segmentDetection === true) ctx.segments.enqueuePending();
     if (rest.segmentDetection !== undefined) ctx.segments.poke();
+    if (rest.subtitlePrefetch !== undefined || rest.maintenanceStart !== undefined || rest.maintenanceEnd !== undefined || rest.maintenanceOutside !== undefined) ctx.subtitlePrefetch.poke();
     if (rest.sharedDetection === true) void ctx.sharedDetection.syncAll();
     if (rest.sharedDetection === false) ctx.sharedDetection.clearLabels();
     // Names of what changed only — never the values of keys.
     const tmdbChanges = [tmdbApiKey !== undefined ? (tmdbApiKey === '' ? 'API key removed' : 'API key changed') : null, rest.tmdbLanguage !== undefined ? `language ${rest.tmdbLanguage || 'default'}` : null, rest.includeAdult !== undefined ? `adult titles ${rest.includeAdult ? 'on' : 'off'}` : null].filter(Boolean);
     if (tmdbChanges.length) ctx.audit.record('tmdb.updated', { actor: request.user, ip: request.ip, detail: tmdbChanges.join('; ') });
-    const serverChanges = (['serverName', 'serverUrl', 'watchFolders', 'updateCheck', 'scanIntervalMinutes', 'scanOnStartup', 'deferScansWhilePlaying', 'segmentDetection', 'segmentVideo', 'sharedDetection'] as const).filter((k) => rest[k] !== undefined);
+    const serverChanges = (['serverName', 'serverUrl', 'watchFolders', 'updateCheck', 'scanIntervalMinutes', 'scanOnStartup', 'deferScansWhilePlaying', 'segmentDetection', 'segmentVideo', 'sharedDetection', 'subtitlePrefetch', 'maintenanceStart', 'maintenanceEnd', 'maintenanceOutside'] as const).filter((k) => rest[k] !== undefined);
     if (serverChanges.length) ctx.audit.record('settings.updated', { actor: request.user, ip: request.ip, detail: serverChanges.join(', ') });
     if (!wasConfigured && ctx.tmdb.configured) {
       log.info('TMDB configured — fetching metadata for existing libraries');

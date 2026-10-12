@@ -97,7 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- Laatste release: **0.19.47** (PR #132, gemerged 11 okt op verzoek van de eigenaar na groene CI); release `v0.19.47` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.48** (PR #133, aanvraagknop; gemerged 11 okt op verzoek van de eigenaar na groene CI); release `v0.19.48` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -301,6 +301,19 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **HDR wordt niet omgezet naar SDR** (gevonden 11 okt bij een 4K-HDR-optimalisatie van de eigenaar; nog
+  niet bouwen): `optimization.ts` en `transcode.ts` schalen alleen; zonder tonemapping ziet een H.264-kopie
+  of live conversie van een HDR-bron er op gewone schermen grauw en flets uit. Oplossing: bij HDR-bron
+  (bt2020/PQ/HLG) tonemappen (software `zscale`+`tonemap`, of op de GPU, bijvoorbeeld `tonemap_vaapi` /
+  `vpp_qsv`), met test op een korte HDR-fixture. De eigenaar zoekt nieuwe serverhardware; Intel met Quick
+  Sync maakt dit en de conversies veel sneller.
+
+- **Titel kiezen onder Beheer > Optimalisatie is omslachtig** (gemeld 11 okt, screenshot; nog niet bouwen):
+  eerst typen en dan de titel nog eens uit een dropdown kiezen. Wens: geen dropdown, maar de zoekresultaten
+  als kaartjes met poster (metadata) en titel/jaar; klikken kiest de titel. Hergebruik `quickItems`
+  (`frontend/src/lib/search.ts`) en `Artwork`, net als `QuickSearch`. Ook de wachtrijregels kunnen de poster
+  tonen. Bespreken als leeropdracht voor de eigenaar.
+
 - **Kwaliteitsoptimizer: plek en snelheid** (gemeld 8 okt; besloten en gebouwd in 0.19.42).
   1. De bediening (`OptimizationControls`) staat onderaan de film- en afleveringspagina's en blijft daar.
      Daarnaast komt een beheerpagina met wachtrij, zodat de beheerder kan volgen wat bezig is, wat wacht en
@@ -348,6 +361,11 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   - alle tekstondertitels van een bestand in **één** leesronde uitpakken (één keer lezen voor alle talen);
   - dat vooraf op de achtergrond doen (lage prioriteit, na de scan of bij de start van het afspelen);
   - in de speler "Ondertitel laden…" tonen, en een melding als het mislukt.
+  - Gemeld door de eigenaar (11 okt): ondertitels verschijnen merkbaar later en nergens is te zien dat er
+    iets laadt. Oorzaak bevestigd in de code: de website laadt de ondertitel via een `<track>`-element
+    (`Player.tsx`) zonder laad- of foutstatus, en de server leest voor een ingebouwde ondertitel eerst het
+    hele bestand (27 GB over de NAS duurt minuten; de optimizer stond uit). Vooraf uitpakken en één
+    leesronde per bestand gebouwd in 0.19.49 (zie daar); de laad-/foutmelding in de speler nog niet.
 - **HLS en ondertitels**: gecontroleerd, geen fout gevonden. Ondertitels zijn losse WebVTT-bestanden;
   de HLS-tijdlijn (`-copyts -start_at_zero`) en de uitgepakte ondertitels beginnen allebei bij het
   begin van het bestand, en de live stream verschuift de ondertitels met `?offset=`.
@@ -737,5 +755,38 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Op verzoek van de eigenaar ("maak het klaar en merge het", 11 okt): de fix voor de aanvraagknop die bij
   een serie bleef staan zolang een aanvraag op goedkeuring wacht (zie "Stand van zaken"). Versie in alle
   `package.json`'s, `app/app.json` (versionCode 1948) en beide lockfiles bijgewerkt.
-- Na de merge: release `v0.19.48` controleren (APK en beide `.deb`'s).
+- PR #133 gemerged 11 okt; release `v0.19.48` gecontroleerd: APK en beide `.deb`'s aanwezig.
 
+## Versie 0.19.49 (ondertitels vooraf klaarzetten en onderhoudsvenster)
+
+- Op verzoek van de eigenaar ("Bouw het", 12 okt), na zijn melding dat ondertitels lang op zich laten wachten.
+  Daarna: "Voeg ook de tijdvak in de PR" (12 okt).
+- Eén leesronde per bestand: vraagt een kijker een ingebouwde ondertitel op, dan schrijft FFmpeg alle
+  tekstondertitels van dat bestand in dezelfde keer (`EmbeddedSubtitleExtractor.extract` met `also`). Lukt
+  dat niet, dan alleen de gevraagde. Een tweede kijker of de achtergrondtaak wacht op een lopende leesronde
+  in plaats van een tweede te starten. Time-out: 10 minuten, of langer voor grote bestanden (10 MB/s).
+- `SubtitlePrefetcher` (`backend/src/services/subtitle-prefetch.ts`): pakt op de achtergrond de
+  tekstondertitels van alle bestanden uit, nieuwste eerst, één bestand tegelijk met nice 19. Stopt het
+  bestand dat hij leest zodra iemand gaat kijken of het venster sluit (niets half bewaard, later opnieuw),
+  behalve als een kijker op juist die ondertitel wacht. Een mislukt bestand wordt pas opnieuw geprobeerd als
+  het bestand verandert (in het geheugen; na een herstart opnieuw). Na elke scan wordt hij gewekt. Dezelfde
+  cachebestanden als voorheen, dus de speler hoeft niets te weten.
+- **Onderhoudsvenster** (Beheer > Server, standaard 02:00–06:00, servertijd via TZ, mag over middernacht):
+  binnen het venster werkt de taak zodra er niemand kijkt; "Ook buiten het venster werken als de server stil
+  is" (standaard aan) laat hem ook daarbuiten werken na 15 minuten zonder kijkers en zonder scan. De pagina
+  toont de servertijd en tijdzone, zodat een verkeerde TZ opvalt. `maintenanceStart`/`maintenanceEnd`
+  (Zod: HH:MM) en `maintenanceOutside` in de instellingen, `inMaintenanceWindow`
+  (`backend/src/services/maintenance-window.ts`). Dit is het begin van de geplande taken; de volledige pagina
+  Beheer > Geplande taken (per taak aan/uit, eigen schema, geavanceerde weergave) is nog niet gebouwd.
+- Beheer > Server: schakelaar "Ondertitels vooraf klaarzetten" (standaard aan) met hoeveel bestanden nog te
+  doen zijn en of hij op het venster wacht. Engels en Nederlands; README bijgewerkt.
+- Nog niet: de melding "Ondertitel laden…" in de speler.
+- Tests: echte FFmpeg (alle sporen in één leesronde, stoppen zonder halve bestanden, kijker die aanhaakt,
+  kijker precies bij het stoppen, verzoek via de route), de taak (wachten op stilte, scan, uit, venster,
+  alleen-venster en stoppen bij sluiten, stoppen bij kijken, mislukt pas opnieuw na wijziging), het venster
+  (over middernacht, grenzen, tijdnotatie) en de instellingen-API; frontend: schakelaars, venster en
+  servertijd. Backend 576, frontend 311, cloud 128, app 150 tests slagen; alle typechecks, lint (0 fouten, 4
+  bekende waarschuwingen) en de productiebuilds slagen. Op de NAS te testen: na de update een ondertitel
+  kiezen bij een groot bestand nadat het venster (of een stil kwartier) voorbij is; controleren dat de
+  getoonde servertijd klopt.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1949) en beide lockfiles bijgewerkt.
