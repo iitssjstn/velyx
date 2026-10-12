@@ -264,6 +264,23 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const subKeyRef = useRef<string | null>(null);
   const [activeTrack, setActiveTrack] = useState<{ video: HTMLVideoElement; track: TextTrack; stream: string | null; load: number } | null>(null);
   const [subDelay, setSubDelay] = useState(0);
+  // A live stream restarted at a new position: the last picture of the old one stays on screen
+  // (drawn on a canvas) until the new one shows its first frame, instead of the artwork behind it.
+  const freezeRef = useRef<HTMLCanvasElement>(null);
+  const [frozen, setFrozen] = useState(false);
+  const freezeFrame = useCallback(() => {
+    const v = videoRef.current;
+    const canvas = freezeRef.current;
+    if (!v || !canvas || v.readyState < 2 || !v.videoWidth) return;
+    try {
+      canvas.width = v.videoWidth;
+      canvas.height = v.videoHeight;
+      canvas.getContext('2d')?.drawImage(v, 0, 0);
+      setFrozen(true);
+    } catch {
+      // Nothing to show: the artwork stays, as before.
+    }
+  }, []);
 
   const info = playback.data;
   // Files the browser cannot open as they are come in short pieces (HLS) where the browser plays
@@ -398,10 +415,11 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           return;
         }
         pendingSeekRef.current = target;
+        freezeFrame();
         setStream({ base: streamBase!, ...r });
       }, 250);
     },
-    [info, streamBase],
+    [info, streamBase, freezeFrame],
   );
   useEffect(() => () => clearTimeout(restartTimer.current), []);
 
@@ -658,6 +676,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     setStream(null);
     setSubDelay(0);
     setActiveTrack(null);
+    setFrozen(false);
     setEnded(false);
     setRevealed(false);
     setCountdown(null);
@@ -1124,7 +1143,10 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           playsInline
           poster={imageUrl(item.data?.backdrop, 'w1280') ?? undefined}
           onLoadedMetadata={onLoadedMetadata}
-          onLoadedData={() => setRevealed(true)}
+          onLoadedData={() => {
+            setRevealed(true);
+            setFrozen(false);
+          }}
           onDurationChange={() => !live && setDuration(videoRef.current?.duration ?? 0)}
           onTimeUpdate={onTimeUpdate}
           onPlay={() => {
@@ -1161,6 +1183,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           ))}
         </video>
       )}
+      <canvas ref={freezeRef} aria-hidden className={`pointer-events-none absolute inset-0 h-full w-full object-contain ${frozen && !mini && !postPlay ? '' : 'hidden'}`} />
 
       {/* The chosen subtitle stays selected while minimized; it is only not drawn on the small video. */}
       {!mini && !postPlay && <SubtitleOverlay video={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.video : null} track={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.track : null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />}

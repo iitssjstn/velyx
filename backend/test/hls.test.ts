@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { HlsSessions, copyLayout, gridLayout, hlsArgs, playlist, readKeyframes, segmentAt, type HlsSource } from '../src/playback/hls.js';
+import { HlsSessions, KeyframesStopped, copyLayout, gridLayout, hlsArgs, playlist, readKeyframes, segmentAt, type HlsSource } from '../src/playback/hls.js';
 import type { RemuxPlan } from '../src/playback/remux.js';
 import { encodeArgs } from '../src/playback/transcode.js';
 
@@ -94,14 +94,35 @@ describe('HLS pieces', () => {
     }
   });
 
+  it('stops a background keyframe read when asked, keeping nothing, unless a viewer waits for it', async () => {
+    const kdir = path.join(dir, 'keyframes-stop');
+    const sessions = new HlsSessions('ffmpeg', 'ffprobe', path.join(dir, 'cache-s'), kdir);
+    try {
+      const stop = new AbortController();
+      const background = sessions.learn('7:1:1', mkv, stop.signal);
+      stop.abort();
+      expect(await background.catch((e: unknown) => e)).toBeInstanceOf(KeyframesStopped);
+      expect(sessions.ready('7:1:1')).toBe(false);
+      expect(fs.readdirSync(kdir)).toEqual([]);
+      // A viewer who asks while the background read runs keeps it going.
+      const again = new AbortController();
+      const read = sessions.learn('8:1:1', mkv, again.signal);
+      const viewer = sessions.layout('8:1:1', mkv, 30, false);
+      again.abort();
+      expect((await viewer).starts).toHaveLength(10);
+      await read;
+      expect(sessions.ready('8:1:1')).toBe(true);
+    } finally {
+      sessions.stopAll();
+    }
+  });
+
   it('finds the keyframes in the background once, and keeps them for the next start of the server', async () => {
     const kdir = path.join(dir, 'keyframes');
     const first = new HlsSessions('ffmpeg', 'ffprobe', path.join(dir, 'cache-k'), kdir);
     try {
       expect(first.ready('5:1:1')).toBe(false);
-      first.prepare('5:1:1', mkv);
-      const until = Date.now() + 30_000;
-      while (!first.ready('5:1:1') && Date.now() < until) await new Promise((r) => setTimeout(r, 50));
+      await first.learn('5:1:1', mkv);
       expect(first.ready('5:1:1')).toBe(true);
     } finally {
       first.stopAll();

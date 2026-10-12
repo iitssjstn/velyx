@@ -2,12 +2,13 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { addLibrary, createTestEnv, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
 import { mediaFiles } from '../src/db/schema.js';
 import { EmbeddedSubtitleExtractor, isStopped, StoppedError } from '../src/services/subtitles.js';
-import { SubtitlePrefetcher, type PrefetchHooks } from '../src/services/subtitle-prefetch.js';
+import { needsKeyframes, SubtitlePrefetcher, type KeyframeStore, type PrefetchHooks } from '../src/services/subtitle-prefetch.js';
+import { KeyframesStopped } from '../src/playback/hls.js';
 import type { SubtitleTrackInfo } from '../src/db/schema.js';
 
 const hasFfmpeg = (() => {
@@ -260,5 +261,75 @@ describe('maintenance window settings', () => {
     } finally {
       await env.cleanup();
     }
+  });
+});
+
+describe('keyframes prepared ahead of time', () => {
+  it('are needed for every file a browser cannot play as it is', () => {
+    const f = (container: string, videoCodec: string, audioCodec: string | null) => ({ container, videoCodec, audioCodec, durationSec: 5400 });
+    expect(needsKeyframes(f('mp4', 'h264', 'aac'))).toBe(false);
+    expect(needsKeyframes(f('mkv', 'h264', 'aac'))).toBe(true);
+    expect(needsKeyframes(f('mp4', 'h264', 'eac3'))).toBe(true);
+    expect(needsKeyframes(f('mp4', 'hevc', 'aac'))).toBe(true);
+    expect(needsKeyframes({ ...f('mkv', 'h264', 'dts'), durationSec: null })).toBe(false);
+  });
+
+  let env: TestEnv;
+  afterEach(() => env?.cleanup());
+
+  async function library() {
+    const probes: Record<string, Parameters<typeof fakeProbe>[0]> = {
+      'Heat (1995).mkv': { container: 'mkv', audioCodec: 'dts', subtitleTracks: [] },
+      'Arrival (2016).mp4': { container: 'mp4', videoCodec: 'h264', audioCodec: 'aac', subtitleTracks: [] },
+    };
+    env = await createTestEnv({ prober: async (file) => fakeProbe({ durationSec: 5400, ...probes[path.basename(file)] }) });
+    const admin = await setupAdmin(env.app);
+    for (const name of Object.keys(probes)) touch(path.join(env.mediaDir, 'movies', name));
+    await addLibrary(env, admin, 'movies', 'movies');
+    return admin;
+  }
+
+  it('are found in the background for files that may play in pieces, stopped when someone watches, and not retried after a failure', async () => {
+    await library();
+    const learned: string[] = [];
+    let mode: 'ok' | 'hold' | 'fail' = 'hold';
+    const store: KeyframeStore = {
+      ready: (key) => learned.includes(key),
+      learn: async (key, _input, signal) => {
+        if (mode === 'fail') throw new Error('unreadable');
+        if (mode === 'hold') await new Promise<void>((_r, reject) => signal?.addEventListener('abort', () => reject(new KeyframesStopped())));
+        learned.push(key);
+      },
+    };
+    let busy: 'playback' | null = null;
+    const p = new SubtitlePrefetcher(env.ctx.db, { isCached: () => true, extractAll: async () => undefined }, { enabled: () => true, busy: () => busy, inWindow: () => true, outsideWindow: () => true, checkMs: 5 }, store);
+    expect(p.status().pending).toBe(1);
+    const running = p.step();
+    await new Promise((r) => setTimeout(r, 20));
+    busy = 'playback';
+    expect(await running).toBe('stopped');
+    busy = null;
+    mode = 'fail';
+    expect(await p.step()).toBe('failed');
+    expect(await p.step()).toBe('empty');
+    // Only the MKV (DTS) needed keyframes; the MP4 with H.264 and AAC plays as it is everywhere.
+    const heat = env.ctx.db.select().from(mediaFiles).where(eq(mediaFiles.path, path.join(env.mediaDir, 'movies', 'Heat (1995).mkv'))).get()!;
+    env.ctx.db.update(mediaFiles).set({ mtimeMs: heat.mtimeMs + 1000 }).where(eq(mediaFiles.id, heat.id)).run();
+    mode = 'ok';
+    expect(await p.step()).toBe('done');
+    expect(learned).toEqual([`${heat.id}:${heat.size}:${heat.mtimeMs + 1000}`]);
+  });
+
+  it('let the website play a repackaged file in pieces once they are known', async () => {
+    const admin = await library();
+    const heat = env.ctx.db.select().from(mediaFiles).where(eq(mediaFiles.path, path.join(env.mediaDir, 'movies', 'Heat (1995).mkv'))).get()!;
+    const play = async () => (await env.app.inject({ method: 'POST', url: `/api/media/${heat.id}/playback`, headers: { cookie: admin }, payload: { containers: ['mp4', 'webm'], videoCodecs: ['h264'], audioCodecs: ['aac', 'mp3', 'opus'] } })).json();
+    const before = await play();
+    expect(before.decision).toMatchObject({ engine: 'remux', seek: 'restart' });
+    expect(before.decision.hlsUrl).toBeUndefined();
+    const ready = vi.spyOn(env.ctx.hls, 'ready').mockImplementation((key) => key === `${heat.id}:${heat.size}:${heat.mtimeMs}`);
+    const after = await play();
+    expect(after.decision.hlsUrl).toMatch(new RegExp(`^/api/media/${heat.id}/hls/index\\.m3u8\\?`));
+    ready.mockRestore();
   });
 });

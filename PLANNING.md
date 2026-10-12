@@ -97,7 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- Laatste release: **0.19.48** (PR #133, aanvraagknop; gemerged 11 okt op verzoek van de eigenaar na groene CI); release `v0.19.48` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.49** (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster; gemerged 12 okt op verzoek van de eigenaar na groene CI); release `v0.19.49` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -790,3 +790,27 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   kiezen bij een groot bestand nadat het venster (of een stil kwartier) voorbij is; controleren dat de
   getoonde servertijd klopt.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1949) en beide lockfiles bijgewerkt.
+- PR #134 gemerged 12 okt; release `v0.19.49` gecontroleerd: APK en beide `.deb`'s aanwezig.
+
+## Versie 0.19.50 (spoelen binnen één stream)
+
+- Gemeld door de eigenaar (12 okt): bij vooruitspoelen zie je de achtergrondfoto in plaats van de film. Oorzaak:
+  bij een remux (video gekopieerd, bv. MKV met DTS) maakt de website bij elk spoelen een nieuwe stream; het
+  nieuwe `<video>`-element toont de `poster` tot het eerste beeld. HLS (stukjes, één stream) werd voor gekopieerde
+  video op de website niet gebruikt, omdat de keyframes eerst het hele bestand lezen. Besluit eigenaar: "Ja, ik
+  wil dat het bekijken van een film/serie echt het beste gevoel is".
+- De achtergrondtaak (Beheer > Server, nu "Bestanden vooraf klaarzetten voor afspelen") zoekt per bestand ook de
+  keyframes (`HlsSessions.learn`, lage prioriteit, stopbaar, niets half bewaard; een kijker die wacht houdt het
+  lezen gaande). Alleen voor bestanden die niet overal direct spelen (`needsKeyframes`: niet MP4/M4V/MOV met
+  H.264 en AAC/MP3). Twee leesrondes per bestand (ondertitels met FFmpeg, keyframes met FFprobe); samenvoegen
+  kan later. Zijn de keyframes bekend, dan biedt `/api/media/:id/playback` de website HLS aan voor gekopieerde
+  video: spoelen blijft in één stream, gemaakte stukjes komen direct terug.
+- Terugval zolang de keyframes nog niet bekend zijn: de speler tekent vóór de nieuwe stream het laatste beeld op
+  een `<canvas>` boven de video, tot het eerste nieuwe beeld er is (geen achtergrondfoto meer).
+- Niet veranderd: de app (eigen speler) en `seekLanding`; de Chromecast gebruikte al HLS.
+- Tests: keyframes stoppen/aanhaken (echte FFprobe), achtergrondtaak (alleen nodige bestanden, stoppen bij kijken,
+  mislukt pas opnieuw na wijziging), HLS-aanbod na keyframes (faalt op oude code), speler houdt het laatste beeld
+  vast (faalt zonder de wijziging). Backend 580, frontend 312, cloud 128, app 150 tests; typechecks, lint (4 bekende
+  waarschuwingen) en builds slagen. Op echte hardware te testen: na een nacht in het venster een MKV met DTS
+  vooruit/terug spoelen op de website.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1950) en beide lockfiles bijgewerkt.

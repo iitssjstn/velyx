@@ -1,6 +1,7 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { createLogger } from '../logger.js';
 import { audioFilters, type RemuxPlan, type VideoEncode } from './remux.js';
@@ -25,8 +26,6 @@ export const GRID_SECONDS = 4;
 const AHEAD_SECONDS = 120;
 /** Reading a file's keyframes reads the whole file (minutes for a film on a NAS): at most this long. */
 const KEYFRAME_SCAN_MS = 20 * 60_000;
-/** At most this many files are read for their keyframes at once in the background. */
-const MAX_BACKGROUND_SCANS = 2;
 /** Stopped and removed after this long without a request. */
 const IDLE_MS = 3 * 60_000;
 /** At most this many being made at once (the oldest stops). */
@@ -77,12 +76,25 @@ export function playlist(layout: Layout, query: string): string {
   return lines.join('\n');
 }
 
-/** Keyframe times of the first video stream (seconds from the file's start), from the index: no decoding. */
-export function readKeyframes(ffprobePath: string, file: string): Promise<number[]> {
+/** Identifies a file's keyframes: a changed file (other size or modification time) is read again. */
+export const keyframesKey = (file: { id: number; size: number; mtimeMs: number }): string => `${file.id}:${file.size}:${file.mtimeMs}`;
+
+/**
+ * Keyframe times of the first video stream (seconds from the file's start), from the index: no decoding.
+ * `background` reads at the lowest priority; `signal` stops the read.
+ */
+export function readKeyframes(ffprobePath: string, file: string, options: { signal?: AbortSignal; background?: boolean } = {}): Promise<number[]> {
   const run = (args: string[]) =>
-    new Promise<string>((resolve, reject) =>
-      execFile(ffprobePath, args, { timeout: KEYFRAME_SCAN_MS, maxBuffer: 256 * 1024 * 1024 }, (err, stdout) => (err ? reject(err) : resolve(String(stdout)))),
-    );
+    new Promise<string>((resolve, reject) => {
+      const child = execFile(ffprobePath, args, { timeout: KEYFRAME_SCAN_MS, maxBuffer: 256 * 1024 * 1024, signal: options.signal }, (err, stdout) => (err ? reject(err) : resolve(String(stdout))));
+      if (options.background && child.pid) {
+        try {
+          os.setPriority(child.pid, 19);
+        } catch {
+          /* best effort */
+        }
+      }
+    });
   return Promise.all([
     run(['-v', 'error', '-show_entries', 'format=start_time', '-of', 'csv=p=0', file]),
     run(['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'packet=pts_time,flags', '-of', 'csv=p=0', file]),
@@ -179,11 +191,19 @@ export interface HlsSource {
 }
 
 /** Makes and hands out the pieces: one FFmpeg run per session, restarted when the player jumps far. */
+/** A background keyframe read was stopped (someone started watching). */
+export class KeyframesStopped extends Error {
+  constructor() {
+    super('Keyframe reading stopped');
+  }
+}
+
 export class HlsSessions {
   private readonly sessions = new Map<string, Session>();
   /** Keyframes found (also kept on disk, in `keyframesDir`, across restarts). */
   private readonly known = new Map<string, number[]>();
-  private readonly scans = new Map<string, Promise<number[]>>();
+  /** Keyframes being read: a viewer waiting for one keeps a background read from being stopped. */
+  private readonly scans = new Map<string, { done: Promise<number[]>; joined: boolean; stop: () => void }>();
   private readonly timer: NodeJS.Timeout;
 
   constructor(
@@ -210,10 +230,28 @@ export class HlsSessions {
     return this.known.has(cacheKey) || fs.existsSync(this.keyframesFile(cacheKey));
   }
 
-  /** Starts finding a file's keyframes in the background (for the next time it is played). */
-  prepare(cacheKey: string, input: string): void {
-    if (this.ready(cacheKey) || this.scans.has(cacheKey) || this.scans.size >= MAX_BACKGROUND_SCANS) return;
-    this.keyframes(cacheKey, input).catch((err: Error) => log.warn(`Could not read the keyframes of ${input}: ${err.message}`));
+  /**
+   * Finds a file's keyframes ahead of time (background work, at the lowest priority), so the file can be
+   * played in pieces later. `signal` stops it, unless a viewer is waiting for the same keyframes by then.
+   */
+  async learn(cacheKey: string, input: string, signal?: AbortSignal): Promise<void> {
+    if (this.ready(cacheKey)) return;
+    const running = this.scans.get(cacheKey);
+    if (running) {
+      await running.done;
+      return;
+    }
+    if (signal?.aborted) throw new KeyframesStopped();
+    const scan = this.scan(cacheKey, input, false);
+    const onAbort = () => {
+      if (!scan.joined) scan.stop();
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    try {
+      await scan.done;
+    } finally {
+      signal?.removeEventListener('abort', onAbort);
+    }
   }
 
   private keyframesFile(cacheKey: string): string {
@@ -229,17 +267,37 @@ export class HlsSessions {
     } catch {
       /* not read before */
     }
-    let scan = this.scans.get(cacheKey);
-    if (!scan) {
-      scan = readKeyframes(this.ffprobePath, input)
+    const running = this.scans.get(cacheKey);
+    if (running) {
+      // A viewer waits for a background read: it is no longer stopped, and if it was just stopped, read again.
+      running.joined = true;
+      return running.done.catch((err: unknown) => (err instanceof KeyframesStopped ? this.scan(cacheKey, input, true).done : Promise.reject(err)));
+    }
+    return this.scan(cacheKey, input, true).done;
+  }
+
+  private scan(cacheKey: string, input: string, joined: boolean) {
+    const controller = new AbortController();
+    const entry = {
+      joined,
+      stop: () => controller.abort(),
+      done: readKeyframes(this.ffprobePath, input, { signal: controller.signal, background: !joined })
         .then((k) => {
-          fs.writeFileSync(this.keyframesFile(cacheKey), JSON.stringify(k));
+          // Written then renamed: a stopped write never leaves a half list behind.
+          const file = this.keyframesFile(cacheKey);
+          fs.writeFileSync(`${file}.tmp`, JSON.stringify(k));
+          fs.renameSync(`${file}.tmp`, file);
           return this.remember(cacheKey, k);
         })
-        .finally(() => this.scans.delete(cacheKey));
-      this.scans.set(cacheKey, scan);
-    }
-    return scan;
+        .catch((err: unknown) => {
+          throw controller.signal.aborted ? new KeyframesStopped() : err;
+        }),
+    };
+    this.scans.set(cacheKey, entry);
+    void entry.done.catch(() => undefined).finally(() => {
+      if (this.scans.get(cacheKey) === entry) this.scans.delete(cacheKey);
+    });
+    return entry;
   }
 
   private remember(cacheKey: string, keyframes: number[]): number[] {

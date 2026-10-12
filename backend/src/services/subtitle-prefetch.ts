@@ -4,6 +4,7 @@ import { libraries, mediaFiles } from '../db/schema.js';
 import { createLogger } from '../logger.js';
 import { resolveMediaPath } from './paths.js';
 import { isStopped, type EmbeddedSubtitleExtractor } from './subtitles.js';
+import { keyframesKey, KeyframesStopped } from '../playback/hls.js';
 
 const log = createLogger('subtitle-prefetch');
 
@@ -30,9 +31,25 @@ export interface PrefetchHooks {
   now?: () => number;
 }
 
+/** Where a file's keyframes are kept (the HLS sessions). */
+export interface KeyframeStore {
+  ready: (key: string) => boolean;
+  learn: (key: string, input: string, signal?: AbortSignal) => Promise<void>;
+}
+
+/**
+ * Files every browser plays as they are (MP4 with H.264 and AAC/MP3) never need pieces; any other file
+ * may be played in pieces (HLS), which needs its keyframes.
+ */
+export function needsKeyframes(f: { container: string | null; videoCodec: string | null; audioCodec: string | null; durationSec: number | null }): boolean {
+  if (!f.videoCodec || !f.durationSec) return false;
+  const plain = ['mp4', 'm4v', 'mov'].includes(f.container ?? '') && f.videoCodec === 'h264' && (!f.audioCodec || ['aac', 'mp3'].includes(f.audioCodec));
+  return !plain;
+}
+
 export interface PrefetchStatus {
   enabled: boolean;
-  /** Files whose text subtitles are not all extracted yet. */
+  /** Files whose text subtitles or keyframes are not all prepared yet. */
   pending: number;
   running: boolean;
   waitingFor: PrefetchWait | null;
@@ -44,21 +61,26 @@ interface Job {
   size: number;
   path: string;
   root: string;
+  /** Text subtitles not extracted yet. */
   indexes: number[];
+  /** Keyframes not known yet. */
+  keyframes: boolean;
 }
 
 type Step = 'done' | 'stopped' | 'failed' | 'empty' | PrefetchWait;
 
 /**
- * Extracts the embedded text subtitles of every file ahead of time, so a viewer who picks one does
- * not wait for FFmpeg to read the whole file. Works one file at a time at the lowest priority, newest
+ * Prepares every file for playback ahead of time: extracts its embedded text subtitles, so a viewer
+ * who picks one does not wait for FFmpeg to read the whole file, and finds its keyframes, so the
+ * website can play it in pieces (HLS) and seek within one stream. Both read the whole file. Works one file at a time at the lowest priority, newest
  * files first: in the maintenance window whenever nobody watches, outside it (when allowed) only after
  * the server has been quiet for a while. When someone starts watching or the window closes, the file
- * being read is stopped (its subtitles are not kept half) and read again later.
+ * being read is stopped (nothing is kept half) and read again later.
  */
 export class SubtitlePrefetcher {
-  /** Files whose extraction failed, by id and modification time: tried again only once the file changes. */
+  /** Files whose subtitles or keyframes could not be read, by id and modification time: tried again only once the file changes. */
   private failed = new Set<string>();
+  private failedKeyframes = new Set<string>();
   private lastBusyAt: number;
   private running = false;
   private waitingFor: PrefetchWait | null = null;
@@ -71,6 +93,7 @@ export class SubtitlePrefetcher {
     private readonly db: DB,
     private readonly extractor: Pick<EmbeddedSubtitleExtractor, 'isCached' | 'extractAll'>,
     private readonly hooks: PrefetchHooks,
+    private readonly keyframes: KeyframeStore | null = null,
   ) {
     this.lastBusyAt = this.now();
   }
@@ -110,19 +133,20 @@ export class SubtitlePrefetcher {
     this.loop = null;
   }
 
-  /** Files with embedded text subtitles that are not all extracted yet, newest first. */
+  /** Files whose text subtitles or keyframes are not all prepared yet, newest first. */
   private pending(): Job[] {
     const rows = this.db
-      .select({ id: mediaFiles.id, path: mediaFiles.path, size: mediaFiles.size, mtimeMs: mediaFiles.mtimeMs, tracks: mediaFiles.subtitleTracks, root: libraries.path })
+      .select({ id: mediaFiles.id, path: mediaFiles.path, size: mediaFiles.size, mtimeMs: mediaFiles.mtimeMs, tracks: mediaFiles.subtitleTracks, container: mediaFiles.container, videoCodec: mediaFiles.videoCodec, audioCodec: mediaFiles.audioCodec, durationSec: mediaFiles.durationSec, root: libraries.path })
       .from(mediaFiles)
       .innerJoin(libraries, eq(mediaFiles.libraryId, libraries.id))
       .orderBy(desc(mediaFiles.addedAt), desc(mediaFiles.id))
       .all();
     const jobs: Job[] = [];
     for (const r of rows) {
-      if (this.failed.has(`${r.id}-${Math.floor(r.mtimeMs)}`)) continue;
-      const indexes = (r.tracks ?? []).filter((t) => t.textBased && !this.extractor.isCached(r.id, r.mtimeMs, t.index)).map((t) => t.index);
-      if (indexes.length) jobs.push({ fileId: r.id, mtimeMs: r.mtimeMs, size: r.size, path: r.path, root: r.root, indexes });
+      const version = `${r.id}-${Math.floor(r.mtimeMs)}`;
+      const indexes = this.failed.has(version) ? [] : (r.tracks ?? []).filter((t) => t.textBased && !this.extractor.isCached(r.id, r.mtimeMs, t.index)).map((t) => t.index);
+      const keyframes = !!this.keyframes && !this.failedKeyframes.has(version) && needsKeyframes(r) && !this.keyframes.ready(keyframesKey(r));
+      if (indexes.length || keyframes) jobs.push({ fileId: r.id, mtimeMs: r.mtimeMs, size: r.size, path: r.path, root: r.root, indexes, keyframes });
     }
     return jobs;
   }
@@ -140,16 +164,18 @@ export class SubtitlePrefetcher {
     return this.now() - this.lastBusyAt < (this.hooks.quietMs ?? QUIET_MS) ? 'quiet' : null;
   }
 
-  /** One round: extracts the subtitles of the next file, or says why not. */
+  /** One round: prepares the next file, or says why not. */
   async step(): Promise<Step> {
     const wait = this.blocked();
     this.waitingFor = wait;
     if (wait) return wait;
     const job = this.pending()[0];
     if (!job) return 'empty';
+    const version = `${job.fileId}-${Math.floor(job.mtimeMs)}`;
     const abs = resolveMediaPath(job.root, job.path);
     if (!abs) {
-      this.failed.add(`${job.fileId}-${Math.floor(job.mtimeMs)}`);
+      this.failed.add(version);
+      this.failedKeyframes.add(version);
       return 'failed';
     }
     const controller = new AbortController();
@@ -160,14 +186,29 @@ export class SubtitlePrefetcher {
     }, this.hooks.checkMs ?? CHECK_MS);
     check.unref?.();
     this.running = true;
+    let failed = false;
     try {
-      await this.extractor.extractAll(job.fileId, job.mtimeMs, abs, job.indexes, { sizeBytes: job.size, signal: controller.signal });
-      return 'done';
-    } catch (err) {
-      if (isStopped(err)) return 'stopped';
-      this.failed.add(`${job.fileId}-${Math.floor(job.mtimeMs)}`);
-      log.warn(`Could not extract the subtitles of ${job.path} ahead of time: ${(err as Error).message}`);
-      return 'failed';
+      if (job.indexes.length) {
+        try {
+          await this.extractor.extractAll(job.fileId, job.mtimeMs, abs, job.indexes, { sizeBytes: job.size, signal: controller.signal });
+        } catch (err) {
+          if (isStopped(err)) return 'stopped';
+          this.failed.add(version);
+          failed = true;
+          log.warn(`Could not extract the subtitles of ${job.path} ahead of time: ${(err as Error).message}`);
+        }
+      }
+      if (job.keyframes && this.keyframes) {
+        try {
+          await this.keyframes.learn(keyframesKey({ id: job.fileId, size: job.size, mtimeMs: job.mtimeMs }), abs, controller.signal);
+        } catch (err) {
+          if (err instanceof KeyframesStopped) return 'stopped';
+          this.failedKeyframes.add(version);
+          failed = true;
+          log.warn(`Could not find the keyframes of ${job.path} ahead of time: ${(err as Error).message}`);
+        }
+      }
+      return failed ? 'failed' : 'done';
     } finally {
       clearInterval(check);
       this.running = false;
