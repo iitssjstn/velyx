@@ -1,6 +1,6 @@
 export const metadata = {
+  reviewTitle: 'Titles to check',
   notConfigured: 'TMDB is not configured',
-  addKey: 'Add a TMDB key',
   notConfiguredText: 'Without a TMDB API key Vidalune uses the names from your files. Add a key to fetch posters, descriptions and cast.',
   intro: 'Items Vidalune could not match with enough confidence, or that are still waiting for metadata. Pick the right title with Fix match. You can also fix any item from its detail page.',
   allMatched: 'Everything is matched',

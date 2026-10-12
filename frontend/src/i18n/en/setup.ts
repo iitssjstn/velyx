@@ -4,6 +4,6 @@ export const setup = {
   serverName: 'Server name',
   tmdbKey: 'TMDB API key',
   tmdbKeyPlaceholder: 'For posters, descriptions and cast',
-  afterSetup: 'After setup, add your media folders in Admin → Libraries. You can add or change the TMDB key later in Admin → Server.',
+  afterSetup: 'After setup, add your media folders in Admin → Libraries. You can add or change the TMDB key later in Admin → Metadata.',
   create: 'Create Vidalune',
 };

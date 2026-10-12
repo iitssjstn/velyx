@@ -1,5 +1,6 @@
 export const admin = {
   title: 'Administration',
+  integrationsIntro: 'Optional services Vidalune can work with. Vidalune works fully without them.',
   sections: 'Admin sections',
   groups: {
     monitoring: 'System monitoring',
@@ -8,6 +9,9 @@ export const admin = {
     users: 'Users & permissions',
   },
   tabs: {
+    integrations: 'Integrations',
+    playback: 'Playback',
+    maintenance: 'Maintenance',
     dashboard: 'Dashboard',
     activity: 'Activity',
     libraries: 'Libraries',
@@ -23,6 +27,5 @@ export const admin = {
     backup: 'Backup',
     notifications: 'Notifications',
     cloud: 'Vidalune account',
-    arr: 'Sonarr & Radarr',
   },
 };

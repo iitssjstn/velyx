@@ -10,6 +10,7 @@ import { ConfirmModal, Modal } from '../../components/Modal';
 import { EmptyState, ErrorState, PageLoader, Spinner } from '../../components/States';
 import { toast } from '../../components/Toast';
 import { t, useT, type MessageKey } from '../../i18n';
+import { ScanSettings } from './SettingsPanels';
 
 const PHASES: Record<string, MessageKey> = {
   discovering: 'libraries.phases.discovering',
@@ -394,6 +395,7 @@ export function LibrariesPanel() {
         </ul>
       )}
 
+      <ScanSettings />
       <Modal title={t('libraries.add')} open={adding} onClose={() => setAdding(false)}>
         {adding && <LibraryForm mediaRoots={mediaRoots} onDone={() => setAdding(false)} />}
       </Modal>

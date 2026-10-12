@@ -75,7 +75,7 @@ describe('converting video an administrator turned on', () => {
     const { admin, mpeg2 } = await setup();
     const res = (await playback(admin, mpeg2.id)).json();
     expect(res.analysis.mode).toBe('unsupported');
-    expect(res.analysis.summary.join(' ')).toContain('Admin → Server');
+    expect(res.analysis.summary.join(' ')).toContain('Admin → Playback');
     const stream = await env.app.inject({ url: `/api/media/${mpeg2.id}/remux?audio=1&vt=1`, headers: { cookie: admin } });
     expect(stream.statusCode).toBe(403);
   });

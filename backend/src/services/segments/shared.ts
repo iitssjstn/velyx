@@ -8,7 +8,7 @@ import type { Fingerprint } from './fingerprint.js';
 const log = createLogger('segments');
 
 /**
- * Shared detection (optional, Admin → Server): servers report where they found recaps, intros and
+ * Shared detection (optional, Admin → Intros & credits): servers report where they found recaps, intros and
  * credits (by TMDB show, season and episode, with the episode's length, and a few fingerprints of
  * a season's intro and credits) to vidalune.com, which keeps what they agree on. Every server then
  * uses that where its own detection found nothing (or nothing sure), and the fingerprints as extra

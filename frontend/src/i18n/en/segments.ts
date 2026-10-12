@@ -1,4 +1,5 @@
 export const segments = {
+  settingsTitle: 'Detection settings',
   sources: {
     chapters: 'chapters',
     video: 'picture',

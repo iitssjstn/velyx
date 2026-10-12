@@ -3,6 +3,9 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+// The settings panel on this page has its own test (SettingsPanels.test.tsx).
+vi.mock('./SettingsPanels', () => ({ DetectionSettings: () => null }));
+
 import { SegmentsPage, type SegmentOverview } from './Segments';
 
 afterEach(() => vi.unstubAllGlobals());

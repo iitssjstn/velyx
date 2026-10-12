@@ -263,7 +263,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const analysis = analyzePlayback(file, caps, decision, ua, confidence, lang, request.appDevice);
     // Pieces (HLS): converted video is cut on a fixed grid. Copied video is cut at its keyframes, and
     // listing them reads the whole file (minutes on a NAS, starving the stream being watched): only
-    // once they were found ahead of time (Admin → Server, prepared in the maintenance window).
+    // once they were found ahead of time (Admin → Maintenance, prepared in the maintenance window).
     // Until then copied video keeps the live stream.
     const hlsUrl = decision.hlsUrl && (decision.hlsUrl.includes('vt=1') || ctx.hls.ready(keyframesKey(file))) ? decision.hlsUrl : undefined;
     const directAccess = ctx.cloud.status().directAccess;
@@ -315,7 +315,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
         }
       }
     }
-    if (!decision || decision.compatible === false) throw new HttpError(415, 'This file cannot be played on a Chromecast without converting the video. An administrator can turn on video conversion (Admin → Server).');
+    if (!decision || decision.compatible === false) throw new HttpError(415, 'This file cannot be played on a Chromecast without converting the video. An administrator can turn on video conversion (Admin → Playback).');
     if (loaded.optimization) decision = withOptimization(decision, loaded.optimization);
     const castDecision = decision.engine === 'direct'
       ? decision

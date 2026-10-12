@@ -5,6 +5,6 @@ export const setup: Messages['setup'] = {
   serverName: 'Servernaam',
   tmdbKey: 'TMDB API-sleutel',
   tmdbKeyPlaceholder: 'Voor posters, beschrijvingen en cast',
-  afterSetup: 'Voeg na het instellen je mediamappen toe via Beheer → Bibliotheken. De TMDB-sleutel kun je later toevoegen of wijzigen via Beheer → Server.',
+  afterSetup: 'Voeg na het instellen je mediamappen toe via Beheer → Bibliotheken. De TMDB-sleutel kun je later toevoegen of wijzigen via Beheer → Metadata.',
   create: 'Vidalune aanmaken',
 };

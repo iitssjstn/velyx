@@ -13,13 +13,15 @@ import { ActivityPage } from './Activity';
 import { CleanupPage } from './Cleanup';
 import { NotificationsPage, useUnreadNotifications } from './Notifications';
 import { CloudPage } from './Cloud';
-import { ArrSettingsPage } from './ArrSettings';
+import { IntegrationsPage } from './Integrations';
+import { PlaybackPage } from './Playback';
+import { MaintenancePage } from './SettingsPanels';
 import { OptimizationPage } from './Optimization';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Activity, Bell, ChevronDown, Clapperboard, Cloud, DatabaseBackup, Eraser, Gauge, HeartPulse, LayoutDashboard,
-  Library, Plug, ScrollText, Server, ShieldCheck, Tags, Users, type LucideIcon,
+  Library, MonitorPlay, Plug, ScrollText, Server, ShieldCheck, Tags, Users, Wrench, type LucideIcon,
 } from 'lucide-react';
 import { useT, type MessageKey } from '../../i18n';
 
@@ -44,6 +46,7 @@ const GROUPS: Array<{ label: MessageKey; items: Section[] }> = [
       { to: 'metadata', label: 'admin.tabs.metadata', icon: Tags },
       { to: 'health', label: 'admin.tabs.health', icon: HeartPulse },
       { to: 'intros', label: 'admin.tabs.intros', icon: Clapperboard },
+      { to: 'playback', label: 'admin.tabs.playback', icon: MonitorPlay },
       { to: 'optimization', label: 'admin.tabs.optimization', icon: Gauge },
       { to: 'cleanup', label: 'admin.tabs.cleanup', icon: Eraser },
     ],
@@ -51,8 +54,9 @@ const GROUPS: Array<{ label: MessageKey; items: Section[] }> = [
   {
     label: 'admin.groups.integrations',
     items: [
-      { to: 'arr', label: 'admin.tabs.arr', icon: Plug },
+      { to: 'integrations', label: 'admin.tabs.integrations', icon: Plug },
       { to: 'cloud', label: 'admin.tabs.cloud', icon: Cloud },
+      { to: 'maintenance', label: 'admin.tabs.maintenance', icon: Wrench },
       { to: 'server', label: 'admin.tabs.server', icon: Server },
       { to: 'backup', label: 'admin.tabs.backup', icon: DatabaseBackup },
     ],
@@ -142,7 +146,11 @@ export default function AdminLayout() {
         <Route path="cleanup" element={<CleanupPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="cloud" element={<CloudPage />} />
-        <Route path="arr" element={<ArrSettingsPage />} />
+        <Route path="integrations" element={<IntegrationsPage />} />
+        {/* Sonarr & Radarr became part of Integrations (with Seerr) in 0.19.53. */}
+        <Route path="arr" element={<Navigate to="/admin/integrations" replace />} />
+        <Route path="playback" element={<PlaybackPage />} />
+        <Route path="maintenance" element={<MaintenancePage />} />
         {/* The compatibility overview became part of Library health in 0.4.2. */}
         <Route path="compatibility" element={<Navigate to="/admin/health" replace />} />
         <Route path="server" element={<ServerSettingsPanel />} />

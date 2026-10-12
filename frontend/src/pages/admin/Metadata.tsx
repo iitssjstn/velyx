@@ -8,6 +8,7 @@ import { Button } from '../../components/Button';
 import { EmptyState, ErrorState, PageLoader } from '../../components/States';
 import { FixMatchModal } from '../../components/FixMatchModal';
 import { useT } from '../../i18n';
+import { MetadataSettings } from './SettingsPanels';
 
 export function MetadataPage() {
   const q = useQuery({ queryKey: ['admin', 'review'], queryFn: () => api.get<{ tmdbConfigured: boolean; movies: ReviewItem[]; shows: ReviewItem[] }>('/api/admin/review') });
@@ -18,20 +19,18 @@ export function MetadataPage() {
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const items = [...q.data.movies, ...q.data.shows];
 
-  if (!q.data.tmdbConfigured) {
-    return (
-      <EmptyState icon={<Wand2 className="size-6" />} title={t('metadata.notConfigured')} action={<Link to="/admin/server" className="inline-flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">{t('metadata.addKey')}</Link>}>
-        {t('metadata.notConfiguredText')}
-      </EmptyState>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted">
-        {t('metadata.intro')}
-      </p>
-      {items.length === 0 ? (
+      <MetadataSettings />
+      {!q.data.tmdbConfigured ? (
+        <EmptyState icon={<Wand2 className="size-6" />} title={t('metadata.notConfigured')}>
+          {t('metadata.notConfiguredText')}
+        </EmptyState>
+      ) : (
+        <section className="space-y-4" aria-labelledby="metadata-review-title">
+          <h2 id="metadata-review-title" className="font-display text-lg font-semibold">{t('metadata.reviewTitle')}</h2>
+          <p className="text-sm text-muted">{t('metadata.intro')}</p>
+          {items.length === 0 ? (
         <EmptyState icon={<CheckCircle2 className="size-6" />} title={t('metadata.allMatched')}>
           {t('metadata.allMatchedText')}
         </EmptyState>
@@ -55,6 +54,8 @@ export function MetadataPage() {
             </li>
           ))}
         </ul>
+      )}
+        </section>
       )}
       {fixing && (
         <FixMatchModal open onClose={() => setFixing(null)} type={fixing.type} id={fixing.id} initialQuery={fixing.parsedTitle} initialYear={fixing.parsedYear} onMatched={() => void q.refetch()} />

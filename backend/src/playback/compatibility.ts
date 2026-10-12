@@ -253,7 +253,7 @@ export function analyzePlayback(
     summary.push(T('This device cannot play the video as it is, so the server converts it to H.264 while you watch. That takes more processing power than the other ways.'));
   } else {
     summary.push(components.video.status === 'unknown' ? T('This device may not be able to play this video format.') : T('Your current browser/device cannot play this video format.'));
-    summary.push(T('Server transcoding is off. An administrator can turn on video conversion (Admin → Server).'));
+    summary.push(T('Server transcoding is off. An administrator can turn on video conversion (Admin → Playback).'));
   }
   if (mode !== 'unsupported' && components.video.status === 'unknown') summary.push(T('Vidalune cannot confirm that this device decodes the video. If it does not start, try another browser or device.'));
   if (confidence !== 'reported') summary.push(T('This is an estimate: the device did not report which formats it supports.'));

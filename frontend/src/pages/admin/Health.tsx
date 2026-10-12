@@ -103,7 +103,7 @@ function CategoryList({ category, libraryId, page, onPage, onClose, tmdbConfigur
           </p>
           {category.key === 'missing-metadata' && !tmdbConfigured && (
             <p className="mt-2 text-sm text-amber">
-              {tRich('health.noTmdb', { link: <Link to="/admin/server" className="underline underline-offset-4">{t('admin.tabs.server')}</Link> })}
+              {tRich('health.noTmdb', { link: <Link to="/admin/metadata" className="underline underline-offset-4">{t('admin.tabs.metadata')}</Link> })}
             </p>
           )}
         </div>
