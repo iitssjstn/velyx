@@ -28,6 +28,7 @@ import { createFfprobe, type Prober } from './services/probe.js';
 import { limitProber, type LimitedProber } from './services/probe-queue.js';
 import { EmbeddedSubtitleExtractor } from './services/subtitles.js';
 import { SubtitlePrefetcher } from './services/subtitle-prefetch.js';
+import { inMaintenanceWindow } from './services/maintenance-window.js';
 import { LibraryAccess } from './services/access.js';
 import { AuditLog } from './services/audit.js';
 import { BackupScheduler } from './services/backup-scheduler.js';
@@ -213,10 +214,12 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   playback.register(new TranscodeEngine(() => transcoding.current()));
   const optimizations = new OptimizationService({ db, dataDir: config.dataDir, ffmpegPath: config.ffmpegPath, probe, transcoding, settings, busy: (ownLoad) => scans.active || (streams.active().length > 0 && (opts.machineBusy ? opts.machineBusy() : machineBusy(ownLoad))) });
   const subtitleExtractor = new EmbeddedSubtitleExtractor(config.ffmpegPath, config.subtitleCacheDir);
-  // Subtitles of new files are extracted ahead of time once nobody has watched for a while.
+  // Subtitles are extracted ahead of time: in the maintenance window, or once nobody has watched for a while.
   const subtitlePrefetch: SubtitlePrefetcher = new SubtitlePrefetcher(db, subtitleExtractor, {
     enabled: () => settings.get().subtitlePrefetch,
     busy: () => (scans.active ? 'scan' : streams.active().length > 0 ? 'playback' : null),
+    inWindow: () => inMaintenanceWindow(new Date(), settings.get().maintenanceStart, settings.get().maintenanceEnd),
+    outsideWindow: () => settings.get().maintenanceOutside,
   });
   const storage = new StorageService(db, config);
   // Critically low disk space pauses scans (which write artwork and rows); they resume on their own.

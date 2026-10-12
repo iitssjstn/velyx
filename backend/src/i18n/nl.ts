@@ -81,6 +81,8 @@ export const nl: Record<string, string> = {
   'The file is not a valid image.': 'Het bestand is geen geldige afbeelding.',
   'Use a language code like en or nl': 'Gebruik een taalcode zoals en of nl',
   'Use a language code like en-US or nl-NL': 'Gebruik een taalcode zoals en-US of nl-NL',
+  'Use a time like 02:00': 'Gebruik een tijd zoals 02:00',
+  'Use a time like 06:00': 'Gebruik een tijd zoals 06:00',
 
   // ---- libraries, metadata, settings
   'Path is required.': 'Een pad is verplicht.',

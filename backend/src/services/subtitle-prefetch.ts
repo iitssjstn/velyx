@@ -7,19 +7,23 @@ import { isStopped, type EmbeddedSubtitleExtractor } from './subtitles.js';
 
 const log = createLogger('subtitle-prefetch');
 
-/** The server has to be quiet this long (nobody watching, no scan) before work starts or resumes. */
+/** Outside the maintenance window the server has to be quiet this long (nobody watching, no scan) before work starts or resumes. */
 const QUIET_MS = 15 * 60 * 1000;
 /** How often a waiting or idle prefetcher looks again. */
 const RETRY_MS = 60 * 1000;
 /** How often a running extraction checks whether someone started watching. */
 const CHECK_MS = 5 * 1000;
 
-export type PrefetchWait = 'off' | 'playback' | 'scan' | 'quiet';
+export type PrefetchWait = 'off' | 'playback' | 'scan' | 'window' | 'quiet';
 
 export interface PrefetchHooks {
   enabled: () => boolean;
   /** What keeps it from running now. */
   busy: () => 'playback' | 'scan' | null;
+  /** Inside the maintenance window it works as soon as nobody watches. */
+  inWindow: () => boolean;
+  /** Outside it only when this is on, after the server has been quiet for a while. */
+  outsideWindow: () => boolean;
   quietMs?: number;
   retryMs?: number;
   checkMs?: number;
@@ -47,9 +51,10 @@ type Step = 'done' | 'stopped' | 'failed' | 'empty' | PrefetchWait;
 
 /**
  * Extracts the embedded text subtitles of every file ahead of time, so a viewer who picks one does
- * not wait for FFmpeg to read the whole file. Works one file at a time at the lowest priority, only
- * after the server has been quiet for a while, newest files first; when someone starts watching, the
- * file being read is stopped (its subtitles are not kept half) and read again later.
+ * not wait for FFmpeg to read the whole file. Works one file at a time at the lowest priority, newest
+ * files first: in the maintenance window whenever nobody watches, outside it (when allowed) only after
+ * the server has been quiet for a while. When someone starts watching or the window closes, the file
+ * being read is stopped (its subtitles are not kept half) and read again later.
  */
 export class SubtitlePrefetcher {
   /** Files whose extraction failed, by id and modification time: tried again only once the file changes. */
@@ -130,6 +135,8 @@ export class SubtitlePrefetcher {
       this.lastBusyAt = this.now();
       return busy;
     }
+    if (this.hooks.inWindow()) return null;
+    if (!this.hooks.outsideWindow()) return 'window';
     return this.now() - this.lastBusyAt < (this.hooks.quietMs ?? QUIET_MS) ? 'quiet' : null;
   }
 

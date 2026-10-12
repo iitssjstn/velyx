@@ -708,7 +708,15 @@ export interface ServerSettings {
   sharedDetection: boolean;
   /** Extract embedded text subtitles ahead of time while the server is quiet. */
   subtitlePrefetch: boolean;
-  subtitlePrefetchStatus: { enabled: boolean; pending: number; running: boolean; waitingFor: 'off' | 'playback' | 'scan' | 'quiet' | null };
+  subtitlePrefetchStatus: { enabled: boolean; pending: number; running: boolean; waitingFor: 'off' | 'playback' | 'scan' | 'window' | 'quiet' | null };
+  /** Maintenance window for background work, server time ("HH:MM"). */
+  maintenanceStart: string;
+  maintenanceEnd: string;
+  /** Background work also outside the window once the server has been quiet for a while. */
+  maintenanceOutside: boolean;
+  /** The server's clock now ("HH:MM") and its time zone, to check the window against. */
+  serverTime: string;
+  serverTimeZone: string;
 }
 
 export interface ReviewItem {

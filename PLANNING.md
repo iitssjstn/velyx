@@ -757,27 +757,36 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   `package.json`'s, `app/app.json` (versionCode 1948) en beide lockfiles bijgewerkt.
 - PR #133 gemerged 11 okt; release `v0.19.48` gecontroleerd: APK en beide `.deb`'s aanwezig.
 
-## Versie 0.19.49 (ondertitels vooraf klaarzetten)
+## Versie 0.19.49 (ondertitels vooraf klaarzetten en onderhoudsvenster)
 
 - Op verzoek van de eigenaar ("Bouw het", 12 okt), na zijn melding dat ondertitels lang op zich laten wachten.
+  Daarna: "Voeg ook de tijdvak in de PR" (12 okt).
 - Eén leesronde per bestand: vraagt een kijker een ingebouwde ondertitel op, dan schrijft FFmpeg alle
   tekstondertitels van dat bestand in dezelfde keer (`EmbeddedSubtitleExtractor.extract` met `also`). Lukt
   dat niet, dan alleen de gevraagde. Een tweede kijker of de achtergrondtaak wacht op een lopende leesronde
   in plaats van een tweede te starten. Time-out: 10 minuten, of langer voor grote bestanden (10 MB/s).
 - `SubtitlePrefetcher` (`backend/src/services/subtitle-prefetch.ts`): pakt op de achtergrond de
-  tekstondertitels van alle bestanden uit, nieuwste eerst, één bestand tegelijk met nice 19. Begint pas als
-  er 15 minuten niemand kijkt en er geen scan loopt; stopt het bestand dat hij leest zodra iemand gaat kijken
-  (niets half bewaard, later opnieuw), behalve als een kijker op juist die ondertitel wacht. Een mislukt
-  bestand wordt pas opnieuw geprobeerd als het bestand verandert (in het geheugen; na een herstart opnieuw).
-  Na elke scan wordt hij gewekt. Dezelfde cachebestanden als voorheen, dus de speler hoeft niets te weten.
+  tekstondertitels van alle bestanden uit, nieuwste eerst, één bestand tegelijk met nice 19. Stopt het
+  bestand dat hij leest zodra iemand gaat kijken of het venster sluit (niets half bewaard, later opnieuw),
+  behalve als een kijker op juist die ondertitel wacht. Een mislukt bestand wordt pas opnieuw geprobeerd als
+  het bestand verandert (in het geheugen; na een herstart opnieuw). Na elke scan wordt hij gewekt. Dezelfde
+  cachebestanden als voorheen, dus de speler hoeft niets te weten.
+- **Onderhoudsvenster** (Beheer > Server, standaard 02:00–06:00, servertijd via TZ, mag over middernacht):
+  binnen het venster werkt de taak zodra er niemand kijkt; "Ook buiten het venster werken als de server stil
+  is" (standaard aan) laat hem ook daarbuiten werken na 15 minuten zonder kijkers en zonder scan. De pagina
+  toont de servertijd en tijdzone, zodat een verkeerde TZ opvalt. `maintenanceStart`/`maintenanceEnd`
+  (Zod: HH:MM) en `maintenanceOutside` in de instellingen, `inMaintenanceWindow`
+  (`backend/src/services/maintenance-window.ts`). Dit is het begin van de geplande taken; de volledige pagina
+  Beheer > Geplande taken (per taak aan/uit, eigen schema, geavanceerde weergave) is nog niet gebouwd.
 - Beheer > Server: schakelaar "Ondertitels vooraf klaarzetten" (standaard aan) met hoeveel bestanden nog te
-  doen zijn. Engels en Nederlands; README bijgewerkt.
-- Nog niet: het tijdvak van de geplande taken (bestaat nog niet; dit wordt daar later een taak van) en de
-  melding "Ondertitel laden…" in de speler.
+  doen zijn en of hij op het venster wacht. Engels en Nederlands; README bijgewerkt.
+- Nog niet: de melding "Ondertitel laden…" in de speler.
 - Tests: echte FFmpeg (alle sporen in één leesronde, stoppen zonder halve bestanden, kijker die aanhaakt,
-  kijker precies bij het stoppen, verzoek via de route) en de planning van de taak (wachten op stilte, scan,
-  uit, stoppen bij kijken, mislukt pas opnieuw na wijziging); frontend: schakelaar en aantal. Backend 570,
-  frontend 310, cloud 128, app 150 tests slagen; alle typechecks, lint (0 fouten, 4 bekende
-  waarschuwingen) en de productiebuilds slagen. Op de NAS te testen: een groot bestand zonder kijkers een
-  kwartier laten staan en daarna een ondertitel kiezen.
+  kijker precies bij het stoppen, verzoek via de route), de taak (wachten op stilte, scan, uit, venster,
+  alleen-venster en stoppen bij sluiten, stoppen bij kijken, mislukt pas opnieuw na wijziging), het venster
+  (over middernacht, grenzen, tijdnotatie) en de instellingen-API; frontend: schakelaars, venster en
+  servertijd. Backend 576, frontend 311, cloud 128, app 150 tests slagen; alle typechecks, lint (0 fouten, 4
+  bekende waarschuwingen) en de productiebuilds slagen. Op de NAS te testen: na de update een ondertitel
+  kiezen bij een groot bestand nadat het venster (of een stil kwartier) voorbij is; controleren dat de
+  getoonde servertijd klopt.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1949) en beide lockfiles bijgewerkt.

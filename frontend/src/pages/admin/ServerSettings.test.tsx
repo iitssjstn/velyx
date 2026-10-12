@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -35,6 +35,11 @@ const settings = {
   sharedDetection: false,
   subtitlePrefetch: true,
   subtitlePrefetchStatus: { enabled: true, pending: 12, running: false, waitingFor: 'quiet' },
+  maintenanceStart: '02:00',
+  maintenanceEnd: '06:00',
+  maintenanceOutside: true,
+  serverTime: '14:03',
+  serverTimeZone: 'Europe/Amsterdam',
 };
 
 function setup() {
@@ -72,5 +77,18 @@ describe('preparing subtitles ahead of time', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]!);
     await vi.waitFor(() => expect(saved).toHaveLength(1));
     expect(saved[0]).toMatchObject({ subtitlePrefetch: false });
+  });
+
+  it('saves the maintenance window and whether to work outside it, and shows the server time', async () => {
+    const saved = setup();
+    const from = (await screen.findByLabelText('From')) as HTMLInputElement;
+    expect(from.value).toBe('02:00');
+    expect(screen.getByText(/It is 14:03 on the server \(Europe\/Amsterdam\)/)).toBeTruthy();
+    fireEvent.change(from, { target: { value: '23:00' } });
+    fireEvent.change(screen.getByLabelText('Until'), { target: { value: '05:00' } });
+    await userEvent.click(screen.getByRole('checkbox', { name: /Also work outside the window/ }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]!);
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]).toMatchObject({ maintenanceStart: '23:00', maintenanceEnd: '05:00', maintenanceOutside: false });
   });
 });

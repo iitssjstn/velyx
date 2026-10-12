@@ -115,6 +115,8 @@ describe('subtitle prefetcher', () => {
   let clock: number;
   let busy: 'playback' | 'scan' | null;
   let enabled: boolean;
+  let inWindow: boolean;
+  let outside: boolean;
   const calls: Array<{ fileId: number; indexes: number[] }> = [];
   const cached = new Set<string>();
   let holdNext = false;
@@ -137,7 +139,7 @@ describe('subtitle prefetcher', () => {
     },
   };
 
-  const hooks = (over: Partial<PrefetchHooks> = {}): PrefetchHooks => ({ enabled: () => enabled, busy: () => busy, quietMs: 15 * 60_000, checkMs: 5, now: () => clock, ...over });
+  const hooks = (over: Partial<PrefetchHooks> = {}): PrefetchHooks => ({ enabled: () => enabled, busy: () => busy, inWindow: () => inWindow, outsideWindow: () => outside, quietMs: 15 * 60_000, checkMs: 5, now: () => clock, ...over });
 
   beforeEach(async () => {
     const tracks: Record<string, SubtitleTrackInfo[]> = {
@@ -155,6 +157,8 @@ describe('subtitle prefetcher', () => {
     clock = 1_000_000;
     busy = null;
     enabled = true;
+    inWindow = false;
+    outside = true;
     calls.length = 0;
     cached.clear();
     holdNext = false;
@@ -180,6 +184,29 @@ describe('subtitle prefetcher', () => {
     // Image subtitles (Dune) cannot be extracted to text: nothing left.
     expect(await p.step()).toBe('empty');
     expect(p.status().pending).toBe(0);
+  });
+
+  it('works in the maintenance window as soon as nobody watches, without waiting for quiet', async () => {
+    const p = new SubtitlePrefetcher(env.ctx.db, extractor, hooks());
+    busy = 'playback';
+    inWindow = true;
+    expect(await p.step()).toBe('playback');
+    busy = null;
+    expect(await p.step()).toBe('done');
+  });
+
+  it('works only in the window when working outside it is turned off, and stops when the window closes', async () => {
+    outside = false;
+    const p = new SubtitlePrefetcher(env.ctx.db, extractor, hooks({ quietMs: 0 }));
+    expect(await p.step()).toBe('window');
+    expect(p.status().waitingFor).toBe('window');
+    inWindow = true;
+    holdNext = true;
+    const running = p.step();
+    await new Promise((r) => setTimeout(r, 20));
+    inWindow = false;
+    expect(await running).toBe('stopped');
+    expect(calls).toHaveLength(1);
   });
 
   it('does nothing while turned off or while a scan runs', async () => {
@@ -216,5 +243,22 @@ describe('subtitle prefetcher', () => {
     env.ctx.db.update(mediaFiles).set({ mtimeMs: 5 }).where(eq(mediaFiles.id, fileId('Heat (1995).mkv'))).run();
     expect(await p.step()).toBe('done');
     expect(calls.at(-1)?.fileId).toBe(fileId('Heat (1995).mkv'));
+  });
+});
+
+describe('maintenance window settings', () => {
+  it('are saved by an administrator, shown with the server time, and must be 24-hour times', async () => {
+    const env = await createTestEnv();
+    try {
+      const admin = await setupAdmin(env.app);
+      const put = (payload: object) => env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: admin }, payload });
+      expect((await put({ maintenanceStart: '25:00' })).statusCode).toBe(400);
+      const res = await put({ maintenanceStart: '23:30', maintenanceEnd: '05:00', maintenanceOutside: false });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({ maintenanceStart: '23:30', maintenanceEnd: '05:00', maintenanceOutside: false, serverTime: expect.stringMatching(/^\d{2}:\d{2}$/) });
+      expect(env.ctx.settings.get()).toMatchObject({ maintenanceStart: '23:30', maintenanceEnd: '05:00', maintenanceOutside: false });
+    } finally {
+      await env.cleanup();
+    }
   });
 });
