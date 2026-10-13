@@ -917,10 +917,12 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   Besproken en afgeraden: zelf versturen vanaf de OVH-VPS (poort 25, PTR, reputatie, onderhoud). Postmark-account stond
   bij het bouwen nog op "deactivated" (eigenaar mailt hun support). De eigenaar deelde per ongeluk een servertoken in een
   screenshot: geadviseerd het te vervangen.
-- Accountservice (`cloud/`): SMTP via `nodemailer` (10.0.11, exact vastgezet), instellingen `SMTP_HOST`, `SMTP_PORT`
-  (587, STARTTLS verplicht), `SMTP_SECURE`, `SMTP_USER`/`SMTP_PASS` (secret, nooit gelogd), `MAIL_FROM`, `MAIL_HEADERS`
-  (Postmark: `X-PM-Message-Stream: outbound`). Zonder `SMTP_HOST`+`MAIL_FROM` wordt niets verstuurd en werkt alles als
-  voorheen. Versturen op de achtergrond met drie pogingen; mislukt: alleen het onderwerp in de log.
+- Accountservice (`cloud/`): SMTP via `nodemailer` (10.0.11, exact vastgezet). Wens eigenaar: "Ik wil niks in een .env of
+  iets dergelijks" → instellen in het **Control Center > Infrastructuur > Mail** (server, poort, STARTTLS/TLS, gebruiker,
+  wachtwoord/token write-only, afzender, headers; knop "Postmark invullen", "Testmail sturen", "Uitzetten"), opgeslagen
+  in `service_settings` (net als OpenSubtitles), vóór opslaan gecontroleerd bij de SMTP-dienst. Wie opslaat, telt als
+  bevestigd (geen buitensluiten). `SMTP_*`/`MAIL_FROM`/`MAIL_HEADERS` in de omgeving blijven een optionele terugval.
+  Zonder instellingen wordt niets verstuurd en werkt alles als voorheen. Versturen op de achtergrond met drie pogingen; mislukt: alleen het onderwerp in de log.
 - Mails (Engels/Nederlands, tekst + eenvoudige HTML zonder afbeeldingen of tracking, `cloud/src/mail.ts`):
   - e-mailadres bevestigen na aanmelden (2 dagen, opnieuw sturen op de accountpagina);
   - wachtwoord vergeten (1 uur; zelfde antwoord voor onbekende adressen; daarna overal afgemeld, adres telt als bevestigd);
@@ -938,11 +940,12 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - App: "Wachtwoord vergeten?" opent de pagina op vidalune.com; aanmelden voor een klaargezet account meldt dat de link
   per mail komt. Taal van de mail volgt de app.
 - Nog niet: uitnodigingen per mail versturen (nu een link om te kopiëren) en meldingen zoals "server offline".
-- Tests: `cloud/test/mail.test.ts` (18: bevestigen, verlopen, opnieuw sturen, limiet, rechten pas na bevestigen, zonder
+- Tests: `cloud/test/mail.test.ts` (26, waarvan 8 voor het Control Center: alleen CEO, controle en write-only wachtwoord,
+  weigering, wachtwoord houden/vragen, foute header/afzender, testmail, voorrang op omgeving, uit; verder: bevestigen, verlopen, opnieuw sturen, limiet, rechten pas na bevestigen, zonder
   mail als voorheen, overnemen via mail, vergeten/reset/eenmalig/verlopen/geschorst, wachtwoord en e-mail wijzigen,
-  bezet adres, mailer-pogingen, escaping, instellingen, headers) en een app-test. Cloud 146, app 153 tests; alle
+  bezet adres, mailer-pogingen, escaping, instellingen, headers) en een app-test. Cloud 154, app 153 tests; alle
   typechecks, lint (4 bekende waarschuwingen) en de cloud-build slagen.
 - Door de eigenaar te doen na de release: in Postmark het domein vidalune.com toevoegen en de DKIM- en Return-Path-records
-  in Cloudflare zetten; een sender signature voor no-reply@vidalune.com; daarna de SMTP-variabelen als secret op de
-  accountservice (zie `cloud/README.md`, "Email") en een test: aanmelden met een eigen adres en de mail controleren.
+  in Cloudflare zetten (DNS only); DMARC-record; nieuwe servertoken; daarna in het Control Center > Mail invullen,
+  testmail sturen, en een test: aanmelden met een eigen adres en de mail controleren.
 

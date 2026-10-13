@@ -26,13 +26,6 @@ services:
       CLOUDFLARE_ZONE_NAME: vidalune.com
       CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-} # runtime secret; DNS edit/read for this zone only
       DIRECT_ACME_EMAIL: you@example.com
-      # Mail (address confirmation, forgot password): any SMTP service, here Postmark.
-      SMTP_HOST: smtp.postmarkapp.com
-      SMTP_PORT: "587"
-      SMTP_USER: ${SMTP_TOKEN:-}         # runtime secret; Postmark: the server token
-      SMTP_PASS: ${SMTP_TOKEN:-}
-      MAIL_FROM: Vidalune <no-reply@vidalune.com>
-      MAIL_HEADERS: "X-PM-Message-Stream: outbound"
     volumes:
       - ./cloud-data:/data               # cloud.db lives here: back it up
     networks: [npm]                      # the network Nginx Proxy Manager is on
@@ -67,7 +60,7 @@ interface (see *app.vidalune.com* below).
 | `DNS_RECORD_LIMIT` | `200` | How many DNS records your Cloudflare plan allows in the zone. Every linked server uses one; the Control Center warns at 80 %. An hourly clean-up removes the records of servers that are gone, unlinked, or silent for a day and unreachable. |
 | `DIRECT_ACME_DIRECTORY_URL` | Let's Encrypt production | ACME directory used to issue publicly trusted certificates. Use the Let's Encrypt staging directory only for deployment tests. |
 | `DIRECT_ACME_EMAIL` | first `ADMIN_EMAILS` address | Optional contact for certificate expiry notices. |
-| `SMTP_HOST` | (empty) | SMTP service for the account service's mail. Without it (or without `MAIL_FROM`) no mail is sent: addresses cannot be confirmed and *Forgot password?* is not available. |
+| `SMTP_HOST` | (empty) | Optional: the SMTP service for the account service's mail, when it is not set in the Control Center (*Mail*, which comes first). Without either, no mail is sent: addresses cannot be confirmed and *Forgot password?* is not available. |
 | `SMTP_PORT` | `587` | `587` uses STARTTLS (required before signing in); `465` uses TLS from the start. |
 | `SMTP_SECURE` | `true` on port 465 | TLS from the start (`true`) or STARTTLS (`false`). |
 | `SMTP_USER`, `SMTP_PASS` | (empty) | Sign-in at the SMTP service. A runtime secret: keep it in the host's environment, never in the repository; it is never logged or returned. |
@@ -76,7 +69,16 @@ interface (see *app.vidalune.com* below).
 
 ## Email
 
-With an SMTP service set up, the account service sends:
+Mail is set up in the Control Center under **Infrastructure → Mail**: the SMTP server, port, username,
+password or token, sender and extra headers (**Fill in Postmark** fills in the server, port and header
+for Postmark; there the username and password are both the server token). The settings are checked at
+the SMTP service before they are saved and kept in `cloud.db`; the password is never shown again,
+only replaced or removed. **Send a test email** sends one to you right away and shows the SMTP
+service's answer when it fails. Nothing needs to be in the compose file or an `.env`; the `SMTP_*`
+variables above are an optional alternative, used only while nothing is saved in the Control Center.
+Whoever saves the settings keeps the Control Center (their own address counts as confirmed).
+
+With mail set up, the account service sends:
 
 - **Confirm your email address** after signing up (the link works for 2 days; *Send again* on the
   account page sends a new one). With mail set up, the rights of `ADMIN_EMAILS` and `CEO_EMAILS`

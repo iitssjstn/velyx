@@ -1,5 +1,10 @@
 import nodemailer from 'nodemailer';
+import { eq } from 'drizzle-orm';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { z } from 'zod';
 import type { MailConfig } from './config.js';
+import type { DB } from './db/client.js';
+import { serviceSettings } from './db/schema.js';
 
 export type MailLanguage = 'en' | 'nl';
 
@@ -13,8 +18,8 @@ export interface MailMessage {
 /** Delivers one message; throws when the SMTP service refused it or could not be reached. */
 export type MailTransport = (message: MailMessage & { from: string; headers: Record<string, string> }) => Promise<void>;
 
-export function smtpTransport(config: MailConfig): MailTransport {
-  const transporter = nodemailer.createTransport({
+const transporterFor = (config: MailConfig) =>
+  nodemailer.createTransport({
     host: config.host,
     port: config.port,
     secure: config.secure,
@@ -25,12 +30,65 @@ export function smtpTransport(config: MailConfig): MailTransport {
     greetingTimeout: 15_000,
     socketTimeout: 30_000,
   });
+
+export function smtpTransport(config: MailConfig): MailTransport {
+  const transporter = transporterFor(config);
   return async (m) => {
     await transporter.sendMail({ from: m.from, to: m.to, subject: m.subject, text: m.text, html: m.html, headers: m.headers });
   };
 }
 
+/** Connects and signs in at the SMTP service without sending anything; throws with its reason. */
+export async function smtpVerify(config: MailConfig): Promise<void> {
+  const transporter = transporterFor(config);
+  try {
+    await transporter.verify();
+  } finally {
+    transporter.close();
+  }
+}
+
+/**
+ * Where mail goes: the settings saved in the Control Center (stored in the database, the password
+ * never shown again), else SMTP_* from the environment, else nowhere.
+ */
+export class MailSettings {
+  private saved: MailConfig | null | undefined;
+  constructor(
+    private readonly db: DB,
+    private readonly fallback: MailConfig | null,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  stored(): MailConfig | null {
+    if (this.saved === undefined) {
+      const row = this.db.select().from(serviceSettings).where(eq(serviceSettings.key, 'mail')).get();
+      this.saved = row ? (JSON.parse(row.value) as MailConfig) : null;
+    }
+    return this.saved;
+  }
+
+  current(): { config: MailConfig; source: 'settings' | 'environment' } | null {
+    const stored = this.stored();
+    if (stored) return { config: stored, source: 'settings' };
+    return this.fallback ? { config: this.fallback, source: 'environment' } : null;
+  }
+
+  save(config: MailConfig | null, by: string): void {
+    if (config) {
+      const value = JSON.stringify(config);
+      this.db.insert(serviceSettings).values({ key: 'mail', value, updatedAt: this.now(), updatedBy: by }).onConflictDoUpdate({ target: serviceSettings.key, set: { value, updatedAt: this.now(), updatedBy: by } }).run();
+    } else {
+      this.db.delete(serviceSettings).where(eq(serviceSettings.key, 'mail')).run();
+    }
+    this.saved = config;
+  }
+}
+
 const DELAYS_MS = [0, 5_000, 30_000];
+
+/** What sending needs right now (null: no mail set up). */
+export type MailRoute = { config: Pick<MailConfig, 'from' | 'headers'>; transport: MailTransport } | null;
 
 /**
  * Sends the account service's mail in the background, so a request never waits for the SMTP
@@ -39,14 +97,21 @@ const DELAYS_MS = [0, 5_000, 30_000];
 export class Mailer {
   private pending = new Set<Promise<void>>();
   constructor(
-    private readonly config: Pick<MailConfig, 'from' | 'headers'>,
-    private readonly transport: MailTransport,
+    private readonly route: () => MailRoute,
     private readonly delays: number[] = DELAYS_MS,
     private readonly log: (message: string) => void = (message) => console.warn(message),
   ) {}
 
+  /** Whether mail can be sent (an SMTP service is set up). */
+  get enabled(): boolean {
+    return this.route() !== null;
+  }
+
+  /** Hands a message over to be sent in the background (nothing when no mail is set up). */
   send(message: MailMessage): void {
-    const job = this.deliver(message).finally(() => this.pending.delete(job));
+    const route = this.route();
+    if (!route) return;
+    const job = this.deliver(message, route.config, route.transport).finally(() => this.pending.delete(job));
     this.pending.add(job);
   }
 
@@ -55,12 +120,12 @@ export class Mailer {
     while (this.pending.size) await Promise.all([...this.pending]);
   }
 
-  private async deliver(message: MailMessage): Promise<void> {
+  private async deliver(message: MailMessage, config: Pick<MailConfig, 'from' | 'headers'>, transport: MailTransport): Promise<void> {
     let last: unknown;
     for (const delay of this.delays) {
       if (delay) await new Promise((r) => setTimeout(r, delay));
       try {
-        await this.transport({ ...message, from: this.config.from, headers: this.config.headers });
+        await transport({ ...message, from: config.from, headers: config.headers });
         return;
       } catch (err) {
         last = err;
@@ -123,4 +188,116 @@ export const mailTemplates = {
     lang === 'nl'
       ? layout(lang, 'Je wachtwoord is gewijzigd', ['Het wachtwoord van je Vidalune-account is zojuist gewijzigd.', 'Was jij dit niet? Kies dan meteen een nieuw wachtwoord via "Wachtwoord vergeten?" en neem contact op met Vidalune via info@vidalune.com.'], { label: 'Naar je account', url }, FOOTER.nl)
       : layout(lang, 'Your password was changed', ['The password of your Vidalune account was just changed.', 'Was this not you? Choose a new password right away with "Forgot password?" and contact Vidalune at info@vidalune.com.'], { label: 'Go to your account', url }, FOOTER.en),
+  test: (lang: MailLanguage, url: string) =>
+    lang === 'nl'
+      ? layout(lang, 'Testmail van Vidalune', ['Dit is een testmail uit het Control Center. Komt hij aan, dan werkt de mail van vidalune.com.'], { label: 'Naar het Control Center', url }, FOOTER.nl)
+      : layout(lang, 'Test email from Vidalune', ['This is a test email from the Control Center. If it arrives, the mail of vidalune.com works.'], { label: 'Go to the Control Center', url }, FOOTER.en),
 };
+
+export class MailSettingsError extends Error {
+  constructor(
+    readonly statusCode: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** The Control Center's mail settings: write-only for the password, checked at the SMTP service before saving. */
+export function mailRoutes(
+  app: FastifyInstance,
+  deps: {
+    settings: MailSettings;
+    ceo: (request: FastifyRequest) => { id: number; email: string };
+    /** Counts the CEO's own address as confirmed. */
+    confirmSelf: (me: { id: number }) => void;
+    limit: (key: string) => void;
+    verify: (config: MailConfig) => Promise<void>;
+    /** Sends one message now (not in the background), so the Control Center hears whether it worked. */
+    sendNow: (config: MailConfig, message: MailMessage) => Promise<void>;
+    language: (request: FastifyRequest) => MailLanguage;
+    controlCenterUrl: string;
+  },
+) {
+  const host = z.string().trim().min(1).max(253).regex(/^[a-z0-9.-]+$/i, 'Enter the name of the SMTP server, such as smtp.postmarkapp.com.');
+  const body = z.object({
+    host,
+    port: z.number().int().min(1).max(65535),
+    secure: z.boolean(),
+    user: z.string().trim().max(200),
+    /** Empty: keep the saved password. */
+    pass: z.string().max(500).optional(),
+    from: z.string().trim().min(3).max(200).refine((v) => /@[^\s@>]+\.[^\s@>]+/.test(v) && !/[\r\n]/.test(v), 'Enter the sender, such as Vidalune <no-reply@vidalune.com>.'),
+    headers: z.string().max(500).default(''),
+  });
+  const view = () => {
+    const current = deps.settings.current();
+    const c = current?.config;
+    return {
+      configured: !!c,
+      source: current?.source ?? null,
+      host: c?.host ?? '',
+      port: c?.port ?? 587,
+      secure: c?.secure ?? false,
+      user: c?.user ?? '',
+      from: c?.from ?? '',
+      headers: c ? Object.entries(c.headers).map(([k, v]) => `${k}: ${v}`).join('; ') : '',
+      // Never the password itself.
+      hasPassword: !!c?.pass,
+      hint: c?.pass ? `••••${c.pass.slice(-4)}` : null,
+    };
+  };
+  const fail = (err: unknown): never => {
+    throw new MailSettingsError(400, `The SMTP service did not accept this: ${(err as Error)?.message ?? err}`);
+  };
+  app.get('/api/ceo/mail', async (request) => {
+    deps.ceo(request);
+    return view();
+  });
+  app.put('/api/ceo/mail', async (request) => {
+    const me = deps.ceo(request);
+    deps.limit(`mail-settings:${me.email}`);
+    const b = body.parse(request.body);
+    const stored = deps.settings.stored();
+    const headers = parseMailHeadersStrict(b.headers);
+    // A new server or user without a password: the old password belongs to the old one.
+    const sameAccount = stored && stored.host === b.host && stored.user === b.user;
+    const next: MailConfig = { host: b.host.toLowerCase(), port: b.port, secure: b.secure, user: b.user, pass: b.pass || (sameAccount ? stored.pass : ''), from: b.from, headers };
+    if (next.user && !next.pass) throw new MailSettingsError(400, 'Enter the password (or token) for this SMTP user.');
+    await deps.verify(next).catch(fail);
+    deps.settings.save(next, me.email);
+    // Whoever turns mail on keeps the Control Center (rights now need a confirmed address).
+    deps.confirmSelf(me);
+    return view();
+  });
+  app.delete('/api/ceo/mail', async (request) => {
+    const me = deps.ceo(request);
+    deps.settings.save(null, me.email);
+    return view();
+  });
+  /** A test email to the signed-in CEO, sent right away, with the SMTP service's answer when it fails. */
+  app.post('/api/ceo/mail/test', async (request) => {
+    const me = deps.ceo(request);
+    deps.limit(`mail-test:${me.email}`);
+    z.object({ lang: z.enum(['en', 'nl']).optional() }).parse(request.body ?? {});
+    const current = deps.settings.current();
+    if (!current) throw new MailSettingsError(400, 'Set up mail first.');
+    await deps.sendNow(current.config, { ...mailTemplates.test(deps.language(request), deps.controlCenterUrl), to: me.email }).catch((err) => {
+      throw new MailSettingsError(502, `The test email was not sent: ${(err as Error)?.message ?? err}`);
+    });
+    return { sentTo: me.email };
+  });
+}
+
+/** Like parseMailHeaders, but says which part is wrong instead of leaving it out. */
+function parseMailHeadersStrict(value: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const part of value.split(';').map((p) => p.trim()).filter(Boolean)) {
+    const i = part.indexOf(':');
+    const name = part.slice(0, i).trim();
+    const v = part.slice(i + 1).trim();
+    if (i <= 0 || !/^[A-Za-z0-9-]{1,64}$/.test(name) || !v || /[\r\n]/.test(v)) throw new MailSettingsError(400, `Not a valid header: "${part}". Write it as Name: value, separated by ;.`);
+    headers[name] = v;
+  }
+  return headers;
+}

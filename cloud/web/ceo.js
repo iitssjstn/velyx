@@ -6,8 +6,9 @@
   document.documentElement.lang = nl ? 'nl' : 'en';
   const T = nl
     ? {
-        nav: { general: 'Algemeen', infrastructure: 'Infrastructuur', overview: 'Overzicht', customers: 'Klanten', access: 'Toegang', relays: 'Relays', subtitles: 'Ondertitels', community: 'Community', statistics: 'Statistieken', activity: 'Activiteit', account: 'Account', signOut: 'Uitloggen' },
+        nav: { general: 'Algemeen', infrastructure: 'Infrastructuur', overview: 'Overzicht', customers: 'Klanten', access: 'Toegang', relays: 'Relays', subtitles: 'Ondertitels', mail: 'Mail', community: 'Community', statistics: 'Statistieken', activity: 'Activiteit', account: 'Account', signOut: 'Uitloggen' },
         community: { intro: 'De Discord-link op vidalune.com: in het menu en onderaan elke pagina, via vidalune.com/discord en discord.vidalune.com. Laat het veld leeg om de links te verbergen.', discord: 'Discord-uitnodiging', placeholder: 'https://discord.gg/…', save: 'Opslaan', saved: 'Discord-link opgeslagen', off: 'Discord-links verborgen', open: 'Openen' },
+        mail: { intro: 'De mail van vidalune.com: e-mailadressen bevestigen, wachtwoord vergeten en een gewijzigd adres. Vul hier de SMTP-gegevens in, bijvoorbeeld van Postmark. Ze worden gecontroleerd bij de SMTP-dienst voordat ze worden opgeslagen; het wachtwoord of token wordt daarna nooit meer getoond.', status: 'Status', on: 'Aan: verstuurd als {from} via {host}', onEnv: 'Aan via de omgeving (SMTP_HOST): {from} via {host}. Wat je hier opslaat gaat voor.', off: 'Uit: er wordt geen mail verstuurd. Bevestigen en wachtwoord vergeten werken dan niet.', host: 'SMTP-server', port: 'Poort', secure: 'TLS vanaf het begin (poort 465). Uit: STARTTLS, verplicht vóór het inloggen (poort 587).', user: 'Gebruikersnaam', pass: 'Wachtwoord of token', passKept: 'Laat leeg om het opgeslagen wachtwoord te houden ({hint})', from: 'Afzender', fromHint: 'Bijvoorbeeld Vidalune <no-reply@vidalune.com>. Het domein moet bij de SMTP-dienst bevestigd zijn.', headers: 'Extra headers (optioneel)', headersHint: 'Naam: waarde, gescheiden door ;. Postmark: X-PM-Message-Stream: outbound', postmark: 'Postmark invullen', postmarkText: 'Vult de server, poort en header voor Postmark in. Gebruikersnaam en wachtwoord zijn bij Postmark allebei je servertoken.', save: 'Controleren en opslaan', saved: 'Mail opgeslagen', test: 'Testmail sturen', tested: 'Testmail verstuurd naar {to}', turnOff: 'Uitzetten', turnOffText: 'Er wordt dan geen mail meer verstuurd (behalve als SMTP_HOST in de omgeving staat). Bevestigen en wachtwoord vergeten werken dan niet meer.', turnedOff: 'Mail staat uit', rights: 'Met mail aan gelden de rechten van ADMIN_EMAILS en CEO_EMAILS alleen voor een bevestigd e-mailadres. Jouw eigen adres telt als bevestigd zodra je hier opslaat.' },
         subs: { intro: 'Gekoppelde Vidalune-servers zoeken en downloaden ondertitels via vidalune.com met deze OpenSubtitles-sleutel, zodat niemand een eigen sleutel nodig heeft. Opgehaalde bestanden worden hier bewaard. De sleutel en het wachtwoord worden gecontroleerd voordat ze worden opgeslagen en worden daarna nooit meer getoond.', status: 'Status', on: 'Aan, sleutel {hint}', onAccount: 'Aan, sleutel {hint}, ingelogd als {name}', off: 'Uit: servers kunnen geen ondertitels zoeken via vidalune.com', apiKey: 'OpenSubtitles API-sleutel', newKey: 'Nieuwe sleutel (laat leeg om de huidige te houden)', username: 'OpenSubtitles-gebruikersnaam', password: 'OpenSubtitles-wachtwoord', passwordKept: 'Laat leeg om het opgeslagen wachtwoord te houden', accountHint: 'Met een (VIP-)account zijn er meer downloads per dag.', save: 'Controleren en opslaan', saved: 'OpenSubtitles opgeslagen', turnOff: 'Uitzetten', turnOffText: 'Servers kunnen dan geen ondertitels meer zoeken via vidalune.com. De bewaarde bestanden blijven staan.', turnedOff: 'Ondertitels via vidalune.com staan uit', files: 'Bewaarde bestanden', served: 'Keer geleverd', perServer: 'Per server: 40 nieuwe bestanden per dag; bewaarde bestanden tellen niet mee.' },
         controlCenter: 'Vidalune Control Center', only: 'Alleen voor de CEO en beheerders van Vidalune.', signIn: 'Log eerst in met je Vidalune-account.', toAccount: 'Naar je account',
         failed: 'Dat lukte niet. Probeer het opnieuw.', loadFailed: 'Kon dit niet laden.', retry: 'Opnieuw proberen', na: 'n.v.t.', none: 'Niets gevonden.', noData: 'Nog geen gegevens.', noHistory: 'Nog geen historische gegevens.',
@@ -54,8 +55,9 @@
         table: 'Als tabel', day: 'Dag', value: 'Waarde', ago: { now: 'zojuist', m: '{n} min. geleden', h: '{n} uur geleden', d: '{n} dagen geleden' },
       }
     : {
-        nav: { general: 'General', infrastructure: 'Infrastructure', overview: 'Overview', customers: 'Customers', access: 'Access', relays: 'Relays', subtitles: 'Subtitles', community: 'Community', statistics: 'Statistics', activity: 'Activity', account: 'Account', signOut: 'Sign out' },
+        nav: { general: 'General', infrastructure: 'Infrastructure', overview: 'Overview', customers: 'Customers', access: 'Access', relays: 'Relays', subtitles: 'Subtitles', mail: 'Mail', community: 'Community', statistics: 'Statistics', activity: 'Activity', account: 'Account', signOut: 'Sign out' },
         community: { intro: 'The Discord link on vidalune.com: in the menu and at the bottom of every page, through vidalune.com/discord and discord.vidalune.com. Leave the field empty to hide the links.', discord: 'Discord invite', placeholder: 'https://discord.gg/…', save: 'Save', saved: 'Discord link saved', off: 'Discord links hidden', open: 'Open' },
+        mail: { intro: 'The mail of vidalune.com: confirming email addresses, forgot password and a changed address. Enter the SMTP details here, for example from Postmark. They are checked at the SMTP service before they are saved; the password or token is never shown again.', status: 'Status', on: 'On: sent as {from} through {host}', onEnv: 'On through the environment (SMTP_HOST): {from} through {host}. What you save here comes first.', off: 'Off: no mail is sent. Confirming addresses and forgot password do not work.', host: 'SMTP server', port: 'Port', secure: 'TLS from the start (port 465). Off: STARTTLS, required before signing in (port 587).', user: 'Username', pass: 'Password or token', passKept: 'Leave empty to keep the saved password ({hint})', from: 'Sender', fromHint: 'For example Vidalune <no-reply@vidalune.com>. The domain must be confirmed at the SMTP service.', headers: 'Extra headers (optional)', headersHint: 'Name: value, separated by ;. Postmark: X-PM-Message-Stream: outbound', postmark: 'Fill in Postmark', postmarkText: 'Fills in the server, port and header for Postmark. At Postmark the username and password are both your server token.', save: 'Check and save', saved: 'Mail saved', test: 'Send a test email', tested: 'Test email sent to {to}', turnOff: 'Turn off', turnOffText: 'No more mail is sent then (unless SMTP_HOST is in the environment). Confirming addresses and forgot password stop working.', turnedOff: 'Mail is off', rights: 'With mail on, the rights of ADMIN_EMAILS and CEO_EMAILS only count for a confirmed email address. Your own address counts as confirmed once you save here.' },
         subs: { intro: 'Linked Vidalune servers search and download subtitles through vidalune.com with this OpenSubtitles key, so nobody needs a key of their own. Fetched files are kept here. The key and password are checked before they are saved and are never shown again.', status: 'Status', on: 'On, key {hint}', onAccount: 'On, key {hint}, signed in as {name}', off: 'Off: servers cannot search subtitles through vidalune.com', apiKey: 'OpenSubtitles API key', newKey: 'New key (leave empty to keep the current one)', username: 'OpenSubtitles username', password: 'OpenSubtitles password', passwordKept: 'Leave empty to keep the saved password', accountHint: 'A (VIP) account allows more downloads per day.', save: 'Check and save', saved: 'OpenSubtitles saved', turnOff: 'Turn off', turnOffText: 'Servers can then no longer search subtitles through vidalune.com. The kept files stay.', turnedOff: 'Subtitles through vidalune.com are off', files: 'Kept files', served: 'Times delivered', perServer: 'Per server: 40 new files a day; kept files do not count.' },
         controlCenter: 'Vidalune Control Center', only: 'Only for the CEO and administrators of Vidalune.', signIn: 'Sign in with your Vidalune account first.', toAccount: 'To your account',
         failed: 'That did not work. Try again.', loadFailed: 'Could not load this.', retry: 'Retry', na: 'N/A', none: 'Nothing found.', noData: 'No data available yet.', noHistory: 'No historical data available.',
@@ -129,6 +131,7 @@
   const ICONS = {
     community: ['M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', 'M8 10h.01', 'M12 10h.01', 'M16 10h.01'],
     subtitles: ['M3 5h18v14H3z', 'M7 15h4', 'M13 15h4', 'M7 11h10'],
+    mail: ['M3 5h18v14H3z', 'M3 7l9 6 9-6'],
     overview: ['M3 3h7v9H3z', 'M14 3h7v5h-7z', 'M14 12h7v9h-7z', 'M3 16h7v5H3z'],
     customers: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M22 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
     access: ['M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z', 'M16.5 7.5h.01'],
@@ -309,12 +312,12 @@
   // ---- navigation (the sidebar is the only navigation)
   const NAV = [
     ['general', [['overview', 'overview'], ['customers', 'customers'], ['access', 'access'], ['community', 'community']]],
-    ['infrastructure', [['relays', 'relays'], ['subtitles', 'subtitles'], ['statistics', 'statistics']]],
+    ['infrastructure', [['relays', 'relays'], ['subtitles', 'subtitles'], ['mail', 'mail'], ['statistics', 'statistics']]],
   ];
   const route = () => {
     const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
     const [page, arg] = path.split('/');
-    return { page: ['overview', 'customers', 'access', 'community', 'relays', 'subtitles', 'statistics', 'activity'].includes(page) ? page : 'overview', arg: arg ? decodeURIComponent(arg) : null, params: new URLSearchParams(query) };
+    return { page: ['overview', 'customers', 'access', 'community', 'relays', 'subtitles', 'mail', 'statistics', 'activity'].includes(page) ? page : 'overview', arg: arg ? decodeURIComponent(arg) : null, params: new URLSearchParams(query) };
   };
   function renderNav() {
     const { page } = route();
@@ -1052,6 +1055,75 @@
     show(header(t('nav.subtitles')), section(null, form), section(null, kpis(kpi(t('subs.files'), num(d.files)), kpi(t('subs.served'), num(d.served))), el('p', { class: 'small' }, t('subs.perServer'))));
   }
 
+  // ---- mail: the SMTP service vidalune.com sends its mail through (the password is write-only)
+  async function mail() {
+    crumbs(t('nav.mail'));
+    show(header(t('nav.mail')), skeleton(2));
+    const d = await api('GET', '/api/ceo/mail');
+    const status = !d.configured ? t('mail.off') : t(d.source === 'environment' ? 'mail.onEnv' : 'mail.on', { from: d.from, host: d.host });
+    const error = el('p', { class: 'error', role: 'alert' });
+    const submit = el('button', { type: 'submit' }, t('mail.save'));
+    const input = (name, attrs = {}) => el('input', { name, autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', ...attrs });
+    const host = input('host', { maxlength: 253, required: true, value: d.host, placeholder: 'smtp.postmarkapp.com' });
+    const port = input('port', { type: 'number', min: 1, max: 65535, required: true, value: String(d.port) });
+    const secure = el('input', { name: 'secure', type: 'checkbox', checked: d.secure });
+    const headers = input('headers', { maxlength: 500, value: d.headers });
+    const form = el('form', {
+      class: 'cc-card',
+      onsubmit: async (e) => {
+        e.preventDefault();
+        const v = Object.fromEntries(new FormData(form));
+        const body = { host: v.host.trim(), port: Number(v.port), secure: secure.checked, user: v.user.trim(), from: v.from.trim(), headers: v.headers.trim() };
+        if (v.pass) body.pass = v.pass;
+        submit.disabled = true;
+        error.textContent = '';
+        try {
+          await api('PUT', '/api/ceo/mail', body);
+          toast(t('mail.saved'));
+          await go();
+        } catch (err) {
+          error.textContent = err.message;
+        } finally {
+          submit.disabled = false;
+        }
+      },
+    },
+      el('p', {}, t('mail.intro')),
+      el('p', {}, el('strong', {}, `${t('mail.status')}: `), el('span', { class: d.configured ? 'ok' : '' }, status)),
+      el('div', { class: 'cc-row' }, field(t('mail.host'), host), field(t('mail.port'), port)),
+      el('label', { class: 'cc-check' }, secure, ` ${t('mail.secure')}`),
+      el('div', { class: 'cc-row' },
+        field(t('mail.user'), input('user', { maxlength: 200, value: d.user })),
+        field(t('mail.pass'), el('input', { name: 'pass', type: 'password', autocomplete: 'new-password', maxlength: 500, placeholder: d.hasPassword ? t('mail.passKept', { hint: d.hint }) : '' })),
+      ),
+      field(t('mail.from'), input('from', { maxlength: 200, required: true, value: d.from, placeholder: 'Vidalune <no-reply@vidalune.com>' })),
+      el('p', { class: 'small' }, t('mail.fromHint')),
+      field(t('mail.headers'), headers),
+      el('p', { class: 'small' }, t('mail.headersHint')),
+      el('p', { class: 'small' }, t('mail.rights')),
+      error,
+      el('div', { class: 'cc-dialog-actions' },
+        el('button', { type: 'button', class: 'ghost', title: t('mail.postmarkText'), onclick: () => { host.value = 'smtp.postmarkapp.com'; port.value = '587'; secure.checked = false; headers.value = 'X-PM-Message-Stream: outbound'; } }, t('mail.postmark')),
+        d.configured ? el('button', { type: 'button', class: 'ghost', onclick: async (e) => {
+          const b = e.currentTarget;
+          b.disabled = true;
+          error.textContent = '';
+          try {
+            const r = await api('POST', '/api/ceo/mail/test', {});
+            toast(t('mail.tested', { to: r.sentTo }));
+          } catch (err) {
+            error.textContent = err.message;
+          } finally {
+            b.disabled = false;
+          }
+        } }, t('mail.test')) : null,
+        d.source === 'settings' ? el('button', { type: 'button', class: 'ghost', onclick: () => dialog({ title: t('mail.turnOff'), text: t('mail.turnOffText'), confirm: t('mail.turnOff'), danger: true, onConfirm: async () => { await api('DELETE', '/api/ceo/mail'); return t('mail.turnedOff'); } }) }, t('mail.turnOff')) : null,
+        submit,
+      ),
+    );
+    show(header(t('nav.mail')), section(null, form));
+  }
+
   // ---- routing
   // While refreshing quietly the page keeps what it shows until the new figures are there (no skeleton).
   let quiet = false;
@@ -1077,7 +1149,7 @@
         loadedMe = true;
         renderNav();
       }
-      await { overview, customers, access, community, relays, subtitles, statistics, activity }[page](arg, params);
+      await { overview, customers, access, community, relays, subtitles, mail, statistics, activity }[page](arg, params);
       view.focus({ preventScroll: true });
     } catch (err) {
       if (err.status === 401 || err.status === 403) {

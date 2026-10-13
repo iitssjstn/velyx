@@ -18,13 +18,30 @@ let cloud: FastifyInstance;
 let sent: Sent[];
 let clock: number;
 
+let verified: MailConfig[];
+let verifyError: Error | null;
+let transportError: Error | null;
 async function start(opts: { mail?: MailConfig | null; adminEmails?: string[] } = {}) {
+  verified = [];
+  verifyError = null;
+  transportError = null;
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-mail-'));
   const config = loadConfig({ DATA_DIR: dir, PUBLIC_URL: 'https://vidalune.com' }, { webDir: null, mail: opts.mail === undefined ? MAIL : opts.mail, adminEmails: opts.adminEmails ?? [] });
   db = openDatabase(config.dbPath);
   sent = [];
   clock = Date.now();
-  cloud = await buildCloudApp(config, db, { now: () => clock, mailTransport: async (m) => void sent.push(m), mailDelays: [0] });
+  cloud = await buildCloudApp(config, db, {
+    now: () => clock,
+    mailTransport: async (m) => {
+      if (transportError) throw transportError;
+      sent.push(m);
+    },
+    mailDelays: [0],
+    mailVerify: async (c) => {
+      if (verifyError) throw verifyError;
+      verified.push(c);
+    },
+  });
 }
 afterEach(async () => {
   await cloud.close();
@@ -218,14 +235,106 @@ describe('managing the account', () => {
   });
 });
 
+describe('mail settings in the Control Center', () => {
+  const POSTMARK = { host: 'smtp.postmarkapp.com', port: 587, secure: false, user: 'server-token-1234', pass: 'server-token-1234', from: 'Vidalune <no-reply@vidalune.com>', headers: 'X-PM-Message-Stream: outbound' };
+  async function ceo() {
+    const cookie = cookieOf(await signUp('boss@example.com'));
+    return (method: 'GET' | 'PUT' | 'DELETE' | 'POST', url: string, payload?: object) => cloud.inject({ method, url, headers: { cookie }, ...(payload ? { payload } : {}) });
+  }
+
+  it('is only for the CEO', async () => {
+    await start({ mail: null, adminEmails: ['boss@example.com'] });
+    const cookie = cookieOf(await signUp('ann@example.com'));
+    expect((await cloud.inject({ url: '/api/ceo/mail', headers: { cookie } })).statusCode).toBe(403);
+    expect((await cloud.inject({ method: 'PUT', url: '/api/ceo/mail', headers: { cookie }, payload: POSTMARK })).statusCode).toBe(403);
+  });
+
+  it('checks the settings at the SMTP service, keeps the password to itself, and sends with them from then on', async () => {
+    await start({ mail: null, adminEmails: ['boss@example.com'] });
+    const as = await ceo();
+    expect((await as('GET', '/api/ceo/mail')).json()).toMatchObject({ configured: false, source: null });
+    const saved = await as('PUT', '/api/ceo/mail', POSTMARK);
+    expect(saved.statusCode).toBe(200);
+    expect(verified).toEqual([{ ...POSTMARK, headers: { 'X-PM-Message-Stream': 'outbound' } }]);
+    const view = (await as('GET', '/api/ceo/mail')).json();
+    expect(view).toMatchObject({ configured: true, source: 'settings', host: 'smtp.postmarkapp.com', user: 'server-token-1234', headers: 'X-PM-Message-Stream: outbound', hasPassword: true, hint: '••••1234' });
+    expect(JSON.stringify(view)).not.toContain('"pass"');
+    // The CEO who turned mail on keeps the Control Center, although the address was not confirmed by email.
+    expect((await as('GET', '/api/account')).json()).toMatchObject({ ceo: true, mail: true, emailVerified: true });
+    await signUp('ann@example.com');
+    expect(sent.at(-1)).toMatchObject({ to: 'ann@example.com', from: 'Vidalune <no-reply@vidalune.com>', headers: { 'X-PM-Message-Stream': 'outbound' } });
+  });
+
+  it('saves nothing when the SMTP service refuses, and says why', async () => {
+    await start({ mail: null, adminEmails: ['boss@example.com'] });
+    const as = await ceo();
+    verifyError = new Error('Invalid login: 535 Authentication failed');
+    const res = await as('PUT', '/api/ceo/mail', POSTMARK);
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain('535 Authentication failed');
+    expect((await as('GET', '/api/ceo/mail')).json().configured).toBe(false);
+  });
+
+  it('keeps the saved password for the same server and user, and asks for one for another user', async () => {
+    await start({ mail: null, adminEmails: ['boss@example.com'] });
+    const as = await ceo();
+    await as('PUT', '/api/ceo/mail', POSTMARK);
+    expect((await as('PUT', '/api/ceo/mail', { ...POSTMARK, pass: '', from: 'Vidalune <hello@vidalune.com>' })).statusCode).toBe(200);
+    expect(verified.at(-1)).toMatchObject({ pass: 'server-token-1234', from: 'Vidalune <hello@vidalune.com>' });
+    expect((await as('PUT', '/api/ceo/mail', { ...POSTMARK, user: 'other-token', pass: '' })).json().error).toMatch(/password/);
+  });
+
+  it('refuses a wrong header or sender', async () => {
+    await start({ mail: null, adminEmails: ['boss@example.com'] });
+    const as = await ceo();
+    expect((await as('PUT', '/api/ceo/mail', { ...POSTMARK, headers: 'X-PM-Message-Stream outbound' })).json().error).toMatch(/Not a valid header/);
+    expect((await as('PUT', '/api/ceo/mail', { ...POSTMARK, from: 'no-reply' })).statusCode).toBe(400);
+    expect((await as('PUT', '/api/ceo/mail', { ...POSTMARK, host: 'smtp postmark' })).statusCode).toBe(400);
+    expect(verified).toHaveLength(0);
+  });
+
+  it('sends a test email to the CEO right away, and says when it fails', async () => {
+    await start({ mail: null, adminEmails: ['boss@example.com'] });
+    const as = await ceo();
+    expect((await as('POST', '/api/ceo/mail/test', {})).statusCode).toBe(400);
+    await as('PUT', '/api/ceo/mail', POSTMARK);
+    expect((await as('POST', '/api/ceo/mail/test', {})).json()).toEqual({ sentTo: 'boss@example.com' });
+    expect(sent.at(-1)).toMatchObject({ to: 'boss@example.com', subject: 'Test email from Vidalune' });
+    transportError = new Error('550 Sender signature not confirmed');
+    const failed = await as('POST', '/api/ceo/mail/test', {});
+    expect(failed.statusCode).toBe(502);
+    expect(failed.json().error).toContain('550 Sender signature not confirmed');
+  });
+
+  it('comes before SMTP settings in the environment, which count again once it is removed', async () => {
+    await start({ adminEmails: ['boss@example.com'] });
+    const as = await ceo();
+    db.update(accounts).set({ emailVerifiedAt: clock }).run();
+    expect((await as('GET', '/api/ceo/mail')).json()).toMatchObject({ configured: true, source: 'environment', host: 'smtp.example.com' });
+    await as('PUT', '/api/ceo/mail', POSTMARK);
+    expect((await as('GET', '/api/ceo/mail')).json()).toMatchObject({ source: 'settings', host: 'smtp.postmarkapp.com' });
+    expect((await as('DELETE', '/api/ceo/mail')).json()).toMatchObject({ source: 'environment', host: 'smtp.example.com' });
+  });
+
+  it('without any settings, nothing is sent', async () => {
+    await start({ mail: null, adminEmails: ['boss@example.com'] });
+    const as = await ceo();
+    await as('PUT', '/api/ceo/mail', POSTMARK);
+    expect((await as('DELETE', '/api/ceo/mail')).json()).toMatchObject({ configured: false });
+    const before = sent.length;
+    await signUp('ann@example.com');
+    expect(sent).toHaveLength(before);
+  });
+});
+
 describe('the mailer', () => {
   it('tries again, then logs the subject without the message (it holds a link)', async () => {
     const logged: string[] = [];
     let calls = 0;
-    const mailer = new Mailer(MAIL, async () => {
+    const mailer = new Mailer(() => ({ config: MAIL, transport: async () => {
       calls++;
       throw new Error('connection refused');
-    }, [0, 0, 0], (m) => logged.push(m));
+    } }), [0, 0, 0], (m) => logged.push(m));
     mailer.send({ to: 'a@example.com', subject: 'Set a new password', text: 'https://vidalune.com/reset#secret', html: '' });
     await mailer.idle();
     expect(calls).toBe(3);

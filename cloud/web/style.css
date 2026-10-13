@@ -211,6 +211,8 @@ body.cc .cc-tabs button.on { background: rgba(182, 156, 255, 0.14); color: var(-
 .cc-row > * { flex: 1 1 160px; }
 .cc-row.end { align-items: flex-end; }
 .cc-row.end > button { flex: 0 0 auto; margin-bottom: 12px; }
+.cc-check { display: flex; gap: 8px; align-items: flex-start; color: var(--muted); font-size: 14px; }
+.cc-check input { width: auto; margin-top: 3px; }
 .cc-back { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); text-decoration: none; font-size: 14px; }
 .cc-back:hover { color: var(--ink); }
 .cc-capacity { margin-bottom: 20px; }

@@ -10,7 +10,7 @@ import fastifyHelmet from '@fastify/helmet';
 import fastifyStatic from '@fastify/static';
 import { and, desc, eq, gt, isNotNull, isNull, lt } from 'drizzle-orm';
 import { z, ZodError } from 'zod';
-import { DEFAULT_DIRECT_PORT, type CloudConfig } from './config.js';
+import { DEFAULT_DIRECT_PORT, type CloudConfig, type MailConfig } from './config.js';
 import type { DB } from './db/client.js';
 import { accountActivity, accountSessions, accounts, emailTokens, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
@@ -24,7 +24,7 @@ import { CeoError, ceoRoutes } from './ceo.js';
 import { CloudflareDns, publicAddress } from './cloudflare-dns.js';
 import { DirectCertificateIssuer } from './direct-certificate.js';
 import { sweepDirectDns } from './direct-dns-cleanup.js';
-import { Mailer, mailTemplates, smtpTransport, type MailMessage, type MailTransport } from './mail.js';
+import { Mailer, MailSettings, MailSettingsError, mailRoutes, mailTemplates, smtpTransport, smtpVerify, type MailMessage, type MailTransport } from './mail.js';
 
 const DAY = 86_400_000;
 
@@ -150,6 +150,8 @@ export interface CloudAppOptions {
   mailTransport?: MailTransport;
   /** Waits between attempts to send a message (tests: [0]). */
   mailDelays?: number[];
+  /** Checks SMTP settings from the Control Center before they are saved (tests: their own). */
+  mailVerify?: (config: MailConfig) => Promise<void>;
 }
 
 /** A finished certificate stays available for the server's next request, in case the answer was lost. */
@@ -202,12 +204,24 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   /** The service's own addresses: vidalune.com, and app.vidalune.com / www.vidalune.com that serve the same pages. */
   const ownOrigins = new Set([config.publicUrl, ...['app', 'www'].map((n) => `${publicUrl.protocol}//${n}.${config.relayDomain}${publicUrl.port ? `:${publicUrl.port}` : ''}`)]);
   /** Outgoing mail; null when no SMTP service is set up (nothing is sent then). */
-  const mailer = config.mail ? new Mailer(config.mail, opts.mailTransport ?? smtpTransport(config.mail), opts.mailDelays) : null;
+  const mailSettings = new MailSettings(db, config.mail, now);
+  /** One SMTP connection setup per set of settings (a change in the Control Center makes a new one). */
+  let transport: { key: string; send: MailTransport } | null = null;
+  const transportFor = (c: MailConfig): MailTransport => {
+    if (opts.mailTransport) return opts.mailTransport;
+    const key = JSON.stringify(c);
+    if (transport?.key !== key) transport = { key, send: smtpTransport(c) };
+    return transport.send;
+  };
+  const mailer = new Mailer(() => {
+    const current = mailSettings.current();
+    return current ? { config: current.config, transport: transportFor(current.config) } : null;
+  }, opts.mailDelays);
   /**
    * Rights that come with an address (ADMIN_EMAILS, CEO_EMAILS) only for whoever proved it is theirs:
    * with mail set up, the address must be confirmed. Without mail nobody can confirm one.
    */
-  const confirmed = (a: { emailVerifiedAt?: number | null }) => !mailer || (a.emailVerifiedAt ?? null) !== null;
+  const confirmed = (a: { emailVerifiedAt?: number | null }) => !mailer.enabled || (a.emailVerifiedAt ?? null) !== null;
   const admins = new Set(config.adminEmails);
   const isAdmin = (a: { email: string; emailVerifiedAt?: number | null }) => admins.has(a.email) && confirmed(a);
   const ceos = new Set(config.ceoEmails);
@@ -400,7 +414,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) return reply.code(400).send({ error: error.issues[0]?.message ?? 'Invalid input.' });
-    if (error instanceof HttpError || error instanceof CeoError || error instanceof SubtitleError) return reply.code(error.statusCode).send({ error: error.message });
+    if (error instanceof HttpError || error instanceof CeoError || error instanceof SubtitleError || error instanceof MailSettingsError) return reply.code(error.statusCode).send({ error: error.message });
     const status = (error as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) return reply.code(status).send({ error: 'Invalid request.' });
     app.log.error(error);
@@ -470,9 +484,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     if (a.suspendedAt !== null) throw new HttpError(403, 'This Vidalune account is suspended. Contact Vidalune.');
     return { row, account: a };
   }
-  const sendMail = (to: string, message: Omit<MailMessage, 'to'>) => mailer?.send({ ...message, to });
+  const sendMail = (to: string, message: Omit<MailMessage, 'to'>) => mailer.send({ ...message, to });
   const needMail = () => {
-    if (!mailer) throw new HttpError(503, 'Vidalune cannot send email right now. Contact Vidalune.');
+    if (!mailer.enabled) throw new HttpError(503, 'Vidalune cannot send email right now. Contact Vidalune.');
   };
   const linkToken = z.object({ token: z.string().min(20).max(200) });
   const accountPage = `${config.publicUrl}/account`;
@@ -483,7 +497,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const existing = db.select().from(accounts).where(eq(accounts.email, body.email)).get();
     // Added by the CEO (no password yet): signing up with that address takes it over, with its access.
     if (existing && (existing.passwordHash !== '' || existing.suspendedAt !== null)) throw new HttpError(409, 'There is already an account with this email address. Sign in instead.');
-    if (existing && mailer) {
+    if (existing && mailer.enabled) {
       // Only whoever reads that address may take it over: the password is chosen through a link sent there.
       mailLimiter.check(`to:${existing.email}`, now());
       sendMail(existing.email, mailTemplates.claim(mailLanguage(request), issueLink(existing.id, 'reset')));
@@ -609,7 +623,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   app.get('/api/account', async (request) => {
     const me = account(request);
     // The CEO also sees which version of vidalune.com is running (shown in the Control Center).
-    return { email: me.email, emailVerified: me.emailVerifiedAt !== null, mail: mailer !== null, remote: planView(me), appUrl: appOrigin, ...(isAdmin(me) ? { admin: true } : {}), ...(isCeo(me) ? { ceo: true, version: releaseVersion } : {}) };
+    return { email: me.email, emailVerified: me.emailVerifiedAt !== null, mail: mailer.enabled, remote: planView(me), appUrl: appOrigin, ...(isAdmin(me) ? { admin: true } : {}), ...(isCeo(me) ? { ceo: true, version: releaseVersion } : {}) };
   });
 
   /**
@@ -830,6 +844,22 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       return me;
     },
     limit: (key) => subtitleLimiters.settings.check(key, now()),
+  });
+  mailRoutes(app, {
+    settings: mailSettings,
+    ceo: (request) => {
+      const me = account(request);
+      if (!isCeo(me)) throw new HttpError(403, 'Only for the CEO of Vidalune.');
+      return me;
+    },
+    confirmSelf: (me) => {
+      db.update(accounts).set({ emailVerifiedAt: now() }).where(and(eq(accounts.id, me.id), isNull(accounts.emailVerifiedAt))).run();
+    },
+    limit: (key) => limiter.check(key, now()),
+    verify: opts.mailVerify ?? smtpVerify,
+    sendNow: (c, message) => transportFor(c)({ ...message, from: c.from, headers: c.headers }),
+    language: (request) => pickLanguage(request.body, request.headers['accept-language']),
+    controlCenterUrl: `${config.publicUrl}/admin`,
   });
   subtitleRoutes(app, {
     db,
