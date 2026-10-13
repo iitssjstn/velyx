@@ -13,6 +13,7 @@ import { connectionState, type Connection } from './connection';
 import { RECONNECT_EVERY_MS, findReachable, reconnectOrder } from './reconnect';
 import { pickLanguage, translator, type Language, type Translate } from './i18n';
 import type { ServerInfo } from './server';
+import { keepsSession, withServerInfo } from './start';
 import type { User } from './types';
 
 const STORE_KEY = 'velyx.session';
@@ -99,6 +100,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .then((raw) => (raw ? (JSON.parse(raw) as Stored) : null))
       .catch(() => null)
       .then((value) => {
+        // A server opened by its address (before 0.19.55): forgotten, the Vidalune account opens it now.
+        if (value && !keepsSession(value)) {
+          void SecureStore.deleteItemAsync(STORE_KEY).catch(() => undefined);
+          value = null;
+        }
         store.load(value);
         setStored(value);
       })
@@ -117,7 +123,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         token: stored?.token ?? null,
         userAgent: USER_AGENT,
         language,
-        // Signed out elsewhere (or the account was disabled): back to the sign-in screen, which says so.
+        // Signed out elsewhere (or the account was disabled): back to the Vidalune account, which says so.
         onReachable: (reachable) => setServerReachable(reachable),
         onUnauthorized: () => {
           setSessionEnded(true);
@@ -136,6 +142,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .get<{ user: User }>('/api/auth/me')
       .then(({ user }) => {
         if (alive && stored && JSON.stringify(user) !== JSON.stringify(stored.user)) void store.change((s) => ({ ...s, user }));
+      })
+      .catch(() => undefined);
+    // Its name and version as they are now (an update changes the version).
+    api
+      .get<Partial<ServerInfo>>('/api/server/info')
+      .then((info) => {
+        if (alive) void store.change((s) => withServerInfo(s, info) ?? s);
       })
       .catch(() => undefined);
     return () => {
