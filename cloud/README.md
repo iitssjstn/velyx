@@ -72,8 +72,9 @@ interface (see *app.vidalune.com* below).
 Mail is set up in the Control Center under **Infrastructure → Mail**: the SMTP server, port, username,
 password or token, sender and extra headers (**Fill in Postmark** fills in the server, port and header
 for Postmark; there the username and password are both the server token). The settings are checked at
-the SMTP service before they are saved and kept in `cloud.db`; the password is never shown again,
-only replaced or removed. **Send a test email** sends one to you right away and shows the SMTP
+the SMTP service before they are saved and kept in `cloud.db`; the username and password are never shown
+again (only their last four characters), only replaced or removed. Left empty, the saved ones are kept for
+the same server. The log says at start-up, and after every change in the Control Center, where mail goes. **Send a test email** sends one to you right away and shows the SMTP
 service's answer when it fails. Nothing needs to be in the compose file or an `.env`; the `SMTP_*`
 variables above are an optional alternative, used only while nothing is saved in the Control Center.
 Whoever saves the settings keeps the Control Center (their own address counts as confirmed).

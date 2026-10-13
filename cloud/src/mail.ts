@@ -74,6 +74,14 @@ export class MailSettings {
     return this.fallback ? { config: this.fallback, source: 'environment' } : null;
   }
 
+  /** One line for the log: where mail goes now (without the user or password). */
+  describe(): string {
+    const current = this.current();
+    if (!current) return 'Mail: not set up (Control Center > Mail, or SMTP_HOST and MAIL_FROM); confirmation and password emails are not sent';
+    const where = current.source === 'settings' ? 'set up in the Control Center' : 'set up in the environment';
+    return `Mail: ${where}: sent as ${current.config.from} through ${current.config.host}:${current.config.port}`;
+  }
+
   save(config: MailConfig | null, by: string): void {
     if (config) {
       const value = JSON.stringify(config);
@@ -216,6 +224,7 @@ export function mailRoutes(
     /** Sends one message now (not in the background), so the Control Center hears whether it worked. */
     sendNow: (config: MailConfig, message: MailMessage) => Promise<void>;
     language: (request: FastifyRequest) => MailLanguage;
+    log: (message: string) => void;
     controlCenterUrl: string;
   },
 ) {
@@ -224,7 +233,8 @@ export function mailRoutes(
     host,
     port: z.number().int().min(1).max(65535),
     secure: z.boolean(),
-    user: z.string().trim().max(200),
+    /** Empty: keep the saved user (for the same server). */
+    user: z.string().trim().max(200).default(''),
     /** Empty: keep the saved password. */
     pass: z.string().max(500).optional(),
     from: z.string().trim().min(3).max(200).refine((v) => /@[^\s@>]+\.[^\s@>]+/.test(v) && !/[\r\n]/.test(v), 'Enter the sender, such as Vidalune <no-reply@vidalune.com>.'),
@@ -239,7 +249,9 @@ export function mailRoutes(
       host: c?.host ?? '',
       port: c?.port ?? 587,
       secure: c?.secure ?? false,
-      user: c?.user ?? '',
+      // At Postmark and similar services the user is a token as well: only its end is shown.
+      hasUser: !!c?.user,
+      userHint: c?.user ? `••••${c.user.slice(-4)}` : null,
       from: c?.from ?? '',
       headers: c ? Object.entries(c.headers).map(([k, v]) => `${k}: ${v}`).join('; ') : '',
       // Never the password itself.
@@ -260,12 +272,15 @@ export function mailRoutes(
     const b = body.parse(request.body);
     const stored = deps.settings.stored();
     const headers = parseMailHeadersStrict(b.headers);
-    // A new server or user without a password: the old password belongs to the old one.
-    const sameAccount = stored && stored.host === b.host && stored.user === b.user;
-    const next: MailConfig = { host: b.host.toLowerCase(), port: b.port, secure: b.secure, user: b.user, pass: b.pass || (sameAccount ? stored.pass : ''), from: b.from, headers };
+    const host = b.host.toLowerCase();
+    // No user given: the saved one, for the same server. A new server or user without a password: the old password belongs to the old one.
+    const user = b.user || (stored && stored.host === host ? stored.user : '');
+    const sameAccount = stored && stored.host === host && stored.user === user;
+    const next: MailConfig = { host, port: b.port, secure: b.secure, user, pass: b.pass || (sameAccount ? stored.pass : ''), from: b.from, headers };
     if (next.user && !next.pass) throw new MailSettingsError(400, 'Enter the password (or token) for this SMTP user.');
     await deps.verify(next).catch(fail);
     deps.settings.save(next, me.email);
+    deps.log(`Mail: set up in the Control Center by ${me.email}: sent as ${next.from} through ${next.host}:${next.port}`);
     // Whoever turns mail on keeps the Control Center (rights now need a confirmed address).
     deps.confirmSelf(me);
     return view();
@@ -273,6 +288,8 @@ export function mailRoutes(
   app.delete('/api/ceo/mail', async (request) => {
     const me = deps.ceo(request);
     deps.settings.save(null, me.email);
+    const fallback = deps.settings.current();
+    deps.log(fallback ? `Mail: turned off in the Control Center by ${me.email}; the environment's settings are used (${fallback.config.host})` : `Mail: turned off in the Control Center by ${me.email}; no mail is sent`);
     return view();
   });
   /** A test email to the signed-in CEO, sent right away, with the SMTP service's answer when it fails. */
