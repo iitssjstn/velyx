@@ -265,7 +265,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const [activeTrack, setActiveTrack] = useState<{ video: HTMLVideoElement; track: TextTrack; stream: string | null; load: number } | null>(null);
   const [subDelay, setSubDelay] = useState(0);
   // A live stream restarted at a new position: the last picture of the old one stays on screen
-  // (drawn on a canvas) until the new one shows its first frame, instead of the artwork behind it.
+  // (drawn on a canvas, on black so the bars of a wide film stay black) until the new one shows its
+  // first frame, instead of the artwork behind it.
   const freezeRef = useRef<HTMLCanvasElement>(null);
   const [frozen, setFrozen] = useState(false);
   const freezeFrame = useCallback(() => {
@@ -1141,7 +1142,9 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           }
           preload="metadata"
           playsInline
-          poster={imageUrl(item.data?.backdrop, 'w1280') ?? undefined}
+          // The artwork only before the first picture of this title: a stream restarted later (after a
+          // seek or an audio switch) shows black, or the last picture, never the artwork again.
+          poster={revealed ? undefined : (imageUrl(item.data?.backdrop, 'w1280') ?? undefined)}
           onLoadedMetadata={onLoadedMetadata}
           onLoadedData={() => {
             setRevealed(true);
@@ -1183,7 +1186,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           ))}
         </video>
       )}
-      <canvas ref={freezeRef} aria-hidden className={`pointer-events-none absolute inset-0 h-full w-full object-contain ${frozen && !mini && !postPlay ? '' : 'hidden'}`} />
+      <canvas ref={freezeRef} aria-hidden className={`pointer-events-none absolute inset-0 h-full w-full bg-black object-contain ${frozen && !mini && !postPlay ? '' : 'hidden'}`} />
 
       {/* The chosen subtitle stays selected while minimized; it is only not drawn on the small video. */}
       {!mini && !postPlay && <SubtitleOverlay video={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.video : null} track={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.track : null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />}
