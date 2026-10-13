@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import { Button, Field, styles } from '../components/ui';
 import { Logo } from '../components/Logo';
-import { autoOpenServer, CLOUD_ACCOUNT_KEY, CloudError, createCloud, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudAccount, type CloudServer } from '../lib/cloud';
+import { autoOpenServer, CLOUD_ACCOUNT_KEY, CloudError, createCloud, FORGOT_PASSWORD_URL, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudAccount, type CloudServer } from '../lib/cloud';
 import { findServer, SERVER_PROBLEMS, ServerError } from '../lib/server';
 import { USER_AGENT, useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
@@ -18,7 +18,8 @@ const cloud = createCloud();
 const problemKey = (err: unknown): MessageKey => (err instanceof CloudError ? (`cloud.${err.problem}` as MessageKey) : 'cloud.failed');
 
 export default function CloudAccountScreen() {
-  const { t, setServer, signIn, deviceName, cloudServerId, signedIn, forgetServer, sessionEnded } = useSession();
+  const { t, language, setServer, signIn, deviceName, cloudServerId, signedIn, forgetServer, sessionEnded } = useSession();
+  const [notice, setNotice] = useState<string | null>(null);
   // "Choose another server": show the list, do not open the last one again.
   const { choose } = useLocalSearchParams<{ choose?: string }>();
   const autoOpened = useRef(false);
@@ -60,7 +61,14 @@ export default function CloudAccountScreen() {
     setBusy('account');
     setError(null);
     try {
-      const a = mode === 'up' ? await cloud.signUp(email, password) : await cloud.signIn(email, password);
+      const a = mode === 'up' ? await cloud.signUp(email, password, language) : await cloud.signIn(email, password);
+      if ('pending' in a) {
+        // An account was made for this address already: the password is chosen with the link in the email.
+        setPassword('');
+        setMode('in');
+        setNotice(t('cloud.claimSent', { email: a.email }));
+        return;
+      }
       await SecureStore.setItemAsync(STORE_KEY, JSON.stringify(a));
       setAccount(a);
       setPassword('');
@@ -177,8 +185,10 @@ export default function CloudAccountScreen() {
               </View>
               <Field label={t('cloud.email')} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" />
               <Field label={t('cloud.password')} value={password} onChangeText={setPassword} secureTextEntry autoComplete={mode === 'up' ? 'new-password' : 'current-password'} returnKeyType="go" onSubmitEditing={() => void submit()} />
+              {notice && <Text style={styles.body} accessibilityRole="alert">{notice}</Text>}
               {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
               <Button label={mode === 'up' ? t('cloud.signUp') : t('cloud.signIn')} onPress={() => void submit()} busy={busy === 'account'} disabled={!email.trim() || !password} />
+              {mode === 'in' && <Button label={t('cloud.forgot')} variant="ghost" onPress={() => void Linking.openURL(FORGOT_PASSWORD_URL)} />}
               <Button label={mode === 'up' ? t('cloud.toSignIn') : t('cloud.toSignUp')} variant="ghost" onPress={() => { setMode(mode === 'up' ? 'in' : 'up'); setError(null); }} />
             </>
           )}

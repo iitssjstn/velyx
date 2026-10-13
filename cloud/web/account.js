@@ -21,6 +21,17 @@
         viewerOn: 'Toegang op afstand als kijker: actief', viewerUntil: 'Toegang op afstand als kijker: actief tot {date}',
         invited: 'Je bent uitgenodigd', invitedText: 'Je bent uitgenodigd om te kijken op {server}. Maak een Vidalune-account of log in om de uitnodiging aan te nemen.',
         inviteGone: 'Deze uitnodiging is niet (meer) geldig. Vraag om een nieuwe.', accepted: 'Je kunt nu kijken op {name}. Open hem hieronder.',
+        forgot: 'Wachtwoord vergeten?', forgotTitle: 'Wachtwoord vergeten', forgotIntro: 'Vul het e-mailadres van je account in. We sturen je een link om een nieuw wachtwoord te kiezen.',
+        sendLink: 'Link sturen', forgotSent: 'Als er een account is met {email}, staat er nu een e-mail met een link in je inbox. Kijk ook bij spam. De link werkt 1 uur.',
+        resetTitle: 'Nieuw wachtwoord kiezen', resetButton: 'Wachtwoord opslaan', resetDone: 'Je nieuwe wachtwoord is opgeslagen. Je bent overal anders afgemeld.',
+        linkBroken: 'Deze link werkt niet (meer). Vraag een nieuwe aan.',
+        claimSent: 'Er staat al een account klaar voor {email}. We hebben een e-mail gestuurd met een link om je wachtwoord te kiezen.',
+        signedUp: 'Je account is gemaakt. We hebben een e-mail gestuurd naar {email}: klik op de link om je adres te bevestigen.',
+        verifyBanner: 'Bevestig je e-mailadres met de link die we je stuurden. Zo krijg je je account altijd terug als je je wachtwoord vergeet.',
+        resend: 'Opnieuw sturen', resent: 'Verstuurd. Kijk ook bij spam.', verified: 'Je e-mailadres is bevestigd.', emailChanged: 'Je e-mailadres is gewijzigd naar {email}.',
+        settings: 'Account', changeEmail: 'E-mailadres wijzigen', newEmail: 'Nieuw e-mailadres', changeEmailButton: 'Link sturen',
+        emailPending: 'Open de link die we naar {email} stuurden om de wijziging af te ronden.',
+        changePassword: 'Wachtwoord wijzigen', currentPassword: 'Huidig wachtwoord', changePasswordButton: 'Wachtwoord wijzigen', passwordChanged: 'Je wachtwoord is gewijzigd. Andere apparaten zijn afgemeld.',
       }
     : {
         title: 'Vidalune account', intro: 'With a Vidalune account you find your own servers again, also outside your home network.',
@@ -40,6 +51,17 @@
         viewerOn: 'Remote access as a viewer: active', viewerUntil: 'Remote access as a viewer: active until {date}',
         invited: 'You are invited', invitedText: 'You are invited to watch on {server}. Create a Vidalune account or sign in to accept.',
         inviteGone: 'This invitation is not valid (any more). Ask for a new one.', accepted: 'You can watch on {name} now. Open it below.',
+        forgot: 'Forgot password?', forgotTitle: 'Forgot password', forgotIntro: 'Enter the email address of your account. We send you a link to choose a new password.',
+        sendLink: 'Send link', forgotSent: 'If there is an account for {email}, an email with a link is in your inbox now. Check your spam folder too. The link works for 1 hour.',
+        resetTitle: 'Choose a new password', resetButton: 'Save password', resetDone: 'Your new password is saved. You were signed out everywhere else.',
+        linkBroken: 'This link does not work (any more). Ask for a new one.',
+        claimSent: 'An account is ready for {email}. We sent an email with a link to choose your password.',
+        signedUp: 'Your account is ready. We sent an email to {email}: click the link to confirm your address.',
+        verifyBanner: 'Confirm your email address with the link we sent you. That way you can always get your account back if you forget your password.',
+        resend: 'Send again', resent: 'Sent. Check your spam folder too.', verified: 'Your email address is confirmed.', emailChanged: 'Your email address was changed to {email}.',
+        settings: 'Account', changeEmail: 'Change email address', newEmail: 'New email address', changeEmailButton: 'Send link',
+        emailPending: 'Open the link we sent to {email} to finish the change.',
+        changePassword: 'Change password', currentPassword: 'Current password', changePasswordButton: 'Change password', passwordChanged: 'Your password was changed. Other devices were signed out.',
       };
   // On app.vidalune.com these pages live under /_vl (the rest of that site is the chosen server).
   const BASE = location.pathname === '/_vl' || location.pathname.startsWith('/_vl/') ? '/_vl' : '';
@@ -59,7 +81,9 @@
     return e;
   };
   async function api(method, url, body) {
-    const res = await fetch(BASE + url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' });
+    // The language travels along, for any email the request sends.
+    const payload = body ? { ...body, lang: nl ? 'nl' : 'en' } : undefined;
+    const res = await fetch(BASE + url, { method, headers: payload ? { 'Content-Type': 'application/json' } : {}, body: payload ? JSON.stringify(payload) : undefined, credentials: 'same-origin' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(data.error || t('failed')), { status: res.status });
     return data;
@@ -155,13 +179,60 @@
           el('label', {}, t('email'), el('input', { name: 'email', type: 'email', autocomplete: 'email', required: true })),
           el('label', {}, up ? t('newPassword') : t('password'), el('input', { name: 'password', type: 'password', autocomplete: up ? 'new-password' : 'current-password', minlength: up ? 8 : null, required: true })),
         ], up ? t('signUp') : t('signIn'), async (v) => {
-          await api('POST', up ? '/api/account' : '/api/login', v);
-          await home();
+          const res = await api('POST', up ? '/api/account' : '/api/login', v);
+          // An account made for this address already: its password is chosen through the email.
+          if (res.pending === 'email') return showMessage(t('title'), t('claimSent', { email: res.email }));
+          await home(up ? 'signedUp' : '');
         }),
       ),
+      up ? null : el('button', { class: 'link', type: 'button', onclick: () => forgotPage() }, t('forgot')),
       el('button', { class: 'link', type: 'button', onclick: () => signIn(up ? 'in' : 'up', header) }, up ? t('toSignIn') : t('toSignUp')),
       el('p', { class: 'small' }, t('privacy')),
     );
+  }
+
+  const showMessage = (title, text) => show(el('h1', {}, title), el('p', { class: 'ok', role: 'status' }, text), el('a', { href: `${BASE}/account` }, t('signIn')));
+
+  /** "Forgot password?": a link to choose a new one, by email. */
+  function forgotPage() {
+    show(
+      el('h1', {}, t('forgotTitle')),
+      el('p', {}, t('forgotIntro')),
+      el('div', { class: 'card' },
+        form([el('label', {}, t('email'), el('input', { name: 'email', type: 'email', autocomplete: 'email', required: true }))], t('sendLink'), async (v) => {
+          await api('POST', '/api/password/forgot', v);
+          showMessage(t('forgotTitle'), t('forgotSent', { email: v.email }));
+        }),
+      ),
+      el('button', { class: 'link', type: 'button', onclick: () => signIn() }, t('toSignIn')),
+    );
+  }
+
+  /** The link from the email (/reset#…): a new password, then signed in. */
+  function resetPage() {
+    const token = pendingCode();
+    show(
+      el('h1', {}, t('resetTitle')),
+      el('div', { class: 'card' },
+        form([el('label', {}, t('newPassword'), el('input', { name: 'password', type: 'password', autocomplete: 'new-password', minlength: 8, required: true }))], t('resetButton'), async (v) => {
+          await api('POST', '/api/password/reset', { token, password: v.password });
+          history.replaceState(null, '', `${BASE}/account`);
+          await home('resetDone');
+        }),
+      ),
+    );
+  }
+
+  /** The link from the email (/verify#… or /email#…): the address is confirmed or changed, on any device. */
+  async function confirmLink() {
+    const token = pendingCode();
+    history.replaceState(null, '', `${BASE}/account`);
+    try {
+      const res = await api('POST', '/api/email/confirm', { token });
+      return home(res.purpose === 'email' ? t('emailChanged', { email: res.email }) : t('verified'));
+    } catch (err) {
+      return home('', err.status === 400 ? t('linkBroken') : err.message);
+    }
   }
 
   async function home(message = '', problem = '') {
@@ -170,8 +241,14 @@
       me = await api('GET', '/api/account');
     } catch {
       if (inviting()) return invitePage();
+      // A link opened on a device that is not signed in: what happened, then signing in.
+      if (message || problem) return show(el('h1', {}, t('title')), message ? el('p', { class: 'ok', role: 'status' }, message) : null, problem ? el('p', { class: 'error', role: 'alert' }, problem) : null, el('button', { type: 'button', onclick: () => signIn() }, t('signIn')));
+      if (new URLSearchParams(location.search).has('forgot')) return forgotPage();
       return signIn(pendingCode() || new URLSearchParams(location.search).has('new') ? 'up' : 'in');
     }
+    // Messages after signing up or choosing a password (they need the address, known only now).
+    if (message === 'signedUp') message = me.mail ? t('signedUp', { email: me.email }) : '';
+    if (message === 'resetDone') message = t('resetDone');
     if (inviting()) {
       // Accepted: straight into the server (it makes a user for this account there).
       let s;
@@ -233,6 +310,7 @@
         ),
       ),
       el('p', { class: 'small' }, planText(me.remote)),
+      me.mail && !me.emailVerified ? verifyBanner() : null,
       message ? el('p', { class: 'ok', role: 'status' }, message) : null,
       warning ? el('p', { class: 'error', role: 'alert' }, warning) : null,
       el('div', { class: 'card' },
@@ -281,6 +359,7 @@
       ),
       joining ? joinCard : el('details', {}, el('summary', {}, t('join')), joinCard),
       (pendingCode() && !joining) || list.length === 0 ? linkCard : el('details', {}, el('summary', {}, t('link')), linkCard),
+      settingsCard(me),
       el('details', {},
         el('summary', { class: 'small' }, t('delete')),
         el('div', { class: 'card' },
@@ -294,5 +373,53 @@
     );
   }
 
-  void home();
+  /** "Confirm your email address", with a button to send the link again. */
+  function verifyBanner() {
+    const status = el('span', { class: 'small', role: 'status' });
+    return el('p', { class: 'notice' }, t('verifyBanner'), ' ',
+      el('button', { class: 'link', type: 'button', onclick: async (e) => {
+        e.currentTarget.disabled = true;
+        try {
+          await api('POST', '/api/account/verify', {});
+          status.textContent = t('resent');
+        } catch (err) {
+          status.textContent = err.message;
+          e.currentTarget.disabled = false;
+        }
+      } }, t('resend')), ' ', status);
+  }
+
+  /** Account settings: another email address (with mail set up) and another password. */
+  function settingsCard(me) {
+    const done = el('p', { class: 'ok', role: 'status' });
+    return el('details', {},
+      el('summary', {}, t('settings')),
+      el('div', { class: 'card' },
+        done,
+        me.mail ? [
+          el('h2', {}, t('changeEmail')),
+          form([
+            el('label', {}, t('newEmail'), el('input', { name: 'email', type: 'email', autocomplete: 'email', required: true })),
+            el('label', {}, t('password'), el('input', { name: 'password', type: 'password', autocomplete: 'current-password', required: true })),
+          ], t('changeEmailButton'), async (v) => {
+            const res = await api('POST', '/api/account/email', v);
+            done.textContent = t('emailPending', { email: res.pending });
+          }),
+        ] : null,
+        el('h2', {}, t('changePassword')),
+        form([
+          el('label', {}, t('currentPassword'), el('input', { name: 'current', type: 'password', autocomplete: 'current-password', required: true })),
+          el('label', {}, t('newPassword'), el('input', { name: 'password', type: 'password', autocomplete: 'new-password', minlength: 8, required: true })),
+        ], t('changePasswordButton'), async (v) => {
+          await api('POST', '/api/account/password', v);
+          done.textContent = t('passwordChanged');
+        }),
+      ),
+    );
+  }
+
+  // Links from an email: choosing a password, or confirming an address.
+  if (page === '/reset' && pendingCode()) resetPage();
+  else if ((page === '/verify' || page === '/email') && pendingCode()) void confirmLink();
+  else void home();
 })();

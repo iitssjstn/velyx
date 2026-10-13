@@ -53,7 +53,7 @@ describe('link codes', () => {
 describe('accounts', () => {
   it('signs up, signs in and out; passwords and tokens are stored as hashes only', async () => {
     const cookie = await signUp('Justin@Example.com');
-    expect((await app.inject({ url: '/api/account', headers: { cookie } })).json()).toEqual({ email: 'justin@example.com', remote: { active: false, kind: null, until: null }, appUrl: null });
+    expect((await app.inject({ url: '/api/account', headers: { cookie } })).json()).toEqual({ email: 'justin@example.com', emailVerified: false, mail: false, remote: { active: false, kind: null, until: null }, appUrl: null });
     const stored = db.select().from(accounts).get()!;
     expect(stored.passwordHash).toMatch(/^\$argon2id\$/);
     expect(db.select().from(accountSessions).get()!.tokenHash).not.toBe(cookie.split('=')[1]);
@@ -193,7 +193,7 @@ describe('remote access and the admin page (the Control Center)', () => {
   it('only administrators and the CEO (ADMIN_EMAILS, CEO_EMAILS) see accounts and give remote access', async () => {
     const user = await signUp('justin@example.com');
     const boss = await signUp('boss@example.com');
-    expect((await app.inject({ url: '/api/account', headers: { cookie: boss } })).json()).toEqual({ email: 'boss@example.com', remote: { active: true, kind: 'remote', until: null }, appUrl: null, admin: true, ceo: true, version: JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8')).version });
+    expect((await app.inject({ url: '/api/account', headers: { cookie: boss } })).json()).toEqual({ email: 'boss@example.com', emailVerified: false, mail: false, remote: { active: true, kind: 'remote', until: null }, appUrl: null, admin: true, ceo: true, version: JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8')).version });
     // Only the CEO sees which version of vidalune.com runs.
     expect((await app.inject({ url: '/api/account', headers: { cookie: user } })).json()).not.toHaveProperty('version');
     expect((await app.inject({ url: '/api/ceo/customers', headers: { cookie: user } })).statusCode).toBe(403);

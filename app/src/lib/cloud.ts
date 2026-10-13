@@ -54,6 +54,15 @@ export interface CloudAccount {
   token: string;
 }
 
+/** Signing up for an address with an account made for it already: its password is chosen through an email. */
+export interface CloudPending {
+  email: string;
+  pending: 'email';
+}
+
+/** The page on vidalune.com to ask for a new password (by email). */
+export const FORGOT_PASSWORD_URL = `${CLOUD_URL}/account?forgot`;
+
 /** What went wrong, for a message in the app's language. */
 export type CloudProblem = 'wrong' | 'exists' | 'invalid' | 'tooMany' | 'signedOut' | 'unreachable' | 'failed';
 
@@ -89,7 +98,8 @@ export function createCloud(fetchImpl: typeof fetch = fetch, baseUrl = CLOUD_URL
 
   return {
     signIn: (email: string, password: string) => request<CloudAccount>('POST', '/api/login', null, { email: email.trim(), password, client: 'app' }),
-    signUp: (email: string, password: string) => request<CloudAccount>('POST', '/api/account', null, { email: email.trim(), password, client: 'app' }),
+    /** The language of the confirmation email follows the app. */
+    signUp: (email: string, password: string, lang: 'en' | 'nl' = 'en') => request<CloudAccount | CloudPending>('POST', '/api/account', null, { email: email.trim(), password, client: 'app', lang }),
     servers: (token: string) => request<CloudServer[]>('GET', '/api/servers', token),
     /** A one-time ticket to sign in on a server, and the addresses to try (its own first). */
     open: (token: string, serverId: string) => request<{ ticket: string; addresses: string[] }>('POST', `/api/servers/${encodeURIComponent(serverId)}/open`, token),

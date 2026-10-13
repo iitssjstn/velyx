@@ -10,9 +10,9 @@ import fastifyHelmet from '@fastify/helmet';
 import fastifyStatic from '@fastify/static';
 import { and, desc, eq, gt, isNotNull, isNull, lt } from 'drizzle-orm';
 import { z, ZodError } from 'zod';
-import { DEFAULT_DIRECT_PORT, type CloudConfig } from './config.js';
+import { DEFAULT_DIRECT_PORT, type CloudConfig, type MailConfig } from './config.js';
 import type { DB } from './db/client.js';
-import { accountActivity, accountSessions, accounts, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
+import { accountActivity, accountSessions, accounts, emailTokens, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
 import { isMediaBytesPath, isRelayedMediaBytes, newSlug, rejectRelayedMedia, Relay, relayMessage, type Rewrite } from './relay.js';
 import { composeFile, installPage, debInstallScript, installScript } from './install.js';
@@ -24,6 +24,7 @@ import { CeoError, ceoRoutes } from './ceo.js';
 import { CloudflareDns, publicAddress } from './cloudflare-dns.js';
 import { DirectCertificateIssuer } from './direct-certificate.js';
 import { sweepDirectDns } from './direct-dns-cleanup.js';
+import { Mailer, MailSettings, MailSettingsError, mailRoutes, mailTemplates, smtpTransport, smtpVerify, type MailMessage, type MailTransport } from './mail.js';
 
 const DAY = 86_400_000;
 
@@ -145,6 +146,12 @@ export interface CloudAppOptions {
   directCertificateIssuer?: Pick<DirectCertificateIssuer, 'issue'>;
   /** How long a certificate request waits for the issuance before answering "pending" (tests: 0). */
   directCertificateWaitMs?: number;
+  /** Where mail goes instead of the SMTP service (tests). */
+  mailTransport?: MailTransport;
+  /** Waits between attempts to send a message (tests: [0]). */
+  mailDelays?: number[];
+  /** Checks SMTP settings from the Control Center before they are saved (tests: their own). */
+  mailVerify?: (config: MailConfig) => Promise<void>;
 }
 
 /** A finished certificate stays available for the server's next request, in case the answer was lost. */
@@ -196,11 +203,30 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const publicUrl = new URL(config.publicUrl);
   /** The service's own addresses: vidalune.com, and app.vidalune.com / www.vidalune.com that serve the same pages. */
   const ownOrigins = new Set([config.publicUrl, ...['app', 'www'].map((n) => `${publicUrl.protocol}//${n}.${config.relayDomain}${publicUrl.port ? `:${publicUrl.port}` : ''}`)]);
+  /** Outgoing mail; null when no SMTP service is set up (nothing is sent then). */
+  const mailSettings = new MailSettings(db, config.mail, now);
+  /** One SMTP connection setup per set of settings (a change in the Control Center makes a new one). */
+  let transport: { key: string; send: MailTransport } | null = null;
+  const transportFor = (c: MailConfig): MailTransport => {
+    if (opts.mailTransport) return opts.mailTransport;
+    const key = JSON.stringify(c);
+    if (transport?.key !== key) transport = { key, send: smtpTransport(c) };
+    return transport.send;
+  };
+  const mailer = new Mailer(() => {
+    const current = mailSettings.current();
+    return current ? { config: current.config, transport: transportFor(current.config) } : null;
+  }, opts.mailDelays);
+  /**
+   * Rights that come with an address (ADMIN_EMAILS, CEO_EMAILS) only for whoever proved it is theirs:
+   * with mail set up, the address must be confirmed. Without mail nobody can confirm one.
+   */
+  const confirmed = (a: { emailVerifiedAt?: number | null }) => !mailer.enabled || (a.emailVerifiedAt ?? null) !== null;
   const admins = new Set(config.adminEmails);
-  const isAdmin = (a: { email: string }) => admins.has(a.email);
+  const isAdmin = (a: { email: string; emailVerifiedAt?: number | null }) => admins.has(a.email) && confirmed(a);
   const ceos = new Set(config.ceoEmails);
   /** The Control Center (/admin): CEO_EMAILS, and the administrators of ADMIN_EMAILS. */
-  const isCeo = (a: { email: string }) => ceos.has(a.email) || admins.has(a.email);
+  const isCeo = (a: { email: string; emailVerifiedAt?: number | null }) => (ceos.has(a.email) || admins.has(a.email)) && confirmed(a);
   /** Whether an account's servers may be reached through Vidalune: an active plan (administrators always). */
   const hasRemote = (a: typeof accounts.$inferSelect | undefined): boolean => !!a && a.suspendedAt === null && (isAdmin(a) || (a.plan === 'remote' && (a.planUntil === null || a.planUntil > now())));
   const ownerHasRemote = (accountId: number | null): boolean => accountId !== null && hasRemote(db.select().from(accounts).where(eq(accounts.id, accountId)).get());
@@ -364,6 +390,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   }
   app.addHook('onClose', async () => relay.close());
   const limiter = new RateLimiter(10, 60_000);
+  /** Mail to one address or account: a few messages per ten minutes, so nobody can flood someone's inbox. */
+  const mailLimiter = new RateLimiter(3, 10 * 60_000);
   const secureCookie = config.publicUrl.startsWith('https://');
 
   await app.register(fastifyCookie);
@@ -386,7 +414,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) return reply.code(400).send({ error: error.issues[0]?.message ?? 'Invalid input.' });
-    if (error instanceof HttpError || error instanceof CeoError || error instanceof SubtitleError) return reply.code(error.statusCode).send({ error: error.message });
+    if (error instanceof HttpError || error instanceof CeoError || error instanceof SubtitleError || error instanceof MailSettingsError) return reply.code(error.statusCode).send({ error: error.message });
     const status = (error as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) return reply.code(status).send({ error: 'Invalid request.' });
     app.log.error(error);
@@ -428,17 +456,142 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     return me;
   }
 
+  // ---- mail: confirming an address, choosing a password, moving to another address
+
+  /** How long a link from an email works. */
+  const LINK_MS = { verify: 2 * DAY, reset: 60 * 60_000, email: DAY } as const;
+  type LinkPurpose = keyof typeof LINK_MS;
+  const lang = z.enum(['en', 'nl']).optional();
+  const mailLanguage = (request: FastifyRequest) => pickLanguage(request.body, request.headers['accept-language']);
+  /** A one-time link for an account (a new one replaces the one before it for the same purpose). */
+  function issueLink(accountId: number, purpose: LinkPurpose, newEmail: string | null = null): string {
+    const token = newToken();
+    const t = now();
+    db.delete(emailTokens).where(lt(emailTokens.expiresAt, t)).run();
+    db.delete(emailTokens).where(and(eq(emailTokens.accountId, accountId), eq(emailTokens.purpose, purpose))).run();
+    db.insert(emailTokens).values({ tokenHash: sha256(token), accountId, purpose, newEmail, createdAt: t, expiresAt: t + LINK_MS[purpose] }).run();
+    // The token after "#": it never reaches a server log or another site.
+    const page = purpose === 'verify' ? 'verify' : purpose === 'reset' ? 'reset' : 'email';
+    return `${config.publicUrl}/${page}#${token}`;
+  }
+  /** The link's account (used once: gone afterwards), or an error that says it does not work. */
+  function useLink(token: string, purposes: LinkPurpose[]) {
+    const row = db.select().from(emailTokens).where(eq(emailTokens.tokenHash, sha256(token))).get();
+    if (!row || !purposes.includes(row.purpose) || row.expiresAt < now()) throw new HttpError(400, 'This link does not work (any more). Ask for a new one.');
+    db.delete(emailTokens).where(eq(emailTokens.tokenHash, row.tokenHash)).run();
+    const a = db.select().from(accounts).where(eq(accounts.id, row.accountId)).get();
+    if (!a) throw new HttpError(400, 'This link does not work (any more). Ask for a new one.');
+    if (a.suspendedAt !== null) throw new HttpError(403, 'This Vidalune account is suspended. Contact Vidalune.');
+    return { row, account: a };
+  }
+  const sendMail = (to: string, message: Omit<MailMessage, 'to'>) => mailer.send({ ...message, to });
+  const needMail = () => {
+    if (!mailer.enabled) throw new HttpError(503, 'Vidalune cannot send email right now. Contact Vidalune.');
+  };
+  const linkToken = z.object({ token: z.string().min(20).max(200) });
+  const accountPage = `${config.publicUrl}/account`;
+
   app.post('/api/account', async (request, reply) => {
     limiter.check(`signup:${request.ip}`, now());
-    const body = z.object({ email, password, client }).parse(request.body);
+    const body = z.object({ email, password, client, lang }).parse(request.body);
     const existing = db.select().from(accounts).where(eq(accounts.email, body.email)).get();
     // Added by the CEO (no password yet): signing up with that address takes it over, with its access.
     if (existing && (existing.passwordHash !== '' || existing.suspendedAt !== null)) throw new HttpError(409, 'There is already an account with this email address. Sign in instead.');
+    if (existing && mailer.enabled) {
+      // Only whoever reads that address may take it over: the password is chosen through a link sent there.
+      mailLimiter.check(`to:${existing.email}`, now());
+      sendMail(existing.email, mailTemplates.claim(mailLanguage(request), issueLink(existing.id, 'reset')));
+      return reply.code(202).send({ email: existing.email, pending: 'email' });
+    }
     const row = existing
       ? db.update(accounts).set({ passwordHash: await hashPassword(body.password) }).where(eq(accounts.id, existing.id)).returning().get()
       : db.insert(accounts).values({ email: body.email, passwordHash: await hashPassword(body.password), createdAt: now() }).returning().get();
+    if (!existing) sendMail(row.email, mailTemplates.verify(mailLanguage(request), issueLink(row.id, 'verify')));
     const token = startSession(reply, row.id, body.client);
     return { email: row.email, ...(token ? { token } : {}) };
+  });
+
+  /** Another confirmation link for the signed-in account's address. */
+  app.post('/api/account/verify', async (request) => {
+    const me = account(request);
+    if (me.emailVerifiedAt !== null) return { ok: true };
+    needMail();
+    mailLimiter.check(`to:${me.email}`, now());
+    z.object({ lang }).parse(request.body ?? {});
+    sendMail(me.email, mailTemplates.verify(mailLanguage(request), issueLink(me.id, 'verify')));
+    return { ok: true };
+  });
+
+  /** A link from an email: the address is confirmed, or the account moves to the new address. Works on any device. */
+  app.post('/api/email/confirm', async (request) => {
+    limiter.check(`confirm:${request.ip}`, now());
+    const { row, account: a } = useLink(linkToken.parse(request.body).token, ['verify', 'email']);
+    if (row.purpose === 'verify') {
+      if (a.emailVerifiedAt === null) db.update(accounts).set({ emailVerifiedAt: now() }).where(eq(accounts.id, a.id)).run();
+      return { purpose: 'verify', email: a.email };
+    }
+    const newEmail = email.parse(row.newEmail);
+    if (db.select({ id: accounts.id }).from(accounts).where(eq(accounts.email, newEmail)).get()) throw new HttpError(409, 'There is already an account with this email address.');
+    db.update(accounts).set({ email: newEmail, emailVerifiedAt: now() }).where(eq(accounts.id, a.id)).run();
+    db.delete(emailTokens).where(and(eq(emailTokens.accountId, a.id), eq(emailTokens.purpose, 'email'))).run();
+    // The old address hears about it, in case someone else did this.
+    sendMail(a.email, mailTemplates.emailChanged(mailLanguage(request), newEmail, accountPage));
+    return { purpose: 'email', email: newEmail };
+  });
+
+  /** "Forgot password?": a link to choose a new one, sent to the address if it has an account (the answer is the same either way). */
+  app.post('/api/password/forgot', async (request) => {
+    const body = z.object({ email, lang }).parse(request.body);
+    needMail();
+    limiter.check(`forgot:${request.ip}`, now());
+    limiter.check(`forgot:${body.email}`, now());
+    mailLimiter.check(`to:${body.email}`, now());
+    const a = db.select().from(accounts).where(eq(accounts.email, body.email)).get();
+    if (a && a.suspendedAt === null) {
+      const link = issueLink(a.id, 'reset');
+      sendMail(a.email, a.passwordHash === '' ? mailTemplates.claim(mailLanguage(request), link) : mailTemplates.reset(mailLanguage(request), link));
+    }
+    return { ok: true };
+  });
+
+  /** Choosing a new password with the link: signed out everywhere, then signed in here. The address counts as confirmed. */
+  app.post('/api/password/reset', async (request, reply) => {
+    limiter.check(`reset:${request.ip}`, now());
+    const body = z.object({ token: linkToken.shape.token, password, client }).parse(request.body);
+    const { account: a } = useLink(body.token, ['reset']);
+    db.update(accounts).set({ passwordHash: await hashPassword(body.password), emailVerifiedAt: a.emailVerifiedAt ?? now() }).where(eq(accounts.id, a.id)).run();
+    db.delete(accountSessions).where(eq(accountSessions.accountId, a.id)).run();
+    const token = startSession(reply, a.id, body.client);
+    return { email: a.email, ...(token ? { token } : {}) };
+  });
+
+  /** Changing the password while signed in: other browsers and apps are signed out. */
+  app.post('/api/account/password', async (request) => {
+    const me = account(request);
+    limiter.check(`password:${me.id}`, now());
+    const body = z.object({ current: z.string().max(256), password, lang }).parse(request.body);
+    if (!(await verifyPassword(me.passwordHash, body.current))) throw new HttpError(401, 'Wrong password.');
+    db.update(accounts).set({ passwordHash: await hashPassword(body.password) }).where(eq(accounts.id, me.id)).run();
+    const mine = sha256(sessionToken(request) ?? '');
+    for (const s of db.select({ tokenHash: accountSessions.tokenHash }).from(accountSessions).where(eq(accountSessions.accountId, me.id)).all()) {
+      if (s.tokenHash !== mine) db.delete(accountSessions).where(eq(accountSessions.tokenHash, s.tokenHash)).run();
+    }
+    sendMail(me.email, mailTemplates.passwordChanged(mailLanguage(request), accountPage));
+    return { ok: true };
+  });
+
+  /** Moving the account to another address: it changes once the link sent there is opened. */
+  app.post('/api/account/email', async (request) => {
+    const me = account(request);
+    needMail();
+    limiter.check(`email:${me.id}`, now());
+    const body = z.object({ email, password: z.string().max(256), lang }).parse(request.body);
+    if (!(await verifyPassword(me.passwordHash, body.password))) throw new HttpError(401, 'Wrong password.');
+    if (body.email === me.email) throw new HttpError(400, 'This is already your email address.');
+    if (db.select({ id: accounts.id }).from(accounts).where(eq(accounts.email, body.email)).get()) throw new HttpError(409, 'There is already an account with this email address.');
+    mailLimiter.check(`to:${body.email}`, now());
+    sendMail(body.email, mailTemplates.changeEmail(mailLanguage(request), issueLink(me.id, 'email', body.email), me.email));
+    return { pending: body.email };
   });
 
   app.post('/api/login', async (request, reply) => {
@@ -470,7 +623,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   app.get('/api/account', async (request) => {
     const me = account(request);
     // The CEO also sees which version of vidalune.com is running (shown in the Control Center).
-    return { email: me.email, remote: planView(me), appUrl: appOrigin, ...(isAdmin(me) ? { admin: true } : {}), ...(isCeo(me) ? { ceo: true, version: releaseVersion } : {}) };
+    return { email: me.email, emailVerified: me.emailVerifiedAt !== null, mail: mailer.enabled, remote: planView(me), appUrl: appOrigin, ...(isAdmin(me) ? { admin: true } : {}), ...(isCeo(me) ? { ceo: true, version: releaseVersion } : {}) };
   });
 
   /**
@@ -691,6 +844,22 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       return me;
     },
     limit: (key) => subtitleLimiters.settings.check(key, now()),
+  });
+  mailRoutes(app, {
+    settings: mailSettings,
+    ceo: (request) => {
+      const me = account(request);
+      if (!isCeo(me)) throw new HttpError(403, 'Only for the CEO of Vidalune.');
+      return me;
+    },
+    confirmSelf: (me) => {
+      db.update(accounts).set({ emailVerifiedAt: now() }).where(and(eq(accounts.id, me.id), isNull(accounts.emailVerifiedAt))).run();
+    },
+    limit: (key) => limiter.check(key, now()),
+    verify: opts.mailVerify ?? smtpVerify,
+    sendNow: (c, message) => transportFor(c)({ ...message, from: c.from, headers: c.headers }),
+    language: (request) => pickLanguage(request.body, request.headers['accept-language']),
+    controlCenterUrl: `${config.publicUrl}/admin`,
   });
   subtitleRoutes(app, {
     db,
@@ -1158,6 +1327,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     app.get('/servers', page);
     app.get('/join', page);
     app.get('/invite', page);
+    app.get('/verify', page);
+    app.get('/reset', page);
+    app.get('/email', page);
     // The Control Center: the page for everyone, its data only for the CEO and administrators
     // (checked by /api/ceo on every call). /ceo was its address before.
     app.get('/admin', (_req, reply) => reply.type('text/html').header('Cache-Control', 'no-cache').send(fs.readFileSync(path.join(webDir, 'ceo.html'))));
