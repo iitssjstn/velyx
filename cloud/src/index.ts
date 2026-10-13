@@ -14,7 +14,8 @@ setTimeout(() => void app.sweepDirectDns(), 60_000).unref();
 setInterval(() => void app.sweepDirectDns(), 60 * 60 * 1000).unref();
 await app.listen({ port: config.port, host: config.host });
 console.log(`Vidalune account service on http://${config.host}:${config.port} (${config.publicUrl})`);
-console.log(config.mail ? `Mail: sent as ${config.mail.from} through ${config.mail.host}:${config.mail.port}` : 'Mail: not set up (SMTP_HOST and MAIL_FROM); confirmation and password emails are not sent');
+// Where mail goes: the Control Center's settings first, else the environment's.
+console.log(app.mailStatus());
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {

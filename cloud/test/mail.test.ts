@@ -257,7 +257,9 @@ describe('mail settings in the Control Center', () => {
     expect(saved.statusCode).toBe(200);
     expect(verified).toEqual([{ ...POSTMARK, headers: { 'X-PM-Message-Stream': 'outbound' } }]);
     const view = (await as('GET', '/api/ceo/mail')).json();
-    expect(view).toMatchObject({ configured: true, source: 'settings', host: 'smtp.postmarkapp.com', user: 'server-token-1234', headers: 'X-PM-Message-Stream: outbound', hasPassword: true, hint: '••••1234' });
+    expect(view).toMatchObject({ configured: true, source: 'settings', host: 'smtp.postmarkapp.com', headers: 'X-PM-Message-Stream: outbound', hasUser: true, userHint: '••••1234', hasPassword: true, hint: '••••1234' });
+    // Neither the password nor the user (at Postmark both are the token) is ever sent back.
+    expect(JSON.stringify(view)).not.toContain('server-token-1234');
     expect(JSON.stringify(view)).not.toContain('"pass"');
     // The CEO who turned mail on keeps the Control Center, although the address was not confirmed by email.
     expect((await as('GET', '/api/account')).json()).toMatchObject({ ceo: true, mail: true, emailVerified: true });
@@ -282,6 +284,27 @@ describe('mail settings in the Control Center', () => {
     expect((await as('PUT', '/api/ceo/mail', { ...POSTMARK, pass: '', from: 'Vidalune <hello@vidalune.com>' })).statusCode).toBe(200);
     expect(verified.at(-1)).toMatchObject({ pass: 'server-token-1234', from: 'Vidalune <hello@vidalune.com>' });
     expect((await as('PUT', '/api/ceo/mail', { ...POSTMARK, user: 'other-token', pass: '' })).json().error).toMatch(/password/);
+  });
+
+  it('keeps the saved user and password when both are left empty, for the same server only', async () => {
+    await start({ mail: null, adminEmails: ['boss@example.com'] });
+    const as = await ceo();
+    await as('PUT', '/api/ceo/mail', POSTMARK);
+    const { user: _user, pass: _pass, ...rest } = POSTMARK;
+    expect((await as('PUT', '/api/ceo/mail', { ...rest, from: 'Vidalune <hello@vidalune.com>' })).statusCode).toBe(200);
+    expect(verified.at(-1)).toMatchObject({ user: 'server-token-1234', pass: 'server-token-1234', from: 'Vidalune <hello@vidalune.com>' });
+    // Another server: the saved user and password belong to the old one.
+    await as('PUT', '/api/ceo/mail', { ...rest, host: 'smtp-relay.brevo.com' });
+    expect(verified.at(-1)).toMatchObject({ host: 'smtp-relay.brevo.com', user: '', pass: '' });
+  });
+
+  it('says in the log where mail goes, also after a change in the Control Center', async () => {
+    await start({ mail: null, adminEmails: ['boss@example.com'] });
+    expect(cloud.mailStatus()).toMatch(/^Mail: not set up/);
+    const as = await ceo();
+    await as('PUT', '/api/ceo/mail', POSTMARK);
+    expect(cloud.mailStatus()).toBe('Mail: set up in the Control Center: sent as Vidalune <no-reply@vidalune.com> through smtp.postmarkapp.com:587');
+    expect(cloud.mailStatus()).not.toContain('server-token');
   });
 
   it('refuses a wrong header or sender', async () => {

@@ -860,7 +860,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     sendNow: (c, message) => transportFor(c)({ ...message, from: c.from, headers: c.headers }),
     language: (request) => pickLanguage(request.body, request.headers['accept-language']),
     controlCenterUrl: `${config.publicUrl}/admin`,
+    log: (message) => console.info(message),
   });
+  app.decorate('mailStatus', () => mailSettings.describe());
   subtitleRoutes(app, {
     db,
     proxy: new SubtitleProxy({ db, fetchImpl: opts.fetchImpl ?? ((input, init) => fetch(input, init)), now, userAgent: 'Vidalune v1' }),
@@ -1382,5 +1384,7 @@ declare module 'fastify' {
     relay: Relay;
     /** Checks the relays and writes down their state (every five minutes). */
     ceoMonitor: () => Promise<void>;
+    /** One line for the log: where mail goes now. */
+    mailStatus: () => string;
   }
 }
