@@ -25,7 +25,27 @@ export const accounts = sqliteTable('accounts', {
   suspendedBy: text('suspended_by'),
   /** The relay this customer's servers use (null: the main relay). */
   relayNodeId: integer('relay_node_id'),
+  /** When the owner of the address confirmed it (null: not yet). Accounts from before 0.19.56 count as confirmed. */
+  emailVerifiedAt: integer('email_verified_at'),
 });
+
+/**
+ * One-time links sent by email: confirming an address, choosing a (new) password, or moving the
+ * account to another address. Only a hash of the token is stored.
+ */
+export const emailTokens = sqliteTable(
+  'email_tokens',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+    purpose: text('purpose', { enum: ['verify', 'reset', 'email'] }).notNull(),
+    /** For "email": the address the account moves to. */
+    newEmail: text('new_email'),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [index('email_tokens_account').on(t.accountId)],
+);
 
 /** Signed-in browsers and apps. Only a hash of the token is stored. */
 export const accountSessions = sqliteTable(

@@ -26,6 +26,13 @@ services:
       CLOUDFLARE_ZONE_NAME: vidalune.com
       CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-} # runtime secret; DNS edit/read for this zone only
       DIRECT_ACME_EMAIL: you@example.com
+      # Mail (address confirmation, forgot password): any SMTP service, here Postmark.
+      SMTP_HOST: smtp.postmarkapp.com
+      SMTP_PORT: "587"
+      SMTP_USER: ${SMTP_TOKEN:-}         # runtime secret; Postmark: the server token
+      SMTP_PASS: ${SMTP_TOKEN:-}
+      MAIL_FROM: Vidalune <no-reply@vidalune.com>
+      MAIL_HEADERS: "X-PM-Message-Stream: outbound"
     volumes:
       - ./cloud-data:/data               # cloud.db lives here: back it up
     networks: [npm]                      # the network Nginx Proxy Manager is on
@@ -60,6 +67,34 @@ interface (see *app.vidalune.com* below).
 | `DNS_RECORD_LIMIT` | `200` | How many DNS records your Cloudflare plan allows in the zone. Every linked server uses one; the Control Center warns at 80 %. An hourly clean-up removes the records of servers that are gone, unlinked, or silent for a day and unreachable. |
 | `DIRECT_ACME_DIRECTORY_URL` | Let's Encrypt production | ACME directory used to issue publicly trusted certificates. Use the Let's Encrypt staging directory only for deployment tests. |
 | `DIRECT_ACME_EMAIL` | first `ADMIN_EMAILS` address | Optional contact for certificate expiry notices. |
+| `SMTP_HOST` | (empty) | SMTP service for the account service's mail. Without it (or without `MAIL_FROM`) no mail is sent: addresses cannot be confirmed and *Forgot password?* is not available. |
+| `SMTP_PORT` | `587` | `587` uses STARTTLS (required before signing in); `465` uses TLS from the start. |
+| `SMTP_SECURE` | `true` on port 465 | TLS from the start (`true`) or STARTTLS (`false`). |
+| `SMTP_USER`, `SMTP_PASS` | (empty) | Sign-in at the SMTP service. A runtime secret: keep it in the host's environment, never in the repository; it is never logged or returned. |
+| `MAIL_FROM` | (empty) | The sender, for example `Vidalune <no-reply@vidalune.com>`. The domain needs the SPF and DKIM records the SMTP service gives. |
+| `MAIL_HEADERS` | (empty) | Extra headers on every message, `Name: value` separated by `;` (Postmark: `X-PM-Message-Stream: outbound`). |
+
+## Email
+
+With an SMTP service set up, the account service sends:
+
+- **Confirm your email address** after signing up (the link works for 2 days; *Send again* on the
+  account page sends a new one). With mail set up, the rights of `ADMIN_EMAILS` and `CEO_EMAILS`
+  only count for an account whose address is confirmed, so nobody can sign up with such an address
+  and get them. Accounts from before 0.19.56 count as confirmed.
+- **Forgot password?** on the sign-in page (also in the app): a link to choose a new password (works
+  for 1 hour). The answer is the same whether or not the address has an account. Afterwards the
+  account is signed out everywhere and the address counts as confirmed.
+- **An account made for someone in the Control Center** (no password yet) is taken over through a link
+  sent to that address, never by just signing up with it.
+- **Change email address** (account page, with the password): the account moves once the link sent
+  to the new address is opened (works for 1 day); the old address is told about it.
+- **Your password was changed** after a change on the account page (other devices are signed out).
+
+Links are one-time, only a hash of them is stored, and the token is after `#` in the address so it
+never reaches a server log. Messages are plain text and simple HTML in English or Dutch (the
+language of the page or the app), without images or tracking. Sending happens in the background
+with three attempts; a message that cannot be sent is logged with its subject only.
 
 ## Remote access
 

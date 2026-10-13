@@ -42,6 +42,50 @@ export interface CloudConfig {
   relayMaxMbps: number;
   /** What one server may send through the relay, in Mbit/s, unless set per server (0: no limit). */
   relayServerMbps: number;
+  /** Outgoing mail (address confirmations, password resets) over SMTP; null: no mail is sent. */
+  mail: MailConfig | null;
+}
+
+/** An SMTP service (Postmark, Brevo, a server of your own…). The password is never logged or returned. */
+export interface MailConfig {
+  host: string;
+  port: number;
+  /** TLS from the start (port 465); otherwise STARTTLS is required. */
+  secure: boolean;
+  user: string;
+  pass: string;
+  /** The sender, e.g. "Vidalune <no-reply@vidalune.com>". */
+  from: string;
+  /** Extra headers on every message (MAIL_HEADERS="X-PM-Message-Stream: outbound"). */
+  headers: Record<string, string>;
+}
+
+/** "Name: value; Other: value" → headers (only well-formed ones, no line breaks). */
+export function parseMailHeaders(value: string | undefined): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const part of (value ?? '').split(';')) {
+    const i = part.indexOf(':');
+    const name = part.slice(0, i).trim();
+    const v = part.slice(i + 1).trim();
+    if (i > 0 && /^[A-Za-z0-9-]{1,64}$/.test(name) && v && !/[\r\n]/.test(v)) headers[name] = v;
+  }
+  return headers;
+}
+
+function loadMail(env: NodeJS.ProcessEnv): MailConfig | null {
+  const host = env.SMTP_HOST?.trim();
+  const from = env.MAIL_FROM?.trim();
+  if (!host || !from) return null;
+  const port = int(env.SMTP_PORT, 587);
+  return {
+    host,
+    port,
+    secure: env.SMTP_SECURE ? env.SMTP_SECURE === 'true' : port === 465,
+    user: env.SMTP_USER ?? '',
+    pass: env.SMTP_PASS ?? '',
+    from,
+    headers: parseMailHeaders(env.MAIL_HEADERS),
+  };
 }
 
 const int = (v: string | undefined, fallback: number) => {
@@ -81,6 +125,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     directAcmeEmail: (env.DIRECT_ACME_EMAIL || env.ADMIN_EMAILS?.split(/[\s,;]+/)[0] || '').trim().toLowerCase(),
     relayMaxMbps: Math.max(0, int(env.RELAY_MAX_MBPS, 900)),
     relayServerMbps: Math.max(0, int(env.RELAY_SERVER_MBPS, 0)),
+    mail: loadMail(env),
     webDir: fs.existsSync(defaultWeb) ? defaultWeb : null,
     downloadDir: path.resolve(env.DOWNLOAD_DIR ?? path.join(moduleDir, '..', 'downloads')),
     frontendDir: fs.existsSync(path.join(frontendDir, 'index.html')) ? frontendDir : null,

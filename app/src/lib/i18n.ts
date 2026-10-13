@@ -39,6 +39,8 @@ const en = {
   'cloud.signedOut': 'You were signed out of your Vidalune account. Sign in again.',
   'cloud.unreachable': 'Could not reach vidalune.com. Check your connection.',
   'cloud.failed': 'That did not work. Try again.',
+  'cloud.forgot': 'Forgot password?',
+  'cloud.claimSent': 'An account is ready for {email}. We sent an email with a link to choose your password; then sign in here.',
   'cloud.notConnected': 'Your Vidalune account could not sign in on this server. Try again, or ask its administrator.',
 
   'tabs.home': 'Home',
@@ -309,6 +311,8 @@ const nl: Record<MessageKey, string> = {
   'cloud.signedOut': 'Je bent uitgelogd bij je Vidalune-account. Log opnieuw in.',
   'cloud.unreachable': 'vidalune.com is niet bereikbaar. Controleer je verbinding.',
   'cloud.failed': 'Dat lukte niet. Probeer het opnieuw.',
+  'cloud.forgot': 'Wachtwoord vergeten?',
+  'cloud.claimSent': 'Er staat al een account klaar voor {email}. We hebben een e-mail gestuurd met een link om je wachtwoord te kiezen; log daarna hier in.',
   'cloud.notConnected': 'Je Vidalune-account kon niet inloggen op deze server. Probeer het opnieuw, of vraag het de beheerder.',
 
   'tabs.home': 'Home',

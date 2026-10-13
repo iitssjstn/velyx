@@ -97,7 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- In de maak: **0.19.55** (app alleen via het Vidalune-account, zie onderaan).
+- In de maak: **0.19.55** (app alleen via het Vidalune-account, PR #140, groen) en daarna **0.19.56** (mailsysteem; lokaal klaar, pas pushen na de release van 0.19.55). Zie onderaan.
 - Laatste release: **0.19.54** (PR #139, zwarte balken bij spoelen; gemerged 13 okt op verzoek van de eigenaar na groene CI); release `v0.19.54` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
@@ -908,5 +908,41 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Hierna (gevraagd 13 okt, nog niet bouwen tot de eigenaar het zegt): eigen cast-app (Custom Web Receiver). De eigenaar
   registreert zich in de Google Cast SDK Developer Console ($5) en zet zijn Chromecast als testapparaat; app-ID is niet
   geheim. Eerste stap: laadscherm, afspelen, spoelen, audio/ondertitels met eigen stijl, voortgang vanaf de tv.
-- Vraag eigenaar (13 okt): eigen mailsysteem, bijvoorbeeld in Docker. Zie "Later" punt 9 (e-mailsysteem); nog niets besloten.
+- Vraag eigenaar (13 okt): eigen mailsysteem; uitgewerkt en gebouwd als 0.19.56 (zie daar).
+
+## Versie 0.19.56 (mailsysteem van de accountservice)
+
+- Op verzoek van de eigenaar ("Bouw het maar", 13 okt). Hij wil een bedrijfsmail: info@vidalune.com (ontvangen via
+  Cloudflare Email Routing naar zijn Gmail) en no-reply@vidalune.com voor automatische mails via **Postmark** (SMTP).
+  Besproken en afgeraden: zelf versturen vanaf de OVH-VPS (poort 25, PTR, reputatie, onderhoud). Postmark-account stond
+  bij het bouwen nog op "deactivated" (eigenaar mailt hun support). De eigenaar deelde per ongeluk een servertoken in een
+  screenshot: geadviseerd het te vervangen.
+- Accountservice (`cloud/`): SMTP via `nodemailer` (10.0.11, exact vastgezet), instellingen `SMTP_HOST`, `SMTP_PORT`
+  (587, STARTTLS verplicht), `SMTP_SECURE`, `SMTP_USER`/`SMTP_PASS` (secret, nooit gelogd), `MAIL_FROM`, `MAIL_HEADERS`
+  (Postmark: `X-PM-Message-Stream: outbound`). Zonder `SMTP_HOST`+`MAIL_FROM` wordt niets verstuurd en werkt alles als
+  voorheen. Versturen op de achtergrond met drie pogingen; mislukt: alleen het onderwerp in de log.
+- Mails (Engels/Nederlands, tekst + eenvoudige HTML zonder afbeeldingen of tracking, `cloud/src/mail.ts`):
+  - e-mailadres bevestigen na aanmelden (2 dagen, opnieuw sturen op de accountpagina);
+  - wachtwoord vergeten (1 uur; zelfde antwoord voor onbekende adressen; daarna overal afgemeld, adres telt als bevestigd);
+  - een door de CEO aangemaakt account (zonder wachtwoord) wordt alleen nog overgenomen via een link naar dat adres;
+  - e-mailadres wijzigen (met wachtwoord; wijzigt pas na de link op het nieuwe adres, 1 dag; het oude adres krijgt bericht);
+  - wachtwoord wijzigen (met huidig wachtwoord; andere apparaten afgemeld; melding per mail).
+- **Bug 8 uit de audit is hiermee dicht** zodra mail aanstaat: de rechten van `ADMIN_EMAILS`/`CEO_EMAILS` gelden alleen
+  voor een account met bevestigd adres, en overnemen van een CEO-account kan alleen via de mail. Bestaande accounts met
+  een wachtwoord tellen als bevestigd (migratie `0016_email`), dus het CEO-account van de eigenaar blijft werken.
+- Links zijn eenmalig, alleen de hash staat in de database (`email_tokens`), het token staat na `#` in de link. Limiet:
+  hooguit 3 mails per adres per 10 minuten. Zod en autorisatie op elk endpoint.
+- Accountpagina (`cloud/web/account.js`): "Wachtwoord vergeten?", pagina's `/reset`, `/verify`, `/email`, melding
+  "Bevestig je e-mailadres" met opnieuw sturen, en een blok Account (e-mailadres en wachtwoord wijzigen). In de browser
+  doorgeklikt (aanmelden, bevestigen, vergeten, nieuw wachtwoord); screenshots naar de eigenaar.
+- App: "Wachtwoord vergeten?" opent de pagina op vidalune.com; aanmelden voor een klaargezet account meldt dat de link
+  per mail komt. Taal van de mail volgt de app.
+- Nog niet: uitnodigingen per mail versturen (nu een link om te kopiëren) en meldingen zoals "server offline".
+- Tests: `cloud/test/mail.test.ts` (18: bevestigen, verlopen, opnieuw sturen, limiet, rechten pas na bevestigen, zonder
+  mail als voorheen, overnemen via mail, vergeten/reset/eenmalig/verlopen/geschorst, wachtwoord en e-mail wijzigen,
+  bezet adres, mailer-pogingen, escaping, instellingen, headers) en een app-test. Cloud 146, app 153 tests; alle
+  typechecks, lint (4 bekende waarschuwingen) en de cloud-build slagen.
+- Door de eigenaar te doen na de release: in Postmark het domein vidalune.com toevoegen en de DKIM- en Return-Path-records
+  in Cloudflare zetten; een sender signature voor no-reply@vidalune.com; daarna de SMTP-variabelen als secret op de
+  accountservice (zie `cloud/README.md`, "Email") en een test: aanmelden met een eigen adres en de mail controleren.
 

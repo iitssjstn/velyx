@@ -20,6 +20,18 @@ describe('Vidalune account service', () => {
     expect(calls[1]!.init.headers).toMatchObject({ Authorization: `Bearer ${'t'.repeat(43)}` });
   });
 
+  it('signs up in the app\'s language, and says when the password is chosen through an email instead', async () => {
+    const bodies: unknown[] = [];
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ email: 'a@b.nl', pending: 'email' }), { status: 202 });
+    }) as unknown as typeof fetch;
+    const result = await createCloud(fetchImpl, 'https://vidalune.example').signUp('a@b.nl', 'secret-password', 'nl');
+    expect(bodies[0]).toEqual({ email: 'a@b.nl', password: 'secret-password', client: 'app', lang: 'nl' });
+    expect(result).toEqual({ email: 'a@b.nl', pending: 'email' });
+    expect('pending' in result).toBe(true);
+  });
+
   it('keeps the cloud timeout active while reading the response body', async () => {
     vi.useFakeTimers();
     const fetchImpl: typeof fetch = async (_input, init) => new Response(new ReadableStream({
