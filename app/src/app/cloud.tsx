@@ -8,7 +8,7 @@ import { Logo } from '../components/Logo';
 import { autoOpenServer, CLOUD_ACCOUNT_KEY, CloudError, createCloud, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudAccount, type CloudServer } from '../lib/cloud';
 import { findServer, SERVER_PROBLEMS, ServerError } from '../lib/server';
 import { USER_AGENT, useSession } from '../lib/session';
-import { colors } from '../lib/theme';
+import { colors, radius } from '../lib/theme';
 import type { MessageKey } from '../lib/i18n';
 
 /** The Vidalune account the app signed in with: the only sign-in, for every server it opens. */
@@ -18,7 +18,7 @@ const cloud = createCloud();
 const problemKey = (err: unknown): MessageKey => (err instanceof CloudError ? (`cloud.${err.problem}` as MessageKey) : 'cloud.failed');
 
 export default function CloudAccountScreen() {
-  const { t, setServer, signIn, deviceName, cloudServerId, signedIn, forgetServer } = useSession();
+  const { t, setServer, signIn, deviceName, cloudServerId, signedIn, forgetServer, sessionEnded } = useSession();
   // "Choose another server": show the list, do not open the last one again.
   const { choose } = useLocalSearchParams<{ choose?: string }>();
   const autoOpened = useRef(false);
@@ -141,6 +141,11 @@ export default function CloudAccountScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24, gap: 20, width: '100%', maxWidth: 520, alignSelf: 'center' }} keyboardShouldPersistTaps="handled">
           <Logo />
+          {sessionEnded && (
+            <Text style={[styles.body, { color: colors.ink, backgroundColor: colors.raised, borderRadius: radius.md, padding: 12 }]} accessibilityRole="alert">
+              {t('signIn.sessionEnded')}
+            </Text>
+          )}
           {account === undefined ? null : account ? (
             <>
               <Text style={styles.title} accessibilityRole="header">{t('cloud.servers')}</Text>
@@ -157,13 +162,12 @@ export default function CloudAccountScreen() {
                 >
                   <Text style={[styles.body, { fontWeight: '600' }]}>{s.name}</Text>
                   <Text style={styles.muted}>
-                    {s.online ? t('cloud.online') : t('cloud.offline')} · {s.directAccess?.url ?? s.url ?? s.relayUrl ?? t('cloud.noAddress')}
+                    {s.online ? t('cloud.online') : t('cloud.offline')}
                   </Text>
                 </Pressable>
               ))}
               {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
               <Button label={t('cloud.signOut', { email: account.email })} variant="ghost" onPress={() => void signOut()} />
-              <AddressLink label={t('cloud.byAddress')} />
             </>
           ) : (
             <>
@@ -176,20 +180,10 @@ export default function CloudAccountScreen() {
               {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
               <Button label={mode === 'up' ? t('cloud.signUp') : t('cloud.signIn')} onPress={() => void submit()} busy={busy === 'account'} disabled={!email.trim() || !password} />
               <Button label={mode === 'up' ? t('cloud.toSignIn') : t('cloud.toSignUp')} variant="ghost" onPress={() => { setMode(mode === 'up' ? 'in' : 'up'); setError(null); }} />
-              <AddressLink label={t('cloud.byAddress')} />
             </>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
-  );
-}
-
-/** Entering a server's address yourself: for those who know it; small, so nobody takes it for the way in. */
-function AddressLink({ label }: { label: string }) {
-  return (
-    <Pressable accessibilityRole="link" onPress={() => router.replace('/connect')} hitSlop={8} style={({ pressed }) => ({ alignSelf: 'center', paddingVertical: 8, opacity: pressed ? 0.6 : 1 })}>
-      <Text style={[styles.muted, { fontSize: 13, textDecorationLine: 'underline' }]}>{label}</Text>
-    </Pressable>
   );
 }

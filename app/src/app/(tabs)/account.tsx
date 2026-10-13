@@ -10,19 +10,18 @@ import { colors, radius } from '../../lib/theme';
 import type { User } from '../../lib/types';
 
 export default function Account() {
-  const { t, api, user, serverName, serverUrl, serverVersion, appVersion, deviceName, cloudServerId, signOut, forgetServer, updateUser } = useSession();
+  const { t, api, user, serverName, serverVersion, appVersion, deviceName, signOut, forgetServer, updateUser } = useSession();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
 
   const leave = async (thenForget: boolean) => {
     setBusy(true);
     try {
-      const viaAccount = cloudServerId !== null;
       await signOut();
       if (thenForget) await forgetServer();
       qc.clear();
       // Signed out on purpose: the list of servers (not opened again by itself).
-      router.replace(thenForget || viaAccount ? '/cloud?choose=1' : '/');
+      router.replace('/cloud?choose=1');
     } finally {
       setBusy(false);
     }
@@ -65,7 +64,7 @@ export default function Account() {
 
       <Section title={t('account.aboutApp')}>
         <Text style={styles.muted}>
-          {t('account.server')}: {serverName} · {serverUrl}
+          {t('account.server')}: {serverName}
         </Text>
         {serverVersion ? <Text style={styles.muted}>{t('account.version', { version: serverVersion })}</Text> : null}
         <Text style={styles.muted}>{t('account.appVersion', { version: appVersion })}</Text>
