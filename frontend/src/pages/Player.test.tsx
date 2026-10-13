@@ -105,7 +105,7 @@ describe('subtitles after seeking', () => {
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
       let body: unknown = {};
-      if (url === '/api/movies/3') body = MOVIE;
+      if (url === '/api/movies/3') body = { ...MOVIE, backdropPath: '/backdrop.jpg' };
       if (url === '/api/media/3/playback') body = { ...PLAYBACK, decision: { ...PLAYBACK.decision, engine: 'remux', seek: 'restart', streamUrl: '/api/media/3/remux?audio=1' } };
       if (url.startsWith('/api/media/3/keyframe')) body = { start: 118, seek: 118 };
       return new Response(JSON.stringify(body), { status: 200 });
@@ -115,6 +115,8 @@ describe('subtitles after seeking', () => {
     try {
       renderPlayer();
       const oldVideo = await vi.waitFor(() => document.querySelector('video') ?? Promise.reject(new Error('no video')));
+      // Before the first picture the artwork is shown.
+      expect(oldVideo.getAttribute('poster')).toBeTruthy();
       const state = fakeVideo(oldVideo);
       state.readyState = 4;
       Object.defineProperty(oldVideo, 'videoWidth', { configurable: true, get: () => 1920 });
@@ -133,6 +135,10 @@ describe('subtitles after seeking', () => {
       expect(drawImage).toHaveBeenCalledWith(oldVideo, 0, 0);
       expect([canvas.width, canvas.height]).toEqual([1920, 800]);
       expect(canvas.classList.contains('hidden')).toBe(false);
+      // The bars beside a wide picture are black, and the new stream has no artwork behind them.
+      expect(canvas.classList.contains('bg-black')).toBe(true);
+      expect(oldVideo.getAttribute('poster')).toBeNull();
+      expect(newVideo.getAttribute('poster')).toBeNull();
       fireEvent.loadedData(newVideo);
       await vi.waitFor(() => expect(canvas.classList.contains('hidden')).toBe(true));
     } finally {
