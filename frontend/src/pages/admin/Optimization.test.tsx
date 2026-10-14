@@ -84,12 +84,33 @@ describe('OptimizationPage', () => {
     });
     const user = userEvent.setup();
     await user.type(await screen.findByRole('searchbox', { name: 'Search library' }), 'Heat');
-    await user.selectOptions(await screen.findByRole('combobox', { name: 'Choose a title' }), 'movie:5');
+    await user.click(within(await screen.findByRole('list', { name: 'Choose a title' })).getByRole('button', { name: /Heat/ }));
+    // The chosen title stays in view, with a way back to the results.
+    expect(screen.queryByRole('list', { name: 'Choose a title' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Other title' })).toBeTruthy();
     await user.selectOptions(await screen.findByRole('combobox', { name: 'Source file' }), '8');
     await user.selectOptions(await screen.findByRole('combobox', { name: 'Copy profile' }), 'compat-1080p');
     await user.click(screen.getByRole('button', { name: 'Optimize' }));
     expect(calls.some((call) => call.url === '/api/admin/media/8/optimizations' && call.method === 'POST' && call.body === '{"profile":"compat-1080p"}')).toBe(true);
     expect(calls.filter((call) => call.url === '/api/admin/optimizations')).toHaveLength(2);
+  });
+
+  it('shows the state of a chosen file only once, in the queue, with stop and remove there', async () => {
+    setup({ paused: false, items: [running] }, (url) => {
+      if (url.startsWith('/api/search')) return { movies: [{ id: 5, title: 'Heat', year: 1995, posterPath: '/heat.jpg' }], shows: [], episodes: [] };
+      if (url === '/api/movies/5') return { files: [{ id: 7, fileName: 'Heat.mkv', height: 2160, size: 1000 }] };
+      if (url === '/api/admin/media/7/optimizations') return { variants: [{ id: 1, profile: 'compat-720p', status: 'processing', progress: 42, outputSize: null, error: null, updatedAt: 1 }] };
+      if (url === '/api/admin/optimizations') return { paused: false, items: [running] };
+    });
+    const user = userEvent.setup();
+    await user.type(await screen.findByRole('searchbox', { name: 'Search library' }), 'Heat');
+    expect(within(await screen.findByRole('list', { name: 'Choose a title' })).getByRole('img', { name: 'Heat' }).getAttribute('src')).toContain('/heat.jpg');
+    await user.click(within(screen.getByRole('list', { name: 'Choose a title' })).getByRole('button', { name: /Heat/ }));
+    expect(await screen.findByText('In the queue below: In progress')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Optimize' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getAllByRole('button', { name: /^Stop/ })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /^Remove copy/ })).toHaveLength(1);
+    expect(screen.getAllByRole('progressbar')).toHaveLength(1);
   });
 
   it('selects a show season and episode before optimizing its source', async () => {
@@ -105,7 +126,7 @@ describe('OptimizationPage', () => {
     });
     const user = userEvent.setup();
     await user.type(await screen.findByRole('searchbox', { name: 'Search library' }), 'Severance');
-    await user.selectOptions(await screen.findByRole('combobox', { name: 'Choose a title' }), 'show:9');
+    await user.click(within(await screen.findByRole('list', { name: 'Choose a title' })).getByRole('button', { name: /Severance/ }));
     await user.selectOptions(await screen.findByRole('combobox', { name: 'Season' }), '2');
     expect(await screen.findByRole('option', { name: 'S02E01 · Second' })).toBeTruthy();
     await screen.findByRole('option', { name: /S02E01.mkv/ });

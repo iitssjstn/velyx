@@ -7,6 +7,7 @@ import { useDebounced } from '../../lib/hooks';
 import type { MovieDetail, SearchResults, SeasonDetail, ShowDetail } from '../../lib/types';
 import { episodeCode, formatBytes } from '../../lib/format';
 import { OptimizationControls } from '../../components/OptimizationControls';
+import { Artwork } from '../../components/Artwork';
 import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/Modal';
 import { EmptyState, ErrorState, PageLoader } from '../../components/States';
@@ -85,17 +86,25 @@ function OptimizationSource() {
   });
   const files = source.data?.files ?? [];
   const selectedFile = files.find((file) => file.id === fileId) ?? files[0];
+  // The search results as cards with their artwork; choosing one picks the title.
   const options = [
-    ...(results.data?.movies ?? []).map((movie) => ({ value: `movie:${movie.id}`, label: `${movie.title}${movie.year ? ` (${movie.year})` : ''}` })),
-    ...(results.data?.shows ?? []).map((item) => ({ value: `show:${item.id}`, label: `${item.title}${item.year ? ` (${item.year})` : ''}` })),
-    ...(results.data?.episodes ?? []).map((episode) => ({ value: `episode:${episode.id}`, label: `${episode.showTitle} · ${episodeCode(episode.seasonNumber, episode.episodeNumber)}${episode.title ? ` · ${episode.title}` : ''}` })),
+    ...(results.data?.movies ?? []).map((movie) => ({ value: `movie:${movie.id}`, title: movie.title, meta: movie.year ? String(movie.year) : null, image: movie.posterPath, wide: false })),
+    ...(results.data?.shows ?? []).map((item) => ({ value: `show:${item.id}`, title: item.title, meta: item.year ? String(item.year) : null, image: item.posterPath, wide: false })),
+    ...(results.data?.episodes ?? []).map((episode) => ({ value: `episode:${episode.id}`, title: `${episode.showTitle} · ${episodeCode(episode.seasonNumber, episode.episodeNumber)}`, meta: episode.title, image: episode.stillPath, wide: true })),
   ];
+  const chosen = options.find((option) => option.value === target);
+  const choose = (value: string) => {
+    setTarget(value);
+    setSeasonNumber(null);
+    setEpisodeId(null);
+    setFileId(null);
+  };
   const error = results.error ?? show.error ?? season.error ?? source.error;
 
   return (
     <section className="space-y-3 border-b border-line/60 pb-6" aria-label={t('optimization.create')}>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="space-y-1 text-sm">
+        <label className="space-y-1 text-sm sm:col-span-2">
           <span>{t('optimization.pick.search')}</span>
           <input type="search" className="input w-full" value={text} onChange={(event) => {
             setText(event.target.value);
@@ -105,18 +114,30 @@ function OptimizationSource() {
             setFileId(null);
           }} />
         </label>
-        {options.length > 0 && <label className="space-y-1 text-sm">
-          <span>{t('optimization.pick.title')}</span>
-          <select className="input w-full" value={target} onChange={(event) => {
-            setTarget(event.target.value);
-            setSeasonNumber(null);
-            setEpisodeId(null);
-            setFileId(null);
-          }}>
-            <option value="">{t('optimization.pick.title')}</option>
-            {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </label>}
+        {chosen ? (
+          <div className="flex items-center gap-3 sm:col-span-2">
+            <div className={`${chosen.wide ? 'w-24' : 'w-12'} shrink-0`}>
+              <Artwork path={chosen.image} size="w185" title={chosen.title} aspect={chosen.wide ? 'wide' : 'poster'} className="rounded-md" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">{chosen.title}</p>
+              {chosen.meta && <p className="truncate text-xs text-muted">{chosen.meta}</p>}
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => choose('')}>{t('optimization.pick.change')}</Button>
+          </div>
+        ) : options.length > 0 && (
+          <ul className="grid grid-cols-3 gap-3 sm:col-span-2 sm:grid-cols-5 lg:grid-cols-8" aria-label={t('optimization.pick.title')}>
+            {options.map((option) => (
+              <li key={option.value} className={option.wide ? 'col-span-2' : ''}>
+                <button type="button" className="group w-full space-y-1.5 text-left focus-visible:outline-accent" onClick={() => choose(option.value)}>
+                  <Artwork path={option.image} size={option.wide ? 'w300' : 'w185'} title={option.title} aspect={option.wide ? 'wide' : 'poster'} className="rounded-md ring-accent transition group-hover:ring-2" />
+                  <span className="block truncate text-sm font-medium group-hover:text-accent">{option.title}</span>
+                  {option.meta && <span className="block truncate text-xs text-muted">{option.meta}</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         {kind === 'show' && seasons.length > 0 && <label className="space-y-1 text-sm">
           <span>{t('optimization.pick.season')}</span>
           <select className="input w-full" value={currentSeason ?? ''} onChange={(event) => { setSeasonNumber(Number(event.target.value)); setEpisodeId(null); setFileId(null); }}>

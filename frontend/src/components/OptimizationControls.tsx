@@ -19,6 +19,10 @@ interface Variant {
 }
 interface OptimizationState { variants: Variant[] }
 
+/**
+ * Start a compatible copy of one file. Compact (Admin > Optimization) is only for starting one: its
+ * progress, stop and remove are in the queue on the same page, so they are not shown twice.
+ */
 export function OptimizationControls({ fileId, compact = false }: { fileId: number; compact?: boolean }) {
   const { t } = useT();
   const qc = useQueryClient();
@@ -83,15 +87,16 @@ export function OptimizationControls({ fileId, compact = false }: { fileId: numb
       </div>
       {!compact && <p className="text-xs text-muted">{t('optimization.originalKept')}</p>}
       {q.isError && <p className="text-xs text-danger">{t('optimization.statusError')}</p>}
-      {selected && (selected.status === 'queued' || selected.status === 'processing') && (
+      {compact && selected && selected.status !== 'ready' && <p className="text-xs text-muted">{t('optimization.inQueue', { status: t(`optimization.status.${selected.status}`) })}</p>}
+      {!compact && selected && (selected.status === 'queued' || selected.status === 'processing') && (
         <div className="space-y-1" role="status">
           <div className="flex justify-between gap-2 text-xs text-muted"><span>{selected.status === 'queued' ? t('optimization.queued') : t('optimization.processing')}</span><span>{selected.progress}%</span></div>
           <progress className="h-1.5 w-full accent-[var(--color-accent)]" max={100} value={selected.progress} />
         </div>
       )}
-      {selected?.status === 'failed' && <p className="text-xs text-danger">{selected.error || t('optimization.failed')}</p>}
-      {selected?.status === 'stale' && <p className="text-xs text-amber">{t('optimization.stale')}</p>}
-      {variants.length > 0 && (
+      {!compact && selected?.status === 'failed' && <p className="text-xs text-danger">{selected.error || t('optimization.failed')}</p>}
+      {!compact && selected?.status === 'stale' && <p className="text-xs text-amber">{t('optimization.stale')}</p>}
+      {!compact && variants.length > 0 && (
         <ul className="space-y-1 border-t border-line/50 pt-2">
           {variants.map((variant) => (
             <li key={variant.id} className="flex items-center gap-2 text-xs text-muted">

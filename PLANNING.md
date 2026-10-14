@@ -97,8 +97,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- In de maak: **0.19.57** (mail-instellingen: gebruikersnaam verborgen, juiste logregel; zie onderaan).
-- Laatste release: **0.19.56** (PR #141, mailsysteem; gemerged 13 okt op verzoek van de eigenaar); release `v0.19.56` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- In de maak: **0.19.58** (één lijst op Aanvragen en Optimalisatie, titels kiezen met posters; zie onderaan).
+- Laatste release: **0.19.57** (PR #142, mail-instellingen: gebruikersnaam verborgen en juiste logregel; gemerged 13 okt); release `v0.19.57` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -309,7 +309,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   `vpp_qsv`), met test op een korte HDR-fixture. De eigenaar zoekt nieuwe serverhardware; Intel met Quick
   Sync maakt dit en de conversies veel sneller.
 
-- **Titel kiezen onder Beheer > Optimalisatie is omslachtig** (gemeld 11 okt, screenshot; nog niet bouwen):
+- **Titel kiezen onder Beheer > Optimalisatie is omslachtig** (gemeld 11 okt, screenshot; gebouwd in 0.19.58, zonder posters in de wachtrij):
   eerst typen en dan de titel nog eens uit een dropdown kiezen. Wens: geen dropdown, maar de zoekresultaten
   als kaartjes met poster (metadata) en titel/jaar; klikken kiest de titel. Hergebruik `quickItems`
   (`frontend/src/lib/search.ts`) en `Artwork`, net als `QuickSearch`. Ook de wachtrijregels kunnen de poster
@@ -515,7 +515,12 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Later (in deze volgorde, tenzij de eigenaar anders zegt)
 
-1. **TMDB via vidalune.com, met terugval**
+1. **TMDB via vidalune.com, met terugval** (gevraagd door de eigenaar 14 okt: "zodat iedereen er gebruik van kan
+   maken"; uitgelegd, wacht op "bouw het"). Besluit eigenaar (14 okt): "iedereen moet gewoon gebruik kunnen maken
+   van de metadata": standaard via vidalune.com voor elke gekoppelde server, zonder eigen sleutel; een eigen
+   sleutel blijft optioneel. Eigenaar (14 okt): verdient er nu geen geld aan, dus de gratis (niet-commerciële)
+   TMDB-API volstaat; opnieuw bekijken zodra er betaalde abonnementen komen. Meebouwen: TMDB-vermelding met logo
+   ("uses the TMDB API but is not endorsed or certified by TMDB") op web en in de app, nu alleen in de README.
    - Volgorde: eigen TMDB-sleutel (beheer-UI of `TMDB_API_KEY`) > via vidalune.com (als de server
      gekoppeld is) > geen metadata.
    - Cloud: vaste lijst endpoints (zoeken, film- en seriedetails, seizoenen, collecties),
@@ -965,4 +970,22 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Tests: weergave bevat het token nergens, leeg laten houdt gebruiker en wachtwoord (andere server niet), logregel.
   Cloud 156 tests; typechecks, lint (4 bekende waarschuwingen) slagen; in de browser gecontroleerd.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1957) en beide lockfiles bijgewerkt.
+- PR #142 gemerged 13 okt; release `v0.19.57` gecontroleerd: APK en beide `.deb`'s aanwezig. Door de eigenaar te doen: nieuw
+  Postmark-token maken, bijwerken (`docker compose pull && docker compose up -d`), token opnieuw invullen in Control
+  Center > Mail en een testmail sturen.
 
+## Versie 0.19.58 (één lijst op Aanvragen en Optimalisatie)
+
+- Op verzoek van de eigenaar (14 okt, "geen les vandaag, gewoon maken"; screenshot "ziet er nog steeds slecht uit").
+- Aanvragen: een beheerder zag "Jouw aanvragen" en daaronder "Alle aanvragen" (met annuleren), dus zijn eigen aanvragen
+  twee keer. Nu ziet een beheerder één lijst (alle aanvragen, met naam, status en annuleren; de titel opent de pagina);
+  een gewone gebruiker houdt zijn eigen lijst. `frontend/src/pages/Requests.tsx`.
+- Beheer > Optimalisatie: de gekozen titel toonde zijn kopie met voortgang, Stop en prullenbak, en de wachtrij eronder
+  nog een keer. Nu staat bovenaan alleen kiezen en starten (met "In de wachtrij hieronder: <status>"); voortgang, Stop
+  en Verwijderen alleen in de wachtrij. Titels kiezen gaat met kaartjes met poster (of still bij een aflevering) in
+  plaats van een dropdown; de gekozen titel blijft klein zichtbaar met "Andere titel". `Optimization.tsx`,
+  `OptimizationControls.tsx` (compact).
+- Tests: beheerder ziet één lijst met links en zonder `/api/seerr/requests`; status van een gekozen bestand maar één
+  keer (één Stop, één prullenbak, één voortgangsbalk; faalt op de oude code); kiezen via kaartjes. Frontend 321 tests,
+  typecheck en lint (4 bekende waarschuwingen) slagen. Screenshots naar de eigenaar.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1958) en beide lockfiles bijgewerkt.
