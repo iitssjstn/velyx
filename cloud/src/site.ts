@@ -27,6 +27,7 @@ const FRAME = {
     other: 'Nederlands',
     footer: 'Your media. Your server.',
     license: 'Proprietary software. All rights reserved.',
+    tmdb: 'Metadata and images: TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.',
   },
   nl: {
     features: 'Functies',
@@ -40,6 +41,7 @@ const FRAME = {
     other: 'English',
     footer: 'Jouw media. Jouw server.',
     license: 'Eigen software. Alle rechten voorbehouden.',
+    tmdb: 'Metadata en afbeeldingen: TMDB. Dit product gebruikt de TMDB API maar is niet goedgekeurd of gecertificeerd door TMDB.',
   },
 } satisfies Record<Lang, Record<string, string>>;
 
@@ -116,6 +118,7 @@ export function layout(lang: Lang, opts: { title: string; signedIn: boolean; pat
       <span><strong>vidalune</strong> · ${escape(t.footer)}</span>
       <span><a href="/install">${escape(t.install)}</a> · <a href="/install#app">${escape(t.app)}</a> · ${opts.discord ? '<a href="/discord" rel="noopener">Discord</a> · ' : ''}<a href="/account">${escape(opts.signedIn ? t.account : t.signIn)}</a></span>
       <span class="small">© ${new Date().getFullYear()} Vidalune · ${escape(t.license)}</span>
+      <span class="small">${escape(t.tmdb)}</span>
     </footer>
   </body>
 </html>

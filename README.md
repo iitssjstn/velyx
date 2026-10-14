@@ -103,7 +103,7 @@ Vidalune is a lightweight, Docker-first, self-hosted media server for movies and
 - Docker with Docker Compose (v2) — or Debian 12+ / Ubuntu 22.04+ (amd64 or arm64) for the `.deb` package.
 - A browser: Chrome/Edge (recommended), Firefox or Safari.
 - Hardware: Vidalune itself needs very little. It was designed with low-end machines in mind (for example a dual-core Athlon II with 4–8 GB RAM). With video conversion off (the default) the server only reads and sends files — decoding happens on the device that plays the video. Converting video needs a strong processor or graphics hardware (see [Video conversion](#video-conversion-optional)).
-- Optional: a free TMDB API key for metadata.
+- Optional: a Vidalune account (metadata comes through vidalune.com) or a free TMDB API key of your own.
 
 ## Quick start (Docker)
 
@@ -144,7 +144,7 @@ Then start it:
 docker compose up -d
 ```
 
-Open `http://<your-server>:3000`, create your administrator account and, optionally, add a TMDB key in **Admin → Metadata**. No API keys or passwords go into the compose file. Every other option is listed under [Configuration](#configuration).
+Open `http://<your-server>:3000`, create your administrator account and link the server to a Vidalune account for metadata (or, optionally, add a TMDB key of your own in **Admin → Metadata**). No API keys or passwords go into the compose file. Every other option is listed under [Configuration](#configuration).
 
 ## Installing without Docker (Debian/Ubuntu)
 
@@ -267,6 +267,10 @@ The first visit opens a setup wizard where you create the administrator account,
 
 ## TMDB metadata
 
+**Through your Vidalune account (no key needed).** Link the server to a Vidalune account (**Admin → Vidalune account**) and metadata comes through vidalune.com, which asks TMDB with its own key. Only the questions Vidalune asks (searching, movie and show details, seasons, translations, trailers) are passed on, and each answer is reused for a day by every server, so a title that someone else already has comes at once. Images do not go through vidalune.com: the server fetches them from TMDB itself, as before. Nothing about users or what anyone watches is sent. **Admin → Metadata** says *through vidalune.com* while this is in use. When it becomes available (after linking), Vidalune fetches metadata for existing items automatically.
+
+**With a key of your own** (optional; it comes first):
+
 1. Create a free account on [themoviedb.org](https://www.themoviedb.org/) and request an API key under **Settings → API**.
 2. After creating your account, enter the key in **Admin → Metadata**. It is verified before saving and stored in the database in the data volume.
 
@@ -274,7 +278,7 @@ The key stays on the server — it is never sent to browsers, and artwork is pro
 
 **Fresh metadata when a title is opened.** Opening a movie or show (website, app.vidalune.com or the Android app) fetches its metadata anew from TMDB when it was last refreshed more than an hour ago — for a show also its seasons and episodes on the server. The page opens at once with what is stored and updates itself when the new metadata has come. Everyone who opens the title within that hour gets the same stored metadata without a new request to TMDB, and people opening it at the same moment share one request. When TMDB cannot be reached, the stored metadata stays and the title is not asked for again until the hour is over. Pages of titles that are not in the library come straight from Seerr every time they are opened.
 
-Without a key Vidalune still works: titles come from the file names and a typographic placeholder replaces posters.
+Without a key or a link Vidalune still works: titles come from the file names and a typographic placeholder replaces posters.
 
 *This product uses the TMDB API but is not endorsed or certified by TMDB.*
 

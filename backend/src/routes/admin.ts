@@ -158,7 +158,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       backups: { latest: ctx.backups.list()[0] ?? null, nextDue: ctx.backups.nextDue() },
       probeQueue: { active: ctx.probe.active, waiting: ctx.probe.waiting },
       update: ctx.updates.info(),
-      tmdb: { configured: ctx.tmdb.configured, source: ctx.settings.tmdbKeySource() },
+      tmdb: { configured: ctx.tmdb.configured, source: ctx.settings.tmdbKeySource(), via: ctx.tmdb.via },
       counts: {
         movies: db.select({ n: count() }).from(movies).get()!.n,
         shows: db.select({ n: count() }).from(shows).get()!.n,
@@ -349,7 +349,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (!library) throw notFound('Library');
     if (isFilesystemRoot(library.path)) throw new HttpError(400, 'A library cannot use a filesystem root path.');
     const { refreshMetadata: refresh = false, full = false, confirmEmpty = false } = scanBody.parse(request.body ?? {});
-    if (refresh && !ctx.tmdb.configured) throw new HttpError(400, 'Add a TMDB API key in Admin → Metadata to refresh metadata.');
+    if (refresh && !ctx.tmdb.configured) throw new HttpError(400, 'Link this server to a Vidalune account, or add a TMDB API key in Admin → Metadata, to refresh metadata.');
     ctx.scans.enqueue(id, refresh, full, confirmEmpty);
     const name = db.select({ name: libraries.name }).from(libraries).where(eq(libraries.id, id)).get()?.name;
     ctx.audit.record('library.scan', { actor: request.user, ip: request.ip, target: name, detail: [refresh ? 'with metadata refresh' : null, full ? 're-analysing every file' : null, confirmEmpty ? 'empty folder confirmed: missing files removed' : null].filter(Boolean).join(', ') || null });
@@ -516,6 +516,9 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
         source: ctx.settings.tmdbKeySource(),
         // Never return the key itself — only a hint so admins can tell which key is active.
         hint: key ? `••••${key.slice(-4)}` : null,
+        // Where metadata comes from: its own key, or vidalune.com without one (linked).
+        via: ctx.tmdb.via,
+        linked: ctx.cloud.linked(),
       },
       version: APP_VERSION,
       mediaRoots: ctx.config.mediaRoots,
@@ -641,14 +644,14 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   app.get('/api/admin/match/search', { preHandler: requireAdmin }, async (request) => {
     const q = matchSearch.parse(request.query);
-    if (!ctx.tmdb.configured) throw new HttpError(400, 'Add a TMDB API key in Admin → Metadata first.');
+    if (!ctx.tmdb.configured) throw new HttpError(400, 'Link this server to a Vidalune account, or add a TMDB API key in Admin → Metadata, first.');
     const results = q.type === 'movie' ? await ctx.metadata.searchMovieCandidates(q.query, q.year ?? null) : await ctx.metadata.searchShowCandidates(q.query, q.year ?? null);
     return results.slice(0, 20);
   });
 
   app.post('/api/admin/match', { preHandler: requireAdmin }, async (request) => {
     const body = matchApply.parse(request.body);
-    if (!ctx.tmdb.configured) throw new HttpError(400, 'Add a TMDB API key in Admin → Metadata first.');
+    if (!ctx.tmdb.configured) throw new HttpError(400, 'Link this server to a Vidalune account, or add a TMDB API key in Admin → Metadata, first.');
     if (body.type === 'movie') {
       if (!db.select({ id: movies.id }).from(movies).where(eq(movies.id, body.id)).get()) throw notFound('Movie');
       const id = await ctx.metadata.applyMovie(body.id, body.tmdbId, 'manual', 1);
@@ -665,7 +668,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   app.post<{ Params: { type: string; id: string } }>('/api/admin/refresh/:type/:id', { preHandler: requireAdmin }, async (request) => {
     const id = parseId(request.params.id);
-    if (!ctx.tmdb.configured) throw new HttpError(400, 'Add a TMDB API key in Admin → Metadata first.');
+    if (!ctx.tmdb.configured) throw new HttpError(400, 'Link this server to a Vidalune account, or add a TMDB API key in Admin → Metadata, first.');
     const result = request.params.type === 'movie' ? await ctx.metadata.matchMovie(id, true) : await ctx.metadata.matchShow(id, true);
     if (result === 'failed') throw new HttpError(502, 'TMDB could not be reached. Cached metadata is unchanged.');
     ctx.audit.record('metadata.refreshed', { actor: request.user, ip: request.ip, target: `${request.params.type} ${id}` });

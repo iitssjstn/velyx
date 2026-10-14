@@ -69,6 +69,7 @@ export default function Account() {
         {serverVersion ? <Text style={styles.muted}>{t('account.version', { version: serverVersion })}</Text> : null}
         <Text style={styles.muted}>{t('account.appVersion', { version: appVersion })}</Text>
         <Text style={styles.muted}>{t('account.device', { name: deviceName })}</Text>
+        <Text style={styles.muted}>{t('account.tmdbCredit')}</Text>
       </Section>
 
       <Button label={t('account.signOut')} variant="ghost" busy={busy} onPress={() => confirm(t('account.signOutConfirm'), () => void leave(false))} />

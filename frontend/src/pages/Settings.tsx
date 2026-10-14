@@ -563,6 +563,8 @@ export function SettingsPage() {
         <Route path="libraries" element={<Navigate to={isAdmin ? '/admin/libraries' : '/account/account'} replace />} />
         <Route path="*" element={<Navigate to="/account/account" replace />} />
       </Routes>
+      {/* TMDB asks every product that uses its API to say so. */}
+      <p className="mt-12 border-t border-line/60 pt-4 pb-8 text-xs text-faint">{t('settings.tmdbCredit')}</p>
     </div>
   );
 }

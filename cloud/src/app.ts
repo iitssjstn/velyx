@@ -20,6 +20,7 @@ import { homePage, pickLanguage } from './site.js';
 import { Community, communityRoutes } from './community.js';
 import { detectionRoutes } from './detection.js';
 import { SubtitleError, SubtitleProxy, subtitleRoutes } from './subtitles.js';
+import { TmdbProxy, TmdbProxyError, tmdbRoutes } from './tmdb.js';
 import { CeoError, ceoRoutes } from './ceo.js';
 import { CloudflareDns, publicAddress } from './cloudflare-dns.js';
 import { DirectCertificateIssuer } from './direct-certificate.js';
@@ -414,7 +415,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) return reply.code(400).send({ error: error.issues[0]?.message ?? 'Invalid input.' });
-    if (error instanceof HttpError || error instanceof CeoError || error instanceof SubtitleError || error instanceof MailSettingsError) return reply.code(error.statusCode).send({ error: error.message });
+    if (error instanceof HttpError || error instanceof CeoError || error instanceof SubtitleError || error instanceof TmdbProxyError || error instanceof MailSettingsError) return reply.code(error.statusCode).send({ error: error.message });
     const status = (error as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) return reply.code(status).send({ error: 'Invalid request.' });
     app.log.error(error);
@@ -863,6 +864,20 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     log: (message) => console.info(message),
   });
   app.decorate('mailStatus', () => mailSettings.describe());
+  // Metadata with the one TMDB key of vidalune.com. Per server: a first scan of a large library is a
+  // few thousand questions; answers kept here are shared by every server.
+  const tmdbProxy = new TmdbProxy({ db, fetchImpl: opts.fetchImpl ?? ((input, init) => fetch(input, init)), now, log: (message) => console.warn(message) });
+  const tmdbLimiter = new RateLimiter(6000, 3_600_000);
+  tmdbRoutes(app, {
+    proxy: tmdbProxy,
+    ceo: (request) => {
+      const me = account(request);
+      if (!isCeo(me)) throw new HttpError(403, 'Only for the CEO of Vidalune.');
+      return me;
+    },
+    server,
+    limit: (key) => (key.startsWith('tmdb-settings:') ? subtitleLimiters.settings : tmdbLimiter).check(key, now()),
+  });
   subtitleRoutes(app, {
     db,
     proxy: new SubtitleProxy({ db, fetchImpl: opts.fetchImpl ?? ((input, init) => fetch(input, init)), now, userAgent: 'Vidalune v1' }),
@@ -969,7 +984,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       .set({ name: body.name, version: body.version, url: body.url ?? null, localEndpoints: JSON.stringify(body.localEndpoints), publicIp, directDnsReady: dnsReady, directDnsCheckedAt: checkedAt, directPort, directTlsReady, directPortOpen, directPortCheckedAt: checkedAt, lastSeenAt: checkedAt })
       .where(eq(servers.id, me.id))
       .run();
-    return serverStatus(db.select().from(servers).where(eq(servers.id, me.id)).get()!);
+    // Whether this server gets its metadata through vidalune.com (linked, and a key is set here).
+    return { ...serverStatus(db.select().from(servers).where(eq(servers.id, me.id)).get()!), tmdb: tmdbProxy.available && !!me.accountId };
   });
 
   const certificateJobs = new Map<string, CertificateJob>();

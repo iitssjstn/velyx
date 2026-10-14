@@ -91,6 +91,8 @@ export interface CloudLink {
   remoteUsers?: string[];
   /** When the account service last said so (remote access keeps working a while when it cannot be reached). */
   remoteConfirmedAt?: number;
+  /** Metadata comes through vidalune.com (linked, and a TMDB key is set there), as the service last reported. */
+  tmdb?: boolean;
 }
 
 export interface ServerSettings {

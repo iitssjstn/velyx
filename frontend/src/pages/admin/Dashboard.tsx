@@ -261,7 +261,7 @@ export function DashboardPage() {
             <dt className="text-faint">Vidalune</dt>
             <dd>{t('dashboard.versionUptime', { version: d.version, uptime: formatDuration(d.uptimeSec) })}</dd>
             <dt className="text-faint">TMDB</dt>
-            <dd className={d.tmdb.configured ? 'text-ok' : 'text-amber'}>{d.tmdb.configured ? (d.tmdb.source === 'environment' ? t('dashboard.tmdbEnv') : t('dashboard.tmdbSettings')) : t('dashboard.notConfigured')}</dd>
+            <dd className={d.tmdb.configured ? 'text-ok' : 'text-amber'}>{d.tmdb.configured ? (d.tmdb.via === 'vidalune' ? t('dashboard.tmdbVidalune') : d.tmdb.source === 'environment' ? t('dashboard.tmdbEnv') : t('dashboard.tmdbSettings')) : t('dashboard.notConfigured')}</dd>
         <dt className="text-faint">FFprobe</dt>
             <dd className={d.ffprobe ? '' : 'text-danger'}>{d.ffprobe ? d.ffprobe.split(' Copyright')[0] : t('dashboard.ffprobeMissing')}</dd>
             <dt className="text-faint">CPU</dt>

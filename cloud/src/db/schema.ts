@@ -366,6 +366,16 @@ export const subtitleSearches = sqliteTable('subtitle_searches', {
   fetchedAt: integer('fetched_at').notNull(),
 });
 
+/** Answers of TMDB for linked servers (through the one key of vidalune.com), reused for a day. */
+export const tmdbCache = sqliteTable('tmdb_cache', {
+  /** The path and its parameters in alphabetical order ("/movie/603?language=nl-NL"). */
+  key: text('key').primaryKey(),
+  /** TMDB's status (200, or 404 for something TMDB does not have) and its JSON answer. */
+  status: integer('status').notNull(),
+  body: text('body').notNull(),
+  fetchedAt: integer('fetched_at').notNull(),
+});
+
 /** Settings of vidalune.com itself, changed in the Control Center (one row per setting, JSON). */
 export const serviceSettings = sqliteTable('service_settings', {
   key: text('key').primaryKey(),

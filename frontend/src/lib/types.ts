@@ -670,7 +670,7 @@ export interface Dashboard {
   backups: { latest: BackupFile | null; nextDue: number | null };
   probeQueue: { active: number; waiting: number };
   update: { current: string; latest: string | null; available: boolean; url: string | null; checkedAt: number | null };
-  tmdb: { configured: boolean; source: 'environment' | 'settings' | 'none' };
+  tmdb: { configured: boolean; source: 'environment' | 'settings' | 'none'; via: 'own' | 'vidalune' | null };
   counts: { movies: number; shows: number; seasons: number; episodes: number; files: number; users: number; needsReview: number };
   storage: {
     mediaBytes: number;
@@ -691,7 +691,7 @@ export interface ServerSettings {
   includeAdult: boolean;
   watchFolders: boolean;
   updateCheck: boolean;
-  tmdb: { configured: boolean; source: 'environment' | 'settings' | 'none'; hint: string | null };
+  tmdb: { configured: boolean; source: 'environment' | 'settings' | 'none'; hint: string | null; via: 'own' | 'vidalune' | null; linked: boolean };
   version: string;
   mediaRoots: string[];
   /** Effective minutes between automatic scans (0 = off). */

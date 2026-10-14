@@ -143,5 +143,6 @@ export const settings: Messages['settings'] = {
     libraries: 'Bibliotheken',
   },
   signedInAs: 'Ingelogd als {name}',
+  tmdbCredit: 'Metadata en afbeeldingen: TMDB (themoviedb.org). Dit product gebruikt de TMDB API maar is niet goedgekeurd of gecertificeerd door TMDB.',
   sections: 'Onderdelen van de instellingen',
 };
