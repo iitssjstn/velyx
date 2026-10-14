@@ -19,7 +19,7 @@ const settings = {
   includeAdult: false,
   watchFolders: true,
   updateCheck: true,
-  tmdb: { configured: true, source: 'settings', hint: '••••abcd' },
+  tmdb: { configured: true, source: 'settings', hint: '••••abcd', via: 'own', linked: false },
   version: '0.19.49',
   mediaRoots: ['/media'],
   scanIntervalMinutes: 360,
@@ -39,7 +39,7 @@ const settings = {
   serverTimeZone: 'Europe/Amsterdam',
 };
 
-function setup(panel: ReactNode = <MaintenancePage />) {
+function setup(panel: ReactNode = <MaintenancePage />, current: unknown = settings) {
   const saved: unknown[] = [];
   vi.stubGlobal(
     'fetch',
@@ -50,7 +50,7 @@ function setup(panel: ReactNode = <MaintenancePage />) {
         saved.push(body);
         return json({ ...settings, ...body });
       }
-      if (url === '/api/admin/settings') return json(settings);
+      if (url === '/api/admin/settings') return json(current);
       return json({});
     }),
   );
@@ -98,6 +98,17 @@ describe('each panel saves only its own settings', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await vi.waitFor(() => expect(saved).toHaveLength(1));
     expect(saved[0]).toEqual({ watchFolders: false, scanOnStartup: false, deferScansWhilePlaying: true, scanIntervalMinutes: 60 });
+  });
+
+  it('says metadata comes through vidalune.com when the server is linked and has no key of its own', async () => {
+    setup(<MetadataSettings />, { ...settings, tmdb: { configured: false, source: 'none', hint: null, via: 'vidalune', linked: true } });
+    expect(await screen.findByText('through vidalune.com (no key of your own needed)')).toBeTruthy();
+    expect(screen.queryByText(/not configured/)).toBeNull();
+  });
+
+  it('tells how to get metadata when there is neither a key nor a link', async () => {
+    setup(<MetadataSettings />, { ...settings, tmdb: { configured: false, source: 'none', hint: null, via: null, linked: false } });
+    expect(await screen.findByText(/link this server to a Vidalune account, or add a key of your own/)).toBeTruthy();
   });
 
   it('metadata language and the TMDB key (on Metadata), each on its own', async () => {

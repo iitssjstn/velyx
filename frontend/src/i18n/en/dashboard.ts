@@ -76,6 +76,7 @@ export const dashboard = {
   memoryDetail: '{used} of {total} · Vidalune {velyx}',
   versionUptime: 'v{version} · up {uptime}',
   tmdbEnv: 'Configured (environment variable)',
+  tmdbVidalune: 'Through vidalune.com',
   tmdbSettings: 'Configured (settings)',
   notConfigured: 'Not configured',
   ffprobeMissing: 'Not found — media analysis is disabled',

@@ -67,6 +67,19 @@ interface (see *app.vidalune.com* below).
 | `MAIL_FROM` | (empty) | The sender, for example `Vidalune <no-reply@vidalune.com>`. The domain needs the SPF and DKIM records the SMTP service gives. |
 | `MAIL_HEADERS` | (empty) | Extra headers on every message, `Name: value` separated by `;` (Postmark: `X-PM-Message-Stream: outbound`). |
 
+## Metadata (TMDB)
+
+Linked servers without a TMDB key of their own get their metadata through the account service, with one
+key set in the Control Center under **Infrastructure → TMDB** (a v3 API key or a v4 read access token). It
+is checked at TMDB before it is saved, kept in `cloud.db` and never shown again (only its last four
+characters). Only the questions Vidalune asks are passed on (search, movie and show details, seasons,
+translations, videos), with their known parameters; each answer is kept for a day (something TMDB does not
+have for an hour) and shared by every server, the same question from several servers at once goes to TMDB
+once, and requests to TMDB are spaced out (at most 40 a second, 8 at a time). A server may ask 6000
+questions an hour, enough for a first scan of a large library. Images are not passed through. Servers
+learn at their next report (within 5 minutes) whether it is on. A free TMDB key is for non-commercial use;
+commercial use needs a licence from TMDB.
+
 ## Email
 
 Mail is set up in the Control Center under **Infrastructure → Mail**: the SMTP server, port, username,

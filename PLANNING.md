@@ -97,8 +97,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- In de maak: **0.19.58** (één lijst op Aanvragen en Optimalisatie, titels kiezen met posters; zie onderaan).
-- Laatste release: **0.19.57** (PR #142, mail-instellingen: gebruikersnaam verborgen en juiste logregel; gemerged 13 okt); release `v0.19.57` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- In de maak: **0.19.59** (metadata via vidalune.com voor iedereen; zie onderaan).
+- Laatste release: **0.19.58** (PR #143, één lijst op Aanvragen en Optimalisatie; gemerged 14 okt); release `v0.19.58` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -521,6 +521,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
    sleutel blijft optioneel. Eigenaar (14 okt): verdient er nu geen geld aan, dus de gratis (niet-commerciële)
    TMDB-API volstaat; opnieuw bekijken zodra er betaalde abonnementen komen. Meebouwen: TMDB-vermelding met logo
    ("uses the TMDB API but is not endorsed or certified by TMDB") op web en in de app, nu alleen in de README.
+   Gebouwd in 0.19.59 (zie daar).
    - Volgorde: eigen TMDB-sleutel (beheer-UI of `TMDB_API_KEY`) > via vidalune.com (als de server
      gekoppeld is) > geen metadata.
    - Cloud: vaste lijst endpoints (zoeken, film- en seriedetails, seizoenen, collecties),
@@ -989,3 +990,33 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   keer (één Stop, één prullenbak, één voortgangsbalk; faalt op de oude code); kiezen via kaartjes. Frontend 321 tests,
   typecheck en lint (4 bekende waarschuwingen) slagen. Screenshots naar de eigenaar.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1958) en beide lockfiles bijgewerkt.
+- PR #143 gemerged 14 okt op verzoek van de eigenaar ("Merge het maar"); release `v0.19.58` gecontroleerd: APK en beide `.deb`'s aanwezig.
+
+## Versie 0.19.59 (metadata via vidalune.com voor iedereen)
+
+- Op verzoek van de eigenaar ("Bouw het", 14 okt), na "iedereen moet gewoon gebruik kunnen maken van de metadata".
+  Lokaal gebouwd terwijl 0.19.58 (PR #143) nog open stond; pas pushen na merge en complete release van 0.19.58.
+- Accountservice (`cloud/src/tmdb.ts`): `POST /api/tmdb` voor gekoppelde servers (alleen met account; anders 403),
+  met één TMDB-sleutel uit **Control Center > Infrastructuur > TMDB** (write-only, gecontroleerd bij TMDB, in
+  `service_settings`). Alleen de vragen die Vidalune stelt (zoeken film/serie, details met credits/external_ids/
+  translations, seizoen, vertalingen, video's) met hun bekende parameters (Zod, strikt); al het andere 400.
+  Antwoorden een dag bewaard in `tmdb_cache` (migratie `0017_tmdb_cache`; 404 een uur), gelijktijdige gelijke
+  vragen één keer naar TMDB, maximaal 40 per seconde en 8 tegelijk, wachtrij max. 2000 (daarna 503). Per server
+  6000 vragen per uur. Afbeeldingen gaan niet via vidalune.com. De heartbeat meldt `tmdb: true/false`.
+- Server (`backend/src/services/tmdb.ts`): `via` = eigen sleutel > vidalune.com (gekoppeld en aan) > niets. Het
+  antwoord is dat van TMDB zelf (status en JSON), dus de rest werkt ongewijzigd. Wordt het beschikbaar (na koppelen
+  of als de CEO de sleutel zet), dan worden de bibliotheken gescand voor ontbrekende metadata. Beheer > Metadata en
+  het dashboard tonen "via vidalune.com"; meldingen en Setup noemen koppelen als eerste weg.
+- TMDB-vermelding (verplicht bij hun API): op het accountscherm van de website, in de app (Over de app) en in de
+  footer van vidalune.com. Alleen tekst: het officiële TMDB-logo kon hier niet gedownload worden (netwerk);
+  eigenaar kan het logo later aanleveren (themoviedb.org/about/logos-attribution).
+- Licentie: gratis TMDB-sleutel is voor niet-commercieel gebruik; de eigenaar verdient er nu niets aan. Opnieuw
+  bekijken bij betaalde abonnementen.
+- Tests: `cloud/test/tmdb.test.ts` (6, van begin tot eind met de echte servercode: niet gekoppeld/geen sleutel,
+  sleutel nooit zichtbaar, foute sleutel geweigerd, hergebruik van antwoorden, 404 als TMDB-404, alleen toegestane
+  vragen, vaste cachesleutel, alleen CEO, eigen sleutel eerst zonder vidalune.com, uitzetten) en frontend (Metadata
+  "via vidalune.com" en de uitleg zonder sleutel of koppeling). Backend 580, frontend 323, cloud 162, app 153 tests;
+  alle typechecks en lint (4 bekende waarschuwingen) slagen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1959) en beide lockfiles bijgewerkt.
+- Na de release door de eigenaar: in het Control Center > TMDB zijn TMDB-sleutel invullen (themoviedb.org >
+  Instellingen > API), dan op een gekoppelde server zonder eigen sleutel Beheer > Metadata bekijken.

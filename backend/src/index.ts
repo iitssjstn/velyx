@@ -30,7 +30,8 @@ async function main(): Promise<void> {
 
   const ffprobe = await checkBinary(config.ffprobePath);
   if (!ffprobe) log.warn(`FFprobe not found at "${config.ffprobePath}" — media analysis will fail`);
-  if (!ctx.tmdb.configured) log.info('TMDB API key not set — metadata lookup disabled until one is added');
+  if (ctx.tmdb.via === 'vidalune') log.info('Metadata through vidalune.com (no TMDB key of its own)');
+  else if (!ctx.tmdb.configured) log.info('No TMDB API key and not linked to a Vidalune account — metadata lookup disabled until one of them is set up');
   const purged = ctx.sessions.purgeExpired();
   if (purged) log.info(`Removed ${purged} expired sessions`);
 

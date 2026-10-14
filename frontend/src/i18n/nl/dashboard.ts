@@ -77,6 +77,7 @@ export const dashboard: Messages['dashboard'] = {
   memoryDetail: '{used} van {total} · Vidalune {velyx}',
   versionUptime: 'v{version} · draait {uptime}',
   tmdbEnv: 'Ingesteld (omgevingsvariabele)',
+  tmdbVidalune: 'Via vidalune.com',
   tmdbSettings: 'Ingesteld (instellingen)',
   notConfigured: 'Niet ingesteld',
   ffprobeMissing: 'Niet gevonden — media-analyse staat uit',

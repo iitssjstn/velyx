@@ -1,3 +1,4 @@
+import { HttpError } from '../http-error.js';
 import { createLogger } from '../logger.js';
 import type { TmdbTranslations } from './localize.js';
 
@@ -102,8 +103,16 @@ export interface TmdbSeasonDetails {
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
+/** Metadata through vidalune.com (its own TMDB key), for a server linked to a Vidalune account. */
+export interface VidaluneTmdb {
+  tmdbAvailable(): boolean;
+  tmdb(path: string, params: Record<string, string>): Promise<{ status: number; data: unknown }>;
+}
+
 export interface TmdbClientOptions {
   getApiKey: () => string;
+  /** Used when there is no key of its own. */
+  vidalune?: VidaluneTmdb;
   getLanguage: () => string;
   getIncludeAdult?: () => boolean;
   fetchImpl?: FetchLike;
@@ -126,7 +135,13 @@ export class TmdbClient {
   }
 
   get configured(): boolean {
-    return this.opts.getApiKey().length > 0;
+    return this.via !== null;
+  }
+
+  /** Where metadata comes from: its own key first, else vidalune.com (when linked), else nowhere. */
+  get via(): 'own' | 'vidalune' | null {
+    if (this.opts.getApiKey().length > 0) return 'own';
+    return this.opts.vidalune?.tmdbAvailable() ? 'vidalune' : null;
   }
 
   /** Requests are serialized and spaced out so we stay well below TMDB's rate limits. */
@@ -144,6 +159,7 @@ export class TmdbClient {
 
   private async request<T>(pathname: string, params: Record<string, string | number | undefined> = {}, apiKeyOverride?: string): Promise<T> {
     const key = apiKeyOverride ?? this.opts.getApiKey();
+    if (!key && this.opts.vidalune?.tmdbAvailable()) return this.throughVidalune<T>(pathname, params);
     if (!key) throw new TmdbError('TMDB API key is not configured', null);
     const url = new URL(API_BASE + pathname);
     for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') url.searchParams.set(k, String(v));
@@ -175,6 +191,35 @@ export class TmdbClient {
       return (await res.json()) as T;
     }
     throw new TmdbError('TMDB request failed', null);
+  }
+
+  /**
+   * The same question through vidalune.com, which asks TMDB with its key (and reuses answers other
+   * servers got). Its answer is TMDB's own, so everything after this works the same.
+   */
+  private async throughVidalune<T>(pathname: string, params: Record<string, string | number | undefined>): Promise<T> {
+    const clean: Record<string, string> = {};
+    for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') clean[k] = String(v);
+    for (let attempt = 0; attempt < 4; attempt++) {
+      let answer: { status: number; data: unknown };
+      try {
+        answer = await this.schedule(() => this.opts.vidalune!.tmdb(pathname, clean));
+      } catch (err) {
+        const status = err instanceof HttpError ? err.statusCode : null;
+        // Too many questions, or vidalune.com or TMDB briefly away: wait a little and ask again.
+        if ((status === 429 || status === 502) && attempt < 3) {
+          await new Promise((r) => setTimeout(r, (status === 429 ? 5000 : 1000) * (attempt + 1)));
+          continue;
+        }
+        throw new TmdbError(`Metadata through Vidalune: ${(err as Error).message}`, status);
+      }
+      if (answer.status !== 200) {
+        const body = answer.data as { status_message?: string } | null;
+        throw new TmdbError(body?.status_message ?? `TMDB returned ${answer.status}`, answer.status);
+      }
+      return answer.data as T;
+    }
+    throw new TmdbError('Metadata through Vidalune failed', null);
   }
 
   async validateKey(key: string): Promise<boolean> {

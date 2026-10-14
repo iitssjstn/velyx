@@ -160,8 +160,11 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const notifications = new NotificationService(db, settings, opts.fetchImpl);
   const libraryName = (id: number) => db.select({ name: libraries.name }).from(libraries).where(eq(libraries.id, id)).get()?.name ?? `#${id}`;
   const sessions = new SessionService(db, config.sessionTtlDays);
+  // Metadata through vidalune.com when there is no key here (the link is made below).
+  const vidaluneTmdb = { tmdbAvailable: () => cloud.tmdbAvailable(), tmdb: (path: string, params: Record<string, string>) => cloud.tmdb(path, params) };
   const tmdb = new TmdbClient({
     getApiKey: () => settings.tmdbKey(),
+    vidalune: vidaluneTmdb,
     getLanguage: () => settings.tmdbLanguage(),
     getIncludeAdult: () => settings.get().includeAdult,
     fetchImpl: opts.fetchImpl,
@@ -188,6 +191,12 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     onScanFailed: (libraryId, message) => notifications.notify('scanFailed', { library: libraryName(libraryId), reason: message }),
   });
   const cloud = new CloudService({ baseUrl: config.cloudUrl, settings, version: APP_VERSION, fetchImpl: opts.fetchImpl, localPort: config.port, directTlsPort: config.directTlsPort, directPublicPort: () => settings.get().directPublicPort, now: opts.cloudNow });
+  // Metadata through vidalune.com just became available (linked, or a key set there): what has none yet gets it.
+  cloud.onTmdbAvailable = () => {
+    if (settings.tmdbKey()) return;
+    log.info('Metadata through vidalune.com available — fetching metadata for existing libraries');
+    scans.enqueueAll(false);
+  };
   const sharedDetection = new SharedDetection(db, cloud, () => settings.get().sharedDetection);
   const segments: SegmentDetector = new SegmentDetector(db, opts.audioReader ?? ffmpegAudioReader(config.ffmpegPath), {
     enabled: () => settings.get().segmentDetection,

@@ -107,8 +107,10 @@ export function MetadataSettings() {
           <span className="text-ok">
             {tRich(s.tmdb.source === 'environment' ? 'server.configuredEnv' : 'server.configuredSettings', { hint: s.tmdb.hint ? <span className="font-mono">{s.tmdb.hint}</span> : '' })}
           </span>
+        ) : s.tmdb.via === 'vidalune' ? (
+          <span className="text-ok">{t('server.tmdbVidalune')}</span>
         ) : (
-          <span className="text-amber">{t('server.notConfigured')}</span>
+          <span className="text-amber">{s.tmdb.linked ? t('server.tmdbVidaluneOff') : t('server.notConfigured')}</span>
         )}
       </p>
       <form

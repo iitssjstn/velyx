@@ -202,6 +202,21 @@ export class CloudService {
     return !!this.deps.settings.get().cloud?.account;
   }
 
+  /** Called when metadata through vidalune.com becomes available (linked, or a key set there). */
+  onTmdbAvailable: (() => void) | null = null;
+
+  /** Metadata through vidalune.com: this server is linked and vidalune.com has a TMDB key. */
+  tmdbAvailable(): boolean {
+    const link = this.deps.settings.get().cloud;
+    return !!link?.account && link.tmdb === true;
+  }
+
+  /** Metadata through vidalune.com: TMDB's answer (its status and JSON) to one of the questions Vidalune asks. */
+  tmdb(path: string, params: Record<string, string>): Promise<{ status: number; data: unknown }> {
+    // Longer than other calls: vidalune.com may be waiting its turn at TMDB.
+    return this.call('POST', '/api/tmdb', { path, params }, true, false, false, [400, 403, 429, 503], 30_000);
+  }
+
   /** Online subtitles through vidalune.com: OpenSubtitles' answer to a search. */
   async subtitleSearch(query: unknown): Promise<unknown[]> {
     return (await this.call<{ data: unknown[] }>('POST', '/api/subtitles/search', query, true, false, false, [403, 429, 503])).data;
@@ -231,7 +246,7 @@ export class CloudService {
   async check(): Promise<CloudStatus> {
     const link = this.deps.settings.get().cloud;
     if (!link) return this.status();
-    const r = await this.call<{ linked: boolean; account: string | null; relay?: { enabled: boolean; url: string | null; allowed?: boolean; usable?: boolean }; directAccess?: CloudStatus['directAccess']; remoteUsers?: unknown[] }>('POST', '/api/server/heartbeat', this.heartbeat());
+    const r = await this.call<{ linked: boolean; account: string | null; tmdb?: boolean; relay?: { enabled: boolean; url: string | null; allowed?: boolean; usable?: boolean }; directAccess?: CloudStatus['directAccess']; remoteUsers?: unknown[] }>('POST', '/api/server/heartbeat', this.heartbeat());
     const current = this.deps.settings.get().cloud;
     // The service decides: an unlinked server (unlinked on vidalune.com) has no relay any more.
     const relay = !!r.relay?.enabled;
@@ -242,7 +257,9 @@ export class CloudService {
     this.checkedAt = this.now();
     if (current) {
       const confirmed = r.account && (relayAllowed || remoteUsers.length > 0) ? this.now() : current.remoteConfirmedAt;
-      this.deps.settings.update({ cloud: { ...current, account: r.account, relay, relayUrl, relayAllowed, relayUsable, directAccess: r.directAccess ?? current.directAccess ?? null, remoteUsers, remoteConfirmedAt: confirmed } });
+      const tmdb = !!r.account && r.tmdb === true;
+      this.deps.settings.update({ cloud: { ...current, account: r.account, relay, relayUrl, relayAllowed, relayUsable, directAccess: r.directAccess ?? current.directAccess ?? null, remoteUsers, remoteConfirmedAt: confirmed, tmdb } });
+      if (tmdb && !current.tmdb) this.onTmdbAvailable?.();
     }
     if (r.account) this.code = null;
     this.syncRelay();

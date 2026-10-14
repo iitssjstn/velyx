@@ -142,5 +142,6 @@ export const settings = {
     libraries: 'Libraries',
   },
   signedInAs: 'Signed in as {name}',
+  tmdbCredit: 'Metadata and images: TMDB (themoviedb.org). This product uses the TMDB API but is not endorsed or certified by TMDB.',
   sections: 'Settings sections',
 };
