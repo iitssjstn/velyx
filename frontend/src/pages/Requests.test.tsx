@@ -93,6 +93,25 @@ describe('requests through Seerr', () => {
     expect(calls.some((c) => c.call === 'DELETE /api/admin/seerr/requests/7')).toBe(true);
   });
 
+  it('shows an administrator one list, with their own requests in it and every title opening its page', async () => {
+    role = 'admin';
+    const calls = setup(<RequestsPage />, (_method, url) => {
+      if (url === '/api/seerr') return { enabled: true };
+      if (url === '/api/seerr/requests') return [{ id: 8, mediaType: 'tv', tmdbId: 1399, title: 'A Show', posterPath: null, state: 'requested', createdAt: 0 }];
+      if (url === '/api/admin/seerr/requests') return [
+        { id: 8, mediaType: 'tv', tmdbId: 1399, title: 'A Show', posterPath: null, state: 'requested', createdAt: 0, user: 'anna' },
+        { id: 7, mediaType: 'movie', tmdbId: 603, title: 'The Matrix', posterPath: null, state: 'approved', createdAt: 0, user: 'bram' },
+      ];
+      return {};
+    });
+    expect(await screen.findByText('All requests')).toBeTruthy();
+    expect(screen.queryByText('Your requests')).toBeNull();
+    expect(screen.getAllByRole('link', { name: 'A Show' })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'A Show' }).getAttribute('href')).toBe('/request/tv/1399');
+    expect(screen.getByRole('link', { name: 'The Matrix' }).getAttribute('href')).toBe('/request/movie/603');
+    expect(calls.some((c) => c.call === 'GET /api/seerr/requests')).toBe(false);
+  });
+
   it('shows no one else’s requests to others', async () => {
     const calls = setup(<RequestsPage />, (_method, url) => (url === '/api/seerr' ? { enabled: true } : []));
     expect(await screen.findByText('Your requests')).toBeTruthy();

@@ -15,7 +15,7 @@ export type { RequestState, SeerrResult } from '../components/Discover';
 
 type AdminRequest = MyRequest & { user: string | null };
 
-/** Administrators: everyone's requests, and cancelling one (in Seerr and here). */
+/** Administrators: everyone's requests (their own among them), and cancelling one (in Seerr and here). */
 function AllRequests() {
   const { t } = useT();
   const qc = useQueryClient();
@@ -30,6 +30,7 @@ function AllRequests() {
     },
     onError: (e) => toast.error(e),
   });
+  if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!q.data) return null;
   return (
     <section aria-labelledby="all-requests" className="space-y-3">
@@ -47,7 +48,9 @@ function AllRequests() {
                 <Poster path={r.posterPath} title={r.title} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{r.title}</p>
+                <Link to={`/request/${r.mediaType}/${r.tmdbId}`} className="block truncate font-medium hover:text-accent">
+                  {r.title}
+                </Link>
                 <p className="text-xs text-muted">
                   {r.mediaType === 'movie' ? t('requests.movie') : t('requests.tv')} · {r.user ?? t('requests.unknownUser')} · {new Date(r.createdAt).toLocaleDateString()}
                 </p>
@@ -79,6 +82,8 @@ function AllRequests() {
 export function RequestsPage() {
   const { t } = useT();
   const { user } = useAuth();
+  // An administrator sees one list: everyone's requests, which hold their own too.
+  const admin = user?.role === 'admin';
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
@@ -89,7 +94,7 @@ export function RequestsPage() {
     queryFn: () => api.get<{ results: SeerrResult[] }>(`/api/seerr/search?q=${encodeURIComponent(query)}`),
     enabled: !!query && !!status.data?.enabled,
   });
-  const mine = useQuery({ queryKey: ['seerr', 'requests'], queryFn: () => api.get<MyRequest[]>('/api/seerr/requests'), enabled: !!status.data?.enabled });
+  const mine = useQuery({ queryKey: ['seerr', 'requests'], queryFn: () => api.get<MyRequest[]>('/api/seerr/requests'), enabled: !!status.data?.enabled && !admin });
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setQuery(input.trim());
@@ -125,29 +130,30 @@ export function RequestsPage() {
         )
       )}
 
-      <section aria-labelledby="my-requests" className="space-y-3">
-        <h2 id="my-requests" className="font-display text-xl font-semibold">{t('requests.mine')}</h2>
-        {mine.data && mine.data.length === 0 && <p className="text-sm text-muted">{t('requests.none')}</p>}
-        {mine.data && mine.data.length > 0 && (
-          <ul className="panel divide-y divide-line/60">
-            {mine.data.map((r) => (
-              <li key={r.id} className="flex items-center gap-4 p-3">
-                <div className="w-10 shrink-0">
-                  <Poster path={r.posterPath} title={r.title} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <Link to={`/request/${r.mediaType}/${r.tmdbId}`} className="block truncate font-medium hover:text-accent">
-                    {r.title}
-                  </Link>
-                  <p className="text-xs text-muted">{r.mediaType === 'movie' ? t('requests.movie') : t('requests.tv')} · {new Date(r.createdAt).toLocaleDateString()}</p>
-                </div>
-                <StateBadge state={r.state} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      {user?.role === 'admin' && <AllRequests />}
+      {admin ? <AllRequests /> : (
+        <section aria-labelledby="my-requests" className="space-y-3">
+          <h2 id="my-requests" className="font-display text-xl font-semibold">{t('requests.mine')}</h2>
+          {mine.data && mine.data.length === 0 && <p className="text-sm text-muted">{t('requests.none')}</p>}
+          {mine.data && mine.data.length > 0 && (
+            <ul className="panel divide-y divide-line/60">
+              {mine.data.map((r) => (
+                <li key={r.id} className="flex items-center gap-4 p-3">
+                  <div className="w-10 shrink-0">
+                    <Poster path={r.posterPath} title={r.title} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <Link to={`/request/${r.mediaType}/${r.tmdbId}`} className="block truncate font-medium hover:text-accent">
+                      {r.title}
+                    </Link>
+                    <p className="text-xs text-muted">{r.mediaType === 'movie' ? t('requests.movie') : t('requests.tv')} · {new Date(r.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <StateBadge state={r.state} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
     </div>
   );
 }
