@@ -211,6 +211,20 @@ export class CloudService {
     return !!link?.account && link.tmdb === true;
   }
 
+  private tmdbAskedAt = 0;
+
+  /**
+   * Asks vidalune.com now whether metadata comes through it, when this server is linked but did not
+   * hear so yet (instead of waiting up to five minutes for the next report). At most every 30 seconds.
+   */
+  async refreshTmdb(): Promise<void> {
+    const link = this.deps.settings.get().cloud;
+    if (!link?.account || link.tmdb || this.now() - this.tmdbAskedAt < 30_000) return;
+    this.tmdbAskedAt = this.now();
+    // The page does not wait long for it: an unreachable vidalune.com is the next report's job.
+    await Promise.race([this.check().catch(() => undefined), new Promise((r) => setTimeout(r, 3000).unref())]);
+  }
+
   /** Metadata through vidalune.com: TMDB's answer (its status and JSON) to one of the questions Vidalune asks. */
   tmdb(path: string, params: Record<string, string>): Promise<{ status: number; data: unknown }> {
     // Longer than other calls: vidalune.com may be waiting its turn at TMDB.

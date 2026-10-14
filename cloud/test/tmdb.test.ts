@@ -183,6 +183,23 @@ describe('metadata through vidalune.com', () => {
     expect(tmdb.asked).toEqual([]);
   });
 
+  it('learns at once when asked (an admin page opening), not only at the next report, and not more than every 30 seconds', async () => {
+    const { client } = await setup();
+    let available = 0;
+    cloud.onTmdbAvailable = () => available++;
+    await link();
+    expect(client.via).toBeNull();
+    // Asked while vidalune.com has no key yet: still nothing, and the next 30 seconds it does not ask again.
+    await cloud.refreshTmdb();
+    await setKey('ceo-tmdb-key');
+    await cloud.refreshTmdb();
+    expect(client.via).toBeNull();
+    (cloud as unknown as { tmdbAskedAt: number }).tmdbAskedAt -= 30_000;
+    await cloud.refreshTmdb();
+    expect(client.via).toBe('vidalune');
+    expect(available).toBe(1);
+  });
+
   it('stops offering it when the CEO turns it off', async () => {
     const { client } = await setup();
     await link();
