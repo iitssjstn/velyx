@@ -122,6 +122,8 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
 
   // ------------------------------------------------------------------ dashboard
   app.get('/api/admin/dashboard', { preHandler: requireAdmin }, async () => {
+    // Without a key of its own: whether metadata comes through vidalune.com, now rather than at the next report.
+    if (!ctx.settings.tmdbKey()) await ctx.cloud.refreshTmdb();
     ffmpegVersion ??= await checkBinary(ctx.config.ffprobePath);
     const libs = db.select().from(libraries).orderBy(libraries.name).all();
     const mediaBytes = db.select({ total: sql<number>`coalesce(sum(${mediaFiles.size}), 0)` }).from(mediaFiles).get()!.total;
@@ -541,7 +543,10 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     };
   };
 
-  app.get('/api/admin/settings', { preHandler: requireAdmin }, async () => settingsView());
+  app.get('/api/admin/settings', { preHandler: requireAdmin }, async () => {
+    if (!ctx.settings.tmdbKey()) await ctx.cloud.refreshTmdb();
+    return settingsView();
+  });
 
   // ------------------------------------------------------------------ video conversion (opt-in)
   const transcodingView = () => {
