@@ -516,7 +516,9 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 ## Later (in deze volgorde, tenzij de eigenaar anders zegt)
 
 1. **TMDB via vidalune.com, met terugval** (gevraagd door de eigenaar 14 okt: "zodat iedereen er gebruik van kan
-   maken"; uitgelegd, wacht op "bouw het")
+   maken"; uitgelegd, wacht op "bouw het"). Besluit eigenaar (14 okt): "iedereen moet gewoon gebruik kunnen maken
+   van de metadata": standaard via vidalune.com voor elke gekoppelde server, zonder eigen sleutel; een eigen
+   sleutel blijft optioneel. Eerst de TMDB-licentie voor commercieel gebruik navragen (eigenaar).
    - Volgorde: eigen TMDB-sleutel (beheer-UI of `TMDB_API_KEY`) > via vidalune.com (als de server
      gekoppeld is) > geen metadata.
    - Cloud: vaste lijst endpoints (zoeken, film- en seriedetails, seizoenen, collecties),
