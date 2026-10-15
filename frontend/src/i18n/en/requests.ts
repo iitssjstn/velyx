@@ -39,6 +39,8 @@ export const requests = {
     movieGenre: '{genre} movies',
     showGenre: '{genre} shows',
     loadMore: 'Loading more…',
+    rowEmpty: 'Nothing here right now.',
+    rowNotEnabledHint: 'Connect Seerr under Admin → Integrations to see this list.',
     genres: {
       action: 'Action',
       comedy: 'Comedy',

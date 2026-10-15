@@ -133,7 +133,19 @@ export function DiscoverCard({ item, onSelect, className = '' }: { item: SeerrRe
   );
 }
 
-type Row = { row: 'trending' | 'movies' | 'tv' | 'upcomingMovies' | 'upcomingTv'; genre?: number; title: MessageKey; genreName?: MessageKey };
+export type DiscoverRow = 'trending' | 'movies' | 'tv' | 'upcomingMovies' | 'upcomingTv';
+type Row = { row: DiscoverRow; genre?: number; title: MessageKey; genreName?: MessageKey };
+
+/** Rows that have no page of their own elsewhere: shown in full on /discover/:row. */
+export const ROW_PAGES = ['trending', 'upcomingMovies', 'upcomingTv'] as const;
+
+/** Where a catalog row's title leads: its genre, Movies or TV Shows from Seerr, or the row in full. */
+export function rowHref(spec: Row): string {
+  const kind = spec.row === 'tv' ? 'shows' : 'movies';
+  if (spec.genre) return `/genres?scope=seerr&kind=${kind}&genre=${spec.genre}`;
+  if (spec.row === 'movies' || spec.row === 'tv') return `/${kind}?source=seerr`;
+  return `/discover/${spec.row}`;
+}
 
 /** The catalog rows under the library on the home screen (TMDB genre ids). */
 export const DISCOVER_ROWS: Row[] = [
@@ -197,7 +209,7 @@ function DiscoverShelf({ spec, onSelect }: { spec: Row; onSelect: (item: SeerrRe
   if (near && !q.isLoading && items.length === 0) return null;
   return (
     <div ref={ref} className="mt-10">
-      <Shelf title={title}>
+      <Shelf title={title} moreHref={rowHref(spec)}>
         {items.length === 0
           ? Array.from({ length: 6 }, (_, i) => <div key={i} className="aspect-[2/3] w-36 shrink-0 animate-pulse rounded-lg bg-raised sm:w-40" />)
           : items.map((r) => <DiscoverCard key={`${r.mediaType}-${r.tmdbId}`} item={r} onSelect={onSelect} className="w-36 shrink-0 snap-start sm:w-40" />)}

@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { DISCOVER_ROWS, DiscoverShelves } from './Discover';
+import { DISCOVER_ROWS, DiscoverShelves, rowHref } from './Discover';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -90,5 +90,29 @@ describe('Discover rows on the home screen', () => {
     setup(true);
     await userEvent.click((await screen.findAllByText('Wanted'))[0]);
     expect((await screen.findByTestId('where')).textContent).toBe('/request/movie/4');
+  });
+
+  it('gives every row a way to see all of it: the title and "See all"', async () => {
+    setup(true);
+    const title = await screen.findByRole('link', { name: 'Trending now' });
+    expect(title.getAttribute('href')).toBe('/discover/trending');
+    expect(screen.getAllByRole('link', { name: 'See all' })[0].getAttribute('href')).toBe('/discover/trending');
+    await userEvent.click(title);
+    expect(screen.getByTestId('where').textContent).toBe('/discover/trending');
+  });
+});
+
+describe('where a catalog row leads', () => {
+  it('sends each row to its own category', () => {
+    const href = (row: string, genre?: number) => rowHref(DISCOVER_ROWS.find((r) => r.row === row && r.genre === genre)!);
+    expect(href('trending')).toBe('/discover/trending');
+    expect(href('movies')).toBe('/movies?source=seerr');
+    expect(href('tv')).toBe('/shows?source=seerr');
+    expect(href('movies', 28)).toBe('/genres?scope=seerr&kind=movies&genre=28');
+    expect(href('tv', 80)).toBe('/genres?scope=seerr&kind=shows&genre=80');
+    expect(href('upcomingMovies')).toBe('/discover/upcomingMovies');
+    expect(href('upcomingTv')).toBe('/discover/upcomingTv');
+    // Every row on the home screen leads somewhere.
+    for (const spec of DISCOVER_ROWS) expect(rowHref(spec)).toMatch(/^\//);
   });
 });
