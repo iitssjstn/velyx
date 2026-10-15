@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MediaInfo } from './MediaInfo';
+import { MediaInfo, TechnicalInfo } from './MediaInfo';
 import type { MediaFileInfo } from '../lib/types';
 
 const file = {
@@ -24,7 +24,7 @@ const file = {
 describe('MediaInfo', () => {
   it('shows what the file replaced, and that watch history was kept', () => {
     render(
-      <MediaInfo
+      <TechnicalInfo
         file={file}
         replacements={[
           {
@@ -38,7 +38,10 @@ describe('MediaInfo', () => {
     expect(screen.getByText('Replaced')).toBeTruthy();
     expect(document.body.textContent).toContain('1080p · H.264 · WEB · 4.2 GB → 2160p · HEVC · HDR10 · Blu-ray Remux · 60.0 GB');
     expect(screen.getByText('Watch history was kept.')).toBeTruthy();
-    // Image subtitles are described honestly.
+  });
+
+  it('describes image subtitles honestly', () => {
+    render(<MediaInfo file={file} />);
     expect(screen.getByText('English').closest('li')!.getAttribute('title')).toContain('PGS · image-based, not shown');
   });
 
@@ -63,7 +66,7 @@ describe('MediaInfo', () => {
   });
 
   it('has no replacement row for files that were never replaced', () => {
-    render(<MediaInfo file={file} />);
+    render(<TechnicalInfo file={file} />);
     expect(screen.queryByText('Replaced')).toBeNull();
   });
 });

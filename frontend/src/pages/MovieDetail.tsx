@@ -2,7 +2,7 @@ import { playHref, resumePoint } from '../lib/player';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Check, Eye, Play, RotateCcw, Star } from 'lucide-react';
+import { Check, ChevronDown, Eye, Play, RotateCcw, Star } from 'lucide-react';
 import { api } from '../lib/api';
 import { useFreshMetadata } from '../lib/fresh-metadata';
 import { useAuth } from '../lib/auth';
@@ -15,7 +15,7 @@ import { FavoriteButton, WatchlistButton } from '../components/FavoriteButton';
 import { AdminItemMenu } from '../components/AdminItemMenu';
 import { CastRow } from '../components/People';
 import { MoreLikeThis } from '../components/MoreLikeThis';
-import { MediaInfo } from '../components/MediaInfo';
+import { MediaInfo, TechnicalInfo } from '../components/MediaInfo';
 import { DevicePlayback } from '../components/DevicePlayback';
 import { ProgressBar } from '../components/ProgressBar';
 import { DetailSkeleton, ErrorState } from '../components/States';
@@ -34,6 +34,8 @@ function MovieScreen({ id }: { id: number }) {
   const navigate = useNavigate();
   const { t } = useT();
   const [fileIdx, setFileIdx] = useState(0);
+  // Technical details are for the curious (and the admin): folded away until asked for.
+  const [technical, setTechnical] = useState(false);
   const q = useQuery({ queryKey: ['movie', id], queryFn: () => api.get<MovieDetail>(`/api/movies/${id}`) });
   useFreshMetadata('movie', id, (newId) => navigate(`/movies/${newId}`, { replace: true }));
   const watched = useMutation({
@@ -175,8 +177,19 @@ function MovieScreen({ id }: { id: number }) {
             )}
           </div>
           <div className="grid max-w-5xl gap-4 sm:grid-cols-2">
-            <MediaInfo key={file.id} file={file} replacements={m.replacements} />
-            <DevicePlayback fileId={file.id} />
+            <MediaInfo key={file.id} file={file} />
+            <div className="sm:col-span-2">
+              <button type="button" className="flex items-center gap-1.5 text-sm text-muted hover:text-ink" aria-expanded={technical} onClick={() => setTechnical(!technical)}>
+                <ChevronDown className={`size-4 transition-transform ${technical ? 'rotate-180' : ''}`} aria-hidden />
+                {t('mediaInfo.technicalInfo')}
+              </button>
+            </div>
+            {technical && (
+              <>
+                <TechnicalInfo key={file.id} file={file} replacements={m.replacements} />
+                <DevicePlayback fileId={file.id} />
+              </>
+            )}
           </div>
         </section>
       )}

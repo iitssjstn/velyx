@@ -77,13 +77,11 @@ function SubtitleChips({ lines, empty }: { lines: DetailLine[]; empty: string })
 }
 
 /**
- * Audio, subtitles and technical details of a media file, from what the library scan stored
- * (opening a page never analyses the file again).
+ * Audio and subtitles of a media file, from what the library scan stored (opening a page never
+ * analyses the file again).
  */
-export function MediaInfo({ file, replacements = [] }: { file: MediaFileInfo; replacements?: Replacement[] }) {
+export function MediaInfo({ file }: { file: MediaFileInfo }) {
   const { t } = useT();
-  const res = resolutionLabel(file.width, file.height);
-  const summary = technicalSummary(file);
   return (
     <>
       <InfoSection title={t('playback.audio')}>
@@ -92,39 +90,48 @@ export function MediaInfo({ file, replacements = [] }: { file: MediaFileInfo; re
       <InfoSection title={t('playback.subtitles')}>
         <SubtitleChips lines={subtitleLines(file)} empty={t('mediaInfo.noSubtitles')} />
       </InfoSection>
-      <InfoSection title={t('mediaInfo.technical')} className="sm:col-span-2">
-        {summary.length > 0 && (
-          <ul aria-label={t('mediaInfo.videoFormat')} className="mb-3 flex flex-wrap gap-2">
-            {summary.map((s) => (
-              <li key={s} className="rounded-md border border-line px-2 py-0.5 text-xs font-medium text-ink/85">
-                {s}
-              </li>
-            ))}
-          </ul>
-        )}
-        <dl className="divide-y divide-line/50">
-          {file.probeError && <Row label={t('mediaInfo.problem')}>{<span className="text-danger">{file.probeError}</span>}</Row>}
-          <Row label={t('playback.video')}>
-            {[codecName(file.videoCodec), file.videoProfile, file.width && file.height ? `${file.width}×${file.height}${res ? ` (${res})` : ''}` : null, file.fps ? `${Number(file.fps.toFixed(3))} fps` : null]
-              .filter(Boolean)
-              .join(', ')}
-          </Row>
-          <Row label={t('mediaInfo.duration')}>{file.durationSec ? formatClock(file.durationSec) : null}</Row>
-          <Row label={t('playback.container')}>{file.container?.toUpperCase()}</Row>
-          <Row label={t('mediaInfo.size')}>{formatBytes(file.size)}</Row>
-          <Row label={t('mediaInfo.file')}>{file.fileName}</Row>
-          {replacements.length > 0 && (
-            <Row label={t('mediaInfo.replaced')}>
-              {replacements.map((r) => (
-                <span key={r.at} className="block" title={`${r.previous.name} → ${r.current.name}`}>
-                  <span className="text-muted">{formatRelative(r.at)}:</span> {snapshotLabel(r.previous)} → {snapshotLabel(r.current)}
-                </span>
-              ))}
-              <span className="mt-1 block text-xs text-faint">{t('mediaInfo.historyKept')}</span>
-            </Row>
-          )}
-        </dl>
-      </InfoSection>
     </>
+  );
+}
+
+/** Technical details of a media file (codec, bitrate, container, size, file name, replacements). */
+export function TechnicalInfo({ file, replacements = [] }: { file: MediaFileInfo; replacements?: Replacement[] }) {
+  const { t } = useT();
+  const res = resolutionLabel(file.width, file.height);
+  const summary = technicalSummary(file);
+  return (
+    <InfoSection title={t('mediaInfo.technical')} className="sm:col-span-2">
+      {summary.length > 0 && (
+        <ul aria-label={t('mediaInfo.videoFormat')} className="mb-3 flex flex-wrap gap-2">
+          {summary.map((s) => (
+            <li key={s} className="rounded-md border border-line px-2 py-0.5 text-xs font-medium text-ink/85">
+              {s}
+            </li>
+          ))}
+        </ul>
+      )}
+      <dl className="divide-y divide-line/50">
+        {file.probeError && <Row label={t('mediaInfo.problem')}>{<span className="text-danger">{file.probeError}</span>}</Row>}
+        <Row label={t('playback.video')}>
+          {[codecName(file.videoCodec), file.videoProfile, file.width && file.height ? `${file.width}×${file.height}${res ? ` (${res})` : ''}` : null, file.fps ? `${Number(file.fps.toFixed(3))} fps` : null]
+            .filter(Boolean)
+            .join(', ')}
+        </Row>
+        <Row label={t('mediaInfo.duration')}>{file.durationSec ? formatClock(file.durationSec) : null}</Row>
+        <Row label={t('playback.container')}>{file.container?.toUpperCase()}</Row>
+        <Row label={t('mediaInfo.size')}>{formatBytes(file.size)}</Row>
+        <Row label={t('mediaInfo.file')}>{file.fileName}</Row>
+        {replacements.length > 0 && (
+          <Row label={t('mediaInfo.replaced')}>
+            {replacements.map((r) => (
+              <span key={r.at} className="block" title={`${r.previous.name} → ${r.current.name}`}>
+                <span className="text-muted">{formatRelative(r.at)}:</span> {snapshotLabel(r.previous)} → {snapshotLabel(r.current)}
+              </span>
+            ))}
+            <span className="mt-1 block text-xs text-faint">{t('mediaInfo.historyKept')}</span>
+          </Row>
+        )}
+      </dl>
+    </InfoSection>
   );
 }

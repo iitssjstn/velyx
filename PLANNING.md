@@ -301,10 +301,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
-- **Technische info op de filmpagina is voor de kijker overbodig** (gemeld 15 okt, screenshot; nog niet bouwen):
-  de blokken "Technisch" (codec, bitrate, container, grootte, bestand) en "Afspelen op dit apparaat" (remux,
-  audio → AAC) staan voor iedereen op de filmpagina (`MovieDetail.tsx`: `MediaInfo` en `DevicePlayback`).
-  Voorstel: alleen tonen voor beheerders (eventueel ingeklapt). Wacht op keuze van de eigenaar.
+- **Technische info op de filmpagina is voor de kijker overbodig** (gemeld 15 okt, screenshot; gebouwd in 0.19.61):
+  keuze eigenaar: "ingeklapt, maar dan kan iedereen het nog wel gewoon zien".
 
 - **HDR wordt niet omgezet naar SDR** (gevonden 11 okt bij een 4K-HDR-optimalisatie van de eigenaar; nog
   niet bouwen): `optimization.ts` en `transcode.ts` schalen alleen; zonder tonemapping ziet een H.264-kopie
@@ -1039,3 +1037,15 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   Backend 580, cloud 163 tests; typecheck en lint (4 bekende waarschuwingen) slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1960) en beide lockfiles bijgewerkt.
 - PR #145 gemerged 14 okt op verzoek van de eigenaar; release `v0.19.60` gecontroleerd: APK en beide `.deb`'s aanwezig.
+
+## Versie 0.19.61 (technische info ingeklapt)
+
+- Op verzoek van de eigenaar (15 okt): "Doe ingeklapt maar dan kan iedereen het nog wel gewoon zien".
+- Filmpagina: Audio en Ondertitels blijven zichtbaar; "Technisch" (codec, bitrate, container, grootte, bestand,
+  vervangen) en "Afspelen op dit apparaat" staan achter de knop "Technische info", standaard dicht, voor iedereen
+  te openen. De afspeelcontrole (`/api/media/:id/playback`) wordt pas gedaan als iemand hem opent.
+  `MediaInfo` (audio, ondertitels) en nieuw `TechnicalInfo` in `MediaInfo.tsx`; `MovieDetail.tsx`.
+- Tests: standaard dicht en geen afspeelcontrole tot openen, een gewone gebruiker kan hem openen en sluiten (faalt
+  op de oude code); bestaande tests openen eerst de knop. Frontend 325 tests, alle typechecks, lint (4 bekende
+  waarschuwingen) en de frontend-build slagen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1961) en beide lockfiles bijgewerkt.
