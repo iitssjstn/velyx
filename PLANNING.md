@@ -301,6 +301,9 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Per catalogusrij een verwijzing** (gemeld 15 okt, screenshots van Home en Seerr; gebouwd in 0.19.62): "Ik wil per
+  rij een verwijzing hebben want dat maakt het makkelijker voor de kijker".
+
 - **Technische info op de filmpagina is voor de kijker overbodig** (gemeld 15 okt, screenshot; gebouwd in 0.19.61):
   keuze eigenaar: "ingeklapt, maar dan kan iedereen het nog wel gewoon zien".
 
@@ -1050,3 +1053,18 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   waarschuwingen) en de frontend-build slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1961) en beide lockfiles bijgewerkt.
 - PR #146 gemerged 15 okt op verzoek van de eigenaar; release `v0.19.61` gecontroleerd: APK en beide `.deb`'s aanwezig.
+
+## Versie 0.19.62 (verwijzing per catalogusrij)
+
+- Op verzoek van de eigenaar (15 okt): elke catalogusrij op Home krijgt een verwijzing, zoals in Seerr.
+- De titel van de rij is een link, met "Alles bekijken" ernaast (`Shelf` met `moreHref`; geldt ook voor de
+  bibliotheekrijen die al "Alles bekijken" hadden). `rowHref` in `Discover.tsx`: genrerij → genrepagina
+  (`/genres?scope=seerr&kind=…&genre=…`), Populaire films/series → Films/Series met bron Seerr, Trending en
+  Binnenkort → nieuwe pagina `/discover/:row` (`DiscoverRow.tsx`: raster dat bij scrollen bijlaadt; meldingen voor
+  Seerr niet gekoppeld, leeg en fout; onbekende rij geeft 404). Engels en Nederlands. De Android-app is niet veranderd.
+- Tests: titel en "Alles bekijken" verwijzen en openen de pagina (faalt op de oude code), elke rij heeft een adres,
+  de nieuwe pagina (titel, openen, Seerr uit, leeg, onbekende rij). Frontend 331 tests, alle typechecks, lint (4
+  bekende waarschuwingen) en de frontend-build slagen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1962) en beide lockfiles bijgewerkt.
+- Eigen cast-speler: de eigenaar maakt in de Google Cast SDK Developer Console een **Custom Receiver** aan (15 okt).
+  Nog niet bouwen tot hij het zegt.

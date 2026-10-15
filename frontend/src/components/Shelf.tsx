@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useT } from '../i18n';
 
-/** A titled horizontal row of cards with scroll buttons on pointer devices. */
+/** A titled horizontal row of cards with scroll buttons on pointer devices; with `moreHref` the title and "See all" open the whole list. */
 export function Shelf({ title, children, moreHref }: { title: string; children: ReactNode; moreHref?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const { t } = useT();
@@ -11,7 +11,15 @@ export function Shelf({ title, children, moreHref }: { title: string; children: 
   return (
     <section className="mt-10 first:mt-0">
       <div className="mb-3 flex items-end justify-between px-4 sm:px-8">
-        <h2 className="font-display text-xl font-semibold tracking-tight sm:text-[1.4rem]">{title}</h2>
+        <h2 className="font-display text-xl font-semibold tracking-tight sm:text-[1.4rem]">
+          {moreHref ? (
+            <Link to={moreHref} className="hover:text-accent focus-visible:outline-accent">
+              {title}
+            </Link>
+          ) : (
+            title
+          )}
+        </h2>
         <div className="flex items-center gap-1">
           {moreHref && (
             <Link to={moreHref} className="mr-2 text-sm text-muted hover:text-ink">

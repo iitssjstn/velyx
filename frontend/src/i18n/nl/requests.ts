@@ -41,6 +41,8 @@ export const requests: Messages['requests'] = {
     movieGenre: 'Films: {genre}',
     showGenre: 'Series: {genre}',
     loadMore: 'Meer laden…',
+    rowEmpty: 'Hier staat nu niets.',
+    rowNotEnabledHint: 'Koppel Seerr onder Beheer → Koppelingen om deze lijst te zien.',
     genres: {
       action: 'Actie',
       comedy: 'Komedie',
