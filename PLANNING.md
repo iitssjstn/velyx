@@ -301,6 +301,11 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Technische info op de filmpagina is voor de kijker overbodig** (gemeld 15 okt, screenshot; nog niet bouwen):
+  de blokken "Technisch" (codec, bitrate, container, grootte, bestand) en "Afspelen op dit apparaat" (remux,
+  audio → AAC) staan voor iedereen op de filmpagina (`MovieDetail.tsx`: `MediaInfo` en `DevicePlayback`).
+  Voorstel: alleen tonen voor beheerders (eventueel ingeklapt). Wacht op keuze van de eigenaar.
+
 - **HDR wordt niet omgezet naar SDR** (gevonden 11 okt bij een 4K-HDR-optimalisatie van de eigenaar; nog
   niet bouwen): `optimization.ts` en `transcode.ts` schalen alleen; zonder tonemapping ziet een H.264-kopie
   of live conversie van een HDR-bron er op gewone schermen grauw en flets uit. Oplossing: bij HDR-bron
