@@ -1066,5 +1066,8 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   de nieuwe pagina (titel, openen, Seerr uit, leeg, onbekende rij). Frontend 331 tests, alle typechecks, lint (4
   bekende waarschuwingen) en de frontend-build slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1962) en beide lockfiles bijgewerkt.
-- Eigen cast-speler: de eigenaar maakt in de Google Cast SDK Developer Console een **Custom Receiver** aan (15 okt).
-  Nog niet bouwen tot hij het zegt.
+- Eigen cast-speler: de eigenaar maakt in de Google Cast SDK Developer Console een **Custom Receiver** aan (15 okt),
+  met Receiver URL `https://cast.vidalune.com/` (wens eigenaar). App-ID: `920BF057` (niet geheim; vervangt later
+  `CC1AD845` in `frontend/src/lib/cast.ts` en `app/app.json`). Testapparaat (Chromecast woonkamer) staat op
+  "Ready For Testing"; app nog niet publiceren tot de speler af is. `cast.vidalune.com` valt onder de wildcard `*.vidalune.com`
+  (DNS en Nginx Proxy Manager): de eigenaar hoeft niets in te stellen. De accountservice bedient die host. Nog niet bouwen tot hij het zegt.
