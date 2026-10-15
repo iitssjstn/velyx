@@ -1,0 +1,14 @@
+/* Vidalune's colours on Google's cast player (only what it lets a receiver style). */
+html, body { margin: 0; height: 100%; background: #0f0d15; overflow: hidden; }
+cast-media-player {
+  --theme-hue: 258;
+  --background-color: #0f0d15;
+  --font-family: Roboto, 'Google Sans', system-ui, sans-serif;
+  --progress-color: #b69cff;
+  --break-color: #b69cff;
+  --logo-image: url('logo.svg');
+  --logo-size: 420px 98px;
+  --splash-image: url('logo.svg');
+  --splash-size: 420px 98px;
+  --splash-color: #eee9ff;
+}

@@ -1071,3 +1071,35 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   `CC1AD845` in `frontend/src/lib/cast.ts` en `app/app.json`). Testapparaat (Chromecast woonkamer) staat op
   "Ready For Testing"; app nog niet publiceren tot de speler af is. `cast.vidalune.com` valt onder de wildcard `*.vidalune.com`
   (DNS en Nginx Proxy Manager): de eigenaar hoeft niets in te stellen. De accountservice bedient die host. Nog niet bouwen tot hij het zegt.
+
+## Versie 0.19.63 (eigen cast-speler)
+
+- Op verzoek van de eigenaar ("Bouw de cast functie", 15 okt). Lokaal gebouwd terwijl 0.19.62 (PR #147) nog open
+  stond; pas pushen na merge en complete release van 0.19.62.
+- **Cast-speler op `cast.vidalune.com`** (`cloud/web/cast/`, Google Cast app-ID `920BF057`): Google's receiver
+  framework (CAF v3, `<cast-media-player>`) in Vidalune-kleuren met het Vidalune-logo bij het starten. HLS-titels
+  krijgen fMP4 als segmentsoort (onze HLS is init.mp4 + .m4s). De accountservice serveert op die host alleen deze
+  bestanden (geen accountpagina's of API), met `frame-ancestors 'none'`; `cast` is geen relay-adres meer (RESERVED).
+- **De tv bewaart zelf de voortgang** (`progress.js`): elke 10 s tijdens afspelen, meteen bij pauze, stop, einde
+  of een andere titel, alleen als de titel echt speelde (een geopende maar niet gestarte titel houdt zijn
+  hervatpunt). Website en app geven in `customData` het adres `POST /api/cast/progress?cast=<token>` mee, met
+  offset en lengte. De server accepteert dat alleen met het cast-token van een cast-sessie (niet het
+  direct-afspeeltoken van de browser), alleen voor dat bestand en die gebruiker (`castPath` → `'progress'`,
+  CORS-voorvraag, geen CSRF-weigering voor cast-tokens). Lost het oude probleem op dat voortgang wegviel als de
+  telefoon op slot ging of de pagina dicht was.
+- Website en app gebruiken `920BF057` in plaats van Google's `CC1AD845`. De speler-zijde (afstandsbediening,
+  ondertitelstijl, audio) is ongewijzigd.
+- Bewust niet in deze stap: eigen bediening op de tv, intro/aftiteling overslaan, volgende aflevering met
+  aftellen, eigen laadscherm met achtergrondfoto. Geen strenge CSP op de cast-pagina (niet op een echte Chromecast
+  te testen hier).
+- Tests: backend (tv slaat voortgang op voor dat bestand en die gebruiker; geen token, browsertoken, GET, foute
+  waarden en andere routes geweigerd; CORS-voorvraag), cloud (cast-host serveert alleen de speler, robots, 404 voor
+  de rest, geen relay; voortgangslogica: alleen https, positie/lengte/einde, elke 10 s, niet voor niet-gestarte
+  titel, doorgaan na fout), frontend (app-ID en `customData`), app (`customData` en app-ID in `app.json`).
+  Backend 581, frontend 331, cloud 168, app 154 tests; alle typechecks, lint (4 bekende waarschuwingen) en builds
+  slagen.
+- Door de eigenaar te testen (testapparaat staat klaar): na de release casten vanuit de website (Chrome) en de
+  app; logo bij starten, afspelen, spoelen, audio/ondertitels, en voortgang na het vergrendelen van de telefoon.
+  Werkt het, dan in de Cast Developer Console op **Publish** klikken: tot dan kunnen alleen testapparaten casten.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1963) en beide lockfiles bijgewerkt.
+- Eigenaar (15 okt, voor het slapengaan): "als alles groen is mag je mergen, je hebt mijn toestemming" (voor 0.19.63).

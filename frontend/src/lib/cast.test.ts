@@ -44,13 +44,13 @@ describe('Cast subtitle style', () => {
 
 /* A tiny stand-in for Google's Cast SDK: one device, one session, a remote player. */
 function fakeSdk() {
-  const loaded: Array<{ url: string; type: string; currentTime: number; tracks: Array<{ trackContentId: string }>; active: number[]; textTrackStyle: unknown }> = [];
+  const loaded: Array<{ url: string; type: string; currentTime: number; tracks: Array<{ trackContentId: string }>; active: number[]; textTrackStyle: unknown; customData: unknown }> = [];
   const listeners = new Map<string, () => void>();
   const remote = { currentTime: 0, isPaused: false, isConnected: true, activeTrackIds: [] as number[] };
   const session = {
     getMediaSession: () => mediaSession,
-    loadMedia: vi.fn(async (req: { media: { contentId: string; contentType: string; tracks: Array<{ trackContentId: string }>; textTrackStyle: unknown }; currentTime: number; activeTrackIds: number[] }) => {
-      loaded.push({ url: req.media.contentId, type: req.media.contentType, currentTime: req.currentTime, tracks: req.media.tracks, active: req.activeTrackIds, textTrackStyle: req.media.textTrackStyle });
+    loadMedia: vi.fn(async (req: { media: { contentId: string; contentType: string; tracks: Array<{ trackContentId: string }>; textTrackStyle: unknown; customData?: unknown }; currentTime: number; activeTrackIds: number[] }) => {
+      loaded.push({ url: req.media.contentId, type: req.media.contentType, currentTime: req.currentTime, tracks: req.media.tracks, active: req.activeTrackIds, textTrackStyle: req.media.textTrackStyle, customData: req.media.customData });
     }),
     getCastDevice: () => ({ friendlyName: 'Woonkamer' }),
   };
@@ -175,6 +175,9 @@ describe('casting from the player', () => {
     await act(() => result.current.reload(0));
     expect(sessions).toEqual([5, 6]);
     expect(sdk.loaded.at(-1)).toMatchObject({ url: `${location.origin}/api/media/6/stream?cast=tok6`, currentTime: 0 });
+    // Vidalune's own cast player, which saves the TV's progress for the file it was given.
+    expect(sdk.context.setOptions).toHaveBeenCalledWith(expect.objectContaining({ receiverApplicationId: '920BF057' }));
+    expect(sdk.loaded.at(-1)?.customData).toEqual({ vidalune: { progressUrl: `${location.origin}/api/cast/progress?cast=tok6`, offset: 0, durationSec: 2500 } });
     expect(result.current).toMatchObject({ active: true, fileId: 6, time: 0 });
     unmount();
   });

@@ -23,6 +23,10 @@ export default tseslint.config(
     languageOptions: { globals: globals.browser, sourceType: 'script' },
   },
   {
+    files: ['cloud/web/cast/*.js'],
+    languageOptions: { globals: { ...globals.browser, cast: 'readonly' }, sourceType: 'module' },
+  },
+  {
     files: ['frontend/public/sw.js'],
     languageOptions: { globals: globals.serviceworker, sourceType: 'script' },
   },

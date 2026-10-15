@@ -75,6 +75,8 @@ export function castUrl(base: string, path: string, token: string, start?: numbe
 type CastWindow = Window & { cast?: any; chrome?: any; __onGCastApiAvailable?: (ok: boolean) => void };
 const w = (typeof window === 'undefined' ? {} : window) as CastWindow;
 const SDK = 'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
+/** Vidalune's own cast player (cast.vidalune.com), registered with Google Cast. */
+export const VIDALUNE_CAST_APP_ID = '920BF057';
 let sdk: Promise<any | null> | null = null;
 
 /** Loads the SDK once (Chrome only); null where casting is not available. */
@@ -88,7 +90,7 @@ export function loadCastSdk(): Promise<any | null> {
       clearTimeout(timer);
       if (!ok || !w.cast?.framework) return resolve(null);
       const context = w.cast.framework.CastContext.getInstance();
-      context.setOptions({ receiverApplicationId: w.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID, autoJoinPolicy: w.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED });
+      context.setOptions({ receiverApplicationId: VIDALUNE_CAST_APP_ID, autoJoinPolicy: w.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED });
       resolve(w.cast.framework);
     };
     const s = document.createElement('script');
@@ -252,6 +254,8 @@ export function useCast(item: CastItem | null) {
       if (it.posterPath) meta.images = [new chromeCast.Image(castUrl(base, `/api/images/w342/${it.posterPath.replace(/^\//, '')}`, s.token))];
       media.metadata = meta;
       media.duration = s.decision.durationSec ?? undefined;
+      // Vidalune's cast player saves where the TV is itself, also with this page closed.
+      media.customData = { vidalune: { progressUrl: castUrl(base, '/api/cast/progress', s.token), offset: offset.current, durationSec: s.decision.durationSec } };
       media.tracks = s.subtitles.map((sub, i) => {
         const track = new chromeCast.media.Track(i + 1, chromeCast.media.TrackType.TEXT);
         // The same clock as the stream (a repackaged one counts from its start).

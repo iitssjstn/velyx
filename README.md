@@ -386,6 +386,7 @@ The player can send what you are watching to a **Chromecast** or a TV with **Chr
 - What the TV plays follows the same rules as everywhere in Vidalune: files a Chromecast can play go as they are, MKV files and audio it cannot play are repackaged (audio converted to AAC stereo), and a file whose video the Chromecast cannot decode (for example MPEG-2) is converted when [video conversion](#video-conversion-optional) is on; otherwise it is not cast, and the player says so.
 - Subtitles are shown by the TV (text subtitles: separate files and the ones inside the video); image-based subtitles and subtitles from OpenSubtitles are not cast.
 - Seeking in a repackaged stream starts it again from the new spot (a second or two), as in the browser.
+- The cast player saves your progress itself, every 10 seconds while it plays and at once when you pause or stop: also when the phone is locked, the app is in the background or the browser page is closed. It uses the same short-lived link, which can save progress for that one file and nothing else.
 
 ### Cast subtitle appearance
 
@@ -393,7 +394,7 @@ Use **Account → Playback → Subtitles** on the website, or the subtitle menu 
 
 Styles are saved to your signed-in media-server account and cached in browser localStorage or the app's device storage. At sign-in (web) or player opening (app), the account style takes priority; if none exists or the server is unavailable, the device choice is used. New edits win over an account response still loading. Failed saves remain local for that session; an older account choice takes priority on the next successful load. Existing saved styles are preserved during migration; the TV preset is enabled for users without a saved style. Synchronisation is between clients signed into the same media-server account, not between unrelated servers.
 
-Chromecast and Cast-enabled TVs use the standard receiver. It controls subtitle position, safe margins, line height and maximum line width; the local player's position setting cannot move captions on the TV. Previews are approximate, and different receivers can render differently or silently ignore attributes. If a custom-style update is rejected, Vidalune retries with the TV preset; a disconnected receiver still reports an error. No custom receiver or support for other casting protocols is added.
+The TV opens **Vidalune's own cast player** (`cast.vidalune.com`): Google's cast player framework in Vidalune's colours, with the Vidalune logo while it starts. It controls subtitle position, safe margins, line height and maximum line width; the local player's position setting cannot move captions on the TV. Previews are approximate, and different TVs can render differently or silently ignore attributes. If a custom-style update is rejected, Vidalune retries with the TV preset; a disconnected receiver still reports an error.
 
 ## Installing Vidalune as an app
 
