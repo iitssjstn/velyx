@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SUBTITLE_STYLE } from './subtitleStyle';
 import { applyCastTextTrackStyle, castAddress, castLoadRequest, castTextTrackStyle, castTrackIds, loadCastWithCurrentSubtitle, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from './cast';
@@ -26,6 +27,8 @@ describe('casting from the app', () => {
     expect(offset).toBe(0);
     expect(request).toMatchObject({ autoplay: true, startTime: 600, activeTrackIds: [2] });
     expect(request.mediaInfo).toMatchObject({ contentUrl: 'http://nas:3000/api/media/5/stream?cast=tok.en', contentType: 'video/mp4', streamDuration: 3000 });
+    // Vidalune's own cast player saves the TV's progress itself, with the same token.
+    expect(request.mediaInfo.customData).toEqual({ vidalune: { progressUrl: 'http://nas:3000/api/cast/progress?cast=tok.en', offset: 0, durationSec: 3000 } });
     expect(request.mediaInfo.metadata).toEqual({ type: 'generic', title: 'Dune', subtitle: '2021', images: [{ url: 'http://nas:3000/api/images/w780/back.jpg?cast=tok.en' }] });
     expect(request.mediaInfo.mediaTracks[1]).toEqual({ id: 2, type: 'text', subtype: 'subtitles', contentId: 'http://nas:3000/api/media/5/subtitles/3.vtt?cast=tok.en', contentType: 'text/vtt', name: 'Nederlands', language: 'nl' });
     expect(request.mediaInfo.streamType).toBe('BUFFERED');
@@ -205,5 +208,13 @@ describe('tvFilePosition', () => {
     expect(tvFilePosition(1200, 30)).toBe(1230);
     expect(tvFilePosition(0, 0)).toBeNull();
     expect(tvFilePosition(0, Number.NaN)).toBeNull();
+  });
+});
+
+describe('the cast player', () => {
+  it('is Vidalune\'s own (cast.vidalune.com), not Google\'s default one', () => {
+    const config = JSON.parse(readFileSync(new URL('../../app.json', import.meta.url), 'utf8')) as { expo: { plugins: unknown[] } };
+    const cast = config.expo.plugins.find((p): p is [string, { receiverAppId: string }] => Array.isArray(p) && p[0] === 'react-native-google-cast');
+    expect(cast?.[1].receiverAppId).toBe('920BF057');
   });
 });

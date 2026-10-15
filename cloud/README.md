@@ -247,6 +247,16 @@ The service is also where people get Vidalune:
 - **`/api/releases/latest`**: `{ version, url, app }`, which Vidalune servers ask (at most daily,
   when an administrator opens the dashboard) to announce updates.
 
+## cast.vidalune.com
+
+The page a Chromecast opens when someone casts from Vidalune (Google Cast app id `920BF057`, registered
+in the Google Cast SDK Developer Console with this address): Google's cast player framework in Vidalune's
+colours (`web/cast/`). It saves where the TV is on the Vidalune server itself (`POST /api/cast/progress`
+with the cast token the sender gave it). `cast.vidalune.com` serves only these files (no account pages, no
+API) and is never a relay address. It needs nothing of its own: the `*.vidalune.com` DNS record, proxy host
+and certificate cover it. Until the app is published in the Developer Console, only the Chromecasts listed
+there as test devices can open it.
+
 ## app.vidalune.com
 
 app.vidalune.com shows the Vidalune web interface for a server you use, without going to that

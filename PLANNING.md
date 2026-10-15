@@ -97,7 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- Laatste release: **0.19.61** (PR #146, technische info ingeklapt; gemerged 15 okt); release `v0.19.61` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.62** (PR #147, verwijzing per catalogusrij; gemerged 15 okt); release `v0.19.62` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -1066,5 +1066,42 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   de nieuwe pagina (titel, openen, Seerr uit, leeg, onbekende rij). Frontend 331 tests, alle typechecks, lint (4
   bekende waarschuwingen) en de frontend-build slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1962) en beide lockfiles bijgewerkt.
-- Eigen cast-speler: de eigenaar maakt in de Google Cast SDK Developer Console een **Custom Receiver** aan (15 okt).
-  Nog niet bouwen tot hij het zegt.
+- PR #147 gemerged 15 okt op verzoek van de eigenaar; release `v0.19.62` gecontroleerd: APK en beide `.deb`'s aanwezig. Op `main`
+  faalden CI (`app`) en het Docker-image eenmalig op een npm-netwerkfout (ECONNRESET) en slaagden na één herstart.
+- Eigen cast-speler: de eigenaar maakt in de Google Cast SDK Developer Console een **Custom Receiver** aan (15 okt),
+  met Receiver URL `https://cast.vidalune.com/` (wens eigenaar). App-ID: `920BF057` (niet geheim; vervangt later
+  `CC1AD845` in `frontend/src/lib/cast.ts` en `app/app.json`). Testapparaat (Chromecast woonkamer) staat op
+  "Ready For Testing"; app nog niet publiceren tot de speler af is. `cast.vidalune.com` valt onder de wildcard `*.vidalune.com`
+  (DNS en Nginx Proxy Manager): de eigenaar hoeft niets in te stellen. De accountservice bedient die host. Nog niet bouwen tot hij het zegt.
+
+## Versie 0.19.63 (eigen cast-speler)
+
+- Op verzoek van de eigenaar ("Bouw de cast functie", 15 okt). Lokaal gebouwd terwijl 0.19.62 (PR #147) nog open
+  stond; pas pushen na merge en complete release van 0.19.62.
+- **Cast-speler op `cast.vidalune.com`** (`cloud/web/cast/`, Google Cast app-ID `920BF057`): Google's receiver
+  framework (CAF v3, `<cast-media-player>`) in Vidalune-kleuren met het Vidalune-logo bij het starten. HLS-titels
+  krijgen fMP4 als segmentsoort (onze HLS is init.mp4 + .m4s). De accountservice serveert op die host alleen deze
+  bestanden (geen accountpagina's of API), met `frame-ancestors 'none'`; `cast` is geen relay-adres meer (RESERVED).
+- **De tv bewaart zelf de voortgang** (`progress.js`): elke 10 s tijdens afspelen, meteen bij pauze, stop, einde
+  of een andere titel, alleen als de titel echt speelde (een geopende maar niet gestarte titel houdt zijn
+  hervatpunt). Website en app geven in `customData` het adres `POST /api/cast/progress?cast=<token>` mee, met
+  offset en lengte. De server accepteert dat alleen met het cast-token van een cast-sessie (niet het
+  direct-afspeeltoken van de browser), alleen voor dat bestand en die gebruiker (`castPath` → `'progress'`,
+  CORS-voorvraag, geen CSRF-weigering voor cast-tokens). Lost het oude probleem op dat voortgang wegviel als de
+  telefoon op slot ging of de pagina dicht was.
+- Website en app gebruiken `920BF057` in plaats van Google's `CC1AD845`. De speler-zijde (afstandsbediening,
+  ondertitelstijl, audio) is ongewijzigd.
+- Bewust niet in deze stap: eigen bediening op de tv, intro/aftiteling overslaan, volgende aflevering met
+  aftellen, eigen laadscherm met achtergrondfoto. Geen strenge CSP op de cast-pagina (niet op een echte Chromecast
+  te testen hier).
+- Tests: backend (tv slaat voortgang op voor dat bestand en die gebruiker; geen token, browsertoken, GET, foute
+  waarden en andere routes geweigerd; CORS-voorvraag), cloud (cast-host serveert alleen de speler, robots, 404 voor
+  de rest, geen relay; voortgangslogica: alleen https, positie/lengte/einde, elke 10 s, niet voor niet-gestarte
+  titel, doorgaan na fout), frontend (app-ID en `customData`), app (`customData` en app-ID in `app.json`).
+  Backend 581, frontend 331, cloud 168, app 154 tests; alle typechecks, lint (4 bekende waarschuwingen) en builds
+  slagen.
+- Door de eigenaar te testen (testapparaat staat klaar): na de release casten vanuit de website (Chrome) en de
+  app; logo bij starten, afspelen, spoelen, audio/ondertitels, en voortgang na het vergrendelen van de telefoon.
+  Werkt het, dan in de Cast Developer Console op **Publish** klikken: tot dan kunnen alleen testapparaten casten.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1963) en beide lockfiles bijgewerkt.
+- Eigenaar (15 okt, voor het slapengaan): "als alles groen is mag je mergen, je hebt mijn toestemming" (voor 0.19.63).

@@ -374,8 +374,11 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     if (castToken !== undefined) {
       const claims = typeof castToken === 'string' ? await verifyPlaybackJwt(ctx.config.sessionSecret, castToken) : null;
       const target = castPath(request.url.split('?')[0]);
-      if (!claims || !target || (request.method !== 'GET' && request.method !== 'HEAD')) return;
+      const progress = target === 'progress';
+      if (!claims || !target || (progress ? request.method !== 'POST' : request.method !== 'GET' && request.method !== 'HEAD')) return;
       const allowed =
+        // Only a cast session's token (not a browser's direct-play one) may save progress.
+        (progress && claims.artwork === true) ||
         (typeof target === 'string' && target === 'image' && claims.artwork === true) ||
         (typeof target === 'object' && 'fileId' in target && target.fileId === claims.fileId) ||
         (typeof target === 'object' && 'subtitleId' in target && target.table === 'subtitles' && ctx.db.select({ file: subtitleRows.mediaFileId }).from(subtitleRows).where(eq(subtitleRows.id, target.subtitleId)).get()?.file === claims.fileId) ||
@@ -426,6 +429,8 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   // cookies and JSON-only bodies this blocks cross-site form posts.
   app.addHook('onRequest', async (request, reply) => {
     if (!request.url.startsWith('/api/') || ['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return;
+    // A cast token is not a cookie: a request it opened cannot be forged by another site.
+    if (request.castFile !== null) return;
     const origin = request.headers.origin;
     if (origin) {
       let host: string;

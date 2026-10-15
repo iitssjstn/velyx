@@ -3,7 +3,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireUser } from '../app.js';
-import { episodes, favorites, watchlist, watchProgress } from '../db/schema.js';
+import { episodes, favorites, mediaFiles, watchlist, watchProgress } from '../db/schema.js';
 import { Catalog } from '../services/catalog.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
 import { assertEpisode, assertMovie, assertShow } from '../services/access.js';
@@ -140,6 +140,34 @@ export async function userDataRoutes(app: FastifyInstance, ctx: AppContext): Pro
     ctx.streams.progress(request.user!.id, body, body.positionSec);
     return { positionSec: row.positionSec, durationSec: row.durationSec, completed: row.completed };
   });
+
+  /**
+   * Vidalune's own cast player saving where the TV is, with the cast token of the file it plays, for
+   * the user who cast it: progress is kept while the phone is locked or the page is closed.
+   */
+  app.post('/api/cast/progress', { preHandler: requireUser }, async (request) => {
+    if (request.castFile === null) throw new HttpError(403, 'Only a Chromecast can save progress this way.');
+    const body = z.object({ positionSec: z.number().min(0).max(60 * 60 * 24), durationSec: z.number().min(0).max(60 * 60 * 24) }).parse(request.body);
+    const file = db.select({ movieId: mediaFiles.movieId, episodeId: mediaFiles.episodeId }).from(mediaFiles).where(eq(mediaFiles.id, request.castFile)).get();
+    const target = file?.movieId ? { movieId: file.movieId } : file?.episodeId ? { episodeId: file.episodeId } : null;
+    if (!target) throw notFound('File');
+    const scope = ctx.access.scope(request.user!);
+    if (target.movieId) assertMovie(db, scope, target.movieId);
+    else assertEpisode(db, scope, target.episodeId!);
+    const row = saveProgress(ctx, request.user!.id, target, body.positionSec, body.durationSec);
+    ctx.streams.progress(request.user!.id, target, body.positionSec);
+    return { positionSec: row.positionSec, durationSec: row.durationSec, completed: row.completed };
+  });
+  // The cast player's page (cast.vidalune.com) asks first: it is another origin.
+  app.options('/api/cast/progress', async (_request, reply) =>
+    reply
+      .code(204)
+      .header('Access-Control-Allow-Origin', '*')
+      .header('Access-Control-Allow-Methods', 'POST')
+      .header('Access-Control-Allow-Headers', 'Content-Type')
+      .header('Access-Control-Max-Age', '600')
+      .send(),
+  );
 
   app.post('/api/progress/watched', { preHandler: requireUser }, async (request) => {
     const body = watchedBody.parse(request.body);

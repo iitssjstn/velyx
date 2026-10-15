@@ -138,6 +138,38 @@ describe('casting to a Chromecast', () => {
     expect(castPath(`/api/media/${arrival.id}/hls/seg/../home`)).toBeNull();
   });
 
+  it('lets Vidalune\'s own cast player save where the TV is, for that file and its user only', async () => {
+    const { admin, dune, arrival } = await setup();
+    const anna = await createUser(env.app, admin, 'anna');
+    const { token } = (await session(anna.cookie, dune.id)).json();
+    const save = (cast: string | null, payload: object = { positionSec: 600, durationSec: 6000 }, headers: Record<string, string> = {}) =>
+      env.app.inject({ method: 'POST', url: `/api/cast/progress${cast ? `?cast=${encodeURIComponent(cast)}` : ''}`, headers: { origin: 'https://cast.vidalune.com', ...headers }, payload });
+    // The page on cast.vidalune.com asks first (another origin), then saves.
+    const preflight = await env.app.inject({ method: 'OPTIONS', url: `/api/cast/progress?cast=${token}`, headers: { origin: 'https://cast.vidalune.com', 'access-control-request-method': 'POST' } });
+    expect(preflight.statusCode).toBe(204);
+    expect(preflight.headers['access-control-allow-origin']).toBe('*');
+    const saved = await save(token);
+    expect(saved.statusCode).toBe(200);
+    expect(saved.headers['access-control-allow-origin']).toBe('*');
+    expect(saved.json()).toMatchObject({ positionSec: 600, durationSec: 6000, completed: false });
+    const progress = (await env.app.inject({ url: '/api/progress', headers: { cookie: anna.cookie } })).json();
+    expect(progress).toEqual([expect.objectContaining({ movieId: dune.movieId, positionSec: 600 })]);
+    // Nobody else's progress, and only for the cast file.
+    expect((await env.app.inject({ url: '/api/progress', headers: { cookie: admin } })).json()).toEqual([]);
+    expect(castPath('/api/cast/progress')).toBe('progress');
+    // Not without the token (from another site that is refused outright), not with a browser's
+    // direct-play token, not with a GET, not with bad numbers.
+    expect((await save(null)).statusCode).toBe(403);
+    expect((await env.app.inject({ method: 'POST', url: '/api/cast/progress', headers: { cookie: anna.cookie }, payload: { positionSec: 1, durationSec: 2 } })).statusCode).toBe(403);
+    const directPlay = await signPlaybackJwt(env.ctx.config.sessionSecret, { userId: anna.id, fileId: dune.id, expiresAt: Date.now() + 60_000, artwork: false });
+    expect((await save(directPlay)).statusCode).toBe(403);
+    expect((await env.app.inject({ method: 'POST', url: `/api/cast/progress?cast=${directPlay}`, payload: { positionSec: 1, durationSec: 2 } })).statusCode).toBe(401);
+    expect((await env.app.inject({ url: `/api/cast/progress?cast=${token}` })).statusCode).toBe(404);
+    expect((await save(token, { positionSec: -1, durationSec: 10 })).statusCode).toBe(400);
+    // The token also opens nothing else with a POST.
+    expect((await env.app.inject({ method: 'POST', url: `/api/progress?cast=${token}`, payload: { movieId: arrival.movieId, positionSec: 1, durationSec: 2 } })).statusCode).toBe(401);
+  });
+
   it('stops working when the account is disabled or the token runs out', async () => {
     const { admin, dune } = await setup();
     const anna = await createUser(env.app, admin, 'anna');

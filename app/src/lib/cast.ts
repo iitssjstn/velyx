@@ -84,6 +84,8 @@ export interface CastLoadRequest {
     streamDuration?: number;
     textTrackStyle: ReturnType<typeof castTextTrackStyle>;
     metadata: { type: 'generic'; title: string; subtitle?: string; images?: { url: string }[] };
+    /** For Vidalune's own cast player: where it saves the TV's progress itself. */
+    customData: { vidalune: { progressUrl: string; offset: number; durationSec: number | null } };
     mediaTracks: { id: number; type: 'text'; subtype: 'subtitles'; contentId: string; contentType: string; name: string; language?: string }[];
   };
 }
@@ -135,6 +137,8 @@ export function castLoadRequest(opts: {
         streamType: 'BUFFERED' as MediaStreamType,
         textTrackStyle: castTextTrackStyle(opts.subtitleStyle),
         ...(s.decision.durationSec ? { streamDuration: Math.max(0, s.decision.durationSec - offset) } : {}),
+        // Vidalune's cast player saves where the TV is itself, also with the app in the background.
+        customData: { vidalune: { progressUrl: castAddress(url('/api/cast/progress'), s.token), offset, durationSec: s.decision.durationSec } },
         metadata: {
           type: 'generic',
           title: opts.title,

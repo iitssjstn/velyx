@@ -66,9 +66,12 @@ export async function verifyPlaybackJwt(secret: string, token: string | undefine
 
 /**
  * What a cast token opens: this file's stream (as it is, or repackaged), its subtitles and the
- * artwork. Returns the file id a path belongs to, 'image' for artwork, or null.
+ * artwork, and saving the TV's progress in it. Returns the file id a path belongs to, 'image' for
+ * artwork, 'progress' for saving progress, or null.
  */
-export function castPath(pathname: string): { fileId: number } | { subtitleId: number; table: 'subtitles' | 'online' } | 'image' | null {
+export function castPath(pathname: string): { fileId: number } | { subtitleId: number; table: 'subtitles' | 'online' } | 'image' | 'progress' | null {
+  // Vidalune's own cast player saves where the TV is (a POST, with the cast token).
+  if (pathname === '/api/cast/progress') return 'progress';
   let m = /^\/api\/media\/(\d+)\/(stream|remux|hls\/(?:index\.m3u8|init\.mp4|seg\/\d+\.m4s)|subtitles\/\d+\.vtt)$/.exec(pathname);
   if (m) return { fileId: Number(m[1]) };
   // Two tables with their own ids: the one the address names is the one checked.

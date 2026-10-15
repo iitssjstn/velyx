@@ -256,6 +256,29 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const community = new Community({ db, now });
   const isDiscordHost = (req: http.IncomingMessage) => String(req.headers.host ?? '').toLowerCase().replace(/:\d+$/, '') === `discord.${config.relayDomain}`;
   const isAppHost = (req: http.IncomingMessage) => String(req.headers.host ?? '').toLowerCase().replace(/:\d+$/, '') === appHost;
+  /** cast.<domain>: Vidalune's own cast player, the page a Chromecast opens (Google Cast app id 920BF057). */
+  const isCastHost = (req: http.IncomingMessage) => String(req.headers.host ?? '').toLowerCase().replace(/:\d+$/, '') === `cast.${config.relayDomain}`;
+  const castDir = config.webDir ? path.join(config.webDir, 'cast') : null;
+  const CAST_TYPES: Record<string, string> = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml' };
+  /** The cast player's files, and nothing else of this service, on cast.<domain>. */
+  const serveCast = (req: http.IncomingMessage, res: http.ServerResponse, requestPath: string) => {
+    if (requestPath === '/robots.txt') return denyRobots(res);
+    const name = requestPath === '/' ? 'index.html' : requestPath.slice(1);
+    const type = /^[a-z]+\.([a-z]+)$/.exec(name)?.[1];
+    const file = castDir && type && CAST_TYPES[type] ? path.join(castDir, name) : null;
+    if (!file || !fs.existsSync(file) || !['GET', 'HEAD'].includes(req.method ?? '')) return res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found.');
+    const body = fs.readFileSync(file);
+    res.writeHead(200, {
+      'Content-Type': CAST_TYPES[type!],
+      'Content-Length': body.length,
+      'Cache-Control': 'no-cache',
+      'X-Content-Type-Options': 'nosniff',
+      // Only a Chromecast shows it; it is never framed.
+      'Content-Security-Policy': "frame-ancestors 'none'",
+      'X-Robots-Tag': 'noindex',
+    });
+    return res.end(req.method === 'HEAD' ? undefined : body);
+  };
   const denyRobots = (res: http.ServerResponse) =>
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }).end('User-agent: *\nDisallow: /\n');
   const sitemapEntries = ['/', '/install'].flatMap((route) => {
@@ -281,6 +304,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       const server = http.createServer((req, res) => {
         if (isDiscordHost(req)) req.url = '/discord';
         const requestPath = (req.url ?? '/').split('?', 1)[0];
+        if (isCastHost(req)) return serveCast(req, res, requestPath);
         if (requestPath === '/robots.txt' && isAppHost(req)) return denyRobots(res);
         if (requestPath === '/sitemap.xml' && isAppHost(req)) return res.writeHead(404, { 'X-Robots-Tag': 'noindex' }).end();
         const slug = relay.slugOf(req);
