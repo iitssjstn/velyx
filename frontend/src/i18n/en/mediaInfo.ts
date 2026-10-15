@@ -4,6 +4,7 @@ export const mediaInfo = {
   showLess: 'Show less',
   noSubtitles: 'No subtitles.',
   technical: 'Technical',
+  technicalInfo: 'Technical info',
   videoFormat: 'Video format',
   problem: 'Problem',
   duration: 'Duration',

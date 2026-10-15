@@ -97,8 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- In de maak: **0.19.60** (metadata via vidalune.com meteen in plaats van na 5 minuten; zie onderaan).
-- Laatste release: **0.19.59** (PR #144, metadata via vidalune.com voor iedereen; gemerged 14 okt); release `v0.19.59` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.60** (PR #145, metadata via vidalune.com meteen; gemerged 14 okt); release `v0.19.60` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -301,6 +300,9 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
    - Let ook op de Let's Encrypt-limiet van ongeveer 50 nieuwe certificaten per week per hoofddomein (controleer in hun documentatie); die geldt los van DNS en kan bij een piek aan nieuwe klanten eerder knellen.
 
 ## Gemeld tijdens het testen
+
+- **Technische info op de filmpagina is voor de kijker overbodig** (gemeld 15 okt, screenshot; gebouwd in 0.19.61):
+  keuze eigenaar: "ingeklapt, maar dan kan iedereen het nog wel gewoon zien".
 
 - **HDR wordt niet omgezet naar SDR** (gevonden 11 okt bij een 4K-HDR-optimalisatie van de eigenaar; nog
   niet bouwen): `optimization.ts` en `transcode.ts` schalen alleen; zonder tonemapping ziet een H.264-kopie
@@ -1034,3 +1036,16 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Test (`cloud/test/tmdb.test.ts`): meteen weten na het zetten van de sleutel, niet vaker dan eens per 30 seconden.
   Backend 580, cloud 163 tests; typecheck en lint (4 bekende waarschuwingen) slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1960) en beide lockfiles bijgewerkt.
+- PR #145 gemerged 14 okt op verzoek van de eigenaar; release `v0.19.60` gecontroleerd: APK en beide `.deb`'s aanwezig.
+
+## Versie 0.19.61 (technische info ingeklapt)
+
+- Op verzoek van de eigenaar (15 okt): "Doe ingeklapt maar dan kan iedereen het nog wel gewoon zien".
+- Filmpagina: Audio en Ondertitels blijven zichtbaar; "Technisch" (codec, bitrate, container, grootte, bestand,
+  vervangen) en "Afspelen op dit apparaat" staan achter de knop "Technische info", standaard dicht, voor iedereen
+  te openen. De afspeelcontrole (`/api/media/:id/playback`) wordt pas gedaan als iemand hem opent.
+  `MediaInfo` (audio, ondertitels) en nieuw `TechnicalInfo` in `MediaInfo.tsx`; `MovieDetail.tsx`.
+- Tests: standaard dicht en geen afspeelcontrole tot openen, een gewone gebruiker kan hem openen en sluiten (faalt
+  op de oude code); bestaande tests openen eerst de knop. Frontend 325 tests, alle typechecks, lint (4 bekende
+  waarschuwingen) en de frontend-build slagen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1961) en beide lockfiles bijgewerkt.

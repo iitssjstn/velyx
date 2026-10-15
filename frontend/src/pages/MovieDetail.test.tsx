@@ -74,12 +74,31 @@ describe('movie page', () => {
     const subs = screen.getByRole('region', { name: 'Subtitles' });
     expect(within(subs).getByText('Dutch')).toBeTruthy();
     expect(within(subs).getByText('English')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Technical info' }));
     const tech = within(screen.getByRole('region', { name: 'Technical' })).getByRole('list', { name: 'Video format' });
     expect(within(tech).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['HEVC', '10-bit', 'HDR10', '24.0 Mbps']);
   });
 
+  it('folds the technical details away, and only checks playback once they are opened', async () => {
+    const calls = setup();
+    await screen.findByRole('region', { name: 'Audio' });
+    const toggle = screen.getByRole('button', { name: 'Technical info' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('region', { name: 'Technical' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Playback on this device' })).toBeNull();
+    expect(calls.some((c) => c.url.endsWith('/playback'))).toBe(false);
+    // Anyone can open it, not only an admin.
+    await userEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('region', { name: 'Technical' })).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Playback on this device' })).toBeTruthy();
+    await userEvent.click(toggle);
+    expect(screen.queryByRole('region', { name: 'Technical' })).toBeNull();
+  });
+
   it('says how the chosen version plays on this device, and checks each version once', async () => {
     const calls = setup();
+    await userEvent.click(await screen.findByRole('button', { name: 'Technical info' }));
     const playback = await screen.findByRole('region', { name: 'Playback on this device' });
     expect(await within(playback).findByText('Remux · Audio → AAC')).toBeTruthy();
     expect(within(playback).getByText(/Checked for Chrome on Windows/)).toBeTruthy();
@@ -96,6 +115,7 @@ describe('movie page', () => {
 
   it('explains when the check is not possible', async () => {
     setup({ failCheck: true });
+    await userEvent.click(await screen.findByRole('button', { name: 'Technical info' }));
     expect(await screen.findByText('Could not check playback for this device.')).toBeTruthy();
     // The rest of the page still works.
     expect(screen.getByRole('region', { name: 'Audio' })).toBeTruthy();

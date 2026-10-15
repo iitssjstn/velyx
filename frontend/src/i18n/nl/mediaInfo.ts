@@ -5,6 +5,7 @@ export const mediaInfo: Messages['mediaInfo'] = {
   showLess: 'Minder tonen',
   noSubtitles: 'Geen ondertitels.',
   technical: 'Technisch',
+  technicalInfo: 'Technische info',
   videoFormat: 'Videoformaat',
   problem: 'Probleem',
   duration: 'Duur',
