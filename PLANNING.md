@@ -97,8 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- In de maak: **0.19.64** (castknop rechtsboven in app en webspeler), zie onderaan.
-- Laatste release: **0.19.63** (PR #148, eigen cast-speler; gemerged 15 okt); release `v0.19.63` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.64** (PR #149, castknop rechtsboven; gemerged 16 okt); release `v0.19.64` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -1129,3 +1128,35 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   de oude code). Het beginscherm van de app heeft geen testomgeving (React Native); op de telefoon testen.
   Frontend 333 en app 154 tests; typechecks en lint (bekende waarschuwingen) slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1964) en beide lockfiles bijgewerkt.
+- PR #149 gemerged 16 okt (eigenaar: "Alles is groen"); release `v0.19.64` gecontroleerd: APK en beide `.deb`'s aanwezig.
+- Na de release (16 okt): de castknop duwde het afspeellabel ("Remux · Audio → AAC") naar het midden van de bovenbalk
+  (twee keer `ml-auto`). Opgelost in 0.19.65.
+- Opgelost (16 okt): na Publish de Chromecast nog een keer met de stekker herstarten; daarna verscheen hij en werkt
+  casten ("Hij doet het"). Eerdere stand: na het publiceren toonde de app de Chromecast niet (YouTube wel, dus het netwerk is in orde);
+  Chrome geeft `invalid_parameter`/`session_error`, Brave ondersteunt Cast niet. `cast.vidalune.com` laadt goed (logo
+  en laadcirkel). Wacht op de eigenaar: kiest hij de Chromecast in Chrome, wat toont de tv, en een screenshot van de
+  Cast Developer Console (status en Edit). Ook te verbeteren: `session_error` zonder apparaten als "geen Chromecast
+  gevonden" melden.
+
+## Versie 0.19.65 (casten: verbinden zichtbaar, hervatten, donkere tv, meteen de besturing)
+
+- Gemeld door de eigenaar (16 okt, foto van de tv) na de eerste echte cast:
+  1. Nergens te zien dat er verbonden wordt. Nu: website toont "Verbinden met de Chromecast…" in de speler en een
+     draaiend icoon in de castknop (`connecting` in `useCast`: Cast-status CONNECTING of `start()` bezig, tot de tv
+     de titel heeft). App: balk "Verbinden met de Chromecast…" boven elk scherm en draaiend icoon in `CastIcon`
+     (`CastStatusBar`, gedeelde status `app/src/lib/castStatus.ts`), en "Starten op de tv…" op de afstandsbediening.
+  2. De tv begon bij het begin. App: bij een al verbonden Chromecast laadde de speler en castte direct met positie 0;
+     nu start de tv op het hervatpunt (`castStartAt`). Website: casten vóórdat er iets speelde (laden of "hervatten?")
+     gebruikt het hervatpunt in plaats van 0.
+  3. Na verbinden werd de tv wit (Google's tussenscherm; de lichte letters van het logo verdwenen). Nu zijn alle
+     schermen donker (`--background`, `--logo-background`, `--splash-background` in `cast.css`).
+  4. App: een titel openen tijdens casten toonde eerst de film liggend en draaide dan terug. Nu opent de speler meteen
+     rechtop als afstandsbediening (`playerScreenState.enter(cast)`), en speelt de telefoon niets; valt de Chromecast
+     weg voordat hij de titel had, dan speelt de telefoon hem alsnog.
+- Ook: de castknop duwde het afspeellabel naar het midden (opgelost), en `session_error` zonder gevonden apparaten
+  meldt nu "geen Chromecast gevonden op dit netwerk".
+- Tests: frontend (label rechts, start op hervatpunt, verbindingsmelding, `connecting` in de hook, `session_error`),
+  cloud (donkere schermen in `cast.css`), app (`castStatus`, `castStartAt`, scherm rechtop bij casten). Het
+  afspeelscherm van de app zelf heeft geen testomgeving; op de telefoon testen. Frontend 337, app 159, cloud 168
+  tests; typechecks, lint (4 bekende waarschuwingen) en de frontend-build slagen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1965) en beide lockfiles bijgewerkt.

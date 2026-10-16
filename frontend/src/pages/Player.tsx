@@ -1381,20 +1381,37 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             })()}
           />
         )}
-        {/* Top right, like the app: shown as soon as the browser can cast; the list searches for Chromecasts itself. */}
+        {/* Top right, like the app: shown as soon as the browser can cast; the list searches for Chromecasts itself.
+            The playback badge, when there, already pushes itself and this button to the right. */}
         {(cast.supported || cast.active) && (
           <button
             type="button"
-            onClick={() => (cast.active ? cast.stop() : void cast.start(currentTime()))}
-            className={`ml-auto grid size-10 shrink-0 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${cast.active ? 'text-accent' : ''}`}
+            onClick={() => {
+              if (cast.active) return cast.stop();
+              // Nothing played here yet (still loading, or "resume?" open): the TV starts at the resume point.
+              const at = startedRef.current ? currentTime() : (pendingSeekRef.current ?? start);
+              if (askResume) setStartChoice(at);
+              void cast.start(at);
+            }}
+            className={`${info?.analysis ? '' : 'ml-auto '}grid size-10 shrink-0 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${cast.active ? 'text-accent' : ''}`}
             aria-label={cast.active ? t('player.castStop') : t('player.cast')}
             aria-pressed={cast.active}
+            aria-busy={cast.connecting}
             title={cast.active ? t('player.castStop') : t('player.cast')}
           >
-            <Cast className="size-5 sm:size-7" />
+            {cast.connecting ? <Spinner className="size-5 sm:size-7" /> : <Cast className="size-5 sm:size-7" />}
           </button>
         )}
       </div>
+      {/* Picking a Chromecast takes a few seconds before the TV answers: said here, whether or not the controls show. */}
+      {cast.connecting && !mini && (
+        <div role="status" className="pointer-events-none absolute inset-x-0 top-20 z-[61] flex justify-center px-4 sm:top-24">
+          <span className="flex items-center gap-2 rounded-full bg-black/80 px-4 py-2 text-sm text-ink ring-1 ring-white/10 backdrop-blur">
+            <Spinner className="size-4" />
+            {t('player.castConnecting')}
+          </span>
+        </div>
+      )}
 
       {/* Bottom controls */}
       <div
