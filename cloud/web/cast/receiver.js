@@ -1,4 +1,5 @@
 import { ProgressSaver, progressTarget } from './progress.js';
+import { showsSplash } from './screen.js';
 
 /**
  * Vidalune's cast player (cast.vidalune.com, app id 920BF057): Google's receiver framework with
@@ -27,8 +28,14 @@ player.setMessageInterceptor(MessageType.LOAD, (request) => {
   return request;
 });
 
+const splash = document.getElementById('splash');
+const updateSplash = () => splash?.classList.toggle('gone', !showsSplash(player.getPlayerState()));
+// (The interval below also keeps it right, should this event not exist on an older TV.)
+if (EventType.MEDIA_STATUS) player.addEventListener(EventType.MEDIA_STATUS, updateSplash);
+
 setInterval(() => {
   if (player.getPlayerState() === PlayerState.PLAYING) saver.tick(...now());
+  updateSplash();
 }, 1000);
 player.addEventListener(EventType.PAUSE, () => saver.save(...now()));
 player.addEventListener(EventType.MEDIA_FINISHED, (event) => {

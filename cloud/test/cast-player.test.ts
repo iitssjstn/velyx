@@ -9,6 +9,7 @@ import { buildCloudApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
 import { ProgressSaver, progressReport, progressTarget, SAVE_EVERY_MS } from '../web/cast/progress.js';
+import { showsSplash } from '../web/cast/screen.js';
 
 let dir: string;
 let db: DB;
@@ -50,8 +51,10 @@ describe('cast.vidalune.com', () => {
     expect(page.type).toContain('text/html');
     expect(page.body).toContain('https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js');
     expect(page.body).toContain('<cast-media-player>');
+    // Vidalune's own dark screen over Google's white one.
+    expect(page.body).toContain('id="splash"');
     expect(page.headers['content-security-policy']).toBe("frame-ancestors 'none'");
-    for (const [file, type] of [['receiver.js', 'text/javascript'], ['progress.js', 'text/javascript'], ['cast.css', 'text/css'], ['logo.svg', 'image/svg+xml']]) {
+    for (const [file, type] of [['receiver.js', 'text/javascript'], ['progress.js', 'text/javascript'], ['screen.js', 'text/javascript'], ['cast.css', 'text/css'], ['logo.svg', 'image/svg+xml']]) {
       const res = await get('cast.vidalune.example', `/${file}`);
       expect(res.status, file).toBe(200);
       expect(res.type, file).toContain(type);
@@ -67,6 +70,13 @@ describe('cast.vidalune.com', () => {
     expect(app.relay.slugOf({ headers: { host: 'cast.vidalune.example' } } as http.IncomingMessage)).toBeNull();
     // The website itself is unchanged.
     expect((await get('vidalune.example', '/')).body).not.toContain('cast-media-player');
+  });
+});
+
+describe('the cast player\'s own screen', () => {
+  it('covers Google\'s white screen until the TV plays', () => {
+    for (const state of ['IDLE', 'LOADING', undefined, null]) expect(showsSplash(state), String(state)).toBe(true);
+    for (const state of ['PLAYING', 'PAUSED', 'BUFFERING']) expect(showsSplash(state), state).toBe(false);
   });
 });
 

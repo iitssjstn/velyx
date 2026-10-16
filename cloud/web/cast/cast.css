@@ -16,3 +16,10 @@ cast-media-player {
   --splash-size: 420px 98px;
   --splash-color: #eee9ff;
 }
+
+/* Vidalune's own screen over Google's white one, until the TV plays (receiver.js, screen.js). */
+#splash { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; background: #0f0d15; transition: opacity 0.4s; }
+#splash.gone { opacity: 0; pointer-events: none; }
+#splash img { width: 420px; height: 98px; }
+#splash .spinner { width: 40px; height: 40px; border-radius: 50%; border: 3px solid rgba(238, 233, 255, 0.2); border-top-color: #b69cff; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
