@@ -76,7 +76,7 @@ Vidalune is a lightweight, Docker-first, self-hosted media server for movies and
 - **Vidalune in your language** — every account chooses its own interface language (English or Nederlands) in Account → Profile. It covers the whole app, including the player and the admin pages, and the server's own messages and explanations. It switches at once, without signing out or interrupting what is playing, and is kept for your account on every device. Before signing in, Vidalune follows the browser's language (and remembers a choice made on the sign-in page). Titles, descriptions and taglines of movies, shows, seasons and episodes follow each account's language too where TMDB has them in English or Dutch (other details, such as genres, come in the server's metadata language, Admin → Metadata).
 - **Audio and subtitle languages per account** — separate from the interface language: preferred audio language, subtitle language with fallback, and when to show subtitles (always, only for other languages, forced only, off, or remember your last choice).
 - **Watchlist and favorites.** Watched movies leave the watchlist automatically.
-- **Trailers.** Movie and show pages have a *Trailer* button when TMDB knows one (a TMDB key is needed), and so do the pages of titles that are not in the library (with Seerr connected; without a TMDB key the trailer comes through Seerr). On the website it plays in YouTube's player without cookies, loaded only when you press the button; the app opens it on YouTube. A trailer is looked up again at most once an hour.
+- **Trailers.** Movie and show pages have a *Trailer* button when TMDB knows one (through vidalune.com), and so do the pages of titles that are not in the library (with Seerr connected; without metadata from TMDB the trailer comes through Seerr). On the website it plays in YouTube's player without cookies, loaded only when you press the button; the app opens it on YouTube. A trailer is looked up again at most once an hour.
 - **Per-user library access** — choose which libraries each user can see (for example a kids-only library).
 - **Collections** — movie series from TMDB (such as “The Matrix Collection”) are grouped automatically once you have two or more of their movies; administrators can also make their own collections of movies and shows. **Smart collections** (Recently Added, Unwatched, 4K, HDR, Short Movies, decades, …) are saved filters, evaluated per viewer, and admins can save their own.
 - **Multiple users** with administrator and user roles, device/session management and an audit log.
@@ -103,7 +103,7 @@ Vidalune is a lightweight, Docker-first, self-hosted media server for movies and
 - Docker with Docker Compose (v2) — or Debian 12+ / Ubuntu 22.04+ (amd64 or arm64) for the `.deb` package.
 - A browser: Chrome/Edge (recommended), Firefox or Safari.
 - Hardware: Vidalune itself needs very little. It was designed with low-end machines in mind (for example a dual-core Athlon II with 4–8 GB RAM). With video conversion off (the default) the server only reads and sends files — decoding happens on the device that plays the video. Converting video needs a strong processor or graphics hardware (see [Video conversion](#video-conversion-optional)).
-- Optional: a Vidalune account (metadata comes through vidalune.com) or a free TMDB API key of your own.
+- Optional: a Vidalune account (metadata and subtitles from online come through vidalune.com).
 
 ## Quick start (Docker)
 
@@ -144,7 +144,7 @@ Then start it:
 docker compose up -d
 ```
 
-Open `http://<your-server>:3000`, create your administrator account and link the server to a Vidalune account for metadata (or, optionally, add a TMDB key of your own in **Admin → Metadata**). No API keys or passwords go into the compose file. Every other option is listed under [Configuration](#configuration).
+Open `http://<your-server>:3000`, create your administrator account and link the server to a Vidalune account for metadata. No API keys or passwords go into the compose file. Every other option is listed under [Configuration](#configuration).
 
 ## Installing without Docker (Debian/Ubuntu)
 
@@ -199,7 +199,7 @@ These are **not needed** and deliberately not in the compose file. They exist fo
 
 | Variable | Description |
 | --- | --- |
-| `TMDB_API_KEY` | TMDB key (normally entered in Admin → Metadata). |
+| `TMDB_API_KEY` | A TMDB key of your own, for a server without a Vidalune account. It comes before vidalune.com. There is no field for it in the web interface. |
 | `TMDB_LANGUAGE` | Default metadata language, e.g. `nl-NL` (normally set in Admin → Metadata). |
 | `SESSION_SECRET` | Fixed cookie-signing secret. When unset, one is generated once and stored in `data/.session-secret`. |
 | `VIDALUNE_CLOUD_URL` | The Vidalune account service (default `https://vidalune.com`). Only contacted after an administrator links the server. |
@@ -263,18 +263,11 @@ Samples, trailers, extras and system folders (`@eaDir`, `#recycle`, …) are ign
 
 ## First-run setup
 
-The first visit opens a setup wizard where you create the administrator account, name the server and — optionally — enter your TMDB API key (it is checked with TMDB before it is saved; you can also add it later). The wizard can only run once — as soon as an administrator exists it is closed. Next, add your libraries: **Admin → Libraries → Add library**, choose Movies or TV Shows and pick the folder with **Browse** (only folders inside `MEDIA_ROOTS` are shown; with Docker these are the folders inside the container, for example `/media/movies`) or type its path. When Vidalune may not read a folder, it says so; with the Debian package it also shows the command that gives access. The first scan starts immediately.
+The first visit opens a setup wizard where you create the administrator account, and name the server. The wizard can only run once — as soon as an administrator exists it is closed. Next, add your libraries: **Admin → Libraries → Add library**, choose Movies or TV Shows and pick the folder with **Browse** (only folders inside `MEDIA_ROOTS` are shown; with Docker these are the folders inside the container, for example `/media/movies`) or type its path. When Vidalune may not read a folder, it says so; with the Debian package it also shows the command that gives access. The first scan starts immediately.
 
 ## TMDB metadata
 
-**Through your Vidalune account (no key needed).** Link the server to a Vidalune account (**Admin → Vidalune account**) and metadata comes through vidalune.com, which asks TMDB with its own key. Only the questions Vidalune asks (searching, movie and show details, seasons, translations, trailers) are passed on, and each answer is reused for a day by every server, so a title that someone else already has comes at once. Images do not go through vidalune.com: the server fetches them from TMDB itself, as before. Nothing about users or what anyone watches is sent. **Admin → Metadata** says *through vidalune.com* while this is in use. When it becomes available (after linking), Vidalune fetches metadata for existing items automatically.
-
-**With a key of your own** (optional; it comes first):
-
-1. Create a free account on [themoviedb.org](https://www.themoviedb.org/) and request an API key under **Settings → API**.
-2. After creating your account, enter the key in **Admin → Metadata**. It is verified before saving and stored in the database in the data volume.
-
-The key stays on the server — it is never sent to browsers, and artwork is proxied and cached by Vidalune. When a key is added, Vidalune fetches metadata for existing items automatically. Items that cannot be matched confidently appear in **Admin → Metadata** for review. Use **Refresh metadata** on a library (or on an item's menu) to update everything.
+**Through your Vidalune account (no key needed).** Link the server to a Vidalune account (**Admin → Vidalune account**) and metadata comes through vidalune.com, which asks TMDB with its own key. Only the questions Vidalune asks (searching, movie and show details, seasons, translations, trailers) are passed on, and each answer is reused for a day by every server, so a title that someone else already has comes at once. Images do not go through vidalune.com: the server fetches them from TMDB itself, as before. Nothing about users or what anyone watches is sent. There is nothing to set up for it: **Admin → Metadata** only has the metadata language and whether adult titles are searched, and says so when metadata does not come in (the server is not linked, or vidalune.com cannot be reached). When it becomes available (after linking), Vidalune fetches metadata for existing items automatically. Artwork is proxied and cached by Vidalune. Items that cannot be matched confidently appear in **Admin → Metadata** for review. Use **Refresh metadata** on a library (or on an item's menu) to update everything.
 
 **Fresh metadata when a title is opened.** Opening a movie or show (website, app.vidalune.com or the Android app) fetches its metadata anew from TMDB when it was last refreshed more than an hour ago — for a show also its seasons and episodes on the server. The page opens at once with what is stored and updates itself when the new metadata has come. Everyone who opens the title within that hour gets the same stored metadata without a new request to TMDB, and people opening it at the same moment share one request. When TMDB cannot be reached, the stored metadata stays and the title is not asked for again until the hour is over. Pages of titles that are not in the library come straight from Seerr every time they are opened.
 
@@ -468,7 +461,7 @@ The app follows your account's language (English or Dutch). Before signing in, i
 
 A server linked to a Vidalune account (Admin → Vidalune account; a free account is enough) searches and fetches subtitles through vidalune.com, with no key of its own to set up: vidalune.com asks OpenSubtitles with its own key (set in its Control Center, never shown again) and keeps the subtitle files it fetched, so the next server that wants the same file gets it from there. A server asks for at most 40 new subtitle files a day this way (ones vidalune.com already has do not count). Only the file hash and the movie or episode are sent, as below; nothing about users or what anyone watches.
 
-Admin → Playback → *Subtitles online* shows whether this is on. An OpenSubtitles key set on a server before 0.18.1 is no longer used and is removed when the server starts.
+It is on as soon as the server is linked to a Vidalune account; there are no settings for it. An OpenSubtitles key set on a server before 0.18.1 is no longer used and is removed when the server starts.
 
 - **In the player:** open the subtitle menu. Under *Search online* Vidalune searches right away (also in the app's player menu), in your subtitle language (Account → Playback → Languages; otherwise the interface language); pick another language from the list if you like (this browser remembers it). The subtitles made for exactly your file (by its OpenSubtitles file hash) come first, then the most downloaded ones; machine translations and SDH subtitles are marked. Choose one and it is fetched, converted and shown at once.
 - **Kept for everyone:** a fetched subtitle stays with the file and appears in the subtitle menu of everyone who can watch it (marked *Online*), without downloading it again. The person who fetched it and administrators can remove it again (×).
@@ -870,7 +863,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 | "Folder … does not exist inside the container" | The volume is not mounted. Check the media paths under `volumes:` and use the container path (`/media/movies`) when adding the library. |
 | "Libraries must be inside /media" | Mount the folder under `/media` or extend `MEDIA_ROOTS`. |
 | Library stays empty / permission errors in the logs | `PUID`/`PGID` cannot read the files. Use the ids of the media owner (`id youruser`). |
-| No posters | Add a TMDB key in Admin → Metadata; check Admin → Logs for TMDB errors. |
+| No posters | Link the server to a Vidalune account (Admin → Vidalune account); check Admin → Logs for TMDB errors. |
 | Wrong movie or show | Use Fix match on the item, or rename the file with the correct year. |
 | Episodes missing | See Admin → Libraries → Scan issues; names need `S01E02` or `1x02`. |
 | Video does not play | The player explains why. Usually the browser cannot decode the video (HEVC in Firefox, 10-bit H.264 anywhere). Try Safari or Chrome/Edge with hardware HEVC support; Admin → Library health lists the affected files and why. Audio problems are converted automatically. |

@@ -3,8 +3,6 @@ export const setup: Messages['setup'] = {
   welcome: 'Welkom bij Vidalune',
   intro: 'Maak je beheerdersaccount aan om te beginnen.',
   serverName: 'Servernaam',
-  tmdbKey: 'TMDB API-sleutel',
-  tmdbKeyPlaceholder: 'Optioneel: niet nodig na koppelen aan een Vidalune-account',
-  afterSetup: 'Voeg na het instellen je mediamappen toe via Beheer → Bibliotheken. Posters, beschrijvingen en cast komen via vidalune.com zodra je deze server aan een Vidalune-account koppelt (Beheer → Vidalune-account), of met een eigen TMDB-sleutel via Beheer → Metadata.',
+  afterSetup: 'Voeg na het instellen je mediamappen toe via Beheer → Bibliotheken. Posters, beschrijvingen en cast komen via vidalune.com zodra je deze server aan een Vidalune-account koppelt (Beheer → Vidalune-account).',
   create: 'Vidalune aanmaken',
 };

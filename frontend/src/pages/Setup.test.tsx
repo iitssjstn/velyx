@@ -34,17 +34,17 @@ describe('SetupPage', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('creates the admin and sends the optional TMDB key', async () => {
+  it('creates the admin, with no TMDB key to fill in', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ user: { id: 1, username: 'justin', role: 'admin' } }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     renderSetup();
     const user = await fillForm('correct-horse', 'correct-horse');
-    await user.type(screen.getByLabelText(/TMDB API key/), ' abc123 ');
+    expect(screen.queryByLabelText(/TMDB API key/)).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Create Vidalune' }));
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/setup');
-    expect(JSON.parse(String(init.body))).toEqual({ username: 'justin', password: 'correct-horse', serverName: 'Vidalune', tmdbApiKey: 'abc123', language: 'en' });
+    expect(JSON.parse(String(init.body))).toEqual({ username: 'justin', password: 'correct-horse', serverName: 'Vidalune', language: 'en' });
   });
 
   it('shows the server error message', async () => {
