@@ -1186,3 +1186,5 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Tests: cloud (geen opslag voor het startpunt, wel daarna; browser 404, Chromecast 200), frontend (`settled` in de hook), app (`castSettled`).
   Frontend 338, app 160, cloud 170 tests; typechecks, lint (4 bekende waarschuwingen) en de frontend-build slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1966) en beide lockfiles bijgewerkt.
+- PR #151 gemerged 16 okt op verzoek van de eigenaar ("Merge het maar"; alle checks groen); release `v0.19.66` nog controleren.
+- Eigenaar meldt zich aan bij de Google Play Console (16 okt); Play Store staat in de planning na de tv-app.
