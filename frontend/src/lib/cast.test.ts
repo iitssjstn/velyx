@@ -191,6 +191,38 @@ describe('casting from the player', () => {
     unmount();
   });
 
+  it('counts the TV as settled only once it got to the resume point', async () => {
+    vi.resetModules();
+    const sdk = fakeSdk();
+    vi.stubGlobal('chrome', sdk.chrome);
+    vi.spyOn(document.head, 'append').mockImplementation(() => {
+      (window as unknown as { cast: unknown }).cast = { framework: sdk.framework };
+      setTimeout(() => (window as unknown as { __onGCastApiAvailable: (ok: boolean) => void }).__onGCastApiAvailable(true));
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      token: 'tok', expiresAt: Date.now() + 3_600_000, directUrl: null, serverUrl: null, contentType: 'application/vnd.apple.mpegurl',
+      decision: { engine: 'remux', streamUrl: '/api/media/5/hls/index.m3u8', seek: 'range', durationSec: 6000 }, subtitles: [],
+    }), { status: 200 })));
+    const { useCast } = await import('./cast');
+    const { result, unmount } = renderHook(() => useCast({ fileId: 5, audioIndex: null, title: 'Dune', subtitleKey: null, locate: async () => ({ offset: 0, seek: 0 }) }));
+    await waitFor(() => expect(result.current.supported).toBe(true));
+    await act(() => result.current.start(2700));
+    expect(result.current.settled).toBe(false);
+    // The TV begins at the start of the stream for a moment: not there yet.
+    sdk.remote.currentTime = 4;
+    act(() => sdk.listeners.get('time')?.());
+    expect(result.current).toMatchObject({ time: 4, settled: false });
+    // At the resume point (a keyframe just before it counts too).
+    sdk.remote.currentTime = 2692;
+    act(() => sdk.listeners.get('time')?.());
+    expect(result.current.settled).toBe(true);
+    // Seeking back afterwards is the viewer's choice: still settled.
+    sdk.remote.currentTime = 30;
+    act(() => sdk.listeners.get('time')?.());
+    expect(result.current).toMatchObject({ time: 30, settled: true });
+    unmount();
+  });
+
   it('says no Chromecast was found when Chrome answers session_error without any', async () => {
     vi.resetModules();
     const sdk = fakeSdk();

@@ -8,7 +8,8 @@ import type { FastifyInstance } from 'fastify';
 import { buildCloudApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
-import { ProgressSaver, progressReport, progressTarget, SAVE_EVERY_MS } from '../web/cast/progress.js';
+import { ProgressSaver, progressReport, progressTarget, SAVE_EVERY_MS, START_SLACK_SEC } from '../web/cast/progress.js';
+import { showsSplash } from '../web/cast/screen.js';
 
 let dir: string;
 let db: DB;
@@ -20,11 +21,14 @@ afterEach(async () => {
   if (dir) fs.rmSync(dir, { recursive: true, force: true });
 });
 
+/** What a Chromecast with Google TV says it is. */
+const CHROMECAST = 'Mozilla/5.0 (Linux; Android 12; Build/STTE.230615.005) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.196 Safari/537.36 CrKey/1.56.500000 DeviceType/AndroidTV';
+
 /** A request as a Chromecast makes it (the Host header decides what the service is). */
-async function get(host: string, url: string, method = 'GET'): Promise<{ status: number; type: string; body: string; headers: http.IncomingHttpHeaders }> {
+async function get(host: string, url: string, method = 'GET', userAgent = CHROMECAST): Promise<{ status: number; type: string; body: string; headers: http.IncomingHttpHeaders }> {
   const { port } = app.server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, path: url, method, headers: { host } }, (res) => {
+    const req = http.request({ host: '127.0.0.1', port, path: url, method, headers: { host, 'user-agent': userAgent } }, (res) => {
       let body = '';
       res.on('data', (c) => (body += c));
       res.on('end', () => resolve({ status: res.statusCode!, type: String(res.headers['content-type'] ?? ''), body, headers: res.headers }));
@@ -50,8 +54,10 @@ describe('cast.vidalune.com', () => {
     expect(page.type).toContain('text/html');
     expect(page.body).toContain('https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js');
     expect(page.body).toContain('<cast-media-player>');
+    // Vidalune's own dark screen over Google's white one.
+    expect(page.body).toContain('id="splash"');
     expect(page.headers['content-security-policy']).toBe("frame-ancestors 'none'");
-    for (const [file, type] of [['receiver.js', 'text/javascript'], ['progress.js', 'text/javascript'], ['cast.css', 'text/css'], ['logo.svg', 'image/svg+xml']]) {
+    for (const [file, type] of [['receiver.js', 'text/javascript'], ['progress.js', 'text/javascript'], ['screen.js', 'text/javascript'], ['cast.css', 'text/css'], ['logo.svg', 'image/svg+xml']]) {
       const res = await get('cast.vidalune.example', `/${file}`);
       expect(res.status, file).toBe(200);
       expect(res.type, file).toContain(type);
@@ -61,12 +67,28 @@ describe('cast.vidalune.com', () => {
     const css = (await get('cast.vidalune.example', '/cast.css')).body;
     for (const variable of ['--background', '--background-color', '--logo-background', '--splash-background']) expect(css, variable).toMatch(new RegExp(`${variable}:\\s*#0f0d15`));
     expect((await get('cast.vidalune.example', '/robots.txt')).body).toContain('Disallow: /');
+    // Only a Chromecast (or a TV with Chromecast built in) gets the player; a browser does not.
+    const desktop = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36';
+    for (const url of ['/', '/receiver.js', '/cast.css', '/logo.svg']) {
+      const res = await get('cast.vidalune.example', url, 'GET', desktop);
+      expect(res.status, url).toBe(404);
+      expect(res.body, url).not.toContain('cast-media-player');
+    }
+    expect((await get('cast.vidalune.example', '/', 'GET', '')).status).toBe(404);
+    expect((await get('cast.vidalune.example', '/', 'GET', 'Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36 CrKey/1.54.250320')).status).toBe(200);
     // Not the account service, not other files, not a relay address.
     for (const url of ['/api/account', '/account', '/progress.d.ts', '/../index.html', '/%2e%2e/index.html', '/admin']) expect((await get('cast.vidalune.example', url)).status, url).toBe(404);
     expect((await get('cast.vidalune.example', '/', 'POST')).status).toBe(404);
     expect(app.relay.slugOf({ headers: { host: 'cast.vidalune.example' } } as http.IncomingMessage)).toBeNull();
     // The website itself is unchanged.
     expect((await get('vidalune.example', '/')).body).not.toContain('cast-media-player');
+  });
+});
+
+describe('the cast player\'s own screen', () => {
+  it('covers Google\'s white screen until the TV plays', () => {
+    for (const state of ['IDLE', 'LOADING', undefined, null]) expect(showsSplash(state), String(state)).toBe(true);
+    for (const state of ['PLAYING', 'PAUSED', 'BUFFERING']) expect(showsSplash(state), state).toBe(false);
   });
 });
 
@@ -133,5 +155,26 @@ describe('the cast player saving where the TV is', () => {
     saver.save(60, 6000);
     await new Promise((r) => setTimeout(r, 0));
     expect(calls).toBe(2);
+  });
+
+  it('keeps the resume point until the TV got there (it may begin at the start of the stream first)', async () => {
+    const sent: Array<{ body: unknown }> = [];
+    let clock = 0;
+    const saver = new ProgressSaver((_url, body) => sent.push({ body }), () => clock);
+    saver.start(item, 2700);
+    // The TV plays from the beginning for a moment: nothing saved, also not when paused or stopped.
+    saver.tick(3, 6000);
+    clock += SAVE_EVERY_MS;
+    saver.tick(14, 6000);
+    saver.save(14, 6000);
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(sent).toHaveLength(0);
+    // Sent to the resume point (a keyframe just before it counts too): saved from there on.
+    saver.tick(2700 - START_SLACK_SEC + 1, 6000);
+    clock += SAVE_EVERY_MS;
+    saver.tick(2712, 6000);
+    saver.finish(2712, 6000);
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(sent.at(-1)?.body).toEqual({ positionSec: 2712, durationSec: 6000 });
   });
 });

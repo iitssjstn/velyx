@@ -7,6 +7,9 @@
 /** How often a playing title is saved. */
 export const SAVE_EVERY_MS = 10_000;
 
+/** How far before the asked start the TV may begin (it starts at a keyframe) and still count as there. */
+export const START_SLACK_SEC = 15;
+
 /**
  * What to save: the position in the file (a repackaged stream can start `offset` seconds into it)
  * and its length. Null when there is nothing worth saving (no length, or not started).
@@ -34,14 +37,21 @@ export class ProgressSaver {
     this.item = null;
   }
 
-  /** A new title on the TV (null: one that is not saved). */
-  start(target) {
-    this.item = target ? { ...target, played: false, savedAt: 0 } : null;
+  /**
+   * A new title on the TV (null: one that is not saved), asked to start `startAt` seconds into its
+   * stream (the resume point).
+   */
+  start(target, startAt = 0) {
+    this.item = target ? { ...target, played: false, savedAt: 0, startAt: Number(startAt) > 0 ? Number(startAt) : 0 } : null;
   }
 
-  /** While it plays: saved every SAVE_EVERY_MS. */
+  /**
+   * While it plays: saved every SAVE_EVERY_MS. Only once the TV got to where it was asked to start:
+   * playing from the beginning first would otherwise overwrite the resume point with a few seconds.
+   */
   tick(time, duration) {
     if (!this.item) return;
+    if (!this.item.played && Number.isFinite(time) && time + START_SLACK_SEC < this.item.startAt) return;
     this.item.played = true;
     if (this.now() - this.item.savedAt >= SAVE_EVERY_MS) this.save(time, duration);
   }

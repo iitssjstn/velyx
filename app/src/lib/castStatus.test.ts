@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { castStartAt, castStatus, castStatusOf, setCastStatus, subscribeCastStatus } from './castStatus';
+import { castSettled, castStartAt, castStatus, castStatusOf, setCastStatus, subscribeCastStatus } from './castStatus';
 
 describe('castStatus', () => {
   it('maps the Cast SDK state', () => {
@@ -31,5 +31,14 @@ describe('castStartAt', () => {
   });
   it('continues where the phone is once it played', () => {
     expect(castStartAt(612.4, 1834)).toBe(612.4);
+  });
+});
+
+describe('castSettled', () => {
+  it('waits until the TV got to the resume point, then stays settled', () => {
+    expect(castSettled(false, 4, 2700)).toBe(false);
+    expect(castSettled(false, 2690, 2700)).toBe(true);
+    expect(castSettled(true, 30, 2700)).toBe(true);
+    expect(castSettled(false, 0, 0)).toBe(true);
   });
 });

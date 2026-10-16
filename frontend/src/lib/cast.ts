@@ -77,6 +77,9 @@ const w = (typeof window === 'undefined' ? {} : window) as CastWindow;
 const SDK = 'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
 /** Vidalune's own cast player (cast.vidalune.com), registered with Google Cast. */
 export const VIDALUNE_CAST_APP_ID = '920BF057';
+
+/** How far before the asked start the TV may begin (it starts at a keyframe) and still count as there. */
+export const CAST_START_SLACK_SEC = 15;
 let sdk: Promise<any | null> | null = null;
 
 /** Loads the SDK once (Chrome only); null where casting is not available. */
@@ -133,6 +136,11 @@ export interface CastState {
   device: string | null;
   /** Position in the file (seconds). */
   time: number;
+  /**
+   * The TV got to where it was asked to start (the resume point). Until then its position is not
+   * saved: a TV that begins at the start of the stream would otherwise overwrite the resume point.
+   */
+  settled: boolean;
   playing: boolean;
   volume: number;
   muted: boolean;
@@ -144,9 +152,11 @@ export interface CastState {
  * (a repackaged stream is loaded again from the new spot), and the position while it plays.
  */
 export function useCast(item: CastItem | null) {
-  const [state, setState] = useState<CastState>({ supported: false, available: false, connecting: false, active: false, fileId: null, device: null, time: 0, playing: false, volume: 1, muted: false, error: null });
+  const [state, setState] = useState<CastState>({ supported: false, available: false, connecting: false, settled: false, active: false, fileId: null, device: null, time: 0, playing: false, volume: 1, muted: false, error: null });
   const framework = useRef<any>(null);
   const availableRef = useRef(false);
+  // Where the TV was last asked to start (in the file).
+  const startedAt = useRef(0);
   // start() is under way (connecting, then giving the TV the title).
   const starting = useRef(false);
   const player = useRef<any>(null);
@@ -207,7 +217,10 @@ export function useCast(item: CastItem | null) {
       controller.current = new f.RemotePlayerController(player.current);
       const c = controller.current;
       const listeners: Array<[string, () => void]> = [
-        [f.RemotePlayerEventType.CURRENT_TIME_CHANGED, () => setState((st) => ({ ...st, time: offset.current + (player.current.currentTime ?? 0) }))],
+        [f.RemotePlayerEventType.CURRENT_TIME_CHANGED, () => setState((st) => {
+          const time = offset.current + (player.current.currentTime ?? 0);
+          return { ...st, time, settled: st.settled || time + CAST_START_SLACK_SEC >= startedAt.current };
+        })],
         [f.RemotePlayerEventType.IS_PAUSED_CHANGED, () => setState((st) => ({ ...st, playing: !player.current.isPaused }))],
         [f.RemotePlayerEventType.VOLUME_LEVEL_CHANGED, () => setState((st) => ({ ...st, volume: player.current.volumeLevel ?? st.volume }))],
         [f.RemotePlayerEventType.IS_MUTED_CHANGED, () => setState((st) => ({ ...st, muted: Boolean(player.current.isMuted) }))],
@@ -281,6 +294,8 @@ export function useCast(item: CastItem | null) {
       const requestedSubtitle = subtitleKey.current;
       const chosen = s.subtitles.findIndex((sub) => sub.key === requestedSubtitle);
       request.activeTrackIds = chosen >= 0 ? [chosen + 1] : [];
+      startedAt.current = at;
+      setState((st) => ({ ...st, settled: false }));
       await castSession.loadMedia(request);
       if (subtitleKey.current !== requestedSubtitle && player.current && controller.current) {
         const latest = s.subtitles.findIndex((sub) => sub.key === subtitleKey.current);

@@ -97,7 +97,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- Laatste release: **0.19.64** (PR #149, castknop rechtsboven; gemerged 16 okt); release `v0.19.64` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- In de maak: **0.19.66** (eigen donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), zie onderaan.
+- Laatste release: **0.19.65** (PR #150, casten: verbinden zichtbaar, hervatten, donkere tv, meteen de besturing; gemerged 16 okt); release `v0.19.65` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -1160,3 +1161,28 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   afspeelscherm van de app zelf heeft geen testomgeving; op de telefoon testen. Frontend 337, app 159, cloud 168
   tests; typechecks, lint (4 bekende waarschuwingen) en de frontend-build slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1965) en beide lockfiles bijgewerkt.
+- PR #150 gemerged 16 okt op verzoek van de eigenaar ("Merge het maar"; alle checks groen); release `v0.19.65` gecontroleerd: APK en beide `.deb`'s aanwezig. Eigenaar heeft bijgewerkt; nog te testen op tv en telefoon.
+
+## Versie 0.19.66 (eigen donker scherm op de tv, hervatpunt blijft bij casten)
+
+- Gemeld door de eigenaar (16 okt, na het bijwerken naar 0.19.65): de tv is na verbinden nog steeds wit. Het image van
+  de accountservice was wel gebouwd; Google's speler negeert de kleurvariabelen op dat tussenscherm. Nu ligt er een
+  eigen donker scherm met het Vidalune-logo en een laadcirkel over (`#splash` in `cloud/web/cast/index.html`), zichtbaar
+  zolang de tv niet speelt (`showsSplash` in `screen.js`: niet bij PLAYING, PAUSED of BUFFERING); `receiver.js` werkt het
+  bij via `MEDIA_STATUS` en elke seconde.
+- Tests: `showsSplash` per spelerstatus, de pagina bevat het scherm en `screen.js` wordt geserveerd. Cloud-tests,
+  typecheck en lint slagen. Op de echte tv te bevestigen.
+- Gemeld door de eigenaar (16 okt, na 0.19.65): na casten verdwijnt een film/serie uit "Verder kijken" terwijl hij niet
+  klaar is. "Verder kijken" toont alleen titels vanaf 30 s en onder 90 %. Als de tv eerst aan het begin van de stream
+  speelt (Google's speler kan de starttijd negeren), slaan tv, website en app een paar seconden op en is het
+  hervatpunt weg. Nu: de tv slaat pas op als hij binnen 15 s van het gevraagde startpunt is (`ProgressSaver.start(target,
+  startAt)`, `START_SLACK_SEC`), en zoekt na het laden zelf naar dat punt als hij ervoor begon (`PLAYER_LOAD_COMPLETE`).
+  Website (`settled` in `useCast`) en app (`castSettled`) sturen de tv-positie ook pas door als de tv er is; daarna
+  blijft terugspoelen gewoon opgeslagen. Exacte oorzaak op de tv nog te bevestigen.
+- Gevraagd door de eigenaar (16 okt): `cast.vidalune.com` afschermen zodat mensen het niet zomaar kunnen openen. Nu
+  krijgt alleen een apparaat met `CrKey/` in de User-Agent (Chromecast, Google TV, tv's met Chromecast ingebouwd) de
+  speler; een browser krijgt 404 "Not found" (`serveCast` in `cloud/src/app.ts`). Na te bootsen door de User-Agent te
+  vervalsen, maar er staat niets geheims: afspelen kan alleen met de cast-link met token die de zender meegeeft.
+- Tests: cloud (geen opslag voor het startpunt, wel daarna; browser 404, Chromecast 200), frontend (`settled` in de hook), app (`castSettled`).
+  Frontend 338, app 160, cloud 170 tests; typechecks, lint (4 bekende waarschuwingen) en de frontend-build slagen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1966) en beide lockfiles bijgewerkt.
