@@ -1129,3 +1129,10 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   Frontend 333 en app 154 tests; typechecks en lint (bekende waarschuwingen) slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1964) en beide lockfiles bijgewerkt.
 - PR #149 gemerged 16 okt (eigenaar: "Alles is groen"); release `v0.19.64` gecontroleerd: APK en beide `.deb`'s aanwezig.
+- Na de release (16 okt): de castknop duwde het afspeellabel ("Remux · Audio → AAC") naar het midden van de bovenbalk
+  (twee keer `ml-auto`). Opgelost op de branch met test (faalt op de oude code); gaat mee in de volgende versie.
+- Casten werkt nog niet: na het publiceren toont de app de Chromecast niet (YouTube wel, dus het netwerk is in orde);
+  Chrome geeft `invalid_parameter`/`session_error`, Brave ondersteunt Cast niet. `cast.vidalune.com` laadt goed (logo
+  en laadcirkel). Wacht op de eigenaar: kiest hij de Chromecast in Chrome, wat toont de tv, en een screenshot van de
+  Cast Developer Console (status en Edit). Ook te verbeteren: `session_error` zonder apparaten als "geen Chromecast
+  gevonden" melden.

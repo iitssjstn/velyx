@@ -1381,12 +1381,13 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             })()}
           />
         )}
-        {/* Top right, like the app: shown as soon as the browser can cast; the list searches for Chromecasts itself. */}
+        {/* Top right, like the app: shown as soon as the browser can cast; the list searches for Chromecasts itself.
+            The playback badge, when there, already pushes itself and this button to the right. */}
         {(cast.supported || cast.active) && (
           <button
             type="button"
             onClick={() => (cast.active ? cast.stop() : void cast.start(currentTime()))}
-            className={`ml-auto grid size-10 shrink-0 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${cast.active ? 'text-accent' : ''}`}
+            className={`${info?.analysis ? '' : 'ml-auto '}grid size-10 shrink-0 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${cast.active ? 'text-accent' : ''}`}
             aria-label={cast.active ? t('player.castStop') : t('player.cast')}
             aria-pressed={cast.active}
             title={cast.active ? t('player.castStop') : t('player.cast')}

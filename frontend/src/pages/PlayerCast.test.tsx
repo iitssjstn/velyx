@@ -49,6 +49,11 @@ describe('cast button in the player', () => {
     const top = screen.getByRole('button', { name: 'Back' }).parentElement!;
     expect(within(top).getByRole('button', { name: 'Play on a TV (Chromecast)' })).toBe(button);
     expect(screen.getAllByRole('button', { name: 'Play on a TV (Chromecast)' })).toHaveLength(1);
+    // With the playback badge there, only the badge pushes to the right: two would split the space and
+    // leave the badge in the middle of the bar.
+    await vi.waitFor(() => expect(top.querySelector(':scope > .relative.ml-auto')).not.toBeNull());
+    expect(top.querySelectorAll(':scope > .ml-auto')).toHaveLength(1);
+    expect(top.lastElementChild).toBe(button);
     button.click();
     expect(start).toHaveBeenCalled();
   });
