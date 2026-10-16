@@ -13,16 +13,16 @@ const { UsersPage } = await import('./Users');
 
 afterEach(() => vi.unstubAllGlobals());
 
-const admin = { id: 1, username: 'justin', displayName: null, role: 'admin', disabled: false, createdAt: 0, lastLoginAt: null, libraryIds: null, avatarUrl: null };
+const admin = { id: 1, username: 'justin', displayName: null, role: 'admin', disabled: false, createdAt: 0, lastLoginAt: null, libraryIds: null, seerrAccess: true, avatarUrl: null };
 const made: Invite = { id: 'inv-abc123', label: 'Lisa', libraryIds: [2], url: 'https://vidalune.com/invite#secret-token', createdAt: Date.now(), expiresAt: Date.now() + 7 * 86_400_000, acceptedBy: null };
 
-function setup(account: string | null, invites: Invite[] = []) {
+function setup(account: string | null, invites: Invite[] = [], people: object[] = [admin]) {
   const calls: Array<{ call: string; body: unknown }> = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET';
     calls.push({ call: `${method} ${url}`, body: init?.body ? JSON.parse(String(init.body)) : null });
     const json = (data: unknown) => new Response(JSON.stringify(data), { status: 200 });
-    if (url === '/api/users') return json([admin]);
+    if (url === '/api/users') return json(people);
     if (url === '/api/admin/cloud') return json({ account });
     if (url === '/api/libraries') return json({ libraries: [{ id: 1, name: 'Films', type: 'movies' }, { id: 2, name: 'Series', type: 'shows' }] });
     if (url === '/api/admin/invites' && method === 'POST') return json(made);
@@ -64,5 +64,34 @@ describe('inviting someone', () => {
     expect(screen.getByText(/Accepted by tom@example.com/)).toBeTruthy();
     await userEvent.click(screen.getAllByRole('button', { name: 'Withdraw invitation' })[0]);
     expect(calls.map((c) => c.call)).toContain('DELETE /api/admin/invites/inv-abc123');
+  });
+});
+
+describe('Seerr per user', () => {
+  const reviewer = { ...admin, id: 2, username: 'reviewer', role: 'user' };
+
+  it('can be turned off for an existing user and on again later', async () => {
+    const calls = setup('justin@example.com', [], [admin, reviewer]);
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Edit user' }))[1]);
+    const box = screen.getByRole('checkbox', { name: /Sees Seerr and may request/ }) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    await userEvent.click(box);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await vi.waitFor(() => expect(calls.find((c) => c.call === 'PUT /api/users/2')).toBeTruthy());
+    expect(calls.find((c) => c.call === 'PUT /api/users/2')?.body).toMatchObject({ seerrAccess: false });
+  });
+
+  it('shows who has no Seerr, and the switch starts off for them', async () => {
+    setup('justin@example.com', [], [admin, { ...reviewer, seerrAccess: false }]);
+    expect(await screen.findByText('No Seerr')).toBeTruthy();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Edit user' })[1]);
+    expect((screen.getByRole('checkbox', { name: /Sees Seerr and may request/ }) as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('is not offered for administrators, who always see Seerr', async () => {
+    setup('justin@example.com');
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit user' }));
+    expect(screen.getByText('Administrators always see Seerr.')).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: /Sees Seerr/ })).toBeNull();
   });
 });

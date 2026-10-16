@@ -100,18 +100,27 @@ describe('each panel saves only its own settings', () => {
     expect(saved[0]).toEqual({ watchFolders: false, scanOnStartup: false, deferScansWhilePlaying: true, scanIntervalMinutes: 60 });
   });
 
-  it('says metadata comes through vidalune.com when the server is linked and has no key of its own', async () => {
+  it('has no TMDB key to fill in and no status while metadata comes through vidalune.com', async () => {
     setup(<MetadataSettings />, { ...settings, tmdb: { configured: false, source: 'none', hint: null, via: 'vidalune', linked: true } });
-    expect(await screen.findByText('through vidalune.com (no key of your own needed)')).toBeTruthy();
-    expect(screen.queryByText(/not configured/)).toBeNull();
+    expect(await screen.findByLabelText('Metadata language')).toBeTruthy();
+    expect(screen.queryByLabelText(/TMDB API key/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /Verify/ })).toBeNull();
+    expect(screen.queryByText(/No metadata yet/)).toBeNull();
   });
 
-  it('tells how to get metadata when there is neither a key nor a link', async () => {
+  it('says to link the server when metadata does not come in', async () => {
     setup(<MetadataSettings />, { ...settings, tmdb: { configured: false, source: 'none', hint: null, via: null, linked: false } });
-    expect(await screen.findByText(/link this server to a Vidalune account, or add a key of your own/)).toBeTruthy();
+    expect(await screen.findByText(/No metadata yet: link this server to a Vidalune account/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Link this server' }).getAttribute('href')).toBe('/admin/cloud');
   });
 
-  it('metadata language and the TMDB key (on Metadata), each on its own', async () => {
+  it('says vidalune.com is unavailable, without a link, when the server is linked', async () => {
+    setup(<MetadataSettings />, { ...settings, tmdb: { configured: false, source: 'none', hint: null, via: null, linked: true } });
+    expect(await screen.findByText(/not available through vidalune.com right now/)).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Link this server' })).toBeNull();
+  });
+
+  it('metadata language (on Metadata)', async () => {
     const saved = setup(<MetadataSettings />);
     const lang = await screen.findByLabelText('Metadata language');
     await userEvent.clear(lang);
@@ -119,10 +128,6 @@ describe('each panel saves only its own settings', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await vi.waitFor(() => expect(saved).toHaveLength(1));
     expect(saved[0]).toEqual({ tmdbLanguage: 'nl-NL', includeAdult: false });
-    await userEvent.type(screen.getByLabelText('TMDB API key'), 'abc123');
-    await userEvent.click(screen.getByRole('button', { name: /Verify/ }));
-    await vi.waitFor(() => expect(saved).toHaveLength(2));
-    expect(saved[1]).toEqual({ tmdbApiKey: 'abc123' });
   });
 
   it('detection (on Intros & credits)', async () => {

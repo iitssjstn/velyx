@@ -175,6 +175,31 @@ describe('Seerr', () => {
     }
   });
 
+  it('hides Seerr from a user an administrator turned it off for, everywhere, and never for administrators', async () => {
+    await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
+    const viewer = await createUser(env.app, admin, 'reviewer');
+    const status = async (cookie: string) => (await env.app.inject({ url: '/api/seerr', headers: { cookie } })).json();
+    expect(await status(viewer.cookie)).toEqual({ enabled: true });
+
+    const off = await env.app.inject({ method: 'PUT', url: `/api/users/${viewer.id}`, headers: { cookie: admin }, payload: { seerrAccess: false } });
+    expect(off.json().seerrAccess).toBe(false);
+    expect(await status(viewer.cookie)).toEqual({ enabled: false });
+    const before = calls.length;
+    for (const url of ['/api/seerr/search?q=matrix', '/api/seerr/discover?row=trending&page=1', '/api/seerr/movie/603', '/api/seerr/movie/603/trailer', '/api/seerr/movie/603/recommendations', '/api/seerr/requests'])
+      expect((await env.app.inject({ url, headers: { cookie: viewer.cookie } })).statusCode, url).toBe(403);
+    expect((await env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: viewer.cookie }, payload: { mediaType: 'movie', tmdbId: 603 } })).statusCode).toBe(403);
+    // Nothing reached Seerr for them.
+    expect(calls.length).toBe(before);
+
+    // Administrators always see it; a user cannot turn it back on for themselves.
+    expect(await status(admin)).toEqual({ enabled: true });
+    expect((await env.app.inject({ method: 'PUT', url: `/api/users/${viewer.id}`, headers: { cookie: viewer.cookie }, payload: { seerrAccess: true } })).statusCode).toBe(403);
+
+    await env.app.inject({ method: 'PUT', url: `/api/users/${viewer.id}`, headers: { cookie: admin }, payload: { seerrAccess: true } });
+    expect(await status(viewer.cookie)).toEqual({ enabled: true });
+    expect((await env.app.inject({ url: '/api/seerr/search?q=matrix', headers: { cookie: viewer.cookie } })).statusCode).toBe(200);
+  });
+
   it('says clearly when Seerr is slow or away, without breaking Vidalune', async () => {
     await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
     slow = true;

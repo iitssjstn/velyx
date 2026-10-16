@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import type { ServerSettings } from '../../lib/types';
+import { Link } from 'react-router-dom';
 import { intervalLabel } from '../../lib/format';
 import { Button } from '../../components/Button';
 import { ErrorState, PageLoader } from '../../components/States';
@@ -87,65 +88,37 @@ export function ScanSettings() {
   );
 }
 
-/** Metadata: where it comes from (TMDB and its key) and in which language. The key is write-only. */
+/** Metadata: in which language. It comes through vidalune.com, so there is no key to set; the status shows only when
+ *  metadata does not come in. */
 export function MetadataSettings() {
-  const { t, tRich } = useT();
+  const { t } = useT();
   const { query, save, form, setForm } = usePanel((s) => ({ tmdbLanguage: s.tmdbLanguage, includeAdult: s.includeAdult }));
-  const [key, setKey] = useState('');
   if (!query.data || !form) return <PanelState query={query} />;
   const s = query.data;
-  const savingKey = save.isPending && 'tmdbApiKey' in (save.variables ?? {});
+  const working = s.tmdb.configured || s.tmdb.via === 'vidalune';
   return (
     <section className="panel space-y-5 p-5 sm:p-6" aria-labelledby="tmdb-title">
       <div>
         <h2 id="tmdb-title" className="font-display text-lg font-semibold">{t('server.tmdbTitle')}</h2>
         <p className="mt-1 text-sm text-muted">{t('server.tmdbText')}</p>
       </div>
-      <p className="text-sm">
-        {t('server.status')}{' '}
-        {s.tmdb.configured ? (
-          <span className="text-ok">
-            {tRich(s.tmdb.source === 'environment' ? 'server.configuredEnv' : 'server.configuredSettings', { hint: s.tmdb.hint ? <span className="font-mono">{s.tmdb.hint}</span> : '' })}
-          </span>
-        ) : s.tmdb.via === 'vidalune' ? (
-          <span className="text-ok">{t('server.tmdbVidalune')}</span>
-        ) : (
+      {!working && (
+        <p className="text-sm">
           <span className="text-amber">{s.tmdb.linked ? t('server.tmdbVidaluneOff') : t('server.notConfigured')}</span>
-        )}
-      </p>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (key.trim()) save.mutate({ tmdbApiKey: key.trim() }, { onSuccess: () => setKey('') });
-        }}
-        className="flex flex-wrap gap-2"
-      >
-        <input
-          className="input min-w-0 flex-1 font-mono text-sm"
-          type="password"
-          autoComplete="off"
-          spellCheck={false}
-          placeholder={s.tmdb.configured ? t('server.newKey') : t('server.keyPlaceholder')}
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          aria-label={t('setup.tmdbKey')}
-        />
-        <Button type="submit" disabled={!key.trim()} loading={savingKey}>
-          {t('server.verifySave')}
-        </Button>
-        {s.tmdb.source === 'settings' && (
-          <Button variant="ghost" onClick={() => save.mutate({ tmdbApiKey: '' })}>
-            {t('server.removeKey')}
-          </Button>
-        )}
-      </form>
-      {s.tmdb.source === 'environment' && <p className="text-xs text-faint">{t('server.keyPriority')}</p>}
+          {!s.tmdb.linked && (
+            <>
+              {' '}
+              <Link to="/admin/cloud" className="text-accent hover:underline">{t('server.linkServer')}</Link>
+            </>
+          )}
+        </p>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           save.mutate({ tmdbLanguage: form.tmdbLanguage.trim(), includeAdult: form.includeAdult });
         }}
-        className="space-y-4 border-t border-line/60 pt-5"
+        className="space-y-4"
       >
         <div className="max-w-sm">
           <label className="label" htmlFor="lang">{t('server.metadataLanguage')}</label>
@@ -153,7 +126,7 @@ export function MetadataSettings() {
           <p className="mt-1 text-xs text-faint">{t('server.metadataLanguageHint')}</p>
         </div>
         <Check checked={form.includeAdult} onChange={(v) => setForm({ ...form, includeAdult: v })} label={t('server.includeAdult')} />
-        <Button type="submit" loading={save.isPending && !savingKey}>{t('common.save')}</Button>
+        <Button type="submit" loading={save.isPending}>{t('common.save')}</Button>
       </form>
     </section>
   );

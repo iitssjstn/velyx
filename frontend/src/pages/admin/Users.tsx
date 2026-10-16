@@ -177,6 +177,7 @@ function UserForm({ user, isSelf, onDone }: { user?: AdminUser; isSelf: boolean;
     password: '',
     /** null = every library, including ones added later. */
     libraryIds: user?.libraryIds ?? null,
+    seerrAccess: user?.seerrAccess ?? true,
   });
   const [error, setError] = useState<string | null>(null);
   const m = useMutation({
@@ -188,8 +189,9 @@ function UserForm({ user, isSelf, onDone }: { user?: AdminUser; isSelf: boolean;
           displayName: form.displayName.trim() || undefined,
           role: form.role,
           libraryIds: form.libraryIds,
+          seerrAccess: form.seerrAccess,
         });
-      const body: Record<string, unknown> = { displayName: form.displayName.trim() || null, libraryIds: form.libraryIds };
+      const body: Record<string, unknown> = { displayName: form.displayName.trim() || null, libraryIds: form.libraryIds, seerrAccess: form.seerrAccess };
       if (!isSelf) {
         body.role = form.role;
         body.disabled = form.disabled;
@@ -258,6 +260,20 @@ function UserForm({ user, isSelf, onDone }: { user?: AdminUser; isSelf: boolean;
           <LibraryPicker value={form.libraryIds} onChange={(libraryIds) => setForm({ ...form, libraryIds })} />
         )}
       </fieldset>
+      <fieldset>
+        <legend className="label">{t('users.seerr')}</legend>
+        {form.role === 'admin' ? (
+          <p className="text-sm text-muted">{t('users.adminsSeeSeerr')}</p>
+        ) : (
+          <label className="flex items-start gap-3 text-sm">
+            <input type="checkbox" className="mt-0.5 size-4 accent-[var(--color-accent)]" checked={form.seerrAccess} onChange={(e) => setForm({ ...form, seerrAccess: e.target.checked })} />
+            <span>
+              {t('users.seerrAccess')}
+              <span className="mt-0.5 block text-xs text-faint">{t('users.seerrAccessHint')}</span>
+            </span>
+          </label>
+        )}
+      </fieldset>
       {error && <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onDone}>{t('common.cancel')}</Button>
@@ -318,6 +334,9 @@ export function UsersPage() {
               <span className="hidden rounded-full bg-raised px-2.5 py-0.5 text-xs text-muted sm:inline" title={t('users.someLibraries')}>
                 {t('users.libraryCount', { count: u.libraryIds.length })}
               </span>
+            )}
+            {u.role !== 'admin' && !u.seerrAccess && (
+              <span className="hidden rounded-full bg-raised px-2.5 py-0.5 text-xs text-muted sm:inline">{t('users.noSeerr')}</span>
             )}
             <span className={`hidden rounded-full px-2.5 py-0.5 text-xs sm:inline ${u.role === 'admin' ? 'bg-accent/15 text-accent' : 'bg-raised text-muted'}`}>{u.role === 'admin' ? t('roles.admin') : t('roles.user')}</span>
             {u.disabled && <span className="rounded-full bg-danger/15 px-2.5 py-0.5 text-xs text-danger">{t('users.disabled')}</span>}

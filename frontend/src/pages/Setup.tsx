@@ -8,7 +8,7 @@ import { AuthShell } from './AuthShell';
 
 export function SetupPage() {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ username: '', password: '', confirm: '', serverName: 'Vidalune', tmdbApiKey: '' });
+  const [form, setForm] = useState({ username: '', password: '', confirm: '', serverName: 'Vidalune' });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { t } = useT();
@@ -25,7 +25,6 @@ export function SetupPage() {
         username: form.username.trim(),
         password: form.password,
         serverName: form.serverName.trim() || 'Vidalune',
-        tmdbApiKey: form.tmdbApiKey.trim() || undefined,
         // The language chosen on this page becomes the administrator's interface language.
         language: currentLanguage(),
       });
@@ -59,10 +58,6 @@ export function SetupPage() {
         <div>
           <label className="label" htmlFor="serverName">{t('setup.serverName')}</label>
           <input id="serverName" className="input" value={form.serverName} onChange={set('serverName')} maxLength={64} />
-        </div>
-        <div>
-          <label className="label" htmlFor="tmdbApiKey">{t('setup.tmdbKey')} <span className="font-normal text-faint">{t('common.optional')}</span></label>
-          <input id="tmdbApiKey" className="input" autoComplete="off" spellCheck={false} value={form.tmdbApiKey} onChange={set('tmdbApiKey')} maxLength={512} placeholder={t('setup.tmdbKeyPlaceholder')} />
         </div>
         <p className="text-xs text-faint">{t('setup.afterSetup')}</p>
         {error && (

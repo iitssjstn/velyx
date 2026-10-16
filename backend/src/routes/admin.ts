@@ -39,6 +39,8 @@ const userCreate = z.object({
   role: z.enum(['admin', 'user']).default('user'),
   /** null (or omitted) = every library, including ones added later. */
   libraryIds: z.array(z.number().int().positive()).max(1000).nullable().optional(),
+  /** Sees Seerr (catalogue, search outside the library, requests). Administrators always do. */
+  seerrAccess: z.boolean().optional(),
 });
 const userUpdate = z.object({
   displayName: z.string().trim().max(64).nullable().optional(),
@@ -46,6 +48,7 @@ const userUpdate = z.object({
   disabled: z.boolean().optional(),
   password: z.string().optional(),
   libraryIds: z.array(z.number().int().positive()).max(1000).nullable().optional(),
+  seerrAccess: z.boolean().optional(),
 });
 
 const settingsBody = z.object({
@@ -394,6 +397,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     createdAt: u.createdAt,
     lastLoginAt: u.lastLoginAt,
     libraryIds: ctx.access.grantedIds(u.id),
+    seerrAccess: u.seerrAccess,
   });
 
   app.get('/api/users', { preHandler: requireAdmin }, async () => db.select().from(users).orderBy(users.username).all().map(userView));
@@ -408,7 +412,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (db.select({ id: users.id }).from(users).where(sql`lower(${users.username}) = lower(${body.username})`).get()) throw new HttpError(409, 'That username is taken.');
     const row = db
       .insert(users)
-      .values({ username: body.username, displayName: body.displayName || null, role: body.role, passwordHash: await hashPassword(body.password) })
+      .values({ username: body.username, displayName: body.displayName || null, role: body.role, seerrAccess: body.seerrAccess ?? true, passwordHash: await hashPassword(body.password) })
       .returning()
       .get();
     if (body.libraryIds) ctx.access.setGrants(row.id, body.libraryIds);
@@ -431,6 +435,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (body.displayName !== undefined) patch.displayName = body.displayName || null;
     if (body.role) patch.role = body.role;
     if (body.disabled !== undefined) patch.disabled = body.disabled;
+    if (body.seerrAccess !== undefined) patch.seerrAccess = body.seerrAccess;
     if (body.password !== undefined) {
       const pErr = validatePassword(body.password);
       if (pErr) throw new HttpError(400, pErr);
@@ -444,6 +449,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       body.disabled !== undefined && body.disabled !== target.disabled ? (body.disabled ? 'disabled' : 'enabled') : null,
       body.displayName !== undefined && (body.displayName || null) !== target.displayName ? 'display name changed' : null,
       body.libraryIds !== undefined ? (body.libraryIds === null ? 'library access: all' : `library access: ${body.libraryIds.length} libraries`) : null,
+      body.seerrAccess !== undefined && body.seerrAccess !== target.seerrAccess ? (body.seerrAccess ? 'Seerr on' : 'Seerr off') : null,
     ].filter(Boolean);
     if (changes.length) ctx.audit.record('user.updated', { actor: request.user, ip: request.ip, target: target.username, detail: changes.join('; ') });
     if (body.password !== undefined) ctx.audit.record('user.password_reset', { actor: request.user, ip: request.ip, target: target.username });

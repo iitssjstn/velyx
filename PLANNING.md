@@ -97,7 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- Laatste release: **0.19.66** (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts; gemerged 16 okt); release `v0.19.66` gecontroleerd: APK en beide `.deb`-pakketten aanwezig. Daarvoor 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.67** (PR #152, ondertekende app-bundel voor de Play Store; gemerged 16 okt); release `v0.19.67` gecontroleerd: APK, beide `.deb`-pakketten en `vidalune-0.19.67.aab` aanwezig. Daarvoor 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -1201,3 +1201,38 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Niet lokaal te testen (geen Android SDK); bevestigt zich in de release-run. Door de eigenaar: sleutel maken en de
   vier secrets zetten vóór de merge.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1967) en beide lockfiles bijgewerkt.
+- De eigenaar zette de vier secrets; PR #152 gemerged 16 okt op zijn verzoek ("merge het maar", alle checks groen).
+  Release `v0.19.67` gecontroleerd: APK, beide `.deb`'s en `vidalune-0.19.67.aab` (de run weigert een bundel met de
+  debugsleutel, dus hij is met de uploadsleutel ondertekend). De eigenaar uploadt het `.aab` in de Play Console.
+
+## Versie 0.19.68 (geen TMDB-sleutel en ondertitelinstellingen meer in Beheer)
+
+- Op verzoek van de eigenaar (16 okt, screenshot van Beheer > Metadata): "Deze optie mag wel weg want alles gaat via de
+  relay, eigenlijk haal de ondertiteling en tmdb pagina allebij weg maar laat ze allebij gewoon werken".
+- Beheer > Metadata: geen sleutelveld en geen status meer; alleen metadatataal en volwassen titels (die bepalen nog
+  wat er opgehaald wordt) en de lijst met na te kijken titels. Een melding verschijnt alleen als er geen metadata
+  binnenkomt: niet gekoppeld (met link "Server koppelen") of vidalune.com even niet bereikbaar.
+- Beheer > Afspelen: het blok "Ondertitels online" is weg; online ondertitels werken zodra de server gekoppeld is.
+- Setup: geen TMDB-sleutelveld meer. De server zelf is ongewijzigd: `TMDB_API_KEY` in de omgeving en een eerder
+  opgeslagen sleutel werken nog (gaan voor vidalune.com), maar er is geen veld meer voor. README bijgewerkt.
+- Tests: Metadata zonder sleutelveld, melding bij niet gekoppeld en bij vidalune.com plat, taal opslaan; Afspelen
+  zonder ondertitelblok en zonder `/api/admin/online-subtitles`; Setup zonder sleutelveld. Frontend 338 tests,
+  typecheck, lint (4 bekende waarschuwingen) en de frontend-build slagen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1968) en beide lockfiles bijgewerkt.
+- Ook in deze versie (16 okt, de Play Console vraagt om een privacybeleid): **vidalune.com/privacy** (Engels en
+  Nederlands, `privacyPage` in `cloud/src/site.ts`), gelinkt in de footer en in de sitemap; niet op app.vidalune.com.
+  Volgt de code: wat de accountdienst bewaart (schema), de app (geen reclame, analyse of tracking), gebruikte diensten
+  (TMDB, OpenSubtitles, Postmark, OVHcloud, Cloudflare, YouTube bij trailers), bewaartermijn en verwijderen via
+  Mijn servers > Account verwijderen. Contact info@vidalune.com. Test in `cloud/test/install.test.ts`; cloud 171 tests.
+- Ook in deze versie (16 okt, wens eigenaar: "Maak een functie want anders moet ik de hele tijd die demo versie draaien";
+  daarna "Zorg ook dat de functie achteraf te bewerken is"): **Seerr per gebruiker**. Beheer > Gebruikers, bij toevoegen
+  en bewerken: "Ziet Seerr en mag films en series aanvragen" (standaard aan; beheerders altijd). Uit: `/api/seerr` geeft
+  `enabled: false` (website en app verbergen dan rijen, zoeken buiten de bibliotheek, Aanvragen) en de andere
+  `/api/seerr/*`-routes geven 403 zonder Seerr te vragen. Kolom `users.seerr_access` (migratie `0028_seerr_access`), Zod,
+  auditlog ("Seerr off/on"), label "Geen Seerr" in de lijst. Voor het Play-beoordelingsaccount: eigen demobibliotheek,
+  bibliotheektoegang alleen daartoe en Seerr uit. Tests: backend (uit/aan, alle routes 403, niets naar Seerr, beheerder
+  altijd, gebruiker kan het zelf niet aanzetten), frontend (bewerken en later weer aan, label, niet voor beheerders).
+  Backend 582, frontend 341, cloud 171 tests; typechecks en lint (4 bekende waarschuwingen) slagen.
+- Play Console (door de eigenaar): privacybeleid-URL `https://vidalune.com/privacy`; verwijder-URL voor gegevens
+  `https://vidalune.com/account`. Inloggegevens voor de beoordeling: een testaccount met toegang tot een server (pas
+  nodig voor een gesloten test of productie).

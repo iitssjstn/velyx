@@ -16,14 +16,10 @@ export function useServerSettings() {
   const query = useQuery({ queryKey: ['admin', 'settings'], queryFn: () => api.get<ServerSettings>('/api/admin/settings') });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => api.put<ServerSettings>('/api/admin/settings', body),
-    onSuccess: (data, body) => {
+    onSuccess: (data) => {
       qc.setQueryData(['admin', 'settings'], data);
       refetchServer();
-      if ('tmdbApiKey' in body) {
-        // A new or removed TMDB key changes what the Metadata page can show.
-        void qc.invalidateQueries({ queryKey: ['admin', 'review'] });
-        toast.success(body.tmdbApiKey ? t('server.keySaved') : t('server.keyRemoved'));
-      } else toast.success(t('server.saved'));
+      toast.success(t('server.saved'));
     },
     onError: (err) => toast.error(err),
   });
