@@ -1201,3 +1201,5 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Niet lokaal te testen (geen Android SDK); bevestigt zich in de release-run. Door de eigenaar: sleutel maken en de
   vier secrets zetten vóór de merge.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1967) en beide lockfiles bijgewerkt.
+- De eigenaar zette de vier secrets; PR #152 gemerged 16 okt op zijn verzoek ("merge het maar", alle checks groen).
+  Nog te controleren: release `v0.19.67` met APK, beide `.deb`'s en het `.aab` (niet met de debugsleutel).
