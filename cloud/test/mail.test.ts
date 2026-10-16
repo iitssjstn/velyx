@@ -118,6 +118,19 @@ describe('confirming the email address', () => {
     expect((await me(cookie)).json()).toMatchObject({ admin: true, ceo: true });
   });
 
+  it('shows the CEO which customers have not confirmed their address yet, and lets them filter on it', async () => {
+    await start({ adminEmails: ['boss@example.com'] });
+    const boss = cookieOf(await signUp('boss@example.com'));
+    await confirm(lastLink().token);
+    await signUp('new@example.com');
+    const list = async (status = 'all') => (await cloud.inject({ url: `/api/ceo/customers?status=${status}`, headers: { cookie: boss } })).json();
+    const all = await list();
+    expect(all.customers.find((c: { email: string }) => c.email === 'new@example.com').verified).toBe(false);
+    expect(all.customers.find((c: { email: string }) => c.email === 'boss@example.com').verified).toBe(true);
+    expect(all.summary).toMatchObject({ total: 2, unverified: 1, new7: 2 });
+    expect((await list('unverified')).customers.map((c: { email: string }) => c.email)).toEqual(['new@example.com']);
+  });
+
   it('without mail set up, nothing is sent and the rights work as before', async () => {
     await start({ mail: null, adminEmails: ['boss@example.com'] });
     const cookie = cookieOf(await signUp('boss@example.com'));

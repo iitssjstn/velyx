@@ -1228,6 +1228,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     signOut: (accountId) => void db.delete(accountSessions).where(eq(accountSessions.accountId, accountId)).run(),
     fetchImpl: opts.fetchImpl,
     directDnsUsage: () => dnsUsage,
+    mailEnabled: () => mailer.enabled,
   });
   app.decorate('ceoMonitor', ceo.monitor);
 

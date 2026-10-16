@@ -89,3 +89,114 @@ describe('the Control Center community page', () => {
     await vi.waitFor(() => expect(saved).toEqual({ discordUrl: 'https://discord.gg/NewInvite' }));
   });
 });
+
+const json = (d: unknown) => new Response(JSON.stringify(d), { status: 200, headers: { 'content-type': 'application/json' } });
+/** Answers the Control Center's requests from `routes` (by path without query), and records every URL asked. */
+function serve(routes: Record<string, unknown>) {
+  const asked: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    asked.push(url);
+    if (url === '/api/account') return json({ ceo: true, email: 'ceo@example.com', version: '0.19.69' });
+    const body = routes[url.split('?')[0]];
+    return body === undefined ? new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } }) : json(body);
+  }));
+  return asked;
+}
+
+describe('the Control Center overview', () => {
+  it('lists what needs attention, each with a link to fix it', async () => {
+    const d = dashboard(10);
+    d.relays.list = [{ id: 2, name: 'Relay EU', status: 'offline' }] as never;
+    (d.access as Record<string, unknown>).expiringIn7Days = 2;
+    serve({ '/api/ceo/dashboard': d, '/api/ceo/mail': { configured: false }, '/api/ceo/tmdb': { configured: true }, '/api/ceo/subtitles': { configured: true } });
+    location.hash = '#/overview';
+    openPanel();
+    await vi.waitFor(() => expect(text()).toContain('Needs attention (3)'));
+    const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('#view .cc-attention a')).map((a) => a.getAttribute('href'));
+    expect(links).toEqual(['#/relays/2', '#/mail', '#/access?show=expiring']);
+    expect(text()).toContain('Relay EU is offline');
+    expect(text()).not.toContain('TMDB is not set up');
+  });
+
+  it('says all is fine when nothing needs a look, also when a service cannot be read', async () => {
+    serve({ '/api/ceo/dashboard': dashboard(10), '/api/ceo/mail': { configured: true } });
+    location.hash = '#/overview';
+    openPanel();
+    await vi.waitFor(() => expect(text()).toContain('All good: nothing needs your attention right now.'));
+    expect(document.querySelector('#view .cc-attention.fine')).not.toBeNull();
+  });
+});
+
+describe('the Control Center customer list', () => {
+  const customer = (id: number, email: string, extra: Record<string, unknown> = {}) => ({
+    id, email, name: null, status: 'active', invited: false, verified: true, createdAt: 0, lastActive: null, access: null, relay: { name: 'Main' }, ...extra,
+  });
+  const list = {
+    customers: [customer(1, 'ok@example.com'), customer(2, 'new@example.com', { verified: false })],
+    total: 2, page: 1, pageSize: 50,
+    summary: { total: 2, active: 2, new7: 1, expiring30: 0, unverified: 1 },
+  };
+
+  it('shows the key figures, who has not confirmed their address, and filters through the server', async () => {
+    const asked = serve({ '/api/ceo/customers': list });
+    location.hash = '#/customers';
+    openPanel();
+    await vi.waitFor(() => expect(text()).toContain('new@example.com'));
+    const cards = Array.from(document.querySelectorAll('#view .cc-stat')).map((c) => c.textContent);
+    expect(cards[0]).toContain('2');
+    expect(cards[0]).toContain('1 not confirmed');
+    const rows = Array.from(document.querySelectorAll('#view tbody tr'));
+    expect(rows[0].textContent).toContain('Active');
+    expect(rows[1].textContent).toContain('Not confirmed');
+
+    const status = document.querySelector<HTMLSelectElement>('#view .cc-filter select')!;
+    status.value = 'unverified';
+    status.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => expect(asked.some((u) => u.startsWith('/api/ceo/customers?') && new URL(u, 'http://x').searchParams.get('status') === 'unverified')).toBe(true));
+  });
+
+  it('opens the actions of a row without opening the customer', async () => {
+    serve({ '/api/ceo/customers': list });
+    location.hash = '#/customers';
+    openPanel();
+    const button = await vi.waitFor(() => {
+      const b = document.querySelector<HTMLButtonElement>('#view tbody tr .cc-rowmenu-button');
+      expect(b).not.toBeNull();
+      return b!;
+    });
+    button.click();
+    const items = Array.from(document.querySelectorAll('.cc-rowmenu-list:not([hidden]) button')).map((b) => b.textContent);
+    expect(items).toEqual(['Open customer', 'Grant access', 'Suspend customer']);
+    expect(location.hash).toBe('#/customers');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(document.querySelector('.cc-rowmenu-list:not([hidden])')).toBeNull();
+  });
+});
+
+describe('the Control Center access page', () => {
+  it('splits access by type, says payments are manual, and searches without asking the server again', async () => {
+    const grant = (id: number, email: string, type: string) => ({ id, accountId: id, email, name: null, type, plan: 'remote', status: 'active', startsAt: 0, endsAt: null });
+    const asked = serve({
+      '/api/ceo/access': {
+        grants: [grant(1, 'anna@example.com', 'customer'), grant(2, 'bob@example.com', 'beta')],
+        summary: { total: 2, byType: { customer: 1, beta: 1 }, expiringIn7Days: 0, expiringIn30Days: 0, expired: 0 },
+      },
+    });
+    location.hash = '#/access';
+    openPanel();
+    await vi.waitFor(() => expect(text()).toContain('anna@example.com'));
+    expect(text()).toContain('Payments are not connected yet.');
+    expect(document.querySelectorAll('#view .cc-donut circle, #view .cc-donut path').length).toBeGreaterThan(0);
+    const legend = document.querySelector('#view .cc-breakdown-mini')!.textContent;
+    expect(legend).toContain('Customer');
+    expect(legend).toContain('Beta');
+
+    const calls = asked.length;
+    const search = document.querySelector<HTMLInputElement>('#view input[type="search"]')!;
+    search.value = 'bob';
+    search.dispatchEvent(new Event('input'));
+    expect(text()).toContain('bob@example.com');
+    expect(text()).not.toContain('anna@example.com');
+    expect(asked.length).toBe(calls);
+  });
+});

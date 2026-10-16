@@ -15,10 +15,10 @@
         failed: 'Dat lukte niet. Probeer het opnieuw.', loadFailed: 'Kon dit niet laden.', retry: 'Opnieuw proberen', na: 'n.v.t.', none: 'Niets gevonden.', noData: 'Nog geen gegevens.', noHistory: 'Nog geen historische gegevens.',
         cancel: 'Annuleren', save: 'Opslaan', close: 'Sluiten', back: 'Terug', open: 'Openen', viewAll: 'Alles bekijken', more: 'Meer laden', page: 'Pagina {page} van {pages}',
         payments: 'Betalingen zijn nog niet gekoppeld. Toegang wordt nu met de hand beheerd.',
-        customers: 'Klanten', totalCustomers: 'Klanten totaal', activeCustomers: 'Actieve klanten', ofCustomers: '{pct} van de klanten', new7: 'Nieuwe klanten', new30: 'Nieuwe klanten', last7: 'Laatste 7 dagen', last30: 'Laatste 30 dagen', growth: 'Groei', growthSub: '30 dagen t.o.v. de 30 daarvoor', suspendedN: '{n} geblokkeerd',
+        customers: 'Klanten', totalCustomers: 'Klanten totaal', activeCustomers: 'Actieve klanten', ofCustomers: '{pct} van de klanten', new7: 'Nieuw (7 dagen)', new30: 'Nieuw (30 dagen)', last7: 'Laatste 7 dagen', last30: 'Laatste 30 dagen', growth: 'Groei', growthSub: '30 dagen t.o.v. de 30 daarvoor', suspendedN: '{n} geblokkeerd',
         access: 'Toegang', withAccess: 'Met toegang', expiringSoon: 'Loopt binnenkort af', within14: 'Binnen 14 dagen', within7: 'Binnen 7 dagen', expired: 'Verlopen',
         types: { customer: 'Klant', beta: 'Beta', test: 'Test', free: 'Gratis' }, plans: { remote: 'Toegang op afstand', viewer: 'Kijker' }, noAccess: 'Geen toegang',
-        status: { active: 'Actief', inactive: 'Niet actief', suspended: 'Geblokkeerd', scheduled: 'Gepland', expiring: 'Loopt af', expired: 'Verlopen', revoked: 'Ingetrokken', online: 'Online', degraded: 'Verminderd', offline: 'Offline', unknown: 'Nog niet gecontroleerd', disabled: 'Uit' },
+        status: { active: 'Actief', inactive: 'Niet actief', suspended: 'Geblokkeerd', scheduled: 'Gepland', expiring: 'Loopt af', expired: 'Verlopen', revoked: 'Ingetrokken', online: 'Online', degraded: 'Verminderd', offline: 'Offline', unknown: 'Nog niet gecontroleerd', disabled: 'Uit', unverified: 'Niet bevestigd' },
         invited: 'Wacht op aanmelding',
         infra: 'Relay-infrastructuur', activeRelays: 'Actieve relays', onlineRelays: 'Online relays', ofRelays: 'van {n}', clients: 'Verbonden clients', clientsSub: 'apparaten, laatste 5 min.', connectedServers: 'Verbonden servers', capacity: 'Capaciteit', current: 'Huidige bandbreedte', version: 'Vidalune {v}', load: 'Belasting', available: 'Beschikbaar', peak: 'Piek', uptime: 'Uptime', lastSeen: 'Laatst gezien {when}', lastHeartbeat: 'Laatste controle', neverChecked: 'nog niet gecontroleerd',
         health: 'Relay-status', mainRelay: 'hoofdrelay', nearQuota: '{name}: {used} van {quota} GB deze maand; daarna {mbps} Mbit/s.', dnsRecords: 'DNS-records', dnsRecordsSub: 'van {limit} toegestaan', dnsNear: 'DNS-records bijna vol: {used} van {limit} in gebruik. Ruim op of neem een groter Cloudflare-plan.', recent: 'Recente activiteit', when: 'Tijdstip', action: 'Actie', target: 'Waarop', actor: 'Door', system: 'systeem',
@@ -29,9 +29,9 @@
           'relay.online': 'Relay weer online', 'relay.offline': 'Relay offline', 'relay.customerAssigned': 'Klant aan relay gekoppeld', 'relay.customerRemoved': 'Klant van relay gehaald',
           'relay.serverAssigned': 'Server aan relay gekoppeld', 'relay.serverRemoved': 'Server van relay gehaald', 'server.limitChanged': 'Serverlimiet gewijzigd',
         },
-        search: 'Klanten zoeken', addCustomer: 'Klant toevoegen', filters: { all: 'Alle', active: 'Actief', inactive: 'Niet actief', expiring: 'Loopt af', none: 'Geen toegang', suspended: 'Geblokkeerd', invited: 'Wacht op aanmelding' },
+        search: 'Klanten zoeken', addCustomer: 'Klant toevoegen', filters: { all: 'Alle', active: 'Actief', inactive: 'Niet actief', new: 'Nieuw (30 dagen)', unverified: 'Niet bevestigd', expiring: 'Loopt af', none: 'Geen toegang', suspended: 'Geblokkeerd', invited: 'Wacht op aanmelding' },
         sort: 'Sorteren', sorts: { created: 'Aangemaakt', lastActive: 'Laatst actief', expires: 'Verloopt', name: 'Naam' }, asc: 'Oplopend', desc: 'Aflopend',
-        col: { customer: 'Klant', email: 'E-mail', access: 'Toegang', status: 'Status', created: 'Aangemaakt', lastActive: 'Laatst actief', expires: 'Verloopt', relay: 'Relay', started: 'Gestart', type: 'Type', plan: 'Wat', server: 'Server', device: 'Apparaat', since: 'Verbonden sinds', usage: 'Verbruik', owner: 'Eigenaar', now: 'Nu', limit: 'Limiet' },
+        col: { customer: 'Klant', email: 'E-mail', access: 'Toegang', status: 'Status', created: 'Aangemaakt', lastActive: 'Laatst actief', expires: 'Verloopt', relay: 'Relay', started: 'Gestart', type: 'Type', plan: 'Wat', server: 'Server', device: 'Apparaat', since: 'Verbonden sinds', usage: 'Verbruik', owner: 'Eigenaar', now: 'Nu', limit: 'Limiet', actions: 'Acties' },
         never: 'nog nooit', noEnd: 'geen einddatum', name: 'Naam', email: 'E-mailadres', note: 'Notitie', notes: 'Notities', accessType: 'Soort toegang', accessStart: 'Begin', accessEnd: 'Einde (leeg: geen einddatum)', plan: 'Wat', relay: 'Relay', relayDefault: 'Hoofdrelay (vidalune.com)',
         addHint: 'De klant kiest een wachtwoord door zich op vidalune.com aan te melden met dit e-mailadres.', added: 'Klant toegevoegd: {email}.',
         overviewCard: 'Account', created: 'Aangemaakt', lastActive: 'Laatst actief', activeDays: 'Actieve dagen (30)', devices: 'Ingelogde apparaten', currentAccess: 'Huidige toegang', scheduledAccess: 'Gepland vanaf {date}', history: 'Geschiedenis van toegang', servers: 'Servers', noServers: 'Nog geen servers gekoppeld.', connected: 'verbonden', notConnected: 'niet verbonden',
@@ -53,6 +53,12 @@
         range: 'Periode', ranges: { '1h': '1 uur', '6h': '6 uur', '24h': '24 uur', '7d': '7 dagen', '30d': '30 dagen', '90d': '90 dagen', '365d': '1 jaar' },
         stats: { customers: 'Klanten', active: 'Actief in periode', new: 'Nieuw in periode', growth: 'Groei t.o.v. vorige periode', accessStats: 'Toegang', relayStats: 'Relays', total: 'Relays', online: 'Online', offline: 'Offline', avgLoad: 'Gemiddelde belasting', since: 'Metingen sinds {date}' },
         chartAccounts: 'Accounts (totaal)', chartNew: 'Nieuwe accounts per dag', chartActive: 'Actieve accounts per dag', chartAccess: 'Accounts met toegang', chartHourly: 'Bandbreedte per uur (Mbit/s)', chartClients: 'Clients per uur',
+        attention: 'Aandacht nodig', allGood: 'Alles in orde: niets vraagt nu je aandacht.', alert: 'Let op:',
+        att: { relayOffline: '{name} is offline', mailOff: 'Mail is niet ingesteld: e-mailadressen bevestigen en wachtwoord vergeten werken niet.', tmdbOff: 'TMDB is niet ingesteld: servers zonder eigen sleutel krijgen geen metadata.', subsOff: 'Ondertitels zijn niet ingesteld: servers kunnen geen ondertitels online zoeken.', expiring: 'Toegang van {n} klant(en) loopt binnen 7 dagen af.', unverified: '{n} klant(en) hebben hun e-mailadres nog niet bevestigd.', unverifiedShort: '{n} niet bevestigd', fix: 'Bekijken' },
+        customerOverview: 'Klantoverzicht', accessBreakdown: 'Verdeling toegang', networkCapacity: 'Netwerkcapaciteit', ofCapacity: 'van {cap}', noCompare: 'nog niets om mee te vergelijken', ofCustomersN: 'van {n} klanten', thisWeek: '+{n} deze week', total: 'Totaal',
+        expiringCustomers: 'Klanten die aflopen', within30: 'Binnen 30 dagen', statusLabel: 'Status', allStatuses: 'Alle', allAccess: 'Alle', actionsFor: 'Acties voor {who}', openCustomer: 'Klant openen',
+        totalActiveAccess: 'Actieve toegang', expiringAccess: 'Toegang die afloopt (30 dagen)', noneExpiring: 'Niets loopt binnenkort af', expiring7Foot: '{n} binnen 7 dagen', allFine: 'Alles in orde', searchAccess: 'Zoeken op e-mail, naam of wat…', showLabel: 'Tonen',
+        chips: { max: 'MAX', live: 'LIVE', free: 'VRIJ', optimal: 'OPTIMAAL', busy: 'DRUK', full: 'VOL', on: 'AAN', off: 'UIT' }, serviceStatus: 'Status', on: 'Aan', off: 'Uit', settings: 'Instellingen', figures: 'Cijfers',
         table: 'Als tabel', day: 'Dag', value: 'Waarde', ago: { now: 'zojuist', m: '{n} min. geleden', h: '{n} uur geleden', d: '{n} dagen geleden' },
       }
     : {
@@ -65,10 +71,10 @@
         failed: 'That did not work. Try again.', loadFailed: 'Could not load this.', retry: 'Retry', na: 'N/A', none: 'Nothing found.', noData: 'No data available yet.', noHistory: 'No historical data available.',
         cancel: 'Cancel', save: 'Save', close: 'Close', back: 'Back', open: 'Open', viewAll: 'View all', more: 'Load more', page: 'Page {page} of {pages}',
         payments: 'Payments are not connected yet. Customer access is currently managed manually.',
-        customers: 'Customers', totalCustomers: 'Total customers', activeCustomers: 'Active customers', ofCustomers: '{pct} of customers', new7: 'New customers', new30: 'New customers', last7: 'Last 7 days', last30: 'Last 30 days', growth: 'Growth', growthSub: '30 days against the 30 before', suspendedN: '{n} suspended',
+        customers: 'Customers', totalCustomers: 'Total customers', activeCustomers: 'Active customers', ofCustomers: '{pct} of customers', new7: 'New (7 days)', new30: 'New (30 days)', last7: 'Last 7 days', last30: 'Last 30 days', growth: 'Growth', growthSub: '30 days against the 30 before', suspendedN: '{n} suspended',
         access: 'Access', withAccess: 'With access', expiringSoon: 'Expiring soon', within14: 'Within 14 days', within7: 'Within 7 days', expired: 'Expired',
         types: { customer: 'Customer', beta: 'Beta', test: 'Test', free: 'Free' }, plans: { remote: 'Remote access', viewer: 'Viewer' }, noAccess: 'No access',
-        status: { active: 'Active', inactive: 'Inactive', suspended: 'Suspended', scheduled: 'Scheduled', expiring: 'Expiring', expired: 'Expired', revoked: 'Revoked', online: 'Online', degraded: 'Degraded', offline: 'Offline', unknown: 'Not checked yet', disabled: 'Off' },
+        status: { active: 'Active', inactive: 'Inactive', suspended: 'Suspended', scheduled: 'Scheduled', expiring: 'Expiring', expired: 'Expired', revoked: 'Revoked', online: 'Online', degraded: 'Degraded', offline: 'Offline', unknown: 'Not checked yet', disabled: 'Off', unverified: 'Not confirmed' },
         invited: 'Awaiting sign-up',
         infra: 'Relay infrastructure', activeRelays: 'Active relays', onlineRelays: 'Online relays', ofRelays: 'of {n}', clients: 'Connected clients', clientsSub: 'devices, last 5 min', connectedServers: 'Connected servers', capacity: 'Capacity', current: 'Current bandwidth', version: 'Vidalune {v}', load: 'Relay load', available: 'Available', peak: 'Peak', uptime: 'Uptime', lastSeen: 'Last seen {when}', lastHeartbeat: 'Last heartbeat', neverChecked: 'not checked yet',
         health: 'Relay health', mainRelay: 'main relay', nearQuota: '{name}: {used} of {quota} GB this month; then {mbps} Mbit/s.', dnsRecords: 'DNS records', dnsRecordsSub: 'of {limit} allowed', dnsNear: 'DNS records almost full: {used} of {limit} in use. Clean up or get a larger Cloudflare plan.', recent: 'Recent activity', when: 'Time', action: 'Action', target: 'Target', actor: 'Actor', system: 'system',
@@ -79,9 +85,9 @@
           'relay.online': 'Relay back online', 'relay.offline': 'Relay offline', 'relay.customerAssigned': 'Customer assigned to relay', 'relay.customerRemoved': 'Customer taken off relay',
           'relay.serverAssigned': 'Server assigned to relay', 'relay.serverRemoved': 'Server taken off relay', 'server.limitChanged': 'Server limit changed',
         },
-        search: 'Search customers', addCustomer: 'Add customer', filters: { all: 'All', active: 'Active', inactive: 'Inactive', expiring: 'Expiring soon', none: 'No access', suspended: 'Suspended', invited: 'Awaiting sign-up' },
+        search: 'Search customers', addCustomer: 'Add customer', filters: { all: 'All', active: 'Active', inactive: 'Inactive', new: 'New (30 days)', unverified: 'Not confirmed', expiring: 'Expiring soon', none: 'No access', suspended: 'Suspended', invited: 'Awaiting sign-up' },
         sort: 'Sort', sorts: { created: 'Created', lastActive: 'Last active', expires: 'Expiration', name: 'Name' }, asc: 'Ascending', desc: 'Descending',
-        col: { customer: 'Customer', email: 'Email', access: 'Access', status: 'Status', created: 'Created', lastActive: 'Last active', expires: 'Expires', relay: 'Relay', started: 'Started', type: 'Type', plan: 'Plan', server: 'Server', device: 'Device', since: 'Connected since', usage: 'Usage', owner: 'Owner', now: 'Now', limit: 'Limit' },
+        col: { customer: 'Customer', email: 'Email', access: 'Access', status: 'Status', created: 'Created', lastActive: 'Last active', expires: 'Expires', relay: 'Relay', started: 'Started', type: 'Type', plan: 'Plan', server: 'Server', device: 'Device', since: 'Connected since', usage: 'Usage', owner: 'Owner', now: 'Now', limit: 'Limit', actions: 'Actions' },
         never: 'never', noEnd: 'no end date', name: 'Name', email: 'Email address', note: 'Note', notes: 'Notes', accessType: 'Access type', accessStart: 'Access start', accessEnd: 'Access expiration (empty: no end)', plan: 'Plan', relay: 'Relay', relayDefault: 'Main relay (vidalune.com)',
         addHint: 'The customer chooses a password by signing up on vidalune.com with this email address.', added: 'Customer added: {email}.',
         overviewCard: 'Account', created: 'Created', lastActive: 'Last active', activeDays: 'Active days (30)', devices: 'Signed-in devices', currentAccess: 'Current access', scheduledAccess: 'Scheduled from {date}', history: 'Access history', servers: 'Servers', noServers: 'No servers linked yet.', connected: 'connected', notConnected: 'not connected',
@@ -103,6 +109,12 @@
         range: 'Period', ranges: { '1h': '1 hour', '6h': '6 hours', '24h': '24 hours', '7d': '7 days', '30d': '30 days', '90d': '90 days', '365d': '1 year' },
         stats: { customers: 'Customers', active: 'Active in period', new: 'New in period', growth: 'Growth vs previous period', accessStats: 'Access', relayStats: 'Relays', total: 'Relays', online: 'Online', offline: 'Offline', avgLoad: 'Average load', since: 'Measured since {date}' },
         chartAccounts: 'Accounts (total)', chartNew: 'New accounts per day', chartActive: 'Active accounts per day', chartAccess: 'Accounts with access', chartHourly: 'Bandwidth per hour (Mbit/s)', chartClients: 'Clients per hour',
+        attention: 'Needs attention', allGood: 'All good: nothing needs your attention right now.', alert: 'Alert:',
+        att: { relayOffline: '{name} is offline', mailOff: 'Mail is not set up: confirming addresses and forgot password do not work.', tmdbOff: 'TMDB is not set up: servers without a key of their own get no metadata.', subsOff: 'Subtitles are not set up: servers cannot search subtitles online.', expiring: 'Access of {n} customer(s) ends within 7 days.', unverified: '{n} customer(s) have not confirmed their email address yet.', unverifiedShort: '{n} not confirmed', fix: 'View' },
+        customerOverview: 'Customer overview', accessBreakdown: 'Access breakdown', networkCapacity: 'Network capacity', ofCapacity: 'of {cap}', noCompare: 'nothing to compare yet', ofCustomersN: 'of {n} customers', thisWeek: '+{n} this week', total: 'Total',
+        expiringCustomers: 'Expiring customers', within30: 'Within 30 days', statusLabel: 'Status', allStatuses: 'All', allAccess: 'All', actionsFor: 'Actions for {who}', openCustomer: 'Open customer',
+        totalActiveAccess: 'Total active access', expiringAccess: 'Expiring access (30 days)', noneExpiring: 'Nothing expiring soon', expiring7Foot: '{n} within 7 days', allFine: 'Everything in order', searchAccess: 'Search by customer email, name or plan…', showLabel: 'Show',
+        chips: { max: 'MAX', live: 'REAL-TIME', free: 'FREE', optimal: 'OPTIMAL', busy: 'BUSY', full: 'FULL', on: 'ON', off: 'OFF' }, serviceStatus: 'Status', on: 'On', off: 'Off', settings: 'Settings', figures: 'Figures',
         table: 'As a table', day: 'Day', value: 'Value', ago: { now: 'just now', m: '{n} min ago', h: '{n} h ago', d: '{n} days ago' },
       };
   /** An action's name (its key has dots of its own). */
@@ -146,6 +158,17 @@
     close: ['M18 6 6 18', 'M6 6l12 12'],
     plus: ['M12 5v14', 'M5 12h14'],
     back: ['M19 12H5', 'M12 19l-7-7 7-7'],
+    alert: ['M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z', 'M12 9v4', 'M12 17h.01'],
+    dots: ['M12 5h.01', 'M12 12h.01', 'M12 19h.01'],
+    search: ['M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z', 'M21 21l-4.35-4.35'],
+    cloud: ['M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z'],
+    pulse: ['M22 12h-4l-3 9L9 3l-3 9H2'],
+    fork: ['M6 3v12', 'M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M18 9a9 9 0 0 1-9 9'],
+    gauge: ['M12 14l4-4', 'M3.34 19a10 10 0 1 1 17.32 0'],
+    calendar: ['M3 4h18v18H3z', 'M16 2v4', 'M8 2v4', 'M3 10h18'],
+    server: ['M2 2h20v8H2z', 'M2 14h20v8H2z', 'M6 6h.01', 'M6 18h.01'],
+    globe: ['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z', 'M2 12h20', 'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'],
+    check: ['M20 6 9 17l-5-5'],
   };
   const icon = (name) => svg('svg', { viewBox: '0 0 24 24', class: 'icon', 'aria-hidden': 'true' }, ICONS[name].map((d) => svg('path', { d })));
 
@@ -241,7 +264,7 @@
   const header = (title, sub, ...actions) => el('div', { class: 'cc-head' }, el('div', {}, el('h1', {}, title), sub ? el('p', { class: 'cc-sub' }, sub) : null), actions.length ? el('div', { class: 'cc-head-actions' }, actions) : null);
   const section = (title, ...children) => el('section', { class: 'cc-section' }, title ? el('h2', {}, title) : null, children);
   const kpi = (label, value, sub, href) => {
-    const body = [el('span', { class: 'cc-kpi-label' }, label), el('strong', { class: 'cc-kpi-value' }, value), sub ? el('span', { class: 'cc-kpi-sub' }, sub) : null];
+    const body = [el('span', { class: 'cc-stat-label' }, label), el('strong', { class: 'cc-kpi-value' }, value), sub ? el('span', { class: 'cc-kpi-sub' }, sub) : null];
     return href ? el('a', { class: 'cc-card cc-kpi link', href }, body) : el('div', { class: 'cc-card cc-kpi' }, body);
   };
   const kpis = (...items) => el('div', { class: 'cc-kpis' }, items);
@@ -256,11 +279,81 @@
     el('div', { class: 'cc-table-wrap' },
       el('table', { class: 'cc-table' },
         el('thead', {}, el('tr', {}, cols.map((c) => el('th', { scope: 'col' }, c)))),
-        el('tbody', {}, rows.map((r) => el('tr', onRow ? { class: 'clickable', tabindex: 0, onclick: (e) => !e.target.closest('button, a, input, select') && onRow(r.item), onkeydown: (e) => e.key === 'Enter' && e.target === e.currentTarget && onRow(r.item) } : {}, r.cells.map((c) => el('td', {}, c))))),
+        el('tbody', {}, rows.map((r) => el('tr', onRow ? { class: 'clickable', tabindex: 0, onclick: (e) => !e.target.closest('button, a, input, select, .cc-rowmenu') && onRow(r.item), onkeydown: (e) => e.key === 'Enter' && e.target === e.currentTarget && onRow(r.item) } : {}, r.cells.map((c) => el('td', {}, c))))),
       ),
     );
   const tabs = (options, value, onChange, label) =>
     el('div', { class: 'cc-tabs', role: 'group', 'aria-label': label }, options.map(([v, l]) => el('button', { type: 'button', class: v === value ? 'on' : '', 'aria-pressed': v === value ? 'true' : 'false', onclick: () => onChange(v) }, l)));
+
+  // ---- cards in one style on every page: a label, the figure, and on the right a chip or an icon
+  const chip = (text, tone = '') => el('span', { class: `cc-chip ${tone}` }, text);
+  const iconBox = (name) => el('span', { class: 'cc-icon-box', 'aria-hidden': 'true' }, icon(name));
+  /** A figure: tone colours the top edge, side sits top right, foot is a strip along the bottom. */
+  const stat = ({ label, value, sub, side, tone, valueTone, foot, footTone, href, extra }) => {
+    const body = [
+      el('div', { class: 'cc-stat-head' }, el('span', { class: 'cc-stat-label' }, label), side ?? null),
+      el('strong', { class: `cc-stat-value${valueTone ? ` ${valueTone}` : ''}` }, value),
+      sub ? el('span', { class: 'cc-stat-sub' }, sub) : null,
+      extra ?? null,
+      foot ? el('div', { class: `cc-stat-foot${footTone ? ` ${footTone}` : ''}` }, foot) : null,
+    ];
+    const cls = `cc-card cc-stat${tone ? ` tone-${tone}` : ''}${foot ? ' has-foot' : ''}`;
+    return href ? el('a', { class: `${cls} link`, href }, body) : el('div', { class: cls }, body);
+  };
+  const stats = (...items) => el('div', { class: 'cc-stats' }, items);
+  const panel = (title, ...children) => el('section', { class: 'cc-card cc-panel' }, title ? el('h2', {}, title) : null, children);
+  /** A small figure with an icon in front, inside a panel. */
+  const fig = (ic, label, value, sub) => el('div', { class: 'cc-fig' }, iconBox(ic), el('div', {}, el('span', { class: 'cc-stat-label' }, label), el('strong', {}, value), sub ? el('span', { class: 'cc-stat-sub' }, sub) : null));
+  const alertBox = (text) => el('p', { class: 'cc-alert', role: 'note' }, icon('alert'), el('span', {}, el('strong', {}, t('alert')), ' ', text));
+  /** The ⋮ menu of a row: [label, action, danger?]; items that are null are left out. It opens over the page (never cut off by the table). */
+  const menu = (label, items) => {
+    const list = el('div', { class: 'cc-rowmenu-list', role: 'menu', hidden: true }, items.filter(Boolean).map(([text, fn, danger]) =>
+      el('button', { type: 'button', role: 'menuitem', class: danger ? 'danger' : '', onclick: (e) => { e.stopPropagation(); closeMenus(); fn(); } }, text)));
+    const toggle = el('button', { type: 'button', class: 'cc-rowmenu-button', 'aria-label': label, title: label, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (e) => {
+      e.stopPropagation();
+      const open = list.hidden;
+      closeMenus();
+      if (!open) return;
+      const r = toggle.getBoundingClientRect();
+      list.hidden = false;
+      const below = r.bottom + 4 + list.offsetHeight <= window.innerHeight;
+      list.style.top = `${below ? r.bottom + 4 : Math.max(8, r.top - 4 - list.offsetHeight)}px`;
+      list.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+      toggle.setAttribute('aria-expanded', 'true');
+      list.querySelector('button')?.focus();
+    } }, icon('dots'));
+    return el('div', { class: 'cc-rowmenu' }, toggle, list);
+  };
+  const closeMenus = () => {
+    for (const l of document.querySelectorAll('.cc-rowmenu-list:not([hidden])')) {
+      l.hidden = true;
+      l.previousElementSibling?.setAttribute('aria-expanded', 'false');
+    }
+  };
+  document.addEventListener('click', (e) => !e.target.closest('.cc-rowmenu') && closeMenus());
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && closeMenus());
+  window.addEventListener('scroll', closeMenus, true);
+  window.addEventListener('resize', closeMenus);
+  /** Share of each part in a ring (parts: [value, class]). */
+  const donut = (parts) => {
+    const total = parts.reduce((n, [v]) => n + v, 0);
+    const g = svg('svg', { viewBox: '0 0 42 42', class: 'cc-donut', 'aria-hidden': 'true' }, svg('circle', { cx: 21, cy: 21, r: 15.915, class: 'track' }));
+    let offset = 25;
+    for (const [v, cls] of parts) {
+      if (!v || !total) continue;
+      const len = (v / total) * 100;
+      g.append(svg('circle', { cx: 21, cy: 21, r: 15.915, class: `seg ${cls}`, 'stroke-dasharray': `${len} ${100 - len}`, 'stroke-dashoffset': offset }));
+      offset -= len;
+    }
+    return g;
+  };
+  /** A half ring filled to a percentage. */
+  const gauge = (p) =>
+    svg('svg', { viewBox: '0 0 100 56', class: 'cc-gauge', 'aria-hidden': 'true' },
+      svg('path', { d: 'M8 50 A42 42 0 0 1 92 50', class: 'track', pathLength: 100 }),
+      svg('path', { d: 'M8 50 A42 42 0 0 1 92 50', class: 'fill', pathLength: 100, 'stroke-dasharray': `${Math.max(0, Math.min(100, p))} 100` }));
+  /** How busy a relay (or all of them) is, as a chip. */
+  const loadChip = (usage) => (usage >= 90 ? chip(t('chips.full'), 'hot') : usage >= 70 ? chip(t('chips.busy'), 'warm') : chip(t('chips.optimal'), 'ok'));
 
   // ---- charts: one series each, hover and keyboard tooltips, and a table view
   function chart(title, points, { format = num, kind = 'bars', label = (p) => date(p.t) } = {}) {
@@ -349,6 +442,18 @@
     $('scrim').hidden = true;
     $('open-nav').setAttribute('aria-expanded', 'false');
   }
+  // Search customers from every page.
+  const topSearch = $('top-search');
+  const topInput = topSearch.querySelector('input');
+  topSearch.prepend(icon('search'));
+  topInput.placeholder = t('search');
+  topInput.setAttribute('aria-label', t('search'));
+  topSearch.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const q = topInput.value.trim();
+    topInput.value = '';
+    location.hash = `#/customers?q=${encodeURIComponent(q)}`;
+  });
   $('open-nav').append(icon('menu'));
   $('close-nav').append(icon('close'));
   $('open-nav').addEventListener('click', openNav);
@@ -363,65 +468,73 @@
       cells: [el('span', { title: dateTime(e.at) }, dateTime(e.at)), actionName(e.action), e.target, e.actor === 'system' ? el('span', { class: 'muted' }, t('system')) : e.actor],
     })));
 
-  const relayRow = (r) =>
-    el('a', { class: 'cc-relay-row', href: `#/relays/${r.id}` },
-      el('div', { class: 'cc-relay-name' }, el('strong', {}, r.name), el('span', { class: 'small' }, [r.region, r.main ? t('mainRelay') : null].filter(Boolean).join(' · '))),
-      pill(r.status),
-      r.status === 'offline'
-        ? el('span', { class: 'small cc-relay-wide' }, r.lastSeenAt ? t('lastSeen', { when: ago(r.lastSeenAt) }) : t('neverChecked'))
-        : [
-            el('span', { class: 'cc-relay-cap' }, speed(r.mbpsNow), el('span', { class: 'small' }, ` / ${speed(r.capacityMbps)}`), bar(r.usage)),
-            el('span', { class: 'small' }, `${num(r.clients)} clients`),
-            el('span', { class: 'small' }, `${t('uptime')} ${r.uptime30 === null ? t('na') : pct(r.uptime30)}`),
-          ],
-    );
+  /** What needs a look now, each with a link to where it is fixed (empty: all good). */
+  const attentionItems = (d, services) => {
+    const items = [];
+    for (const r of d.relays.list.filter((x) => x.status === 'offline')) items.push([t('att.relayOffline', { name: r.name }), `#/relays/${r.id}`]);
+    for (const q of d.relays.nearQuota) items.push([t('nearQuota', { name: q.name, used: num(q.usedGb), quota: num(q.monthlyGb), mbps: q.overQuotaMbps ?? '?' }), `#/relays/${q.id}`]);
+    if (d.dns && d.dns.used >= d.dns.limit * 0.8) items.push([t('dnsNear', { used: num(d.dns.used), limit: num(d.dns.limit) }), null]);
+    if (services.mail && !services.mail.configured) items.push([t('att.mailOff'), '#/mail']);
+    if (services.tmdb && !services.tmdb.configured) items.push([t('att.tmdbOff'), '#/tmdb']);
+    if (services.subtitles && !services.subtitles.configured) items.push([t('att.subsOff'), '#/subtitles']);
+    if (d.access.expiringIn7Days) items.push([t('att.expiring', { n: num(d.access.expiringIn7Days) }), '#/access?show=expiring']);
+    return items;
+  };
+  const attentionPanel = (items) =>
+    el('section', { class: `cc-card cc-attention${items.length ? ' open' : ' fine'}` },
+      el('h2', {}, items.length ? icon('alert') : icon('check'), items.length ? `${t('attention')} (${items.length})` : t('attention')),
+      items.length
+        ? el('ul', {}, items.map(([text, href]) => el('li', {}, el('span', {}, text), href ? el('a', { href }, t('att.fix')) : null)))
+        : el('p', {}, t('allGood')));
 
   async function overview() {
     crumbs(t('nav.overview'));
     show(header(t('nav.overview'), t('controlCenter')), skeleton(8));
-    const d = await api('GET', '/api/ceo/dashboard');
+    const quietly = (url) => api('GET', url).catch(() => null);
+    const [d, mail, tmdbState, subs] = await Promise.all([api('GET', '/api/ceo/dashboard'), quietly('/api/ceo/mail'), quietly('/api/ceo/tmdb'), quietly('/api/ceo/subtitles')]);
     const c = d.customers;
     const a = d.access;
     const r = d.relays;
+    const typeKeys = Object.keys(T.types);
+    const most = Math.max(1, ...typeKeys.map((k) => a.byType[k] ?? 0));
     show(
       header(t('nav.overview'), t('controlCenter')),
-      section(t('customers'),
-        kpis(
-          kpi(t('totalCustomers'), num(c.total), c.suspended ? t('suspendedN', { n: c.suspended }) : null, '#/customers'),
-          kpi(t('activeCustomers'), num(c.active), c.total ? t('ofCustomers', { pct: pct((c.active / c.total) * 100) }) : null, '#/customers?status=active'),
-          kpi(t('new7'), num(c.new7), t('last7'), '#/customers?sort=created'),
-          kpi(t('new30'), num(c.new30), t('last30'), '#/customers?sort=created'),
-          kpi(t('growth'), c.growth30 === null ? t('na') : `${c.growth30 > 0 ? '+' : ''}${pct(c.growth30)}`, t('growthSub')),
-        ),
+      attentionPanel(attentionItems(d, { mail, tmdb: tmdbState, subtitles: subs })),
+      el('div', { class: 'cc-panels' },
+        panel(t('customerOverview'),
+          el('div', { class: 'cc-big-pair' },
+            el('a', { href: '#/customers' }, el('span', { class: 'cc-stat-label' }, t('totalCustomers')), el('strong', {}, num(c.total)), c.suspended ? el('span', { class: 'cc-stat-sub' }, t('suspendedN', { n: c.suspended })) : null),
+            el('a', { href: '#/customers?status=active' }, el('span', { class: 'cc-stat-label' }, t('activeCustomers')), el('strong', {}, num(c.active)), c.total ? el('span', { class: 'cc-stat-sub' }, t('ofCustomers', { pct: pct((c.active / c.total) * 100) })) : null)),
+          el('div', { class: 'cc-trio' },
+            el('a', { href: '#/customers?status=new&sort=created' }, el('span', { class: 'cc-stat-label' }, t('new7')), el('strong', {}, num(c.new7))),
+            el('a', { href: '#/customers?status=new&sort=created' }, el('span', { class: 'cc-stat-label' }, t('new30')), el('strong', {}, num(c.new30))),
+            el('div', {}, el('span', { class: 'cc-stat-label' }, t('growth')), el('strong', { class: c.growth30 === null ? 'muted' : '' }, c.growth30 === null ? '—' : `${c.growth30 > 0 ? '+' : ''}${pct(c.growth30)}`), el('span', { class: 'cc-stat-sub' }, c.growth30 === null ? t('noCompare') : t('growthSub'))))),
+        panel(t('accessBreakdown'),
+          el('div', { class: 'cc-breakdown' },
+            el('div', { class: 'cc-type-bars' }, typeKeys.map((k) =>
+              el('a', { href: `#/access?type=${k}`, class: 'cc-type-bar' },
+                el('span', {}, t(`types.${k}`)), el('strong', {}, num(a.byType[k] ?? 0)),
+                el('div', { class: `cc-bar type-${k}` }, el('span', { width: `${((a.byType[k] ?? 0) / most) * 100}%` }))))),
+            el('div', { class: 'cc-gauge-box' },
+              gauge(c.total ? (a.total / c.total) * 100 : 0),
+              el('a', { href: '#/access', class: 'cc-gauge-value' }, el('strong', {}, num(a.total)), el('span', {}, t('ofCustomersN', { n: num(c.total) }))),
+              el('a', { href: '#/access?show=expiring', class: 'cc-gauge-foot' }, el('span', { class: 'cc-stat-label' }, t('expiringSoon')), el('strong', { class: a.expiringIn14Days ? 'warn' : 'muted' }, num(a.expiringIn14Days)), el('span', { class: 'cc-stat-sub' }, t('within14')))))),
+        panel(t('infra'),
+          el('div', { class: 'cc-figs' },
+            fig('relays', t('activeRelays'), num(r.nodes)),
+            fig('relays', t('onlineRelays'), num(r.online), t('ofRelays', { n: num(r.nodes) })),
+            fig('customers', t('clients'), num(r.clients), t('clientsSub')),
+            fig('server', t('connectedServers'), num(d.servers.connected), `${t('ofRelays', { n: num(d.servers.total) })} ${t('servers').toLowerCase()}`))),
+        panel(t('networkCapacity'),
+          el('div', { class: 'cc-capacity-now' },
+            el('strong', {}, speed(r.mbpsNow)),
+            el('span', { class: 'cc-stat-sub' }, `${t('ofCapacity', { cap: speed(r.capacityMbps) })} · ${t('load')} ${pct(r.usage)} · ${t('available')} ${speed(r.availableMbps)}`),
+            bar(r.usage)),
+          d.dns ? el('div', { class: 'cc-figs one' }, fig('globe', t('dnsRecords'), num(d.dns.used), t('dnsRecordsSub', { limit: num(d.dns.limit) })), bar(d.dns.used, d.dns.limit)) : null),
       ),
-      section(t('access'),
-        kpis(
-          kpi(t('withAccess'), num(a.total), null, '#/access'),
-          ...Object.keys(T.types).map((k) => kpi(t(`types.${k}`), num(a.byType[k]), null, `#/access?type=${k}`)),
-          kpi(t('expiringSoon'), num(a.expiringIn14Days), t('within14'), '#/access?show=expiring'),
-          kpi(t('expired'), num(a.expired), null, '#/access?show=expired'),
-        ),
-        el('p', { class: 'cc-note' }, t('payments')),
-      ),
-      section(t('infra'),
-        kpis(
-          kpi(t('activeRelays'), num(r.nodes), null, '#/relays'),
-          kpi(t('onlineRelays'), num(r.online), t('ofRelays', { n: num(r.nodes) }), '#/relays'),
-          kpi(t('clients'), num(r.clients), t('clientsSub')),
-          kpi(t('connectedServers'), num(d.servers.connected), `${num(d.servers.total)} ${t('servers').toLowerCase()}`),
-          d.dns && kpi(t('dnsRecords'), num(d.dns.used), t('dnsRecordsSub', { limit: num(d.dns.limit) })),
-          kpi(t('capacity'), speed(r.capacityMbps)),
-          kpi(t('current'), speed(r.mbpsNow), `${t('available')} ${speed(r.availableMbps)}`),
-          el('div', { class: 'cc-card cc-kpi' }, el('span', { class: 'cc-kpi-label' }, t('load')), el('strong', { class: 'cc-kpi-value' }, pct(r.usage)), bar(r.usage)),
-        ),
-        r.nearQuota.map((q) => el('p', { class: 'cc-warning', role: 'alert' }, t('nearQuota', { name: q.name, used: num(q.usedGb), quota: num(q.monthlyGb), mbps: q.overQuotaMbps ?? '?' }))),
-        d.dns && d.dns.used >= d.dns.limit * 0.8 && el('p', { class: 'cc-warning', role: 'alert' }, t('dnsNear', { used: num(d.dns.used), limit: num(d.dns.limit) })),
-      ),
-      section(t('health'), el('div', { class: 'cc-card cc-list' }, r.list.map(relayRow))),
-      section(t('recent'),
-        d.activity.length ? el('div', { class: 'cc-card flush' }, eventRows(d.activity)) : el('div', { class: 'cc-card' }, empty(t('noData'))),
-        el('p', {}, el('a', { href: '#/activity' }, t('viewAll'))),
-      ),
+      panel(t('recent'),
+        d.activity.length ? el('div', { class: 'flush-table' }, eventRows(d.activity)) : empty(t('noData')),
+        el('p', { class: 'cc-panel-link' }, el('a', { href: '#/activity' }, t('viewAll')))),
     );
   }
 
@@ -478,60 +591,87 @@
     });
   }
 
-  let customerQuery = { q: '', filter: 'all', sort: 'created', dir: '', page: 1 };
+  let customerQuery = { q: '', status: 'all', type: 'all', sort: 'created', dir: '', page: 1 };
+  const STATUS_FILTERS = ['all', 'active', 'inactive', 'new', 'unverified', 'expiring', 'suspended', 'invited'];
+  const TYPE_FILTERS = ['all', 'none', 'customer', 'beta', 'test', 'free'];
+  /** How a customer stands, in one label: blocked first, then waiting, then not confirmed, then (in)active. */
+  const customerPill = (c) =>
+    c.status === 'suspended' ? pill('suspended') : c.invited ? pill('scheduled', t('invited')) : c.verified === false ? pill('unverified') : pill(c.status);
+  const customerMenu = (c) =>
+    menu(t('actionsFor', { who: who(c) }), [
+      [t('openCustomer'), () => (location.hash = `#/customers/${c.id}`)],
+      c.status === 'suspended' ? null : [t('grant'), () => grantDialog(c)],
+      c.access ? [t('extend'), () => extendDialog({ id: c.access.grantId, endsAt: c.access.endsAt }, who(c))] : null,
+      c.status === 'suspended'
+        ? [t('unsuspend'), () => dialog({ title: t('unsuspend'), text: who(c), confirm: t('unsuspend'), onConfirm: async () => { await api('POST', `/api/ceo/customers/${c.id}/unsuspend`, {}); return t('unsuspended'); } })]
+        : [t('suspend'), () => dialog({ title: t('suspendTitle'), text: t('suspendText', { who: who(c) }), fields: [field(t('reason'), el('input', { name: 'reason', maxlength: 300 }))], confirm: t('suspend'), danger: true, onConfirm: async (v) => { await api('POST', `/api/ceo/customers/${c.id}/suspend`, { reason: v.reason || null }); return t('suspended'); } }), true],
+    ]);
   async function customers(arg, params) {
     if (arg) return customer(Number(arg));
     crumbs(t('nav.customers'));
-    if (params.has('status') || params.has('sort') || params.has('type')) {
-      customerQuery = { ...customerQuery, filter: params.get('status') || params.get('type') || 'all', sort: params.get('sort') || customerQuery.sort, page: 1 };
+    if (params.has('status') || params.has('sort') || params.has('type') || params.has('q')) {
+      customerQuery = {
+        ...customerQuery,
+        status: STATUS_FILTERS.includes(params.get('status')) ? params.get('status') : 'all',
+        type: TYPE_FILTERS.includes(params.get('type')) ? params.get('type') : 'all',
+        q: params.get('q') ?? '',
+        sort: params.get('sort') || customerQuery.sort,
+        page: 1,
+      };
       history.replaceState(null, '', '#/customers');
     }
-    const top = header(t('nav.customers'), null, el('button', { onclick: () => void addCustomer().catch((e) => toast(e.message, true)) }, icon('plus'), t('addCustomer')));
-    show(top, skeleton(1));
-    const f = customerQuery.filter;
-    const qs = new URLSearchParams({ q: customerQuery.q, sort: customerQuery.sort, page: String(customerQuery.page) });
+    const top = header(t('nav.customers'), null);
+    show(top, skeleton(3));
+    const qs = new URLSearchParams({ q: customerQuery.q, sort: customerQuery.sort, page: String(customerQuery.page), status: customerQuery.status, type: customerQuery.type });
     if (customerQuery.dir) qs.set('dir', customerQuery.dir);
-    if (['customer', 'beta', 'test', 'free', 'none'].includes(f)) qs.set('type', f);
-    else if (f !== 'all') qs.set('status', f);
     const d = await api('GET', `/api/ceo/customers?${qs}`);
+    const sum = d.summary;
     const pages = Math.max(1, Math.ceil(d.total / d.pageSize));
     const set = (patch) => {
       customerQuery = { ...customerQuery, page: 1, ...patch };
       void go();
     };
-    const toolbar = el('div', { class: 'cc-toolbar' },
+    /** A column heading that sorts the list (again: the other way round). */
+    const sortHead = (label, key) => {
+      const on = customerQuery.sort === key;
+      const dir = customerQuery.dir || (key === 'name' || key === 'expires' ? 'asc' : 'desc');
+      return el('button', { type: 'button', class: `cc-sort${on ? ' on' : ''}`, 'aria-sort': on ? (dir === 'asc' ? 'ascending' : 'descending') : null, onclick: () => set(on ? { dir: dir === 'asc' ? 'desc' : 'asc' } : { sort: key, dir: '' }) }, label, on ? (dir === 'asc' ? ' ↑' : ' ↓') : '');
+    };
+    const filterSelect = (label, value, options, key) =>
+      el('label', { class: 'cc-filter' }, el('span', {}, label),
+        el('select', { onchange: (e) => set({ [key]: e.target.value }) }, options.map(([v, l]) => el('option', { value: v, selected: v === value }, l))));
+    const toolbar = el('div', { class: 'cc-toolbar cc-filters' },
       el('form', { class: 'cc-search', role: 'search', onsubmit: (e) => { e.preventDefault(); set({ q: new FormData(e.target).get('q') }); } },
+        icon('search'),
         el('input', { name: 'q', type: 'search', placeholder: t('search'), 'aria-label': t('search'), value: customerQuery.q })),
-      el('label', { class: 'cc-inline' }, el('span', {}, t('sort')),
-        el('select', { onchange: (e) => set({ sort: e.target.value, dir: '' }) }, Object.keys(T.sorts).map((k) => el('option', { value: k, selected: k === customerQuery.sort }, t(`sorts.${k}`))))),
-      el('select', { 'aria-label': t('sort'), onchange: (e) => set({ dir: e.target.value }) },
-        [['', '—'], ['asc', t('asc')], ['desc', t('desc')]].map(([v, l]) => el('option', { value: v, selected: v === customerQuery.dir }, l))),
-    );
-    const filterTabs = tabs(
-      [['all', t('filters.all')], ['active', t('filters.active')], ['inactive', t('filters.inactive')], ['expiring', t('filters.expiring')], ['none', t('filters.none')], ...Object.keys(T.types).map((k) => [k, t(`types.${k}`)]), ['suspended', t('filters.suspended')], ['invited', t('filters.invited')]],
-      f,
-      (v) => set({ filter: v }),
-      t('nav.customers'),
+      filterSelect(t('statusLabel'), customerQuery.status, STATUS_FILTERS.map((k) => [k, k === 'all' ? t('allStatuses') : t(`filters.${k}`)]), 'status'),
+      filterSelect(t('accessType'), customerQuery.type, TYPE_FILTERS.map((k) => [k, k === 'all' ? t('allAccess') : k === 'none' ? t('noAccess') : t(`types.${k}`)]), 'type'),
+      el('button', { type: 'button', onclick: () => void addCustomer().catch((e) => toast(e.message, true)) }, icon('plus'), t('addCustomer')),
     );
     const rows = d.customers.map((c) => ({
       item: c,
       cells: [
         el('div', { class: 'cc-who' }, el('strong', {}, who(c)), c.name ? el('span', { class: 'small' }, c.email) : null),
         c.access ? typeBadge(c.access.type) : el('span', { class: 'muted' }, t('noAccess')),
-        el('span', { class: 'cc-stack' }, pill(c.status), c.invited ? el('span', { class: 'small' }, t('invited')) : null),
+        customerPill(c),
         date(c.createdAt),
         c.lastActive ? date(Date.parse(c.lastActive)) : el('span', { class: 'muted' }, t('never')),
-        c.access ? (c.access.endsAt ? date(c.access.endsAt) : el('span', { class: 'muted' }, t('noEnd'))) : '—',
+        c.access ? (c.access.endsAt ? date(c.access.endsAt) : el('span', { class: 'muted' }, t('noEnd'))) : el('span', { class: 'muted' }, '—'),
         c.relay.name,
-        el('a', { href: `#/customers/${c.id}` }, t('open')),
+        customerMenu(c),
       ],
     }));
     show(
       top,
+      stats(
+        stat({ label: t('totalCustomers'), value: num(sum.total), valueTone: 'accent', side: iconBox('customers'), sub: sum.new7 ? t('thisWeek', { n: num(sum.new7) }) : null,
+          foot: sum.unverified ? el('a', { href: '#/customers?status=unverified' }, t('att.unverifiedShort', { n: num(sum.unverified) })) : null, footTone: 'warn' }),
+        stat({ label: t('activeCustomers'), value: num(sum.active), valueTone: 'ok', side: pill('active', t('statusLabel')), sub: sum.total ? t('ofCustomers', { pct: pct((sum.active / sum.total) * 100) }) : null, href: '#/customers?status=active' }),
+        stat({ label: t('expiringCustomers'), value: num(sum.expiring30), valueTone: sum.expiring30 ? 'warn' : '', side: el('span', { class: 'cc-stat-sub' }, t('within30')), href: '#/customers?status=expiring' }),
+      ),
       toolbar,
-      filterTabs,
       d.customers.length
-        ? el('div', { class: 'cc-card flush' }, table([t('col.customer'), t('col.access'), t('col.status'), t('col.created'), t('col.lastActive'), t('col.expires'), t('col.relay'), ''], rows, (c) => (location.hash = `#/customers/${c.id}`)))
+        ? el('div', { class: 'cc-card flush' }, table([sortHead(t('col.customer'), 'name'), t('col.access'), t('col.status'), sortHead(t('col.created'), 'created'), sortHead(t('col.lastActive'), 'lastActive'), sortHead(t('col.expires'), 'expires'), t('col.relay'), el('span', { class: 'cc-right' }, t('col.actions'))], rows, (c) => (location.hash = `#/customers/${c.id}`)))
         : el('div', { class: 'cc-card' }, empty(t('none'))),
       pages > 1
         ? el('div', { class: 'cc-pager' },
@@ -629,7 +769,7 @@
     show(
       el('p', {}, el('a', { href: '#/customers', class: 'cc-back' }, icon('back'), t('back'))),
       header(who(c), c.name ? c.email : null, c.status === 'suspended' ? null : el('button', { onclick: () => grantDialog(c) }, t('grant')), suspendButton),
-      el('div', { class: 'cc-pills' }, pill(c.status), c.invited ? pill('scheduled', t('invited')) : null, c.access ? typeBadge(c.access.type) : null),
+      el('div', { class: 'cc-pills' }, customerPill(c), c.access ? typeBadge(c.access.type) : null),
       c.status === 'suspended' ? el('p', { class: 'cc-warning' }, `${t('status.suspended')} · ${dateTime(c.suspendedAt)} · ${c.suspendedBy}`) : null,
       el('div', { class: 'cc-columns' },
         el('div', { class: 'cc-card' },
@@ -677,6 +817,14 @@
   // ---- access
   let accessShow = 'active';
   let accessType = 'all';
+  let accessSearch = '';
+  const grantMenu = (g, owner) =>
+    menu(t('actionsFor', { who: owner }), [
+      [t('openCustomer'), () => (location.hash = `#/customers/${g.accountId}`)],
+      g.status === 'revoked' || g.status === 'expired' ? null : [t('change'), () => changeDialog(g, owner)],
+      g.status === 'revoked' || g.status === 'expired' ? null : [t('extend'), () => extendDialog(g, owner)],
+      g.status === 'revoked' || g.status === 'expired' ? null : [t('revoke'), () => revokeDialog(g, owner), true],
+    ]);
   async function access(_arg, params) {
     crumbs(t('nav.access'));
     if (params.has('show') || params.has('type')) {
@@ -694,33 +842,55 @@
           return t('granted');
         },
       });
-    const top = header(t('nav.access'), null, el('button', { onclick: grantByEmail }, icon('plus'), t('grant')));
-    show(top, skeleton(8));
+    const top = header(t('nav.access'), null, el('button', { class: 'ghost accent', onclick: grantByEmail }, icon('plus'), t('grant')));
+    show(top, skeleton(3));
     const d = await api('GET', `/api/ceo/access?show=${accessShow}&type=${accessType}`);
     const s = d.summary;
+    const typeKeys = Object.keys(T.types);
+    const needle = accessSearch.trim().toLowerCase();
+    const shown = d.grants.filter((g) => !needle || [g.email, g.name ?? '', t(`plans.${g.plan}`), t(`types.${g.type}`)].some((x) => x.toLowerCase().includes(needle)));
+    const list = el('div', {});
+    const draw = (grants) =>
+      list.replaceChildren(
+        grants.length
+          ? el('div', { class: 'cc-card flush' }, table([t('col.customer'), t('col.type'), t('col.plan'), t('col.started'), t('col.expires'), t('col.status'), el('span', { class: 'cc-right' }, t('col.actions'))], grants.map((g) => ({
+              item: g,
+              cells: [
+                el('div', { class: 'cc-who' }, el('strong', {}, g.name || g.email), g.name ? el('span', { class: 'small' }, g.email) : null),
+                typeBadge(g.type), t(`plans.${g.plan}`), date(g.startsAt), g.endsAt ? date(g.endsAt) : el('span', { class: 'muted' }, t('noEnd')), pill(g.status), grantMenu(g, g.name || g.email),
+              ],
+            })), (g) => (location.hash = `#/customers/${g.accountId}`)))
+          : el('div', { class: 'cc-card' }, empty(t('none'))),
+      );
+    draw(shown);
     show(
       top,
-      kpis(
-        kpi(t('withAccess'), num(s.total)),
-        ...Object.keys(T.types).map((k) => kpi(t(`types.${k}`), num(s.byType[k]))),
-        kpi(t('expiringSoon'), num(s.expiringIn7Days), t('within7')),
-        kpi(t('expiringSoon'), num(s.expiringIn14Days), t('within14')),
-        kpi(t('expired'), num(s.expired)),
+      stats(
+        stat({ label: t('totalActiveAccess'), value: num(s.total), tone: 'teal', side: iconBox('access'),
+          foot: s.expiringIn7Days ? t('expiring7Foot', { n: num(s.expiringIn7Days) }) : t('allFine'), footTone: s.expiringIn7Days ? 'warn' : 'ok' }),
+        stat({ label: t('accessBreakdown'), value: num(s.total), tone: 'violet',
+          extra: el('div', { class: 'cc-breakdown-mini' },
+            donut(typeKeys.map((k) => [s.byType[k] ?? 0, `type-${k}`])),
+            el('ul', {}, typeKeys.map((k) => el('li', {}, el('span', { class: `cc-swatch type-${k}` }), el('span', {}, t(`types.${k}`)), el('strong', {}, num(s.byType[k] ?? 0)))),
+              el('li', { class: 'total' }, el('span', {}), el('span', {}, t('total')), el('strong', {}, num(s.total))))) }),
+        stat({ label: t('expiringAccess'), value: num(s.expiringIn30Days ?? 0), tone: 'red', valueTone: s.expiringIn30Days ? 'warn' : '', side: iconBox('calendar'), sub: t('within30'),
+          foot: s.expiringIn30Days ? t('expiring7Foot', { n: num(s.expiringIn7Days) }) : t('noneExpiring'), footTone: s.expiringIn30Days ? 'warn' : '', href: '#/access?show=expiring' }),
       ),
-      el('p', { class: 'cc-note' }, t('payments')),
-      el('div', { class: 'cc-toolbar' },
-        tabs(Object.keys(T.show).map((k) => [k, t(`show.${k}`)]), accessShow, (v) => { accessShow = v; void go(); }, t('nav.access')),
-        el('select', { 'aria-label': t('col.type'), onchange: (e) => { accessType = e.target.value; void go(); } },
-          [['all', t('allTypes')], ...Object.keys(T.types).map((k) => [k, t(`types.${k}`)])].map(([v, l]) => el('option', { value: v, selected: v === accessType }, l)))),
-      d.grants.length
-        ? el('div', { class: 'cc-card flush' }, table([t('col.customer'), t('col.type'), t('col.plan'), t('col.started'), t('col.expires'), t('col.status'), ''], d.grants.map((g) => ({
-            item: g,
-            cells: [
-              el('div', { class: 'cc-who' }, el('strong', {}, g.name || g.email), g.name ? el('span', { class: 'small' }, g.email) : null),
-              typeBadge(g.type), t(`plans.${g.plan}`), date(g.startsAt), g.endsAt ? date(g.endsAt) : t('noEnd'), pill(g.status), grantActions(g, g.name || g.email),
-            ],
-          })), (g) => (location.hash = `#/customers/${g.accountId}`)))
-        : el('div', { class: 'cc-card' }, empty(t('none'))),
+      alertBox(t('payments')),
+      el('div', { class: 'cc-toolbar cc-filters' },
+        el('label', { class: 'cc-search' }, icon('search'),
+          el('input', { type: 'search', placeholder: t('searchAccess'), 'aria-label': t('searchAccess'), value: accessSearch, oninput: (e) => {
+            accessSearch = e.target.value;
+            const n = accessSearch.trim().toLowerCase();
+            draw(d.grants.filter((g) => !n || [g.email, g.name ?? '', t(`plans.${g.plan}`), t(`types.${g.type}`)].some((x) => x.toLowerCase().includes(n))));
+          } })),
+        el('label', { class: 'cc-filter' }, el('span', {}, t('showLabel')),
+          el('select', { onchange: (e) => { accessShow = e.target.value; void go(); } }, Object.keys(T.show).map((k) => el('option', { value: k, selected: k === accessShow }, t(`show.${k}`))))),
+        el('label', { class: 'cc-filter' }, el('span', {}, t('col.type')),
+          el('select', { onchange: (e) => { accessType = e.target.value; void go(); } },
+            [['all', t('allTypes')], ...typeKeys.map((k) => [k, t(`types.${k}`)])].map(([v, l]) => el('option', { value: v, selected: v === accessType }, l)))),
+      ),
+      list,
     );
   }
 
@@ -750,26 +920,22 @@
     const tot = d.totals;
     show(
       top,
-      el('div', { class: 'cc-card cc-capacity' },
-        el('div', { class: 'cc-capacity-figures' },
-          el('div', {}, el('span', { class: 'cc-kpi-label' }, t('totalCapacity')), el('strong', { class: 'cc-kpi-value' }, speed(tot.capacityMbps))),
-          el('div', {}, el('span', { class: 'cc-kpi-label' }, t('currentUsage')), el('strong', { class: 'cc-kpi-value' }, speed(tot.mbpsNow))),
-          el('div', {}, el('span', { class: 'cc-kpi-label' }, t('available')), el('strong', { class: 'cc-kpi-value' }, speed(tot.availableMbps))),
-          el('div', {}, el('span', { class: 'cc-kpi-label' }, t('load')), el('strong', { class: 'cc-kpi-value' }, pct(tot.usage))),
-        ),
-        bar(tot.usage),
+      stats(
+        stat({ label: t('totalCapacity'), value: speed(tot.capacityMbps), side: el('span', { class: 'cc-stat-side' }, chip(t('chips.max')), icon('cloud')) }),
+        stat({ label: t('currentUsage'), value: speed(tot.mbpsNow), side: el('span', { class: 'cc-stat-side' }, chip(t('chips.live')), icon('pulse')) }),
+        stat({ label: t('available'), value: speed(tot.availableMbps), side: el('span', { class: 'cc-stat-side' }, chip(t('chips.free')), icon('fork')) }),
+        stat({ label: t('load'), value: pct(tot.usage), side: el('span', { class: 'cc-stat-side' }, loadChip(tot.usage), icon('gauge')), extra: bar(tot.usage) }),
       ),
       el('div', { class: 'cc-relays' }, d.relays.map((r) =>
         el('a', { class: `cc-card cc-relay${r.active ? '' : ' off'}`, href: `#/relays/${r.id}` },
           el('div', { class: 'cc-relay-head' }, el('div', {}, el('strong', {}, r.name), el('span', { class: 'small' }, [r.region, r.main ? t('mainRelay') : r.url ? new URL(r.url).host : null].filter(Boolean).join(' · '))), pill(r.status)),
-          el('div', { class: 'cc-relay-usage' }, el('span', {}, speed(r.mbpsNow)), el('span', { class: 'small' }, `${pct(r.usage)} · ${t('available')} ${speed(r.availableMbps)}`)),
-          bar(r.usage),
+          el('div', { class: 'cc-relay-usage' }, bar(r.usage), el('div', { class: 'cc-relay-usage-text' }, el('span', {}, pct(r.usage)), el('span', { class: 'small' }, `${speed(r.mbpsNow)} · ${t('available')} ${speed(r.availableMbps)}`))),
           el('dl', { class: 'cc-facts' },
             el('div', {}, el('dt', {}, t('capacity')), el('dd', {}, speed(r.capacityMbps))),
             el('div', {}, el('dt', {}, t('clients')), el('dd', {}, num(r.clients))),
             el('div', {}, el('dt', {}, t('connectedServers')), el('dd', {}, `${num(r.connected)} / ${num(r.servers)}`)),
             el('div', {}, el('dt', {}, t('uptime')), el('dd', {}, r.uptime30 === null ? t('na') : pct(r.uptime30))),
-            el('div', {}, el('dt', {}, t('lastHeartbeat')), el('dd', {}, r.lastCheckAt ? ago(r.lastCheckAt) : t('neverChecked'))),
+            el('div', { class: 'wide' }, el('dt', {}, t('lastHeartbeat')), el('dd', {}, r.lastCheckAt ? ago(r.lastCheckAt) : t('neverChecked'))),
           ),
         ))),
     );
@@ -975,6 +1141,9 @@
     );
   }
 
+  /** The first card on a service page: on or off, and what that means. */
+  const serviceCard = (on, text) => stat({ label: t('serviceStatus'), value: on ? t('on') : t('off'), valueTone: on ? 'ok' : 'warn', tone: on ? 'teal' : 'red', side: chip(on ? t('chips.on') : t('chips.off'), on ? 'ok' : 'hot'), sub: text });
+
   // ---- community: the Discord link on the website
   async function community() {
     crumbs(t('nav.community'));
@@ -983,7 +1152,7 @@
     const error = el('p', { class: 'error', role: 'alert' });
     const submit = el('button', { type: 'submit' }, t('community.save'));
     const form = el('form', {
-      class: 'cc-card',
+      class: 'cc-card cc-panel',
       onsubmit: async (e) => {
         e.preventDefault();
         const discordUrl = String(new FormData(form).get('discordUrl') ?? '').trim();
@@ -1000,6 +1169,7 @@
         }
       },
     },
+      el('h2', {}, t('settings')),
       el('p', {}, t('community.intro')),
       field(t('community.discord'), el('input', { name: 'discordUrl', type: 'url', inputmode: 'url', autocomplete: 'off', spellcheck: 'false', maxlength: 200, placeholder: t('community.placeholder'), value: d.discordUrl ?? '' })),
       error,
@@ -1008,7 +1178,7 @@
         submit,
       ),
     );
-    show(header(t('nav.community')), section(null, form));
+    show(header(t('nav.community')), stats(serviceCard(!!d.discordUrl, d.discordUrl ?? t('community.off'))), form);
   }
 
   // ---- subtitles: the OpenSubtitles key servers use through vidalune.com (write-only)
@@ -1020,7 +1190,7 @@
     const error = el('p', { class: 'error', role: 'alert' });
     const submit = el('button', { type: 'submit' }, t('subs.save'));
     const form = el('form', {
-      class: 'cc-card',
+      class: 'cc-card cc-panel',
       onsubmit: async (e) => {
         e.preventDefault();
         const v = Object.fromEntries(new FormData(form));
@@ -1041,8 +1211,8 @@
         }
       },
     },
+      el('h2', {}, t('settings')),
       el('p', {}, t('subs.intro')),
-      el('p', {}, el('strong', {}, `${t('subs.status')}: `), el('span', { class: d.configured ? 'ok' : '' }, status)),
       field(t('subs.apiKey'), el('input', { name: 'apiKey', type: 'password', autocomplete: 'off', spellcheck: 'false', maxlength: 200, placeholder: d.configured ? t('subs.newKey') : '', required: !d.configured })),
       el('div', { class: 'cc-row' },
         field(t('subs.username'), el('input', { name: 'username', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', maxlength: 100, value: d.username ?? '' })),
@@ -1055,7 +1225,11 @@
         submit,
       ),
     );
-    show(header(t('nav.subtitles')), section(null, form), section(null, kpis(kpi(t('subs.files'), num(d.files)), kpi(t('subs.served'), num(d.served))), el('p', { class: 'small' }, t('subs.perServer'))));
+    show(
+      header(t('nav.subtitles')),
+      stats(serviceCard(d.configured, status), stat({ label: t('subs.files'), value: num(d.files), side: iconBox('subtitles') }), stat({ label: t('subs.served'), value: num(d.served), side: iconBox('pulse'), sub: t('subs.perServer') })),
+      form,
+    );
   }
 
   // ---- tmdb: the TMDB key servers use through vidalune.com (write-only)
@@ -1066,7 +1240,7 @@
     const error = el('p', { class: 'error', role: 'alert' });
     const submit = el('button', { type: 'submit' }, t('tmdb.save'));
     const form = el('form', {
-      class: 'cc-card',
+      class: 'cc-card cc-panel',
       onsubmit: async (e) => {
         e.preventDefault();
         const apiKey = String(new FormData(form).get('apiKey') ?? '').trim();
@@ -1084,8 +1258,8 @@
         }
       },
     },
+      el('h2', {}, t('settings')),
       el('p', {}, t('tmdb.intro')),
-      el('p', {}, el('strong', {}, `${t('tmdb.status')}: `), el('span', { class: d.configured ? 'ok' : '' }, d.configured ? t('tmdb.on', { hint: d.hint }) : t('tmdb.off'))),
       field(t('tmdb.apiKey'), el('input', { name: 'apiKey', type: 'password', autocomplete: 'off', spellcheck: 'false', maxlength: 400, placeholder: d.configured ? t('tmdb.newKey') : '', required: !d.configured })),
       error,
       el('div', { class: 'cc-dialog-actions' },
@@ -1093,7 +1267,11 @@
         submit,
       ),
     );
-    show(header(t('nav.tmdb')), section(null, form), section(null, kpis(kpi(t('tmdb.kept'), num(d.kept))), el('p', { class: 'small' }, t('tmdb.perServer'))));
+    show(
+      header(t('nav.tmdb')),
+      stats(serviceCard(d.configured, d.configured ? t('tmdb.on', { hint: d.hint }) : t('tmdb.off')), stat({ label: t('tmdb.kept'), value: num(d.kept), side: iconBox('tmdb'), sub: t('tmdb.perServer') })),
+      form,
+    );
   }
 
   // ---- mail: the SMTP service vidalune.com sends its mail through (the password is write-only)
@@ -1110,7 +1288,7 @@
     const secure = el('input', { name: 'secure', type: 'checkbox', checked: d.secure });
     const headers = input('headers', { maxlength: 500, value: d.headers });
     const form = el('form', {
-      class: 'cc-card',
+      class: 'cc-card cc-panel',
       onsubmit: async (e) => {
         e.preventDefault();
         const v = Object.fromEntries(new FormData(form));
@@ -1130,8 +1308,8 @@
         }
       },
     },
+      el('h2', {}, t('settings')),
       el('p', {}, t('mail.intro')),
-      el('p', {}, el('strong', {}, `${t('mail.status')}: `), el('span', { class: d.configured ? 'ok' : '' }, status)),
       el('div', { class: 'cc-row' }, field(t('mail.host'), host), field(t('mail.port'), port)),
       el('label', { class: 'cc-check' }, secure, ` ${t('mail.secure')}`),
       el('div', { class: 'cc-row' },
@@ -1164,7 +1342,7 @@
         submit,
       ),
     );
-    show(header(t('nav.mail')), section(null, form));
+    show(header(t('nav.mail')), stats(serviceCard(d.configured, status)), form);
   }
 
   // ---- routing

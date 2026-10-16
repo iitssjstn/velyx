@@ -1237,15 +1237,28 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   gecontroleerd: APK, beide `.deb`'s en `.aab` aanwezig.
 - 16 okt: `tester@example.com` verscheen in het Control Center; waarschijnlijk de pre-launch-robot van Google Play.
 
-## Versie 0.19.69 (Control Center overzichtelijker; voorstel, wacht op akkoord)
+## Versie 0.19.69 (Control Center overzichtelijker)
 
 - Eigenaar (16 okt): "Heel control center moet aangepast worden want het is niet echt overzichtelijk nu"; punten 1
-  (klantenlijst), 2 (overzicht) en 3 (indeling) kloppen; screenshot van Overzicht als voorbeeld. Daarin dubbel:
-  "DNS records" twee keer, "Free" twee keer, "With access" twee keer; "Growth N/A"; capaciteit zonder gebruik.
-- Voorstel: klantenlijst met servers, abonnement, laatst actief en labels (niet bevestigd, geschorst, verloopt,
-  nieuw), relay naar detail, filter niet bevestigd; Overzicht met "Aandacht nodig" en vier kerncijfers, rest naar
-  Statistieken; indeling Overzicht / Klanten (Klanten, Abonnementen) / Diensten (Mail, TMDB, Ondertitels op één
-  pagina) / Relays / Community / Statistieken (met activiteit).
+  (klantenlijst), 2 (overzicht) en 3 (indeling) kloppen; vier voorbeeldschermen (Overzicht, Klanten, Toegang, Relays):
+  "Neem de rest in dezelfde style mee".
+- Overzicht: bovenaan "Aandacht nodig" met per punt een link (relay offline, bijna aan quotum, DNS bijna vol, mail/
+  TMDB/ondertitels niet ingesteld, toegang loopt binnen 7 dagen af), anders "Alles in orde". Daaronder vier panelen:
+  klanten, toegang per soort (balken en meter), relays en netwerkcapaciteit (gebruik nu en DNS), en recente activiteit.
+  Geen dubbele cijfers meer.
+- Klanten: kaarten (totaal met "N niet bevestigd", actief, toegang loopt binnen 30 dagen af), zoeken, filters op status
+  (ook "Niet bevestigd") en soort toegang, sorteren op kolomkop, label per klant en een menu per rij (openen, toegang
+  geven, verlengen, blokkeren). `GET /api/ceo/customers` geeft `summary` (over alle klanten, los van zoeken) en per
+  klant `verified` (alleen als mail aanstaat telt een onbevestigd adres).
+- Toegang: kaarten (totaal, verdeling als ring met legenda, loopt binnen 30 dagen af), melding dat betalingen nog met de
+  hand gaan, zoeken in de browser, filters, menu per rij. Relays: kaarten met labels en relaykaarten met gebruik.
+  Mail, TMDB, Ondertitels en Community: statuskaart bovenaan en het formulier als paneel "Instellingen".
+- Zoekveld in de bovenbalk (naar Klanten). Mobiel: kaarten onder elkaar, tabellen schuiven opzij.
+- Tests: cloud (samenvatting, onbevestigd alleen met mail, afloop binnen 30 dagen) en het paneel (aandachtspunten en
+  links, alles in orde, kaarten en label "Niet bevestigd", filter via de server, rijmenu zonder de klant te openen,
+  toegang: ring, betalingsmelding, zoeken zonder nieuw verzoek). Cloud 177 tests; typechecks, lint (4 bekende
+  waarschuwingen) slagen. Screenshots pc en mobiel naar de eigenaar.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1969) en beide lockfiles bijgewerkt.
 - Play Console (door de eigenaar): privacybeleid-URL `https://vidalune.com/privacy`; verwijder-URL voor gegevens
   `https://vidalune.com/account`. Inloggegevens voor de beoordeling: een testaccount met toegang tot een server (pas
   nodig voor een gesloten test of productie).

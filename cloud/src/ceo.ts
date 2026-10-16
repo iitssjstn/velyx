@@ -71,6 +71,8 @@ export interface CeoDeps {
   fetchImpl?: typeof fetch;
   /** DNS records in use against the zone's limit, as of the last clean-up (null: not known). */
   directDnsUsage?: () => { used: number; limit: number; checkedAt: number } | null;
+  /** Whether vidalune.com sends mail (only then does an unconfirmed address mean anything). */
+  mailEnabled?: () => boolean;
 }
 
 /** The grant that counts now: not taken back, started, not ended (the latest one when several). */
@@ -373,6 +375,8 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): { monitor: () =>
         status: (a.suspendedAt !== null ? 'suspended' : active ? 'active' : 'inactive') as CustomerStatus,
         /** Added by the CEO; waits until the customer signs up with this address. */
         invited: a.passwordHash === '',
+        /** The address was confirmed (always true while vidalune.com sends no mail: there is nothing to confirm). */
+        verified: a.emailVerifiedAt !== null || !(deps.mailEnabled?.() ?? false),
         access: g ? { grantId: g.id, type: g.type, plan: g.plan, startsAt: g.startsAt, endsAt: g.endsAt, status: grantStatus(g, t) } : null,
         scheduled: next ? { grantId: next.id, type: next.type, startsAt: next.startsAt } : null,
         /** A plan set on the old admin page, without a grant (no type known). */
@@ -394,6 +398,7 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): { monitor: () =>
     let expired = 0;
     let expiring7 = 0;
     let expiring14 = 0;
+    let expiring30 = 0;
     for (const a of all) {
       const list = grants.get(a.id) ?? [];
       const g = activeGrant(list, t);
@@ -402,12 +407,13 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): { monitor: () =>
         byType[g.type]++;
         if (g.endsAt !== null && g.endsAt < t + 7 * DAY) expiring7++;
         if (g.endsAt !== null && g.endsAt < t + EXPIRING_DAYS * DAY) expiring14++;
+        if (g.endsAt !== null && g.endsAt < t + 30 * DAY) expiring30++;
       } else if (list.some((x) => x.revokedAt === null && x.endsAt !== null && x.endsAt <= t) && !list.some((x) => x.revokedAt === null && x.startsAt > t)) {
         // Had access that ran out (not taken back), and nothing new planned.
         expired++;
       }
     }
-    return { total: withAccess, byType, expiringIn7Days: expiring7, expiringIn14Days: expiring14, expired };
+    return { total: withAccess, byType, expiringIn7Days: expiring7, expiringIn14Days: expiring14, expiringIn30Days: expiring30, expired };
   };
 
   const eventView = (e: typeof ceoEvents.$inferSelect) => ({ id: e.id, at: e.at, actor: e.actor, action: e.action, target: e.target, detail: e.detail ? (JSON.parse(e.detail) as Record<string, unknown>) : null });
@@ -483,20 +489,24 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): { monitor: () =>
       .object({
         q: z.string().trim().toLowerCase().max(254).default(''),
         type: z.enum(['all', 'customer', 'beta', 'test', 'free', 'none']).default('all'),
-        status: z.enum(['all', 'active', 'inactive', 'new', 'suspended', 'expiring', 'invited']).default('all'),
+        status: z.enum(['all', 'active', 'inactive', 'new', 'suspended', 'expiring', 'invited', 'unverified']).default('all'),
         sort: z.enum(['created', 'lastActive', 'expires', 'name']).default('created'),
         dir: z.enum(['asc', 'desc']).optional(),
         page: z.coerce.number().int().min(1).max(1000).default(1),
       })
       .parse(request.query);
     const t = deps.now();
-    const rows = db
-      .select()
-      .from(accounts)
-      .orderBy(desc(accounts.createdAt))
-      .all()
-      .filter((a) => !q.q || a.email.includes(q.q) || (a.name ?? '').toLowerCase().includes(q.q));
-    const list = customerViews(rows)
+    const everyone = customerViews(db.select().from(accounts).orderBy(desc(accounts.createdAt)).all());
+    // The figures above the list are about every customer, whatever the search or filter.
+    const summary = {
+      total: everyone.length,
+      active: everyone.filter((c) => c.status === 'active').length,
+      new7: everyone.filter((c) => c.createdAt >= t - 7 * DAY).length,
+      expiring30: everyone.filter((c) => c.access?.endsAt != null && c.access.endsAt < t + 30 * DAY).length,
+      unverified: everyone.filter((c) => !c.verified && !c.invited).length,
+    };
+    const list = everyone
+      .filter((c) => !q.q || c.email.includes(q.q) || (c.name ?? '').toLowerCase().includes(q.q))
       .filter((c) => (q.type === 'all' ? true : q.type === 'none' ? !c.access : c.access?.type === q.type))
       .filter((c) =>
         q.status === 'all'
@@ -507,7 +517,9 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): { monitor: () =>
               ? c.access?.status === 'expiring'
               : q.status === 'invited'
                 ? c.invited
-                : c.status === q.status,
+                : q.status === 'unverified'
+                  ? !c.verified && !c.invited
+                  : c.status === q.status,
       );
     // Ascending by default for names and end dates, newest first for dates that passed.
     const dir = (q.dir ?? (q.sort === 'name' || q.sort === 'expires' ? 'asc' : 'desc')) === 'asc' ? 1 : -1;
@@ -521,7 +533,7 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): { monitor: () =>
       return (x < y ? -1 : x > y ? 1 : 0) * dir;
     });
     const size = 50;
-    return { total: list.length, page: q.page, pageSize: size, customers: list.slice((q.page - 1) * size, q.page * size) };
+    return { total: list.length, page: q.page, pageSize: size, summary, customers: list.slice((q.page - 1) * size, q.page * size) };
   });
 
   const relayChoice = (relayId: number | null | undefined) => {
