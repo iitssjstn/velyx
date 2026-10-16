@@ -1108,3 +1108,7 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - PR #148 gemerged 15 okt met die toestemming (alle checks groen); release `v0.19.63` gecontroleerd: APK en beide `.deb`'s
   aanwezig, accountservice-image (met `cast.vidalune.com`) gebouwd. Nu door de eigenaar: accountservice en server
   bijwerken, nieuwe APK installeren, casten testen; werkt het, dan **Publish** in de Cast Developer Console.
+- 16 okt: als testapparaat bleef de Chromecast onzichtbaar (ook na een echte herstart, serienummer klopte). Daarom
+  gepubliceerd: in de console sender-gegevens toegevoegd (Android `com.vidalune.app`, Chrome
+  `https://app.vidalune.com`) en op **Publish** geklikt. Les: "Opnieuw opstarten" via stand-by herstart niet;
+  controleer de bedrijfstijd onder Instellingen > Systeem > Over. Casten nog door de eigenaar te testen.
