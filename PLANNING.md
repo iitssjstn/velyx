@@ -1187,3 +1187,17 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1966) en beide lockfiles bijgewerkt.
 - PR #151 gemerged 16 okt op verzoek van de eigenaar ("Merge het maar"; alle checks groen); release `v0.19.66` gecontroleerd: APK en beide `.deb`'s aanwezig. Op de tv te testen.
 - Eigenaar meldt zich aan bij de Google Play Console (16 okt); Play Store staat in de planning na de tv-app.
+
+## Versie 0.19.67 (app-bundel voor de Play Store)
+
+- Op verzoek van de eigenaar (16 okt, "bouw het eerst"): hij maakt in de Play Console een interne testrelease
+  (app `com.vidalune.app`, kosteloos) en heeft een `.aab` nodig die met een uploadsleutel is ondertekend.
+- `android.yml`: met de secrets `ANDROID_UPLOAD_KEYSTORE` (base64 van de `.jks`), `ANDROID_UPLOAD_STORE_PASSWORD`,
+  `ANDROID_UPLOAD_KEY_ALIAS` en `ANDROID_UPLOAD_KEY_PASSWORD` bouwt hij na de APK ook `bundleRelease`, ondertekend
+  via `-Pandroid.injected.signing.*` (alleen die Gradle-run, `android/` blijft ongewijzigd), weigert een bundel met
+  de debugsleutel en hangt `vidalune-<versie>.aab` aan de release. Zonder sleutel: waarschuwing, geen bundel.
+- De APK houdt zijn eigen (Expo-debug)handtekening, zodat bestaande installaties gewoon bijwerken. Play-versie en
+  GitHub-APK kunnen niet over elkaar heen; wie wisselt, verwijdert eerst de app.
+- Niet lokaal te testen (geen Android SDK); bevestigt zich in de release-run. Door de eigenaar: sleutel maken en de
+  vier secrets zetten vóór de merge.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1967) en beide lockfiles bijgewerkt.

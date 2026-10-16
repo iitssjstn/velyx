@@ -1,7 +1,8 @@
 name: Android app
 
 # Builds the Vidalune app as an installable APK after the Debian packages are built and tested on
-# main, where the APK is attached to the same GitHub release. Not on pull requests, to save build
+# main, where the APK is attached to the same GitHub release. With the upload key in the repository
+# secrets it also builds an app bundle (.aab) signed with that key, for the Play Store. Not on pull requests, to save build
 # minutes: CI runs the app's typecheck and tests there.
 on:
   workflow_run:
@@ -21,6 +22,12 @@ jobs:
   apk:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    env:
+      # The Play Store upload key (see "CI" in the README). Without it no app bundle is built.
+      ANDROID_UPLOAD_KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE }}
+      ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+      ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+      ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
     defaults:
       run:
         working-directory: app
@@ -97,6 +104,47 @@ jobs:
           path: ${{ steps.apk.outputs.file }}
           retention-days: 30
 
+      # The Play Store only takes a bundle signed with the upload key; the APK keeps its own signature,
+      # so installed copies keep updating. The key is passed to this one Gradle run only and is never
+      # written into the project.
+      - name: Build the app bundle for the Play Store
+        id: aab
+        working-directory: app/android
+        run: |
+          if [ -z "$ANDROID_UPLOAD_KEYSTORE" ]; then
+            echo "::warning::No ANDROID_UPLOAD_KEYSTORE secret: no app bundle for the Play Store."
+            exit 0
+          fi
+          for name in ANDROID_UPLOAD_STORE_PASSWORD ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD; do
+            if [ -z "$(printenv "$name")" ]; then echo "The $name secret is missing." >&2; exit 1; fi
+          done
+          keystore="$RUNNER_TEMP/upload.jks"
+          printf '%s' "$ANDROID_UPLOAD_KEYSTORE" | base64 -d > "$keystore"
+          ./gradlew bundleRelease --no-daemon \
+            -Pandroid.injected.signing.store.file="$keystore" \
+            -Pandroid.injected.signing.store.password="$ANDROID_UPLOAD_STORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$ANDROID_UPLOAD_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$ANDROID_UPLOAD_KEY_PASSWORD"
+          rm -f "$keystore"
+          bundle=app/build/outputs/bundle/release/app-release.aab
+          # Never hand the Play Store a bundle that still carries the debug signature.
+          signer=$(keytool -printcert -jarfile "$bundle")
+          printf '%s\n' "$signer" | grep -E 'Owner:|SHA256:'
+          if printf '%s' "$signer" | grep -q 'CN=Android Debug'; then
+            echo "The app bundle is signed with the debug key, not the upload key." >&2
+            exit 1
+          fi
+          version=$(node -p "require('../package.json').version")
+          cp "$bundle" "../out/vidalune-$version.aab"
+          echo "file=app/out/vidalune-$version.aab" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.aab.outputs.file != ''
+        with:
+          name: vidalune-${{ steps.apk.outputs.version }}-aab
+          path: ${{ steps.aab.outputs.file }}
+          retention-days: 30
+
       # After a release build on main: attach the APK to the release of this exact commit.
       - name: Attach to the release
         if: github.event_name == 'workflow_run'
@@ -113,3 +161,4 @@ jobs:
           fi
           gh release view "$tag" > /dev/null 2>&1 || gh release create "$tag" --verify-tag --title "Vidalune $VERSION" --notes "Vidalune $VERSION. The Android app is attached as vidalune-$VERSION.apk (install it on an Android phone or tablet; see the README)."
           gh release upload "$tag" "out/vidalune-$VERSION.apk" --clobber
+          if [ -f "out/vidalune-$VERSION.aab" ]; then gh release upload "$tag" "out/vidalune-$VERSION.aab" --clobber; fi
