@@ -26,6 +26,7 @@ const FRAME = {
     account: 'My servers',
     other: 'Nederlands',
     footer: 'Your media. Your server.',
+    privacy: 'Privacy',
     license: 'Proprietary software. All rights reserved.',
     tmdb: 'Metadata and images: TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.',
   },
@@ -40,6 +41,7 @@ const FRAME = {
     account: 'Mijn servers',
     other: 'English',
     footer: 'Jouw media. Jouw server.',
+    privacy: 'Privacy',
     license: 'Eigen software. Alle rechten voorbehouden.',
     tmdb: 'Metadata en afbeeldingen: TMDB. Dit product gebruikt de TMDB API maar is niet goedgekeurd of gecertificeerd door TMDB.',
   },
@@ -116,7 +118,7 @@ export function layout(lang: Lang, opts: { title: string; signedIn: boolean; pat
     ${body}
     <footer class="site-footer">
       <span><strong>vidalune</strong> · ${escape(t.footer)}</span>
-      <span><a href="/install">${escape(t.install)}</a> · <a href="/install#app">${escape(t.app)}</a> · ${opts.discord ? '<a href="/discord" rel="noopener">Discord</a> · ' : ''}<a href="/account">${escape(opts.signedIn ? t.account : t.signIn)}</a></span>
+      <span><a href="/install">${escape(t.install)}</a> · <a href="/install#app">${escape(t.app)}</a> · ${opts.discord ? '<a href="/discord" rel="noopener">Discord</a> · ' : ''}<a href="/account">${escape(opts.signedIn ? t.account : t.signIn)}</a> · <a href="/privacy">${escape(t.privacy)}</a></span>
       <span class="small">© ${new Date().getFullYear()} Vidalune · ${escape(t.license)}</span>
       <span class="small">${escape(t.tmdb)}</span>
     </footer>
@@ -256,4 +258,55 @@ export function homePage(lang: Lang, signedIn: boolean, discord: boolean, public
       </section>
     </main>`;
   return layout(lang, { title: t.title, signedIn, path: '/', publicUrl, version, description: t.description, discord }, body);
+}
+
+/** The privacy policy of vidalune.com and the Vidalune apps (linked from the footer and the Play Store). */
+const PRIVACY = {
+  en: {
+    title: 'Privacy policy — Vidalune',
+    heading: 'Privacy policy',
+    description: 'What Vidalune keeps about you, why, and how to have it removed.',
+    updated: 'Last updated: 16 October 2026',
+    sections: [
+      ['Who we are', 'Vidalune makes software for your own media server, the Android app and the account service on vidalune.com and app.vidalune.com. Questions about privacy: info@vidalune.com.'],
+      ['Your media stays with you', 'Your movies, shows, watch history, progress, favourites and the users of your server are kept on your own server, not by Vidalune. Video, audio and subtitles go straight from your server to your device; they never pass through vidalune.com.'],
+      ['What the account service keeps', 'Your email address and an encrypted (hashed) password; when you confirmed your address; the signed-in browsers and apps (only a hash of each session); which servers belong to your account and who you invited; on which days your account was used and, per linked server, how much went through the relay per day. For every linked server: its name, version, public IP address, the private addresses it reports for use at home, and whether its direct connection works. Optionally, a name and a note when you take a paid plan.'],
+      ['The app', 'The Android app stores your sign-in on your device in its protected storage. It talks only to vidalune.com and to your own server. It has no advertising, no analytics and no tracking, and it does not share your data with others. When you cast, your Chromecast fetches the video from your own server and saves your progress there.'],
+      ['Services we use', 'Metadata and images come from TMDB and online subtitles from OpenSubtitles.com. vidalune.com asks them only about titles and files, never about you or what you watch. Emails (confirming your address, a new password) are sent through Postmark. The service runs on a server rented from OVHcloud; DNS and the forwarding of email to info@vidalune.com run at Cloudflare. A trailer on the website loads YouTube (without cookies) only when you press the button.'],
+      ['Why', 'To let you sign in, reach your servers from anywhere, send the emails you ask for, prevent misuse and fix faults. We do not sell data and do not use it for advertising.'],
+      ['How long', 'As long as you have an account. Sessions and one-time links end by themselves. A server that is not linked to an account and has been silent for 30 days is removed.'],
+      ['Removing your data', 'Sign in on vidalune.com, open My servers and choose Delete account (Delete for good). Your account, sessions and the link with your servers are removed at once. Your own server and its data stay with you. You can also email info@vidalune.com. You have the right to see, correct and remove your data, and to complain to your data protection authority.'],
+      ['Changes', 'When this policy changes, the new version is on this page with its date.'],
+    ],
+  },
+  nl: {
+    title: 'Privacybeleid — Vidalune',
+    heading: 'Privacybeleid',
+    description: 'Wat Vidalune over je bewaart, waarom, en hoe je het laat verwijderen.',
+    updated: 'Laatst bijgewerkt: 16 oktober 2026',
+    sections: [
+      ['Wie wij zijn', 'Vidalune maakt software voor je eigen mediaserver, de Android-app en de accountdienst op vidalune.com en app.vidalune.com. Vragen over privacy: info@vidalune.com.'],
+      ['Je media blijft bij jou', 'Je films, series, kijkgeschiedenis, voortgang, favorieten en de gebruikers van je server staan op je eigen server, niet bij Vidalune. Video, geluid en ondertitels gaan rechtstreeks van je server naar je apparaat; ze gaan nooit via vidalune.com.'],
+      ['Wat de accountdienst bewaart', 'Je e-mailadres en een versleuteld (gehasht) wachtwoord; wanneer je je adres bevestigde; de ingelogde browsers en apps (van elke sessie alleen een hash); welke servers bij je account horen en wie je hebt uitgenodigd; op welke dagen je account gebruikt is en per gekoppelde server hoeveel er per dag via de relay ging. Per gekoppelde server: de naam, versie, het publieke IP-adres, de interne adressen die hij voor thuis meldt, en of zijn directe verbinding werkt. Eventueel een naam en notitie als je een betaald abonnement neemt.'],
+      ['De app', 'De Android-app bewaart je inlog op je apparaat, in de beveiligde opslag. Hij praat alleen met vidalune.com en met je eigen server. Er zit geen reclame, geen analyse en geen tracking in, en hij deelt je gegevens met niemand. Cast je, dan haalt je Chromecast de video bij je eigen server en slaat hij je voortgang daar op.'],
+      ['Diensten die we gebruiken', 'Metadata en afbeeldingen komen van TMDB en online ondertitels van OpenSubtitles.com. vidalune.com vraagt hun alleen naar titels en bestanden, nooit naar jou of wat je kijkt. E-mails (adres bevestigen, nieuw wachtwoord) gaan via Postmark. De dienst draait op een server die we huren bij OVHcloud; DNS en het doorsturen van mail aan info@vidalune.com lopen via Cloudflare. Een trailer op de website laadt YouTube (zonder cookies) pas als je op de knop drukt.'],
+      ['Waarom', 'Zodat je kunt inloggen, je servers overal kunt bereiken, de mails krijgt waar je om vraagt, en om misbruik te voorkomen en fouten op te lossen. We verkopen geen gegevens en gebruiken ze niet voor reclame.'],
+      ['Hoe lang', 'Zolang je een account hebt. Sessies en eenmalige links verlopen vanzelf. Een server die niet aan een account gekoppeld is en 30 dagen niets van zich liet horen, wordt verwijderd.'],
+      ['Je gegevens verwijderen', 'Log in op vidalune.com, open Mijn servers en kies Account verwijderen (Definitief verwijderen). Je account, sessies en de koppeling met je servers worden meteen verwijderd. Je eigen server en zijn gegevens blijven bij jou. Je kunt ook mailen naar info@vidalune.com. Je hebt het recht je gegevens in te zien, te laten verbeteren en te laten verwijderen, en een klacht in te dienen bij de Autoriteit Persoonsgegevens.'],
+      ['Wijzigingen', 'Verandert dit beleid, dan staat de nieuwe versie met datum op deze pagina.'],
+    ],
+  },
+} satisfies Record<Lang, { title: string; heading: string; description: string; updated: string; sections: [string, string][] }>;
+
+export function privacyPage(lang: Lang, signedIn: boolean, discord: boolean, publicUrl: string, version: string): string {
+  const t = PRIVACY[lang];
+  const body = `
+    <main class="site-main">
+      <section class="section">
+        <h1>${escape(t.heading)}</h1>
+        <p class="small">${escape(t.updated)}</p>
+        ${t.sections.map(([h, p]) => `<h2>${escape(h)}</h2><p>${escape(p)}</p>`).join('\n        ')}
+      </section>
+    </main>`;
+  return layout(lang, { title: t.title, signedIn, path: '/privacy', publicUrl, version, description: t.description, discord }, body);
 }

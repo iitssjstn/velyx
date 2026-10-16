@@ -1219,3 +1219,11 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   zonder ondertitelblok en zonder `/api/admin/online-subtitles`; Setup zonder sleutelveld. Frontend 338 tests,
   typecheck, lint (4 bekende waarschuwingen) en de frontend-build slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1968) en beide lockfiles bijgewerkt.
+- Ook in deze versie (16 okt, de Play Console vraagt om een privacybeleid): **vidalune.com/privacy** (Engels en
+  Nederlands, `privacyPage` in `cloud/src/site.ts`), gelinkt in de footer en in de sitemap; niet op app.vidalune.com.
+  Volgt de code: wat de accountdienst bewaart (schema), de app (geen reclame, analyse of tracking), gebruikte diensten
+  (TMDB, OpenSubtitles, Postmark, OVHcloud, Cloudflare, YouTube bij trailers), bewaartermijn en verwijderen via
+  Mijn servers > Account verwijderen. Contact info@vidalune.com. Test in `cloud/test/install.test.ts`; cloud 171 tests.
+- Play Console (door de eigenaar): privacybeleid-URL `https://vidalune.com/privacy`; verwijder-URL voor gegevens
+  `https://vidalune.com/account`. Inloggegevens voor de beoordeling: een testaccount met toegang tot een server (pas
+  nodig voor een gesloten test of productie).

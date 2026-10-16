@@ -261,6 +261,21 @@ describe('installing Vidalune from vidalune.com', () => {
     expect(account.body).toContain('account.js');
   });
 
+  it('has a privacy policy in English and Dutch, linked from the footer, and none on app.vidalune.com', async () => {
+    const en = await app.inject({ url: '/privacy' });
+    expect(en.statusCode).toBe(200);
+    expect(en.headers['content-type']).toContain('text/html');
+    expect(en.body).toContain('<h1>Privacy policy</h1>');
+    expect(en.body).toContain('info@vidalune.com');
+    expect(en.body).toContain('Delete account');
+    expect(en.body).toContain('no advertising, no analytics and no tracking');
+    const nl = await app.inject({ url: '/privacy', headers: { 'accept-language': 'nl-NL,nl;q=0.9' } });
+    expect(nl.body).toContain('<h1>Privacybeleid</h1>');
+    expect(nl.body).toContain('Account verwijderen');
+    expect((await app.inject({ url: '/install' })).body).toContain('<a href="/privacy">Privacy</a>');
+    expect((await app.inject({ url: '/privacy', headers: { host: 'app.vidalune.example' } })).statusCode).toBe(404);
+  });
+
   it('publishes a localized sitemap and keeps account and app pages out of search results', async () => {
     const robots = await app.inject({ url: '/robots.txt' });
     expect(robots.headers['content-type']).toContain('text/plain');
@@ -277,6 +292,8 @@ describe('installing Vidalune from vidalune.com', () => {
       'https://vidalune.example/?lang=nl',
       'https://vidalune.example/install?lang=en',
       'https://vidalune.example/install?lang=nl',
+      'https://vidalune.example/privacy?lang=en',
+      'https://vidalune.example/privacy?lang=nl',
     ]) expect(sitemap.body).toContain(`<loc>${url}</loc>`);
     expect(sitemap.body).toContain('hreflang="x-default"');
     expect(sitemap.body).not.toContain('/account');

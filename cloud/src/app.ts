@@ -16,7 +16,7 @@ import { accountActivity, accountSessions, accounts, emailTokens, invites, linkC
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
 import { isMediaBytesPath, isRelayedMediaBytes, newSlug, rejectRelayedMedia, Relay, relayMessage, type Rewrite } from './relay.js';
 import { composeFile, installPage, debInstallScript, installScript } from './install.js';
-import { homePage, pickLanguage } from './site.js';
+import { homePage, pickLanguage, privacyPage } from './site.js';
 import { Community, communityRoutes } from './community.js';
 import { detectionRoutes } from './detection.js';
 import { SubtitleError, SubtitleProxy, subtitleRoutes } from './subtitles.js';
@@ -286,7 +286,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   };
   const denyRobots = (res: http.ServerResponse) =>
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }).end('User-agent: *\nDisallow: /\n');
-  const sitemapEntries = ['/', '/install'].flatMap((route) => {
+  const sitemapEntries = ['/', '/install', '/privacy'].flatMap((route) => {
     const localized = (lang: 'en' | 'nl') => {
       const url = new URL(route, config.publicUrl);
       url.searchParams.set('lang', lang);
@@ -1285,6 +1285,10 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   app.get('/install', async (request, reply) =>
     reply.type('text/html').header('Cache-Control', 'no-cache').send(installPage(pickLanguage(request.query, request.headers['accept-language']), config.publicUrl, releaseVersion, !!latestApk(), !!accountByToken(request.cookies[SESSION_COOKIE]), !!latestDeb('amd64'), !!community.discord())),
   );
+  app.get('/privacy', async (request, reply) => {
+    if (isAppHost(request.raw)) throw new HttpError(404, 'Not found.');
+    return reply.type('text/html').header('Cache-Control', 'no-cache').send(privacyPage(pickLanguage(request.query, request.headers['accept-language']), !!accountByToken(request.cookies[SESSION_COOKIE]), !!community.discord(), config.publicUrl, releaseVersion));
+  });
   app.get('/install/docker-compose.yml', async (_request, reply) =>
     reply.type('text/yaml; charset=utf-8').header('Content-Disposition', 'attachment; filename="docker-compose.yml"').send(composeFile()),
   );
