@@ -1224,6 +1224,15 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   Volgt de code: wat de accountdienst bewaart (schema), de app (geen reclame, analyse of tracking), gebruikte diensten
   (TMDB, OpenSubtitles, Postmark, OVHcloud, Cloudflare, YouTube bij trailers), bewaartermijn en verwijderen via
   Mijn servers > Account verwijderen. Contact info@vidalune.com. Test in `cloud/test/install.test.ts`; cloud 171 tests.
+- Ook in deze versie (16 okt, wens eigenaar: "Maak een functie want anders moet ik de hele tijd die demo versie draaien";
+  daarna "Zorg ook dat de functie achteraf te bewerken is"): **Seerr per gebruiker**. Beheer > Gebruikers, bij toevoegen
+  en bewerken: "Ziet Seerr en mag films en series aanvragen" (standaard aan; beheerders altijd). Uit: `/api/seerr` geeft
+  `enabled: false` (website en app verbergen dan rijen, zoeken buiten de bibliotheek, Aanvragen) en de andere
+  `/api/seerr/*`-routes geven 403 zonder Seerr te vragen. Kolom `users.seerr_access` (migratie `0028_seerr_access`), Zod,
+  auditlog ("Seerr off/on"), label "Geen Seerr" in de lijst. Voor het Play-beoordelingsaccount: eigen demobibliotheek,
+  bibliotheektoegang alleen daartoe en Seerr uit. Tests: backend (uit/aan, alle routes 403, niets naar Seerr, beheerder
+  altijd, gebruiker kan het zelf niet aanzetten), frontend (bewerken en later weer aan, label, niet voor beheerders).
+  Backend 582, frontend 341, cloud 171 tests; typechecks en lint (4 bekende waarschuwingen) slagen.
 - Play Console (door de eigenaar): privacybeleid-URL `https://vidalune.com/privacy`; verwijder-URL voor gegevens
   `https://vidalune.com/account`. Inloggegevens voor de beoordeling: een testaccount met toegang tot een server (pas
   nodig voor een gesloten test of productie).

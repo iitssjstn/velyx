@@ -361,6 +361,7 @@ export const nl: Record<string, string> = {
   'Seerr could not handle the request. Try again later.': 'Seerr kon het verzoek niet verwerken. Probeer het later opnieuw.',
   'Enter the address Seerr is opened at, such as http://192.168.1.10:5055.': 'Vul het adres in waarop Seerr opent, bijvoorbeeld http://192.168.1.10:5055.',
   'Enter the API key from Seerr (Settings → General).': 'Vul de API-sleutel van Seerr in (Settings → General).',
+  'Seerr is turned off for your account.': 'Seerr staat uit voor je account.',
   'You made many requests in the last hour. Try again later.': 'Je hebt het afgelopen uur veel aanvragen gedaan. Probeer het later opnieuw.',
   'This is already in the library.': 'Dit staat al in de bibliotheek.',
   // Vidalune account

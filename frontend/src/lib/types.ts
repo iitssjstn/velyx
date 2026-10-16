@@ -638,6 +638,8 @@ export interface AdminUser extends User {
   lastLoginAt: number | null;
   /** Libraries this user may see; null = all libraries, including ones added later. */
   libraryIds: number[] | null;
+  /** Sees Seerr (catalogue, search outside the library, requests); administrators always do. */
+  seerrAccess: boolean;
 }
 
 /** An invitation to use this server (Admin → Users). */

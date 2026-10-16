@@ -22,6 +22,8 @@ export const users = sqliteTable('users', {
   avatarFile: text('avatar_file'),
   /** When false, the user only sees the libraries listed in user_libraries. Admins always see everything. */
   allLibraries: integer('all_libraries', { mode: 'boolean' }).notNull().default(true),
+  /** When false, the user does not see Seerr (catalogue rows, search outside the library, requests). Admins always do. */
+  seerrAccess: integer('seerr_access', { mode: 'boolean' }).notNull().default(true),
   /** Playback language preferences (ISO 639-1 codes; '' = no preference). */
   prefAudioLanguage: text('pref_audio_language').notNull().default(''),
   prefSubtitleLanguage: text('pref_subtitle_language').notNull().default(''),

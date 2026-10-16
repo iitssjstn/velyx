@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
@@ -60,7 +60,16 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
   });
 
   // ---- everyone signed in
-  app.get('/api/seerr', { preHandler: requireUser }, async () => ({ enabled: ctx.seerr.configured() }));
+  /** Whether this person sees Seerr: administrators always, others unless an administrator turned it off for them. */
+  const seerrAllowed = (user: SessionUser) =>
+    user.role === 'admin' || (db.select({ on: users.seerrAccess }).from(users).where(eq(users.id, user.id)).get()?.on ?? false);
+  const mayUseSeerr = async (request: FastifyRequest) => {
+    if (!seerrAllowed(request.user!)) throw new HttpError(403, 'Seerr is turned off for your account.');
+  };
+  /** Signed in, and Seerr is not turned off for this person. */
+  const seerrUser = { preHandler: [requireUser, mayUseSeerr] };
+
+  app.get('/api/seerr', { preHandler: requireUser }, async (request) => ({ enabled: ctx.seerr.configured() && seerrAllowed(request.user!) }));
 
   /**
    * Which of these are in the library already (by TMDB id), and where: a movie opens its player,
@@ -99,14 +108,14 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     });
   };
 
-  app.get('/api/seerr/search', { preHandler: requireUser }, async (request) => {
+  app.get('/api/seerr/search', seerrUser, async (request) => {
     const q = z.object({ q: z.string().trim().min(1).max(100), page: z.coerce.number().int().min(1).max(20).default(1) }).parse(request.query);
     const r = await ctx.seerr.search(q.q, q.page, lang(request.user!.language));
     return { ...r, results: withLibrary(r.results, request.user!) };
   });
 
   /** One row of the catalog for the home screen: trending, popular, a genre, coming soon. */
-  app.get('/api/seerr/discover', { preHandler: requireUser }, async (request) => {
+  app.get('/api/seerr/discover', seerrUser, async (request) => {
     const q = z
       .object({
         row: z.enum(['trending', 'movies', 'tv', 'upcomingMovies', 'upcomingTv']),
@@ -119,27 +128,27 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return { ...r, results: withLibrary(r.results, request.user!) };
   });
 
-  app.get('/api/seerr/:type/:id', { preHandler: requireUser }, async (request) => {
+  app.get('/api/seerr/:type/:id', seerrUser, async (request) => {
     const p = z.object({ type: mediaType, id: tmdbId }).parse(request.params);
     const d = await ctx.seerr.details(p.type, p.id, lang(request.user!.language));
     return withLibrary([d], request.user!)[0];
   });
 
   /** The trailer of a title that is not in the library: at TMDB, or through Seerr without a TMDB key. */
-  app.get('/api/seerr/:type/:id/trailer', { preHandler: requireUser }, async (request) => {
+  app.get('/api/seerr/:type/:id/trailer', seerrUser, async (request) => {
     const p = z.object({ type: mediaType, id: tmdbId }).parse(request.params);
     return ctx.trailers.get(p.type, p.id, { viaSeerr: true });
   });
 
   /** Titles like this one, for its page (what is here opens straight away). */
-  app.get('/api/seerr/:type/:id/recommendations', { preHandler: requireUser }, async (request) => {
+  app.get('/api/seerr/:type/:id/recommendations', seerrUser, async (request) => {
     const p = z.object({ type: mediaType, id: tmdbId }).parse(request.params);
     const r = await ctx.seerr.recommendations(p.type, p.id, lang(request.user!.language));
     return { ...r, results: withLibrary(r.results, request.user!) };
   });
 
   const recent = new Map<number, number[]>();
-  app.post('/api/seerr/requests', { preHandler: requireUser }, async (request) => {
+  app.post('/api/seerr/requests', seerrUser, async (request) => {
     const body = z.object({ mediaType, tmdbId, seasons: z.array(z.number().int().min(1).max(1000)).max(200).nullable().default(null) }).parse(request.body);
     const user = request.user!;
     const now = Date.now();
@@ -174,7 +183,7 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
   const view = (r: typeof seerrRequests.$inferSelect) => ({ id: r.id, mediaType: r.mediaType, tmdbId: r.tmdbId, title: r.title, posterPath: r.posterPath, state: r.state as RequestState | 'removed', createdAt: r.createdAt, updatedAt: r.updatedAt });
 
   /** Your requests, with where they stand now (asked of Seerr at most every few minutes each). */
-  app.get('/api/seerr/requests', { preHandler: requireUser }, async (request) => {
+  app.get('/api/seerr/requests', seerrUser, async (request) => {
     const rows = db.select().from(seerrRequests).where(eq(seerrRequests.userId, request.user!.id)).orderBy(desc(seerrRequests.createdAt)).limit(50).all();
     if (!ctx.seerr.configured()) return rows.map(view);
     const now = Date.now();
