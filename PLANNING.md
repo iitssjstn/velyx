@@ -1160,3 +1160,4 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   afspeelscherm van de app zelf heeft geen testomgeving; op de telefoon testen. Frontend 337, app 159, cloud 168
   tests; typechecks, lint (4 bekende waarschuwingen) en de frontend-build slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1965) en beide lockfiles bijgewerkt.
+- PR #150 gemerged 16 okt op verzoek van de eigenaar ("Merge het maar"; alle checks groen); release `v0.19.65` nog controleren.
