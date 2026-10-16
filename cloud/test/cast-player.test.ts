@@ -21,11 +21,14 @@ afterEach(async () => {
   if (dir) fs.rmSync(dir, { recursive: true, force: true });
 });
 
+/** What a Chromecast with Google TV says it is. */
+const CHROMECAST = 'Mozilla/5.0 (Linux; Android 12; Build/STTE.230615.005) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.196 Safari/537.36 CrKey/1.56.500000 DeviceType/AndroidTV';
+
 /** A request as a Chromecast makes it (the Host header decides what the service is). */
-async function get(host: string, url: string, method = 'GET'): Promise<{ status: number; type: string; body: string; headers: http.IncomingHttpHeaders }> {
+async function get(host: string, url: string, method = 'GET', userAgent = CHROMECAST): Promise<{ status: number; type: string; body: string; headers: http.IncomingHttpHeaders }> {
   const { port } = app.server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, path: url, method, headers: { host } }, (res) => {
+    const req = http.request({ host: '127.0.0.1', port, path: url, method, headers: { host, 'user-agent': userAgent } }, (res) => {
       let body = '';
       res.on('data', (c) => (body += c));
       res.on('end', () => resolve({ status: res.statusCode!, type: String(res.headers['content-type'] ?? ''), body, headers: res.headers }));
@@ -64,6 +67,15 @@ describe('cast.vidalune.com', () => {
     const css = (await get('cast.vidalune.example', '/cast.css')).body;
     for (const variable of ['--background', '--background-color', '--logo-background', '--splash-background']) expect(css, variable).toMatch(new RegExp(`${variable}:\\s*#0f0d15`));
     expect((await get('cast.vidalune.example', '/robots.txt')).body).toContain('Disallow: /');
+    // Only a Chromecast (or a TV with Chromecast built in) gets the player; a browser does not.
+    const desktop = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36';
+    for (const url of ['/', '/receiver.js', '/cast.css', '/logo.svg']) {
+      const res = await get('cast.vidalune.example', url, 'GET', desktop);
+      expect(res.status, url).toBe(404);
+      expect(res.body, url).not.toContain('cast-media-player');
+    }
+    expect((await get('cast.vidalune.example', '/', 'GET', '')).status).toBe(404);
+    expect((await get('cast.vidalune.example', '/', 'GET', 'Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36 CrKey/1.54.250320')).status).toBe(200);
     // Not the account service, not other files, not a relay address.
     for (const url of ['/api/account', '/account', '/progress.d.ts', '/../index.html', '/%2e%2e/index.html', '/admin']) expect((await get('cast.vidalune.example', url)).status, url).toBe(404);
     expect((await get('cast.vidalune.example', '/', 'POST')).status).toBe(404);

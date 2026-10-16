@@ -260,9 +260,14 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const isCastHost = (req: http.IncomingMessage) => String(req.headers.host ?? '').toLowerCase().replace(/:\d+$/, '') === `cast.${config.relayDomain}`;
   const castDir = config.webDir ? path.join(config.webDir, 'cast') : null;
   const CAST_TYPES: Record<string, string> = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml' };
-  /** The cast player's files, and nothing else of this service, on cast.<domain>. */
+  /**
+   * The cast player's files, and nothing else of this service, on cast.<domain>; only for a Chromecast
+   * or a TV with Chromecast built in (their browser says "CrKey"). Others get "Not found": there is
+   * nothing secret here, but nobody needs to open it in a browser.
+   */
   const serveCast = (req: http.IncomingMessage, res: http.ServerResponse, requestPath: string) => {
     if (requestPath === '/robots.txt') return denyRobots(res);
+    if (!/\bCrKey\//.test(String(req.headers['user-agent'] ?? ''))) return res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': 'noindex' }).end('Not found.');
     const name = requestPath === '/' ? 'index.html' : requestPath.slice(1);
     const type = /^[a-z]+\.([a-z]+)$/.exec(name)?.[1];
     const file = castDir && type && CAST_TYPES[type] ? path.join(castDir, name) : null;

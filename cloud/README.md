@@ -254,8 +254,9 @@ in the Google Cast SDK Developer Console with this address): Google's cast playe
 colours (`web/cast/`). It saves where the TV is on the Vidalune server itself (`POST /api/cast/progress`
 with the cast token the sender gave it). `cast.vidalune.com` serves only these files (no account pages, no
 API) and is never a relay address. It needs nothing of its own: the `*.vidalune.com` DNS record, proxy host
-and certificate cover it. Until the app is published in the Developer Console, only the Chromecasts listed
-there as test devices can open it.
+and certificate cover it. It answers only a Chromecast or a TV with Chromecast built in (their browser
+identifies itself with `CrKey`); a normal browser gets "Not found". That keeps casual visitors out; the page
+holds nothing secret (a TV can only play with the short-lived cast link the sender gives it).
 
 ## app.vidalune.com
 
