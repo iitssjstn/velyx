@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm';
 import { buildCloudApp, SESSION_COOKIE } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
-import { accountActivity, accounts, relayTraffic, servers } from '../src/db/schema.js';
+import { accessGrants, accountActivity, accounts, relayTraffic, servers } from '../src/db/schema.js';
 import { activeGrant, daysBetween, growth } from '../src/ceo.js';
 
 const DAY = 86_400_000;
@@ -80,6 +80,11 @@ describe('CEO panel', () => {
     // 4 new in the last 30 days against 2 in the 30 before.
     expect(d.customers.growth30).toBe(100);
     expect(d).not.toHaveProperty('revenue');
+    // The same figures above the customer list, whatever is searched; without mail every address counts as confirmed.
+    const list = (await call(ceo, 'GET', '/api/ceo/customers?q=old1')).json();
+    expect(list.total).toBe(1);
+    expect(list.summary).toMatchObject({ total: 6, active: 4, new7: 4, expiring30: 0, unverified: 0 });
+    expect(list.customers[0].verified).toBe(true);
     expect(d.relays).toMatchObject({ nodes: 1, capacityMbps: 900 });
   });
 
@@ -100,7 +105,11 @@ describe('CEO panel', () => {
     const list = (await call(ceo, 'GET', '/api/ceo/customers?type=customer')).json();
     expect(list.customers.map((c: { email: string }) => c.email)).toEqual(['anna@example.com']);
     expect(list.customers[0].access).toMatchObject({ type: 'customer', plan: 'remote' });
-    expect((await call(ceo, 'GET', '/api/ceo/dashboard')).json().access).toMatchObject({ total: 1, byType: { customer: 1, beta: 0 } });
+    expect((await call(ceo, 'GET', '/api/ceo/dashboard')).json().access).toMatchObject({ total: 1, byType: { customer: 1, beta: 0 }, expiringIn30Days: 0 });
+    // 20 days left: expiring within 30 days, not yet within 14.
+    db.update(accessGrants).set({ endsAt: clock + 20 * DAY }).where(eq(accessGrants.id, g.id)).run();
+    expect((await call(ceo, 'GET', '/api/ceo/access')).json().summary).toMatchObject({ expiringIn30Days: 1, expiringIn14Days: 0 });
+    expect((await call(ceo, 'GET', '/api/ceo/customers')).json().summary.expiring30).toBe(1);
 
     // Taken back: no remote access any more, the history stays.
     expect((await call(ceo, 'DELETE', `/api/ceo/access/${g.id}`)).statusCode).toBe(200);
