@@ -460,10 +460,11 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   }, [castHere, cast.time, cast.playing]);
   const castSaved = useRef(0);
   useEffect(() => {
-    if (!castHere || !item.data || Date.now() - castSaved.current < SAVE_INTERVAL_MS) return;
+    // Not before the TV got to the resume point (one that begins at 0 first would overwrite it).
+    if (!castHere || !cast.settled || !item.data || Date.now() - castSaved.current < SAVE_INTERVAL_MS) return;
     castSaved.current = Date.now();
     void saveProgress(item.data, cast.time, totalDuration);
-  }, [castHere, cast.time, item.data, totalDuration]);
+  }, [castHere, cast.settled, cast.time, item.data, totalDuration]);
   // Another file while casting (the next episode): it goes to the TV, from where it should start.
   const castLoading = useRef<number | null>(null);
   useEffect(() => {

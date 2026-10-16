@@ -8,7 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import { buildCloudApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
-import { ProgressSaver, progressReport, progressTarget, SAVE_EVERY_MS } from '../web/cast/progress.js';
+import { ProgressSaver, progressReport, progressTarget, SAVE_EVERY_MS, START_SLACK_SEC } from '../web/cast/progress.js';
 import { showsSplash } from '../web/cast/screen.js';
 
 let dir: string;
@@ -143,5 +143,26 @@ describe('the cast player saving where the TV is', () => {
     saver.save(60, 6000);
     await new Promise((r) => setTimeout(r, 0));
     expect(calls).toBe(2);
+  });
+
+  it('keeps the resume point until the TV got there (it may begin at the start of the stream first)', async () => {
+    const sent: Array<{ body: unknown }> = [];
+    let clock = 0;
+    const saver = new ProgressSaver((_url, body) => sent.push({ body }), () => clock);
+    saver.start(item, 2700);
+    // The TV plays from the beginning for a moment: nothing saved, also not when paused or stopped.
+    saver.tick(3, 6000);
+    clock += SAVE_EVERY_MS;
+    saver.tick(14, 6000);
+    saver.save(14, 6000);
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(sent).toHaveLength(0);
+    // Sent to the resume point (a keyframe just before it counts too): saved from there on.
+    saver.tick(2700 - START_SLACK_SEC + 1, 6000);
+    clock += SAVE_EVERY_MS;
+    saver.tick(2712, 6000);
+    saver.finish(2712, 6000);
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(sent.at(-1)?.body).toEqual({ positionSec: 2712, durationSec: 6000 });
   });
 });

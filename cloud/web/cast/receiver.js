@@ -1,4 +1,4 @@
-import { ProgressSaver, progressTarget } from './progress.js';
+import { ProgressSaver, progressTarget, START_SLACK_SEC } from './progress.js';
 import { showsSplash } from './screen.js';
 
 /**
@@ -15,6 +15,9 @@ const saver = new ProgressSaver((url, body) =>
 );
 const now = () => [player.getCurrentTimeSec(), player.getDurationSec()];
 
+// Where the sender asked the TV to start (the resume point).
+let wantedStart = 0;
+
 player.setMessageInterceptor(MessageType.LOAD, (request) => {
   // What played before is saved first.
   saver.finish(...now());
@@ -24,9 +27,16 @@ player.setMessageInterceptor(MessageType.LOAD, (request) => {
     media.hlsSegmentFormat = HlsSegmentFormat.FMP4;
     media.hlsVideoSegmentFormat = HlsVideoSegmentFormat.FMP4;
   }
-  saver.start(progressTarget(media?.customData));
+  wantedStart = Number(request.currentTime) > 0 ? Number(request.currentTime) : 0;
+  saver.start(progressTarget(media?.customData), wantedStart);
   return request;
 });
+
+// Should the player begin at the start of the stream anyway, it is sent there once the title has loaded.
+if (EventType.PLAYER_LOAD_COMPLETE)
+  player.addEventListener(EventType.PLAYER_LOAD_COMPLETE, () => {
+    if (wantedStart > START_SLACK_SEC && player.getCurrentTimeSec() + START_SLACK_SEC < wantedStart) player.seek(wantedStart);
+  });
 
 const splash = document.getElementById('splash');
 const updateSplash = () => splash?.classList.toggle('gone', !showsSplash(player.getPlayerState()));

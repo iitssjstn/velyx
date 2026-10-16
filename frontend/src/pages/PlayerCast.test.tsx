@@ -10,7 +10,7 @@ const castState = { connecting: false };
 vi.mock('../lib/cast', async (original) => ({
   ...(await original<typeof import('../lib/cast')>()),
   useCast: () => ({
-    supported: true, available: false, connecting: castState.connecting, active: false, fileId: null, device: null, time: 0, playing: false, volume: 1, muted: false, error: null,
+    supported: true, available: false, connecting: castState.connecting, settled: false, active: false, fileId: null, device: null, time: 0, playing: false, volume: 1, muted: false, error: null,
     start, stop: vi.fn(), togglePlay: vi.fn(), seek: vi.fn(), setVolume: vi.fn(), toggleMute: vi.fn(), setAudio: vi.fn(), setSubtitle: vi.fn(), reload: vi.fn(),
   }),
 }));

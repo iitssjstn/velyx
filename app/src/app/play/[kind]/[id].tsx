@@ -16,7 +16,7 @@ import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
 import { castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
-import { castStartAt, castStatus } from '../../../lib/castStatus';
+import { castSettled, castStartAt, castStatus } from '../../../lib/castStatus';
 import { applyCastTextTrackStyle, castLoadRequest, castTrackIds, loadCastWithCurrentSubtitle, sessionUsable, tvFilePosition, type CastSession } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
@@ -272,6 +272,9 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   // The TV's position (file time) while casting, as last reported; saved when casting ends.
   const tvPosition = useRef<number | null>(null);
   const onTvProgress = useRef<(streamSec: number) => void>(() => undefined);
+  // Where the TV was last asked to start (in the file), and whether it got there.
+  const tvStartedAt = useRef(0);
+  const tvSettled = useRef(false);
   // The TV reports its position through the Cast SDK's own progress listener. It runs natively, so it
   // keeps coming while the app is in the background (phone locked, another app open), when JavaScript
   // timers and effects wait; the position is therefore saved straight from it (see below).
@@ -351,6 +354,8 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
         const { request, offset: from } = castLoadRequest({ session: s.session, url: (path) => new URL(path, `${s!.session.serverUrl}/`).toString(), title: item.title, subtitle: item.subtitle, artwork: imagePath(item.poster ?? item.artwork, 'w780'), at, keyframe, subtitleKey: subtitleRef.current?.key ?? null });
         setOffset(from);
         setTime(Math.max(0, at - from));
+        tvStartedAt.current = at;
+        tvSettled.current = false;
         setEnded(false);
         await loadCastWithCurrentSubtitle({ request, session: s.session, subtitleKey: () => subtitleRef.current?.key ?? null, load: (media) => client.loadMedia(media), select: (ids) => client.setActiveTrackIds(ids), active });
         if (active()) {
@@ -586,6 +591,9 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
     if (!castingRef.current) return;
     const at = tvFilePosition(offset, streamSec);
     if (at === null) return;
+    // Not before the TV got to the resume point: it keeps its resume point otherwise.
+    tvSettled.current = castSettled(tvSettled.current, at, tvStartedAt.current);
+    if (!tvSettled.current) return;
     tvPosition.current = at;
     begun.current = true;
     setTime(streamSec);
