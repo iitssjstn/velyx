@@ -1233,6 +1233,8 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   bibliotheektoegang alleen daartoe en Seerr uit. Tests: backend (uit/aan, alle routes 403, niets naar Seerr, beheerder
   altijd, gebruiker kan het zelf niet aanzetten), frontend (bewerken en later weer aan, label, niet voor beheerders).
   Backend 582, frontend 341, cloud 171 tests; typechecks en lint (4 bekende waarschuwingen) slagen.
+- PR #153 gemerged 16 okt op verzoek van de eigenaar ("Merge het maar", alle checks groen). Nog te controleren: release
+  `v0.19.68` (APK, beide `.deb`'s, `.aab`).
 - Play Console (door de eigenaar): privacybeleid-URL `https://vidalune.com/privacy`; verwijder-URL voor gegevens
   `https://vidalune.com/account`. Inloggegevens voor de beoordeling: een testaccount met toegang tot een server (pas
   nodig voor een gesloten test of productie).
