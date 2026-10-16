@@ -120,7 +120,9 @@ export interface CastItem {
 }
 
 export interface CastState {
-  /** A Chromecast is around (the button shows). */
+  /** This browser can cast (Chrome): the button shows, and its list searches the network itself. */
+  supported: boolean;
+  /** A Chromecast has been found around. */
   available: boolean;
   /** Playing on a Chromecast now. */
   active: boolean;
@@ -140,7 +142,7 @@ export interface CastState {
  * (a repackaged stream is loaded again from the new spot), and the position while it plays.
  */
 export function useCast(item: CastItem | null) {
-  const [state, setState] = useState<CastState>({ available: false, active: false, fileId: null, device: null, time: 0, playing: false, volume: 1, muted: false, error: null });
+  const [state, setState] = useState<CastState>({ supported: false, available: false, active: false, fileId: null, device: null, time: 0, playing: false, volume: 1, muted: false, error: null });
   const framework = useRef<any>(null);
   const player = useRef<any>(null);
   const controller = useRef<any>(null);
@@ -191,7 +193,7 @@ export function useCast(item: CastItem | null) {
       const context = f.CastContext.getInstance();
       const update = () => {
         const s = context.getCastState();
-        setState((st) => ({ ...st, available: s !== f.CastState.NO_DEVICES_AVAILABLE }));
+        setState((st) => ({ ...st, supported: true, available: s !== f.CastState.NO_DEVICES_AVAILABLE }));
       };
       context.addEventListener(f.CastContextEventType.CAST_STATE_CHANGED, update);
       update();
@@ -291,6 +293,8 @@ export function useCast(item: CastItem | null) {
     async (at: number) => {
       const f = framework.current;
       if (!f) return;
+      // A new try: the same problem again is shown again.
+      setState((st) => ({ ...st, error: null }));
       try {
         const context = f.CastContext.getInstance();
         if (!context.getCurrentSession()) await context.requestSession();
@@ -299,7 +303,10 @@ export function useCast(item: CastItem | null) {
       } catch (err) {
         // Closing the list is not an error.
         const code = (err as { code?: string } | string | undefined) ?? '';
-        if (code === 'cancel' || (typeof code === 'object' && code.code === 'cancel')) return;
+        const name = typeof code === 'object' ? code.code : code;
+        if (name === 'cancel') return;
+        // The button shows before a Chromecast was found: none on this network.
+        if (name === 'receiver_unavailable') return setState((st) => ({ ...st, error: t('player.castNoDevice') }));
         setState((st) => ({ ...st, error: err instanceof Error ? err.message : String((err as { description?: string })?.description ?? err) }));
       }
     },

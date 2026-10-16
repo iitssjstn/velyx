@@ -1381,6 +1381,19 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             })()}
           />
         )}
+        {/* Top right, like the app: shown as soon as the browser can cast; the list searches for Chromecasts itself. */}
+        {(cast.supported || cast.active) && (
+          <button
+            type="button"
+            onClick={() => (cast.active ? cast.stop() : void cast.start(currentTime()))}
+            className={`ml-auto grid size-10 shrink-0 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${cast.active ? 'text-accent' : ''}`}
+            aria-label={cast.active ? t('player.castStop') : t('player.cast')}
+            aria-pressed={cast.active}
+            title={cast.active ? t('player.castStop') : t('player.cast')}
+          >
+            <Cast className="size-5 sm:size-7" />
+          </button>
+        )}
       </div>
 
       {/* Bottom controls */}
@@ -1476,18 +1489,6 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             <button type="button" onClick={() => setMenu(menu === 'settings' ? null : 'settings')} className={`grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${speed !== 1 ? 'text-accent' : ''}`} aria-label={t('player.settings')} title={t('player.settings')}>
               <Settings2 className="size-5 sm:size-7" />
             </button>
-            {(cast.available || cast.active) && (
-              <button
-                type="button"
-                onClick={() => (cast.active ? cast.stop() : void cast.start(currentTime()))}
-                className={`grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12 ${cast.active ? 'text-accent' : ''}`}
-                aria-label={cast.active ? t('player.castStop') : t('player.cast')}
-                aria-pressed={cast.active}
-                title={cast.active ? t('player.castStop') : t('player.cast')}
-              >
-                <Cast className="size-5 sm:size-7" />
-              </button>
-            )}
             <button type="button" onClick={minimize} className="grid size-10 place-items-center rounded-full hover:bg-white/10 sm:size-12" aria-label={t('player.shortcuts.minimize')} title={t('player.minimizeTitle')}>
               <PictureInPicture2 className="size-5 sm:size-7" />
             </button>
