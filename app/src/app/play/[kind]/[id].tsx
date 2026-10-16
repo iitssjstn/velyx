@@ -7,14 +7,15 @@ import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
-import { CastButton, CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, useMediaStatus, useRemoteMediaClient } from 'react-native-google-cast';
+import { CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, useMediaStatus, useRemoteMediaClient } from 'react-native-google-cast';
 import { deviceDecoders } from '../../../../modules/vidalune-codecs';
 import { Artwork } from '../../../components/media';
+import { CastIcon } from '../../../components/CastIcon';
 import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
 import { castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
-import { applyCastTextTrackStyle, castLoadRequest, castTrackIds, loadCastWithCurrentSubtitle, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from '../../../lib/cast';
+import { applyCastTextTrackStyle, castLoadRequest, castTrackIds, loadCastWithCurrentSubtitle, sessionUsable, tvFilePosition, type CastSession } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
@@ -765,16 +766,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
                 <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }} numberOfLines={1}>{item.title}</Text>
                 {item.subtitle ? <Text style={{ color: colors.muted }} numberOfLines={1}>{item.subtitle}</Text> : null}
               </View>
-              {/* Always there: opens the Chromecast list, which searches the network itself (and "stop
-                  casting" while connected). The standard button only shows once a Chromecast was
-                  already found in the background, which can take long or not happen at all. On
-                  Android the list opens through a native cast button, so an invisible one stays here. */}
-              <CastButton style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }} importantForAccessibility="no-hide-descendants" />
-              <IconButton
-                name="cast"
-                label={t('player.cast')}
-                onPress={() => void openCastDialog(() => CastContext.showCastDialog(), (e) => Alert.alert(t('player.castListFailed'), typeof e === 'string' ? t(e) : errorMessage(e, t)))}
-              />
+              <CastIcon />
               <IconButton name="message-square" label={t('player.tracks')} onPress={() => setMenu(true)} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 40 }}>

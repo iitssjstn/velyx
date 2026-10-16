@@ -147,6 +147,27 @@ describe('casting from the player', () => {
     unmount();
   });
 
+  it('shows the button before a Chromecast was found, and says so when there is none', async () => {
+    vi.resetModules();
+    const sdk = fakeSdk();
+    (sdk.context as { getCastState: () => string }).getCastState = () => 'NO_DEVICES_AVAILABLE';
+    sdk.context.requestSession.mockRejectedValue('receiver_unavailable');
+    vi.stubGlobal('chrome', sdk.chrome);
+    vi.spyOn(document.head, 'append').mockImplementation(() => {
+      (window as unknown as { cast: unknown }).cast = { framework: sdk.framework };
+      setTimeout(() => (window as unknown as { __onGCastApiAvailable: (ok: boolean) => void }).__onGCastApiAvailable(true));
+    });
+    const { useCast } = await import('./cast');
+    const { result, unmount } = renderHook(() => useCast({ fileId: 5, audioIndex: null, title: 'Dune', subtitleKey: null, locate: async () => ({ offset: 0, seek: 0 }) }));
+    expect(result.current.supported).toBe(false);
+    await waitFor(() => expect(result.current.supported).toBe(true));
+    expect(result.current.available).toBe(false);
+    await act(() => result.current.start(0));
+    expect(sdk.context.requestSession).toHaveBeenCalled();
+    expect(result.current).toMatchObject({ active: false, error: 'no Chromecast found on this network' });
+    unmount();
+  });
+
   it('gets a new cast session for another file (the next episode) and says which file the TV has', async () => {
     vi.resetModules();
     const sdk = fakeSdk();
