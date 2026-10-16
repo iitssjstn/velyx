@@ -84,7 +84,7 @@ function fakeSdk() {
   }
   const framework = {
     CastContext: { getInstance: () => context },
-    CastState: { NO_DEVICES_AVAILABLE: 'NO_DEVICES_AVAILABLE' },
+    CastState: { NO_DEVICES_AVAILABLE: 'NO_DEVICES_AVAILABLE', CONNECTING: 'CONNECTING' },
     CastContextEventType: { CAST_STATE_CHANGED: 'caststatechanged' },
     RemotePlayer: function RemotePlayer() {
       return remote;
@@ -165,6 +165,47 @@ describe('casting from the player', () => {
     await act(() => result.current.start(0));
     expect(sdk.context.requestSession).toHaveBeenCalled();
     expect(result.current).toMatchObject({ active: false, error: 'no Chromecast found on this network' });
+    unmount();
+  });
+
+  it('says it is connecting from picking a Chromecast until the TV has the title', async () => {
+    vi.resetModules();
+    const sdk = fakeSdk();
+    vi.stubGlobal('chrome', sdk.chrome);
+    vi.spyOn(document.head, 'append').mockImplementation(() => {
+      (window as unknown as { cast: unknown }).cast = { framework: sdk.framework };
+      setTimeout(() => (window as unknown as { __onGCastApiAvailable: (ok: boolean) => void }).__onGCastApiAvailable(true));
+    });
+    let answer: (r: Response) => void = () => undefined;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))));
+    const { useCast } = await import('./cast');
+    const { result, unmount } = renderHook(() => useCast({ fileId: 5, audioIndex: null, title: 'Dune', subtitleKey: null, locate: async () => ({ offset: 0, seek: 0 }) }));
+    await waitFor(() => expect(result.current.supported).toBe(true));
+    expect(result.current.connecting).toBe(false);
+    let started: Promise<void> = Promise.resolve();
+    act(() => { started = result.current.start(0); });
+    await waitFor(() => expect(result.current.connecting).toBe(true));
+    answer(new Response(JSON.stringify({ token: 'tok', expiresAt: Date.now() + 3_600_000, directUrl: null, serverUrl: null, contentType: 'video/mp4', decision: { engine: 'direct', streamUrl: '/api/media/5/stream', seek: 'range', durationSec: 3000 }, subtitles: [] }), { status: 200 }));
+    await act(() => started);
+    expect(result.current).toMatchObject({ connecting: false, active: true });
+    unmount();
+  });
+
+  it('says no Chromecast was found when Chrome answers session_error without any', async () => {
+    vi.resetModules();
+    const sdk = fakeSdk();
+    (sdk.context as { getCastState: () => string }).getCastState = () => 'NO_DEVICES_AVAILABLE';
+    sdk.context.requestSession.mockRejectedValue('session_error');
+    vi.stubGlobal('chrome', sdk.chrome);
+    vi.spyOn(document.head, 'append').mockImplementation(() => {
+      (window as unknown as { cast: unknown }).cast = { framework: sdk.framework };
+      setTimeout(() => (window as unknown as { __onGCastApiAvailable: (ok: boolean) => void }).__onGCastApiAvailable(true));
+    });
+    const { useCast } = await import('./cast');
+    const { result, unmount } = renderHook(() => useCast({ fileId: 5, audioIndex: null, title: 'Dune', subtitleKey: null, locate: async () => ({ offset: 0, seek: 0 }) }));
+    await waitFor(() => expect(result.current.supported).toBe(true));
+    await act(() => result.current.start(0));
+    expect(result.current).toMatchObject({ connecting: false, error: 'no Chromecast found on this network' });
     unmount();
   });
 

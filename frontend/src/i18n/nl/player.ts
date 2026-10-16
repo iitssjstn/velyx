@@ -44,6 +44,7 @@ export const player: Messages['player'] = {
   castingHint: 'Bedien hem met de knoppen hier: afspelen, pauzeren, skippen en spoelen.',
   castFailed: 'Afspelen op de tv lukte niet: {reason}',
   castNoDevice: 'geen Chromecast gevonden op dit netwerk',
+  castConnecting: 'Verbinden met de Chromecast…',
   backSeconds: '{seconds} seconden terug (←)',
   forwardSeconds: '{seconds} seconden vooruit (→)',
   errors: {

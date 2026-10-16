@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
+import { CastStatusBar } from '../components/CastStatus';
 import { ConnectionBanner } from '../components/ConnectionBanner';
 import { LaunchSplash } from '../components/LaunchSplash';
 import { appOrientation } from '../components/screen';
@@ -62,6 +63,7 @@ export default function RootLayout() {
             <Stack.Screen name="play/[kind]/[id]" options={{ headerShown: false, animation: 'fade' }} />
           </Stack>
           <ConnectionBanner />
+          <CastStatusBar />
           <LaunchSplash />
         </ThemeProvider>
       </SessionProvider>

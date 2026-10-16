@@ -34,7 +34,7 @@ export function playbackOrientation(): void {
  * playback and the tab bar moved into its place.
  */
 export const playerScreenState = playerScreen({
-  player: playbackOrientation,
+  player: (cast) => (cast ? castRemoteOrientation() : playbackOrientation()),
   app() {
     NavigationBar.setHidden(false);
     appOrientation();

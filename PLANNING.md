@@ -1130,10 +1130,33 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1964) en beide lockfiles bijgewerkt.
 - PR #149 gemerged 16 okt (eigenaar: "Alles is groen"); release `v0.19.64` gecontroleerd: APK en beide `.deb`'s aanwezig.
 - Na de release (16 okt): de castknop duwde het afspeellabel ("Remux · Audio → AAC") naar het midden van de bovenbalk
-  (twee keer `ml-auto`). Opgelost op de branch met test (faalt op de oude code); gaat mee in de volgende versie.
+  (twee keer `ml-auto`). Opgelost in 0.19.65.
 - Opgelost (16 okt): na Publish de Chromecast nog een keer met de stekker herstarten; daarna verscheen hij en werkt
   casten ("Hij doet het"). Eerdere stand: na het publiceren toonde de app de Chromecast niet (YouTube wel, dus het netwerk is in orde);
   Chrome geeft `invalid_parameter`/`session_error`, Brave ondersteunt Cast niet. `cast.vidalune.com` laadt goed (logo
   en laadcirkel). Wacht op de eigenaar: kiest hij de Chromecast in Chrome, wat toont de tv, en een screenshot van de
   Cast Developer Console (status en Edit). Ook te verbeteren: `session_error` zonder apparaten als "geen Chromecast
   gevonden" melden.
+
+## Versie 0.19.65 (casten: verbinden zichtbaar, hervatten, donkere tv, meteen de besturing)
+
+- Gemeld door de eigenaar (16 okt, foto van de tv) na de eerste echte cast:
+  1. Nergens te zien dat er verbonden wordt. Nu: website toont "Verbinden met de Chromecast…" in de speler en een
+     draaiend icoon in de castknop (`connecting` in `useCast`: Cast-status CONNECTING of `start()` bezig, tot de tv
+     de titel heeft). App: balk "Verbinden met de Chromecast…" boven elk scherm en draaiend icoon in `CastIcon`
+     (`CastStatusBar`, gedeelde status `app/src/lib/castStatus.ts`), en "Starten op de tv…" op de afstandsbediening.
+  2. De tv begon bij het begin. App: bij een al verbonden Chromecast laadde de speler en castte direct met positie 0;
+     nu start de tv op het hervatpunt (`castStartAt`). Website: casten vóórdat er iets speelde (laden of "hervatten?")
+     gebruikt het hervatpunt in plaats van 0.
+  3. Na verbinden werd de tv wit (Google's tussenscherm; de lichte letters van het logo verdwenen). Nu zijn alle
+     schermen donker (`--background`, `--logo-background`, `--splash-background` in `cast.css`).
+  4. App: een titel openen tijdens casten toonde eerst de film liggend en draaide dan terug. Nu opent de speler meteen
+     rechtop als afstandsbediening (`playerScreenState.enter(cast)`), en speelt de telefoon niets; valt de Chromecast
+     weg voordat hij de titel had, dan speelt de telefoon hem alsnog.
+- Ook: de castknop duwde het afspeellabel naar het midden (opgelost), en `session_error` zonder gevonden apparaten
+  meldt nu "geen Chromecast gevonden op dit netwerk".
+- Tests: frontend (label rechts, start op hervatpunt, verbindingsmelding, `connecting` in de hook, `session_error`),
+  cloud (donkere schermen in `cast.css`), app (`castStatus`, `castStartAt`, scherm rechtop bij casten). Het
+  afspeelscherm van de app zelf heeft geen testomgeving; op de telefoon testen. Frontend 337, app 159, cloud 168
+  tests; typechecks, lint (4 bekende waarschuwingen) en de frontend-build slagen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1965) en beide lockfiles bijgewerkt.

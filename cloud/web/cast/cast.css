@@ -2,7 +2,11 @@
 html, body { margin: 0; height: 100%; background: #0f0d15; overflow: hidden; }
 cast-media-player {
   --theme-hue: 258;
+  /* Every screen dark, also the one between connecting and the film (Google's is white there). */
+  --background: #0f0d15;
   --background-color: #0f0d15;
+  --logo-background: #0f0d15;
+  --splash-background: #0f0d15;
   --font-family: Roboto, 'Google Sans', system-ui, sans-serif;
   --progress-color: #b69cff;
   --break-color: #b69cff;

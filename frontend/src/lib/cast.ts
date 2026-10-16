@@ -124,6 +124,8 @@ export interface CastState {
   supported: boolean;
   /** A Chromecast has been found around. */
   available: boolean;
+  /** A Chromecast was picked and is being connected, or is being given the title. */
+  connecting: boolean;
   /** Playing on a Chromecast now. */
   active: boolean;
   /** The file the TV was given (null while not casting): another file means the TV is still on the old one. */
@@ -142,8 +144,11 @@ export interface CastState {
  * (a repackaged stream is loaded again from the new spot), and the position while it plays.
  */
 export function useCast(item: CastItem | null) {
-  const [state, setState] = useState<CastState>({ supported: false, available: false, active: false, fileId: null, device: null, time: 0, playing: false, volume: 1, muted: false, error: null });
+  const [state, setState] = useState<CastState>({ supported: false, available: false, connecting: false, active: false, fileId: null, device: null, time: 0, playing: false, volume: 1, muted: false, error: null });
   const framework = useRef<any>(null);
+  const availableRef = useRef(false);
+  // start() is under way (connecting, then giving the TV the title).
+  const starting = useRef(false);
   const player = useRef<any>(null);
   const controller = useRef<any>(null);
   const session = useRef<CastSession | null>(null);
@@ -193,7 +198,8 @@ export function useCast(item: CastItem | null) {
       const context = f.CastContext.getInstance();
       const update = () => {
         const s = context.getCastState();
-        setState((st) => ({ ...st, supported: true, available: s !== f.CastState.NO_DEVICES_AVAILABLE }));
+        setState((st) => ({ ...st, supported: true, available: s !== f.CastState.NO_DEVICES_AVAILABLE, connecting: s === f.CastState.CONNECTING || starting.current }));
+        availableRef.current = s !== f.CastState.NO_DEVICES_AVAILABLE;
       };
       context.addEventListener(f.CastContextEventType.CAST_STATE_CHANGED, update);
       update();
@@ -295,9 +301,11 @@ export function useCast(item: CastItem | null) {
       if (!f) return;
       // A new try: the same problem again is shown again.
       setState((st) => ({ ...st, error: null }));
+      starting.current = true;
       try {
         const context = f.CastContext.getInstance();
         if (!context.getCurrentSession()) await context.requestSession();
+        setState((st) => ({ ...st, connecting: true }));
         session.current = null;
         await load(at);
       } catch (err) {
@@ -306,8 +314,12 @@ export function useCast(item: CastItem | null) {
         const name = typeof code === 'object' ? code.code : code;
         if (name === 'cancel') return;
         // The button shows before a Chromecast was found: none on this network.
-        if (name === 'receiver_unavailable') return setState((st) => ({ ...st, error: t('player.castNoDevice') }));
+        // (Chrome says session_error when it finds none at all.)
+        if (name === 'receiver_unavailable' || (name === 'session_error' && !availableRef.current)) return setState((st) => ({ ...st, error: t('player.castNoDevice') }));
         setState((st) => ({ ...st, error: err instanceof Error ? err.message : String((err as { description?: string })?.description ?? err) }));
+      } finally {
+        starting.current = false;
+        setState((st) => ({ ...st, connecting: false }));
       }
     },
     [load],

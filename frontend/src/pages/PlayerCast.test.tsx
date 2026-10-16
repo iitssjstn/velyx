@@ -5,11 +5,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Player from './Player';
 
 // A browser that can cast, before any Chromecast was found.
-const start = vi.fn(async () => undefined);
+const start = vi.fn(async (_at: number) => undefined);
+const castState = { connecting: false };
 vi.mock('../lib/cast', async (original) => ({
   ...(await original<typeof import('../lib/cast')>()),
   useCast: () => ({
-    supported: true, available: false, active: false, fileId: null, device: null, time: 0, playing: false, volume: 1, muted: false, error: null,
+    supported: true, available: false, connecting: castState.connecting, active: false, fileId: null, device: null, time: 0, playing: false, volume: 1, muted: false, error: null,
     start, stop: vi.fn(), togglePlay: vi.fn(), seek: vi.fn(), setVolume: vi.fn(), toggleMute: vi.fn(), setAudio: vi.fn(), setSubtitle: vi.fn(), reload: vi.fn(),
   }),
 }));
@@ -33,17 +34,23 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  start.mockClear();
+  castState.connecting = false;
 });
+
+function renderPlayer(search: string) {
+  return render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <Player kind="movie" id={3} search={search} mini={false} onMinimize={() => undefined} onRestore={() => undefined} onClose={() => undefined} onPlayItem={() => undefined} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
 
 describe('cast button in the player', () => {
   it('is at the top right as soon as the browser can cast, also before a Chromecast was found', async () => {
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter>
-          <Player kind="movie" id={3} search="?t=0" mini={false} onMinimize={() => undefined} onRestore={() => undefined} onClose={() => undefined} onPlayItem={() => undefined} />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
+    renderPlayer('?t=0');
     const button = await screen.findByRole('button', { name: 'Play on a TV (Chromecast)' });
     // In the top bar, next to the back button; not among the controls at the bottom.
     const top = screen.getByRole('button', { name: 'Back' }).parentElement!;
@@ -56,5 +63,26 @@ describe('cast button in the player', () => {
     expect(top.lastElementChild).toBe(button);
     button.click();
     expect(start).toHaveBeenCalled();
+  });
+
+  it('starts the TV at the resume point when nothing played here yet', async () => {
+    // Saved at 95 s: the player asks "resume?" and has not played anything.
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url === '/api/movies/3' ? { ...MOVIE, progress: { ...MOVIE.progress, positionSec: 95 } } : url === '/api/media/3/playback' ? PLAYBACK : url === '/api/account/preferences' ? { audioLanguage: '', subtitleLanguage: '', subtitleFallback: '', subtitleMode: 'remember' } : {};
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    renderPlayer('');
+    const button = await screen.findByRole('button', { name: 'Play on a TV (Chromecast)' });
+    await screen.findByText('Test Film');
+    button.click();
+    expect(start).toHaveBeenCalledWith(95);
+  });
+
+  it('says it is connecting to the Chromecast', async () => {
+    castState.connecting = true;
+    renderPlayer('?t=0');
+    expect((await screen.findByRole('status')).textContent).toBe('Connecting to the Chromecast…');
+    expect(screen.getByRole('button', { name: 'Play on a TV (Chromecast)' }).getAttribute('aria-busy')).toBe('true');
   });
 });

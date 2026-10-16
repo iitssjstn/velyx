@@ -11,8 +11,8 @@ export function isTablet(kind: DeviceKind, shortSide: number): boolean {
 }
 
 export interface ScreenEffects {
-  /** Landscape and full screen, for playback. */
-  player(): void;
+  /** Landscape and full screen, for playback; upright when it opens as the remote of a Chromecast. */
+  player(cast: boolean): void;
   /** Back to the rest of the app: upright on a phone, free on a tablet; navigation bar back. */
   app(): void;
 }
@@ -25,9 +25,10 @@ export interface ScreenEffects {
 export function playerScreen(effects: ScreenEffects) {
   let open = 0;
   return {
-    enter() {
+    /** `cast`: a Chromecast is connected, so the player opens as its remote (upright), not as a video. */
+    enter(cast = false) {
       open += 1;
-      if (open === 1) effects.player();
+      if (open === 1) effects.player(cast);
     },
     leave() {
       if (open === 0) return;

@@ -11,10 +11,12 @@ import { CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, us
 import { deviceDecoders } from '../../../../modules/vidalune-codecs';
 import { Artwork } from '../../../components/media';
 import { CastIcon } from '../../../components/CastIcon';
+import { useCastStatus } from '../../../components/CastStatus';
 import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
 import { castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
+import { castStartAt, castStatus } from '../../../lib/castStatus';
 import { applyCastTextTrackStyle, castLoadRequest, castTrackIds, loadCastWithCurrentSubtitle, sessionUsable, tvFilePosition, type CastSession } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
@@ -91,7 +93,8 @@ export default function Player() {
   // Landscape without the navigation bar while watching (a swipe from the edge shows it briefly);
   // back to the app's own orientation when the last player closes.
   useEffect(() => {
-    playerScreenState.enter();
+    // Already casting: open as the TV's remote (upright), not as a video first.
+    playerScreenState.enter(castStatus() === 'connected');
     return () => playerScreenState.leave();
   }, []);
 
@@ -283,11 +286,19 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   }, [client]);
   const [casting, setCasting] = useState(false);
   const castingRef = useRef(false);
-  useEffect(() => { onCastingChange(casting); }, [casting, onCastingChange]);
+  // A Chromecast already connected when the title opens: the remote shows at once, and nothing
+  // plays on the phone while the TV is being given the title.
+  const castNow = useCastStatus();
+  const remote = casting || castNow === 'connected';
+  useEffect(() => { onCastingChange(remote); }, [remote, onCastingChange]);
   useEffect(() => {
-    if (casting) castRemoteOrientation();
+    if (remote) castRemoteOrientation();
     else playbackOrientation();
-  }, [casting]);
+  }, [remote]);
+  // Where this playback is meant to start (the resume point), for a TV that takes over before the phone played.
+  const wantedStart = useRef<number | null>(null);
+  // The phone did not load the video because a Chromecast was connected.
+  const localSkipped = useRef(false);
   const castSession = useRef<{ session: CastSession; audio: number | null } | null>(null);
   const subtitleRef = useRef<SubtitleOption | null>(null);
   subtitleRef.current = subtitle;
@@ -382,6 +393,12 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
           const pos = playerAudioPosition(a.file.audioTracks, a.decision.audioIndex);
           const track = pos >= 0 ? player.availableAudioTracks[pos] : undefined;
           if (track) player.audioTrack = track;
+          return;
+        }
+        wantedStart.current = at;
+        // Casting already: the TV gets it (below), the phone does not play it too.
+        if (!castingRef.current && castStatus() === 'connected') {
+          localSkipped.current = true;
           return;
         }
         await load(a, at);
@@ -507,7 +524,8 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
       castingRef.current = true;
       setCasting(true);
       player.pause();
-      void castLoad(position, audioIndex).catch(castFailed);
+      localSkipped.current = false;
+      void castLoad(castStartAt(position, wantedStart.current), audioIndex).catch(castFailed);
     } else if (!client && castingRef.current) {
       castingRef.current = false;
       // Where the TV was (also when casting was stopped on the TV or while the app was away).
@@ -521,6 +539,14 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
     // On connecting and disconnecting only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, answer !== null]);
+  // The Chromecast went away before it got the title: play it on the phone after all.
+  useEffect(() => {
+    if (castNow === 'connected' || castingRef.current || !localSkipped.current || !answer) return;
+    localSkipped.current = false;
+    void load(answer, wantedStart.current ?? 0).catch((err: unknown) => setProblem(errorMessage(err, t)));
+    // When the connection status changes only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [castNow]);
   // The TV's playing state and end (its position comes from onTvProgress below).
   const castState = mediaStatus?.playerState ?? null;
   const castIdle = mediaStatus?.idleReason ?? null;
@@ -737,7 +763,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
         setScreenHeight(e.nativeEvent.layout.height);
       }}>
       <VideoView player={player} style={{ flex: 1 }} nativeControls={false} contentFit="contain" allowsPictureInPicture={false} />
-      {casting && (
+      {remote && (
         <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
           <Feather name="cast" size={48} color={colors.accent} />
           <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>{castDevice?.friendlyName ? t('player.castingTo', { device: castDevice.friendlyName }) : t('player.casting')}</Text>
@@ -784,7 +810,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
           </View>
         )}
       </Pressable>
-      {casting && (
+      {remote && (
         <CastRemotePanel
           title={item.title}
           subtitle={item.subtitle}
@@ -793,6 +819,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
           position={position}
           duration={duration}
           playing={playing}
+          starting={!casting || loading}
           volume={mediaStatus?.volume ?? 1}
           muted={mediaStatus?.isMuted ?? false}
           insets={insets}
@@ -921,7 +948,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   );
 }
 
-function CastRemotePanel({ title, subtitle, device, artwork, position, duration, playing, volume, muted, insets, onSeek, onTogglePlay, onOpenTracks, onStop, onVolume, onToggleMute }: {
+function CastRemotePanel({ title, subtitle, device, artwork, position, duration, playing, starting, volume, muted, insets, onSeek, onTogglePlay, onOpenTracks, onStop, onVolume, onToggleMute }: {
   title: string;
   subtitle: string | null;
   device: string | null;
@@ -929,6 +956,8 @@ function CastRemotePanel({ title, subtitle, device, artwork, position, duration,
   position: number;
   duration: number;
   playing: boolean;
+  /** The TV is being given the title: shown instead of play/pause. */
+  starting: boolean;
   volume: number;
   muted: boolean;
   insets: { top: number; bottom: number; left: number; right: number };
@@ -957,6 +986,12 @@ function CastRemotePanel({ title, subtitle, device, artwork, position, duration,
         <View style={{ alignItems: 'center', gap: 4 }}>
           <Text style={{ color: colors.ink, fontSize: 21, fontWeight: '800', textAlign: 'center' }} numberOfLines={2}>{title}</Text>
           {subtitle ? <Text style={{ color: colors.muted, fontSize: 14 }}>{subtitle}</Text> : null}
+          {starting ? (
+            <View accessibilityRole="progressbar" accessibilityLabel={t('player.castLoading')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+              <ActivityIndicator color={colors.accent} />
+              <Text style={{ color: colors.muted }}>{t('player.castLoading')}</Text>
+            </View>
+          ) : null}
         </View>
         <View style={{ width: '100%', maxWidth: 520, gap: 4 }}>
           <SeekBar position={position} duration={duration} onScrub={() => undefined} onSeek={onSeek} label={t('player.seek')} />

@@ -56,6 +56,10 @@ describe('cast.vidalune.com', () => {
       expect(res.status, file).toBe(200);
       expect(res.type, file).toContain(type);
     }
+    // Every screen of Google's player is dark: its screen after connecting is white otherwise, and
+    // the light letters of the logo vanish on it.
+    const css = (await get('cast.vidalune.example', '/cast.css')).body;
+    for (const variable of ['--background', '--background-color', '--logo-background', '--splash-background']) expect(css, variable).toMatch(new RegExp(`${variable}:\\s*#0f0d15`));
     expect((await get('cast.vidalune.example', '/robots.txt')).body).toContain('Disallow: /');
     // Not the account service, not other files, not a relay address.
     for (const url of ['/api/account', '/account', '/progress.d.ts', '/../index.html', '/%2e%2e/index.html', '/admin']) expect((await get('cast.vidalune.example', url)).status, url).toBe(404);

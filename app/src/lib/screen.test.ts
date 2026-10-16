@@ -18,6 +18,7 @@ describe('playerScreen', () => {
     const screen = playerScreen(effects);
     screen.enter();
     expect(effects.player).toHaveBeenCalledTimes(1);
+    expect(effects.player).toHaveBeenCalledWith(false);
     screen.leave();
     expect(effects.app).toHaveBeenCalledTimes(1);
   });
@@ -30,6 +31,14 @@ describe('playerScreen', () => {
     expect(effects.app).not.toHaveBeenCalled();
     expect(effects.player).toHaveBeenCalledTimes(1);
     screen.leave(); // episode 2 closes
+    expect(effects.app).toHaveBeenCalledTimes(1);
+  });
+  it('opens upright as the remote while a Chromecast is connected', () => {
+    const effects = { player: vi.fn(), app: vi.fn() };
+    const screen = playerScreen(effects);
+    screen.enter(true);
+    expect(effects.player).toHaveBeenCalledWith(true);
+    screen.leave();
     expect(effects.app).toHaveBeenCalledTimes(1);
   });
   it('ignores a close without an open', () => {
