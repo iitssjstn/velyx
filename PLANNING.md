@@ -1348,3 +1348,4 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1973) en beide lockfiles bijgewerkt.
 - PR #158 gemerged 17 okt op verzoek van de eigenaar ("Merge het maar"); release `v0.19.73` gecontroleerd: APK, beide `.deb`'s en
   `.aab`; de app is niet veranderd, dus niets naar Play.
+- Bevestigd door de eigenaar (17 okt) na het bijwerken: "Hij doet het nu staat er 1080P".
