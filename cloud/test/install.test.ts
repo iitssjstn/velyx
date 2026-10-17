@@ -113,6 +113,29 @@ describe('installing Vidalune from vidalune.com', () => {
     expect(nl).toContain('Beheer → Bibliotheken');
   });
 
+  it('hands out the newest installer for Windows, and explains it on the install page', async () => {
+    expect((await app.inject({ url: '/download/windows' })).statusCode).toBe(404);
+    expect((await app.inject({ url: '/install' })).body).toContain('The installer for Windows is not available for download right now.');
+
+    fs.writeFileSync(path.join(downloads, 'vidalune-0.19.9-setup.exe'), 'old');
+    fs.writeFileSync(path.join(downloads, 'vidalune-0.19.74-setup.exe'), 'new');
+    expect((await app.inject({ url: '/download/windows' })).headers.location).toBe('/download/vidalune-0.19.74-setup.exe');
+    const exe = await app.inject({ url: '/download/vidalune-0.19.74-setup.exe' });
+    expect(exe.headers['content-type']).toBe('application/vnd.microsoft.portable-executable');
+    expect(exe.headers['content-disposition']).toBe('attachment; filename="vidalune-0.19.74-setup.exe"');
+    expect(exe.body).toBe('new');
+    expect((await app.inject({ url: '/download/vidalune-0.19.74-setup.msi' })).statusCode).toBe(400);
+    expect((await app.inject({ url: '/download/..%2Fvidalune-0.19.74-setup.exe' })).statusCode).toBe(400);
+
+    const page = (await app.inject({ url: '/install' })).body;
+    expect(page).toContain('href="/download/windows"');
+    expect(page).toContain('icon next to the clock');
+    expect(page).toContain('C:\\ProgramData\\Vidalune');
+    const nl = (await app.inject({ url: '/install?lang=nl' })).body;
+    expect(nl).toContain('Downloaden voor Windows');
+    expect(nl).toContain('automatisch aanmelden');
+  });
+
   it('serves the signed apt repository, and nothing else from it', async () => {
     expect((await app.inject({ url: '/apt/InRelease' })).statusCode).toBe(404);
     fs.mkdirSync(path.join(downloads, 'apt'));

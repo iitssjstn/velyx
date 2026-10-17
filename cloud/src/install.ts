@@ -163,10 +163,10 @@ say "Updates come with the rest of the system: sudo apt update && sudo apt upgra
 const TEXT = {
   en: {
     title: 'Install Vidalune',
-    description: 'Install Vidalune on your own server with Docker or Debian/Ubuntu. Your movies and series stay on your hardware; Vidalune reads your media locally.',
-    intro: 'Vidalune runs on your own computer or server, with Docker or as a package for Debian and Ubuntu. Your media stays where it is; Vidalune only reads it.',
+    description: 'Install Vidalune on your own server with Docker, Debian/Ubuntu or Windows. Your movies and series stay on your hardware; Vidalune reads your media locally.',
+    intro: 'Vidalune runs on your own computer or server: with Docker, as a package for Debian and Ubuntu, or with the installer for Windows. Your media stays where it is; Vidalune only reads it.',
     needs: 'You need',
-    needsList: ['A computer or server that is always on (Linux, a NAS, or Windows/macOS with Docker Desktop).', 'Docker with Docker Compose v2 — or Debian/Ubuntu for the package without Docker.', 'Your movies and series in folders on that machine.'],
+    needsList: ['A computer or server that is always on (Windows, Linux, a NAS, or macOS with Docker Desktop).', 'Docker with Docker Compose v2 — or Debian/Ubuntu or Windows 10/11 (64-bit) for Vidalune without Docker.', 'Your movies and series in folders on that machine.'],
     quick: 'Quick install (Linux)',
     quickText: 'Run this on your server. It asks where your movies and series are, sets everything up in ~/vidalune (with the graphics of the server, for video conversion) and starts Vidalune:',
     manual: 'Install with a compose file',
@@ -180,6 +180,12 @@ const TEXT = {
     debFolders: 'Then open http://<your-server>:3000, create your administrator account and add your movies and series under Admin → Libraries: Browse to the folder and choose it. If Vidalune may not read a folder, it shows the one command that gives it access; run it and add the folder again.',
     debNone: 'The package is not available for download right now.',
     debUpdate: 'Updates come with the rest of your system: the package adds the Vidalune apt repository, so sudo apt update && sudo apt upgrade updates Vidalune too. Your settings (/etc/vidalune/vidalune.env) and data (/var/lib/vidalune) stay.',
+    windows: 'Windows',
+    windowsText: 'An installer for Windows 10 and 11 (64-bit) with everything Vidalune needs. Vidalune starts when you sign in to Windows and shows an icon next to the clock: right-click it to open Vidalune, restart it or quit it. Quitting the icon also stops the server.',
+    windowsButton: 'Download for Windows',
+    windowsAfter: 'Then Vidalune opens in your browser (http://localhost:3000): create your administrator account and add your movies and series under Admin → Libraries. To update, download and run the installer again; your settings and data (C:\\ProgramData\\Vidalune) stay.',
+    windowsServer: 'Using the PC as a server? Turn on automatic sign-in in Windows, so Vidalune runs again after a restart. Windows may warn about an unknown publisher the first time: choose More info → Run anyway.',
+    windowsNone: 'The installer for Windows is not available for download right now.',
     update: 'Updating',
     updateText: 'Vidalune tells administrators when there is a new version. To update, run in the same folder:',
     app: 'Android app',
@@ -192,10 +198,10 @@ const TEXT = {
   },
   nl: {
     title: 'Vidalune installeren',
-    description: 'Installeer Vidalune op je eigen server met Docker of Debian/Ubuntu. Je films en series blijven op je eigen hardware; Vidalune leest je media lokaal.',
-    intro: 'Vidalune draait op je eigen computer of server, met Docker of als pakket voor Debian en Ubuntu. Je media blijft waar hij staat; Vidalune leest hem alleen.',
+    description: 'Installeer Vidalune op je eigen server met Docker, Debian/Ubuntu of Windows. Je films en series blijven op je eigen hardware; Vidalune leest je media lokaal.',
+    intro: 'Vidalune draait op je eigen computer of server: met Docker, als pakket voor Debian en Ubuntu, of met de installer voor Windows. Je media blijft waar hij staat; Vidalune leest hem alleen.',
     needs: 'Wat je nodig hebt',
-    needsList: ['Een computer of server die altijd aan staat (Linux, een NAS, of Windows/macOS met Docker Desktop).', 'Docker met Docker Compose v2 — of Debian/Ubuntu voor het pakket zonder Docker.', 'Je films en series in mappen op die computer.'],
+    needsList: ['Een computer of server die altijd aan staat (Windows, Linux, een NAS, of macOS met Docker Desktop).', 'Docker met Docker Compose v2 — of Debian/Ubuntu of Windows 10/11 (64-bits) voor Vidalune zonder Docker.', 'Je films en series in mappen op die computer.'],
     quick: 'Snel installeren (Linux)',
     quickText: 'Voer dit uit op je server. Het vraagt waar je films en series staan, zet alles klaar in ~/vidalune (met de graphics van de server, voor video omzetten) en start Vidalune:',
     manual: 'Installeren met een compose-bestand',
@@ -209,6 +215,12 @@ const TEXT = {
     debFolders: 'Open daarna http://<je-server>:3000, maak je beheerdersaccount en voeg je films en series toe onder Beheer → Bibliotheken: blader naar de map en kies hem. Mag Vidalune een map niet lezen, dan laat hij het ene commando zien dat toegang geeft; voer het uit en voeg de map opnieuw toe.',
     debNone: 'Het pakket is nu niet te downloaden.',
     debUpdate: 'Updates komen met de rest van je systeem mee: het pakket voegt de apt-bron van Vidalune toe, dus sudo apt update && sudo apt upgrade werkt Vidalune ook bij. Je instellingen (/etc/vidalune/vidalune.env) en data (/var/lib/vidalune) blijven staan.',
+    windows: 'Windows',
+    windowsText: 'Een installer voor Windows 10 en 11 (64-bits) met alles wat Vidalune nodig heeft. Vidalune start als je je aanmeldt bij Windows en staat als icoon naast de klok: klik er met rechts op om Vidalune te openen, te herstarten of af te sluiten. Afsluiten via het icoon stopt ook de server.',
+    windowsButton: 'Downloaden voor Windows',
+    windowsAfter: 'Daarna opent Vidalune in je browser (http://localhost:3000): maak je beheerdersaccount en voeg je films en series toe onder Beheer → Bibliotheken. Bijwerken: download de installer opnieuw en voer hem uit; je instellingen en data (C:\\ProgramData\\Vidalune) blijven staan.',
+    windowsServer: 'Gebruik je de pc als server? Zet dan automatisch aanmelden aan in Windows, zodat Vidalune na een herstart weer draait. Windows kan de eerste keer waarschuwen voor een onbekende uitgever: kies Meer informatie → Toch uitvoeren.',
+    windowsNone: 'De installer voor Windows is nu niet te downloaden.',
     update: 'Bijwerken',
     updateText: 'Vidalune laat beheerders weten wanneer er een nieuwe versie is. Bijwerken doe je in dezelfde map met:',
     app: 'Android-app',
@@ -222,7 +234,7 @@ const TEXT = {
 } satisfies Record<Lang, unknown>;
 
 /** The install page (no scripts: it is plain HTML with the account pages' style). */
-export function installPage(lang: Lang, publicUrl: string, version: string, hasApp: boolean, signedIn = false, hasDeb = false, discord = false): string {
+export function installPage(lang: Lang, publicUrl: string, version: string, hasApp: boolean, signedIn = false, hasDeb = false, discord = false, hasWindows = false): string {
   const t = TEXT[lang];
   const code = (s: string) => `<pre><code>${escape(s)}</code></pre>`;
   const body = `
@@ -257,6 +269,17 @@ export function installPage(lang: Lang, publicUrl: string, version: string, hasA
         <p>${escape(t.debFolders)}</p>
         <p>${escape(t.debUpdate)}</p>`
             : `<p>${escape(t.debNone)}</p>`
+        }
+      </div>
+      <div class="card" id="windows">
+        <h2>${escape(t.windows)}</h2>
+        <p>${escape(t.windowsText)}</p>
+        ${
+          hasWindows
+            ? `<p><a class="button" href="/download/windows">${escape(t.windowsButton)}</a></p>
+        <p>${escape(t.windowsAfter)}</p>
+        <p class="small">${escape(t.windowsServer)}</p>`
+            : `<p>${escape(t.windowsNone)}</p>`
         }
       </div>
       <div class="card">

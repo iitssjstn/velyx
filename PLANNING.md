@@ -489,7 +489,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Ideeën (nog niet besloten)
 
-- **Vidalune-server voor Windows** (idee eigenaar 17 okt, nog niet bouwen): een installer (`.exe`) die de server op een
+- **Vidalune-server voor Windows** (idee eigenaar 17 okt; gebouwd in 0.19.74, zie daar): een installer (`.exe`) die de server op een
   Windows-pc draait, net als Docker en `.deb`. Bevindingen: de server is Node met FFmpeg, SQLite (`better-sqlite3`) en
   argon2 (`@node-rs/argon2`); beide hebben kant-en-klare Windows-builds en de code kreeg in 0.19.44 al Windows-padfixes.
   Voorstel: Node-runtime, server, website en `ffmpeg.exe` in één installer (bijvoorbeeld Inno Setup, gebouwd in GitHub
@@ -1372,3 +1372,34 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - PR #158 gemerged 17 okt op verzoek van de eigenaar ("Merge het maar"); release `v0.19.73` gecontroleerd: APK, beide `.deb`'s en
   `.aab`; de app is niet veranderd, dus niets naar Play.
 - Bevestigd door de eigenaar (17 okt) na het bijwerken: "Hij doet het nu staat er 1080P".
+
+## Versie 0.19.74 (Vidalune voor Windows)
+
+- Op verzoek van de eigenaar ("bouw het maar", 17 okt), na de keuzes onder Ideeën (achtergrond met icoon naast de klok;
+  afsluiten, ook via Taakbeheer, stopt de server; Vidalune-account blijft gekoppeld na een herstart).
+- Installer `vidalune-<versie>-setup.exe` (NSIS, `packaging/windows/installer.nsi`), op Linux gebouwd met
+  `packaging/windows/build.sh`: server en website, Node 22 en de serverpakketten voor Windows (`better-sqlite3`,
+  `@node-rs/argon2` win32-x64), FFmpeg 7.1.1 (essentials-build van gyan.dev, GPL, vaste checksum) en het icoonprogramma.
+  Installeert in `C:\Program Files\Vidalune`, data in `C:\ProgramData\Vidalune` (blijft bij bijwerken en standaard bij
+  verwijderen), start bij aanmelden (HKLM `Run`), snelkoppeling in Start, firewallregel voor `node.exe`, staat in Apps.
+  Nog niet ondertekend: SmartScreen waarschuwt ("Meer informatie → Toch uitvoeren").
+- Icoonprogramma `VidaluneTray.exe` (`packaging/windows/tray/VidaluneTray.cs`, C# voor .NET Framework 4, gecompileerd met
+  Mono `mcs`): start de server in een Windows Job Object met `KILL_ON_JOB_CLOSE` (server en FFmpeg stoppen hoe het icoon
+  ook eindigt), menu Openen/Herstarten/Logboek/Afsluiten (vraagt eerst als er iemand kijkt), grijs icoon tijdens starten
+  of na stoppen, start de server opnieuw na een crash (na vijf keer in tien minuten niet meer), houdt de pc wakker
+  zolang er gekeken wordt, opent bij de eerste start de website. `MEDIA_ROOTS` = alle gereedstaande stations (tenzij in
+  `vidalune.env`), log in `C:\ProgramData\Vidalune\logs\vidalune.log`. Teksten Nederlands of Engels (Windows-taal).
+- Server: `STATUS_FILE` (kijkers voor het icoon, elke 5 s) en `STOP_ON_STDIN_END` (netjes stoppen als het icoon de invoer
+  sluit) in `backend/src/services/tray.ts`; HLS pauzeert FFmpeg niet op Windows (kan daar niet); de mapkiezer verbergt
+  `$Recycle.Bin`, `System Volume Information` en `Recovery` op Windows.
+- vidalune.com: `/download/windows` en een blok Windows op `/install` (Engels en Nederlands). De Windows-workflow
+  (`windows.yml`) draait na de Android-app; de accountservice-image daarna (in plaats van na de Android-app), zodat de
+  site de installer van dezelfde release heeft.
+- Nog niet: Intel Quick Sync en AMD voor video omzetten op Windows (NVENC en processor werken), ondertekening, een
+  updatemelding in het icoon.
+- Tests: backend (statusbestand, stoppen bij gesloten invoer, niets zonder icoon, Windows-systeemmappen), cloud
+  (download en installpagina). In CI op `windows-latest` (`test-install.ps1`): installeren, starten, website en status,
+  icoon via Taakbeheer beëindigen stopt de server, bijwerken over een draaiende Vidalune houdt de data, verwijderen.
+  Lokaal: installer gebouwd (77 MB), backend 590, frontend 343, cloud 178, app 168 tests, typechecks en lint (4 bekende
+  waarschuwingen) slagen. Door de eigenaar op een echte Windows-pc te testen (icoon, afsluiten, herstart van de pc).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1974) en beide lockfiles bijgewerkt.

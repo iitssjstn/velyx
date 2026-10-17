@@ -15,6 +15,7 @@ Vidalune is a lightweight, Docker-first, self-hosted media server for movies and
 - [Requirements](#requirements)
 - [Quick start (Docker)](#quick-start-docker)
 - [Installing without Docker (Debian/Ubuntu)](#installing-without-docker-debianubuntu)
+- [Installing on Windows](#installing-on-windows)
 - [Configuration](#configuration)
 - [Organising your media](#organising-your-media)
 - [First-run setup](#first-run-setup)
@@ -100,7 +101,7 @@ Vidalune is a lightweight, Docker-first, self-hosted media server for movies and
 
 ## Requirements
 
-- Docker with Docker Compose (v2) — or Debian 12+ / Ubuntu 22.04+ (amd64 or arm64) for the `.deb` package.
+- Docker with Docker Compose (v2) — or Debian 12+ / Ubuntu 22.04+ (amd64 or arm64) for the `.deb` package, or Windows 10/11 (64-bit) for the Windows installer.
 - A browser: Chrome/Edge (recommended), Firefox or Safari.
 - Hardware: Vidalune itself needs very little. It was designed with low-end machines in mind (for example a dual-core Athlon II with 4–8 GB RAM). With video conversion off (the default) the server only reads and sends files — decoding happens on the device that plays the video. Converting video needs a strong processor or graphics hardware (see [Video conversion](#video-conversion-optional)).
 - Optional: a Vidalune account (metadata and subtitles from online come through vidalune.com).
@@ -172,6 +173,24 @@ Install it with `apt` (as above), which also installs FFmpeg; after `sudo dpkg -
 - **Updating:** the package adds the Vidalune apt repository (`/etc/apt/sources.list.d/vidalune.sources`, signed; key in `/usr/share/keyrings/vidalune.gpg`), so Vidalune updates with the rest of the system: `sudo apt update && sudo apt upgrade`. The service restarts with the new version, and the database is copied to the backups folder before it is upgraded. Installed 0.16.0? Run the installer (or install the package) once more to add the repository.
 - **Maintenance CLI:** `sudo vidalune backup`, `sudo vidalune reset-password <user> <password>` and the other [commands](#maintenance-cli) run as the service's user with its settings.
 - **Removing:** `sudo apt remove vidalune` removes the program and keeps your settings and data; `sudo apt purge vidalune` also removes the settings. `/var/lib/vidalune` is never deleted by the package: remove it yourself if you no longer need it.
+
+## Installing on Windows
+
+Every release has an installer for Windows 10 and 11 (64-bit): `vidalune-<version>-setup.exe`, also at **vidalune.com/download/windows** and linked from **vidalune.com/install**. It contains Vidalune, its web interface, the Node runtime and FFmpeg (a GPL build, see `C:\Program Files\Vidalune\ffmpeg\README.txt`); the PC needs nothing else. Each release installs, runs, ends, updates and removes it on Windows in CI.
+
+Run the installer (Windows asks for administrator permission once). The installer is not signed yet, so Windows SmartScreen may warn about an unknown publisher: choose **More info → Run anyway**. When it finishes, Vidalune starts and opens `http://localhost:3000` in your browser: create your administrator account and add your media under **Admin → Libraries**.
+
+- **The icon next to the clock:** Vidalune starts when you sign in to Windows and runs in the background, shown as an icon in the notification area (grey while it starts or after it stopped). Right-click it for **Open Vidalune**, **Restart**, **Open log** and **Quit Vidalune**; double-click opens Vidalune. The **Vidalune** shortcut in the Start menu opens it too.
+- **One program:** the icon starts the server itself, and the server (and any FFmpeg it runs) stops with the icon, however it ends: through **Quit Vidalune** (which asks first when someone is watching), Task Manager, a crash, or signing out. If the server stops on its own, the icon starts it again (after five times in ten minutes it stops trying and says so).
+- **After a restart of the PC** Vidalune runs again once someone signs in to Windows. Using the PC as a server? Turn on automatic sign-in in Windows (`netplwiz`, or **Settings → Accounts → Sign-in options**), so Vidalune also runs after a power cut or a Windows update. Your Vidalune account stays linked across restarts.
+- **Sleep:** while someone is watching, the PC does not go to sleep; afterwards Windows' own setting applies again.
+- **Media folders:** **Admin → Libraries → Add library → Browse** shows every drive Windows has ready (`C:\`, `D:\`, USB and network drives); a library is a folder on one of them, not a whole drive. The server runs as the signed-in user, so it can read what that user can.
+- **Settings:** `C:\ProgramData\Vidalune\vidalune.env` (`PORT`, `MEDIA_ROOTS`, … — the same options as under [Configuration](#configuration)); after a change choose **Restart** in the icon. The file is kept when you update.
+- **Data and log:** database, artwork cache and backups are in `C:\ProgramData\Vidalune` (`DATA_DIR`), the log in `C:\ProgramData\Vidalune\logs\vidalune.log` (**Open log** in the icon).
+- **Other devices:** the installer allows Vidalune in the Windows firewall, so phones, TVs and other PCs reach it at `http://<this-pc>:3000`, and from outside through the port set in Vidalune.
+- **Video conversion:** NVIDIA graphics (NVENC) and the processor work; Intel Quick Sync and AMD graphics are not used for conversion yet on Windows.
+- **Updating:** download and run the newest installer; it stops Vidalune, replaces the program and keeps your settings and data. The database is copied to the backups folder before it is upgraded, as on the other systems.
+- **Removing:** **Settings → Apps → Vidalune → Uninstall**. It asks whether to also remove `C:\ProgramData\Vidalune` (no by default); your movies and shows are never touched.
 
 ## Configuration
 
@@ -832,10 +851,11 @@ The Android app (in `app/`) has its own checks: `cd app && npm ci && npm run typ
 ## CI and the Docker image (GHCR)
 
 - `.github/workflows/ci.yml` runs on pushes to `main` and on pull requests (not when only `*.md` files changed): install, lint, typecheck, tests (with FFmpeg), build, and the Android app's typecheck and tests; on pull requests it also builds the Docker image and checks `/health`.
-- The `.deb` packages, the Android APK and the account service image are built for releases (after a merge to `main`), not on pull requests; each can also be started by hand under **Actions → Run workflow**.
+- The `.deb` packages, the Android APK, the Windows installer and the account service image are built for releases (after a merge to `main`), not on pull requests; each can also be started by hand under **Actions → Run workflow**.
 - `.github/workflows/docker-build.yml` publishes `ghcr.io/<owner>/vidalune` (and, for installations from before the rename, the same image as `ghcr.io/<owner>/velyx`) for `linux/amd64` and `linux/arm64` on pushes to `main` (`latest`) and on version tags (`v0.4.0` → `0.4.0`, `0.4`). When a push to `main` carries a version in `package.json` that has no `v<version>` tag yet, the workflow also publishes the version tags and then creates the git tag itself. It authenticates with the built-in `GITHUB_TOKEN` — no extra secrets needed.
 - `.github/workflows/deb.yml` builds the `.deb` packages (amd64, arm64) with `packaging/deb/build.sh` and the signed apt repository with `packaging/apt/build-repo.sh`, after every release build on `main`, installs, runs, upgrades and removes them on Debian 12 and Ubuntu 24.04 (arm64 through QEMU) with `packaging/deb/test-install.sh` (including `apt update` against that repository), and attaches them to the release. The account service image carries the repository and serves it at `vidalune.com/apt`. Signing needs the repository secret `APT_SIGNING_KEY` (an ASCII-armored private key); without it the packages are built without the repository.
 - `.github/workflows/android.yml` builds the Android APK after the `.deb` packages and attaches it to the release. With the Play Store upload key in the repository secrets (`ANDROID_UPLOAD_KEYSTORE`: the keystore file as base64, plus `ANDROID_UPLOAD_STORE_PASSWORD`, `ANDROID_UPLOAD_KEY_ALIAS` and `ANDROID_UPLOAD_KEY_PASSWORD`) it also builds an app bundle (`vidalune-<version>.aab`) signed with that key, checks that it does not carry the debug signature and attaches it to the release, for uploading in the Play Console. Without the key no bundle is built. The APK keeps its own signature, so installed copies keep updating over each other. With a Play Console service account in the secrets (`PLAY_SERVICE_ACCOUNT_JSON`: its JSON key, with release rights for this app only) a release whose app changed since the previous release (`.github/scripts/app-changed.sh`; a new version number alone does not count) sends that bundle to the internal test track; until Google has reviewed the app once it arrives as a draft, to roll out in the Play Console. Production is never released from CI. A manual run of the workflow can send it too (`play_store`).
+- `.github/workflows/windows.yml` builds the Windows installer after the Android app, on Linux with `packaging/windows/build.sh`: the server and web interface, Node and the server's packages for Windows, FFmpeg (a fixed release, checked against its checksum), the tray program (`packaging/windows/tray/VidaluneTray.cs`, compiled with Mono's C# compiler for .NET Framework 4, which Windows 10 and 11 have) and the NSIS installer (`packaging/windows/installer.nsi`). It then installs, runs, ends, updates and removes it on Windows with `packaging/windows/test-install.ps1` and attaches it to the release. The account service image is built after it, so vidalune.com hands out the APK, the packages and the installer of the same release.
 
 After the first publish, make the package public under **GitHub → Packages → vidalune → Package settings** if you want to pull it without logging in. To release a version: bump `version` in `package.json`, `backend/package.json` and `frontend/package.json` and merge to `main` — the tag and the versioned image follow automatically. Pushing a `v*` tag by hand still works too.
 
