@@ -32,15 +32,24 @@ describe('FFprobe queue', () => {
 
   it('lets playback probes skip ahead of queued scan work', async () => {
     const order: string[] = [];
+    // The first scan probe runs until the playback probe is queued (no race with a timer).
+    let release!: () => void;
+    const firstRunning = new Promise<void>((resolve) => (release = resolve));
+    let started!: () => void;
+    const firstStarted = new Promise<void>((resolve) => (started = resolve));
     const slow: Prober = async (f) => {
       order.push(f);
-      await wait(5);
+      if (f === '/scan0.mkv') {
+        started();
+        await firstRunning;
+      } else await wait(1);
       return fakeProbe();
     };
     const limited = limitProber(slow, 1);
     const background = Array.from({ length: 5 }, (_, i) => limited(`/scan${i}.mkv`));
-    await wait(1);
+    await firstStarted;
     const play = limited.urgent('/play.mkv');
+    release();
     await Promise.all([...background, play]);
     // The first scan probe was already running; the playback probe goes next.
     expect(order.slice(0, 2)).toEqual(['/scan0.mkv', '/play.mkv']);

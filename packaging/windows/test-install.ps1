@@ -40,7 +40,10 @@ foreach ($f in 'VidaluneTray.exe', 'Uninstall.exe', 'node\node.exe', 'ffmpeg\ffm
 if (-not (Test-Path (Join-Path $data 'vidalune.env'))) { Fail 'no vidalune.env in the data folder' }
 $run = (Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run').Vidalune
 if ($run -notlike '*VidaluneTray.exe*') { Fail 'does not start at sign-in' }
-if (-not (netsh advfirewall firewall show rule name=Vidalune | Select-String 'node.exe')) { Fail 'no firewall rule' }
+$rule = Get-NetFirewallRule -DisplayName 'Vidalune' -ErrorAction SilentlyContinue
+if (-not $rule) { Fail 'no firewall rule' }
+$program = ($rule | Get-NetFirewallApplicationFilter).Program
+if ($program -notlike '*\node\node.exe') { Fail "the firewall rule is for $program, not Vidalune's node.exe" }
 & (Join-Path $dir 'ffmpeg\ffprobe.exe') -hide_banner -version | Select-Object -First 1
 
 Write-Host 'Start the tray program'
