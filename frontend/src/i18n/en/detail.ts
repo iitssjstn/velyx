@@ -13,4 +13,5 @@ export const detail = {
   unmatchedAdmin: 'Use “Fix match” from the menu above.',
   unmatchedUser: 'An administrator can fix the match.',
   createdBy: 'Created by {names}',
+  requestSeasons: 'Request seasons',
 };

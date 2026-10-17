@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { Check, Eye, Play, RotateCcw, Star } from 'lucide-react';
+import { Check, Eye, Play, RotateCcw, Send, Star } from 'lucide-react';
 import { episodeHeading, episodePlayHref, episodeState, seasonName, seriesContinue, showStatus } from '../lib/series';
 import { api } from '../lib/api';
 import { useFreshMetadata } from '../lib/fresh-metadata';
@@ -88,6 +88,8 @@ function ShowScreen({ id }: { id: number }) {
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const q = useQuery({ queryKey: ['show', id], queryFn: () => api.get<ShowDetail>(`/api/shows/${id}`) });
+  // With Seerr: the seasons that are not here yet can be requested from the show's own page.
+  const seerr = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
   useFreshMetadata('show', id);
   const seasons = q.data?.seasons ?? [];
   const defaultSeason = q.data?.upNext && seasons.some((s) => s.seasonNumber === q.data!.upNext!.seasonNumber) ? q.data.upNext.seasonNumber : (seasons.find((s) => s.seasonNumber > 0)?.seasonNumber ?? seasons[0]?.seasonNumber);
@@ -176,6 +178,12 @@ function ShowScreen({ id }: { id: number }) {
           <TrailerButton type="show" id={s.id} title={s.title} />
           <WatchlistButton key={String(s.watchlist)} type="show" id={s.id} initial={s.watchlist} />
           <FavoriteButton type="show" id={s.id} initial={s.favorite} />
+          {seerr.data?.enabled && s.tmdbId !== null && (
+            <Link to={`/request/tv/${s.tmdbId}`} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink/10 px-5 font-medium whitespace-nowrap hover:bg-ink/20">
+              <Send className="size-5" />
+              {t('detail.requestSeasons')}
+            </Link>
+          )}
           <WatchedMenu watchedCount={s.watchedCount} total={s.episodeCount} onMark={(value) => watched.mutate({ showId: s.id, watched: value })} />
           {user?.role === 'admin' && <AdminItemMenu type="show" id={s.id} collections={s.collections} query={s.match.parsedTitle} year={s.match.parsedYear} />}
         </div>

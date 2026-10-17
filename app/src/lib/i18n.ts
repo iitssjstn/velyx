@@ -148,6 +148,7 @@ const en = {
   'show.episodes': '{n} episodes',
   'show.watched': '{watched} of {total} watched',
   'show.continue': 'Continue with {code}',
+  'show.requestSeasons': 'Request seasons',
   'detail.director': 'Director',
   'detail.cast': 'Cast',
 
@@ -427,6 +428,7 @@ const nl: Record<MessageKey, string> = {
   'show.episodes': '{n} afleveringen',
   'show.watched': '{watched} van {total} gezien',
   'show.continue': 'Verder met {code}',
+  'show.requestSeasons': 'Seizoenen aanvragen',
   'detail.director': 'Regie',
   'detail.cast': 'Cast',
 

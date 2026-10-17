@@ -301,7 +301,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
-- **Tweede seizoen van een serie niet aan te vragen** (gemeld door de eigenaar 17 okt; nog niet bouwen tot hij het zegt):
+- **Tweede seizoen van een serie niet aan te vragen** (gemeld door de eigenaar 17 okt; gebouwd in 0.19.75):
   staat één seizoen van een serie op de server, dan geldt de hele serie als "in de bibliotheek". De server weigert
   elke aanvraag (`POST /api/seerr/requests`, 409 "Dit staat al in de bibliotheek", `backend/src/routes/seerr.ts`), en
   website (`RequestDetail.tsx`: `canRequest`/`free` met `!d.inLibrary`) en app (`canRequestTitle` in
@@ -1411,3 +1411,24 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   Lokaal: installer gebouwd (77 MB), backend 590, frontend 343, cloud 178, app 168 tests, typechecks en lint (4 bekende
   waarschuwingen) slagen. Door de eigenaar op een echte Windows-pc te testen (icoon, afsluiten, herstart van de pc).
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1974) en beide lockfiles bijgewerkt.
+
+## Versie 0.19.75 (andere seizoenen van een serie aanvragen)
+
+- Op verzoek van de eigenaar ("bouw het maar", 17 okt), na zijn melding: staat één seizoen van een serie op de server,
+  dan is geen ander seizoen meer aan te vragen; de knop verdwijnt. Lokaal gebouwd terwijl de release van 0.19.74 nog
+  liep; de PR pas na een complete release van 0.19.74.
+- Server (`backend/src/routes/seerr.ts`): `seasonsHere` zoekt per serie (TMDB-id) de seizoenen met minstens één
+  aflevering met een bestand, op de hele server. Op de aanvraagpagina krijgen die seizoenen de status "available"
+  (als Seerr ze niet al anders kent); de andere blijven open. Een aanvraag voor een serie wordt niet meer geweigerd
+  omdat de serie hier staat: alleen de seizoenen die hier staan of al aangevraagd zijn vallen af ("alles" = de rest).
+  Alleen seizoenen die hier staan: "Dit staat al in de bibliotheek"; anders "Dit is al aangevraagd". Een film blijft
+  zoals voorheen.
+- Website (`RequestDetail.tsx`) en app (`canRequestTitle`): bij een serie beslissen alleen de open seizoenen, niet
+  "in de bibliotheek". Op de seriepagina (website en app) een knop "Seizoenen aanvragen" naar de aanvraagpagina
+  (alleen met Seerr aan en een bekende TMDB-id); daarvoor opende een gevonden serie die hier staat meteen de serie
+  zonder manier om meer seizoenen aan te vragen.
+- Tests: backend (seizoen 1 hier, seizoen 2 aan te vragen, "alles" vraagt alleen seizoen 2, juiste meldingen; faalt
+  op de oude code), website (aanvraagpagina met seizoen 1 hier, knop op de seriepagina met en zonder Seerr), app
+  (`canRequestTitle`). Backend 591, frontend 346, cloud 178, app 169 tests; typechecks, lint (4 bekende waarschuwingen)
+  en de frontend-build slagen. Het seriescherm van de app op de telefoon testen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1975) en beide lockfiles bijgewerkt.

@@ -23,11 +23,12 @@ const season2 = {
   episodes: [episode(1, { positionSec: 0, durationSec: 2820, completed: true }), episode(4, { positionSec: 1934, durationSec: 2844, completed: false }), { ...episode(5, null, null), width: 1920, height: 800 }],
 };
 
-function setup() {
+function setup(opts: { tmdbId?: number; seerr?: boolean } = {}) {
   const calls: { method: string; url: string; body: unknown }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ method: init?.method ?? 'GET', url, body: init?.body ? JSON.parse(String(init.body)) : null });
-    if (url === '/api/shows/7') return new Response(JSON.stringify(show), { status: 200 });
+    if (url === '/api/shows/7') return new Response(JSON.stringify({ ...show, tmdbId: opts.tmdbId ?? null }), { status: 200 });
+    if (url === '/api/seerr') return new Response(JSON.stringify({ enabled: opts.seerr ?? false }), { status: 200 });
     if (url === '/api/shows/7/seasons/2') return new Response(JSON.stringify(season2), { status: 200 });
     if (url.includes('/similar')) return new Response(JSON.stringify([]), { status: 200 });
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
@@ -45,6 +46,18 @@ function setup() {
 }
 
 describe('series page', () => {
+  it('offers to request seasons that are not here yet, with Seerr', async () => {
+    setup({ tmdbId: 1399, seerr: true });
+    const link = await screen.findByRole('link', { name: 'Request seasons' });
+    expect(link.getAttribute('href')).toBe('/request/tv/1399');
+  });
+
+  it('offers no requests without Seerr', async () => {
+    setup({ tmdbId: 1399, seerr: false });
+    expect(await screen.findByRole('heading', { name: 'Reacher' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Request seasons' })).toBeNull();
+  });
+
   it('shows seasons, episodes, how much is watched, and where to continue', async () => {
     setup();
     expect(await screen.findByRole('heading', { name: 'Reacher' })).toBeTruthy();

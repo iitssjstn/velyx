@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireAdmin, requireUser } from '../app.js';
-import { movies, seerrRequests, shows, users } from '../db/schema.js';
+import { episodes, mediaFiles, movies, seerrRequests, shows, users } from '../db/schema.js';
 import { HttpError, parseId } from '../http-error.js';
 import type { RequestState } from '../services/seerr.js';
 import { canSee } from '../services/access.js';
@@ -93,17 +93,44 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
       return id === undefined ? null : { type: i.mediaType === 'movie' ? 'movie' : 'show', id };
     };
   };
-  const withLibrary = <T extends { mediaType: 'movie' | 'tv'; tmdbId: number; state?: RequestState | null; seasons?: Array<{ state: RequestState | null }> }>(items: T[], user: SessionUser) => {
+  /**
+   * The seasons of these shows (by TMDB id) that are on this server: with at least one episode that
+   * has a file. Anywhere on the server, also in libraries a person cannot see (asking Seerr for them
+   * again would only fetch them twice).
+   */
+  const seasonsHere = (tmdbIds: number[]): Map<number, Set<number>> => {
+    const map = new Map<number, Set<number>>();
+    const ids = [...new Set(tmdbIds)];
+    if (ids.length === 0) return map;
+    const rows = db
+      .selectDistinct({ tmdbId: shows.tmdbId, season: episodes.seasonNumber })
+      .from(episodes)
+      .innerJoin(shows, eq(shows.id, episodes.showId))
+      .innerJoin(mediaFiles, eq(mediaFiles.episodeId, episodes.id))
+      .where(inArray(shows.tmdbId, ids))
+      .all();
+    for (const r of rows) if (r.tmdbId !== null) map.set(r.tmdbId, (map.get(r.tmdbId) ?? new Set()).add(r.season));
+    return map;
+  };
+  const open = (s: RequestState | null) => s === null || s === 'declined' || s === 'failed';
+  const withLibrary = <T extends { mediaType: 'movie' | 'tv'; tmdbId: number; state?: RequestState | null; seasons?: Array<{ seasonNumber: number; state: RequestState | null }> }>(items: T[], user: SessionUser) => {
     const local = inLibrary(items, user);
     // Anywhere on this server (also in libraries this user cannot see).
     const anywhere = inLibrary(items);
+    const here = seasonsHere(items.filter((x) => x.mediaType === 'tv' && x.seasons).map((x) => x.tmdbId));
     return items.map((x) => {
       const l = local(x);
       // This server decides what is here: a title removed from it can still be "available" in
       // Seerr for a while (until Seerr checks again). Then it is shown as not here, and requestable.
       const removed = anywhere(x) === null;
       const gone = (s: RequestState | null | undefined) => removed && (s === 'available' || s === 'partiallyAvailable');
-      const seasons = x.seasons?.map((s) => (gone(s.state) ? { ...s, state: null } : s));
+      // A season on this server is there, also when Seerr never fetched it (it was there before):
+      // one season of a show being here leaves the others requestable.
+      const onServer = x.mediaType === 'tv' ? here.get(x.tmdbId) : undefined;
+      const seasons = x.seasons?.map((s) => {
+        const state = gone(s.state) ? null : s.state;
+        return { ...s, state: open(state) && onServer?.has(s.seasonNumber) ? ('available' as const) : state };
+      });
       return { ...x, ...(x.state !== undefined ? { state: gone(x.state) ? null : x.state } : {}), ...(seasons ? { seasons } : {}), inLibrary: l !== null, local: l };
     });
   };
@@ -156,17 +183,22 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (mine.length >= REQUESTS_PER_HOUR) throw new HttpError(429, 'You made many requests in the last hour. Try again later.');
     // Title and poster from Seerr itself (never taken from the browser).
     let d = await ctx.seerr.details(body.mediaType, body.tmdbId, lang(user.language));
-    if (inLibrary([d])(d) !== null) throw new HttpError(409, 'This is already in the library.');
+    // A movie here is here; of a show, only the seasons that are here (the others can be requested).
+    if (body.mediaType === 'movie' && inLibrary([d])(d) !== null) throw new HttpError(409, 'This is already in the library.');
     // Removed from this library but still (partly) available in Seerr: Seerr forgets it first, so it
     // can be requested again.
     if (await ctx.seerr.clearIfGone(body.mediaType, body.tmdbId)) d = await ctx.seerr.details(body.mediaType, body.tmdbId, lang(user.language));
     // A show with seasons requested before: only the others can be asked for.
     let seasons = body.seasons;
     if (body.mediaType === 'tv') {
-      const open = d.seasons.filter((s) => s.state === null || s.state === 'declined' || s.state === 'failed').map((s) => s.seasonNumber);
-      if (seasons) seasons = seasons.filter((n) => open.includes(n));
-      else if (open.length < d.seasons.length) seasons = open;
-      if (seasons && seasons.length === 0) throw new HttpError(409, 'This has already been requested.');
+      const here = seasonsHere([body.tmdbId]).get(body.tmdbId) ?? new Set<number>();
+      const free = d.seasons.filter((s) => open(s.state) && !here.has(s.seasonNumber)).map((s) => s.seasonNumber);
+      if (seasons) seasons = seasons.filter((n) => free.includes(n));
+      else if (free.length < d.seasons.length) seasons = free;
+      if (seasons && seasons.length === 0) {
+        const asked = body.seasons ?? d.seasons.map((s) => s.seasonNumber);
+        throw new HttpError(409, asked.length > 0 && asked.every((n) => here.has(n)) ? 'This is already in the library.' : 'This has already been requested.');
+      }
     }
     const r = await ctx.seerr.request(body.mediaType, body.tmdbId, body.mediaType === 'tv' ? seasons : null);
     mine.push(now);
