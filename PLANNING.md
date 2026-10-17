@@ -499,7 +499,13 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   VAAPI bestaat alleen op Linux (op Windows NVENC werkt al; Intel Quick Sync `h264_qsv` en AMD `h264_amf` toe te voegen),
   `SIGSTOP`/`SIGCONT` (pauzeren van FFmpeg in `hls.ts` en `optimization.ts`) werkt niet op Windows (optimizer slaat het al
   over; HLS loopt dan gewoon door), de mapkiezer moet stationsletters tonen, en de installer is niet ondertekend (Windows
-  SmartScreen waarschuwt tot er een codesigningcertificaat is). Een systeemvak-icoon is optioneel (later).
+  SmartScreen waarschuwt tot er een codesigningcertificaat is).
+  - Keuze eigenaar (17 okt): "Het moet in de achtergrond kunnen draaien, dus rechtsonder een icon hebben dat geopend kan
+    worden bijvoorbeeld naar de website om alles aan te passen". Dus: server als Windows-dienst én een icoon in het
+    systeemvak. Een dienst draait in sessie 0 en kan zelf geen icoon tonen; daarom een apart klein programma (C#/.NET,
+    `NotifyIcon`, start bij aanmelden) dat via `http://localhost:<poort>/api/health` de status toont (groen/grijs),
+    "Vidalune openen" (browser), "Herstarten" en "Stoppen/Starten" (de installer geeft gewone gebruikers dat recht op de
+    dienst, dus geen beheerdersvraag) en "Logboek openen". Het icoon afsluiten stopt de server niet.
 - **Rollen beheren op de website** (idee eigenaar 11 okt, nog niet bouwen): in het CEO-paneel een
   bestaand account een rol geven of afnemen (bijvoorbeeld beheerder, CEO) in plaats van via
   `ADMIN_EMAILS`/`CEO_EMAILS`.
