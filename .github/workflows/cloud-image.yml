@@ -5,13 +5,14 @@ name: Account service image
 on:
   push:
     branches: [main]
-    paths: ['cloud/**', 'frontend/**', 'package-lock.json', '.github/workflows/cloud-image.yml', '.github/workflows/android.yml', '.github/workflows/deb.yml']
+    paths: ['cloud/**', 'frontend/**', 'package-lock.json', '.github/workflows/cloud-image.yml', '.github/workflows/android.yml', '.github/workflows/deb.yml', '.github/workflows/windows.yml']
   pull_request:
     paths: ['cloud/**', 'frontend/**', '.github/workflows/cloud-image.yml']
-  # Once the Android app of a release is built (it finishes after the Debian packages): again, so
-  # vidalune.com hands both out. Once per release, not after each of them (saves build minutes).
+  # Once the Windows installer of a release is built (it finishes after the Debian packages and the
+  # Android app): again, so vidalune.com hands them all out. Once per release, not after each of
+  # them (saves build minutes).
   workflow_run:
-    workflows: ['Android app']
+    workflows: ['Windows installer']
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -26,7 +27,7 @@ concurrency:
 
 jobs:
   image:
-    # Also when the APK failed: the Debian packages and the website still go out.
+    # Also when the APK or the Windows installer failed: the Debian packages and the website still go out.
     if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion != 'cancelled' && github.event.workflow_run.conclusion != 'skipped')
     runs-on: ubuntu-latest
     steps:
@@ -38,13 +39,13 @@ jobs:
         id: version
         run: echo "version=$(node -p "require('./cloud/package.json').version")" >> "$GITHUB_OUTPUT"
 
-      # The Android app and Debian packages of the newest release, handed out at
-      # vidalune.com/download/app and /download/deb/<arch>.
-      - name: Android app and Debian packages
+      # The Android app, Debian packages and Windows installer of the newest release, handed out at
+      # vidalune.com/download/app, /download/deb/<arch> and /download/windows.
+      - name: Android app, Debian packages and Windows installer
         if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download --repo "$GITHUB_REPOSITORY" --pattern 'vidalune-*.apk' --pattern 'vidalune_*.deb' --dir cloud/downloads || echo "Nothing released yet."
+        run: gh release download --repo "$GITHUB_REPOSITORY" --pattern 'vidalune-*.apk' --pattern 'vidalune_*.deb' --pattern 'vidalune-*-setup.exe' --dir cloud/downloads || echo "Nothing released yet."
 
       - name: Verify release Debian packages
         if: github.event_name == 'workflow_run'

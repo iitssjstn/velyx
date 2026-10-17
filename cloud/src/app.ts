@@ -1266,6 +1266,22 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     }).at(-1) ?? null;
   };
 
+  const EXE = /^vidalune-(\d+\.\d+\.\d+)-setup\.exe$/;
+  /** The newest installer for Windows present (null: none in this image). */
+  const latestWindows = () => {
+    let files: string[];
+    try {
+      files = fs.readdirSync(config.downloadDir).filter((f) => EXE.test(f));
+    } catch {
+      return null;
+    }
+    const v = (f: string) => EXE.exec(f)![1].split('.').map(Number);
+    return files.sort((a, b) => {
+      const [x, y] = [v(a), v(b)];
+      return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+    }).at(-1) ?? null;
+  };
+
   app.get('/api/releases/latest', async (_request, reply) => {
     reply.header('Cache-Control', 'public, max-age=3600');
     return { version: releaseVersion, url: `${config.publicUrl}/install`, app: latestApk() ? `${config.publicUrl}/download/app` : null };
@@ -1284,7 +1300,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   });
 
   app.get('/install', async (request, reply) =>
-    reply.type('text/html').header('Cache-Control', 'no-cache').send(installPage(pickLanguage(request.query, request.headers['accept-language']), config.publicUrl, releaseVersion, !!latestApk(), !!accountByToken(request.cookies[SESSION_COOKIE]), !!latestDeb('amd64'), !!community.discord())),
+    reply.type('text/html').header('Cache-Control', 'no-cache').send(installPage(pickLanguage(request.query, request.headers['accept-language']), config.publicUrl, releaseVersion, !!latestApk(), !!accountByToken(request.cookies[SESSION_COOKIE]), !!latestDeb('amd64'), !!community.discord(), !!latestWindows())),
   );
   app.get('/privacy', async (request, reply) => {
     if (isAppHost(request.raw)) throw new HttpError(404, 'Not found.');
@@ -1332,12 +1348,18 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     if (!file) throw new HttpError(404, 'The package is not available for download right now.');
     return reply.header('Cache-Control', 'no-cache').redirect(`/download/${file}`);
   });
+  /** The newest installer for Windows. */
+  app.get('/download/windows', async (_request, reply) => {
+    const file = latestWindows();
+    if (!file) throw new HttpError(404, 'The installer for Windows is not available for download right now.');
+    return reply.header('Cache-Control', 'no-cache').redirect(`/download/${file}`);
+  });
   app.get('/download/:file', async (request, reply) => {
-    const { file } = z.object({ file: z.string().refine((f) => APK.test(f) || DEB.test(f)) }).parse(request.params);
+    const { file } = z.object({ file: z.string().refine((f) => APK.test(f) || DEB.test(f) || EXE.test(f)) }).parse(request.params);
     const full = path.join(config.downloadDir, file);
     if (!fs.existsSync(full)) throw new HttpError(404, 'Not found.');
     return reply
-      .type(DEB.test(file) ? 'application/vnd.debian.binary-package' : 'application/vnd.android.package-archive')
+      .type(DEB.test(file) ? 'application/vnd.debian.binary-package' : EXE.test(file) ? 'application/vnd.microsoft.portable-executable' : 'application/vnd.android.package-archive')
       .header('Content-Disposition', `attachment; filename="${file}"`)
       .header('Content-Length', String(fs.statSync(full).size))
       .header('Cache-Control', 'public, max-age=86400')

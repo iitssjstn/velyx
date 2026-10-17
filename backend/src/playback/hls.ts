@@ -428,9 +428,10 @@ export class HlsSessions {
         /* next time */
       }
     }
-    // Far enough ahead of the player: FFmpeg rests until the player comes closer.
+    // Far enough ahead of the player: FFmpeg rests until the player comes closer. Windows cannot
+    // pause a process, so there FFmpeg simply keeps going.
     const made = Math.max(s.from, ...s.done);
-    if (!s.paused && layoutSeconds(s.layout, s.lastRequested, made) > AHEAD_SECONDS && child.pid) {
+    if (!s.paused && process.platform !== 'win32' && layoutSeconds(s.layout, s.lastRequested, made) > AHEAD_SECONDS && child.pid) {
       try {
         process.kill(child.pid, 'SIGSTOP');
         s.paused = true;

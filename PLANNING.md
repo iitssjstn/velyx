@@ -97,7 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- Laatste release: **0.19.72** (PR #157, wachtwoord in de app; gemerged 17 okt); release `v0.19.72` gecontroleerd: APK, beide `.deb`'s en `.aab` aanwezig, en automatisch naar de interne test van Play. Daarvoor 0.19.71 (PR #156, in- en uitloggen in de app, onleesbaar bestand), 0.19.70 (PR #155, app automatisch naar de interne test van de Play Store), 0.19.69 (PR #154, Control Center overzichtelijker), 0.19.68 (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer), 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.73** (PR #158, 1080p-afleveringen niet meer als 720p; gemerged 17 okt); release `v0.19.73` gecontroleerd: APK, beide `.deb`'s en `.aab` aanwezig. Daarvoor 0.19.72 (PR #157, wachtwoord in de app), 0.19.71 (PR #156, in- en uitloggen in de app, onleesbaar bestand), 0.19.70 (PR #155, app automatisch naar de interne test van de Play Store), 0.19.69 (PR #154, Control Center overzichtelijker), 0.19.68 (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer), 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -489,6 +489,29 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Ideeën (nog niet besloten)
 
+- **Vidalune-server voor Windows** (idee eigenaar 17 okt; gebouwd in 0.19.74, zie daar): een installer (`.exe`) die de server op een
+  Windows-pc draait, net als Docker en `.deb`. Bevindingen: de server is Node met FFmpeg, SQLite (`better-sqlite3`) en
+  argon2 (`@node-rs/argon2`); beide hebben kant-en-klare Windows-builds en de code kreeg in 0.19.44 al Windows-padfixes.
+  Voorstel: Node-runtime, server, website en `ffmpeg.exe` in één installer (bijvoorbeeld Inno Setup, gebouwd in GitHub
+  Actions op `windows-latest`, met eigen release-asset), de server gestart door het icoonprogramma (zie
+  hieronder; eerst als Windows-dienst bedacht), data in `C:\ProgramData\Vidalune`, een snelkoppeling "Vidalune openen" naar `http://localhost:<poort>` en
+  een firewallregel bij installatie. Updates: de installer opnieuw draaien (later een melding in Beheer). Aandachtspunten:
+  VAAPI bestaat alleen op Linux (op Windows NVENC werkt al; Intel Quick Sync `h264_qsv` en AMD `h264_amf` toe te voegen),
+  `SIGSTOP`/`SIGCONT` (pauzeren van FFmpeg in `hls.ts` en `optimization.ts`) werkt niet op Windows (optimizer slaat het al
+  over; HLS loopt dan gewoon door), de mapkiezer moet stationsletters tonen, en de installer is niet ondertekend (Windows
+  SmartScreen waarschuwt tot er een codesigningcertificaat is).
+  - Keuze eigenaar (17 okt): "Het moet in de achtergrond kunnen draaien, dus rechtsonder een icon hebben dat geopend kan
+    worden bijvoorbeeld naar de website om alles aan te passen". Dus: draaien op de achtergrond met een icoon in het
+    systeemvak: een klein programma (C#/.NET, `NotifyIcon`) dat via `http://localhost:<poort>/api/health` de status
+    toont (groen/grijs), met "Vidalune openen" (browser), "Herstarten" en "Logboek openen".
+  - Aanvulling eigenaar (17 okt): "Als iemand de icon weghaalt dus uitzetten moet de achtergrond taak ook stoppen dat is
+    logisch". Dus: "Vidalune afsluiten" in het icoonmenu stopt de dienst en sluit het icoon (met een vraag als er iemand
+    kijkt). Bij aanmelden starten beide weer.
+  - Aanvulling eigenaar (17 okt): "Als iemand het icon stopzet via taakbeheer moet de server ook stoppen". Daarmee geen
+    Windows-dienst: het icoonprogramma start de server zelf als kindproces in een Windows Job Object met
+    `KILL_ON_JOB_CLOSE`, zodat Windows de server (en FFmpeg) stopt hoe het icoon ook eindigt (afsluiten, Taakbeheer,
+    vastlopen, afmelden). Start bij aanmelden (Opstarten-map/`Run`-sleutel), geen beheerdersrechten nodig voor
+    starten/stoppen. Gevolg (aan de eigenaar uitgelegd): na een herstart draait de server pas als iemand zich aanmeldt.
 - **Rollen beheren op de website** (idee eigenaar 11 okt, nog niet bouwen): in het CEO-paneel een
   bestaand account een rol geven of afnemen (bijvoorbeeld beheerder, CEO) in plaats van via
   `ADMIN_EMAILS`/`CEO_EMAILS`.
@@ -1346,3 +1369,37 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Tests: backend (seizoenslijst geeft breedte en hoogte) en frontend (1920×800 toont 1080p, niet 720p); beide falen op de
   oude code. Backend 585 en frontend 343 tests, typechecks en lint (4 bekende waarschuwingen) slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1973) en beide lockfiles bijgewerkt.
+- PR #158 gemerged 17 okt op verzoek van de eigenaar ("Merge het maar"); release `v0.19.73` gecontroleerd: APK, beide `.deb`'s en
+  `.aab`; de app is niet veranderd, dus niets naar Play.
+- Bevestigd door de eigenaar (17 okt) na het bijwerken: "Hij doet het nu staat er 1080P".
+
+## Versie 0.19.74 (Vidalune voor Windows)
+
+- Op verzoek van de eigenaar ("bouw het maar", 17 okt), na de keuzes onder Ideeën (achtergrond met icoon naast de klok;
+  afsluiten, ook via Taakbeheer, stopt de server; Vidalune-account blijft gekoppeld na een herstart).
+- Installer `vidalune-<versie>-setup.exe` (NSIS, `packaging/windows/installer.nsi`), op Linux gebouwd met
+  `packaging/windows/build.sh`: server en website, Node 22 en de serverpakketten voor Windows (`better-sqlite3`,
+  `@node-rs/argon2` win32-x64), FFmpeg 7.1.1 (essentials-build van gyan.dev, GPL, vaste checksum) en het icoonprogramma.
+  Installeert in `C:\Program Files\Vidalune`, data in `C:\ProgramData\Vidalune` (blijft bij bijwerken en standaard bij
+  verwijderen), start bij aanmelden (HKLM `Run`), snelkoppeling in Start, firewallregel voor `node.exe`, staat in Apps.
+  Nog niet ondertekend: SmartScreen waarschuwt ("Meer informatie → Toch uitvoeren").
+- Icoonprogramma `VidaluneTray.exe` (`packaging/windows/tray/VidaluneTray.cs`, C# voor .NET Framework 4.6.2, gecompileerd met
+  Mono `mcs`): start de server in een Windows Job Object met `KILL_ON_JOB_CLOSE` (server en FFmpeg stoppen hoe het icoon
+  ook eindigt), menu Openen/Herstarten/Logboek/Afsluiten (vraagt eerst als er iemand kijkt), grijs icoon tijdens starten
+  of na stoppen, start de server opnieuw na een crash (na vijf keer in tien minuten niet meer), houdt de pc wakker
+  zolang er gekeken wordt, opent bij de eerste start de website. `MEDIA_ROOTS` = alle gereedstaande stations (tenzij in
+  `vidalune.env`), log in `C:\ProgramData\Vidalune\logs\vidalune.log`. Teksten Nederlands of Engels (Windows-taal).
+- Server: `STATUS_FILE` (kijkers voor het icoon, elke 5 s) en `STOP_ON_STDIN_END` (netjes stoppen als het icoon de invoer
+  sluit) in `backend/src/services/tray.ts`; HLS pauzeert FFmpeg niet op Windows (kan daar niet); de mapkiezer verbergt
+  `$Recycle.Bin`, `System Volume Information` en `Recovery` op Windows.
+- vidalune.com: `/download/windows` en een blok Windows op `/install` (Engels en Nederlands). De Windows-workflow
+  (`windows.yml`) draait na de Android-app (en bij een PR die `packaging/windows/` of de workflow wijzigt); de accountservice-image daarna (in plaats van na de Android-app), zodat de
+  site de installer van dezelfde release heeft.
+- Nog niet: Intel Quick Sync en AMD voor video omzetten op Windows (NVENC en processor werken), ondertekening, een
+  updatemelding in het icoon.
+- Tests: backend (statusbestand, stoppen bij gesloten invoer, niets zonder icoon, Windows-systeemmappen), cloud
+  (download en installpagina). In CI op `windows-latest` (`test-install.ps1`): installeren, starten, website en status,
+  icoon via Taakbeheer beëindigen stopt de server, bijwerken over een draaiende Vidalune houdt de data, verwijderen.
+  Lokaal: installer gebouwd (77 MB), backend 590, frontend 343, cloud 178, app 168 tests, typechecks en lint (4 bekende
+  waarschuwingen) slagen. Door de eigenaar op een echte Windows-pc te testen (icoon, afsluiten, herstart van de pc).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1974) en beide lockfiles bijgewerkt.

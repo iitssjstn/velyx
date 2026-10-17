@@ -11,6 +11,7 @@ import { createLogger } from './logger.js';
 import { APP_VERSION } from './version.js';
 import type { RemuxEngine } from './playback/remux.js';
 import { DirectHttpsService } from './services/direct-https.js';
+import { startTrayBridge } from './services/tray.js';
 
 const log = createLogger('vidalune');
 
@@ -87,10 +88,12 @@ async function main(): Promise<void> {
   setInterval(() => void ctx.sharedDetection.syncAll(), 24 * 60 * 60 * 1000).unref();
 
   let shuttingDown = false;
+  let stopTray = () => {};
   const shutdown = async (signal: string) => {
     if (shuttingDown) return;
     shuttingDown = true;
     log.info(`Received ${signal}, shutting down`);
+    stopTray();
     ctx.scans.stop();
     ctx.segments.stop();
     ctx.subtitlePrefetch.stop();
@@ -113,6 +116,13 @@ async function main(): Promise<void> {
   };
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
   process.on('SIGINT', () => void shutdown('SIGINT'));
+  // Started by the Windows tray program: tell it who is watching, and stop when it says so.
+  stopTray = startTrayBridge({
+    statusFile: process.env.STATUS_FILE || undefined,
+    stopOnStdinEnd: process.env.STOP_ON_STDIN_END === '1',
+    watching: () => ctx.streams.active().length,
+    stop: (reason) => void shutdown(reason),
+  });
 }
 
 main().catch((err) => {

@@ -1,0 +1,104 @@
+name: Windows installer
+
+# Builds the Vidalune installer for Windows (vidalune-<version>-setup.exe) and tests installing,
+# running, ending, updating and removing it on Windows after every release build on main (after the
+# Android app, so vidalune.com, built after this, hands out all of them), where the installer is
+# attached to the GitHub release of that version (or by hand: Actions -> Run workflow). On pull
+# requests only when they change the Windows packaging, to save build minutes: CI tests the server.
+on:
+  workflow_run:
+    workflows: ['Android app']
+    types: [completed]
+    branches: [main]
+  pull_request:
+    paths: ['packaging/windows/**', '.github/workflows/windows.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write # attach the installer to the release
+
+concurrency:
+  group: windows-${{ github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Also when the APK failed (the Debian packages succeeded, or the Android build would not have run).
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion != 'cancelled' && github.event.workflow_run.conclusion != 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build the web interface and server
+        run: npm run build --workspace frontend && npm run build:release --workspace backend
+
+      - name: Install the C# compiler and NSIS
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq mono-devel nsis > /dev/null
+
+      - name: Build the installer
+        run: sh packaging/windows/build.sh out && ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: out/*.exe
+          retention-days: 30
+
+  test:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows
+          path: out
+
+      - name: Install, run, end, update and remove
+        shell: pwsh
+        run: ./packaging/windows/test-install.ps1 (Get-ChildItem out\*.exe | Select-Object -First 1).FullName
+
+  release:
+    needs: test
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows
+          path: out
+
+      # Attach the installer to the release of this exact commit (created here if no other build
+      # has created it yet).
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tag="v$version"
+          if ! git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then git fetch --tags --quiet; fi
+          if [ "$(git rev-list -n 1 "$tag" 2>/dev/null)" != "$SHA" ]; then
+            echo "$tag does not point at this commit; nothing to attach."
+            exit 0
+          fi
+          gh release view "$tag" > /dev/null 2>&1 || gh release create "$tag" --verify-tag --title "Vidalune $version" --notes "Vidalune $version. The Android app is attached as vidalune-$version.apk (install it on an Android phone or tablet; see the README)." || gh release view "$tag" > /dev/null
+          gh release upload "$tag" out/*.exe --clobber

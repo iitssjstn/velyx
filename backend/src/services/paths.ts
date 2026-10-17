@@ -115,6 +115,12 @@ function noAccess(target: string, blocked: string): LibraryPathCheck {
   return { ok: false, error: 'Vidalune (user {user}) may not read {path}. Give that user read access to it (with Docker: set PUID and PGID to the owner of your media).', params: { path: target, user } };
 }
 
+/** Folders never worth choosing a library from: hidden ones, and on Windows the system's own. */
+export function hiddenFolder(name: string, platform: NodeJS.Platform = process.platform): boolean {
+  if (name.startsWith('.')) return true;
+  return platform === 'win32' && (name.startsWith('$') || name === 'System Volume Information' || name === 'Recovery');
+}
+
 export interface FolderList {
   /** The folder shown (null: the list of MEDIA_ROOTS). */
   path: string | null;
@@ -141,7 +147,7 @@ export function listFolders(dir: string | undefined, mediaRoots: string[]): Fold
   const atRoot = roots.includes(target);
   const folders = fs
     .readdirSync(real, { withFileTypes: true })
-    .filter((e) => !e.name.startsWith('.'))
+    .filter((e) => !hiddenFolder(e.name))
     .map((e) => ({ name: e.name, path: path.join(target, e.name) }))
     .filter((e) => {
       try {

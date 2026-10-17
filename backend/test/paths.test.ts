@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { accessCommand, isFilesystemRoot, isInside, listFolders, pathsOverlap, resolveMediaPath, validateLibraryPath } from '../src/services/paths.js';
+import { accessCommand, hiddenFolder, isFilesystemRoot, isInside, listFolders, pathsOverlap, resolveMediaPath, validateLibraryPath } from '../src/services/paths.js';
 import { isValidImageRequest } from '../src/services/images.js';
 
 describe('path helpers', () => {
@@ -94,5 +94,17 @@ describe('path helpers', () => {
     expect(isValidImageRequest('w342', '../../etc/passwd')).toBe(false);
     expect(isValidImageRequest('w342', '..%2Fx.jpg')).toBe(false);
     expect(isValidImageRequest('w342', 'x.exe')).toBe(false);
+  });
+});
+
+describe('folders not worth choosing', () => {
+  it('leaves out hidden folders everywhere, and the system folders of a Windows drive on Windows', () => {
+    expect(hiddenFolder('.cache', 'linux')).toBe(true);
+    expect(hiddenFolder('Movies', 'linux')).toBe(false);
+    expect(hiddenFolder('$Recycle.Bin', 'linux')).toBe(false);
+    expect(hiddenFolder('$Recycle.Bin', 'win32')).toBe(true);
+    expect(hiddenFolder('System Volume Information', 'win32')).toBe(true);
+    expect(hiddenFolder('Recovery', 'win32')).toBe(true);
+    expect(hiddenFolder('Movies', 'win32')).toBe(false);
   });
 });
