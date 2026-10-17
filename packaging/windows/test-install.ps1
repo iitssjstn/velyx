@@ -22,6 +22,8 @@ function Answers {
 function Start-Tray {
   $p = Start-Process (Join-Path $dir 'VidaluneTray.exe') -PassThru
   for ($i = 0; $i -lt 60; $i++) { if (Answers) { return $p }; Start-Sleep 2 }
+  if ($p.HasExited) { Write-Host "The tray program ended with exit code $($p.ExitCode)" } else { Write-Host 'The tray program is still running' }
+  Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Level = 2; StartTime = (Get-Date).AddMinutes(-10) } -MaxEvents 5 -ErrorAction SilentlyContinue | Format-List TimeCreated, ProviderName, Message
   Fail 'the server did not start from the tray program'
 }
 

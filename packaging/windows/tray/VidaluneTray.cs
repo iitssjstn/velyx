@@ -23,6 +23,10 @@ namespace Vidalune
         [STAThread]
         static void Main(string[] args)
         {
+            // Anything that goes wrong in this program itself ends up in the log, not in thin air.
+            AppDomain.CurrentDomain.UnhandledException += (s, e) => Settings.Fail(e.ExceptionObject as Exception);
+            Application.ThreadException += (s, e) => Settings.Fail(e.Exception);
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             bool open = Array.IndexOf(args, "--open") >= 0;
             bool first;
             using (var mutex = new Mutex(true, "Local\\VidaluneTray", out first))
@@ -35,7 +39,10 @@ namespace Vidalune
                 }
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                Application.Run(new Tray(open));
+                Tray tray;
+                try { tray = new Tray(open); }
+                catch (Exception e) { Settings.Fail(e); return; }
+                Application.Run(tray);
             }
         }
     }
@@ -73,6 +80,18 @@ namespace Vidalune
             string p;
             if (s.Env.TryGetValue("PORT", out p) && int.TryParse(p, out port) && port > 0 && port < 65536) s.Port = port;
             return s;
+        }
+
+        /// <summary>Writes an error of this program to the log (the server's own lines are there too).</summary>
+        public static void Fail(Exception e)
+        {
+            try
+            {
+                var s = Load();
+                Directory.CreateDirectory(Path.GetDirectoryName(s.LogFile));
+                File.AppendAllText(s.LogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + " Vidalune icon error: " + e + Environment.NewLine, new UTF8Encoding(false));
+            }
+            catch (Exception) { }
         }
 
         /// <summary>Every drive Windows has ready (internal, USB, network): where libraries may be.</summary>
@@ -220,8 +239,12 @@ namespace Vidalune
 
         static Icon LoadIcon(string name)
         {
-            Stream s = Assembly.GetExecutingAssembly().GetManifestResourceStream(name);
-            return s == null ? null : new Icon(s);
+            try
+            {
+                Stream s = Assembly.GetExecutingAssembly().GetManifestResourceStream(name);
+                return s == null ? null : new Icon(s, SystemInformation.SmallIconSize);
+            }
+            catch (Exception) { return null; }
         }
 
         public static void OpenWebsite(int port)
