@@ -301,6 +301,14 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Tweede seizoen van een serie niet aan te vragen** (gemeld door de eigenaar 17 okt; nog niet bouwen tot hij het zegt):
+  staat één seizoen van een serie op de server, dan geldt de hele serie als "in de bibliotheek". De server weigert
+  elke aanvraag (`POST /api/seerr/requests`, 409 "Dit staat al in de bibliotheek", `backend/src/routes/seerr.ts`), en
+  website (`RequestDetail.tsx`: `canRequest`/`free` met `!d.inLibrary`) en app (`canRequestTitle` in
+  `app/src/lib/discover.ts`) zetten alle seizoenen uit. Voorstel: bij een serie per seizoen kijken wat er op de server
+  staat (afleveringen met een bestand); alleen die seizoenen dicht, de rest blijft aan te vragen; een film blijft zoals nu.
+  Test die op de oude code faalt (server, website, app).
+
 - **Per catalogusrij een verwijzing** (gemeld 15 okt, screenshots van Home en Seerr; gebouwd in 0.19.62): "Ik wil per
   rij een verwijzing hebben want dat maakt het makkelijker voor de kijker".
 
