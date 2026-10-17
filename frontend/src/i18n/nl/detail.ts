@@ -14,4 +14,5 @@ export const detail: Messages['detail'] = {
   unmatchedAdmin: 'Gebruik “Koppeling herstellen” in het menu hierboven.',
   unmatchedUser: 'Een beheerder kan de koppeling herstellen.',
   createdBy: 'Gemaakt door {names}',
+  requestSeasons: 'Seizoenen aanvragen',
 };

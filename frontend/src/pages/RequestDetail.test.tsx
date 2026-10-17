@@ -85,6 +85,22 @@ describe('a title from Seerr on its own page', () => {
     expect(screen.queryByRole('button', { name: 'Make requestable again' })).toBeNull();
   });
 
+  it('lets the other seasons of a show be requested when one season is here', async () => {
+    // The server marks what it has as available; the show itself is in the library.
+    const here = { ...show, state: null, inLibrary: true, local: { type: 'show', id: 7 }, seasons: [{ seasonNumber: 1, episodeCount: 10, name: null, state: 'available' }, { seasonNumber: 2, episodeCount: 10, name: null, state: null }] };
+    const calls = setup('/request/tv/1399', (method, url) => {
+      if (url === '/api/seerr/tv/1399') return here;
+      if (method === 'POST') return { id: 3, title: 'A Show', state: 'requested' };
+      return {};
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Request' }));
+    const dialog = screen.getByRole('dialog', { name: 'Request “A Show”?' });
+    expect((within(dialog).getByLabelText(/Season 1 ·/) as HTMLInputElement).disabled).toBe(true);
+    await userEvent.click(within(dialog).getByLabelText(/Season 2 ·/));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Request/ }));
+    await vi.waitFor(() => expect(calls.find((c) => c.call === 'POST /api/seerr/requests')?.body).toMatchObject({ mediaType: 'tv', tmdbId: 1399 }));
+  });
+
   it('plays what is here instead of requesting it', async () => {
     setup('/request/movie/603', (_m, url) => (url === '/api/seerr/movie/603' ? { ...base, mediaType: 'movie', tmdbId: 603, title: 'The Matrix', year: 1999, state: 'available', seasons: [], inLibrary: true, local: { type: 'movie', id: 12 } } : {}));
     await userEvent.click(await screen.findByRole('button', { name: 'Play' }));

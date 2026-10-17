@@ -20,6 +20,8 @@ export default function Show() {
   const wide = useWide();
   const { width } = useWindowDimensions();
   const q = useQuery({ queryKey: [serverUrl, 'show', id], queryFn: () => api.get<ShowDetail>(`/api/shows/${id}`) });
+  // With Seerr: the seasons that are not here yet can be requested from the show's own page.
+  const seerr = useQuery({ queryKey: [serverUrl, 'seerr'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
   useFreshMetadata('show', id, (newId) => router.replace(`/show/${newId}`));
   const [picked, setPicked] = useState<number | null>(null);
   const s = q.data;
@@ -47,6 +49,7 @@ export default function Show() {
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
       {s.upNext && <Button label={t('show.continue', { code: episodeCode(s.upNext.seasonNumber, s.upNext.episodeNumber) })} onPress={() => router.push(`/play/episode/${s.upNext!.id}`)} />}
       <TrailerButton type="show" id={s.id} />
+      {seerr.data?.enabled && s.tmdbId ? <Button label={t('show.requestSeasons')} variant="ghost" onPress={() => router.push(`/request/tv/${s.tmdbId}`)} /> : null}
     </View>
   );
   const toggles = (

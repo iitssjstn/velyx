@@ -94,10 +94,14 @@ export function openSeasons(d: Pick<SeerrDetails, 'seasons'>): number[] {
   return d.seasons.filter((s) => !s.state || s.state === 'declined' || s.state === 'failed').map((s) => s.seasonNumber);
 }
 
-/** Whether a title can be requested: a movie as a whole; a show while some season is still open. */
+/**
+ * Whether a title can be requested: a movie as a whole; a show while some season is still open. A
+ * show with a season on the server stays requestable for the other seasons (the server marks the
+ * ones it has as available).
+ */
 export function canRequestTitle(d: Pick<SeerrDetails, 'mediaType' | 'inLibrary' | 'state' | 'seasons'>): boolean {
   if (d.mediaType === 'movie' || d.seasons.length === 0) return canRequest(d);
-  return !d.inLibrary && openSeasons(d).length > 0;
+  return openSeasons(d).length > 0;
 }
 
 /** The seasons ticked after one tap (nothing is ticked beforehand). */

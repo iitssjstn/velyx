@@ -9,12 +9,9 @@ on:
   pull_request:
     paths: ['cloud/**', 'frontend/**', '.github/workflows/cloud-image.yml']
   # Once the Windows installer of a release is built (it finishes after the Debian packages and the
-  # Android app): again, so vidalune.com hands them all out. Once per release, not after each of
-  # them (saves build minutes).
-  workflow_run:
-    workflows: ['Windows installer']
-    types: [completed]
-    branches: [main]
+  # Android app), windows.yml starts this again, so vidalune.com hands them all out. Once per
+  # release, not after each of them (saves build minutes). Not through workflow_run: GitHub runs at
+  # most three workflows in a row that way, and this would be the fourth.
   workflow_dispatch:
 
 permissions:
@@ -27,8 +24,6 @@ concurrency:
 
 jobs:
   image:
-    # Also when the APK or the Windows installer failed: the Debian packages and the website still go out.
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion != 'cancelled' && github.event.workflow_run.conclusion != 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +43,7 @@ jobs:
         run: gh release download --repo "$GITHUB_REPOSITORY" --pattern 'vidalune-*.apk' --pattern 'vidalune_*.deb' --pattern 'vidalune-*-setup.exe' --dir cloud/downloads || echo "Nothing released yet."
 
       - name: Verify release Debian packages
-        if: github.event_name == 'workflow_run'
+        if: github.event_name == 'workflow_dispatch'
         run: |
           version=$(node -p "require('./package.json').version")
           for arch in amd64 arm64; do
@@ -62,7 +57,7 @@ jobs:
         env:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = workflow_run ] && [ -z "$APT_SIGNING_KEY" ]; then echo "APT_SIGNING_KEY is required to publish a release cloud image." >&2; exit 1; fi
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ -z "$APT_SIGNING_KEY" ]; then echo "APT_SIGNING_KEY is required to publish a release cloud image." >&2; exit 1; fi
           if [ -z "$APT_SIGNING_KEY" ] || ! ls cloud/downloads/vidalune_*.deb > /dev/null 2>&1; then echo "No signing key or no packages: no apt repository."; exit 0; fi
           command -v apt-ftparchive > /dev/null || sudo apt-get install -y -qq apt-utils
           sh packaging/apt/build-repo.sh cloud/downloads cloud/downloads/apt
@@ -88,7 +83,7 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/vidalune-cloud:${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=cloud
           # Runs started by another workflow (after the Android app) may read the cache but not write it.
-          cache-to: ${{ github.event_name != 'workflow_run' && 'type=gha,mode=max,scope=cloud,ignore-error=true' || '' }}
+          cache-to: ${{ github.event_name != 'workflow_dispatch' && 'type=gha,mode=max,scope=cloud,ignore-error=true' || '' }}
 
       - name: Smoke test
         if: github.event_name == 'pull_request'

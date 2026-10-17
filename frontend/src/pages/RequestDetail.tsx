@@ -78,7 +78,8 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const d = { ...q.data, cast: q.data.cast ?? [], seasons: q.data.seasons ?? [], genres: q.data.genres ?? [] };
   const openSeasons = d.seasons.filter((s) => open(s.state));
-  const canRequest = !d.inLibrary && (d.mediaType === 'movie' ? open(d.state) : openSeasons.length > 0);
+  // A movie here is here; of a show, the seasons not here yet can still be requested (the server marks the ones it has).
+  const canRequest = d.mediaType === 'movie' ? !d.inLibrary && open(d.state) : openSeasons.length > 0;
   // A show: only the seasons ticked (still open ones; none beforehand).
   const openNumbers = openSeasons.map((s) => s.seasonNumber);
   const picked = chosen.filter((n) => openNumbers.includes(n));
@@ -206,7 +207,7 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
             </div>
             <ul className="mt-3 max-h-[45vh] space-y-1 overflow-y-auto">
               {d.seasons.map((s) => {
-                const free = open(s.state) && !d.inLibrary;
+                const free = open(s.state);
                 return (
                   <li key={s.seasonNumber}>
                     <label className={`flex items-center gap-3 rounded-lg px-2 py-1.5 text-ink ${free ? 'cursor-pointer hover:bg-raised' : 'opacity-60'}`}>

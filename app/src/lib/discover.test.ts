@@ -56,4 +56,14 @@ describe('discover', () => {
     expect(canRequestTitle({ mediaType: 'movie', inLibrary: false, state: 'processing', seasons: [] })).toBe(false);
     expect(canRequestTitle({ mediaType: 'tv', inLibrary: false, state: null, seasons: [] })).toBe(true);
   });
+
+  it('keeps the other seasons of a show requestable when one season is here', () => {
+    // The server marks the seasons it has as available; the show itself counts as in the library.
+    const show = { mediaType: 'tv' as const, inLibrary: true, state: null, seasons: [{ seasonNumber: 1, episodeCount: 8, state: 'available' as const }, { seasonNumber: 2, episodeCount: 8, state: null }] };
+    expect(openSeasons(show)).toEqual([2]);
+    expect(canRequestTitle(show)).toBe(true);
+    expect(canRequestTitle({ ...show, seasons: [show.seasons[0]] })).toBe(false);
+    // A movie that is here stays here.
+    expect(canRequestTitle({ mediaType: 'movie', inLibrary: true, state: null, seasons: [] })).toBe(false);
+  });
 });

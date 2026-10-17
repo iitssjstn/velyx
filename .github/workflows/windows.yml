@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: write # attach the installer to the release
+  actions: write # start the account service image afterwards
 
 concurrency:
   group: windows-${{ github.event.workflow_run.head_sha || github.ref }}
@@ -102,3 +103,17 @@ jobs:
           fi
           gh release view "$tag" > /dev/null 2>&1 || gh release create "$tag" --verify-tag --title "Vidalune $version" --notes "Vidalune $version. The Android app is attached as vidalune-$version.apk (install it on an Android phone or tablet; see the README)." || gh release view "$tag" > /dev/null
           gh release upload "$tag" out/*.exe --clobber
+
+  # Then vidalune.com (the account service image), so it hands out the APK, the packages and this
+  # installer of the same release. Started from here because GitHub runs at most three workflows
+  # in a row through workflow_run (Docker image → Debian package → Android app → this one); also
+  # when the installer failed, so the packages still go out.
+  site:
+    needs: [build, test, release]
+    if: always() && github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start the account service image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run cloud-image.yml --repo "$GITHUB_REPOSITORY" --ref main

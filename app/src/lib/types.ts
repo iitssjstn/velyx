@@ -119,6 +119,7 @@ export interface ShowDetail {
   rating: number | null;
   posterPath: string | null;
   backdropPath: string | null;
+  tmdbId?: number | null;
   genres: { id: number; name: string }[];
   seasons: SeasonSummary[];
   episodeCount: number;

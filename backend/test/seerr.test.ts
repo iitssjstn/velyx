@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTestEnv, createUser, setupAdmin, type TestEnv } from './helpers.js';
-import { libraries, movies, shows } from '../src/db/schema.js';
+import { episodes, libraries, mediaFiles, movies, seasons, shows } from '../src/db/schema.js';
 import { requestState } from '../src/services/seerr.js';
 
 // A stand-in for Seerr: its API, its key, and whether it answers at all.
@@ -340,6 +340,40 @@ describe('Seerr', () => {
     env.ctx.db.insert(shows).values({ libraryId: lib.id, groupKey: 'a-show', title: 'A Show', sortTitle: 'a show', parsedTitle: 'A Show', tmdbId: 1399 }).run();
     media.set('tv/1399', { id: 961, status: 5, requests: [] });
     expect((await env.app.inject({ url: '/api/seerr/tv/1399', headers: { cookie: viewer.cookie } })).json()).toMatchObject({ inLibrary: true, state: 'available' });
+  });
+
+  it('lets the other seasons of a show be requested when one season is here', async () => {
+    await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
+    const viewer = await createUser(env.app, admin, 'viewer');
+    // Season 1 is on this server (with a file); Seerr never fetched anything of it.
+    const lib = env.ctx.db.insert(libraries).values({ name: 'Series', type: 'shows', path: `${env.mediaDir}/series` }).returning().get();
+    const show = env.ctx.db.insert(shows).values({ libraryId: lib.id, groupKey: 'a-show', title: 'A Show', sortTitle: 'a show', parsedTitle: 'A Show', tmdbId: 1399 }).returning().get();
+    const s1 = env.ctx.db.insert(seasons).values({ showId: show.id, seasonNumber: 1 }).returning().get();
+    const ep = env.ctx.db.insert(episodes).values({ showId: show.id, seasonId: s1.id, seasonNumber: 1, episodeNumber: 1 }).returning().get();
+    env.ctx.db.insert(mediaFiles).values({ libraryId: lib.id, episodeId: ep.id, path: `${env.mediaDir}/series/A Show/S01E01.mkv`, size: 1, mtimeMs: 1 }).run();
+    // Season 2 has an episode row but no file: it is not here.
+    const s2 = env.ctx.db.insert(seasons).values({ showId: show.id, seasonNumber: 2 }).returning().get();
+    env.ctx.db.insert(episodes).values({ showId: show.id, seasonId: s2.id, seasonNumber: 2, episodeNumber: 1 }).run();
+
+    const page = (await env.app.inject({ url: '/api/seerr/tv/1399', headers: { cookie: viewer.cookie } })).json();
+    expect(page.inLibrary).toBe(true);
+    expect(page.seasons.map((x: { seasonNumber: number; state: string | null }) => [x.seasonNumber, x.state])).toEqual([
+      [1, 'available'],
+      [2, null],
+    ]);
+    const ask = (seasons: number[] | null) => env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: viewer.cookie }, payload: { mediaType: 'tv', tmdbId: 1399, seasons } });
+    // What is here is not asked for again.
+    const here = await ask([1]);
+    expect(here.statusCode).toBe(409);
+    expect(here.json().error).toBe('This is already in the library.');
+    // "All" means the seasons that are not here.
+    expect((await ask(null)).statusCode).toBe(200);
+    expect(calls.filter((c) => c.path === '/request' && c.method === 'POST').at(-1)?.body).toMatchObject({ seasons: [2] });
+    const after = (await env.app.inject({ url: '/api/seerr/tv/1399', headers: { cookie: viewer.cookie } })).json();
+    expect(after.seasons.map((x: { state: string | null }) => x.state)).toEqual(['available', 'requested']);
+    const again = await ask([2]);
+    expect(again.statusCode).toBe(409);
+    expect(again.json().error).toBe('This has already been requested.');
   });
 
   it('requests only the seasons of a show that are still open, and shows similar titles', async () => {
