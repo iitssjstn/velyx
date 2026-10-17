@@ -1,19 +1,24 @@
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View, type TextInput } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View, type TextInput } from 'react-native';
 import { Stack, router } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
 import { Button, Field, styles } from '../../components/ui';
-import { errorMessage } from '../../lib/connection';
+import { CLOUD_ACCOUNT_KEY, CloudError, createCloud, type CloudAccount } from '../../lib/cloud';
+import type { MessageKey } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
 import { colors } from '../../lib/theme';
 
-/** Change the account's password (checked by the server, which also enforces its rules). */
+const cloud = createCloud();
+
+/**
+ * Change the password of the Vidalune account: the one the app signs in with (and vidalune.com).
+ * Not the server's own password: the app never uses that one, so it could not be confirmed here.
+ */
 export default function ChangePassword() {
-  const { t, api } = useSession();
+  const { t, language } = useSession();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [again, setAgain] = useState('');
-  const [others, setOthers] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -26,15 +31,21 @@ export default function ChangePassword() {
       setError(t('account.passwordMismatch'));
       return;
     }
+    if (next.length < 8) {
+      setError(t('account.passwordTooShort'));
+      return;
+    }
     setBusy(true);
     try {
-      const r = await api.post<{ ok: true; signedOut: number }>('/api/account/password', { currentPassword: current, newPassword: next, signOutOthers: others });
-      setDone(r.signedOut > 0 ? t('account.passwordChangedOthers', { n: r.signedOut }) : t('account.passwordChanged'));
+      const account = JSON.parse((await SecureStore.getItemAsync(CLOUD_ACCOUNT_KEY)) ?? 'null') as CloudAccount | null;
+      if (!account) throw new CloudError('signedOut');
+      await cloud.changePassword(account.token, current, next, language);
+      setDone(t('account.passwordChanged'));
       setCurrent('');
       setNext('');
       setAgain('');
     } catch (err) {
-      setError(errorMessage(err, t));
+      setError(t(err instanceof CloudError ? (`cloud.${err.problem}` as MessageKey) : 'cloud.failed'));
     } finally {
       setBusy(false);
     }
@@ -54,10 +65,7 @@ export default function ChangePassword() {
             <Field label={t('account.currentPassword')} value={current} onChangeText={setCurrent} secureTextEntry autoComplete="current-password" textContentType="password" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => nextRef.current?.focus()} />
             <Field ref={nextRef} label={t('account.newPassword')} value={next} onChangeText={setNext} secureTextEntry autoComplete="new-password" textContentType="newPassword" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => againRef.current?.focus()} />
             <Field ref={againRef} label={t('account.confirmPassword')} value={again} onChangeText={setAgain} secureTextEntry autoComplete="new-password" textContentType="newPassword" returnKeyType="go" onSubmitEditing={() => void submit()} />
-            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: others }} onPress={() => setOthers((o) => !o)} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}>
-              <Feather name={others ? 'check-square' : 'square'} size={20} color={others ? colors.accent : colors.muted} />
-              <Text style={[styles.body, { flex: 1 }]}>{t('account.signOutOthers')}</Text>
-            </Pressable>
+            <Text style={styles.muted}>{t('account.passwordAccountHint')}</Text>
             {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
             <Button label={t('account.password')} busy={busy} disabled={!current || !next || !again} onPress={() => void submit()} />
           </>

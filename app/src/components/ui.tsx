@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type T
 import { colors, radius } from '../lib/theme';
 import { errorMessage } from '../lib/connection';
 import { useSession } from '../lib/session';
+import { textEntryDefaults } from '../lib/textEntry';
 
 export function Button({ label, onPress, busy, disabled, variant = 'primary' }: { label: string; onPress: () => void; busy?: boolean; disabled?: boolean; variant?: 'primary' | 'ghost' }) {
   const off = disabled || busy;
@@ -22,7 +23,7 @@ export function Field({ label, ref, ...props }: TextInputProps & { label: string
   return (
     <View style={{ gap: 6 }}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput ref={ref} placeholderTextColor={colors.faint} style={styles.input} accessibilityLabel={label} {...props} />
+      <TextInput ref={ref} placeholderTextColor={colors.faint} style={styles.input} accessibilityLabel={label} {...textEntryDefaults(props.secureTextEntry)} {...props} />
     </View>
   );
 }

@@ -6,6 +6,25 @@ const answer = (status: number, body: unknown) => async () => new Response(JSON.
 afterEach(() => vi.useRealTimers());
 
 describe('Vidalune account service', () => {
+  it('changes the password of the Vidalune account, not of the server', async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }) as unknown as typeof fetch;
+    await createCloud(fetchImpl, 'https://vidalune.example').changePassword('t'.repeat(43), 'old-password', 'new-password', 'nl');
+    expect(calls[0]!.url).toBe('https://vidalune.example/api/account/password');
+    expect(calls[0]!.init.headers).toMatchObject({ Authorization: `Bearer ${'t'.repeat(43)}` });
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ current: 'old-password', password: 'new-password', lang: 'nl' });
+  });
+
+  it('says the current password is wrong, and only says signed out when the session really ended', async () => {
+    const cloud = (body: unknown) => createCloud(answer(401, body) as unknown as typeof fetch, 'https://vidalune.example');
+    await expect(cloud({ error: 'Wrong password.' }).changePassword('t'.repeat(43), 'typo', 'new-password')).rejects.toMatchObject({ problem: 'wrongPassword' });
+    await expect(cloud({ error: 'Sign in first.' }).changePassword('t'.repeat(43), 'old-password', 'new-password')).rejects.toMatchObject({ problem: 'signedOut' });
+    await expect(cloud({ error: 'Sign in first.' }).servers('t'.repeat(43))).rejects.toMatchObject({ problem: 'signedOut' });
+  });
+
   it('signs in as the app and sends the token afterwards', async () => {
     const calls: Array<{ url: string; init: RequestInit }> = [];
     const fetchImpl = (async (url: string, init: RequestInit) => {
