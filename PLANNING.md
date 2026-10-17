@@ -1393,7 +1393,7 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   sluit) in `backend/src/services/tray.ts`; HLS pauzeert FFmpeg niet op Windows (kan daar niet); de mapkiezer verbergt
   `$Recycle.Bin`, `System Volume Information` en `Recovery` op Windows.
 - vidalune.com: `/download/windows` en een blok Windows op `/install` (Engels en Nederlands). De Windows-workflow
-  (`windows.yml`) draait na de Android-app; de accountservice-image daarna (in plaats van na de Android-app), zodat de
+  (`windows.yml`) draait na de Android-app (en bij een PR die `packaging/windows/` of de workflow wijzigt); de accountservice-image daarna (in plaats van na de Android-app), zodat de
   site de installer van dezelfde release heeft.
 - Nog niet: Intel Quick Sync en AMD voor video omzetten op Windows (NVENC en processor werken), ondertekening, een
   updatemelding in het icoon.

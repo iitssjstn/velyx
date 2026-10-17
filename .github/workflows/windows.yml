@@ -3,13 +3,15 @@ name: Windows installer
 # Builds the Vidalune installer for Windows (vidalune-<version>-setup.exe) and tests installing,
 # running, ending, updating and removing it on Windows after every release build on main (after the
 # Android app, so vidalune.com, built after this, hands out all of them), where the installer is
-# attached to the GitHub release of that version (or by hand: Actions -> Run workflow). Not on pull
-# requests, to save build minutes: CI tests the server there.
+# attached to the GitHub release of that version (or by hand: Actions -> Run workflow). On pull
+# requests only when they change the Windows packaging, to save build minutes: CI tests the server.
 on:
   workflow_run:
     workflows: ['Android app']
     types: [completed]
     branches: [main]
+  pull_request:
+    paths: ['packaging/windows/**', '.github/workflows/windows.yml']
   workflow_dispatch:
 
 permissions:
