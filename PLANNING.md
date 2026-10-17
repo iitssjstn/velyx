@@ -1464,4 +1464,4 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1976) en beide lockfiles bijgewerkt.
 - PR #161 gemerged 17 okt op verzoek van de eigenaar ("merge het maar"); release `v0.19.76` gecontroleerd: APK, beide `.deb`'s,
   `.aab` en `vidalune-0.19.76-setup.exe`. De accountservice-image startte vanzelf na de Windows-workflow en slaagde; het `.aab`
-  ging naar de interne test (app veranderd). Door de eigenaar te testen: het seizoenenvenster op de seriepagina (website en app).
+  ging naar de interne test (app veranderd). Bevestigd door de eigenaar (17 okt): "Het doet het zoals ik het wil".
