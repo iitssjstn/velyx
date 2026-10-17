@@ -1333,3 +1333,16 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Play Store (17 okt): de eigenaar wil zijn volledige naam niet bij "App support". De ontwikkelaarsnaam staat al op Vidalune;
   bij een persoonlijk account toont Google toch de eigen naam. Alleen een organisatieaccount (bedrijf, bv. eenmanszaak met
   KvK, plus D-U-N-S-nummer; app overzetten met "App overdragen") verandert dat. **Besluit vóór de openbare release.**
+
+## Versie 0.19.73 (1080p-afleveringen niet meer als 720p)
+
+- Gemeld door de eigenaar (17 okt, screenshots van Sonarr/Prowlarr en de serie Jack Ryan): series worden in 1080p
+  binnengehaald, maar de afleveringslijst op de website toont 720p. Oorzaak: de seizoenslijst van de server gaf per
+  aflevering alleen de hoogte mee, en `ShowDetail.tsx` schatte de breedte als 16:9. Blu-ray-encodes zonder zwarte balken
+  zijn vaak 1920×800; geschat 1422 breed, dus "720p". Nu geeft de server ook de breedte (`width` in
+  `/api/shows/:id/seasons/:n`) en de lijst gebruikt die (terugval op de schatting voor een oudere server). De filmpagina
+  gebruikte al de echte breedte. `cleanup.ts` gebruikt alleen de hoogte als er geen breedte bekend is, dus geen wijziging.
+  De app toont geen resolutie per aflevering.
+- Tests: backend (seizoenslijst geeft breedte en hoogte) en frontend (1920×800 toont 1080p, niet 720p); beide falen op de
+  oude code. Backend 585 en frontend 343 tests, typechecks en lint (4 bekende waarschuwingen) slagen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1973) en beide lockfiles bijgewerkt.

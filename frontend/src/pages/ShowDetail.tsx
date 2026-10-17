@@ -49,7 +49,7 @@ function EpisodeRow({ ep, onToggleWatched }: { ep: EpisodeSummary; onToggleWatch
               {state.kind === 'watched' && <span className="ml-3 text-ok">{t('library.watched')}</span>}
               {state.kind === 'progress' && <span className="ml-3 text-accent">{t('library.percentWatched', { percent: state.percent })}</span>}
               {ep.airDate ? <span className="ml-3 hidden sm:inline">{formatDate(ep.airDate)}</span> : null}
-              {ep.height ? <span className="ml-3 hidden sm:inline">{resolutionLabel(Math.round((ep.height * 16) / 9), ep.height)}</span> : null}
+              {ep.height ? <span className="ml-3 hidden sm:inline">{resolutionLabel(ep.width ?? Math.round((ep.height * 16) / 9), ep.height)}</span> : null}
             </p>
           </div>
           <Link

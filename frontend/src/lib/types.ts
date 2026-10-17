@@ -302,6 +302,7 @@ export interface EpisodeSummary {
   fileId: number | null;
   files: { id: number; height: number | null; size: number }[];
   durationSec: number | null;
+  width?: number | null;
   height: number | null;
   progress: Progress | null;
 }

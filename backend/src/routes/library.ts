@@ -594,7 +594,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
     const progress = catalog.episodeProgress(userId, eps.map((e) => e.id));
     const files = eps.length
       ? db
-          .select({ id: mediaFiles.id, episodeId: mediaFiles.episodeId, durationSec: mediaFiles.durationSec, height: mediaFiles.height, size: mediaFiles.size })
+          .select({ id: mediaFiles.id, episodeId: mediaFiles.episodeId, durationSec: mediaFiles.durationSec, width: mediaFiles.width, height: mediaFiles.height, size: mediaFiles.size })
           .from(mediaFiles)
           .where(inArray(mediaFiles.episodeId, eps.map((e) => e.id)))
           .orderBy(desc(mediaFiles.height), desc(mediaFiles.size))
@@ -621,6 +621,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
           fileId: f?.id ?? null,
           files: files.filter((x) => x.episodeId === e.id).map((x) => ({ id: x.id, height: x.height, size: x.size })),
           durationSec: f?.durationSec ?? null,
+          width: f?.width ?? null,
           height: f?.height ?? null,
           progress: progress.get(e.id) ?? null,
         };

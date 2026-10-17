@@ -20,7 +20,7 @@ const show = {
 const episode = (n: number, progress: object | null, title: string | null = `Episode title ${n}`) => ({ id: 20 + n, seasonNumber: 2, episodeNumber: n, title, overview: null, airDate: null, runtime: 47, rating: null, stillPath: null, durationSec: 2820, height: 1080, progress });
 const season2 = {
   id: 102, seasonNumber: 2, name: 'Season 2', overview: null, posterPath: null,
-  episodes: [episode(1, { positionSec: 0, durationSec: 2820, completed: true }), episode(4, { positionSec: 1934, durationSec: 2844, completed: false }), episode(5, null, null)],
+  episodes: [episode(1, { positionSec: 0, durationSec: 2820, completed: true }), episode(4, { positionSec: 1934, durationSec: 2844, completed: false }), { ...episode(5, null, null), width: 1920, height: 800 }],
 };
 
 function setup() {
@@ -73,6 +73,14 @@ describe('series page', () => {
     expect(within(list).getByRole('link', { name: 'Resume S02E04 · Episode title 4' }).getAttribute('href')).toBe('/play/episode/24?t=1934');
     expect(within(list).getByRole('link', { name: 'Play S02E05' }).getAttribute('href')).toBe('/play/episode/25?t=0');
     expect(screen.getByText('8 episodes · 38% watched')).toBeTruthy();
+  });
+
+  it('labels a wide 1080p episode (1920×800, no black bars) as 1080p, not 720p', async () => {
+    setup();
+    const list = await screen.findByRole('list', { name: 'Episodes' });
+    const row = within(list).getByText('S02E05').closest('li')!;
+    expect(within(row as HTMLElement).getByText('1080p')).toBeTruthy();
+    expect(within(row as HTMLElement).queryByText('720p')).toBeNull();
   });
 
   it('marks an episode watched from the list', async () => {
