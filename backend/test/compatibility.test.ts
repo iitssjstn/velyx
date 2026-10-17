@@ -37,6 +37,33 @@ function decideAndAnalyze(f: MediaFileRow, caps: ClientCapabilities, ua?: string
 }
 
 describe('playback analysis', () => {
+  it('says an unreadable file is empty or damaged, not that conversion is off', () => {
+    const broken = file({ container: 'mov', videoCodec: null, audioCodec: null, audioTracks: [], probeError: 'moov atom not found' });
+    const r = new PlaybackRegistry();
+    r.register(new DirectPlayEngine());
+    r.register(new RemuxEngine('ffmpeg'));
+    const d = r.decide(broken, CHROME)!;
+    for (const on of [true, false, null]) {
+      const a = analyzePlayback(broken, CHROME, d, undefined, 'reported', 'en', null, on);
+      expect(a.mode).toBe('unsupported');
+      expect(a.summary).toEqual(['This file cannot be read: it is empty or damaged. Download or copy it again, then scan the library.']);
+      expect(a.problems[0]).toMatch(/cannot be read/);
+      expect(a.summary.join(' ')).not.toMatch(/transcoding is off/);
+    }
+    expect(analyzePlayback(broken, CHROME, d, undefined, 'reported', 'nl', null, true).summary[0]).toMatch(/kan niet gelezen worden/);
+  });
+
+  it('does not say conversion is off when it is on', () => {
+    const hevc = file({ videoCodec: 'hevc', videoBitDepth: 10 });
+    const { d } = decideAndAnalyze(hevc, CHROME);
+    const off = analyzePlayback(hevc, CHROME, d, undefined, 'reported', 'en', null, false);
+    const on = analyzePlayback(hevc, CHROME, d, undefined, 'reported', 'en', null, true);
+    expect(off.mode).toBe('unsupported');
+    expect(off.summary.join(' ')).toMatch(/Server transcoding is off/);
+    expect(on.summary.join(' ')).not.toMatch(/transcoding is off/);
+    expect(on.summary.join(' ')).toMatch(/Video conversion is on/);
+  });
+
   it('direct plays compatible files with no server load', () => {
     const { d, a } = decideAndAnalyze(file(), CHROME);
     expect(d.engine).toBe('direct');

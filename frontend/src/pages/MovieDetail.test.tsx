@@ -31,11 +31,11 @@ const analysis = (fileId: number) =>
     ? { mode: 'remux', browser: 'Chrome', device: 'Chrome on Windows', confidence: 'reported', video: { codec: 'hevc', label: 'HEVC', width: 3840, height: 2160, bitDepth: 10, range: 'HDR10', action: 'copy' }, audio: { codec: 'eac3', label: 'Dolby Digital+', channels: 6, action: 'convert', target: 'aac' }, container: { name: 'mkv', action: 'remux' }, problems: [], warnings: [], transcodeRequired: false, serverTranscoding: false, serverLoad: 'low', components: { video: component('ok', 'Played as is'), audio: component('warn', 'Converted to AAC'), container: component('ok', 'Repackaged') }, summary: ['The audio is converted to AAC; the video is not touched.'] }
     : { mode: 'direct', browser: 'Chrome', device: 'Chrome on Windows', confidence: 'reported', video: { codec: 'h264', label: 'H.264', width: 1920, height: 1080, bitDepth: 8, range: 'SDR', action: 'direct' }, audio: { codec: 'eac3', label: 'Dolby Digital+', channels: 6, action: 'direct', target: null }, container: { name: 'mkv', action: 'direct' }, problems: [], warnings: [], transcodeRequired: false, serverTranscoding: false, serverLoad: 'none', components: { video: component('ok', 'Played as is'), audio: component('ok', 'Played as is'), container: component('ok', 'Played as is') }, summary: ['Plays directly.'] };
 
-function setup({ failCheck = false } = {}) {
+function setup({ failCheck = false, files = movie.files as unknown[] } = {}) {
   const calls: { method: string; url: string }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ method: init?.method ?? 'GET', url });
-    if (url === '/api/movies/5') return new Response(JSON.stringify(movie), { status: 200 });
+    if (url === '/api/movies/5') return new Response(JSON.stringify({ ...movie, files }), { status: 200 });
     const m = /^\/api\/media\/(\d+)\/playback$/.exec(url);
     if (m && failCheck) return new Response(JSON.stringify({ error: 'Media file is no longer available.' }), { status: 404 });
     if (m) return new Response(JSON.stringify({ decision: {}, analysis: analysis(Number(m[1])), file: {}, subtitles: [] }), { status: 200 });
@@ -55,6 +55,13 @@ function setup({ failCheck = false } = {}) {
 }
 
 describe('movie page', () => {
+  it('says an empty or damaged file cannot be played instead of offering Play', async () => {
+    const broken = { ...hd, id: 13, fileName: 'Dune (2021).mov', size: 0, container: 'mov', videoCodec: null, audioCodec: null, audioTracks: [], probeError: 'moov atom not found' };
+    setup({ files: [broken] });
+    expect((await screen.findByRole('alert')).textContent).toMatch(/cannot be read: it is empty or damaged/);
+    expect(screen.queryByRole('link', { name: /resume|play/i })).toBeNull();
+  });
+
   it('shows year, length and quality, and offers Resume and Start over', async () => {
     setup();
     expect(await screen.findByRole('heading', { name: 'Dune' })).toBeTruthy();

@@ -222,3 +222,11 @@ export function stillLoading(statusLoading: boolean, previousTime: number, time:
   if (!statusLoading) return false;
   return !(playing && time > previousTime + 0.05);
 }
+
+/**
+ * Every file of a title could not be read (empty, cut off by a failed download, damaged): nothing
+ * can play it, converted or not, so the title page says so instead of offering Play.
+ */
+export function noReadableFile(files: { videoCodec?: string | null; probeError?: string | null }[]): boolean {
+  return files.length > 0 && files.every((f) => Boolean(f.probeError) && !f.videoCodec);
+}

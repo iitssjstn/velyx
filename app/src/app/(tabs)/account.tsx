@@ -17,11 +17,11 @@ export default function Account() {
   const leave = async (thenForget: boolean) => {
     setBusy(true);
     try {
+      // Signed out on purpose: the tabs then go to the list of servers, which opens none by itself
+      // (signedOutRoute). Not navigated from here too: two lists, one of them opening the server again.
       await signOut();
       if (thenForget) await forgetServer();
       qc.clear();
-      // Signed out on purpose: the list of servers (not opened again by itself).
-      router.replace('/cloud?choose=1');
     } finally {
       setBusy(false);
     }

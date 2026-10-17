@@ -2,6 +2,7 @@ export const detail = {
   trailer: 'Trailer',
   trailerOf: 'Trailer: {title}',
   noPlayableFile: 'No playable file — rescan the library.',
+  unreadableFile: 'This file cannot be read: it is empty or damaged, so it cannot be played. Replace the file, then scan the library again.',
   noDescription: 'No description available.',
   director: 'Director',
   writing: 'Writing',

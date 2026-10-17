@@ -1282,3 +1282,28 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Deze versie verandert de app niet, dus stuurt zelf niets naar Play; testen kan met een handmatige run.
 - Door de eigenaar vóór de merge: serviceaccount aanmaken en de secret zetten (stappen in de chat).
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1970) en beide lockfiles bijgewerkt.
+
+## Versie 0.19.71 (in- en uitloggen in de app, onleesbaar bestand)
+
+- Gemeld door de eigenaar (17 okt), bij het maken van de Play-screenshots met het demo-account:
+  1. Uitgelogd bij het hoofdaccount en tijdens het intypen van het demo-account terug in de app gezet. Oorzaak: na
+     "Uitloggen" stuurden zowel `account.tsx` (`/cloud?choose=1`) als de tabbladen (`Redirect "/"` → `/cloud`) naar de
+     serverlijst; de tweede lijst (zonder `choose`) opende met het nog aangemelde Vidalune-account de enige server en
+     meldde opnieuw aan. Nu stuurt alleen de tabbladen-layout door (`signedOutRoute` in `app/src/lib/start.ts`): na
+     uitloggen naar de lijst die niets vanzelf opent, na een door de server beëindigde sessie naar de start (opent de
+     laatste server weer, zoals voorheen).
+  2. Na weer inloggen nog de oude bibliotheek tot verversen. Oorzaak: de lijsten zijn per server bewaard (`serverUrl` in
+     de querysleutel), niet per account; demo en hoofdaccount delen dezelfde server. Nu wist `signIn` de hele cache.
+  3. Tabblad heette in het Engels "Categorieën"; nu "Genres".
+- Big Buck Bunny speelde nergens: het bestand was 0 bytes (download mislukt, `moov atom not found`). De afspeelcontrole
+  zei toch "Omzetten op de server staat uit" (vaste tekst bij elk niet-afspeelbaar bestand, ook met omzetten aan). Nu:
+  onleesbaar bestand (leesfout en geen videocodec) → "kan niet gelezen worden: leeg of beschadigd, opnieuw downloaden";
+  omzetten aan maar niet mogelijk → geen-encoder-melding; alleen echt uit → de oude tekst
+  (`analyzePlayback(..., transcodingOn)`). Filmpagina op de website en in de app tonen bij zo'n bestand die melding in
+  plaats van Afspelen. Afleveringen nog niet.
+- Tests: backend (onleesbaar bestand, omzetten aan/uit; faalt op de oude code), frontend (filmpagina zonder Afspelen),
+  app (`signedOutRoute`, `noReadableFile`). De schermen van de app zelf hebben geen testomgeving: op de telefoon testen
+  (uitloggen, ander account intypen, terug naar het hoofdaccount). Backend 584, frontend 342, app 164 tests; typechecks
+  en lint (4 bekende waarschuwingen) slagen.
+- De app verandert, dus deze release gaat als eerste automatisch naar de interne test (test van 0.19.70).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1971) en beide lockfiles bijgewerkt.

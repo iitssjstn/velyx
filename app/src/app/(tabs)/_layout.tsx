@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router/js-tabs';
 import type { ColorValue } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSession } from '../../lib/session';
+import { signedOutRoute } from '../../lib/start';
 import { colors } from '../../lib/theme';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
@@ -12,8 +13,9 @@ const icon = (name: IconName) =>
   };
 
 export default function TabsLayout() {
-  const { signedIn, t } = useSession();
-  if (!signedIn) return <Redirect href="/" />;
+  const { signedIn, sessionEnded, t } = useSession();
+  // The one place that leaves the tabs when nobody is signed in (also after Sign out).
+  if (!signedIn) return <Redirect href={signedOutRoute(sessionEnded)} />;
   return (
     <Tabs
       screenOptions={{
