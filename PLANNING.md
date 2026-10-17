@@ -502,15 +502,16 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   SmartScreen waarschuwt tot er een codesigningcertificaat is).
   - Keuze eigenaar (17 okt): "Het moet in de achtergrond kunnen draaien, dus rechtsonder een icon hebben dat geopend kan
     worden bijvoorbeeld naar de website om alles aan te passen". Dus: server als Windows-dienst én een icoon in het
-    systeemvak. Een dienst draait in sessie 0 en kan zelf geen icoon tonen; daarom een apart klein programma (C#/.NET,
-    `NotifyIcon`, start bij aanmelden) dat via `http://localhost:<poort>/api/health` de status toont (groen/grijs),
-    "Vidalune openen" (browser), "Herstarten" en "Stoppen/Starten" (de installer geeft gewone gebruikers dat recht op de
-    dienst, dus geen beheerdersvraag) en "Logboek openen".
+    systeemvak: een klein programma (C#/.NET, `NotifyIcon`) dat via `http://localhost:<poort>/api/health` de status
+    toont (groen/grijs), met "Vidalune openen" (browser), "Herstarten" en "Logboek openen".
   - Aanvulling eigenaar (17 okt): "Als iemand de icon weghaalt dus uitzetten moet de achtergrond taak ook stoppen dat is
     logisch". Dus: "Vidalune afsluiten" in het icoonmenu stopt de dienst en sluit het icoon (met een vraag als er iemand
-    kijkt). Bij opnieuw opstarten of aanmelden starten beide weer. Een vastgelopen of via Taakbeheer gesloten icoon
-    stopt de server niet. Nog te beslissen: moet de server ook draaien als niemand is aangemeld (dienst) of alleen
-    zolang het icoon draait (dan zonder dienst, eenvoudiger)?
+    kijkt). Bij aanmelden starten beide weer.
+  - Aanvulling eigenaar (17 okt): "Als iemand het icon stopzet via taakbeheer moet de server ook stoppen". Daarmee geen
+    Windows-dienst: het icoonprogramma start de server zelf als kindproces in een Windows Job Object met
+    `KILL_ON_JOB_CLOSE`, zodat Windows de server (en FFmpeg) stopt hoe het icoon ook eindigt (afsluiten, Taakbeheer,
+    vastlopen, afmelden). Start bij aanmelden (Opstarten-map/`Run`-sleutel), geen beheerdersrechten nodig voor
+    starten/stoppen. Gevolg (aan de eigenaar uitgelegd): na een herstart draait de server pas als iemand zich aanmeldt.
 - **Rollen beheren op de website** (idee eigenaar 11 okt, nog niet bouwen): in het CEO-paneel een
   bestaand account een rol geven of afnemen (bijvoorbeeld beheerder, CEO) in plaats van via
   `ADMIN_EMAILS`/`CEO_EMAILS`.
