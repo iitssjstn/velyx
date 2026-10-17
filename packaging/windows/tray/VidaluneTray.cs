@@ -27,12 +27,14 @@ namespace Vidalune
             AppDomain.CurrentDomain.UnhandledException += (s, e) => Settings.Fail(e.ExceptionObject as Exception);
             Application.ThreadException += (s, e) => Settings.Fail(e.Exception);
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Settings.Note("Vidalune icon starting");
             bool open = Array.IndexOf(args, "--open") >= 0;
             bool first;
             using (var mutex = new Mutex(true, "Local\\VidaluneTray", out first))
             {
                 if (!first)
                 {
+                    Settings.Note("Vidalune icon: already running");
                     // Already running (started at sign-in): the shortcut only opens the website.
                     if (open) Tray.OpenWebsite(Settings.Load().Port);
                     return;
@@ -83,15 +85,23 @@ namespace Vidalune
         }
 
         /// <summary>Writes an error of this program to the log (the server's own lines are there too).</summary>
-        public static void Fail(Exception e)
+        public static void Fail(Exception e) { Note("Vidalune icon error: " + e); }
+
+        /// <summary>A line from this program in the log; in the temp folder if the log cannot be written.</summary>
+        public static void Note(string line)
         {
+            string text = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + " " + line + Environment.NewLine;
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Vidalune", "logs");
             try
             {
-                var s = Load();
-                Directory.CreateDirectory(Path.GetDirectoryName(s.LogFile));
-                File.AppendAllText(s.LogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + " Vidalune icon error: " + e + Environment.NewLine, new UTF8Encoding(false));
+                Directory.CreateDirectory(dir);
+                File.AppendAllText(Path.Combine(dir, "vidalune.log"), text, new UTF8Encoding(false));
             }
-            catch (Exception) { }
+            catch (Exception)
+            {
+                try { File.AppendAllText(Path.Combine(Path.GetTempPath(), "vidalune-tray.log"), text, new UTF8Encoding(false)); }
+                catch (Exception) { }
+            }
         }
 
         /// <summary>Every drive Windows has ready (internal, USB, network): where libraries may be.</summary>

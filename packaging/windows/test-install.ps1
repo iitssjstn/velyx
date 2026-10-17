@@ -12,6 +12,9 @@ $log = Join-Path $data 'logs\vidalune.log'
 function Fail([string]$why) {
   Write-Host "FAILED: $why"
   if (Test-Path $log) { Write-Host '--- vidalune.log ---'; Get-Content $log -Tail 80 }
+  $tmp = Join-Path ([IO.Path]::GetTempPath()) 'vidalune-tray.log'
+  if (Test-Path $tmp) { Write-Host '--- vidalune-tray.log ---'; Get-Content $tmp -Tail 40 }
+  Get-Process VidaluneTray, node -ErrorAction SilentlyContinue | Format-Table Id, Name, Path, StartTime
   exit 1
 }
 
@@ -22,7 +25,7 @@ function Answers {
 function Start-Tray {
   $p = Start-Process (Join-Path $dir 'VidaluneTray.exe') -PassThru
   for ($i = 0; $i -lt 60; $i++) { if (Answers) { return $p }; Start-Sleep 2 }
-  if ($p.HasExited) { Write-Host "The tray program ended with exit code $($p.ExitCode)" } else { Write-Host 'The tray program is still running' }
+  if ($p.HasExited) { Write-Host "The tray program ended at $($p.ExitTime) (started $($p.StartTime)) with exit code $($p.ExitCode)" } else { Write-Host 'The tray program is still running' }
   Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Level = 2; StartTime = (Get-Date).AddMinutes(-10) } -MaxEvents 5 -ErrorAction SilentlyContinue | Format-List TimeCreated, ProviderName, Message
   Fail 'the server did not start from the tray program'
 }
