@@ -489,6 +489,17 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Ideeën (nog niet besloten)
 
+- **Vidalune-server voor Windows** (idee eigenaar 17 okt, nog niet bouwen): een installer (`.exe`) die de server op een
+  Windows-pc draait, net als Docker en `.deb`. Bevindingen: de server is Node met FFmpeg, SQLite (`better-sqlite3`) en
+  argon2 (`@node-rs/argon2`); beide hebben kant-en-klare Windows-builds en de code kreeg in 0.19.44 al Windows-padfixes.
+  Voorstel: Node-runtime, server, website en `ffmpeg.exe` in één installer (bijvoorbeeld Inno Setup, gebouwd in GitHub
+  Actions op `windows-latest`, met eigen release-asset), de server als Windows-dienst (start bij opstarten, ook zonder
+  aanmelden), data in `C:\ProgramData\Vidalune`, een snelkoppeling "Vidalune openen" naar `http://localhost:<poort>` en
+  een firewallregel bij installatie. Updates: de installer opnieuw draaien (later een melding in Beheer). Aandachtspunten:
+  VAAPI bestaat alleen op Linux (op Windows NVENC werkt al; Intel Quick Sync `h264_qsv` en AMD `h264_amf` toe te voegen),
+  `SIGSTOP`/`SIGCONT` (pauzeren van FFmpeg in `hls.ts` en `optimization.ts`) werkt niet op Windows (optimizer slaat het al
+  over; HLS loopt dan gewoon door), de mapkiezer moet stationsletters tonen, en de installer is niet ondertekend (Windows
+  SmartScreen waarschuwt tot er een codesigningcertificaat is). Een systeemvak-icoon is optioneel (later).
 - **Rollen beheren op de website** (idee eigenaar 11 okt, nog niet bouwen): in het CEO-paneel een
   bestaand account een rol geven of afnemen (bijvoorbeeld beheerder, CEO) in plaats van via
   `ADMIN_EMAILS`/`CEO_EMAILS`.
