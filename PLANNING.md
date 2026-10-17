@@ -97,7 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- Laatste release: **0.19.68** (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer; gemerged 16 okt); release `v0.19.68` gecontroleerd: APK, beide `.deb`'s en `.aab` aanwezig. Daarvoor 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.69** (PR #154, Control Center overzichtelijker; gemerged 16 okt); release `v0.19.69` gecontroleerd: APK, beide `.deb`'s en `.aab` aanwezig. Daarvoor 0.19.68 (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer), 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -1259,6 +1259,26 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   toegang: ring, betalingsmelding, zoeken zonder nieuw verzoek). Cloud 177 tests; typechecks, lint (4 bekende
   waarschuwingen) slagen. Screenshots pc en mobiel naar de eigenaar.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1969) en beide lockfiles bijgewerkt.
+- PR #154 gemerged 16 okt met toestemming van de eigenaar ("als alles groen is mag je het mergen"; alle checks groen);
+  release `v0.19.69` gecontroleerd: APK, beide `.deb`'s en `.aab` aanwezig, accountservice-image gebouwd.
 - Play Console (door de eigenaar): privacybeleid-URL `https://vidalune.com/privacy`; verwijder-URL voor gegevens
   `https://vidalune.com/account`. Inloggegevens voor de beoordeling: een testaccount met toegang tot een server (pas
   nodig voor een gesloten test of productie).
+
+## Versie 0.19.70 (app automatisch naar de Play Store)
+
+- Vraag eigenaar (17 okt): moet elke release naar de Play Store? Nee, alleen als de app verandert. Daarna: "Bouw het
+  maar" (automatisch uploaden).
+- `android.yml`: met de secret `PLAY_SERVICE_ACCOUNT_JSON` (JSON-sleutel van een Play Console-serviceaccount, alleen
+  rechten voor deze app en testreleases) gaat het `.aab` na een release naar de **interne test**, alleen als de app
+  sinds de vorige release veranderd is (`.github/scripts/app-changed.sh`: alles in `app/`, behalve alleen het
+  versienummer). Productie nooit vanuit CI. Zolang Google de app nog niet beoordeeld heeft, neemt Play van buitenaf
+  alleen een concept aan: dan valt hij terug op `draft` met een waarschuwing (uitrollen in de Play Console). Uploaden
+  is de laatste stap, dus de release (APK, `.deb`'s, `.aab`) is ook compleet als het mislukt. Handmatig: workflow
+  "Android app" starten met `play_store` aan. Actie `r0adkll/upload-google-play` vastgezet op v1.1.3 (commit-SHA).
+- Zonder secret: alleen een melding, verder zoals voorheen.
+- Gecontroleerd: `app-changed.sh` op echte tags (0.19.64→65 en 65→66 ja; 66→67, 67→68, 68→69 nee); YAML geldig;
+  typechecks, app 160 tests en versietests slagen. De upload zelf is pas in de release-run te zien.
+- Deze versie verandert de app niet, dus stuurt zelf niets naar Play; testen kan met een handmatige run.
+- Door de eigenaar vóór de merge: serviceaccount aanmaken en de secret zetten (stappen in de chat).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1970) en beide lockfiles bijgewerkt.

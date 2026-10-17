@@ -2,14 +2,20 @@ name: Android app
 
 # Builds the Vidalune app as an installable APK after the Debian packages are built and tested on
 # main, where the APK is attached to the same GitHub release. With the upload key in the repository
-# secrets it also builds an app bundle (.aab) signed with that key, for the Play Store. Not on pull requests, to save build
-# minutes: CI runs the app's typecheck and tests there.
+# secrets it also builds an app bundle (.aab) signed with that key, for the Play Store, and with a Play
+# service account it sends that bundle to the internal test track when the app changed since the
+# previous release. Not on pull requests, to save build minutes: CI runs the app's typecheck and tests there.
 on:
   workflow_run:
     workflows: ['Debian package']
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      play_store:
+        description: Also send the app bundle to the Play Store's internal test track
+        type: boolean
+        default: false
 
 permissions:
   contents: write # attach the APK to the release
@@ -28,6 +34,8 @@ jobs:
       ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
       ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
       ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+      # The Play Console service account (see "CI" in the README). Without it nothing goes to the Play Store.
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
     defaults:
       run:
         working-directory: app
@@ -162,3 +170,66 @@ jobs:
           gh release view "$tag" > /dev/null 2>&1 || gh release create "$tag" --verify-tag --title "Vidalune $VERSION" --notes "Vidalune $VERSION. The Android app is attached as vidalune-$VERSION.apk (install it on an Android phone or tablet; see the README)."
           gh release upload "$tag" "out/vidalune-$VERSION.apk" --clobber
           if [ -f "out/vidalune-$VERSION.aab" ]; then gh release upload "$tag" "out/vidalune-$VERSION.aab" --clobber; fi
+
+      # Only a release whose app changed (more than its version number) goes to the Play Store; a
+      # manual run goes when asked. Always the internal test track: production stays a step in the
+      # Play Console. Last, so the release above is complete even when this fails.
+      - name: Decide whether to send it to the Play Store
+        id: play
+        env:
+          EVENT: ${{ github.event_name }}
+          ASKED: ${{ inputs.play_store }}
+          VERSION: ${{ steps.apk.outputs.version }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          BUNDLE: ${{ steps.aab.outputs.file }}
+        working-directory: .
+        run: |
+          send=false
+          if [ -z "$BUNDLE" ]; then
+            echo "No app bundle: nothing for the Play Store."
+          elif [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::notice::No PLAY_SERVICE_ACCOUNT_JSON secret: upload vidalune-$VERSION.aab in the Play Console yourself."
+          elif [ "$EVENT" = workflow_dispatch ]; then
+            send=$ASKED
+          elif [ "$(git rev-list -n 1 "v$VERSION" 2>/dev/null)" != "$SHA" ]; then
+            echo "v$VERSION does not point at this commit; not a release."
+          else
+            previous=$(git describe --tags --match 'v*' --abbrev=0 "$SHA^" 2>/dev/null || true)
+            if [ -z "$previous" ]; then
+              send=true
+            else
+              send=$(.github/scripts/app-changed.sh "$previous" "$SHA")
+              echo "App changed since $previous: $send"
+            fi
+          fi
+          echo "send=$send" >> "$GITHUB_OUTPUT"
+
+      - name: Send to the Play Store (internal test)
+        id: play_upload
+        if: steps.play.outputs.send == 'true'
+        continue-on-error: true
+        uses: r0adkll/upload-google-play@935ef9c68bb393a8e6116b1575626a7f5be3a7fb # v1.1.3
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.vidalune.app
+          releaseFiles: ${{ steps.aab.outputs.file }}
+          releaseName: ${{ steps.apk.outputs.version }}
+          track: internal
+          status: completed
+
+      # Until Google has reviewed the app once, the Play Store only takes a draft from outside the
+      # Play Console; it is then rolled out there with one click.
+      - name: Send to the Play Store as a draft
+        if: steps.play_upload.outcome == 'failure'
+        uses: r0adkll/upload-google-play@935ef9c68bb393a8e6116b1575626a7f5be3a7fb # v1.1.3
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.vidalune.app
+          releaseFiles: ${{ steps.aab.outputs.file }}
+          releaseName: ${{ steps.apk.outputs.version }}
+          track: internal
+          status: draft
+
+      - name: Say the draft still needs rolling out
+        if: steps.play_upload.outcome == 'failure'
+        run: echo "::warning::vidalune-${{ steps.apk.outputs.version }} is a draft on the internal test track; roll it out in the Play Console (Testing > Internal testing)."
