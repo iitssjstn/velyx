@@ -97,7 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- Laatste release: **0.19.69** (PR #154, Control Center overzichtelijker; gemerged 16 okt); release `v0.19.69` gecontroleerd: APK, beide `.deb`'s en `.aab` aanwezig. Daarvoor 0.19.68 (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer), 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.70** (PR #155, app automatisch naar de interne test van de Play Store; gemerged 17 okt); release `v0.19.70` gecontroleerd: APK, beide `.deb`'s en `.aab` aanwezig. Daarvoor 0.19.69 (PR #154, Control Center overzichtelijker), 0.19.68 (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer), 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -1282,3 +1282,31 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Deze versie verandert de app niet, dus stuurt zelf niets naar Play; testen kan met een handmatige run.
 - Door de eigenaar vóór de merge: serviceaccount aanmaken en de secret zetten (stappen in de chat).
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1970) en beide lockfiles bijgewerkt.
+- De eigenaar zette `PLAY_SERVICE_ACCOUNT_JSON` (serviceaccount met alleen "Apps vrijgeven aan testtracks"). PR #155 gemerged
+  17 okt op zijn verzoek; release `v0.19.70` gecontroleerd: APK, beide `.deb`'s en `.aab`; de Play-stap sloeg zichzelf
+  correct over (app niet veranderd).
+
+## Versie 0.19.71 (in- en uitloggen in de app, onleesbaar bestand)
+
+- Gemeld door de eigenaar (17 okt), bij het maken van de Play-screenshots met het demo-account:
+  1. Uitgelogd bij het hoofdaccount en tijdens het intypen van het demo-account terug in de app gezet. Oorzaak: na
+     "Uitloggen" stuurden zowel `account.tsx` (`/cloud?choose=1`) als de tabbladen (`Redirect "/"` → `/cloud`) naar de
+     serverlijst; de tweede lijst (zonder `choose`) opende met het nog aangemelde Vidalune-account de enige server en
+     meldde opnieuw aan. Nu stuurt alleen de tabbladen-layout door (`signedOutRoute` in `app/src/lib/start.ts`): na
+     uitloggen naar de lijst die niets vanzelf opent, na een door de server beëindigde sessie naar de start (opent de
+     laatste server weer, zoals voorheen).
+  2. Na weer inloggen nog de oude bibliotheek tot verversen. Oorzaak: de lijsten zijn per server bewaard (`serverUrl` in
+     de querysleutel), niet per account; demo en hoofdaccount delen dezelfde server. Nu wist `signIn` de hele cache.
+  3. Tabblad heette in het Engels "Categorieën"; nu "Genres".
+- Big Buck Bunny speelde nergens: het bestand was 0 bytes (download mislukt, `moov atom not found`). De afspeelcontrole
+  zei toch "Omzetten op de server staat uit" (vaste tekst bij elk niet-afspeelbaar bestand, ook met omzetten aan). Nu:
+  onleesbaar bestand (leesfout en geen videocodec) → "kan niet gelezen worden: leeg of beschadigd, opnieuw downloaden";
+  omzetten aan maar niet mogelijk → geen-encoder-melding; alleen echt uit → de oude tekst
+  (`analyzePlayback(..., transcodingOn)`). Filmpagina op de website en in de app tonen bij zo'n bestand die melding in
+  plaats van Afspelen. Afleveringen nog niet.
+- Tests: backend (onleesbaar bestand, omzetten aan/uit; faalt op de oude code), frontend (filmpagina zonder Afspelen),
+  app (`signedOutRoute`, `noReadableFile`). De schermen van de app zelf hebben geen testomgeving: op de telefoon testen
+  (uitloggen, ander account intypen, terug naar het hoofdaccount). Backend 584, frontend 342, app 164 tests; typechecks
+  en lint (4 bekende waarschuwingen) slagen.
+- De app verandert, dus deze release gaat als eerste automatisch naar de interne test (test van 0.19.70).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1971) en beide lockfiles bijgewerkt.

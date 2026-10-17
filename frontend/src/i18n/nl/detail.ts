@@ -3,6 +3,7 @@ export const detail: Messages['detail'] = {
   trailer: 'Trailer',
   trailerOf: 'Trailer: {title}',
   noPlayableFile: 'Geen afspeelbaar bestand — scan de bibliotheek opnieuw.',
+  unreadableFile: 'Dit bestand kan niet gelezen worden: het is leeg of beschadigd en kan dus niet afspelen. Vervang het bestand en scan daarna de bibliotheek opnieuw.',
   noDescription: 'Geen beschrijving beschikbaar.',
   director: 'Regie',
   writing: 'Scenario',

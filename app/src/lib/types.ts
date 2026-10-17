@@ -95,7 +95,7 @@ export interface MovieDetail {
   backdropPath: string | null;
   genres: { id: number; name: string }[];
   cast: Person[];
-  files: { id: number; durationSec: number | null; width: number | null; height: number | null }[];
+  files: { id: number; durationSec: number | null; width: number | null; height: number | null; videoCodec?: string | null; probeError?: string | null }[];
   progress: Progress | null;
   favorite: boolean;
   watchlist: boolean;

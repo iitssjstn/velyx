@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { keepsSession, startRoute, withServerInfo } from './start';
+import { keepsSession, signedOutRoute, startRoute, withServerInfo } from './start';
 
 describe('where the app starts', () => {
   it('asks for the Vidalune account, then goes Home — never for an address or a second sign-in', () => {
@@ -29,5 +29,15 @@ describe('the server name and version shown in the app', () => {
     expect(withServerInfo(s, { name: 'Vidalune', version: '0.19.6' })).toBeNull();
     expect(withServerInfo(s, {})).toBeNull();
     expect(withServerInfo(s, { name: '', version: 42 })).toBeNull();
+  });
+});
+
+describe('after signing out', () => {
+  it('goes to the list of servers that opens none by itself, so nobody is signed straight back in', () => {
+    expect(signedOutRoute(false)).toBe('/cloud?choose=1');
+  });
+
+  it('opens the last server again when the server ended the session (password changed elsewhere)', () => {
+    expect(signedOutRoute(true)).toBe('/');
   });
 });

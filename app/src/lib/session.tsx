@@ -3,7 +3,7 @@ import { AppState, Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as Device from 'expo-device';
 import * as Network from 'expo-network';
-import { onlineManager } from '@tanstack/react-query';
+import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import { getLocales } from 'expo-localization';
 import { createApi, type Api } from './api';
@@ -65,6 +65,7 @@ const DEVICE_NAME = (Device.modelName ?? Device.deviceName ?? (Platform.OS === '
 export const USER_AGENT = appUserAgent(APP_VERSION, Platform.OS === 'ios' ? 'iOS' : 'Android', Device.osVersion, DEVICE_NAME);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [ready, setReady] = useState(false);
   const [stored, setStored] = useState<Stored | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
@@ -217,6 +218,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     forgetServer: () => save(null),
     signIn: (token, user) => {
       setSessionEnded(false);
+      // Nothing loaded for the previous account (or server) may show for this one: lists are kept
+      // per server, and two accounts on the same server would otherwise share them.
+      queryClient.clear();
       return store.change((s) => ({ ...s, token, user }));
     },
     updateUser: (user) => store.change((s) => ({ ...s, user })),

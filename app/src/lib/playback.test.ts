@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApi } from './api';
-import { NO_RETRIES, endOfStream, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, type PlaybackAnswer, type SubtitleOption } from './playback';
+import { NO_RETRIES, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, type PlaybackAnswer, type SubtitleOption } from './playback';
 import { cueTextAt, parseVtt } from './vtt';
 
 const api = (respond: (url: string) => unknown = () => ({})) =>
@@ -181,5 +181,17 @@ describe('the loading spinner', () => {
     expect(stillLoading(true, 10, 10.5, false)).toBe(true);
     // Playing and moving on: not loading.
     expect(stillLoading(true, 10, 10.5, true)).toBe(false);
+  });
+});
+
+describe('a title whose file cannot be read', () => {
+  it('has no readable file when every file is empty or damaged', () => {
+    expect(noReadableFile([{ videoCodec: null, probeError: 'moov atom not found' }])).toBe(true);
+  });
+
+  it('still plays when one of its files is fine, or when nothing went wrong', () => {
+    expect(noReadableFile([{ videoCodec: null, probeError: 'moov atom not found' }, { videoCodec: 'h264', probeError: null }])).toBe(false);
+    expect(noReadableFile([{ videoCodec: 'h264', probeError: null }])).toBe(false);
+    expect(noReadableFile([])).toBe(false);
   });
 });

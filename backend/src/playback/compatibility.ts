@@ -174,6 +174,8 @@ export function analyzePlayback(
   lang: Language = 'en',
   /** The name the Vidalune app gave this device ("Pixel 8"). */
   appDevice: string | null = null,
+  /** Whether the administrator turned on video conversion (null: not known). */
+  transcodingOn: boolean | null = null,
 ): PlaybackAnalysis {
   const T = (message: string, params?: Record<string, string | number>) => tr(lang, message, params);
   const video = videoSupport(file, caps, lang);
@@ -191,7 +193,12 @@ export function analyzePlayback(
   else if (decision.compatible === false) mode = 'unsupported';
   else mode = 'direct';
 
-  if (video.problem && mode !== 'transcode') (video.ok === false ? problems : warnings).push(video.problem);
+  // The file could not be read (empty, cut off by a failed download, damaged): nothing can play it,
+  // converted or not.
+  const unreadable = Boolean(file.probeError) && !file.videoCodec;
+  if (unreadable) mode = 'unsupported';
+  if (unreadable) problems.push(T('This file cannot be read: it is empty or damaged. Download or copy it again, then scan the library.'));
+  if (video.problem && mode !== 'transcode' && !unreadable) (video.ok === false ? problems : warnings).push(video.problem);
   if (mode === 'unsupported' && !problems.length) {
     if (file.videoCodec && !COPYABLE_VIDEO.has(file.videoCodec)) problems.push(T('{codec} video cannot be played in browsers without transcoding.', { codec: codecLabel(file.videoCodec, lang) }));
     else problems.push(T('This browser reported that it cannot play this file.'));
@@ -252,8 +259,13 @@ export function analyzePlayback(
   } else if (mode === 'transcode') {
     summary.push(T('This device cannot play the video as it is, so the server converts it to H.264 while you watch. That takes more processing power than the other ways.'));
   } else {
-    summary.push(components.video.status === 'unknown' ? T('This device may not be able to play this video format.') : T('Your current browser/device cannot play this video format.'));
-    summary.push(T('Server transcoding is off. An administrator can turn on video conversion (Admin → Playback).'));
+    if (unreadable) summary.push(T('This file cannot be read: it is empty or damaged. Download or copy it again, then scan the library.'));
+    else {
+      summary.push(components.video.status === 'unknown' ? T('This device may not be able to play this video format.') : T('Your current browser/device cannot play this video format.'));
+      summary.push(transcodingOn
+        ? T('Video conversion is on, but the server found no working video encoder, or this device cannot play H.264. Admin → Playback shows which encoders work.')
+        : T('Server transcoding is off. An administrator can turn on video conversion (Admin → Playback).'));
+    }
   }
   if (mode !== 'unsupported' && components.video.status === 'unknown') summary.push(T('Vidalune cannot confirm that this device decodes the video. If it does not start, try another browser or device.'));
   if (confidence !== 'reported') summary.push(T('This is an estimate: the device did not report which formats it supports.'));

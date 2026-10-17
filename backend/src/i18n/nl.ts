@@ -391,5 +391,7 @@ export const nl: Record<string, string> = {
   'Converted to H.264 on the server': 'Op de server omgezet naar H.264',
   'This device cannot play the video as it is, so the server converts it to H.264 while you watch. That takes more processing power than the other ways.': 'Dit apparaat kan de video niet zo afspelen, dus de server zet hem tijdens het kijken om naar H.264. Dat vraagt meer rekenkracht dan de andere manieren.',
   'Server transcoding is off. An administrator can turn on video conversion (Admin → Playback).': 'Omzetten op de server staat uit. Een beheerder kan video omzetten aanzetten (Beheer → Afspelen).',
+  'This file cannot be read: it is empty or damaged. Download or copy it again, then scan the library.': 'Dit bestand kan niet gelezen worden: het is leeg of beschadigd. Download of kopieer het opnieuw en scan daarna de bibliotheek.',
+  'Video conversion is on, but the server found no working video encoder, or this device cannot play H.264. Admin → Playback shows which encoders work.': 'Video omzetten staat aan, maar de server vond geen werkende video-encoder, of dit apparaat speelt geen H.264. Beheer → Afspelen laat zien welke encoders werken.',
   'This file cannot be played on a Chromecast without converting the video. An administrator can turn on video conversion (Admin → Playback).': 'Dit bestand kan niet op een Chromecast spelen zonder de video om te zetten. Een beheerder kan video omzetten aanzetten (Beheer → Afspelen).',
 };

@@ -11,6 +11,7 @@ import { formatClock, formatRuntime, progressFraction } from '../../lib/format';
 import { savedRequest, watchedRequest } from '../../lib/lists';
 import { useSession } from '../../lib/session';
 import { colors, radius } from '../../lib/theme';
+import { noReadableFile } from '../../lib/playback';
 import type { MovieDetail } from '../../lib/types';
 
 export default function Movie() {
@@ -26,7 +27,14 @@ export default function Movie() {
   const facts = [m.year, formatRuntime(m.runtime), m.rating ? `★ ${m.rating.toFixed(1)}` : null].filter(Boolean).join(' · ');
   const resume = m.progress && !m.progress.completed && m.progress.positionSec > 0 ? m.progress : null;
 
-  const play = m.files.length ? (
+  const play = noReadableFile(m.files) ? (
+    <View style={{ gap: 10 }}>
+      <Text style={styles.error} accessibilityRole="alert">{t('detail.unreadableFile')}</Text>
+      <View style={{ flexDirection: 'row' }}>
+        <TrailerButton type="movie" id={m.id} />
+      </View>
+    </View>
+  ) : m.files.length ? (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
       <Button label={resume ? t('player.resume', { time: formatClock(resume.positionSec) }) : t('player.play')} onPress={() => router.push(`/play/movie/${m.id}`)} />
       {resume && <Button label={t('player.fromStart')} variant="ghost" onPress={() => router.push(`/play/movie/${m.id}?t=0`)} />}

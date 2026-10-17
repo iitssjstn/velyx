@@ -46,7 +46,7 @@ const en = {
   'tabs.home': 'Home',
   'tabs.movies': 'Movies',
   'tabs.shows': 'TV Shows',
-  'tabs.genres': 'Categorieën',
+  'tabs.genres': 'Genres',
   'tabs.account': 'Account',
 
   'genres.title': 'Browse genres',
@@ -151,6 +151,7 @@ const en = {
   'detail.cast': 'Cast',
 
   'player.play': 'Play',
+  'detail.unreadableFile': 'This file cannot be read: it is empty or damaged, so it cannot be played. Replace the file, then scan the library again.',
   'player.resume': 'Resume from {time}',
   'player.fromStart': 'From start',
   'detail.trailer': 'Trailer',
@@ -426,6 +427,7 @@ const nl: Record<MessageKey, string> = {
   'detail.cast': 'Cast',
 
   'player.play': 'Afspelen',
+  'detail.unreadableFile': 'Dit bestand kan niet gelezen worden: het is leeg of beschadigd en kan dus niet afspelen. Vervang het bestand en scan daarna de bibliotheek opnieuw.',
   'player.resume': 'Verder vanaf {time}',
   'player.fromStart': 'Vanaf begin',
   'detail.trailer': 'Trailer',

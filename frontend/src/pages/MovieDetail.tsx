@@ -53,6 +53,8 @@ function MovieScreen({ id }: { id: number }) {
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const m = q.data;
   const file = m.files[fileIdx] ?? m.files[0];
+  // Empty or damaged (a download that failed): nothing can play it, so no Play button either.
+  const unreadable = Boolean(file?.probeError && !file.videoCodec);
   const resume = resumePoint(m.progress) !== null ? m.progress : null;
   const director = m.director ?? m.crew.find((c) => c.role === 'Director')?.name;
   const writers = m.crew.filter((c) => c.role === 'Screenplay' || c.role === 'Writer').map((c) => c.name);
@@ -91,7 +93,9 @@ function MovieScreen({ id }: { id: number }) {
         )}
         <CollectionLinks collections={m.collections} />
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          {file ? (
+          {file && unreadable ? (
+            <p role="alert" className="max-w-md text-sm text-danger">{t('detail.unreadableFile')}</p>
+          ) : file ? (
             <>
               <Link to={playHref('movie', m.id, resume?.positionSec, m.files.length > 1 ? file.id : null)} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 font-semibold text-bg hover:bg-white">
                 <Play className="size-5 fill-current" />

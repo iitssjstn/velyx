@@ -260,7 +260,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (loaded.optimization) decision = withOptimization(decision, loaded.optimization);
     const sourceFile = loaded.sourceFile;
     const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, sourceFile.id)).all();
-    const analysis = analyzePlayback(file, caps, decision, ua, confidence, lang, request.appDevice);
+    const analysis = analyzePlayback(file, caps, decision, ua, confidence, lang, request.appDevice, ctx.settings.get().transcoding.enabled);
     // Pieces (HLS): converted video is cut on a fixed grid. Copied video is cut at its keyframes, and
     // listing them reads the whole file (minutes on a NAS, starving the stream being watched): only
     // once they were found ahead of time (Admin → Maintenance, prepared in the maintenance window).
