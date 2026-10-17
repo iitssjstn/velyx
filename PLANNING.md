@@ -505,7 +505,12 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
     systeemvak. Een dienst draait in sessie 0 en kan zelf geen icoon tonen; daarom een apart klein programma (C#/.NET,
     `NotifyIcon`, start bij aanmelden) dat via `http://localhost:<poort>/api/health` de status toont (groen/grijs),
     "Vidalune openen" (browser), "Herstarten" en "Stoppen/Starten" (de installer geeft gewone gebruikers dat recht op de
-    dienst, dus geen beheerdersvraag) en "Logboek openen". Het icoon afsluiten stopt de server niet.
+    dienst, dus geen beheerdersvraag) en "Logboek openen".
+  - Aanvulling eigenaar (17 okt): "Als iemand de icon weghaalt dus uitzetten moet de achtergrond taak ook stoppen dat is
+    logisch". Dus: "Vidalune afsluiten" in het icoonmenu stopt de dienst en sluit het icoon (met een vraag als er iemand
+    kijkt). Bij opnieuw opstarten of aanmelden starten beide weer. Een vastgelopen of via Taakbeheer gesloten icoon
+    stopt de server niet. Nog te beslissen: moet de server ook draaien als niemand is aangemeld (dienst) of alleen
+    zolang het icoon draait (dan zonder dienst, eenvoudiger)?
 - **Rollen beheren op de website** (idee eigenaar 11 okt, nog niet bouwen): in het CEO-paneel een
   bestaand account een rol geven of afnemen (bijvoorbeeld beheerder, CEO) in plaats van via
   `ADMIN_EMAILS`/`CEO_EMAILS`.
