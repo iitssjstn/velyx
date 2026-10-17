@@ -1383,7 +1383,7 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   Installeert in `C:\Program Files\Vidalune`, data in `C:\ProgramData\Vidalune` (blijft bij bijwerken en standaard bij
   verwijderen), start bij aanmelden (HKLM `Run`), snelkoppeling in Start, firewallregel voor `node.exe`, staat in Apps.
   Nog niet ondertekend: SmartScreen waarschuwt ("Meer informatie → Toch uitvoeren").
-- Icoonprogramma `VidaluneTray.exe` (`packaging/windows/tray/VidaluneTray.cs`, C# voor .NET Framework 4, gecompileerd met
+- Icoonprogramma `VidaluneTray.exe` (`packaging/windows/tray/VidaluneTray.cs`, C# voor .NET Framework 4.6.2, gecompileerd met
   Mono `mcs`): start de server in een Windows Job Object met `KILL_ON_JOB_CLOSE` (server en FFmpeg stoppen hoe het icoon
   ook eindigt), menu Openen/Herstarten/Logboek/Afsluiten (vraagt eerst als er iemand kijkt), grijs icoon tijdens starten
   of na stoppen, start de server opnieuw na een crash (na vijf keer in tien minuten niet meer), houdt de pc wakker

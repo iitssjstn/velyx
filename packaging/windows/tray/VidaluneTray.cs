@@ -1,7 +1,7 @@
 // Vidalune for Windows: the icon next to the clock. It starts the server (Node) itself, inside a
 // Windows job object, so the server and everything it starts (FFmpeg) stop with the icon, however
 // the icon ends: through its menu, Task Manager, a crash or signing out. Compiled with Mono's mcs or
-// csc against .NET Framework 4, which every Windows 10 and 11 PC has.
+// csc against .NET Framework 4.6.2, which every supported Windows 10 and 11 PC has.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

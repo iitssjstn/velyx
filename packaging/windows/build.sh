@@ -56,8 +56,13 @@ for f in "$APP/node_modules/better-sqlite3/prebuilds/win32-x64.node" "$APP"/node
   esac
 done
 
-# The tray program, with the grey icon for "stopped" inside it.
-mcs -nologo -target:winexe -platform:x64 -langversion:7 -optimize+ -r:System.Windows.Forms.dll -r:System.Drawing.dll \
+# The tray program, with the grey icon for "stopped" inside it. Compiled against the reference
+# assemblies of .NET Framework 4.6.2 (every supported Windows 10 and 11 has it), not Mono's own
+# libraries: those have methods Windows does not, which would only fail once it runs there.
+API=/usr/lib/mono/4.6.2-api
+test -f "$API/mscorlib.dll" || { echo "needs the .NET Framework reference assemblies ($API, in mono-devel)" >&2; exit 1; }
+mcs -nologo -nostdlib -target:winexe -platform:x64 -langversion:7 -optimize+ \
+  -r:"$API/mscorlib.dll" -r:"$API/System.dll" -r:"$API/System.Drawing.dll" -r:"$API/System.Windows.Forms.dll" \
   -win32icon:"$HERE/vidalune.ico" -resource:"$HERE/vidalune-stopped.ico",stopped.ico \
   -out:"$STAGE/VidaluneTray.exe" "$HERE/tray/VidaluneTray.cs"
 
