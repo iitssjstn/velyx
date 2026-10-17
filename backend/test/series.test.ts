@@ -2,7 +2,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { addLibrary, createTestEnv, createUser, setupAdmin, touch, type TestEnv } from './helpers.js';
-import { seasons, shows } from '../src/db/schema.js';
+import { mediaFiles, seasons, shows } from '../src/db/schema.js';
 
 let env: TestEnv;
 let admin: string;
@@ -70,6 +70,12 @@ describe('series page', () => {
     await post('/api/progress/watched', { seasonId, watched: false });
     show = await get(`/api/shows/${showId}`);
     expect(show.watchedCount).toBe(0);
+  });
+
+  it('gives each episode the width and height of its file, so a wide 1080p file (1920×800) is not mistaken for 720p', async () => {
+    env.ctx.db.update(mediaFiles).set({ width: 1920, height: 800 }).where(eq(mediaFiles.episodeId, ep(2, 1))).run();
+    const season = await get(`/api/shows/${showId}/seasons/2`);
+    expect(season.episodes[0]).toMatchObject({ episodeNumber: 1, width: 1920, height: 800 });
   });
 
   it('works without metadata and leaves out seasons without episodes', async () => {
