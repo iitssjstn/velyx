@@ -6,30 +6,16 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatRuntime } from '../lib/format';
 import { DetailHero, MetaList } from '../components/DetailHero';
-import { DiscoverCard, seerrDetailsHref, StateBadge, useOpenLocal, type MyRequest, type RequestState, type SeerrResult } from '../components/Discover';
+import { DiscoverCard, seerrDetailsHref, StateBadge, useOpenLocal, type SeerrResult } from '../components/Discover';
+import { openState as open, RequestDialog, type SeerrDetails } from '../components/RequestDialog';
 import { CastRow } from '../components/People';
 import { ConfirmModal } from '../components/Modal';
 import { Shelf } from '../components/Shelf';
 import { TrailerButton } from '../components/TrailerButton';
-import { seasonsToRequest, tickSeason } from '../lib/request-seasons';
 import { DetailSkeleton, ErrorState } from '../components/States';
 import { Button } from '../components/Button';
 import { toast } from '../components/Toast';
 import { useT } from '../i18n';
-
-export interface SeerrDetails extends SeerrResult {
-  genres: string[];
-  runtime: number | null;
-  seasons: Array<{ seasonNumber: number; episodeCount: number; name: string | null; state: RequestState | null }>;
-  backdropPath: string | null;
-  tagline: string | null;
-  rating: number | null;
-  releaseDate: string | null;
-  cast: Array<{ id: number; name: string; character: string | null; profilePath: string | null }>;
-}
-
-/** A season (or the title) may still be requested: never asked for, or turned down before. */
-const open = (state: RequestState | null) => state === null || state === 'declined' || state === 'failed' || state === 'removed';
 
 /** Keyed by title, so going from one title to a similar one starts afresh. */
 export function RequestPage() {
@@ -50,20 +36,8 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
   const { open: openLocal, busy } = useOpenLocal();
   const q = useQuery({ queryKey: ['seerr', 'details', mediaType, tmdbId], queryFn: () => api.get<SeerrDetails>(`/api/seerr/${mediaType}/${tmdbId}`) });
   const similar = useQuery({ queryKey: ['seerr', 'similar', mediaType, tmdbId], queryFn: () => api.get<{ results: SeerrResult[] }>(`/api/seerr/${mediaType}/${tmdbId}/recommendations`), enabled: q.isSuccess });
-  // Nothing is ticked beforehand: the person picks the seasons they want (as in Seerr).
-  const [chosen, setChosen] = useState<number[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
-  const request = useMutation({
-    mutationFn: () => api.post<MyRequest>('/api/seerr/requests', { mediaType, tmdbId, seasons: mediaType === 'tv' ? seasonsToRequest(chosen, (q.data?.seasons ?? []).filter((s) => open(s.state)).map((s) => s.seasonNumber)) : null }),
-    onSuccess: (r) => {
-      toast.success(t('requests.requested', { title: r.title }));
-      setChosen([]);
-      setConfirming(false);
-      void qc.invalidateQueries({ queryKey: ['seerr'] });
-    },
-    onError: (e) => toast.error(e),
-  });
   const reset = useMutation({
     mutationFn: () => api.del(`/api/admin/seerr/media/${mediaType}/${tmdbId}`),
     onSuccess: () => {
@@ -80,11 +54,6 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
   const openSeasons = d.seasons.filter((s) => open(s.state));
   // A movie here is here; of a show, the seasons not here yet can still be requested (the server marks the ones it has).
   const canRequest = d.mediaType === 'movie' ? !d.inLibrary && open(d.state) : openSeasons.length > 0;
-  // A show: only the seasons ticked (still open ones; none beforehand).
-  const openNumbers = openSeasons.map((s) => s.seasonNumber);
-  const picked = chosen.filter((n) => openNumbers.includes(n));
-  const allPicked = openNumbers.length > 0 && picked.length === openNumbers.length;
-  const toggle = (n: number, on: boolean) => setChosen(tickSeason(chosen, n, on));
   const canReset = user?.role === 'admin' && !d.inLibrary && d.state !== null && d.state !== 'available' && d.state !== 'partiallyAvailable';
   const select = (item: SeerrResult) => navigate(seerrDetailsHref(item));
 
@@ -127,12 +96,8 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
           {canRequest && (
             <button
               type="button"
-              disabled={request.isPending}
               // A show's seasons are chosen in the question that opens (nothing ticked beforehand).
-              onClick={() => {
-                setChosen([]);
-                setConfirming(true);
-              }}
+              onClick={() => setConfirming(true)}
               className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-semibold text-accent-ink hover:brightness-110 disabled:opacity-60"
             >
               <Send className="size-5" />
@@ -183,46 +148,7 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
         )}
       </div>
 
-      <ConfirmModal
-        open={confirming}
-        title={t('requests.page.confirmTitle', { title: d.title })}
-        confirmLabel={d.mediaType === 'movie' || picked.length === 0 ? t('requests.request') : allPicked ? t('requests.requestAll') : t('requests.requestSeasons', { count: picked.length })}
-        loading={request.isPending}
-        // A show: at least one season ticked.
-        confirmDisabled={d.mediaType === 'tv' && picked.length === 0}
-        onConfirm={() => request.mutate()}
-        onClose={() => setConfirming(false)}
-      >
-        {d.mediaType === 'movie' ? (
-          <p>{t('requests.page.confirmMovie')}</p>
-        ) : (
-          <>
-            <div className="flex items-center justify-between gap-3">
-              <p>{t('requests.page.pickSeasons')}</p>
-              {openNumbers.length > 1 && (
-                <button type="button" onClick={() => setChosen(allPicked ? [] : openNumbers)} className="shrink-0 text-sm font-medium text-accent hover:underline">
-                  {allPicked ? t('requests.page.selectNone') : t('requests.page.selectAll')}
-                </button>
-              )}
-            </div>
-            <ul className="mt-3 max-h-[45vh] space-y-1 overflow-y-auto">
-              {d.seasons.map((s) => {
-                const free = open(s.state);
-                return (
-                  <li key={s.seasonNumber}>
-                    <label className={`flex items-center gap-3 rounded-lg px-2 py-1.5 text-ink ${free ? 'cursor-pointer hover:bg-raised' : 'opacity-60'}`}>
-                      <input type="checkbox" className="size-4 accent-[var(--color-accent)]" disabled={!free} checked={free ? picked.includes(s.seasonNumber) : false} onChange={(e) => toggle(s.seasonNumber, e.target.checked)} />
-                      <span className="flex-1 text-sm">{t('requests.season', { n: s.seasonNumber, count: s.episodeCount })}</span>
-                      {s.state && !open(s.state) && <StateBadge state={s.state} />}
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
-        )}
-        <p className="mt-3 text-sm">{t('requests.page.requestHint')}</p>
-      </ConfirmModal>
+      <RequestDialog details={d} open={confirming} onClose={() => setConfirming(false)} />
 
       <ConfirmModal open={confirmReset} title={t('requests.page.resetTitle')} confirmLabel={t('requests.page.reset')} danger loading={reset.isPending} onConfirm={() => reset.mutate()} onClose={() => setConfirmReset(false)}>
         {t('requests.page.resetText', { title: d.title })}

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Check, Eye, Play, RotateCcw, Send, Star } from 'lucide-react';
@@ -14,6 +15,7 @@ import { WatchedMenu } from '../components/WatchedMenu';
 import { AdminItemMenu } from '../components/AdminItemMenu';
 import { CastRow } from '../components/People';
 import { MoreLikeThis } from '../components/MoreLikeThis';
+import { RequestDialog, type SeerrDetails } from '../components/RequestDialog';
 import { Artwork } from '../components/Artwork';
 import { ProgressBar } from '../components/ProgressBar';
 import { DetailSkeleton, ErrorState, Spinner } from '../components/States';
@@ -88,8 +90,21 @@ function ShowScreen({ id }: { id: number }) {
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const q = useQuery({ queryKey: ['show', id], queryFn: () => api.get<ShowDetail>(`/api/shows/${id}`) });
-  // With Seerr: the seasons that are not here yet can be requested from the show's own page.
+  // With Seerr: the seasons that are not here yet are requested from the show's own page, in the
+  // same question as on a request page. What Seerr knows of the show is asked when it opens.
   const seerr = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
+  const [asking, setAsking] = useState<SeerrDetails | null>(null);
+  const [loadingSeasons, setLoadingSeasons] = useState(false);
+  const askSeasons = async (tmdbId: number) => {
+    setLoadingSeasons(true);
+    try {
+      setAsking(await qc.fetchQuery({ queryKey: ['seerr', 'details', 'tv', tmdbId], queryFn: () => api.get<SeerrDetails>(`/api/seerr/tv/${tmdbId}`), staleTime: 0 }));
+    } catch (e) {
+      toast.error(e);
+    } finally {
+      setLoadingSeasons(false);
+    }
+  };
   useFreshMetadata('show', id);
   const seasons = q.data?.seasons ?? [];
   const defaultSeason = q.data?.upNext && seasons.some((s) => s.seasonNumber === q.data!.upNext!.seasonNumber) ? q.data.upNext.seasonNumber : (seasons.find((s) => s.seasonNumber > 0)?.seasonNumber ?? seasons[0]?.seasonNumber);
@@ -179,10 +194,10 @@ function ShowScreen({ id }: { id: number }) {
           <WatchlistButton key={String(s.watchlist)} type="show" id={s.id} initial={s.watchlist} />
           <FavoriteButton type="show" id={s.id} initial={s.favorite} />
           {seerr.data?.enabled && s.tmdbId !== null && (
-            <Link to={`/request/tv/${s.tmdbId}`} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink/10 px-5 font-medium whitespace-nowrap hover:bg-ink/20">
-              <Send className="size-5" />
+            <button type="button" disabled={loadingSeasons} onClick={() => void askSeasons(s.tmdbId!)} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink/10 px-5 font-medium whitespace-nowrap hover:bg-ink/20 disabled:opacity-60">
+              {loadingSeasons ? <Spinner className="size-5" /> : <Send className="size-5" />}
               {t('detail.requestSeasons')}
-            </Link>
+            </button>
           )}
           <WatchedMenu watchedCount={s.watchedCount} total={s.episodeCount} onMark={(value) => watched.mutate({ showId: s.id, watched: value })} />
           {user?.role === 'admin' && <AdminItemMenu type="show" id={s.id} collections={s.collections} query={s.match.parsedTitle} year={s.match.parsedYear} />}
@@ -251,6 +266,7 @@ function ShowScreen({ id }: { id: number }) {
       </section>
       <CastRow cast={s.cast} />
       <MoreLikeThis type="show" id={s.id} />
+      {asking && <RequestDialog details={asking} open onClose={() => setAsking(null)} />}
     </div>
   );
 }

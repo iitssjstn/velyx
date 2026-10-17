@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Toggle } from '../../components/actions';
+import { SeasonPicker } from '../../components/SeasonPicker';
 import { TrailerButton } from '../../components/TrailerButton';
 import { useFreshMetadata } from '../../components/useFreshMetadata';
 import { Artwork, useWide } from '../../components/media';
 import { Block, DetailSkeleton } from '../../components/Skeleton';
 import { savedRequest, watchedRequest } from '../../lib/lists';
+import { errorMessage } from '../../lib/connection';
+import type { SeerrDetails } from '../../lib/discover';
 import { Button, ErrorState, ProgressLine, styles } from '../../components/ui';
 import { episodeCode, formatRuntime, progressFraction } from '../../lib/format';
 import { useSession } from '../../lib/session';
@@ -20,8 +23,22 @@ export default function Show() {
   const wide = useWide();
   const { width } = useWindowDimensions();
   const q = useQuery({ queryKey: [serverUrl, 'show', id], queryFn: () => api.get<ShowDetail>(`/api/shows/${id}`) });
-  // With Seerr: the seasons that are not here yet can be requested from the show's own page.
+  // With Seerr: the seasons that are not here yet are requested from the show's own screen, in the
+  // same season picker as on a request screen. What Seerr knows of the show is asked when it opens.
+  const qc = useQueryClient();
   const seerr = useQuery({ queryKey: [serverUrl, 'seerr'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
+  const [asking, setAsking] = useState<SeerrDetails | null>(null);
+  const [loadingSeasons, setLoadingSeasons] = useState(false);
+  const askSeasons = async (tmdbId: number) => {
+    setLoadingSeasons(true);
+    try {
+      setAsking(await qc.fetchQuery({ queryKey: [serverUrl, 'seerr', 'tv', String(tmdbId)], queryFn: () => api.get<SeerrDetails>(`/api/seerr/tv/${tmdbId}`), staleTime: 0 }));
+    } catch (err) {
+      Alert.alert(t('common.error'), errorMessage(err, t));
+    } finally {
+      setLoadingSeasons(false);
+    }
+  };
   useFreshMetadata('show', id, (newId) => router.replace(`/show/${newId}`));
   const [picked, setPicked] = useState<number | null>(null);
   const s = q.data;
@@ -49,7 +66,7 @@ export default function Show() {
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
       {s.upNext && <Button label={t('show.continue', { code: episodeCode(s.upNext.seasonNumber, s.upNext.episodeNumber) })} onPress={() => router.push(`/play/episode/${s.upNext!.id}`)} />}
       <TrailerButton type="show" id={s.id} />
-      {seerr.data?.enabled && s.tmdbId ? <Button label={t('show.requestSeasons')} variant="ghost" onPress={() => router.push(`/request/tv/${s.tmdbId}`)} /> : null}
+      {seerr.data?.enabled && s.tmdbId ? <Button label={t('show.requestSeasons')} variant="ghost" busy={loadingSeasons} onPress={() => void askSeasons(s.tmdbId!)} /> : null}
     </View>
   );
   const toggles = (
@@ -73,6 +90,7 @@ export default function Show() {
       refreshControl={<RefreshControl refreshing={q.isRefetching || season.isRefetching} onRefresh={() => void Promise.all([q.refetch(), season.refetch()])} tintColor={colors.accent} colors={[colors.accent]} />}
     >
       <Stack.Screen options={{ title: s.title }} />
+      {asking && <SeasonPicker details={asking} visible onClose={() => setAsking(null)} onRequested={(title) => Alert.alert('Vidalune', t('request.requested', { title }))} />}
       <Artwork path={s.backdropPath} size="w1280" style={{ width: '100%', height: wide ? Math.min(360, width * 0.3) : width * 0.5625 }} />
       {wide ? (
         <View style={{ flexDirection: 'row', gap: 24, padding: 24 }}>
