@@ -1264,3 +1264,21 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Play Console (door de eigenaar): privacybeleid-URL `https://vidalune.com/privacy`; verwijder-URL voor gegevens
   `https://vidalune.com/account`. Inloggegevens voor de beoordeling: een testaccount met toegang tot een server (pas
   nodig voor een gesloten test of productie).
+
+## Versie 0.19.70 (app automatisch naar de Play Store)
+
+- Vraag eigenaar (17 okt): moet elke release naar de Play Store? Nee, alleen als de app verandert. Daarna: "Bouw het
+  maar" (automatisch uploaden).
+- `android.yml`: met de secret `PLAY_SERVICE_ACCOUNT_JSON` (JSON-sleutel van een Play Console-serviceaccount, alleen
+  rechten voor deze app en testreleases) gaat het `.aab` na een release naar de **interne test**, alleen als de app
+  sinds de vorige release veranderd is (`.github/scripts/app-changed.sh`: alles in `app/`, behalve alleen het
+  versienummer). Productie nooit vanuit CI. Zolang Google de app nog niet beoordeeld heeft, neemt Play van buitenaf
+  alleen een concept aan: dan valt hij terug op `draft` met een waarschuwing (uitrollen in de Play Console). Uploaden
+  is de laatste stap, dus de release (APK, `.deb`'s, `.aab`) is ook compleet als het mislukt. Handmatig: workflow
+  "Android app" starten met `play_store` aan. Actie `r0adkll/upload-google-play` vastgezet op v1.1.3 (commit-SHA).
+- Zonder secret: alleen een melding, verder zoals voorheen.
+- Gecontroleerd: `app-changed.sh` op echte tags (0.19.64→65 en 65→66 ja; 66→67, 67→68, 68→69 nee); YAML geldig;
+  typechecks, app 160 tests en versietests slagen. De upload zelf is pas in de release-run te zien.
+- Deze versie verandert de app niet, dus stuurt zelf niets naar Play; testen kan met een handmatige run.
+- Door de eigenaar vóór de merge: serviceaccount aanmaken en de secret zetten (stappen in de chat).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1970) en beide lockfiles bijgewerkt.
