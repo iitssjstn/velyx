@@ -1445,5 +1445,20 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   `.aab` en `vidalune-0.19.75-setup.exe`. De keten werkt: de Windows-workflow startte zelf de accountservice-image
   (workflow_dispatch door github-actions, geslaagd). Het `.aab` ging naar de interne test (app veranderd).
 - Feedback eigenaar (17 okt, na 0.19.75): "beetje omslachtig" dat "Seizoenen aanvragen" naar een andere pagina gaat terwijl
-  de informatie hetzelfde is. Wens: seizoenen aanvragen op de seriepagina zelf. Voorstel gedaan; nog niet bouwen tot hij
-  het zegt.
+  de informatie hetzelfde is. Wens: seizoenen aanvragen op de seriepagina zelf. Voorbeeld van "ontbrekende seizoenen in
+  de seizoenenlijst" gemaakt; de eigenaar koos (screenshot van het aanvraagvenster): "Doe het op deze manier maar op dezelfde
+  pagina". Gebouwd in 0.19.76.
+
+## Versie 0.19.76 (seizoenen aanvragen op de seriepagina zelf)
+
+- Op verzoek van de eigenaar (17 okt): "Seizoenen aanvragen" opende in 0.19.75 een andere pagina met dezelfde informatie;
+  nu opent hetzelfde aanvraagvenster (seizoenen aanvinken, wat er staat of al aangevraagd is staat grijs) op de seriepagina
+  zelf, op de website en in de app. Wat Seerr van de serie weet wordt pas bij het klikken opgehaald (`/api/seerr/tv/:id`),
+  dus de seriepagina vraagt Seerr niets extra bij het openen.
+- Website: het venster is een eigen onderdeel `RequestDialog` (`frontend/src/components/RequestDialog.tsx`, met
+  `SeerrDetails` en `openState`), gebruikt door de aanvraagpagina en de seriepagina. App: `SeasonPicker`
+  (`app/src/components/SeasonPicker.tsx`), gebruikt door het aanvraagscherm en het seriescherm. Server ongewijzigd.
+- Tests: website (op de seriepagina het venster openen, seizoenen die er staan zijn uit, aanvragen, venster sluit; zonder
+  Seerr geen knop); de bestaande tests van de aanvraagpagina slagen ongewijzigd. De schermen van de app hebben geen
+  testomgeving; op de telefoon testen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1976) en beide lockfiles bijgewerkt.

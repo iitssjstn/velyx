@@ -23,12 +23,25 @@ const season2 = {
   episodes: [episode(1, { positionSec: 0, durationSec: 2820, completed: true }), episode(4, { positionSec: 1934, durationSec: 2844, completed: false }), { ...episode(5, null, null), width: 1920, height: 800 }],
 };
 
+// What Seerr knows of the show: seasons 1 and 2 are here (the server marks them), 3 is not.
+const seerrShow = {
+  mediaType: 'tv', tmdbId: 1399, title: 'Reacher', year: 2022, overview: '', posterPath: null, backdropPath: null, tagline: null, rating: null, releaseDate: null, runtime: null, genres: [], cast: [],
+  state: 'partiallyAvailable', inLibrary: true, local: { type: 'show', id: 7 },
+  seasons: [
+    { seasonNumber: 1, episodeCount: 8, name: null, state: 'available' },
+    { seasonNumber: 2, episodeCount: 8, name: null, state: 'available' },
+    { seasonNumber: 3, episodeCount: 8, name: null, state: null },
+  ],
+};
+
 function setup(opts: { tmdbId?: number; seerr?: boolean } = {}) {
   const calls: { method: string; url: string; body: unknown }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ method: init?.method ?? 'GET', url, body: init?.body ? JSON.parse(String(init.body)) : null });
     if (url === '/api/shows/7') return new Response(JSON.stringify({ ...show, tmdbId: opts.tmdbId ?? null }), { status: 200 });
     if (url === '/api/seerr') return new Response(JSON.stringify({ enabled: opts.seerr ?? false }), { status: 200 });
+    if (url === '/api/seerr/tv/1399') return new Response(JSON.stringify(seerrShow), { status: 200 });
+    if (url === '/api/seerr/requests') return new Response(JSON.stringify({ id: 3, title: 'Reacher', state: 'requested' }), { status: 200 });
     if (url === '/api/shows/7/seasons/2') return new Response(JSON.stringify(season2), { status: 200 });
     if (url.includes('/similar')) return new Response(JSON.stringify([]), { status: 200 });
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
@@ -46,16 +59,24 @@ function setup(opts: { tmdbId?: number; seerr?: boolean } = {}) {
 }
 
 describe('series page', () => {
-  it('offers to request seasons that are not here yet, with Seerr', async () => {
-    setup({ tmdbId: 1399, seerr: true });
-    const link = await screen.findByRole('link', { name: 'Request seasons' });
-    expect(link.getAttribute('href')).toBe('/request/tv/1399');
+  it('requests the seasons that are not here yet on the show page itself, with Seerr', async () => {
+    const calls = setup({ tmdbId: 1399, seerr: true });
+    await userEvent.click(await screen.findByRole('button', { name: 'Request seasons' }));
+    // The same question as on a request page, without leaving this page.
+    const dialog = await screen.findByRole('dialog', { name: 'Request “Reacher”?' });
+    expect(screen.getByRole('heading', { name: 'Reacher' })).toBeTruthy();
+    expect((within(dialog).getByLabelText(/Season 1 ·/) as HTMLInputElement).disabled).toBe(true);
+    expect((within(dialog).getByLabelText(/Season 2 ·/) as HTMLInputElement).disabled).toBe(true);
+    await userEvent.click(within(dialog).getByLabelText(/Season 3 ·/));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Request/ }));
+    await vi.waitFor(() => expect(calls.find((c) => c.method === 'POST' && c.url === '/api/seerr/requests')?.body).toEqual({ mediaType: 'tv', tmdbId: 1399, seasons: null }));
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
   it('offers no requests without Seerr', async () => {
     setup({ tmdbId: 1399, seerr: false });
     expect(await screen.findByRole('heading', { name: 'Reacher' })).toBeTruthy();
-    expect(screen.queryByRole('link', { name: 'Request seasons' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Request seasons' })).toBeNull();
   });
 
   it('shows seasons, episodes, how much is watched, and where to continue', async () => {
