@@ -493,15 +493,15 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   Windows-pc draait, net als Docker en `.deb`. Bevindingen: de server is Node met FFmpeg, SQLite (`better-sqlite3`) en
   argon2 (`@node-rs/argon2`); beide hebben kant-en-klare Windows-builds en de code kreeg in 0.19.44 al Windows-padfixes.
   Voorstel: Node-runtime, server, website en `ffmpeg.exe` in één installer (bijvoorbeeld Inno Setup, gebouwd in GitHub
-  Actions op `windows-latest`, met eigen release-asset), de server als Windows-dienst (start bij opstarten, ook zonder
-  aanmelden), data in `C:\ProgramData\Vidalune`, een snelkoppeling "Vidalune openen" naar `http://localhost:<poort>` en
+  Actions op `windows-latest`, met eigen release-asset), de server gestart door het icoonprogramma (zie
+  hieronder; eerst als Windows-dienst bedacht), data in `C:\ProgramData\Vidalune`, een snelkoppeling "Vidalune openen" naar `http://localhost:<poort>` en
   een firewallregel bij installatie. Updates: de installer opnieuw draaien (later een melding in Beheer). Aandachtspunten:
   VAAPI bestaat alleen op Linux (op Windows NVENC werkt al; Intel Quick Sync `h264_qsv` en AMD `h264_amf` toe te voegen),
   `SIGSTOP`/`SIGCONT` (pauzeren van FFmpeg in `hls.ts` en `optimization.ts`) werkt niet op Windows (optimizer slaat het al
   over; HLS loopt dan gewoon door), de mapkiezer moet stationsletters tonen, en de installer is niet ondertekend (Windows
   SmartScreen waarschuwt tot er een codesigningcertificaat is).
   - Keuze eigenaar (17 okt): "Het moet in de achtergrond kunnen draaien, dus rechtsonder een icon hebben dat geopend kan
-    worden bijvoorbeeld naar de website om alles aan te passen". Dus: server als Windows-dienst én een icoon in het
+    worden bijvoorbeeld naar de website om alles aan te passen". Dus: draaien op de achtergrond met een icoon in het
     systeemvak: een klein programma (C#/.NET, `NotifyIcon`) dat via `http://localhost:<poort>/api/health` de status
     toont (groen/grijs), met "Vidalune openen" (browser), "Herstarten" en "Logboek openen".
   - Aanvulling eigenaar (17 okt): "Als iemand de icon weghaalt dus uitzetten moet de achtergrond taak ook stoppen dat is
