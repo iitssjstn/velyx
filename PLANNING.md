@@ -1310,3 +1310,19 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   en lint (4 bekende waarschuwingen) slagen.
 - De app verandert, dus deze release gaat als eerste automatisch naar de interne test (test van 0.19.70).
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1971) en beide lockfiles bijgewerkt.
+
+## Versie 0.19.72 (wachtwoord in de app)
+
+- Gemeld door de eigenaar (17 okt): het wachtwoordveld begint met een hoofdletter. Leeropdracht: de eigenaar vond zelf
+  `autoCapitalize="none"`; samen gekozen het op één plek te regelen. `Field` (`app/src/components/ui.tsx`) geeft elk veld
+  met `secureTextEntry` standaard geen hoofdletter en geen autocorrectie (`textEntryDefaults`, `app/src/lib/textEntry.ts`);
+  een veld kan het zelf nog anders zetten.
+- Gemeld door de eigenaar (17 okt): een tester kon in de app zijn wachtwoord niet wijzigen ("verkeerd wachtwoord"). Oorzaak:
+  het scherm Wachtwoord wijzigen veranderde het eigen wachtwoord van de mediaserver (`/api/account/password` op de server),
+  terwijl de app sinds 0.19.55 alleen met het Vidalune-account inlogt; dat serverwachtwoord kent de kijker niet. Nu wijzigt
+  het scherm het wachtwoord van het Vidalune-account (`POST /api/account/password` op vidalune.com, `cloud.changePassword`);
+  andere apparaten worden daarbij afgemeld (het vinkje is weg, met uitleg). Een 401 met "Wrong password." betekent een fout
+  huidig wachtwoord, niet uitgelogd (`wrongPassword`). Minstens 8 tekens, net als de accountservice.
+- Tests: app (`textEntryDefaults`, `changePassword` naar vidalune.com met token, fout wachtwoord vs. uitgelogd). App 168
+  tests, typechecks, lint (4 bekende waarschuwingen) slagen. Het scherm zelf op de telefoon testen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1972) en beide lockfiles bijgewerkt.

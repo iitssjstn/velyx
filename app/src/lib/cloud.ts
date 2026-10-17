@@ -64,7 +64,7 @@ export interface CloudPending {
 export const FORGOT_PASSWORD_URL = `${CLOUD_URL}/account?forgot`;
 
 /** What went wrong, for a message in the app's language. */
-export type CloudProblem = 'wrong' | 'exists' | 'invalid' | 'tooMany' | 'signedOut' | 'unreachable' | 'failed';
+export type CloudProblem = 'wrong' | 'wrongPassword' | 'exists' | 'invalid' | 'tooMany' | 'signedOut' | 'unreachable' | 'failed';
 
 export class CloudError extends Error {
   constructor(readonly problem: CloudProblem) {
@@ -86,7 +86,12 @@ export function createCloud(fetchImpl: typeof fetch = fetch, baseUrl = CLOUD_URL
         body: body ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
-      if (!res.ok) throw new CloudError(res.status === 401 && token ? 'signedOut' : problemFor(res.status));
+      if (res.status === 401 && token) {
+        // Signed in, but the current password typed to confirm a change was wrong: not signed out.
+        const said = (await res.json().catch(() => null)) as { error?: unknown } | null;
+        throw new CloudError(said?.error === 'Wrong password.' ? 'wrongPassword' : 'signedOut');
+      }
+      if (!res.ok) throw new CloudError(problemFor(res.status));
       return (await res.json()) as T;
     } catch (error) {
       if (error instanceof CloudError) throw error;
@@ -104,6 +109,9 @@ export function createCloud(fetchImpl: typeof fetch = fetch, baseUrl = CLOUD_URL
     /** A one-time ticket to sign in on a server, and the addresses to try (its own first). */
     open: (token: string, serverId: string) => request<{ ticket: string; addresses: string[] }>('POST', `/api/servers/${encodeURIComponent(serverId)}/open`, token),
     signOut: (token: string) => request<{ ok: true }>('POST', '/api/logout', token).catch(() => undefined),
+    /** The Vidalune account's password (the one the app signs in with); its other sessions are signed out. */
+    changePassword: (token: string, current: string, password: string, lang: 'en' | 'nl' = 'en') =>
+      request<{ ok: true }>('POST', '/api/account/password', token, { current, password, lang }),
   };
 }
 
