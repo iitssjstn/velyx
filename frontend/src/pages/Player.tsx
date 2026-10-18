@@ -469,12 +469,18 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const castLoading = useRef<number | null>(null);
   useEffect(() => {
     if (!cast.active || !file || !item.data || cast.fileId === file.id || askResume || castLoading.current === file.id) return;
+    // The TV started a title itself (the next episode, with its remote): the page follows it instead.
+    if (cast.tvItem && cast.tvItem.fileId === cast.fileId) return;
     castLoading.current = file.id;
     void cast.reload(start).catch((err) => toast.error(t('player.castFailed', { reason: err instanceof Error ? err.message : String(err) }))).finally(() => {
       castLoading.current = null;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cast.active, cast.fileId, file?.id, item.data, askResume, start]);
+  }, [cast.active, cast.fileId, cast.tvItem, file?.id, item.data, askResume, start]);
+  useEffect(() => {
+    if (cast.active && cast.tvItem && (cast.tvItem.kind !== kind || cast.tvItem.id !== id)) onPlayItem(cast.tvItem.kind, cast.tvItem.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cast.active, cast.tvItem]);
   useEffect(() => {
     if (cast.error) toast.error(t('player.castFailed', { reason: cast.error }));
   }, [cast.error]);
@@ -579,6 +585,13 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     },
     [cast.active, cast.setSubtitle, selectSubtitle, subs],
   );
+  // A subtitle chosen on the TV (its remote): shown here too and remembered, as if chosen here.
+  useEffect(() => {
+    if (!castHere || cast.tvSubtitleKey === undefined || cast.tvSubtitleKey === subKeyRef.current) return;
+    if (cast.tvSubtitleKey !== null && !subs.some((o) => o.key === cast.tvSubtitleKey)) return;
+    chooseSubtitle(cast.tvSubtitleKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [castHere, cast.tvSubtitleKey]);
 
   // A subtitle fetched online joins the file's subtitles and is selected once its track exists.
   const pendingSubtitle = useRef<string | null>(null);
@@ -906,10 +919,11 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   }, [postPlay, next, qc]);
   useEffect(() => {
     if (ended) return;
-    if (nearEnd && !upNextDismissed && next && getPrefs().autoplayNext) setCountdown((c) => c ?? getPrefs().autoplayCountdown);
+    // While casting, Vidalune's TV player counts down and starts the next episode itself.
+    if (nearEnd && !upNextDismissed && next && getPrefs().autoplayNext && !cast.active) setCountdown((c) => c ?? getPrefs().autoplayCountdown);
     // Seeking back out of the last seconds cancels a running countdown.
     if (!nearEnd) setCountdown(null);
-  }, [nearEnd, upNextDismissed, next, ended]);
+  }, [nearEnd, upNextDismissed, next, ended, cast.active]);
 
   // ---------------------------------------------------------------- skip intro / credits
   const skipModes = { recap: accountPrefs.data?.skipRecap ?? accountPrefs.data?.skipIntro ?? 'ask', intro: accountPrefs.data?.skipIntro ?? 'ask', credits: accountPrefs.data?.skipCredits ?? 'ask' };
@@ -920,6 +934,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     (s: SkipAction, automatic: boolean) => {
       // Always skipping credits that end the episode: straight on to the next one when autoplay is on.
       if (automatic && s.kind === 'credits' && s.toNext && next && getPrefs().autoplayNext) {
+        // While casting, the TV starts the next episode itself.
+        if (castingRef.current) return;
         goNext();
         return;
       }

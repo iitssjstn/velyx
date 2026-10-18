@@ -6,12 +6,14 @@ import Player from './Player';
 
 // A browser that can cast, before any Chromecast was found.
 const start = vi.fn(async (_at: number) => undefined);
-const castState = { connecting: false };
+const castState: { connecting: boolean; extra: Record<string, unknown> } = { connecting: false, extra: {} };
+const reload = vi.fn(async (_at: number) => undefined);
 vi.mock('../lib/cast', async (original) => ({
   ...(await original<typeof import('../lib/cast')>()),
   useCast: () => ({
     supported: true, available: false, connecting: castState.connecting, settled: false, active: false, fileId: null, device: null, time: 0, playing: false, volume: 1, muted: false, error: null,
-    start, stop: vi.fn(), togglePlay: vi.fn(), seek: vi.fn(), setVolume: vi.fn(), toggleMute: vi.fn(), setAudio: vi.fn(), setSubtitle: vi.fn(), reload: vi.fn(),
+    start, stop: vi.fn(), togglePlay: vi.fn(), seek: vi.fn(), setVolume: vi.fn(), toggleMute: vi.fn(), setAudio: vi.fn(), setSubtitle: vi.fn(), reload, tvItem: null,
+    ...castState.extra,
   }),
 }));
 
@@ -36,13 +38,15 @@ afterEach(() => {
   vi.restoreAllMocks();
   start.mockClear();
   castState.connecting = false;
+  castState.extra = {};
+  reload.mockClear();
 });
 
-function renderPlayer(search: string) {
+function renderPlayer(search: string, onPlayItem: (kind: 'movie' | 'episode', id: number) => void = () => undefined) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
-        <Player kind="movie" id={3} search={search} mini={false} onMinimize={() => undefined} onRestore={() => undefined} onClose={() => undefined} onPlayItem={() => undefined} />
+        <Player kind="movie" id={3} search={search} mini={false} onMinimize={() => undefined} onRestore={() => undefined} onClose={() => undefined} onPlayItem={onPlayItem} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -84,5 +88,21 @@ describe('cast button in the player', () => {
     renderPlayer('?t=0');
     expect((await screen.findByRole('status')).textContent).toBe('Connecting to the Chromecast…');
     expect(screen.getByRole('button', { name: 'Play on a TV (Chromecast)' }).getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('follows the next episode the TV started itself, without loading the old title on the TV again', async () => {
+    castState.extra = { active: true, fileId: 9, settled: true, tvItem: { kind: 'episode', id: 42, fileId: 9 } };
+    const onPlayItem = vi.fn();
+    renderPlayer('?t=0', onPlayItem);
+    await screen.findAllByText('Test Film');
+    await vi.waitFor(() => expect(onPlayItem).toHaveBeenCalledWith('episode', 42));
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('still gives the TV another title chosen here while casting', async () => {
+    castState.extra = { active: true, fileId: 9, settled: true, tvItem: null };
+    renderPlayer('?t=0');
+    await screen.findAllByText('Test Film');
+    await vi.waitFor(() => expect(reload).toHaveBeenCalled());
   });
 });

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SUBTITLE_STYLE } from './subtitleStyle';
-import { applyCastTextTrackStyle, castAddress, castLoadRequest, castTextTrackStyle, castTrackIds, loadCastWithCurrentSubtitle, openCastDialog, sessionUsable, tvFilePosition, type CastSession } from './cast';
+import { applyCastTextTrackStyle, castAddress, castLoadRequest, castTextTrackStyle, castTrackIds, loadCastWithCurrentSubtitle, openCastDialog, sessionUsable, tvFilePosition, followTv, tvMedia, tvSubtitleKey, type CastSession } from './cast';
 
 const url = (path: string) => `http://nas:3000${path.startsWith('/') ? path : `/${path}`}`;
 const session = (seek: 'range' | 'restart'): CastSession => ({
@@ -23,12 +23,12 @@ describe('casting from the app', () => {
   });
 
   it('continues a file as it is where the phone was, with artwork and the chosen subtitle', () => {
-    const { request, offset } = castLoadRequest({ session: session('range'), url, title: 'Dune', subtitle: '2021', artwork: '/api/images/w780/back.jpg', at: 600, keyframe: null, subtitleKey: 'emb-3' });
+    const { request, offset } = castLoadRequest({ session: session('range'), url, title: 'Dune', subtitle: '2021', artwork: '/api/images/w780/back.jpg', at: 600, keyframe: null, subtitleKey: 'emb-3', fileId: 5, audioIndex: 1 });
     expect(offset).toBe(0);
     expect(request).toMatchObject({ autoplay: true, startTime: 600, activeTrackIds: [2] });
     expect(request.mediaInfo).toMatchObject({ contentUrl: 'http://nas:3000/api/media/5/stream?cast=tok.en', contentType: 'video/mp4', streamDuration: 3000 });
     // Vidalune's own cast player saves the TV's progress itself, with the same token.
-    expect(request.mediaInfo.customData).toEqual({ vidalune: { progressUrl: 'http://nas:3000/api/cast/progress?cast=tok.en', offset: 0, durationSec: 3000 } });
+    expect(request.mediaInfo.customData).toEqual({ vidalune: { progressUrl: 'http://nas:3000/api/cast/progress?cast=tok.en', offset: 0, durationSec: 3000, fileId: 5, audioIndex: 1 } });
     expect(request.mediaInfo.metadata).toEqual({ type: 'generic', title: 'Dune', subtitle: '2021', images: [{ url: 'http://nas:3000/api/images/w780/back.jpg?cast=tok.en' }] });
     expect(request.mediaInfo.mediaTracks[1]).toEqual({ id: 2, type: 'text', subtype: 'subtitles', contentId: 'http://nas:3000/api/media/5/subtitles/3.vtt?cast=tok.en', contentType: 'text/vtt', name: 'Nederlands', language: 'nl' });
     expect(request.mediaInfo.streamType).toBe('BUFFERED');
@@ -226,5 +226,35 @@ describe('the cast player', () => {
     const config = JSON.parse(readFileSync(new URL('../../app.json', import.meta.url), 'utf8')) as { expo: { plugins: unknown[] } };
     const cast = config.expo.plugins.find((p): p is [string, { receiverAppId: string }] => Array.isArray(p) && p[0] === 'react-native-google-cast');
     expect(cast?.[1].receiverAppId).toBe('920BF057');
+  });
+});
+
+describe('following Vidalune\'s TV player', () => {
+  it('reads which file the TV plays, and the title when the TV started it itself', () => {
+    expect(tvMedia({ customData: { vidalune: { fileId: 6, item: { kind: 'episode', id: 42 } } } })).toEqual({ fileId: 6, item: { kind: 'episode', id: 42 } });
+    expect(tvMedia({ customData: { vidalune: { fileId: 5 } } })).toEqual({ fileId: 5, item: null });
+    expect(tvMedia({ customData: { vidalune: { fileId: 5, item: { kind: 'show', id: 1 } } } })).toEqual({ fileId: 5, item: null });
+    expect(tvMedia({ customData: {} })).toBeNull();
+    expect(tvMedia(null)).toBeNull();
+  });
+
+  it('knows the subtitle chosen on the TV by its track', () => {
+    const s = { subtitles: [{ key: 'ext-1' }, { key: 'emb-3' }] } as unknown as CastSession;
+    expect(tvSubtitleKey([2], s)).toBe('emb-3');
+    expect(tvSubtitleKey([], s)).toBeNull();
+    expect(tvSubtitleKey([9], s)).toBeNull();
+    expect(tvSubtitleKey(undefined, s)).toBeUndefined();
+    expect(tvSubtitleKey([1], null)).toBeUndefined();
+  });
+
+  it('follows a title the TV started itself, but not an older one while this screen gives the TV its own', () => {
+    const next = { fileId: 6, item: { kind: 'episode' as const, id: 42 } };
+    expect(followTv(5, next, 5)).toEqual({ kind: 'episode', id: 42 });
+    // Still the old title (it was started on the TV) while this screen's title is being loaded.
+    expect(followTv(4, next, 5)).toBeNull();
+    expect(followTv(null, next, 5)).toBeNull();
+    // This screen's own title, or one the app or website loaded (no title in it).
+    expect(followTv(5, { fileId: 5, item: { kind: 'episode', id: 41 } }, 5)).toBeNull();
+    expect(followTv(5, { fileId: 6, item: null }, 5)).toBeNull();
   });
 });

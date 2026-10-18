@@ -11,6 +11,7 @@ import { openDatabase, type DB } from '../src/db/client.js';
 import { ProgressSaver, progressReport, progressTarget, SAVE_EVERY_MS, START_SLACK_SEC } from '../web/cast/progress.js';
 import { showsSplash } from '../web/cast/screen.js';
 import { barVisible, cssColor, cueCss, fileTimes, formatTime, SHOW_FOR_MS } from '../web/cast/overlay.js';
+import { castStyle, castUrl, controlsFor, cycleStyle, DEFAULT_TV_STYLE, initialState, keyOf, loadRequestFor, press, segmentMarks, serverOf, skipAt, tabsFor, tvStyleFrom, upNextStart, words, type RemoteState } from '../web/cast/remote.js';
 
 let dir: string;
 let db: DB;
@@ -57,9 +58,9 @@ describe('cast.vidalune.com', () => {
     // Vidalune's own player: Google's framework plays into Vidalune's video, not into its own player with its bar.
     expect(page.body).toContain('<video id="video">');
     expect(page.body).not.toContain('<cast-media-player>');
-    for (const id of ['splash', 'bar', 'title', 'played', 'paused', 'waiting', 'cue-style']) expect(page.body, id).toContain(`id="${id}"`);
+    for (const id of ['splash', 'bar', 'title', 'played', 'paused', 'waiting', 'cue-style', 'controls', 'menu', 'skip', 'upnext', 'keys']) expect(page.body, id).toContain(`id="${id}"`);
     expect(page.headers['content-security-policy']).toBe("frame-ancestors 'none'");
-    for (const [file, type] of [['receiver.js', 'text/javascript'], ['progress.js', 'text/javascript'], ['screen.js', 'text/javascript'], ['overlay.js', 'text/javascript'], ['cast.css', 'text/css'], ['logo.svg', 'image/svg+xml']]) {
+    for (const [file, type] of [['receiver.js', 'text/javascript'], ['progress.js', 'text/javascript'], ['screen.js', 'text/javascript'], ['overlay.js', 'text/javascript'], ['remote.js', 'text/javascript'], ['cast.css', 'text/css'], ['logo.svg', 'image/svg+xml']]) {
       const res = await get('cast.vidalune.example', `/${file}`);
       expect(res.status, file).toBe(200);
       expect(res.type, file).toContain(type);
@@ -80,7 +81,7 @@ describe('cast.vidalune.com', () => {
     expect((await get('cast.vidalune.example', '/', 'GET', '')).status).toBe(404);
     expect((await get('cast.vidalune.example', '/', 'GET', 'Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36 CrKey/1.54.250320')).status).toBe(200);
     // Not the account service, not other files, not a relay address.
-    for (const url of ['/api/account', '/account', '/progress.d.ts', '/overlay.d.ts', '/../index.html', '/%2e%2e/index.html', '/admin']) expect((await get('cast.vidalune.example', url)).status, url).toBe(404);
+    for (const url of ['/api/account', '/account', '/progress.d.ts', '/overlay.d.ts', '/remote.d.ts', '/../index.html', '/%2e%2e/index.html', '/admin']) expect((await get('cast.vidalune.example', url)).status, url).toBe(404);
     expect((await get('cast.vidalune.example', '/', 'POST')).status).toBe(404);
     expect(app.relay.slugOf({ headers: { host: 'cast.vidalune.example' } } as http.IncomingMessage)).toBeNull();
     // The website itself is unchanged.
@@ -217,5 +218,139 @@ describe('the cast player saving where the TV is', () => {
     saver.finish(2712, 6000);
     await new Promise((resolve) => setTimeout(resolve));
     expect(sent.at(-1)?.body).toEqual({ positionSec: 2712, durationSec: 6000 });
+  });
+});
+
+describe('the cast player with a remote', () => {
+  const ctx = { controls: controlsFor({ audioTracks: 2, hasNext: true }), tabs: tabsFor({ audioTracks: 2 }), items: { subtitles: 3, audio: 2, style: 3 }, selected: { subtitles: 2, audio: 1, style: 0 } };
+
+  it('knows the keys of a remote and of a keyboard', () => {
+    expect(keyOf({ key: 'ArrowLeft' })).toBe('left');
+    expect(keyOf({ keyCode: 22 })).toBe('right');
+    expect(keyOf({ keyCode: 23 })).toBe('ok');
+    expect(keyOf({ key: 'Enter' })).toBe('ok');
+    expect(keyOf({ key: 'MediaPlayPause' })).toBe('playpause');
+    for (const event of [{ key: 'Escape' }, { key: 'GoBack' }, { keyCode: 4 }, { keyCode: 461 }]) expect(keyOf(event)).toBe('back');
+    expect(keyOf({ key: 'a' })).toBeNull();
+  });
+
+  it('shows only the buttons and tabs that do something for this title', () => {
+    expect(controlsFor({ audioTracks: 1, hasNext: false })).toEqual(['back', 'play', 'forward', 'subtitles']);
+    expect(controlsFor({ audioTracks: 2, hasNext: true })).toEqual(['back', 'play', 'forward', 'subtitles', 'audio', 'next']);
+    expect(tabsFor({ audioTracks: 1 })).toEqual(['subtitles', 'style']);
+    expect(tabsFor({ audioTracks: 3 })).toEqual(['subtitles', 'audio', 'style']);
+  });
+
+  it('plays, jumps and brings up the buttons with nothing open; Back is left to the TV', () => {
+    const s = initialState();
+    expect(press(s, 'ok', ctx).action).toEqual({ type: 'toggle' });
+    expect(press(s, 'left', ctx).action).toEqual({ type: 'seek', by: -10 });
+    expect(press(s, 'right', ctx).action).toEqual({ type: 'seek', by: 10 });
+    const up = press(s, 'up', ctx);
+    expect(up.state.open).toBe('bar');
+    expect(ctx.controls[up.state.focus]).toBe('play');
+    const back = press(s, 'back', ctx);
+    expect(back.handled).toBe(false);
+    // OK skips the intro while that is offered.
+    expect(press(s, 'ok', { ...ctx, skip: true }).action).toEqual({ type: 'skip' });
+  });
+
+  it('moves between the buttons and does what the chosen one says', () => {
+    let s = press(initialState(), 'up', ctx).state;
+    s = press(s, 'left', ctx).state;
+    expect(press(s, 'ok', ctx).action).toEqual({ type: 'seek', by: -10 });
+    s = press(s, 'left', ctx).state;
+    expect(s.focus).toBe(0);
+    for (let i = 0; i < 9; i += 1) s = press(s, 'right', ctx).state;
+    expect(ctx.controls[s.focus]).toBe('next');
+    expect(press(s, 'ok', ctx).action).toEqual({ type: 'next' });
+    expect(press(s, 'down', ctx).state.open).toBe('none');
+    expect(press(s, 'back', ctx).state.open).toBe('none');
+  });
+
+  it('opens the menu on the chosen subtitle, moves through it and between tabs, and picks', () => {
+    let s: RemoteState = { ...initialState(), open: 'bar', focus: 3 };
+    s = press(s, 'ok', ctx).state;
+    expect(s).toMatchObject({ open: 'menu', tab: 'subtitles', item: 2 });
+    s = press(s, 'down', ctx).state;
+    expect(s.item).toBe(2);
+    s = press(s, 'up', ctx).state;
+    expect(press(s, 'ok', ctx).action).toEqual({ type: 'pick', tab: 'subtitles', index: 1 });
+    s = press(s, 'right', ctx).state;
+    expect(s).toMatchObject({ tab: 'audio', item: 1 });
+    s = press(s, 'right', ctx).state;
+    s = press(s, 'right', ctx).state;
+    expect(s).toMatchObject({ tab: 'style', item: 0 });
+    expect(press(s, 'back', ctx).state.open).toBe('bar');
+  });
+
+  it('starts or puts away the next episode from its card', () => {
+    const card = { ...ctx, upNext: true };
+    const s = initialState();
+    expect(press(s, 'ok', card).action).toEqual({ type: 'next' });
+    const right = press(s, 'right', card).state;
+    expect(press(right, 'ok', card).action).toEqual({ type: 'dismissNext' });
+    expect(press(s, 'back', card).action).toEqual({ type: 'dismissNext' });
+    expect(press(s, 'up', card).state.open).toBe('bar');
+  });
+
+  it('offers skipping the recap, intro and credits as the website does', () => {
+    const segments = { recap: { start: 0, end: 40 }, intro: { start: 60, end: 120, confidence: 'high' }, credits: { start: 2500, end: 2600 }, postCredits: { start: 2600, end: 2650 } };
+    expect(skipAt(segments, 10)).toEqual({ kind: 'recap', to: 40 });
+    expect(skipAt(segments, 60.5)).toBeNull();
+    expect(skipAt(segments, 70)).toEqual({ kind: 'intro', to: 120 });
+    expect(skipAt(segments, 119.5)).toBeNull();
+    expect(skipAt(segments, 2510)).toEqual({ kind: 'credits', to: 2600 });
+    expect(skipAt(null, 10)).toBeNull();
+    expect(segmentMarks(segments, 2650)).toEqual([0.0151, 0.0226, 0.0453, 0.9434, 0.9811]);
+  });
+
+  it('brings the next episode card up at the end credits, or near the end', () => {
+    expect(upNextStart({ credits: { start: 2500, end: 2598 } }, 2600)).toBe(2500);
+    expect(upNextStart({ credits: { start: 2500, end: 2598 }, postCredits: { start: 2598, end: 2600 } }, 2600)).toBe(2588);
+    expect(upNextStart(null, 2600)).toBe(2588);
+    expect(upNextStart(null, 0)).toBeNull();
+  });
+
+  it('chooses the subtitle style on the TV, without a black box when the background is off', () => {
+    let style = cycleStyle(DEFAULT_TV_STYLE, 0);
+    expect(style.size).toBe('large');
+    style = cycleStyle(cycleStyle(style, 2), 2);
+    expect(style.background).toBe('solid');
+    style = cycleStyle(style, 2);
+    expect(castStyle(style).backgroundColor).toBe('#00000001');
+    expect(tvStyleFrom(castStyle({ size: 'xlarge', color: 'yellow', background: 'translucent' }))).toEqual({ size: 'xlarge', color: 'yellow', background: 'translucent' });
+    expect(tvStyleFrom(null)).toEqual(DEFAULT_TV_STYLE);
+  });
+
+  it('loads the next episode itself, from the session the server gave the TV', () => {
+    expect(serverOf('https://abc.media.vidalune.example:32400/api/cast/progress?cast=tok')).toEqual({ base: 'https://abc.media.vidalune.example:32400', token: 'tok' });
+    expect(serverOf('not a url')).toBeNull();
+    expect(serverOf('https://abc.example/api/cast/progress')).toBeNull();
+    expect(castUrl('https://s.example', '/api/media/7/hls/index.m3u8?audio=1', 't', 0)).toBe('https://s.example/api/media/7/hls/index.m3u8?audio=1&cast=t');
+    const session = {
+      token: 'new',
+      contentType: 'application/vnd.apple.mpegurl',
+      decision: { streamUrl: '/api/media/8/hls/index.m3u8', durationSec: 2600 },
+      subtitles: [{ url: '/api/subtitles/1', label: 'English', language: 'en' }, { url: '/api/subtitles/2', label: 'Nederlands', language: 'nl' }],
+      item: { kind: 'episode', id: 12, fileId: 8, title: 'The Show', subtitle: 'S01E02 — Two', posterPath: '/p.jpg', resumeAt: 120 },
+    };
+    const request = loadRequestFor(session, { base: 'https://s.example', at: 120, style: castStyle(DEFAULT_TV_STYLE), subtitleLanguage: 'nl', audioIndex: 2 });
+    expect(request.currentTime).toBe(120);
+    expect(request.activeTrackIds).toEqual([2]);
+    expect(request.media.contentId).toBe('https://s.example/api/media/8/hls/index.m3u8?cast=new');
+    expect(request.media.metadata).toMatchObject({ title: 'The Show', subtitle: 'S01E02 — Two', images: [{ url: 'https://s.example/api/images/w342/p.jpg?cast=new' }] });
+    expect(request.media.customData.vidalune).toEqual({ progressUrl: 'https://s.example/api/cast/progress?cast=new', offset: 0, durationSec: 2600, fileId: 8, item: { kind: 'episode', id: 12 }, audioIndex: 2 });
+    expect(request.media.tracks[1]).toMatchObject({ trackId: 2, trackContentId: 'https://s.example/api/subtitles/2?cast=new', language: 'nl' });
+    // The TV saves progress for it with the new token, as for a title a sender loaded.
+    expect(progressTarget(request.media.customData)).toEqual({ url: 'https://s.example/api/cast/progress?cast=new', offset: 0, durationSec: 2600 });
+    expect(loadRequestFor(session, { base: 'https://s.example' }).activeTrackIds).toEqual([]);
+  });
+
+  it('speaks Dutch on a Dutch TV and English elsewhere', () => {
+    expect(words('nl-NL').skipIntro).toBe('Intro overslaan');
+    expect(words('nl-NL').nextIn.replace('{n}', '8')).toBe('Volgende aflevering over 8 s');
+    expect(words('en-US').skipIntro).toBe('Skip intro');
+    expect(words(undefined).playNow).toBe('Play now');
   });
 });
