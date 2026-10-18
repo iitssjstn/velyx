@@ -312,10 +312,12 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
      start met de oude keuze van de telefoon/browser. Website: de beginkeuze uit de voorkeuren gebeurt pas in
      `onLoadedMetadata` van de eigen video (`Player.tsx`); start casten voordat die laadt, dan gaat er geen ondertitel mee
      (nog te controleren). Eerst navragen waar de eigenaar kiest en wanneer het vergeten wordt.
-  3. Zwarte randen: films en series in 2,39:1 (bv. 1920×800) passen zo op een 16:9-tv; weghalen kan alleen door in te
-     zoomen (bij 2,39:1 valt ~25 % van de breedte weg). Google's speler kent geen zoomstand; met een eigen `<video>`
-     (zie 1) kan een keuze "Passend / Vullen" (`object-fit: contain/cover`). Ook de tv zelf heeft vaak een zoomstand.
-  Voorstel: eigen tv-speler (eigen video en bediening in Vidalune-stijl, zoomkeuze) plus de ondertitelkeuze van de tv
+  3. Zwarte randen (bedoeld: het zwarte vlak achter de ondertitels, niet de balken van de film). Komt van de stand
+     "Tv-standaard" (standaard aan): die stuurt een half doorzichtige zwarte achtergrond met omlijning
+     (`CAST_SUBTITLE_DEFAULTS` in `frontend/src/lib/prefs.ts`, `TV_SUBTITLE_STYLE` in `app/src/lib/subtitleStyle.ts`).
+     Nu al uit te zetten: speler > instellingen > Ondertitelstijl op tv: Eigen, Achtergrond: Geen. Voorstel: de
+     tv-standaard zonder achtergrond (alleen schaduw of omlijning); besluit eigenaar.
+  Voorstel: eigen tv-speler (eigen video en bediening in Vidalune-stijl) plus de ondertitelkeuze van de tv
   terugsturen en bewaren. Eerst een voorbeeld van het tv-scherm laten zien.
 
 - **Ondertitels lopen niet gelijk na verder kijken tijdens een transcode** (gemeld door de eigenaar 18 okt, screenshot:
