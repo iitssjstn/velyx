@@ -314,8 +314,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   - Fase 2 (server en tv): volgende aflevering met aftellen, intro/recap/aftiteling overslaan, audiospoor kiezen. Nodig: de
     server geeft met het cast-token (alleen voor dat bestand en die gebruiker) de segmenten, de volgende aflevering (met een
     nieuw cast-token) en een stream met een ander audiospoor; de tv laadt zelf de volgende titel, zodat de app het ziet.
-  - Eerst navragen: welk apparaat (Chromecast met Google TV / Google TV Streamer: met afstandsbediening; oudere dongle:
-    zonder) en of de pijltjes van die afstandsbediening bij de tv-pagina aankomen (te controleren met 0.19.78 erop).
+  - Eigenaar (18 okt): heeft zelf een Chromecast met afstandsbediening. Nog te controleren met 0.19.78 erop: of de
+    pijltjes van die afstandsbediening bij de tv-pagina aankomen.
 
 - **Casten: speler op de tv niet mooi, ondertitelkeuze vergeten, zwarte randen** (gemeld door de eigenaar 18 okt, twee
   foto's van de tv; punt 1 en 3 gebouwd in 0.19.78, punt 2 wacht op antwoord van de eigenaar):
