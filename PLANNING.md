@@ -301,6 +301,22 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Tv-speler volledig te bedienen met de afstandsbediening** (wens eigenaar 18 okt, na het voorbeeld van 0.19.78:
+  "ik wil dat de kijker die een Chromecast met een afstandsbediening hem eigenlijk volledig kan bedienen met de
+  afstandsbediening en diegene zonder afstandsbediening met de app"; "Eigenlijk zou je de speler over kunnen nemen van de
+  website"). Nog niet bouwen; voorstel aan de eigenaar:
+  - Niet de websitepagina zelf op de tv (zwaar voor een Chromecast, gemaakt voor muis en toetsenbord, en het afspelen moet
+    bij Google's framework blijven zodat de app als afstandsbediening blijft werken), maar dezelfde functies in een
+    tv-bediening voor de pijltjes (10-foot, focus zichtbaar), met de logica van de website hergebruikt.
+  - Fase 1 (alleen de tv-speler): OK = afspelen/pauze, links/rechts = spoelen (stap, vasthouden = sneller), omhoog/omlaag =
+    balk en menu, menu met ondertitels (uit de meegestuurde lijst, ook uit) en de stijl, Terug sluit het menu. Wat op de tv
+    gekozen wordt, gaat via de status van de tv terug naar app en website (sluit aan bij punt 2 van de cast-melding).
+  - Fase 2 (server en tv): volgende aflevering met aftellen, intro/recap/aftiteling overslaan, audiospoor kiezen. Nodig: de
+    server geeft met het cast-token (alleen voor dat bestand en die gebruiker) de segmenten, de volgende aflevering (met een
+    nieuw cast-token) en een stream met een ander audiospoor; de tv laadt zelf de volgende titel, zodat de app het ziet.
+  - Eerst navragen: welk apparaat (Chromecast met Google TV / Google TV Streamer: met afstandsbediening; oudere dongle:
+    zonder) en of de pijltjes van die afstandsbediening bij de tv-pagina aankomen (te controleren met 0.19.78 erop).
+
 - **Casten: speler op de tv niet mooi, ondertitelkeuze vergeten, zwarte randen** (gemeld door de eigenaar 18 okt, twee
   foto's van de tv; punt 1 en 3 gebouwd in 0.19.78, punt 2 wacht op antwoord van de eigenaar):
   1. Wat de tv bij pauze toont (titel, balk, tijden, 30 s-knoppen, CC) is Google's eigen bediening van
