@@ -10,7 +10,8 @@ import { OptimizationService, OPTIMIZATION_PROFILES, optimizationArgs, optimizat
 import { mediaFiles, optimizedMedia } from '../src/db/schema.js';
 import { OptimizationCheckpoint } from '../src/services/optimization-checkpoint.js';
 import { limitProber } from '../src/services/probe-queue.js';
-import { addLibrary, createTestEnv, createUser, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
+import { addLibrary, createTestEnv, createUser, fakeProbe, rescan, setupAdmin, touch, type TestEnv } from './helpers.js';
+import { copyBeside, isOptimizedCopy } from '../src/services/optimized-copy.js';
 
 let env: TestEnv;
 let admin: string;
@@ -131,7 +132,9 @@ describe('playback optimization profiles', () => {
     expect(queued.json().variant).toMatchObject({ profile: 'compat-720p', status: 'queued', progress: 0 });
     expect(queued.body).not.toContain(env.dir);
     const row = env.ctx.db.select().from(optimizedMedia).get();
-    expect(row?.outputPath.startsWith(path.join(env.dir, 'data', 'optimized'))).toBe(true);
+    // Next to the film it is made from, easy to find.
+    expect(row?.outputPath).toBe(path.join(env.mediaDir, 'Movies', 'A Film.vidalune-720p.mp4'));
+    expect(queued.json().variant.location).toBe('library');
 
     const listed = await env.app.inject({ url: `/api/admin/media/${file!.id}/optimizations`, headers: { cookie: admin } });
     expect(listed.json().variants).toHaveLength(1);
@@ -200,7 +203,10 @@ describe('playback optimization profiles', () => {
     env.ctx.db.update(mediaFiles).set({ durationSec: 120 }).where(eq(mediaFiles.id, file.id)).run();
     const task = env.ctx.optimizations.queue(file.id, 'compat-720p');
     const row = env.ctx.db.select().from(optimizedMedia).get()!;
-    const checkpoint = new OptimizationCheckpoint(row.outputPath, { sourceSize: file.size, sourceMtimeMs: file.mtimeMs, durationSec: 120, video: encodeArgs('software') });
+    // The work stays in the data folder; only the finished copy goes next to the film.
+    const work = path.join(env.ctx.optimizations.outputDir, String(file.id), 'compat-720p.mp4');
+    expect(row.outputPath).not.toBe(work);
+    const checkpoint = new OptimizationCheckpoint(work, { sourceSize: file.size, sourceMtimeMs: file.mtimeMs, durationSec: 120, video: encodeArgs('software') });
     checkpoint.prepare();
     touch(path.join(checkpoint.directory, 'part-000000.ts'));
     fs.writeFileSync(checkpoint.list, 'part-000000.ts,0,60\n');
@@ -209,7 +215,7 @@ describe('playback optimization profiles', () => {
     env.ctx.optimizations = new OptimizationService({ db: env.ctx.db, dataDir: env.ctx.config.dataDir, ffmpegPath: env.ctx.config.ffmpegPath, probe: limitProber(async () => fakeProbe(), 1), transcoding: env.ctx.transcoding, settings: env.ctx.settings, busy: () => true });
     expect(env.ctx.optimizations.list(file.id)[0]).toMatchObject({ status: 'queued', progress: 50 });
     expect(fs.existsSync(path.join(checkpoint.directory, 'part-000000.ts'))).toBe(true);
-    expect(new OptimizationCheckpoint(row.outputPath, { sourceSize: file.size, sourceMtimeMs: file.mtimeMs, durationSec: 120, video: encodeArgs('software') }).offset).toBe(60);
+    expect(new OptimizationCheckpoint(work, { sourceSize: file.size, sourceMtimeMs: file.mtimeMs, durationSec: 120, video: encodeArgs('software') }).offset).toBe(60);
     env.ctx.optimizations.remove(task.id);
     expect(fs.existsSync(checkpoint.directory)).toBe(false);
   });
@@ -244,7 +250,7 @@ describe('playback optimization profiles', () => {
       const encoding = calls.mock.calls.find((call) => (call[1] as string[]).includes('-segment_start_number'))![1] as string[];
       expect(encoding[encoding.indexOf('-ss') + 1]).toBe(Math.max(0, offset - 0.001).toFixed(6));
       expect(encoding[encoding.indexOf('-segment_start_number') + 1]).toBe('1');
-      const probe = spawnSync(env.ctx.config.ffprobePath, ['-v', 'error', '-count_frames', '-show_entries', 'format=duration:stream=codec_name,duration,start_time,nb_read_frames', '-of', 'json', output], { encoding: 'utf8' });
+      const probe = spawnSync(env.ctx.config.ffprobePath, ['-v', 'error', '-count_frames', '-show_entries', 'format=duration:stream=codec_name,duration,start_time,nb_read_frames', '-of', 'json', env.ctx.db.select().from(optimizedMedia).get()!.outputPath], { encoding: 'utf8' });
       expect(probe.status, probe.stderr).toBe(0);
       const result = JSON.parse(probe.stdout) as { format: { duration: string }; streams: { codec_name: string; duration: string; start_time: string; nb_read_frames: string }[] };
       expect(Number(result.format.duration)).toBeGreaterThan(3.9);
@@ -298,7 +304,9 @@ describe('playback optimization profiles', () => {
         env.ctx.optimizations.queue(file.id, 'compat-720p');
       }
       await vi.waitFor(() => expect(env.ctx.optimizations.list(file.id)[0]?.status).toBe('ready'), { timeout: 15_000 });
-      expect(fs.existsSync(output)).toBe(true);
+      // Finished next to the film; the work in the data folder is gone.
+      expect(fs.existsSync(path.join(env.mediaDir, 'Movies', 'Live stop.vidalune-720p.mp4'))).toBe(true);
+      expect(fs.existsSync(output)).toBe(false);
       expect(fs.existsSync(`${output}.parts`)).toBe(false);
     } finally {
       runner.mockRestore();
@@ -374,6 +382,8 @@ describe('playback optimization profiles', () => {
     await addLibrary(env, admin, 'movies', 'Movies');
     const file = env.ctx.db.select().from(mediaFiles).get()!;
     env.ctx.db.update(mediaFiles).set({ durationSec: 2 }).where(eq(mediaFiles.id, file.id)).run();
+    // Left behind by an earlier run that was cut off.
+    touch(path.join(env.mediaDir, 'Movies', 'Encode smoke test.vidalune-720p.mp4.4242.partial.mp4'));
     const queued = env.ctx.optimizations.queue(file.id, 'compat-720p');
     const deadline = Date.now() + 30_000;
     let status = queued.status;
@@ -390,5 +400,110 @@ describe('playback optimization profiles', () => {
     expect(probe.status, probe.stderr).toBe(0);
     expect(probe.stdout).toContain('h264');
     expect(probe.stdout).toContain('aac');
+    // The finished copy is next to the film, and the next scan does not take it for a second file.
+    expect(output.outputPath).toBe(path.join(env.mediaDir, 'Movies', 'Encode smoke test.vidalune-720p.mp4'));
+    expect(fs.readdirSync(path.join(env.mediaDir, 'Movies')).sort()).toEqual(['Encode smoke test.mkv', 'Encode smoke test.vidalune-720p.mp4']);
+    expect(fs.existsSync(path.join(env.ctx.optimizations.outputDir, String(file.id)))).toBe(false);
+    await rescan(env, file.libraryId);
+    expect(env.ctx.db.select().from(mediaFiles).all().map((f) => f.path)).toEqual([file.path]);
+    expect(env.ctx.optimizations.list(file.id)[0]).toMatchObject({ status: 'ready', location: 'library' });
   }, 40_000);
+});
+describe('the copy next to the film', () => {
+  /** A finished copy as the optimizer leaves it, at `outputPath`. */
+  const readyCopy = (fileId: number, outputPath: string, size: number, mtimeMs: number) => {
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, 'compatible copy');
+    const now = Date.now();
+    return env.ctx.db.insert(optimizedMedia).values({
+      mediaFileId: fileId, profile: 'compat-1080p', status: 'ready', progress: 100, outputPath, sourceSize: size, sourceMtimeMs: mtimeMs,
+      outputSize: 15, probeJson: JSON.stringify(fakeProbe({ container: 'mp4', videoCodec: 'h264', width: 1920, height: 1080, audioCodec: 'aac' })), createdAt: now, updatedAt: now,
+    }).returning().get();
+  };
+
+  it('is named after the film and recognised by that name only', () => {
+    expect(copyBeside('/media/movies/Dune (2021)/Dune (2021).mkv', 'compat-1080p')).toBe(path.join('/media/movies/Dune (2021)', 'Dune (2021).vidalune-1080p.mp4'));
+    expect(copyBeside('/media/movies/Film.mp4', 'compat-720p')).toBe(path.join('/media/movies', 'Film.vidalune-720p.mp4'));
+    expect(isOptimizedCopy('Dune (2021).vidalune-1080p.mp4')).toBe(true);
+    expect(isOptimizedCopy('Dune (2021).VIDALUNE-720P.MP4')).toBe(true);
+    expect(isOptimizedCopy('Dune (2021).vidalune-1080p.mp4.123.partial.mp4')).toBe(true);
+    for (const name of ['Dune (2021).mkv', 'Dune (2021).mp4', 'vidalune-1080p.mkv', 'Dune.vidalune-1080p.mkv']) expect(isOptimizedCopy(name), name).toBe(false);
+  });
+
+  it('is not scanned as a second file of the film', async () => {
+    touch(path.join(env.mediaDir, 'Movies', 'Dune (2021)', 'Dune (2021).mkv'));
+    touch(path.join(env.mediaDir, 'Movies', 'Dune (2021)', 'Dune (2021).vidalune-1080p.mp4'));
+    await addLibrary(env, admin, 'movies', 'Movies');
+    expect(env.ctx.db.select().from(mediaFiles).all().map((f) => path.basename(f.path))).toEqual(['Dune (2021).mkv']);
+  });
+
+  it('goes to the data folder when the film\'s folder is read-only (mounted with :ro)', async () => {
+    touch(path.join(env.mediaDir, 'Movies', 'Locked.mkv'));
+    await addLibrary(env, admin, 'movies', 'Movies');
+    await env.ctx.optimizations.stop();
+    const file = env.ctx.db.select().from(mediaFiles).get()!;
+    env.ctx.db.update(mediaFiles).set({ durationSec: 120 }).where(eq(mediaFiles.id, file.id)).run();
+    const access = fs.accessSync;
+    const spy = vi.spyOn(fs, 'accessSync').mockImplementation((p, mode) => {
+      if (mode === fs.constants.W_OK && String(p).startsWith(path.join(env.mediaDir, 'Movies'))) throw Object.assign(new Error('read-only'), { code: 'EROFS' });
+      return access(p, mode);
+    });
+    try {
+      const view = env.ctx.optimizations.queue(file.id, 'compat-720p');
+      expect(view.location).toBe('data');
+      expect(env.ctx.db.select().from(optimizedMedia).get()!.outputPath).toBe(path.join(env.ctx.optimizations.outputDir, String(file.id), 'compat-720p.mp4'));
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('moves copies made in the data folder next to the film, and leaves them when that folder is read-only', async () => {
+    touch(path.join(env.mediaDir, 'Movies', 'Older.mkv'));
+    await addLibrary(env, admin, 'movies', 'Movies');
+    const file = env.ctx.db.select().from(mediaFiles).get()!;
+    const old = path.join(env.ctx.optimizations.outputDir, String(file.id), 'compat-1080p.mp4');
+    const row = readyCopy(file.id, old, file.size, file.mtimeMs);
+    const access = fs.accessSync;
+    const spy = vi.spyOn(fs, 'accessSync').mockImplementation((p, mode) => {
+      if (mode === fs.constants.W_OK && String(p).startsWith(env.mediaDir)) throw Object.assign(new Error('read-only'), { code: 'EROFS' });
+      return access(p, mode);
+    });
+    try {
+      expect(await env.ctx.optimizations.relocate()).toBe(0);
+      expect(fs.existsSync(old)).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await env.ctx.optimizations.relocate()).toBe(1);
+    const beside = path.join(env.mediaDir, 'Movies', 'Older.vidalune-1080p.mp4');
+    expect(fs.readFileSync(beside, 'utf8')).toBe('compatible copy');
+    expect(fs.existsSync(old)).toBe(false);
+    expect(fs.existsSync(path.dirname(old))).toBe(false);
+    expect(env.ctx.db.select().from(optimizedMedia).where(eq(optimizedMedia.id, row.id)).get()!.outputPath).toBe(beside);
+    expect(env.ctx.optimizations.list(file.id)[0]).toMatchObject({ status: 'ready', location: 'library' });
+    expect(env.ctx.optimizations.findReady(file.id, file.size, file.mtimeMs)?.outputPath).toBe(beside);
+  });
+
+  it('is removed with the copy in Admin, and when the film leaves the library', async () => {
+    const one = path.join(env.mediaDir, 'Movies', 'One.mkv');
+    const two = path.join(env.mediaDir, 'Movies', 'Two.mkv');
+    touch(one);
+    touch(two, 'xy');
+    const lib = await addLibrary(env, admin, 'movies', 'Movies');
+    await env.ctx.optimizations.stop();
+    const files = env.ctx.db.select().from(mediaFiles).all();
+    const fileOne = files.find((f) => f.path.endsWith('One.mkv'))!;
+    const fileTwo = files.find((f) => f.path.endsWith('Two.mkv'))!;
+    const copyOne = readyCopy(fileOne.id, copyBeside(one, 'compat-1080p'), fileOne.size, fileOne.mtimeMs);
+    readyCopy(fileTwo.id, copyBeside(two, 'compat-1080p'), fileTwo.size, fileTwo.mtimeMs);
+
+    env.ctx.optimizations.remove(copyOne.id);
+    expect(fs.existsSync(copyBeside(one, 'compat-1080p'))).toBe(false);
+    expect(fs.existsSync(one)).toBe(true);
+
+    fs.rmSync(two);
+    await rescan(env, lib.id);
+    expect(fs.existsSync(copyBeside(two, 'compat-1080p'))).toBe(false);
+    expect(fs.readdirSync(path.join(env.mediaDir, 'Movies'))).toEqual(['One.mkv']);
+  });
 });

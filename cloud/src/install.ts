@@ -29,9 +29,10 @@ services:
     volumes:
       # Database, artwork, avatars and backups: back this folder up.
       - ./data:/data
-      # Your media, read-only: Vidalune never changes or deletes your files.
-      - ${opts.movies ?? '/srv/media/movies'}:/media/movies:ro
-      - ${opts.tv ?? '/srv/media/tv'}:/media/tv:ro
+      # Your media. Vidalune puts its compatible copies next to a film and deletes only what you
+      # approve under Admin > Clean-up. Add :ro to a line to keep that folder read-only.
+      - ${opts.movies ?? '/srv/media/movies'}:/media/movies
+      - ${opts.tv ?? '/srv/media/tv'}:/media/tv
 `;
 }
 

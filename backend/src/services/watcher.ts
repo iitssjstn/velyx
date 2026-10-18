@@ -4,6 +4,7 @@ import type { DB } from '../db/client.js';
 import { libraries } from '../db/schema.js';
 import { createLogger } from '../logger.js';
 import { isSubtitleFile, isVideoFile } from './parser.js';
+import { isOptimizedCopy } from './optimized-copy.js';
 import type { ScanManager } from './scan-manager.js';
 
 const log = createLogger('watcher');
@@ -106,7 +107,8 @@ export class LibraryWatcher {
     const name = filename ? String(filename) : '';
     if (name) {
       const base = path.basename(name);
-      if (base.startsWith('.') || /\.(part|partial|tmp|!qb)$/i.test(base)) return;
+      // The optimizer writing its copy next to a film is not a change to the library.
+      if (base.startsWith('.') || /\.(part|partial|tmp|!qb)$/i.test(base) || isOptimizedCopy(base)) return;
       const ext = path.extname(base);
       if (ext && !isVideoFile(base) && !isSubtitleFile(base)) {
         const root = this.watchers.get(id)?.path;

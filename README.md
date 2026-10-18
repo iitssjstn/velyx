@@ -134,9 +134,10 @@ services:
     volumes:
       # Database, artwork cache, avatars and backups — back this folder up.
       - ./data:/data
-      # Your media, read-only: Vidalune never changes or deletes your files.
-      - /srv/media/movies:/media/movies:ro
-      - /srv/media/tv:/media/tv:ro
+      # Your media. Vidalune puts its compatible copies next to a film and deletes only what you
+      # approve under Admin → Clean-up. Add :ro to a line to keep that folder read-only.
+      - /srv/media/movies:/media/movies
+      - /srv/media/tv:/media/tv
 ```
 
 Then start it:
@@ -248,7 +249,7 @@ Mount every media folder under `/media` and add a library for each:
 
 ```yaml
 volumes:
-  - /mnt/disk2/films:/media/films-2:ro
+  - /mnt/disk2/films:/media/films-2
 ```
 
 ## Organising your media
@@ -311,8 +312,8 @@ Without a key or a link Vidalune still works: titles come from the file names an
   - Swapped in one go (the usual upgrade), the movie or episode simply keeps everything and Vidalune records the change — the movie page shows *Replaced: 1080p · H.264 · WEB → 2160p · HEVC · HDR10 · Blu-ray*.
   - If the old file disappears first and the new one arrives later — even under a completely different name — Vidalune remembers what users had for 90 days and gives it back as soon as the same title (same name and year, or the same TMDB id) or episode (same show, season and number) returns. A drive that was briefly disconnected is recognised the same way.
   - This also works between libraries: a movie or series moved to another library (for example from *Movies* to *4K Movies* after an upgrade) keeps its history, whichever of the two libraries is scanned first.
-  - Admin → Library health lists everything replaced in the last 30 days with the previous and current release. Vidalune only reads your files; it never renames, moves or deletes them.
-- Removing a library only removes it from Vidalune — your files are never modified (media is mounted read-only). Its watch history, favorites and lists are kept for 90 days and come back when the same movies and shows are added again, in a new library for the same folder or in another one.
+  - Admin → Library health lists everything replaced in the last 30 days with the previous and current release. Vidalune never renames or moves your files.
+- Removing a library only removes it from Vidalune — your files are never modified. Its watch history, favorites and lists are kept for 90 days and come back when the same movies and shows are added again, in a new library for the same folder or in another one.
 
 ## Playback and browser support
 
@@ -389,6 +390,15 @@ Off by default. With **Admin → Playback → Video conversion** an administrato
   ```
 - **Debian/Ubuntu package:** the user `vidalune` is added to the `render` and `video` groups. For Intel graphics install `intel-media-va-driver-non-free` (or `intel-media-va-driver`), for AMD `mesa-va-drivers`; NVIDIA needs its own driver.
 - The player's badge shows *Transcode*, and so does the stream in Admin → Dashboard. A Chromecast gets the converted stream too.
+
+### Compatible copies (optional)
+
+On a server that would otherwise have to convert video live (an old processor, a 4K HEVC file), **Admin → Optimization** makes a lasting H.264/AAC copy of a movie or episode at 720p or 1080p. It plays automatically on devices that need it; the original is never changed.
+
+- The copy is saved **next to the film**, as `<name>.vidalune-720p.mp4` or `<name>.vidalune-1080p.mp4` (for example `Dune (2021).vidalune-1080p.mp4` beside `Dune (2021).mkv`). Scans skip that name, so it never shows up as a second file.
+- It goes when the film goes: when the file leaves the library, is deleted under Admin → Clean-up, or the copy is removed in Admin → Optimization.
+- Work in progress is kept in the data folder (`data/optimized/`), so a copy carries on after a restart or update.
+- If the film's folder is read-only (mounted with `:ro`), the finished copy stays in `data/optimized/` instead; Admin → Optimization says where each copy is. Copies made before version 0.19.80 move next to their film by themselves, one at a time.
 
 ### Casting to a TV
 
@@ -583,7 +593,7 @@ Each suggestion shows the title, path, size, resolution, library, whether and wh
 Deleting is **off by default**. To use it:
 
 1. Choose **Allow deleting** on the clean-up page. You can turn it off again at any time.
-2. Mount the library folder writable: remove `:ro` from its volume in `docker-compose.yml`. With `:ro` Vidalune can never delete anything, and the page shows the library as read-only.
+2. The library folder must be writable. The example `docker-compose.yml` mounts it that way; if you added `:ro` to its volume, Vidalune can never delete anything there and the page shows the library as read-only.
 
 Vidalune only deletes files that are current suggestions, only inside their library folder, and never a file someone is watching. Every deletion is recorded in the audit log with the path and size.
 
@@ -723,6 +733,7 @@ Everything Vidalune stores lives in the data folder (`./data`, mounted at `/data
 | `subtitles/` | Subtitles fetched from OpenSubtitles |
 | `avatars/` | Profile pictures |
 | `backups/` | Backups created by Vidalune |
+| `optimized/` | Compatible copies being made, and copies of films whose folder is read-only (others are next to the film) |
 | `.session-secret` | Generated cookie secret (when `SESSION_SECRET` is not set) |
 
 - **Scheduled backups** (Admin → Backup): a consistent copy of the database every day (or week) after a chosen hour, kept with rotation — by default the newest of each of the last 7 days, 4 weeks and 3 months. Only scheduled backups are rotated; manual backups and archives stay until you delete them. Backups stay in `data/backups/`; nothing is uploaded anywhere.
@@ -767,7 +778,7 @@ docker compose exec vidalune vidalune intros "Show title" 2     # explain intro/
 - Backup file names are validated against a strict pattern and resolved inside the backup folder only.
 - The TMDB key is never exposed to browsers; artwork goes through a whitelist-validated proxy.
 - Error pages never show stack traces to regular users (administrators can see diagnostic details).
-- The container drops root privileges and runs as `PUID`/`PGID`; media is mounted read-only.
+- The container drops root privileges and runs as `PUID`/`PGID`. Vidalune only writes compatible copies next to a film and only deletes files you approve under Admin → Clean-up; add `:ro` to a media volume to make that folder read-only.
 - For access from the internet, put Vidalune behind a reverse proxy with HTTPS.
 
 ## Signing in from an app

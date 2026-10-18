@@ -14,6 +14,7 @@ import { TranscodingService, pickEncoder } from '../playback/transcode.js';
 import { encodeArgs } from '../playback/transcode.js';
 import type { VideoEncode } from '../playback/remux.js';
 import { OptimizationCheckpoint } from './optimization-checkpoint.js';
+import { canWriteBeside, copyBeside, isOptimizedCopy } from './optimized-copy.js';
 
 export type OptimizationProfile = 'compat-720p' | 'compat-1080p';
 
@@ -27,7 +28,7 @@ export function optimizationThreads(): number {
   return Math.max(1, Math.min(4, os.availableParallelism()));
 }
 
-/** Builds a bounded H.264/AAC MP4 copy; it never writes beside the source file. */
+/** Builds a bounded H.264/AAC MP4 copy (the finished copy goes next to the source file, see optimized-copy.ts). */
 export function optimizationArgs(options: {
   profile: OptimizationProfile;
   input: string;
@@ -89,6 +90,8 @@ export interface OptimizationView {
   outputSize: number | null;
   error: string | null;
   updatedAt: number;
+  /** Where the copy is (or goes): next to the film, or in the Vidalune data folder when the film's folder is read-only. */
+  location: 'library' | 'data';
 }
 
 export interface ReadyOptimization extends OptimizationView {
@@ -123,6 +126,7 @@ export class OptimizationService {
   private readonly pauseRequests = new Set<number>();
   private stopped = false;
   private timer: NodeJS.Timeout | null = null;
+  private relocateTimer: NodeJS.Timeout | null = null;
   private child: ChildProcessWithoutNullStreams | null = null;
 
   constructor(
@@ -143,6 +147,9 @@ export class OptimizationService {
     this.cleanOrphans();
     const pending = deps.db.select({ id: optimizedMedia.id }).from(optimizedMedia).where(eq(optimizedMedia.status, 'queued')).orderBy(asc(optimizedMedia.createdAt)).all();
     for (const row of pending) this.enqueue(row.id);
+    // Copies from before they went next to the film move there once the server has settled.
+    this.relocateTimer = setTimeout(() => void this.relocate().catch(() => undefined), 60_000);
+    this.relocateTimer.unref?.();
   }
 
   list(mediaFileId: number): OptimizationView[] {
@@ -210,7 +217,7 @@ export class OptimizationService {
     if (existing?.status === 'queued' || existing?.status === 'processing') return this.view(existing, source.file.size, source.file.mtimeMs);
     if (existing?.status === 'ready' && this.view(existing, source.file.size, source.file.mtimeMs).status === 'ready') return this.view(existing, source.file.size, source.file.mtimeMs);
 
-    const outputPath = path.join(this.outputDir, String(mediaFileId), `${profile}.mp4`);
+    const outputPath = this.target(absolute, mediaFileId, profile);
     const values = {
       mediaFileId,
       profile,
@@ -257,7 +264,7 @@ export class OptimizationService {
   resolve(mediaFileId: number, variantId: number, sourceSize: number, sourceMtimeMs: number): ReadyOptimization {
     const row = this.deps.db.select().from(optimizedMedia).where(and(eq(optimizedMedia.id, variantId), eq(optimizedMedia.mediaFileId, mediaFileId))).get();
     if (!row) throw new HttpError(404, 'Optimized version not found.');
-    if (!this.isManagedOutput(row.outputPath)) throw new HttpError(409, 'The optimized file path is invalid. Optimize this title again.');
+    if (!this.isManagedOutput(row.outputPath, row.mediaFileId)) throw new HttpError(409, 'The optimized file path is invalid. Optimize this title again.');
     const view = this.view(row, sourceSize, sourceMtimeMs);
     if (view.status !== 'ready') throw new HttpError(409, 'The optimized version is not ready or its source has changed.');
     const parsed = row.probeJson ? JSON.parse(row.probeJson) as ProbeResult : null;
@@ -273,13 +280,12 @@ export class OptimizationService {
     const waitingIndex = this.waiting.indexOf(row.id);
     if (waitingIndex >= 0) this.waiting.splice(waitingIndex, 1);
     this.pauseRequests.delete(row.id);
-    const output = path.resolve(row.outputPath);
-    if (output.startsWith(`${this.outputDir}${path.sep}`)) {
-      fs.rmSync(output, { force: true });
-      fs.rmSync(`${output}.parts`, { recursive: true, force: true });
-      const parent = path.dirname(output);
-      if (parent !== this.outputDir && fs.existsSync(parent) && fs.readdirSync(parent).length === 0) fs.rmdirSync(parent);
-    }
+    if (this.isManagedOutput(row.outputPath, row.mediaFileId)) fs.rmSync(row.outputPath, { force: true });
+    const work = this.workPath(row.mediaFileId, row.profile);
+    fs.rmSync(work, { force: true });
+    fs.rmSync(`${work}.parts`, { recursive: true, force: true });
+    const parent = path.dirname(work);
+    if (fs.existsSync(parent) && fs.readdirSync(parent).length === 0) fs.rmdirSync(parent);
     this.deps.db.delete(optimizedMedia).where(eq(optimizedMedia.id, variantId)).run();
   }
 
@@ -300,6 +306,7 @@ export class OptimizationService {
 
   async stop(): Promise<void> {
     this.stopped = true;
+    if (this.relocateTimer) clearTimeout(this.relocateTimer);
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.terminateChild();
@@ -327,7 +334,8 @@ export class OptimizationService {
   private cleanOrphans(): void {
     const rows = this.deps.db.select({ path: optimizedMedia.outputPath, status: optimizedMedia.status }).from(optimizedMedia).all();
     const known = new Set(rows.map((row) => path.resolve(row.path)));
-    const checkpoints = new Set(rows.filter((row) => row.status !== 'ready').map((row) => path.resolve(`${row.path}.parts`)));
+    const work = this.deps.db.select({ fileId: optimizedMedia.mediaFileId, profile: optimizedMedia.profile, status: optimizedMedia.status }).from(optimizedMedia).all();
+    const checkpoints = new Set(work.filter((row) => row.status !== 'ready').map((row) => path.resolve(`${this.workPath(row.fileId, row.profile)}.parts`)));
     const clean = (dir: string) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const current = path.join(dir, entry.name);
@@ -344,26 +352,90 @@ export class OptimizationService {
   private view(row: typeof optimizedMedia.$inferSelect, sourceSize: number, sourceMtimeMs: number): OptimizationView {
     let status: OptimizationStatus = row.status;
     let error = row.error;
-    if (status === 'ready' && (!this.isManagedOutput(row.outputPath) || row.sourceSize !== sourceSize || row.sourceMtimeMs !== sourceMtimeMs || !fs.existsSync(row.outputPath))) {
+    if (status === 'ready' && (!this.isManagedOutput(row.outputPath, row.mediaFileId) || row.sourceSize !== sourceSize || row.sourceMtimeMs !== sourceMtimeMs || !fs.existsSync(row.outputPath))) {
       status = 'stale';
       error = 'The source file changed or the optimized copy is missing. Optimize it again.';
     }
-    return { id: row.id, profile: row.profile, status, progress: row.progress, outputSize: row.outputSize, error, updatedAt: row.updatedAt };
+    const location = path.resolve(row.outputPath).startsWith(`${this.outputDir}${path.sep}`) ? 'data' : 'library';
+    return { id: row.id, profile: row.profile, status, progress: row.progress, outputSize: row.outputSize, error, updatedAt: row.updatedAt, location };
   }
 
-  private isManagedOutput(outputPath: string): boolean {
+  /** A copy Vidalune made: in its data folder, or "<name>.vidalune-…mp4" next to the film it belongs to. */
+  private isManagedOutput(outputPath: string, mediaFileId: number): boolean {
     const absolute = path.resolve(outputPath);
-    return absolute.startsWith(`${this.outputDir}${path.sep}`);
+    if (absolute.startsWith(`${this.outputDir}${path.sep}`)) return true;
+    if (!isOptimizedCopy(absolute)) return false;
+    const source = this.sourcePath(mediaFileId);
+    return source !== null && path.dirname(absolute) === path.dirname(path.resolve(source));
   }
 
-  private assertFreeSpace(profile: OptimizationProfile, durationSec: number): void {
+  private sourcePath(mediaFileId: number): string | null {
+    const row = this.deps.db.select({ file: mediaFiles.path, root: libraries.path }).from(mediaFiles).innerJoin(libraries, eq(libraries.id, mediaFiles.libraryId)).where(eq(mediaFiles.id, mediaFileId)).get();
+    return row ? resolveMediaPath(row.root, row.file) : null;
+  }
+
+  /** Where the work (segments, the copy when it cannot go next to the film) is kept: the data folder. */
+  private workPath(mediaFileId: number, profile: OptimizationProfile): string {
+    return path.join(this.outputDir, String(mediaFileId), `${profile}.mp4`);
+  }
+
+  /** Next to the film when its folder can be written, otherwise in the data folder. */
+  private target(source: string, mediaFileId: number, profile: OptimizationProfile): string {
+    return canWriteBeside(source) ? copyBeside(source, profile) : this.workPath(mediaFileId, profile);
+  }
+
+  /**
+   * Copies made before they went next to the film are moved there, one at a time (a copy can be
+   * gigabytes over a network share). A copy whose film folder is read-only stays where it is.
+   */
+  async relocate(): Promise<number> {
+    let moved = 0;
+    const rows = this.deps.db.select().from(optimizedMedia).where(eq(optimizedMedia.status, 'ready')).all();
+    for (const row of rows) {
+      if (this.stopped) break;
+      const old = path.resolve(row.outputPath);
+      if (!old.startsWith(`${this.outputDir}${path.sep}`) || !fs.existsSync(old)) continue;
+      const source = this.sourcePath(row.mediaFileId);
+      if (!source || !canWriteBeside(source)) continue;
+      const next = copyBeside(source, row.profile);
+      const temp = `${next}.${process.pid}.partial.mp4`;
+      try {
+        await fs.promises.copyFile(old, temp);
+        await fs.promises.rename(temp, next);
+      } catch {
+        await fs.promises.rm(temp, { force: true }).catch(() => undefined);
+        continue;
+      }
+      // Changed meanwhile (removed or made again): leave the new state alone.
+      const now = this.deps.db.select().from(optimizedMedia).where(eq(optimizedMedia.id, row.id)).get();
+      if (!now || now.status !== 'ready' || path.resolve(now.outputPath) !== old) {
+        await fs.promises.rm(next, { force: true }).catch(() => undefined);
+        continue;
+      }
+      this.deps.db.update(optimizedMedia).set({ outputPath: next, updatedAt: Date.now() }).where(eq(optimizedMedia.id, row.id)).run();
+      await fs.promises.rm(old, { force: true }).catch(() => undefined);
+      const parent = path.dirname(old);
+      if (fs.existsSync(parent) && fs.readdirSync(parent).length === 0) fs.rmdirSync(parent);
+      moved += 1;
+    }
+    return moved;
+  }
+
+  /** Room for the remaining segments in the data folder, and for the finished copy where it goes. */
+  private assertFreeSpace(profile: OptimizationProfile, segmentsSec: number, outputPath: string, durationSec: number): void {
     const { maxBitrate } = OPTIMIZATION_PROFILES[profile];
     const videoBitsPerSecond = Number.parseFloat(maxBitrate) * (maxBitrate.endsWith('M') ? 1_000_000 : 1_000);
-    const requiredBytes = Math.ceil(((videoBitsPerSecond + 160_000) * durationSec) / 8 + 512 * 1024 ** 2);
-    const { bavail, bsize } = fs.statfsSync(this.outputDir);
-    const availableBytes = bavail * bsize;
-    if (availableBytes < requiredBytes) {
+    const bytes = (sec: number) => Math.ceil(((videoBitsPerSecond + 160_000) * sec) / 8 + 512 * 1024 ** 2);
+    const free = (dir: string) => {
+      const { bavail, bsize } = fs.statfsSync(dir);
+      return bavail * bsize;
+    };
+    const beside = !path.resolve(outputPath).startsWith(`${this.outputDir}${path.sep}`);
+    if (free(this.outputDir) < bytes(beside ? segmentsSec : segmentsSec + durationSec)) {
       throw new Error('Not enough free space on the Vidalune data disk for this copy.');
+    }
+    if (beside && free(path.dirname(outputPath)) < bytes(durationSec)) {
+      throw new Error('Not enough free space next to the film for this copy.');
     }
   }
 
@@ -408,7 +480,8 @@ export class OptimizationService {
   private async process(id: number): Promise<void> {
     const row = this.deps.db.select().from(optimizedMedia).where(eq(optimizedMedia.id, id)).get();
     if (!row) return;
-    const tempPath = `${row.outputPath}.${process.pid}.partial.mp4`;
+    let outputPath = row.outputPath;
+    let tempPath = `${outputPath}.${process.pid}.partial.mp4`;
     let checkpoint: OptimizationCheckpoint | null = null;
     let durationSec = 0;
     const assertRunning = () => {
@@ -416,15 +489,24 @@ export class OptimizationService {
     };
     try {
       assertRunning();
-      if (!this.isManagedOutput(row.outputPath)) throw new Error('Invalid optimization output path.');
+      if (!this.isManagedOutput(row.outputPath, row.mediaFileId)) throw new Error('Invalid optimization output path.');
       const source = this.source(row.mediaFileId);
       durationSec = source.file.durationSec ?? 0;
       const input = resolveMediaPath(source.root, source.file.path);
       if (!input || source.file.size !== row.sourceSize || source.file.mtimeMs !== row.sourceMtimeMs) throw new Error('The source file changed or is no longer available. Rescan the library and try again.');
+      // The folder may have become writable (or read-only) since this copy was queued.
+      outputPath = this.target(input, row.mediaFileId, row.profile);
+      tempPath = `${outputPath}.${process.pid}.partial.mp4`;
+      if (outputPath !== row.outputPath) this.deps.db.update(optimizedMedia).set({ outputPath }).where(eq(optimizedMedia.id, id)).run();
       const stat = fs.statSync(input);
       if (stat.size !== row.sourceSize || Math.floor(stat.mtimeMs) !== row.sourceMtimeMs) throw new Error('The source file changed. Rescan the library and try again.');
-      fs.mkdirSync(path.dirname(row.outputPath), { recursive: true });
-      fs.rmSync(tempPath, { force: true });
+      const work = this.workPath(row.mediaFileId, row.profile);
+      fs.mkdirSync(path.dirname(work), { recursive: true });
+      // A half-written copy left by an earlier run that was cut off (power loss, a killed process).
+      const prefix = `${path.basename(outputPath)}.`;
+      for (const name of fs.readdirSync(path.dirname(outputPath))) {
+        if (name.startsWith(prefix) && name.endsWith('.partial.mp4')) fs.rmSync(path.join(path.dirname(outputPath), name), { force: true });
+      }
       this.deps.db.update(optimizedMedia).set({ status: 'processing', error: null, updatedAt: Date.now() }).where(eq(optimizedMedia.id, id)).run();
 
       const support = this.deps.transcoding.support ?? await this.deps.transcoding.detect();
@@ -432,9 +514,9 @@ export class OptimizationService {
       const encoder = pickEncoder(preference, support) ?? pickEncoder('auto', support);
       if (!encoder) throw new Error('No working video encoder is available on this server.');
       assertRunning();
-      checkpoint = new OptimizationCheckpoint(row.outputPath, { sourceSize: row.sourceSize, sourceMtimeMs: row.sourceMtimeMs, durationSec, video: encodeArgs(encoder, support.vaapi) });
+      checkpoint = new OptimizationCheckpoint(work, { sourceSize: row.sourceSize, sourceMtimeMs: row.sourceMtimeMs, durationSec, video: encodeArgs(encoder, support.vaapi) });
       this.deps.db.update(optimizedMedia).set({ progress: Math.min(99, Math.floor(checkpoint.offset / durationSec * 100)) }).where(eq(optimizedMedia.id, id)).run();
-      this.assertFreeSpace(row.profile, durationSec + Math.max(0, durationSec - checkpoint.offset));
+      this.assertFreeSpace(row.profile, Math.max(0, durationSec - checkpoint.offset), outputPath, durationSec);
       const threads = optimizationThreads();
       if (!checkpoint.complete) {
         checkpoint.prepare();
@@ -450,10 +532,15 @@ export class OptimizationService {
       assertRunning();
       if (probe.videoCodec !== 'h264' || probe.container !== 'mp4') throw new Error('FFmpeg did not produce a compatible H.264 MP4 file.');
       const outputSize = fs.statSync(tempPath).size;
-      fs.rmSync(row.outputPath, { force: true });
-      fs.renameSync(tempPath, row.outputPath);
+      fs.rmSync(outputPath, { force: true });
+      fs.renameSync(tempPath, outputPath);
+      // A copy made before in the other place is no longer needed.
+      if (row.outputPath !== outputPath && this.isManagedOutput(row.outputPath, row.mediaFileId)) fs.rmSync(row.outputPath, { force: true });
+      if (work !== outputPath) fs.rmSync(work, { force: true });
       this.deps.db.update(optimizedMedia).set({ status: 'ready', progress: 100, outputSize, probeJson: JSON.stringify(probe), error: null, updatedAt: Date.now() }).where(eq(optimizedMedia.id, id)).run();
       fs.rmSync(checkpoint.directory, { recursive: true, force: true });
+      const workDir = path.dirname(work);
+      if (fs.existsSync(workDir) && fs.readdirSync(workDir).length === 0) fs.rmdirSync(workDir);
     } catch (error) {
       try { checkpoint?.capture(false); } catch { /* The last durable checkpoint remains usable. */ }
       fs.rmSync(tempPath, { force: true });

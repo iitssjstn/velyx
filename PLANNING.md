@@ -301,12 +301,11 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
-- **Kopie van de optimizer staat niet in de juiste map** (gemeld door de eigenaar 18 okt; nog uitzoeken, niets bouwen).
-  Zoals gebouwd in 0.19.24: `<DATA_DIR>/optimized/<bestands-id>/<profiel>.mp4` (`backend/src/services/optimization.ts`,
-  `outputDir`), dus bij Docker `./data/optimized/…` naast de compose, niet naast de film op de NAS; bewust buiten de
-  gescande bibliotheek (die is read-only gemount en de scanner zou de kopie anders als tweede bestand zien). De README
-  noemt `optimized/` niet bij de datamap. Gevraagd aan de eigenaar: waar keek hij en waar wil hij ze hebben (bv. een eigen
-  instelbare map op de NAS, omdat de datamap op een kleine schijf kan staan).
+- **Kopie van de optimizer staat niet in de juiste map** (gemeld door de eigenaar 18 okt; gebouwd in 0.19.80): de kopie
+  stond in `<DATA_DIR>/optimized/<bestands-id>/<profiel>.mp4`, niet naast de film. Keuze eigenaar: "In de map waar hij
+  het vandaan haalt, dat is logischer". Ook (eigenaar): `:ro` in de voorbeelden is onlogisch naast Opschonen (dat
+  bestanden verwijdert); hij had het zelf al weggehaald. Besluit: "Bouw het".
+
 - **Tv-speler volledig te bedienen met de afstandsbediening** (wens eigenaar 18 okt, na het voorbeeld van 0.19.78:
   "ik wil dat de kijker die een Chromecast met een afstandsbediening hem eigenlijk volledig kan bedienen met de
   afstandsbediening en diegene zonder afstandsbediening met de app"; "Eigenlijk zou je de speler over kunnen nemen van de
@@ -1614,3 +1613,29 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - PR #164 gemerged 18 okt met toestemming van de eigenaar ("Merge het als het groen is"; alle checks groen); release
   `v0.19.79` gecontroleerd: APK, beide `.deb`'s, `.aab` en `vidalune-0.19.79-setup.exe`; de accountservice-image startte
   vanzelf na de Windows-workflow en slaagde.
+
+## Versie 0.19.80 (kopie van de optimizer naast de film, media standaard beschrijfbaar)
+
+- Op verzoek van de eigenaar ("Bouw het", 18 okt), na zijn melding (zie "Gemeld tijdens het testen").
+- De klare kopie staat naast het origineel als `<naam>.vidalune-720p.mp4` of `-1080p.mp4` (`copyBeside` in
+  `backend/src/services/optimized-copy.ts`). Het werk (segmenten, checkpoints) blijft in `data/optimized/`, zodat hervatten
+  na een update gewoon werkt; alleen het samenvoegen schrijft naast de film (als `….partial.mp4`, daarna hernoemd).
+  Scanner en mapbewaker slaan die namen over (`isOptimizedCopy`), dus geen tweede bestand en niet bij "dubbele bestanden"
+  in Opschonen. Is de map van de film alleen-lezen (`:ro`), dan blijft de kopie in de datamap (`location: 'data'`);
+  Beheer > Optimalisatie zegt bij een klare kopie waar hij staat. Ruimte wordt gecontroleerd op beide plekken.
+- Opruimen: de kopie gaat weg bij verwijderen in Beheer > Optimalisatie, bij verwijderen via Opschonen en als de film
+  uit de bibliotheek verdwijnt (scan). Een half geschreven kopie van een afgebroken run wordt bij een nieuwe poging gewist.
+- Bestaande kopieën uit de datamap gaan een minuut na het starten vanzelf naast hun film (`relocate`, één tegelijk,
+  kopiëren en dan pas de oude weg); bij een alleen-lezen map blijven ze staan.
+- `:ro` weg uit de voorbeelden: README (compose en extra schijven), `docker/DOCKERHUB.md`, `docker-compose.build.yml` en
+  het compose-bestand van het installatiescript (`cloud/src/install.ts`), met uitleg dat `:ro` mag voor wie een map
+  alleen-lezen wil (dan geen Opschonen en kopieën in de datamap). README: nieuw stukje "Compatible copies" en
+  `optimized/` in de tabel van de datamap. De CI-rooktest houdt `:ro` (test juist die situatie).
+- Tests: backend (naam en herkenning, niet gescand, naast de film na een echte encode en na herscannen nog één bestand,
+  alleen-lezen map naar de datamap, verplaatsen van oude kopieën en niet bij alleen-lezen, verwijderen via Beheer en bij
+  verdwijnen uit de bibliotheek, half geschreven kopie gewist; bestaande hervat- en stoptests op de nieuwe plek), cleanup
+  (kopie gaat mee met verwijderen), cloud (installatiescript zonder `:ro`), frontend (waar de kopie staat). Backend 600,
+  frontend 350, cloud 192, app 173 tests; typechecks, lint (4 bekende waarschuwingen) en builds slagen.
+- Door de eigenaar te testen: na het bijwerken (media al zonder `:ro`) een nieuwe kopie maken en kijken of hij naast de
+  film staat; een minuut na het starten verhuizen bestaande kopieën uit `data/optimized/`.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1980) en beide lockfiles bijgewerkt.

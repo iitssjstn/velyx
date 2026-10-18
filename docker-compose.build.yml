@@ -26,5 +26,5 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ${DATA_PATH:-./data}:/data
-      - ${MOVIES_PATH:-./media/movies}:/media/movies:ro
-      - ${TV_PATH:-./media/tv}:/media/tv:ro
+      - ${MOVIES_PATH:-./media/movies}:/media/movies
+      - ${TV_PATH:-./media/tv}:/media/tv

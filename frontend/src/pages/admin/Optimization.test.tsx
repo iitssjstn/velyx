@@ -39,6 +39,14 @@ describe('OptimizationPage', () => {
     expect(screen.getByRole('status').textContent).toContain('On hold');
   });
 
+  it('says where a finished copy is: next to the film, or in the data folder when that folder is read-only', async () => {
+    const beside = { ...base, id: 4, profile: 'compat-1080p', status: 'ready', progress: 100, outputSize: 2_000_000_000, movieId: 7, title: 'Dune', year: 2021, location: 'library' };
+    const kept = { ...beside, id: 5, fileId: 10, title: 'Arrival', year: 2016, location: 'data' };
+    setup({ paused: false, items: [beside, kept] });
+    expect(await screen.findByText('Next to the film, as <name>.vidalune-720p.mp4 or -1080p.mp4.')).toBeTruthy();
+    expect(screen.getByText("In the Vidalune data folder: the film's folder is read-only (mounted with :ro).")).toBeTruthy();
+  });
+
   it('retries a failed copy with the same profile', async () => {
     const calls = setup({ paused: false, items: [failed] });
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Retry' }));

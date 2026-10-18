@@ -4,6 +4,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
 import { cleanupDecisions, cleanupPlanned, episodes, libraries, mediaFiles, movies, shows, userLibraries, users, watchProgress } from '../db/schema.js';
 import { resolveMediaPath } from './paths.js';
+import { removeCopiesBeside } from './optimized-copy.js';
 import { tr, type Language } from '../i18n/index.js';
 import { DEFAULT_CLEANUP_RULES, type CleanupRules, type CustomCleanupRule } from './settings.js';
 import { formatSummary } from './library-health.js';
@@ -342,6 +343,8 @@ export function deleteFiles(db: DB, fileIds: number[], candidates: Set<number>, 
     }
     try {
       fs.unlinkSync(abs);
+      // The optimizer's copy next to it goes too.
+      removeCopiesBeside(db, [id]);
       results.push({ fileId: id, libraryId: row.f.libraryId, path: row.f.path, size: row.f.size, ok: true, error: null });
     } catch (err) {
       fail('Could not delete the file: {reason}', { reason: (err as NodeJS.ErrnoException).code ?? (err as Error).message });

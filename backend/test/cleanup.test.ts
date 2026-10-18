@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { addLibrary, createTestEnv, createUser, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
-import { mediaFiles, movies, users, watchProgress } from '../src/db/schema.js';
+import { mediaFiles, movies, optimizedMedia, users, watchProgress } from '../src/db/schema.js';
 import { cleanupCandidates, effectiveRules } from '../src/services/cleanup.js';
 import { DEFAULT_CLEANUP_RULES } from '../src/services/settings.js';
 
@@ -118,6 +118,10 @@ describe('deleting', () => {
     await put('/api/admin/cleanup/settings', { deletion: true });
     const heat720 = fileOf('Heat.1995.720p.mkv');
     const heat4k = fileOf('Heat.1995.2160p.mkv');
+    // The optimizer's copy next to the deleted file goes with it.
+    const copy = path.join(root, 'Heat (1995)/Heat.1995.720p.vidalune-720p.mp4');
+    touch(copy);
+    db().insert(optimizedMedia).values({ mediaFileId: heat720.id, profile: 'compat-720p', status: 'ready', progress: 100, outputPath: copy, sourceSize: heat720.size, sourceMtimeMs: heat720.mtimeMs, createdAt: Date.now(), updatedAt: Date.now() }).run();
     const res = (await post('/api/admin/cleanup/delete', { fileIds: [heat720.id, heat4k.id], confirm: true })).json();
     expect(res.results).toEqual([
       expect.objectContaining({ fileId: heat720.id, ok: true }),
@@ -125,6 +129,7 @@ describe('deleting', () => {
     ]);
     expect(fs.existsSync(path.join(root, 'Heat (1995)/Heat.1995.720p.mkv'))).toBe(false);
     expect(fs.existsSync(path.join(root, 'Heat (1995)/Heat.1995.2160p.mkv'))).toBe(true);
+    expect(fs.existsSync(copy)).toBe(false);
     await env.ctx.scans.whenIdle();
     expect(db().select().from(mediaFiles).where(eq(mediaFiles.id, heat720.id)).get()).toBeUndefined();
     expect(db().select().from(movies).where(eq(movies.title, 'Heat')).get()).toBeTruthy();
