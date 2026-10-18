@@ -301,6 +301,12 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Kopie van de optimizer staat niet in de juiste map** (gemeld door de eigenaar 18 okt; nog uitzoeken, niets bouwen).
+  Zoals gebouwd in 0.19.24: `<DATA_DIR>/optimized/<bestands-id>/<profiel>.mp4` (`backend/src/services/optimization.ts`,
+  `outputDir`), dus bij Docker `./data/optimized/…` naast de compose, niet naast de film op de NAS; bewust buiten de
+  gescande bibliotheek (die is read-only gemount en de scanner zou de kopie anders als tweede bestand zien). De README
+  noemt `optimized/` niet bij de datamap. Gevraagd aan de eigenaar: waar keek hij en waar wil hij ze hebben (bv. een eigen
+  instelbare map op de NAS, omdat de datamap op een kleine schijf kan staan).
 - **Tv-speler volledig te bedienen met de afstandsbediening** (wens eigenaar 18 okt, na het voorbeeld van 0.19.78:
   "ik wil dat de kijker die een Chromecast met een afstandsbediening hem eigenlijk volledig kan bedienen met de
   afstandsbediening en diegene zonder afstandsbediening met de app"; "Eigenlijk zou je de speler over kunnen nemen van de
