@@ -301,6 +301,20 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Ondertitels lopen niet gelijk na verder kijken tijdens een transcode** (gemeld door de eigenaar 18 okt, screenshot:
+  HEVC 1080p → H.264, AAC 5.1 → stereo, MKV, externe ondertitel; nog niet bouwen tot de eigenaar het zegt). Oorzaak,
+  nagebootst met echte FFmpeg (23,976 fps): bij omgezette video belooft de afspeellijst stukjes van precies 4 s
+  (`gridLayout`), maar FFmpeg knipt ze niet daar. De HLS-muxer knipt pas als er 4 s × stuknummer verstreken is sinds het
+  eerste beeld van de run; dat eerste beeld ligt net na de grens (bv. 20,06 s), dus het afgedwongen keyframe op 24,02 s
+  telt net niet mee en er wordt geknipt op het volgende gewone keyframe (`-g 48`, 2 s later). Gevolg: elk stukje na het
+  eerste bevat beeld van ~2 s later dan de lijst zegt (stuk 1 begint op 6,05 s in plaats van 4). hls.js zet zijn klok
+  op het eerste stukje dat hij laadt; komt dat uit een run die eerder begon (verder kijken terwijl de vorige run nog
+  bezig is, `segment()` wacht dan op die run), dan loopt de klok ~2 s achter en dus ook de ondertitels (en de
+  opgeslagen positie). Voorstel: bij HLS met omzetten alleen keyframes op de grens (`-g` groot, de grens blijft
+  afgedwongen) en knippen bij elk keyframe (`-hls_time` klein, zoals bij kopiëren) in `hlsArgs`
+  (`backend/src/playback/hls.ts`); nagebootst: stukken beginnen dan op 4,05 / 8,05 / … en 24,02 / 28,03 / ….
+  Regressietest met echte FFmpeg: elk stukje begint op zijn plek in de lijst, ook bij een run die halverwege start.
+
 - **Tweede seizoen van een serie niet aan te vragen** (gemeld door de eigenaar 17 okt; gebouwd in 0.19.75):
   staat één seizoen van een serie op de server, dan geldt de hele serie als "in de bibliotheek". De server weigert
   elke aanvraag (`POST /api/seerr/requests`, 409 "Dit staat al in de bibliotheek", `backend/src/routes/seerr.ts`), en
