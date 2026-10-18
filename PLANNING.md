@@ -301,6 +301,23 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Casten: speler op de tv niet mooi, ondertitelkeuze vergeten, zwarte randen** (gemeld door de eigenaar 18 okt, twee
+  foto's van de tv; nog niet bouwen tot de eigenaar het zegt):
+  1. Wat de tv bij pauze toont (titel, balk, tijden, 30 s-knoppen, CC) is Google's eigen bediening van
+     `<cast-media-player>` (`cloud/web/cast/`); daarvan zijn alleen kleuren, lettertype en logo in te stellen (`cast.css`).
+     Een eigen uiterlijk kan alleen met een eigen `<video>` (`PlayerManager.setMediaElement`) en eigen bediening erboven.
+     De grote typemachineletters "American Hostage" lijken in de aflevering zelf te zitten (nog te bevestigen).
+  2. Een ondertitel die op de tv gekozen wordt (CC-knop of Google Home) komt niet terug bij website en app: die luisteren
+     niet naar `activeTrackIds` in de status van de tv. De keuze wordt dus niet bewaard en de volgende aflevering of cast
+     start met de oude keuze van de telefoon/browser. Website: de beginkeuze uit de voorkeuren gebeurt pas in
+     `onLoadedMetadata` van de eigen video (`Player.tsx`); start casten voordat die laadt, dan gaat er geen ondertitel mee
+     (nog te controleren). Eerst navragen waar de eigenaar kiest en wanneer het vergeten wordt.
+  3. Zwarte randen: films en series in 2,39:1 (bv. 1920×800) passen zo op een 16:9-tv; weghalen kan alleen door in te
+     zoomen (bij 2,39:1 valt ~25 % van de breedte weg). Google's speler kent geen zoomstand; met een eigen `<video>`
+     (zie 1) kan een keuze "Passend / Vullen" (`object-fit: contain/cover`). Ook de tv zelf heeft vaak een zoomstand.
+  Voorstel: eigen tv-speler (eigen video en bediening in Vidalune-stijl, zoomkeuze) plus de ondertitelkeuze van de tv
+  terugsturen en bewaren. Eerst een voorbeeld van het tv-scherm laten zien.
+
 - **Ondertitels lopen niet gelijk na verder kijken tijdens een transcode** (gemeld door de eigenaar 18 okt, screenshot:
   HEVC 1080p → H.264, AAC 5.1 → stereo, MKV, externe ondertitel; gebouwd in 0.19.77). Oorzaak,
   nagebootst met echte FFmpeg (23,976 fps): bij omgezette video belooft de afspeellijst stukjes van precies 4 s
