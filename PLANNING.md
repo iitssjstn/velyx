@@ -302,7 +302,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 ## Gemeld tijdens het testen
 
 - **Ondertitels lopen niet gelijk na verder kijken tijdens een transcode** (gemeld door de eigenaar 18 okt, screenshot:
-  HEVC 1080p → H.264, AAC 5.1 → stereo, MKV, externe ondertitel; nog niet bouwen tot de eigenaar het zegt). Oorzaak,
+  HEVC 1080p → H.264, AAC 5.1 → stereo, MKV, externe ondertitel; gebouwd in 0.19.77). Oorzaak,
   nagebootst met echte FFmpeg (23,976 fps): bij omgezette video belooft de afspeellijst stukjes van precies 4 s
   (`gridLayout`), maar FFmpeg knipt ze niet daar. De HLS-muxer knipt pas als er 4 s × stuknummer verstreken is sinds het
   eerste beeld van de run; dat eerste beeld ligt net na de grens (bv. 20,06 s), dus het afgedwongen keyframe op 24,02 s
@@ -1479,3 +1479,19 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - PR #161 gemerged 17 okt op verzoek van de eigenaar ("merge het maar"); release `v0.19.76` gecontroleerd: APK, beide `.deb`'s,
   `.aab` en `vidalune-0.19.76-setup.exe`. De accountservice-image startte vanzelf na de Windows-workflow en slaagde; het `.aab`
   ging naar de interne test (app veranderd). Bevestigd door de eigenaar (17 okt): "Het doet het zoals ik het wil".
+
+## Versie 0.19.77 (ondertitels gelijk na verder kijken tijdens een transcode)
+
+- Op verzoek van de eigenaar ("bouw het, ik ga slapen je mag mergen als alles goed is", 18 okt), na zijn melding (zie
+  "Gemeld tijdens het testen").
+- `hlsArgs` (`backend/src/playback/hls.ts`), alleen bij omgezette video: geen eigen keyframes van de encoder meer (`-g`
+  100000, overschrijft de `-g 48` van `encodeArgs`), afgedwongen keyframes op de grens vanaf het stuk ná het eerste van
+  de run (het eerste beeld is al een keyframe; anders ontstaat een stuk van één beeld als dat beeld net vóór de grens
+  ligt) en een nieuw stuk bij elk keyframe (`-hls_time 0.01`, zoals bij kopiëren). Geldt ook voor HLS op de Chromecast.
+  De live stream (`remux.ts`) en de optimizer zijn niet veranderd.
+- Test (`backend/test/hls.test.ts`, echte FFmpeg, 23,976 fps met AAC 5.1 zoals het echte bestand): elk stuk begint op
+  zijn plek in de lijst, vanaf het begin en na een run die halverwege start; faalt op de oude code (2,05 s verschoven).
+  Backend 592, frontend 346, cloud 178, app 169 tests; typechecks en lint (4 bekende waarschuwingen) slagen.
+- Niet hier te testen: de hardware-encoders (NVENC, VAAPI) met de lange GOP. Door de eigenaar te testen: een film of serie
+  die omgezet wordt (HEVC) halverwege verder kijken en de ondertitels volgen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1977) en beide lockfiles bijgewerkt.

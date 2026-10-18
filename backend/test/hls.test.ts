@@ -42,7 +42,9 @@ describe('HLS pieces', () => {
     expect(gridLayout(10).starts).toEqual([0, 4, 8]);
     const args = hlsArgs('in.mkv', 'mpeg2video', plan, gridLayout(10), 1, '/tmp/x', { input: [], output: ['-c:v', 'libx264'] });
     expect(args).toContain('-force_key_frames');
-    expect(args[args.indexOf('-force_key_frames') + 1]).toBe('4.000,8.000');
+    // From piece 1: its own start is the run's first frame (always a keyframe), the next ones are forced.
+    expect(args[args.indexOf('-force_key_frames') + 1]).toBe('8.000');
+    expect(args[args.indexOf('-hls_time') + 1]).toBe('0.01');
     expect(args[args.indexOf('-ss') + 1]).toBe('4.000');
     expect(args).toContain('-sc_threshold');
   });
@@ -149,6 +151,33 @@ describe('HLS pieces', () => {
       expect(Math.abs(startOf([init, await sessions.segment(src, 6)]) - 24)).toBeLessThan(0.1);
     } finally {
       sessions.stopAll();
+    }
+  });
+
+  it('cuts converted pieces on the grid when no frame falls exactly on it (23.976 fps)', async () => {
+    // At 23.976 fps a run's first frame lies just after its grid point, and the next forced keyframe
+    // just under 4 s later. Every piece must still begin where the list says: the player sets its clock
+    // (and so the subtitles) by the first piece it loads, which may come from a run that began earlier.
+    const film = path.join(dir, 'Film.mkv');
+    execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=24000/1001', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '60', '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '240', '-c:a', 'aac', '-ac', '6', '-y', film]);
+    const sessions = new HlsSessions('ffmpeg', 'ffprobe', path.join(dir, 'cache-vt-ntsc'));
+    try {
+      const layout = await sessions.layout('ntsc', film, 60, true);
+      const src: HlsSource = { key: 'u1:2:vt', input: film, videoCodec: 'h264', plan, layout, encode: encodeArgs('software') };
+      const init = await sessions.init(src);
+      for (const n of [0, 1, 2, 3, 6, 7]) expect(Math.abs(startOf([init, await sessions.segment(src, n)]) - 4 * n)).toBeLessThan(0.1);
+    } finally {
+      sessions.stopAll();
+    }
+    // A run that starts halfway (resuming, or a jump far ahead), and the pieces after it.
+    const resumed = new HlsSessions('ffmpeg', 'ffprobe', path.join(dir, 'cache-vt-ntsc-resume'));
+    try {
+      const layout = await resumed.layout('ntsc', film, 60, true);
+      const src: HlsSource = { key: 'u1:2:vt', input: film, videoCodec: 'h264', plan, layout, encode: encodeArgs('software') };
+      const init = await resumed.init(src);
+      for (const n of [9, 10, 11]) expect(Math.abs(startOf([init, await resumed.segment(src, n)]) - 4 * n)).toBeLessThan(0.1);
+    } finally {
+      resumed.stopAll();
     }
   });
 });
