@@ -317,6 +317,13 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
      (`CAST_SUBTITLE_DEFAULTS` in `frontend/src/lib/prefs.ts`, `TV_SUBTITLE_STYLE` in `app/src/lib/subtitleStyle.ts`).
      Nu al uit te zetten: speler > instellingen > Ondertitelstijl op tv: Eigen, Achtergrond: Geen. Voorstel: de
      tv-standaard zonder achtergrond (alleen schaduw of omlijning); besluit eigenaar.
+     Eigenaar (18 okt): uitzetten werkt niet, het vlak blijft. De app stuurt de stijl wel (`setTextTrackStyle`, ook bij
+     het laden in `textTrackStyle`), maar onze cast-speler (`cloud/web/cast/receiver.js`) doet er zelf niets mee; het
+     sans-serif-lettertype met zwart vlak lijkt de eigen standaard van Google's speler voor HLS. Vermoeden (niet op een
+     echte tv te controleren): de stijl wordt helemaal genegeerd. Test voor de eigenaar: kleur op Geel zetten tijdens
+     het casten; blijft het wit, dan klopt het. Oplossing: de speler zet de stijl zelf (bij LOAD en EDIT_TRACKS_INFO via
+     `getTextTracksManager().setTextTrackStyle`), of tekent de ondertitels zelf boven het beeld (zeker van de stijl;
+     past bij de eigen tv-speler van punt 1).
   Voorstel: eigen tv-speler (eigen video en bediening in Vidalune-stijl) plus de ondertitelkeuze van de tv
   terugsturen en bewaren. Eerst een voorbeeld van het tv-scherm laten zien.
 
