@@ -17,7 +17,7 @@ import { SeekBar } from '../../../components/SeekBar';
 import { castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
 import { castSettled, castStartAt, castStatus } from '../../../lib/castStatus';
-import { applyCastTextTrackStyle, castLoadRequest, castTrackIds, loadCastWithCurrentSubtitle, sessionUsable, tvFilePosition, type CastSession } from '../../../lib/cast';
+import { applyCastTextTrackStyle, castLoadRequest, castTrackIds, followTv, loadCastWithCurrentSubtitle, sessionUsable, tvFilePosition, tvMedia, tvSubtitleKey, type CastSession } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
@@ -65,7 +65,7 @@ const NEXT_COUNTDOWN = 10;
 const DOUBLE_TAP_MS = 300;
 
 export default function Player() {
-  const { kind, id, t: startParam } = useLocalSearchParams<{ kind: string; id: string; t?: string }>();
+  const { kind, id, t: startParam, tv: tvParam } = useLocalSearchParams<{ kind: string; id: string; t?: string; tv?: string }>();
   const { api, t, serverUrl } = useSession();
   const [castActive, setCastActive] = useState(false);
 
@@ -105,7 +105,7 @@ export default function Player() {
       {item.error ? (
         <Problem message={errorMessage(item.error, t)} />
       ) : item.data && subtitlePreferencesReady(prefs) ? (
-        <Playback key={`${item.data.kind}-${item.data.id}`} item={item.data} prefs={prefs.data ?? null} startAt={startParam !== undefined ? Number(startParam) : null} onCastingChange={setCastActive} />
+        <Playback key={`${item.data.kind}-${item.data.id}`} item={item.data} prefs={prefs.data ?? null} startAt={startParam !== undefined ? Number(startParam) : null} onTv={tvParam === '1'} onCastingChange={setCastActive} />
       ) : (
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} size="large" />
@@ -125,7 +125,7 @@ function Problem({ message }: { message: string }) {
   );
 }
 
-function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs: Prefs | null; startAt: number | null; onCastingChange: (active: boolean) => void }) {
+function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item; prefs: Prefs | null; startAt: number | null; /** Opened because the TV started this title itself: it plays there already. */ onTv: boolean; onCastingChange: (active: boolean) => void }) {
   const { api, t, serverUrl, language, cloudServerId, user } = useSession();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
@@ -269,6 +269,11 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   }, []);
   const castDevice = useCastDevice();
   const mediaStatus = useMediaStatus();
+  // The file Vidalune's TV player says it plays (null: unknown, or another receiver).
+  const tvFile = useRef<number | null>(null);
+  tvFile.current = tvMedia(mediaStatus?.mediaInfo)?.fileId ?? null;
+  // A subtitle chosen here, until the TV reports it.
+  const subtitleSent = useRef<{ key: string | null; until: number } | null>(null);
   // The TV's position (file time) while casting, as last reported; saved when casting ends.
   const tvPosition = useRef<number | null>(null);
   const onTvProgress = useRef<(streamSec: number) => void>(() => undefined);
@@ -351,12 +356,13 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
         const keyframe = s.session.decision.seek === 'restart' && at > 0 ? await api.get<{ start: number; seek: number }>(`/api/media/${item.fileId}/keyframe?t=${at.toFixed(3)}${s.session.decision.optimized ? `&optimized=${s.session.decision.optimized.id}` : ''}`).then((r) => ({ offset: r.start, seek: r.seek })) : null;
         if (!active()) return;
         // Load the safe TV preset first; unsupported custom styling must not prevent playback.
-        const { request, offset: from } = castLoadRequest({ session: s.session, url: (path) => new URL(path, `${s!.session.serverUrl}/`).toString(), title: item.title, subtitle: item.subtitle, artwork: imagePath(item.poster ?? item.artwork, 'w780'), at, keyframe, subtitleKey: subtitleRef.current?.key ?? null });
+        const { request, offset: from } = castLoadRequest({ session: s.session, url: (path) => new URL(path, `${s!.session.serverUrl}/`).toString(), title: item.title, subtitle: item.subtitle, artwork: imagePath(item.poster ?? item.artwork, 'w780'), at, keyframe, subtitleKey: subtitleRef.current?.key ?? null, fileId: item.fileId, audioIndex: audio });
         setOffset(from);
         setTime(Math.max(0, at - from));
         tvStartedAt.current = at;
         tvSettled.current = false;
         setEnded(false);
+        subtitleSent.current = { key: subtitleRef.current?.key ?? null, until: Date.now() + 5000 };
         await loadCastWithCurrentSubtitle({ request, session: s.session, subtitleKey: () => subtitleRef.current?.key ?? null, load: (media) => client.loadMedia(media), select: (ids) => client.setActiveTrackIds(ids), active });
         if (active()) {
           castLoading.current = false;
@@ -369,6 +375,21 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
       }
     },
     [api, client, item.fileId, item.title, item.subtitle, item.artwork, item.poster, answer, t, applyCastStyle, castFailed],
+  );
+  const attachTv = useRef(onTv);
+  /** The TV plays this title already (it started it itself): this screen becomes its remote without loading it again. */
+  const castAttach = useCallback(
+    async (audio: number | null) => {
+      if (!client) return;
+      setOffset(0);
+      tvStartedAt.current = 0;
+      tvSettled.current = true;
+      setEnded(false);
+      // For its subtitles (the TV numbers them in the same order) and later changes.
+      const session = await api.post<CastSession>('/api/cast/session', { fileId: item.fileId });
+      if (mounted.current) castSession.current = { session, audio };
+    },
+    [api, client, item.fileId],
   );
   useEffect(() => {
     setCastStyleFallback(false);
@@ -519,7 +540,8 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
     void save(duration, true);
     setEnded(true);
     setControls(true);
-    if (item.next && !nextDismissed && countdown === null) setCountdown(NEXT_COUNTDOWN);
+    // While casting, Vidalune's TV player counts down and starts the next episode itself.
+    if (item.next && !nextDismissed && countdown === null && !castingRef.current) setCountdown(NEXT_COUNTDOWN);
   };
 
   // Connected to a Chromecast: continue there from here (also when the next episode opens while
@@ -530,7 +552,11 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
       setCasting(true);
       player.pause();
       localSkipped.current = false;
-      void castLoad(castStartAt(position, wantedStart.current), audioIndex).catch(castFailed);
+      // Opened because the TV started this title itself: once, when the TV is (still) on it.
+      const attach = attachTv.current && (tvFile.current === null || tvFile.current === item.fileId);
+      attachTv.current = false;
+      if (attach) void castAttach(audioIndex).catch(() => undefined);
+      else void castLoad(castStartAt(position, wantedStart.current), audioIndex).catch(castFailed);
     } else if (!client && castingRef.current) {
       castingRef.current = false;
       // Where the TV was (also when casting was stopped on the TV or while the app was away).
@@ -564,8 +590,37 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   }, [casting, castState, castIdle]);
   // Another subtitle picked while casting: shown on the TV.
   useEffect(() => {
-    if (casting && client) void client.setActiveTrackIds(castTrackIds(castSession.current?.session ?? null, subtitle?.key ?? null)).catch(() => undefined);
+    if (!casting || !client) return;
+    if (tvSubtitleKey(mediaStatus?.activeTrackIds, castSession.current?.session ?? null) === (subtitle?.key ?? null)) return;
+    subtitleSent.current = { key: subtitle?.key ?? null, until: Date.now() + 5000 };
+    void client.setActiveTrackIds(castTrackIds(castSession.current?.session ?? null, subtitle?.key ?? null)).catch(() => undefined);
+    // When the choice here changes only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [casting, client, subtitle]);
+  // A subtitle chosen on the TV (its remote): shown here and remembered, as if chosen here.
+  useEffect(() => {
+    if (!casting || !answer || castLoading.current || tvFile.current !== item.fileId) return;
+    const key = tvSubtitleKey(mediaStatus?.activeTrackIds, castSession.current?.session ?? null);
+    const sent = subtitleSent.current;
+    if (key === undefined || (sent && key !== sent.key && Date.now() < sent.until)) return;
+    subtitleSent.current = null;
+    if (key === (subtitleRef.current?.key ?? null)) return;
+    const option = key === null ? null : answer.subtitles.find((o) => o.key === key);
+    if (option === undefined) return;
+    setSubtitle(option);
+    void rememberSubtitle(choiceFor(option));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [casting, mediaStatus?.activeTrackIds, answer]);
+  // The TV started another title itself (the next episode): this screen follows it.
+  const lastTvFile = useRef<number | null>(null);
+  useEffect(() => {
+    const tv = tvMedia(mediaStatus?.mediaInfo);
+    const before = lastTvFile.current;
+    if (tv) lastTvFile.current = tv.fileId;
+    const next = casting && !castLoading.current ? followTv(before, tv, item.fileId) : null;
+    if (next) router.replace(`/play/${next.kind}/${next.id}?tv=1`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [casting, mediaStatus?.mediaInfo]);
 
   // ---------------------------------------------------------------- progress
   const save = useCallback(
@@ -590,7 +645,8 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   onTvProgress.current = (streamSec) => {
     if (!castingRef.current) return;
     const at = tvFilePosition(offset, streamSec);
-    if (at === null) return;
+    // The TV is on another file (it started the next episode itself, and saves that one).
+    if (at === null || (tvFile.current !== null && tvFile.current !== item.fileId)) return;
     // Not before the TV got to the resume point: it keeps its resume point otherwise.
     tvSettled.current = castSettled(tvSettled.current, at, tvStartedAt.current);
     if (!tvSettled.current) return;
@@ -640,7 +696,7 @@ function Playback({ item, prefs, startAt, onCastingChange }: { item: Item; prefs
   }, [position, playing, loading, upNextAt]);
   useEffect(() => {
     if (!item.next || nextDismissed) return;
-    if (nearEnd && playing && reachedEnd.current) setCountdown((c) => c ?? NEXT_COUNTDOWN);
+    if (nearEnd && playing && reachedEnd.current && !castingRef.current) setCountdown((c) => c ?? NEXT_COUNTDOWN);
     // Seeking back out of the end cancels it.
     if (!nearEnd && !ended) setCountdown(null);
   }, [nearEnd, playing, ended, item.next, nextDismissed, position]);

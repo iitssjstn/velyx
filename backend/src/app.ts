@@ -374,11 +374,13 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     if (castToken !== undefined) {
       const claims = typeof castToken === 'string' ? await verifyPlaybackJwt(ctx.config.sessionSecret, castToken) : null;
       const target = castPath(request.url.split('?')[0]);
-      const progress = target === 'progress';
-      if (!claims || !target || (progress ? request.method !== 'POST' : request.method !== 'GET' && request.method !== 'HEAD')) return;
+      // What only Vidalune's cast player asks (POST: save progress, a new session; GET: what to show).
+      const post = target === 'progress' || target === 'tv-session';
+      const player = post || target === 'tv';
+      if (!claims || !target || (post ? request.method !== 'POST' : request.method !== 'GET' && request.method !== 'HEAD')) return;
       const allowed =
-        // Only a cast session's token (not a browser's direct-play one) may save progress.
-        (progress && claims.artwork === true) ||
+        // Only a cast session's token (not a browser's direct-play one) may do what the cast player does.
+        (player && claims.artwork === true) ||
         (typeof target === 'string' && target === 'image' && claims.artwork === true) ||
         (typeof target === 'object' && 'fileId' in target && target.fileId === claims.fileId) ||
         (typeof target === 'object' && 'subtitleId' in target && target.table === 'subtitles' && ctx.db.select({ file: subtitleRows.mediaFileId }).from(subtitleRows).where(eq(subtitleRows.id, target.subtitleId)).get()?.file === claims.fileId) ||

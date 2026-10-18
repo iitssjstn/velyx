@@ -304,7 +304,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 - **Tv-speler volledig te bedienen met de afstandsbediening** (wens eigenaar 18 okt, na het voorbeeld van 0.19.78:
   "ik wil dat de kijker die een Chromecast met een afstandsbediening hem eigenlijk volledig kan bedienen met de
   afstandsbediening en diegene zonder afstandsbediening met de app"; "Eigenlijk zou je de speler over kunnen nemen van de
-  website"). Nog niet bouwen; voorstel aan de eigenaar:
+  website"). Gebouwd in 0.19.79 (fase 1 en 2, zie daar); voorstel aan de eigenaar:
   - Niet de websitepagina zelf op de tv (zwaar voor een Chromecast, gemaakt voor muis en toetsenbord, en het afspelen moet
     bij Google's framework blijven zodat de app als afstandsbediening blijft werken), maar dezelfde functies in een
     tv-bediening voor de pijltjes (10-foot, focus zichtbaar), met de logica van de website hergebruikt.
@@ -1567,3 +1567,39 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   eigen stijl). Door de eigenaar te testen na het bijwerken van de accountservice: casten, pauze, spoelen, ondertitels
   zonder vlak, en ondertitels aan/uit en een andere stijl tijdens het casten.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1978) en beide lockfiles bijgewerkt.
+- PR #163 gemerged 18 okt met toestemming van de eigenaar ("Zodra dit goed is, kan je het mergen").
+
+## Versie 0.19.79 (tv-speler met de afstandsbediening)
+
+- Op verzoek van de eigenaar (18 okt): "daarna de zelfde player bouwen voor op de Chromecast", volgens de vier
+  goedgekeurde voorbeelden (fase 1 en 2 uit "Gemeld tijdens het testen"). Lokaal gebouwd terwijl de release van 0.19.78
+  nog liep; de PR pas na een complete release van 0.19.78.
+- Tv (`cloud/web/cast/`): `remote.js` (logica zonder het framework, getest) en `receiver.js` (tekent). Zonder menu:
+  OK = afspelen/pauze (of "Intro overslaan" als die er staat), links/rechts = 10 s spoelen (snel drukken telt op),
+  omhoog/omlaag = knoppenrij (10 s terug, pauze, 10 s vooruit, Ondertitels, Audio bij meer sporen, Volgende aflevering
+  bij een serie), de gekozen knop wit en groter; Terug sluit menu en rij, en laat de tv daarna zelf Terug doen.
+  Afspelen/pauze- en spoeltoetsen van de afstandsbediening gaan via Google's framework (niet dubbel). Menu rechts met
+  tabbladen Ondertitels (uit of een spoor), Audio (laadt dezelfde plek met het andere spoor) en Stijl (grootte, kleur,
+  achtergrond; onthouden op de tv, een stijl die de app of website daarna stuurt gaat voor). Streepjes voor recap, intro
+  en aftiteling op de balk; "… overslaan" rechtsonder (net als op de website); kaart "Volgende aflevering over 10 s"
+  bij de aftiteling met "Nu afspelen" en "Aftiteling kijken"; aan het einde start de volgende vanzelf. Teksten in het
+  Nederlands of Engels (taal van de tv).
+- Server: `GET /api/cast/tv` (audiosporen, segmenten, volgende aflevering) en `POST /api/cast/tv/session` (`next` of
+  `audioIndex`, Zod strikt): alleen met het cast-token van een cast-sessie, voor dat bestand en die gebruiker, en met
+  bibliotheektoegang; de volgende aflevering krijgt een eigen cast-token. De tv laadt die titel zelf en bewaart er de
+  voortgang van.
+- Website en app volgen de tv: ze sturen `fileId` en `audioIndex` mee; start de tv zelf een andere titel, dan opent de
+  speler die (website: zonder hem opnieuw op de tv te laden; app: met `?tv=1`, alleen de afstandsbediening) en bewaart
+  de oude geen tv-positie meer. Een ondertitel die op de tv gekozen wordt, komt terug in website en app en wordt onthouden
+  als keuze (punt 2 van de cast-melding); een keuze op de telefoon/browser gaat 5 s voor op wat de tv nog meldt. Tijdens
+  casten telt alleen de tv af naar de volgende aflevering.
+- Tests: backend (tv-info, nieuwe sessie voor de volgende aflevering en ander audiospoor, tokens en toegang), cloud
+  (toetsen, knoppen, menu, overslaan, volgende aflevering, stijl, laadverzoek, taal; bestanden geserveerd), website
+  (hook volgt de tv en zijn ondertitel; speler volgt zonder opnieuw laden, laadt wel een hier gekozen titel), app
+  (`tvMedia`, `tvSubtitleKey`, `followTv`). Backend 595, frontend 349, cloud 192, app 173 tests; alle typechecks, lint (4
+  bekende waarschuwingen) en de builds slagen. Ook met een nagebootst framework doorgeklikt (overslaan, rij, menu, stijl,
+  volgende aflevering).
+- Niet hier te testen: of de pijltjes van de afstandsbediening bij de pagina aankomen (Chromecast met Google TV), Google's
+  framework met eigen video en tekstsporen. Door de eigenaar te testen na het bijwerken: alles met de afstandsbediening,
+  een serie tot de aftiteling, en op de tv een ondertitel kiezen en daarna in de app kijken.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1979) en beide lockfiles bijgewerkt.

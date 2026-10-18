@@ -137,6 +137,8 @@ export const nl: Record<string, string> = {
   'Media file is no longer available. Try rescanning the library.': 'Het mediabestand is niet meer beschikbaar. Scan de bibliotheek opnieuw.',
   'This file cannot be played.': 'Dit bestand kan niet worden afgespeeld.',
   'Unknown audio track.': 'Onbekend audiospoor.',
+  'Next episode not found.': 'Volgende aflevering niet gevonden.',
+  'Only a Chromecast can ask this.': 'Alleen een Chromecast kan dit vragen.',
   'Only a Chromecast can save progress this way.': 'Alleen een Chromecast kan zo de voortgang opslaan.',
   'This file cannot be played on a Chromecast without converting the video, which Vidalune does not do.': 'Dit bestand kan niet op een Chromecast worden afgespeeld zonder de video om te zetten, en dat doet Vidalune niet.',
   'Invalid start position.': 'Ongeldige startpositie.',

@@ -87,7 +87,7 @@ export interface CastLoadRequest {
     textTrackStyle: ReturnType<typeof castTextTrackStyle>;
     metadata: { type: 'generic'; title: string; subtitle?: string; images?: { url: string }[] };
     /** For Vidalune's own cast player: where it saves the TV's progress itself. */
-    customData: { vidalune: { progressUrl: string; offset: number; durationSec: number | null } };
+    customData: { vidalune: { progressUrl: string; offset: number; durationSec: number | null; fileId: number | null; audioIndex: number | null } };
     mediaTracks: { id: number; type: 'text'; subtype: 'subtitles'; contentId: string; contentType: string; name: string; language?: string }[];
   };
 }
@@ -121,6 +121,9 @@ export function castLoadRequest(opts: {
   keyframe: { offset: number; seek: number } | null;
   subtitleKey: string | null;
   subtitleStyle?: SubtitleStyle;
+  /** The file and audio track (Vidalune's TV player offers the others, and says which file it plays). */
+  fileId?: number;
+  audioIndex?: number | null;
 }): { request: CastLoadRequest; offset: number } {
   const { session: s, url, at } = opts;
   const restart = s.decision.seek === 'restart' && at > 0 && opts.keyframe !== null;
@@ -140,7 +143,7 @@ export function castLoadRequest(opts: {
         textTrackStyle: castTextTrackStyle(opts.subtitleStyle),
         ...(s.decision.durationSec ? { streamDuration: Math.max(0, s.decision.durationSec - offset) } : {}),
         // Vidalune's cast player saves where the TV is itself, also with the app in the background.
-        customData: { vidalune: { progressUrl: castAddress(url('/api/cast/progress'), s.token), offset, durationSec: s.decision.durationSec } },
+        customData: { vidalune: { progressUrl: castAddress(url('/api/cast/progress'), s.token), offset, durationSec: s.decision.durationSec, fileId: opts.fileId ?? null, audioIndex: opts.audioIndex ?? null } },
         metadata: {
           type: 'generic',
           title: opts.title,
@@ -203,4 +206,33 @@ export async function openCastDialog(show: () => Promise<boolean>, failed: (mess
  */
 export function tvFilePosition(offset: number, streamSec: number): number | null {
   return Number.isFinite(streamSec) && streamSec > 0 ? offset + streamSec : null;
+}
+
+/**
+ * What Vidalune's TV player says it plays (customData of its media status): the file, and the title
+ * when the TV started it itself (the next episode, with its remote). Null for anything else.
+ */
+export function tvMedia(mediaInfo: unknown): { fileId: number; item: { kind: 'movie' | 'episode'; id: number } | null } | null {
+  const data = (mediaInfo as { customData?: { vidalune?: { fileId?: unknown; item?: { kind?: unknown; id?: unknown } | null } } } | null | undefined)?.customData?.vidalune;
+  if (!data || typeof data.fileId !== 'number') return null;
+  const kind = data.item?.kind;
+  const item = (kind === 'movie' || kind === 'episode') && typeof data.item?.id === 'number' ? { kind: kind as 'movie' | 'episode', id: data.item.id } : null;
+  return { fileId: data.fileId, item };
+}
+
+/** The subtitle (key) the TV shows for its active tracks (track i + 1 is subtitle i); undefined when unknown. */
+export function tvSubtitleKey(activeTrackIds: unknown, session: CastSession | null): string | null | undefined {
+  if (!Array.isArray(activeTrackIds) || !session) return undefined;
+  const id = activeTrackIds.find((n) => typeof n === 'number' && n >= 1 && n <= session.subtitles.length);
+  return id ? session.subtitles[id - 1]!.key : null;
+}
+
+/**
+ * The title to open because the TV started it itself (its remote: the next episode), or null. Only
+ * when the TV was on this screen's file before (`before`): a TV still on an older title while this
+ * screen gives it a new one is not followed back.
+ */
+export function followTv(before: number | null, tv: ReturnType<typeof tvMedia>, fileId: number): { kind: 'movie' | 'episode'; id: number } | null {
+  if (!tv?.item || tv.fileId === fileId || before !== fileId) return null;
+  return tv.item;
 }

@@ -2,7 +2,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { addLibrary, createTestEnv, createUser, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
-import { mediaFiles, onlineSubtitles, subtitles } from '../src/db/schema.js';
+import { episodes, mediaFiles, onlineSubtitles, subtitles } from '../src/db/schema.js';
+import { saveManualSegments } from '../src/services/segments/store.js';
 import { castPath, playbackJwtExpiresAt, signPlaybackJwt, verifyPlaybackJwt } from '../src/services/cast.js';
 
 let env: TestEnv;
@@ -182,6 +183,83 @@ describe('casting to a Chromecast', () => {
     expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${old}` })).statusCode).toBe(401);
     // A file the user may not see: the stream refuses it like any other request.
     expect(env.ctx.db.select().from(mediaFiles).where(eq(mediaFiles.id, dune.id)).get()).toBeTruthy();
+  });
+});
+
+describe('Vidalune\'s cast player operated with a remote', () => {
+  async function showSetup() {
+    env = await createTestEnv();
+    const admin = await setupAdmin(env.app);
+    for (const f of ['S01E01.mp4', 'S01E02.mp4', 'S01E03.mp4']) touch(path.join(env.mediaDir, 'tv', 'Reacher', f), 'x'.repeat(4096));
+    await addLibrary(env, admin, 'shows', 'tv');
+    const eps = env.ctx.db.select().from(episodes).orderBy(episodes.episodeNumber).all();
+    const fileOf = (episodeId: number) => env.ctx.db.select().from(mediaFiles).where(eq(mediaFiles.episodeId, episodeId)).get()!;
+    return { admin, eps, fileOf };
+  }
+
+  it('tells the TV what to skip, which audio there is and which episode follows, with its cast token only', async () => {
+    const { admin, eps, fileOf } = await showSetup();
+    const first = fileOf(eps[0]!.id);
+    saveManualSegments(env.ctx.db, eps[0]!.id, first, { intro: { start: 30, end: 90 }, credits: { start: 2500, end: 2600 }, postCredits: null });
+    const { token } = (await session(admin, first.id)).json();
+    const tv = await env.app.inject({ url: `/api/cast/tv?cast=${token}` });
+    expect(tv.statusCode).toBe(200);
+    expect(tv.headers['access-control-allow-origin']).toBe('*');
+    const body = tv.json();
+    expect(body.item).toEqual({ kind: 'episode', id: eps[0]!.id });
+    expect(body.segments).toMatchObject({ intro: { start: 30, end: 90 }, credits: { start: 2500, end: 2600 } });
+    expect(Array.isArray(body.audio)).toBe(true);
+    expect(body.next).toMatchObject({ kind: 'episode', id: eps[1]!.id, fileId: fileOf(eps[1]!.id).id, subtitle: expect.stringMatching(/^S01E02/), resumeAt: 0 });
+    // Only for a cast session's token: not signed in, not a browser's direct-play token.
+    expect((await env.app.inject({ url: '/api/cast/tv', headers: { cookie: admin } })).statusCode).toBe(403);
+    const directPlay = await signPlaybackJwt(env.ctx.config.sessionSecret, { userId: 1, fileId: first.id, expiresAt: Date.now() + 60_000, artwork: false });
+    expect((await env.app.inject({ url: `/api/cast/tv?cast=${directPlay}` })).statusCode).toBe(401);
+    // Info only with a GET (there is nothing to post there).
+    expect((await env.app.inject({ method: 'POST', url: `/api/cast/tv?cast=${token}` })).statusCode).toBe(404);
+    expect((await env.app.inject({ method: 'OPTIONS', url: '/api/cast/tv' })).statusCode).toBe(204);
+    expect(castPath('/api/cast/tv')).toBe('tv');
+    expect(castPath('/api/cast/tv/session')).toBe('tv-session');
+  });
+
+  it('lets the TV start the next episode, or the same one with another audio track, and nothing else', async () => {
+    const { admin, eps, fileOf } = await showSetup();
+    const first = fileOf(eps[0]!.id);
+    const second = fileOf(eps[1]!.id);
+    const { token } = (await session(admin, first.id)).json();
+    const post = (cast: string, payload: object) => env.app.inject({ method: 'POST', url: `/api/cast/tv/session?cast=${cast}`, payload });
+    // The next episode: a new token for its file, with what the TV shows and where to start.
+    await env.app.inject({ method: 'POST', url: '/api/progress', headers: { cookie: admin }, payload: { episodeId: eps[1]!.id, positionSec: 120, durationSec: 3000 } });
+    const next = await post(token, { next: true });
+    expect(next.statusCode).toBe(200);
+    const nextBody = next.json();
+    expect(nextBody.item).toMatchObject({ kind: 'episode', id: eps[1]!.id, fileId: second.id, resumeAt: 120 });
+    expect(nextBody.decision.streamUrl).toContain(`/api/media/${second.id}/`);
+    expect((await env.app.inject({ url: `/api/media/${second.id}/stream?cast=${nextBody.token}` })).statusCode).toBe(200);
+    // The first token still opens only its own file.
+    expect((await env.app.inject({ url: `/api/media/${second.id}/stream?cast=${token}` })).statusCode).toBe(401);
+    // From the second episode on: the third follows, and after the last there is none.
+    expect((await env.app.inject({ url: `/api/cast/tv?cast=${nextBody.token}` })).json().next).toMatchObject({ id: eps[2]!.id });
+    const last = (await session(admin, fileOf(eps[2]!.id).id)).json().token;
+    expect((await env.app.inject({ url: `/api/cast/tv?cast=${last}` })).json().next).toBeNull();
+    expect((await post(last, { next: true })).statusCode).toBe(404);
+    // The same file with another audio track (one the file has).
+    const tracks = (await env.app.inject({ url: `/api/cast/tv?cast=${token}` })).json().audio as { index: number }[];
+    if (tracks[0]) expect((await post(token, { audioIndex: tracks[0].index })).json().item).toMatchObject({ id: eps[0]!.id, fileId: first.id });
+    expect((await post(token, { audioIndex: 999 })).statusCode).toBe(400);
+    expect((await post(token, { fileId: second.id })).statusCode).toBe(400);
+    // Not without the cast token.
+    expect((await env.app.inject({ method: 'POST', url: '/api/cast/tv/session', headers: { cookie: admin }, payload: { next: true } })).statusCode).toBe(403);
+  });
+
+  it('does not let the TV start an episode its user may not see', async () => {
+    const { admin, eps, fileOf } = await showSetup();
+    const anna = await createUser(env.app, admin, 'anna');
+    const { token } = (await session(anna.cookie, fileOf(eps[0]!.id).id)).json();
+    // Anna loses access to the library while casting: neither the info nor the next episode.
+    const libraryId = fileOf(eps[0]!.id).libraryId;
+    await env.app.inject({ method: 'PUT', url: `/api/users/${anna.id}`, headers: { cookie: admin }, payload: { libraryIds: [libraryId + 1000] } });
+    expect([403, 404]).toContain((await env.app.inject({ url: `/api/cast/tv?cast=${token}` })).statusCode);
+    expect([403, 404]).toContain((await env.app.inject({ method: 'POST', url: `/api/cast/tv/session?cast=${token}`, payload: { next: true } })).statusCode);
   });
 });
 

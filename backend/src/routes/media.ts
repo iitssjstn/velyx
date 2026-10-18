@@ -5,7 +5,11 @@ import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { describeUserAgent, type SessionUser } from '../auth/sessions.js';
 import { requireUser } from '../app.js';
-import { libraries, mediaFiles, onlineSubtitles, subtitles } from '../db/schema.js';
+import { libraries, mediaFiles, onlineSubtitles, subtitles, type AudioTrackInfo } from '../db/schema.js';
+import { Catalog } from '../services/catalog.js';
+import { localized } from '../services/localize.js';
+import { playbackSegments } from '../services/segments/store.js';
+import { assertEpisode, assertMovie } from '../services/access.js';
 import { onlineSubtitleOption } from './online-subtitles.js';
 import { resolveMediaPath } from '../services/paths.js';
 import { readSubtitleAsVtt, shiftVtt } from '../services/subtitles.js';
@@ -293,6 +297,104 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
    */
   app.post('/api/cast/session', { preHandler: requireUser }, async (request) => {
     const body = z.object({ fileId: z.number().int().positive(), audioIndex: z.number().int().min(0).max(1000).optional(), optimizationId: z.number().int().positive().optional() }).parse(request.body);
+    return castSession(request, body);
+  });
+
+  const catalog = new Catalog(db);
+  const code = (season: number, episode: number) => `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`;
+
+  /** The title a cast token opens (a movie or an episode), checked against what the user may see. */
+  function castTitle(request: FastifyRequest) {
+    const file = db.select({ movieId: mediaFiles.movieId, episodeId: mediaFiles.episodeId }).from(mediaFiles).where(eq(mediaFiles.id, request.castFile!)).get();
+    const scope = ctx.access.scope(request.user!);
+    if (file?.episodeId) return { kind: 'episode' as const, episode: assertEpisode(db, scope, file.episodeId) };
+    if (file?.movieId) return { kind: 'movie' as const, movie: assertMovie(db, scope, file.movieId) };
+    throw notFound('File');
+  }
+
+  /** The episode after this one, when it is on the server and the user may see it. */
+  function nextEpisode(request: FastifyRequest, episodeId: number) {
+    const next = catalog.nextEpisode(episodeId);
+    const file = next ? catalog.primaryFile({ episodeId: next.id }) : null;
+    if (!next || !file) return null;
+    try {
+      return { row: assertEpisode(db, ctx.access.scope(request.user!), next.id), file };
+    } catch {
+      return null;
+    }
+  }
+
+  /** How the TV names an episode: the show above, "S01E07 — Title" below (like the website). */
+  const episodeItem = (request: FastifyRequest, row: ReturnType<typeof assertEpisode>, fileId: number) => {
+    const lang = request.user!.language;
+    const title = localized(row.e, lang).title;
+    const progress = catalog.episodeProgress(request.user!.id, [row.e.id]).get(row.e.id);
+    return {
+      kind: 'episode' as const,
+      id: row.e.id,
+      fileId,
+      title: localized(row.s, lang).title ?? row.s.title,
+      subtitle: `${code(row.e.seasonNumber, row.e.episodeNumber)}${title ? ` — ${title}` : ''}`,
+      posterPath: row.s.posterPath,
+      stillPath: row.e.stillPath,
+      resumeAt: progress && !progress.completed ? progress.positionSec : 0,
+    };
+  };
+
+  const audioLabel = (track: AudioTrackInfo) => {
+    const name = track.title?.trim() || (track.language ? languageName(track.language) : null) || `#${track.index}`;
+    const channels = track.channels === 6 ? '5.1' : track.channels === 8 ? '7.1' : track.channels === 2 ? 'stereo' : track.channels === 1 ? 'mono' : null;
+    return channels ? `${name} · ${channels}` : name;
+  };
+
+  /**
+   * Vidalune's cast player asking, with its cast token, what it needs to be operated with a remote: the
+   * intro, recap and credits to skip, the audio tracks to choose from, and the episode that follows.
+   */
+  app.get('/api/cast/tv', { preHandler: requireUser }, async (request) => {
+    if (request.castFile === null) throw new HttpError(403, 'Only a Chromecast can ask this.');
+    const title = castTitle(request);
+    const file = db.select({ audioTracks: mediaFiles.audioTracks }).from(mediaFiles).where(eq(mediaFiles.id, request.castFile)).get();
+    const audio = (file?.audioTracks ?? []).map((track) => ({ index: track.index, label: audioLabel(track), language: track.language }));
+    if (title.kind === 'movie') return { item: { kind: 'movie', id: title.movie.id }, audio, segments: null, next: null };
+    const segments = playbackSegments(db, title.episode.e.id);
+    const next = nextEpisode(request, title.episode.e.id);
+    return {
+      item: { kind: 'episode', id: title.episode.e.id },
+      audio,
+      // Detected for this file (another file of the episode has its own times).
+      segments: segments && (segments.fileId === null || segments.fileId === request.castFile) ? segments : null,
+      next: next ? { ...episodeItem(request, next.row, next.file.id), durationSec: next.file.durationSec } : null,
+    };
+  });
+
+  /**
+   * A new cast session from the TV itself, with its cast token: the same file with another audio track,
+   * or the next episode. The TV loads it, so whoever cast it sees the TV continue on their phone too.
+   */
+  app.post('/api/cast/tv/session', { preHandler: requireUser }, async (request) => {
+    if (request.castFile === null) throw new HttpError(403, 'Only a Chromecast can ask this.');
+    const body = z.object({ next: z.boolean().optional(), audioIndex: z.number().int().min(0).max(1000).optional() }).strict().parse(request.body ?? {});
+    const title = castTitle(request);
+    if (body.next) {
+      if (title.kind !== 'episode') throw notFound('Next episode');
+      const next = nextEpisode(request, title.episode.e.id);
+      if (!next) throw notFound('Next episode');
+      return { ...(await castSession(request, { fileId: next.file.id })), item: episodeItem(request, next.row, next.file.id) };
+    }
+    const session = await castSession(request, { fileId: request.castFile, ...(body.audioIndex !== undefined ? { audioIndex: body.audioIndex } : {}) });
+    if (title.kind === 'episode') return { ...session, item: episodeItem(request, title.episode, request.castFile) };
+    const progress = catalog.movieProgress(request.user!.id, [title.movie.id]).get(title.movie.id);
+    return { ...session, item: { kind: 'movie', id: title.movie.id, fileId: request.castFile, title: localized(title.movie, request.user!.language).title ?? title.movie.title, subtitle: title.movie.year ? String(title.movie.year) : null, posterPath: title.movie.posterPath, stillPath: null, resumeAt: progress && !progress.completed ? progress.positionSec : 0 } };
+  });
+  // The cast player's page (cast.vidalune.com) asks first: it is another origin.
+  for (const url of ['/api/cast/tv', '/api/cast/tv/session'])
+    app.options(url, async (_request, reply) =>
+      reply.code(204).header('Access-Control-Allow-Origin', '*').header('Access-Control-Allow-Methods', 'GET, POST').header('Access-Control-Allow-Headers', 'Content-Type').header('Access-Control-Max-Age', '600').send(),
+    );
+
+  /** What a Chromecast is given for one file: its stream (as it is, repackaged or converted), a token for it, its subtitles. */
+  async function castSession(request: FastifyRequest, body: { fileId: number; audioIndex?: number; optimizationId?: number }) {
     const source = loadFile(String(body.fileId), request.user!);
     let loaded = body.optimizationId === undefined ? source : loadFile(String(body.fileId), request.user!, body.optimizationId);
     let file = await ensureVideoDetails(loaded.file, loaded.abs);
@@ -336,7 +438,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       // Text subtitles only (a Chromecast shows WebVTT), from this file.
       subtitles: subtitleList(loaded.sourceFile, request.user!).filter((s) => s.kind === 'external' || s.kind === 'embedded'),
     };
-  });
+  }
 
   /** The current device: its name and what it plays, from the formats the browser reports. */
   app.post('/api/playback/device', { preHandler: requireUser }, async (request) => {

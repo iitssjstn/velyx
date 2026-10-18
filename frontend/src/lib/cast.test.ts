@@ -46,7 +46,7 @@ describe('Cast subtitle style', () => {
 function fakeSdk() {
   const loaded: Array<{ url: string; type: string; currentTime: number; tracks: Array<{ trackContentId: string }>; active: number[]; textTrackStyle: unknown; customData: unknown }> = [];
   const listeners = new Map<string, () => void>();
-  const remote = { currentTime: 0, isPaused: false, isConnected: true, activeTrackIds: [] as number[] };
+  const remote = { currentTime: 0, isPaused: false, isConnected: true, activeTrackIds: [] as number[], mediaInfo: null as unknown };
   const session = {
     getMediaSession: () => mediaSession,
     loadMedia: vi.fn(async (req: { media: { contentId: string; contentType: string; tracks: Array<{ trackContentId: string }>; textTrackStyle: unknown; customData?: unknown }; currentTime: number; activeTrackIds: number[] }) => {
@@ -56,6 +56,7 @@ function fakeSdk() {
   };
   const applied: unknown[] = [];
   const mediaSession = {
+    activeTrackIds: undefined as number[] | undefined,
     editTracksInfo: vi.fn((request: { textTrackStyle: unknown }, success: () => void, failure: (error: unknown) => void) => {
       if (!request.textTrackStyle) failure(new Error('Missing style'));
       else { applied.push(request.textTrackStyle); success(); }
@@ -92,7 +93,7 @@ function fakeSdk() {
     RemotePlayerController: function RemotePlayerController() {
       return controller;
     },
-    RemotePlayerEventType: { CURRENT_TIME_CHANGED: 'time', IS_PAUSED_CHANGED: 'paused', IS_CONNECTED_CHANGED: 'connected', VOLUME_LEVEL_CHANGED: 'volume', IS_MUTED_CHANGED: 'muted' },
+    RemotePlayerEventType: { CURRENT_TIME_CHANGED: 'time', MEDIA_INFO_CHANGED: 'media', IS_PAUSED_CHANGED: 'paused', IS_CONNECTED_CHANGED: 'connected', VOLUME_LEVEL_CHANGED: 'volume', IS_MUTED_CHANGED: 'muted' },
   };
   const chrome = {
     cast: {
@@ -271,8 +272,62 @@ describe('casting from the player', () => {
     expect(sdk.loaded.at(-1)).toMatchObject({ url: `${location.origin}/api/media/6/stream?cast=tok6`, currentTime: 0 });
     // Vidalune's own cast player, which saves the TV's progress for the file it was given.
     expect(sdk.context.setOptions).toHaveBeenCalledWith(expect.objectContaining({ receiverApplicationId: '920BF057' }));
-    expect(sdk.loaded.at(-1)?.customData).toEqual({ vidalune: { progressUrl: `${location.origin}/api/cast/progress?cast=tok6`, offset: 0, durationSec: 2500 } });
+    expect(sdk.loaded.at(-1)?.customData).toEqual({ vidalune: { progressUrl: `${location.origin}/api/cast/progress?cast=tok6`, offset: 0, durationSec: 2500, fileId: 6, audioIndex: null } });
     expect(result.current).toMatchObject({ active: true, fileId: 6, time: 0 });
+    unmount();
+  });
+
+  it('follows a title the TV started itself, and a subtitle chosen on the TV', async () => {
+    vi.resetModules();
+    const sdk = fakeSdk();
+    vi.stubGlobal('chrome', sdk.chrome);
+    vi.spyOn(document.head, 'append').mockImplementation(() => {
+      (window as unknown as { cast: unknown }).cast = { framework: sdk.framework };
+      setTimeout(() => (window as unknown as { __onGCastApiAvailable: (ok: boolean) => void }).__onGCastApiAvailable(true));
+    });
+    const sessions: number[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+      const { fileId } = JSON.parse(String(init?.body)) as { fileId: number };
+      sessions.push(fileId);
+      return new Response(JSON.stringify({
+        token: `tok${fileId}`, expiresAt: Date.now() + 3_600_000, directUrl: null, serverUrl: null, contentType: 'video/mp4',
+        decision: { engine: 'direct', streamUrl: `/api/media/${fileId}/stream`, seek: 'range', durationSec: 2500 },
+        subtitles: [{ key: `e${fileId}`, label: 'English', language: 'en', url: '/s/1', kind: 'external' }, { key: `n${fileId}`, label: 'Nederlands', language: 'nl', url: '/s/2', kind: 'external' }],
+      }), { status: 200 });
+    }));
+    const { useCast } = await import('./cast');
+    const { result, rerender, unmount } = renderHook(({ fileId }: { fileId: number }) => useCast({ fileId, audioIndex: null, title: 'Show', subtitleKey: 'e5', locate: async () => ({ offset: 0, seek: 0 }) }), { initialProps: { fileId: 5 } });
+    await waitFor(() => expect(sdk.context.setOptions).toHaveBeenCalled());
+    await act(() => result.current.start(100));
+    const tick = () => act(() => sdk.listeners.get('time')!());
+    // The TV still reports the old subtitle right after the page asked for one: the page's choice stands.
+    sdk.remote.mediaInfo = { customData: { vidalune: { fileId: 5 } } };
+    sdk.mediaSession.activeTrackIds = [];
+    await tick();
+    expect(result.current.tvSubtitleKey).toBe('e5');
+    // Later, Nederlands is chosen with the TV's remote.
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10_000);
+    sdk.mediaSession.activeTrackIds = [2];
+    await tick();
+    expect(result.current.tvSubtitleKey).toBe('n5');
+    // The TV starts the next episode itself: the page is told which, and gets its subtitles.
+    sdk.remote.mediaInfo = { customData: { vidalune: { fileId: 6, item: { kind: 'episode', id: 42 } } } };
+    sdk.mediaSession.activeTrackIds = [1];
+    await act(() => sdk.listeners.get('media')!());
+    expect(result.current).toMatchObject({ fileId: 6, tvItem: { kind: 'episode', id: 42, fileId: 6 } });
+    await waitFor(() => expect(sessions).toEqual([5, 6]));
+    await tick();
+    expect(result.current.tvSubtitleKey).toBe('e6');
+    // The page caught up: it leads again, and nothing was loaded on the TV for it.
+    rerender({ fileId: 6 });
+    await waitFor(() => expect(result.current.tvItem).toBeNull());
+    expect(sdk.loaded).toHaveLength(1);
+    // Its subtitle and seeks still reach the TV.
+    act(() => result.current.setSubtitle('n6'));
+    expect(sdk.remote.activeTrackIds).toEqual([2]);
+    act(() => result.current.seek(300));
+    expect(sdk.controller.seek).toHaveBeenCalled();
+    vi.restoreAllMocks();
     unmount();
   });
 
@@ -402,7 +457,7 @@ describe('casting from the player', () => {
     expect(result.current.active).toBe(false);
     unmount();
     expect(sdk.context.removeEventListener).toHaveBeenCalledWith('caststatechanged', expect.any(Function));
-    expect(sdk.controller.removeEventListener).toHaveBeenCalledTimes(5);
+    expect(sdk.controller.removeEventListener).toHaveBeenCalledTimes(6);
     expect(sdk.listeners.size).toBe(0);
   });
 });
