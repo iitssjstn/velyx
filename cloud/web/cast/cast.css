@@ -1,25 +1,32 @@
-/* Vidalune's colours on Google's cast player (only what it lets a receiver style). */
-html, body { margin: 0; height: 100%; background: #0f0d15; overflow: hidden; }
-cast-media-player {
-  --theme-hue: 258;
-  /* Every screen dark, also the one between connecting and the film (Google's is white there). */
-  --background: #0f0d15;
-  --background-color: #0f0d15;
-  --logo-background: #0f0d15;
-  --splash-background: #0f0d15;
-  --font-family: Roboto, 'Google Sans', system-ui, sans-serif;
-  --progress-color: #b69cff;
-  --break-color: #b69cff;
-  --logo-image: url('logo.svg');
-  --logo-size: 420px 98px;
-  --splash-image: url('logo.svg');
-  --splash-size: 420px 98px;
-  --splash-color: #eee9ff;
-}
+/* Vidalune's own TV player (receiver.js): the film, and over it the bar, the pause sign and the screen before it plays. */
+html, body { margin: 0; height: 100%; background: #0f0d15; overflow: hidden; color: #eee9ff; font-family: Roboto, 'Google Sans', system-ui, sans-serif; }
+#video { position: fixed; inset: 0; width: 100%; height: 100%; background: #000; object-fit: contain; }
 
-/* Vidalune's own screen over Google's white one, until the TV plays (receiver.js, screen.js). */
-#splash { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; background: #0f0d15; transition: opacity 0.4s; }
+.spinner { width: 48px; height: 48px; border-radius: 50%; border: 4px solid rgba(238, 233, 255, 0.2); border-top-color: #b69cff; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#waiting { position: fixed; left: 50%; top: 50%; margin: -28px 0 0 -28px; z-index: 3; display: none; }
+#waiting.on { display: block; }
+
+#paused { position: fixed; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; z-index: 3; border-radius: 50%; background: rgba(15, 13, 21, 0.6); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; }
+#paused.on { opacity: 1; }
+#paused svg { width: 56px; height: 56px; fill: #eee9ff; }
+
+/* The bar along the bottom: poster, title, progress and time (TV-safe margins). */
+#bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; align-items: flex-end; gap: 32px; padding: 160px 5vw 6vh; background: linear-gradient(to top, rgba(15, 13, 21, 0.92), rgba(15, 13, 21, 0.6) 55%, rgba(15, 13, 21, 0)); opacity: 0; transition: opacity 0.4s; }
+#bar.on { opacity: 1; }
+#poster { width: 120px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+#poster:not([src]), #poster[src=''] { display: none; }
+#bar .info { flex: 1; min-width: 0; }
+#subtitle { font-size: 22px; color: #b9b0d4; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#subtitle:empty { display: none; }
+#title { font-size: 40px; font-weight: 600; margin-bottom: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.progress { height: 6px; border-radius: 3px; background: rgba(238, 233, 255, 0.22); overflow: hidden; }
+#played { height: 100%; width: 0; background: #b69cff; border-radius: 3px; }
+.times { display: flex; justify-content: space-between; margin-top: 12px; font-size: 22px; color: #b9b0d4; font-variant-numeric: tabular-nums; }
+
+/* Before the film plays: Vidalune's own screen with the logo (and the title being started). */
+#splash { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; background: #0f0d15; transition: opacity 0.4s; }
 #splash.gone { opacity: 0; pointer-events: none; }
 #splash img { width: 420px; height: 98px; }
-#splash .spinner { width: 40px; height: 40px; border-radius: 50%; border: 3px solid rgba(238, 233, 255, 0.2); border-top-color: #b69cff; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+#splash-title { font-size: 28px; color: #b9b0d4; max-width: 70vw; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#splash-title:empty { display: none; }

@@ -20,7 +20,7 @@ describe('cast addresses', () => {
 describe('Cast subtitle style', () => {
   it('uses a high-contrast TV default and validates unsupported saved values', () => {
     expect(castTextTrackStyle()).toMatchObject({ fontScale: 1, foregroundColor: '#FFFFFFFF', backgroundColor: '#00000099', edgeType: 'OUTLINE' });
-    expect(castTextTrackStyle({ subtitleSize: 'invalid', subtitleColor: 'pink', subtitleBackground: 'bad', subtitleEdge: 'bad' } as never)).toMatchObject({ fontScale: 1, foregroundColor: '#FFFFFFFF', backgroundColor: '#00000000', edgeType: 'DROP_SHADOW' });
+    expect(castTextTrackStyle({ subtitleSize: 'invalid', subtitleColor: 'pink', subtitleBackground: 'bad', subtitleEdge: 'bad' } as never)).toMatchObject({ fontScale: 1, foregroundColor: '#FFFFFFFF', backgroundColor: '#00000001', edgeType: 'DROP_SHADOW' });
   });
   it('falls back to the TV preset when a receiver rejects a custom style', async () => {
     const apply = vi.fn().mockRejectedValueOnce(new Error('Unsupported')).mockResolvedValueOnce(undefined);
@@ -35,7 +35,7 @@ describe('Cast subtitle style', () => {
       fontGenericFamily: 'SANS_SERIF',
       fontScale: 1.2,
       foregroundColor: '#FFE14DFF',
-      backgroundColor: '#00000000',
+      backgroundColor: '#00000001',
       edgeType: 'OUTLINE',
       edgeColor: '#000000FF',
     });
@@ -345,7 +345,7 @@ describe('casting from the player', () => {
     expect(sdk.loaded[0]).toMatchObject({ url: `${location.origin}/api/media/5/remux?audio=aac&start=598.000&cast=tok`, type: 'video/mp4', currentTime: 2, active: [1] });
     expect(sdk.loaded[0].tracks[0].trackContentId).toBe(`${location.origin}/api/media/5/subtitles/3.vtt?offset=598.000&cast=tok`);
     expect(sdk.loaded[0].textTrackStyle).toMatchObject({ fontScale: 1, foregroundColor: '#FFFFFFFF', backgroundColor: '#00000099', edgeType: 'OUTLINE' });
-    expect(sdk.applied.at(-1)).toMatchObject({ fontScale: 1.2, foregroundColor: '#FFE14DFF', backgroundColor: '#00000000', edgeType: 'DROP_SHADOW' });
+    expect(sdk.applied.at(-1)).toMatchObject({ fontScale: 1.2, foregroundColor: '#FFE14DFF', backgroundColor: '#00000001', edgeType: 'DROP_SHADOW' });
     rerender({ color: 'white' });
     await waitFor(() => expect(sdk.applied.at(-1)).toMatchObject({ foregroundColor: '#FFFFFFFF' }));
     expect(sdk.loaded).toHaveLength(1);

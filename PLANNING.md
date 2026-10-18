@@ -97,7 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- Laatste release: **0.19.76** (PR #161, seizoenen aanvragen op de seriepagina zelf; gemerged 17 okt); release `v0.19.76` gecontroleerd: APK, beide `.deb`'s, `.aab` en `vidalune-0.19.76-setup.exe` aanwezig. Daarvoor 0.19.75 (PR #160, andere seizoenen van een serie aanvragen), 0.19.74 (PR #159, Vidalune voor Windows), 0.19.73 (PR #158, 1080p-afleveringen niet meer als 720p), 0.19.72 (PR #157, wachtwoord in de app), 0.19.71 (PR #156, in- en uitloggen in de app, onleesbaar bestand), 0.19.70 (PR #155, app automatisch naar de interne test van de Play Store), 0.19.69 (PR #154, Control Center overzichtelijker), 0.19.68 (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer), 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.77** (PR #162, ondertitels gelijk na verder kijken tijdens een transcode; gemerged 18 okt); release `v0.19.77` gecontroleerd: APK, beide `.deb`'s, `.aab` en `vidalune-0.19.77-setup.exe` aanwezig. Daarvoor 0.19.76 (PR #161, seizoenen aanvragen op de seriepagina zelf), 0.19.75 (PR #160, andere seizoenen van een serie aanvragen), 0.19.74 (PR #159, Vidalune voor Windows), 0.19.73 (PR #158, 1080p-afleveringen niet meer als 720p), 0.19.72 (PR #157, wachtwoord in de app), 0.19.71 (PR #156, in- en uitloggen in de app, onleesbaar bestand), 0.19.70 (PR #155, app automatisch naar de interne test van de Play Store), 0.19.69 (PR #154, Control Center overzichtelijker), 0.19.68 (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer), 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -300,6 +300,53 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
    - Let ook op de Let's Encrypt-limiet van ongeveer 50 nieuwe certificaten per week per hoofddomein (controleer in hun documentatie); die geldt los van DNS en kan bij een piek aan nieuwe klanten eerder knellen.
 
 ## Gemeld tijdens het testen
+
+- **Tv-speler volledig te bedienen met de afstandsbediening** (wens eigenaar 18 okt, na het voorbeeld van 0.19.78:
+  "ik wil dat de kijker die een Chromecast met een afstandsbediening hem eigenlijk volledig kan bedienen met de
+  afstandsbediening en diegene zonder afstandsbediening met de app"; "Eigenlijk zou je de speler over kunnen nemen van de
+  website"). Nog niet bouwen; voorstel aan de eigenaar:
+  - Niet de websitepagina zelf op de tv (zwaar voor een Chromecast, gemaakt voor muis en toetsenbord, en het afspelen moet
+    bij Google's framework blijven zodat de app als afstandsbediening blijft werken), maar dezelfde functies in een
+    tv-bediening voor de pijltjes (10-foot, focus zichtbaar), met de logica van de website hergebruikt.
+  - Fase 1 (alleen de tv-speler): OK = afspelen/pauze, links/rechts = spoelen (stap, vasthouden = sneller), omhoog/omlaag =
+    balk en menu, menu met ondertitels (uit de meegestuurde lijst, ook uit) en de stijl, Terug sluit het menu. Wat op de tv
+    gekozen wordt, gaat via de status van de tv terug naar app en website (sluit aan bij punt 2 van de cast-melding).
+  - Fase 2 (server en tv): volgende aflevering met aftellen, intro/recap/aftiteling overslaan, audiospoor kiezen. Nodig: de
+    server geeft met het cast-token (alleen voor dat bestand en die gebruiker) de segmenten, de volgende aflevering (met een
+    nieuw cast-token) en een stream met een ander audiospoor; de tv laadt zelf de volgende titel, zodat de app het ziet.
+  - Ontwerp goedgekeurd (18 okt, vier voorbeelden): balk met poster, titel, voortgang met streepjes voor intro en
+    aftiteling, en een knoppenrij (10 s terug, pauze, 10 s vooruit, Ondertitels, Audio, Volgende aflevering), de gekozen
+    knop wit en groter; menu rechts met tabbladen Ondertitels/Audio/Stijl; "Intro overslaan" rechtsonder op de hoogte van
+    de knoppen (eigenaar: lager, "Dat is perfect"); kaart "Volgende aflevering over 8 s" rechtsonder met "Nu afspelen" en
+    "Aftiteling kijken". Online ondertitels zoeken op de tv: misschien later. Eigenaar (18 okt): "Zodra dit goed is, kan je
+    het mergen en daarna de zelfde player bouwen voor op de Chromecast" (0.19.78 mergen, dan dit als 0.19.79).
+  - Eigenaar (18 okt): heeft zelf een Chromecast met afstandsbediening. Nog te controleren met 0.19.78 erop: of de
+    pijltjes van die afstandsbediening bij de tv-pagina aankomen.
+
+- **Casten: speler op de tv niet mooi, ondertitelkeuze vergeten, zwarte randen** (gemeld door de eigenaar 18 okt, twee
+  foto's van de tv; punt 1 en 3 gebouwd in 0.19.78, punt 2 wacht op antwoord van de eigenaar):
+  1. Wat de tv bij pauze toont (titel, balk, tijden, 30 s-knoppen, CC) is Google's eigen bediening van
+     `<cast-media-player>` (`cloud/web/cast/`); daarvan zijn alleen kleuren, lettertype en logo in te stellen (`cast.css`).
+     Een eigen uiterlijk kan alleen met een eigen `<video>` (`PlayerManager.setMediaElement`) en eigen bediening erboven.
+     De grote typemachineletters "American Hostage" lijken in de aflevering zelf te zitten (nog te bevestigen).
+  2. Een ondertitel die op de tv gekozen wordt (CC-knop of Google Home) komt niet terug bij website en app: die luisteren
+     niet naar `activeTrackIds` in de status van de tv. De keuze wordt dus niet bewaard en de volgende aflevering of cast
+     start met de oude keuze van de telefoon/browser. Website: de beginkeuze uit de voorkeuren gebeurt pas in
+     `onLoadedMetadata` van de eigen video (`Player.tsx`); start casten voordat die laadt, dan gaat er geen ondertitel mee
+     (nog te controleren). Eerst navragen waar de eigenaar kiest en wanneer het vergeten wordt.
+  3. Zwarte randen (bedoeld: het zwarte vlak achter de ondertitels, niet de balken van de film). Komt van de stand
+     "Tv-standaard" (standaard aan): die stuurt een half doorzichtige zwarte achtergrond met omlijning
+     (`CAST_SUBTITLE_DEFAULTS` in `frontend/src/lib/prefs.ts`, `TV_SUBTITLE_STYLE` in `app/src/lib/subtitleStyle.ts`).
+     Nu al uit te zetten: speler > instellingen > Ondertitelstijl op tv: Eigen, Achtergrond: Geen. Voorstel: de
+     tv-standaard zonder achtergrond (alleen schaduw of omlijning); besluit eigenaar.
+     Eigenaar (18 okt): uitzetten werkt niet; kleur en grootte wel, alleen het vlak blijft. Oorzaak gevonden: de app
+     stuurt "geen achtergrond" als `#00000000`; `react-native-google-cast` (`RNGCColor.fromJson`, Android) maakt daar
+     het getal 0 van, en 0 betekent bij Google "geen kleur opgegeven" (COLOR_UNSPECIFIED). De tv houdt dan zijn eigen
+     zwarte vlak. Oplossing: "geen" als bijna doorzichtig sturen (`#00000001`, alfa 1/255, onzichtbaar) in
+     `castTextTrackStyle` (`app/src/lib/cast.ts`, en voor de zekerheid ook `frontend/src/lib/cast.ts`), met test.
+     Leeropdracht aan de eigenaar gegeven.
+  Voorstel: eigen tv-speler (eigen video en bediening in Vidalune-stijl) plus de ondertitelkeuze van de tv
+  terugsturen en bewaren. Eerst een voorbeeld van het tv-scherm laten zien.
 
 - **Ondertitels lopen niet gelijk na verder kijken tijdens een transcode** (gemeld door de eigenaar 18 okt, screenshot:
   HEVC 1080p → H.264, AAC 5.1 → stereo, MKV, externe ondertitel; gebouwd in 0.19.77). Oorzaak,
@@ -1495,3 +1542,28 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Niet hier te testen: de hardware-encoders (NVENC, VAAPI) met de lange GOP. Door de eigenaar te testen: een film of serie
   die omgezet wordt (HEVC) halverwege verder kijken en de ondertitels volgen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1977) en beide lockfiles bijgewerkt.
+- PR #162 gemerged 18 okt met toestemming van de eigenaar (alle checks groen); release `v0.19.77` gecontroleerd: APK, beide
+  `.deb`'s, `.aab` en `vidalune-0.19.77-setup.exe`; de accountservice-image startte vanzelf na de Windows-workflow en slaagde.
+
+## Versie 0.19.78 (eigen tv-speler, geen zwart vlak achter de ondertitels)
+
+- Op verzoek van de eigenaar ("bouw het maar, en bouw de speler ook maar direct dan hebben we 2 klappen in 1", 18 okt),
+  na zijn melding (zie "Gemeld tijdens het testen", punten 1 en 3).
+- Zwart vlak: website en app sturen "geen achtergrond" als `#00000001` in plaats van `#00000000`
+  (`castTextTrackStyle` in `app/src/lib/cast.ts` en `frontend/src/lib/cast.ts`). De Android-castbibliotheek maakte van
+  `#00000000` het getal 0 ("geen kleur opgegeven"), waarna de tv zijn eigen zwarte vlak hield.
+- Eigen tv-speler (`cloud/web/cast/`): geen `<cast-media-player>` meer; Google's framework speelt in een eigen `<video>`
+  (`setMediaElement`). Vidalune tekent zelf: onderaan een balk met poster, regel erboven (S01E06 · …), titel,
+  voortgangsbalk en tijden (in het bestand, ook als de stream verderop begint), een pauzeteken in het midden, een
+  laadcirkel bij wachten en het donkere startscherm met logo en de titel die start. De balk staat er bij pauze en
+  wachten, en 5 s na starten, verder spelen of spoelen. De ondertitels krijgen de stijl van de zender als CSS op de
+  eigen video (`video::cue`, bij LOAD en EDIT_TRACKS_INFO, `cueCss` in `overlay.js`); zonder achtergrond geen vlak,
+  ook als de zender de achtergrond weglaat.
+- Tests: cloud (pagina met eigen video en onderdelen, `overlay.js` geserveerd, tijden in het bestand, wanneer de balk
+  staat, ondertitelstijl als CSS met en zonder achtergrond), app (geen kleur die Android als 0 doorgeeft; faalt op de
+  oude code), website en app (achtergrond "geen" is `#00000001`). Backend 592, frontend 346, cloud 181, app 170 tests;
+  typechecks en lint (4 bekende waarschuwingen) slagen. Voorbeeld van het tv-scherm (pauze en starten) naar de eigenaar.
+- Niet hier te testen: Google's framework met een eigen video op een echte Chromecast (afspelen, HLS, ondertitels in de
+  eigen stijl). Door de eigenaar te testen na het bijwerken van de accountservice: casten, pauze, spoelen, ondertitels
+  zonder vlak, en ondertitels aan/uit en een andere stijl tijdens het casten.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1978) en beide lockfiles bijgewerkt.

@@ -13,7 +13,9 @@ export function castTextTrackStyle(style?: CastSubtitleStyle) {
     fontGenericFamily: 'SANS_SERIF',
     fontScale: { small: 0.8, medium: 1, large: 1.2, xlarge: 1.4 }[current.subtitleSize],
     foregroundColor: current.subtitleColor === 'yellow' ? '#FFE14DFF' : '#FFFFFFFF',
-    backgroundColor: { none: '#00000000', translucent: '#00000099', solid: '#000000EB' }[current.subtitleBackground],
+    // "None" is 1/255 visible, not 0: the Android cast library turns #00000000 into 0, which Google reads as
+    // "no colour given", and the TV then keeps its own black box behind the subtitles.
+    backgroundColor: { none: '#00000001', translucent: '#00000099', solid: '#000000EB' }[current.subtitleBackground],
     edgeType: { shadow: 'DROP_SHADOW', outline: 'OUTLINE', none: 'NONE' }[current.subtitleEdge],
     edgeColor: '#000000FF',
   };
