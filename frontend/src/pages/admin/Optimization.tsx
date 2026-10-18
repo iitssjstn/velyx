@@ -33,6 +33,8 @@ interface QueueItem {
   season: number | null;
   episode: number | null;
   episodeTitle: string | null;
+  /** Next to the film, or in the data folder when the film's folder is read-only. */
+  location?: 'library' | 'data';
 }
 
 interface Queue { paused: boolean; items: QueueItem[] }
@@ -278,6 +280,7 @@ export function OptimizationPage() {
                     </div>
                   )}
                   {item.status === 'queued' && item.position !== null && <p className="text-xs text-muted">{t('optimization.queue.position', { n: item.position })}</p>}
+                  {item.status === 'ready' && item.location && <p className="text-xs text-muted">{t(item.location === 'library' ? 'optimization.queue.besideFilm' : 'optimization.queue.inDataFolder')}</p>}
                   {item.error && (item.status === 'failed' || item.status === 'stale') && (
                     <p className={`break-words text-xs ${item.status === 'failed' ? 'text-danger' : 'text-amber'}`}>{item.error}</p>
                   )}

@@ -19,6 +19,7 @@ import {
 } from './parser.js';
 import type { Prober, ProbeResult } from './probe.js';
 import { ReplacementTracker, snapshot } from './replacements.js';
+import { isOptimizedCopy, removeCopiesBeside } from './optimized-copy.js';
 
 const log = createLogger('scanner');
 
@@ -114,7 +115,8 @@ export async function discoverFiles(root: string): Promise<DiscoveredFiles> {
       if (isDir) {
         if (!SKIP_DIRS.has(entry.name.toLowerCase())) await walk(full);
       } else if (isFile) {
-        if (isVideoFile(entry.name)) videos.push(full);
+        // The optimizer's copy next to a film is not a second file of it.
+        if (isVideoFile(entry.name) && !isOptimizedCopy(entry.name)) videos.push(full);
         else if (isSubtitleFile(entry.name)) {
           const list = subtitlesByDir.get(dir) ?? [];
           list.push(entry.name);
@@ -306,6 +308,7 @@ export class LibraryScanner {
         else lastFiles.set(key, gone);
       }
       const ids = missing.map((f) => f.id);
+      removeCopiesBeside(this.db, ids);
       for (let i = 0; i < ids.length; i += 500) {
         this.db.delete(mediaFiles).where(inArray(mediaFiles.id, ids.slice(i, i + 500))).run();
       }

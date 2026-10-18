@@ -44,5 +44,7 @@ export const optimization: Messages['optimization'] = {
     position: 'Plek {n} in de wachtrij',
     unknownTitle: 'Onbekende titel',
     open: 'Titel openen',
+    besideFilm: 'Staat naast de film, als <naam>.vidalune-720p.mp4 of -1080p.mp4.',
+    inDataFolder: 'Staat in de datamap van Vidalune: de map van de film is alleen-lezen (gekoppeld met :ro).',
   },
 };

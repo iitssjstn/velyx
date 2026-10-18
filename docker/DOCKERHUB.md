@@ -30,8 +30,8 @@ services:
       PGID: "1000"
     volumes:
       - ./data:/data
-      - /srv/media/movies:/media/movies:ro
-      - /srv/media/tv:/media/tv:ro
+      - /srv/media/movies:/media/movies
+      - /srv/media/tv:/media/tv
 ```
 
 Then open `http://<your-server>:3000` and create your administrator account.

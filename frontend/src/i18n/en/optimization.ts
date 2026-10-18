@@ -43,5 +43,7 @@ export const optimization = {
     position: 'Place {n} in the queue',
     unknownTitle: 'Unknown title',
     open: 'Open title',
+    besideFilm: 'Next to the film, as <name>.vidalune-720p.mp4 or -1080p.mp4.',
+    inDataFolder: "In the Vidalune data folder: the film's folder is read-only (mounted with :ro).",
   },
 };

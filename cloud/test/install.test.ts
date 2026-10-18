@@ -85,7 +85,9 @@ describe('installing Vidalune from vidalune.com', () => {
     expect(compose.body).toContain('"${DIRECT_TLS_PORT:-32400}:${DIRECT_TLS_PORT:-32400}"');
     expect(compose.body).toContain('DIRECT_TLS_PORT: ${DIRECT_TLS_PORT:-32400}');
     expect(compose.body).not.toContain('DIRECT_PUBLIC_PORT');
-    expect(compose.body).toContain('/media/movies:ro');
+    // Writable, so compatible copies can go next to a film and Clean-up can delete what is approved.
+    expect(compose.body).toContain('/srv/media/movies:/media/movies\n');
+    expect(compose.body).not.toContain(':ro\n');
   });
 
   it('hands out the newest Debian/Ubuntu package per processor, and explains it on the install page', async () => {
@@ -207,7 +209,7 @@ describe('installing Vidalune from vidalune.com', () => {
     const written = fs.readFileSync(path.join(target, 'docker-compose.yml'), 'utf8');
     expect(written).toContain(`image: ${IMAGE}`);
     // No terminal to ask: the default folders, and this user's own ids.
-    expect(written).toContain('- /srv/media/movies:/media/movies:ro');
+    expect(written).toContain('- /srv/media/movies:/media/movies\n');
     expect(written).toContain(`PUID: "${process.getuid!()}"`);
     expect(written).toContain('TZ: Europe/Amsterdam');
     expect(fs.readFileSync(path.join(dir, 'docker.log'), 'utf8')).toMatch(/compose pull\ncompose up -d/);
