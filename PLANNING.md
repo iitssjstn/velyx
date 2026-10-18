@@ -314,6 +314,12 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   - Fase 2 (server en tv): volgende aflevering met aftellen, intro/recap/aftiteling overslaan, audiospoor kiezen. Nodig: de
     server geeft met het cast-token (alleen voor dat bestand en die gebruiker) de segmenten, de volgende aflevering (met een
     nieuw cast-token) en een stream met een ander audiospoor; de tv laadt zelf de volgende titel, zodat de app het ziet.
+  - Ontwerp goedgekeurd (18 okt, vier voorbeelden): balk met poster, titel, voortgang met streepjes voor intro en
+    aftiteling, en een knoppenrij (10 s terug, pauze, 10 s vooruit, Ondertitels, Audio, Volgende aflevering), de gekozen
+    knop wit en groter; menu rechts met tabbladen Ondertitels/Audio/Stijl; "Intro overslaan" rechtsonder op de hoogte van
+    de knoppen (eigenaar: lager, "Dat is perfect"); kaart "Volgende aflevering over 8 s" rechtsonder met "Nu afspelen" en
+    "Aftiteling kijken". Online ondertitels zoeken op de tv: misschien later. Eigenaar (18 okt): "Zodra dit goed is, kan je
+    het mergen en daarna de zelfde player bouwen voor op de Chromecast" (0.19.78 mergen, dan dit als 0.19.79).
   - Eigenaar (18 okt): heeft zelf een Chromecast met afstandsbediening. Nog te controleren met 0.19.78 erop: of de
     pijltjes van die afstandsbediening bij de tv-pagina aankomen.
 
