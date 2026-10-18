@@ -302,7 +302,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 ## Gemeld tijdens het testen
 
 - **Casten: speler op de tv niet mooi, ondertitelkeuze vergeten, zwarte randen** (gemeld door de eigenaar 18 okt, twee
-  foto's van de tv; nog niet bouwen tot de eigenaar het zegt):
+  foto's van de tv; punt 1 en 3 gebouwd in 0.19.78, punt 2 wacht op antwoord van de eigenaar):
   1. Wat de tv bij pauze toont (titel, balk, tijden, 30 s-knoppen, CC) is Google's eigen bediening van
      `<cast-media-player>` (`cloud/web/cast/`); daarvan zijn alleen kleuren, lettertype en logo in te stellen (`cast.css`).
      Een eigen uiterlijk kan alleen met een eigen `<video>` (`PlayerManager.setMediaElement`) en eigen bediening erboven.
@@ -1522,3 +1522,26 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1977) en beide lockfiles bijgewerkt.
 - PR #162 gemerged 18 okt met toestemming van de eigenaar (alle checks groen); release `v0.19.77` gecontroleerd: APK, beide
   `.deb`'s, `.aab` en `vidalune-0.19.77-setup.exe`; de accountservice-image startte vanzelf na de Windows-workflow en slaagde.
+
+## Versie 0.19.78 (eigen tv-speler, geen zwart vlak achter de ondertitels)
+
+- Op verzoek van de eigenaar ("bouw het maar, en bouw de speler ook maar direct dan hebben we 2 klappen in 1", 18 okt),
+  na zijn melding (zie "Gemeld tijdens het testen", punten 1 en 3).
+- Zwart vlak: website en app sturen "geen achtergrond" als `#00000001` in plaats van `#00000000`
+  (`castTextTrackStyle` in `app/src/lib/cast.ts` en `frontend/src/lib/cast.ts`). De Android-castbibliotheek maakte van
+  `#00000000` het getal 0 ("geen kleur opgegeven"), waarna de tv zijn eigen zwarte vlak hield.
+- Eigen tv-speler (`cloud/web/cast/`): geen `<cast-media-player>` meer; Google's framework speelt in een eigen `<video>`
+  (`setMediaElement`). Vidalune tekent zelf: onderaan een balk met poster, regel erboven (S01E06 · …), titel,
+  voortgangsbalk en tijden (in het bestand, ook als de stream verderop begint), een pauzeteken in het midden, een
+  laadcirkel bij wachten en het donkere startscherm met logo en de titel die start. De balk staat er bij pauze en
+  wachten, en 5 s na starten, verder spelen of spoelen. De ondertitels krijgen de stijl van de zender als CSS op de
+  eigen video (`video::cue`, bij LOAD en EDIT_TRACKS_INFO, `cueCss` in `overlay.js`); zonder achtergrond geen vlak,
+  ook als de zender de achtergrond weglaat.
+- Tests: cloud (pagina met eigen video en onderdelen, `overlay.js` geserveerd, tijden in het bestand, wanneer de balk
+  staat, ondertitelstijl als CSS met en zonder achtergrond), app (geen kleur die Android als 0 doorgeeft; faalt op de
+  oude code), website en app (achtergrond "geen" is `#00000001`). Backend 592, frontend 346, cloud 181, app 170 tests;
+  typechecks en lint (4 bekende waarschuwingen) slagen. Voorbeeld van het tv-scherm (pauze en starten) naar de eigenaar.
+- Niet hier te testen: Google's framework met een eigen video op een echte Chromecast (afspelen, HLS, ondertitels in de
+  eigen stijl). Door de eigenaar te testen na het bijwerken van de accountservice: casten, pauze, spoelen, ondertitels
+  zonder vlak, en ondertitels aan/uit en een andere stijl tijdens het casten.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1978) en beide lockfiles bijgewerkt.

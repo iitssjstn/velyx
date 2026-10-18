@@ -37,9 +37,19 @@ describe('casting from the app', () => {
 
   it('maps saved app subtitle preferences to the Cast receiver style', () => {
     const style = { size: 'large' as const, color: 'yellow' as const, background: 'none' as const, edge: 'outline' as const, position: 0 };
-    expect(castTextTrackStyle(style)).toMatchObject({ fontFamily: 'sans-serif', fontGenericFamily: 'sansSerif', fontScale: 1.2, foregroundColor: '#FFE14DFF', backgroundColor: '#00000000', edgeType: 'outline' });
+    expect(castTextTrackStyle(style)).toMatchObject({ fontFamily: 'sans-serif', fontGenericFamily: 'sansSerif', fontScale: 1.2, foregroundColor: '#FFE14DFF', backgroundColor: '#00000001', edgeType: 'outline' });
     const { request } = castLoadRequest({ session: session('range'), url, title: 'Dune', subtitle: null, artwork: null, at: 0, keyframe: null, subtitleKey: null, subtitleStyle: style });
     expect(request.mediaInfo.textTrackStyle).toMatchObject({ fontScale: 1.2, foregroundColor: '#FFE14DFF', edgeType: 'outline' });
+  });
+  it('never sends a colour the Android cast library would drop (alpha 00 becomes 0, "no colour given")', () => {
+    // RNGCColor.fromJson turns '#RRGGBBAA' into an Android colour; '#00000000' is the number 0, which
+    // the Cast SDK reads as unspecified: the TV then kept its own black box behind the subtitles.
+    const android = (hex: string) => parseInt(hex.slice(7) + hex.slice(1, 7), 16);
+    for (const background of ['none', 'translucent', 'solid'] as const)
+      for (const color of ['white', 'yellow'] as const) {
+        const style = castTextTrackStyle({ ...DEFAULT_SUBTITLE_STYLE, castDefaults: false, background, color });
+        for (const key of ['foregroundColor', 'backgroundColor', 'edgeColor'] as const) expect(android(style[key]!), `${background} ${color} ${key}`).not.toBe(0);
+      }
   });
   it('validates corrupt custom styles and ignores local positioning', () => {
     expect(castTextTrackStyle({ ...DEFAULT_SUBTITLE_STYLE, castDefaults: false, size: 'invalid' } as never)).toMatchObject({ fontScale: 1 });

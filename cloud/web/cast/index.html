@@ -6,10 +6,23 @@
     <meta name="robots" content="noindex" />
     <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
     <link rel="stylesheet" href="cast.css" />
+    <style id="cue-style"></style>
   </head>
   <body>
-    <cast-media-player></cast-media-player>
-    <div id="splash" aria-hidden="true"><img src="logo.svg" alt="" /><div class="spinner"></div></div>
+    <!-- Vidalune's own player: Google's framework plays into this video, Vidalune draws the rest. -->
+    <video id="video"></video>
+    <div id="waiting" class="spinner" aria-hidden="true"></div>
+    <div id="paused" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg></div>
+    <div id="bar" aria-hidden="true">
+      <img id="poster" alt="" />
+      <div class="info">
+        <div id="subtitle"></div>
+        <div id="title"></div>
+        <div class="progress"><div id="played"></div></div>
+        <div class="times"><span id="position">0:00</span><span id="length"></span></div>
+      </div>
+    </div>
+    <div id="splash" aria-hidden="true"><img src="logo.svg" alt="" /><div id="splash-title"></div><div class="spinner"></div></div>
     <script type="module" src="receiver.js"></script>
   </body>
 </html>

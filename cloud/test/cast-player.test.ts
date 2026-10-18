@@ -10,6 +10,7 @@ import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
 import { ProgressSaver, progressReport, progressTarget, SAVE_EVERY_MS, START_SLACK_SEC } from '../web/cast/progress.js';
 import { showsSplash } from '../web/cast/screen.js';
+import { barVisible, cssColor, cueCss, fileTimes, formatTime, SHOW_FOR_MS } from '../web/cast/overlay.js';
 
 let dir: string;
 let db: DB;
@@ -53,19 +54,21 @@ describe('cast.vidalune.com', () => {
     expect(page.status).toBe(200);
     expect(page.type).toContain('text/html');
     expect(page.body).toContain('https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js');
-    expect(page.body).toContain('<cast-media-player>');
-    // Vidalune's own dark screen over Google's white one.
-    expect(page.body).toContain('id="splash"');
+    // Vidalune's own player: Google's framework plays into Vidalune's video, not into its own player with its bar.
+    expect(page.body).toContain('<video id="video">');
+    expect(page.body).not.toContain('<cast-media-player>');
+    for (const id of ['splash', 'bar', 'title', 'played', 'paused', 'waiting', 'cue-style']) expect(page.body, id).toContain(`id="${id}"`);
     expect(page.headers['content-security-policy']).toBe("frame-ancestors 'none'");
-    for (const [file, type] of [['receiver.js', 'text/javascript'], ['progress.js', 'text/javascript'], ['screen.js', 'text/javascript'], ['cast.css', 'text/css'], ['logo.svg', 'image/svg+xml']]) {
+    for (const [file, type] of [['receiver.js', 'text/javascript'], ['progress.js', 'text/javascript'], ['screen.js', 'text/javascript'], ['overlay.js', 'text/javascript'], ['cast.css', 'text/css'], ['logo.svg', 'image/svg+xml']]) {
       const res = await get('cast.vidalune.example', `/${file}`);
       expect(res.status, file).toBe(200);
       expect(res.type, file).toContain(type);
     }
-    // Every screen of Google's player is dark: its screen after connecting is white otherwise, and
-    // the light letters of the logo vanish on it.
+    // Dark everywhere: the light letters of the logo vanish on a white screen.
     const css = (await get('cast.vidalune.example', '/cast.css')).body;
-    for (const variable of ['--background', '--background-color', '--logo-background', '--splash-background']) expect(css, variable).toMatch(new RegExp(`${variable}:\\s*#0f0d15`));
+    expect(css).toMatch(/html, body \{[^}]*background: #0f0d15/);
+    expect(css).toMatch(/#splash \{[^}]*background: #0f0d15/);
+    expect((await get('cast.vidalune.example', '/receiver.js')).body).toContain("setMediaElement(video)");
     expect((await get('cast.vidalune.example', '/robots.txt')).body).toContain('Disallow: /');
     // Only a Chromecast (or a TV with Chromecast built in) gets the player; a browser does not.
     const desktop = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36';
@@ -77,7 +80,7 @@ describe('cast.vidalune.com', () => {
     expect((await get('cast.vidalune.example', '/', 'GET', '')).status).toBe(404);
     expect((await get('cast.vidalune.example', '/', 'GET', 'Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36 CrKey/1.54.250320')).status).toBe(200);
     // Not the account service, not other files, not a relay address.
-    for (const url of ['/api/account', '/account', '/progress.d.ts', '/../index.html', '/%2e%2e/index.html', '/admin']) expect((await get('cast.vidalune.example', url)).status, url).toBe(404);
+    for (const url of ['/api/account', '/account', '/progress.d.ts', '/overlay.d.ts', '/../index.html', '/%2e%2e/index.html', '/admin']) expect((await get('cast.vidalune.example', url)).status, url).toBe(404);
     expect((await get('cast.vidalune.example', '/', 'POST')).status).toBe(404);
     expect(app.relay.slugOf({ headers: { host: 'cast.vidalune.example' } } as http.IncomingMessage)).toBeNull();
     // The website itself is unchanged.
@@ -89,6 +92,44 @@ describe('the cast player\'s own screen', () => {
   it('covers Google\'s white screen until the TV plays', () => {
     for (const state of ['IDLE', 'LOADING', undefined, null]) expect(showsSplash(state), String(state)).toBe(true);
     for (const state of ['PLAYING', 'PAUSED', 'BUFFERING']) expect(showsSplash(state), state).toBe(false);
+  });
+});
+
+describe('the cast player\'s own bar and subtitles', () => {
+  it('shows the time in the file, also when the stream starts further in', () => {
+    expect(formatTime(47 * 60 + 45)).toBe('47:45');
+    expect(formatTime(3845)).toBe('1:04:05');
+    expect(formatTime(-3)).toBe('0:00');
+    expect(formatTime(Number.NaN)).toBe('0:00');
+    // A repackaged stream that begins 600 s into a 2865 s episode, 104 s in.
+    expect(fileTimes({ offset: 600, durationSec: 2865 }, 104, 2265)).toEqual({ position: 704, length: 2865 });
+    // Another sender: only what the TV knows.
+    expect(fileTimes(null, 104, 2865)).toEqual({ position: 104, length: 2865 });
+    expect(fileTimes(null, 10, Number.NaN)).toEqual({ position: 10, length: 0 });
+  });
+
+  it('keeps the bar up while paused or waiting, and for a while after the last change', () => {
+    expect(barVisible('PLAYING', 1000, 1000 + SHOW_FOR_MS - 1)).toBe(true);
+    expect(barVisible('PLAYING', 1000, 1000 + SHOW_FOR_MS)).toBe(false);
+    expect(barVisible('PAUSED', 0, 1e9)).toBe(true);
+    expect(barVisible('BUFFERING', 0, 1e9)).toBe(true);
+  });
+
+  it('draws the subtitles in the sender\'s style, without a black box when it asks for none', () => {
+    expect(cssColor('#FFE14DFF')).toBe('rgba(255, 225, 77, 1)');
+    expect(cssColor('#00000099')).toBe('rgba(0, 0, 0, 0.6)');
+    expect(cssColor('#123456')).toBe('rgba(18, 52, 86, 1)');
+    expect(cssColor('red')).toBeNull();
+    const yellow = cueCss({ fontScale: 1.2, foregroundColor: '#FFE14DFF', backgroundColor: '#00000001', edgeType: 'OUTLINE', edgeColor: '#000000FF' });
+    expect(yellow).toContain('color: rgba(255, 225, 77, 1) !important');
+    expect(yellow).toContain('background-color: rgba(0, 0, 0, 0.004) !important');
+    expect(yellow).toContain('font-size: 5.52vh');
+    expect(yellow).toContain('-2px -2px 0 rgba(0, 0, 0, 1)');
+    expect(cueCss({ backgroundColor: '#000000EB' })).toContain('background-color: rgba(0, 0, 0, 0.922)');
+    // The Android sender leaves a see-through background out altogether: still no black box.
+    expect(cueCss({ foregroundColor: '#FFFFFFFF', edgeType: 'DROP_SHADOW' })).toContain('background-color: rgba(0, 0, 0, 0) !important');
+    expect(cueCss(null)).toContain('background-color: rgba(0, 0, 0, 0) !important');
+    expect(cueCss({ edgeType: 'NONE' })).toContain('text-shadow: none !important');
   });
 });
 

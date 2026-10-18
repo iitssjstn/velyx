@@ -1,6 +1,6 @@
 {
   "name": "@vidalune/backend",
-  "version": "0.19.77",
+  "version": "0.19.78",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
