@@ -308,7 +308,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   optimizer als die er is, herstart op dezelfde plek; "Automatisch" kiest bij de start op basis van de gemeten
   verbinding, thuis meestal Origineel); beheerder kan een maximum voor kijkers buitenshuis instellen. Stap 2 echte
   adaptieve kwaliteit (meerdere kwaliteiten in één HLS-lijst, de speler wisselt zelf), alleen met een hardware-encoder.
-  Open: website, app en tv tegelijk of eerst de website.
+  Besluit eigenaar (18 okt): stap 1 op de website, in de app en op de tv tegelijk ("zet dit in de planning"); bouwen
+  pas als hij het zegt.
 
 - **Kopie van de optimizer staat niet in de juiste map** (gemeld door de eigenaar 18 okt; gebouwd in 0.19.80): de kopie
   stond in `<DATA_DIR>/optimized/<bestands-id>/<profiel>.mp4`, niet naast de film. Keuze eigenaar: "In de map waar hij
