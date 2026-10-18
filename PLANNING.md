@@ -97,7 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- Laatste release: **0.19.75** (PR #160, andere seizoenen van een serie aanvragen; gemerged 17 okt); release `v0.19.75` gecontroleerd: APK, beide `.deb`'s, `.aab` en `vidalune-0.19.75-setup.exe` aanwezig. Daarvoor 0.19.74 (PR #159, Vidalune voor Windows), 0.19.73 (PR #158, 1080p-afleveringen niet meer als 720p), 0.19.72 (PR #157, wachtwoord in de app), 0.19.71 (PR #156, in- en uitloggen in de app, onleesbaar bestand), 0.19.70 (PR #155, app automatisch naar de interne test van de Play Store), 0.19.69 (PR #154, Control Center overzichtelijker), 0.19.68 (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer), 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.76** (PR #161, seizoenen aanvragen op de seriepagina zelf; gemerged 17 okt); release `v0.19.76` gecontroleerd: APK, beide `.deb`'s, `.aab` en `vidalune-0.19.76-setup.exe` aanwezig. Daarvoor 0.19.75 (PR #160, andere seizoenen van een serie aanvragen), 0.19.74 (PR #159, Vidalune voor Windows), 0.19.73 (PR #158, 1080p-afleveringen niet meer als 720p), 0.19.72 (PR #157, wachtwoord in de app), 0.19.71 (PR #156, in- en uitloggen in de app, onleesbaar bestand), 0.19.70 (PR #155, app automatisch naar de interne test van de Play Store), 0.19.69 (PR #154, Control Center overzichtelijker), 0.19.68 (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer), 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -300,6 +300,20 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
    - Let ook op de Let's Encrypt-limiet van ongeveer 50 nieuwe certificaten per week per hoofddomein (controleer in hun documentatie); die geldt los van DNS en kan bij een piek aan nieuwe klanten eerder knellen.
 
 ## Gemeld tijdens het testen
+
+- **Ondertitels lopen niet gelijk na verder kijken tijdens een transcode** (gemeld door de eigenaar 18 okt, screenshot:
+  HEVC 1080p → H.264, AAC 5.1 → stereo, MKV, externe ondertitel; gebouwd in 0.19.77). Oorzaak,
+  nagebootst met echte FFmpeg (23,976 fps): bij omgezette video belooft de afspeellijst stukjes van precies 4 s
+  (`gridLayout`), maar FFmpeg knipt ze niet daar. De HLS-muxer knipt pas als er 4 s × stuknummer verstreken is sinds het
+  eerste beeld van de run; dat eerste beeld ligt net na de grens (bv. 20,06 s), dus het afgedwongen keyframe op 24,02 s
+  telt net niet mee en er wordt geknipt op het volgende gewone keyframe (`-g 48`, 2 s later). Gevolg: elk stukje na het
+  eerste bevat beeld van ~2 s later dan de lijst zegt (stuk 1 begint op 6,05 s in plaats van 4). hls.js zet zijn klok
+  op het eerste stukje dat hij laadt; komt dat uit een run die eerder begon (verder kijken terwijl de vorige run nog
+  bezig is, `segment()` wacht dan op die run), dan loopt de klok ~2 s achter en dus ook de ondertitels (en de
+  opgeslagen positie). Voorstel: bij HLS met omzetten alleen keyframes op de grens (`-g` groot, de grens blijft
+  afgedwongen) en knippen bij elk keyframe (`-hls_time` klein, zoals bij kopiëren) in `hlsArgs`
+  (`backend/src/playback/hls.ts`); nagebootst: stukken beginnen dan op 4,05 / 8,05 / … en 24,02 / 28,03 / ….
+  Regressietest met echte FFmpeg: elk stukje begint op zijn plek in de lijst, ook bij een run die halverwege start.
 
 - **Tweede seizoen van een serie niet aan te vragen** (gemeld door de eigenaar 17 okt; gebouwd in 0.19.75):
   staat één seizoen van een serie op de server, dan geldt de hele serie als "in de bibliotheek". De server weigert
@@ -1462,3 +1476,22 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   Seerr geen knop); de bestaande tests van de aanvraagpagina slagen ongewijzigd. De schermen van de app hebben geen
   testomgeving; op de telefoon testen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1976) en beide lockfiles bijgewerkt.
+- PR #161 gemerged 17 okt op verzoek van de eigenaar ("merge het maar"); release `v0.19.76` gecontroleerd: APK, beide `.deb`'s,
+  `.aab` en `vidalune-0.19.76-setup.exe`. De accountservice-image startte vanzelf na de Windows-workflow en slaagde; het `.aab`
+  ging naar de interne test (app veranderd). Bevestigd door de eigenaar (17 okt): "Het doet het zoals ik het wil".
+
+## Versie 0.19.77 (ondertitels gelijk na verder kijken tijdens een transcode)
+
+- Op verzoek van de eigenaar ("bouw het, ik ga slapen je mag mergen als alles goed is", 18 okt), na zijn melding (zie
+  "Gemeld tijdens het testen").
+- `hlsArgs` (`backend/src/playback/hls.ts`), alleen bij omgezette video: geen eigen keyframes van de encoder meer (`-g`
+  100000, overschrijft de `-g 48` van `encodeArgs`), afgedwongen keyframes op de grens vanaf het stuk ná het eerste van
+  de run (het eerste beeld is al een keyframe; anders ontstaat een stuk van één beeld als dat beeld net vóór de grens
+  ligt) en een nieuw stuk bij elk keyframe (`-hls_time 0.01`, zoals bij kopiëren). Geldt ook voor HLS op de Chromecast.
+  De live stream (`remux.ts`) en de optimizer zijn niet veranderd.
+- Test (`backend/test/hls.test.ts`, echte FFmpeg, 23,976 fps met AAC 5.1 zoals het echte bestand): elk stuk begint op
+  zijn plek in de lijst, vanaf het begin en na een run die halverwege start; faalt op de oude code (2,05 s verschoven).
+  Backend 592, frontend 346, cloud 178, app 169 tests; typechecks en lint (4 bekende waarschuwingen) slagen.
+- Niet hier te testen: de hardware-encoders (NVENC, VAAPI) met de lange GOP. Door de eigenaar te testen: een film of serie
+  die omgezet wordt (HEVC) halverwege verder kijken en de ondertitels volgen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1977) en beide lockfiles bijgewerkt.

@@ -22,6 +22,8 @@ const log = createLogger('hls');
 
 /** Length of a piece when the video is converted. */
 export const GRID_SECONDS = 4;
+/** A GOP so long that the encoder makes no keyframes of its own between the forced ones (frames). */
+const KEYFRAME_FREE = 100_000;
 /** How far ahead of the player pieces are made before FFmpeg pauses (seconds of video). */
 const AHEAD_SECONDS = 120;
 /** Reading a file's keyframes reads the whole file (minutes for a film on a NAS): at most this long. */
@@ -129,7 +131,14 @@ export function hlsArgs(input: string, videoCodec: string | null, plan: RemuxPla
   args.push('-copyts', '-start_at_zero', '-fflags', '+genpts', '-i', input, '-map', '0:v:0');
   if (plan.audioIndex !== null) args.push('-map', `0:${plan.audioIndex}`);
   if (encode) {
-    args.push(...encode.output, '-force_key_frames', layout.starts.slice(from).map((s) => s.toFixed(3)).join(','));
+    // Keyframes only on the grid (the encoder's own every-2-seconds ones are switched off), and a new
+    // piece at each of them. Cutting "every 4 s" does not work: FFmpeg counts from the run's first frame,
+    // which lies just after its grid point, so the next forced keyframe falls just short and the piece
+    // ends at a later keyframe, putting every piece after it seconds away from where the list says.
+    // The run's first frame is a keyframe anyway; forcing one on its own grid point as well would make a
+    // one-frame piece when that frame lies a hair before the point.
+    const forced = layout.starts.slice(from + 1).map((s) => s.toFixed(3)).join(',');
+    args.push(...encode.output, '-g', String(KEYFRAME_FREE), ...(forced ? ['-force_key_frames', forced] : []));
     if (encode.output.includes('libx264')) args.push('-sc_threshold', '0');
   } else {
     args.push('-c:v', 'copy');
@@ -148,8 +157,8 @@ export function hlsArgs(input: string, videoCodec: string | null, plan: RemuxPla
     // A run that starts further in otherwise writes its pieces' times from 0 (and puts the start in its
     // own init, which the player never gets: it keeps the first run's). frag_discont keeps the file's times.
     '-hls_segment_options', 'movflags=+frag_discont',
-    // Copied: a new piece at every keyframe. Converted: every GRID_SECONDS, where the keyframes are forced.
-    '-hls_time', encode ? String(GRID_SECONDS) : '0.01',
+    // A new piece at every keyframe: copied, the file's own; converted, the ones forced on the grid.
+    '-hls_time', '0.01',
     '-hls_segment_type', 'fmp4', '-hls_flags', 'temp_file', '-hls_fmp4_init_filename', 'init.mp4',
     '-start_number', String(from), '-hls_list_size', '0', '-hls_playlist_type', 'event',
     '-hls_segment_filename', path.join(dir, 'seg%d.m4s'),
