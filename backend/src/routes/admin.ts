@@ -75,6 +75,7 @@ const settingsBody = z.object({
   maintenanceStart: z.string().regex(TIME_OF_DAY, 'Use a time like 02:00').optional(),
   maintenanceEnd: z.string().regex(TIME_OF_DAY, 'Use a time like 06:00').optional(),
   maintenanceOutside: z.boolean().optional(),
+  aheadSeconds: z.number().int().min(30).max(3600).optional(),
   segmentVideo: z.boolean().optional(),
   sharedDetection: z.boolean().optional(),
   updateCheck: z.boolean().optional(),
@@ -543,6 +544,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       maintenanceStart: s.maintenanceStart,
       maintenanceEnd: s.maintenanceEnd,
       maintenanceOutside: s.maintenanceOutside,
+      aheadSeconds: s.aheadSeconds,
       // The window is in the server's own time (TZ): shown so the administrator can check it.
       serverTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
       serverTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -608,7 +610,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
     // Names of what changed only — never the values of keys.
     const tmdbChanges = [tmdbApiKey !== undefined ? (tmdbApiKey === '' ? 'API key removed' : 'API key changed') : null, rest.tmdbLanguage !== undefined ? `language ${rest.tmdbLanguage || 'default'}` : null, rest.includeAdult !== undefined ? `adult titles ${rest.includeAdult ? 'on' : 'off'}` : null].filter(Boolean);
     if (tmdbChanges.length) ctx.audit.record('tmdb.updated', { actor: request.user, ip: request.ip, detail: tmdbChanges.join('; ') });
-    const serverChanges = (['serverName', 'serverUrl', 'watchFolders', 'updateCheck', 'scanIntervalMinutes', 'scanOnStartup', 'deferScansWhilePlaying', 'segmentDetection', 'segmentVideo', 'sharedDetection', 'subtitlePrefetch', 'maintenanceStart', 'maintenanceEnd', 'maintenanceOutside'] as const).filter((k) => rest[k] !== undefined);
+    const serverChanges = (['serverName', 'serverUrl', 'watchFolders', 'updateCheck', 'scanIntervalMinutes', 'scanOnStartup', 'deferScansWhilePlaying', 'segmentDetection', 'segmentVideo', 'sharedDetection', 'subtitlePrefetch', 'maintenanceStart', 'maintenanceEnd', 'maintenanceOutside', 'aheadSeconds'] as const).filter((k) => rest[k] !== undefined);
     if (serverChanges.length) ctx.audit.record('settings.updated', { actor: request.user, ip: request.ip, detail: serverChanges.join(', ') });
     if (!wasConfigured && ctx.tmdb.configured) {
       log.info('TMDB configured — fetching metadata for existing libraries');

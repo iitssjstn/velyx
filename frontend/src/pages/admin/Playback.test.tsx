@@ -2,6 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
+
+vi.mock('../../lib/auth', () => ({
+  useAuth: () => ({ user: { id: 1, username: 'admin', role: 'admin' }, refetchServer: () => undefined }),
+}));
+
 import { PlaybackPage } from './Playback';
 
 afterEach(() => vi.unstubAllGlobals());

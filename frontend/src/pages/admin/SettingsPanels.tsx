@@ -156,6 +156,32 @@ export function DetectionSettings() {
   );
 }
 
+/** Playback: how far ahead the server converts while someone watches. */
+export function AheadSettings() {
+  const { t } = useT();
+  const { query, save, form, setForm } = usePanel((s) => ({ aheadSeconds: String(s.aheadSeconds) }));
+  if (!query.data || !form) return <PanelState query={query} />;
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        save.mutate({ aheadSeconds: Number(form.aheadSeconds) });
+      }}
+      className="panel space-y-4 p-5 sm:p-6"
+      aria-labelledby="ahead-title"
+    >
+      <h2 id="ahead-title" className="font-display text-lg font-semibold">{t('server.ahead')}</h2>
+      <p className="text-sm text-muted">{t('server.aheadText')}</p>
+      <div className="max-w-xs">
+        <label className="label" htmlFor="ahead">{t('server.aheadSeconds')}</label>
+        <input id="ahead" type="number" inputMode="numeric" className="input" required min={30} max={3600} step={1} value={form.aheadSeconds} onChange={(e) => setForm({ aheadSeconds: e.target.value })} />
+      </div>
+      <p className="text-xs text-faint">{t('server.aheadHint')}</p>
+      <Button type="submit" loading={save.isPending}>{t('common.save')}</Button>
+    </form>
+  );
+}
+
 /** Maintenance: when background work may run, and what it prepares ahead of time. */
 export function MaintenancePage() {
   const { t } = useT();

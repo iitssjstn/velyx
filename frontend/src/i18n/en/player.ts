@@ -82,6 +82,8 @@ export const player = {
   embedded: 'embedded',
   file: 'file',
   noAudioTracks: 'No audio tracks found for this file.',
+  subtitleLoading: 'Loading subtitle…',
+  subtitleFailed: 'The subtitle could not be loaded. Choose it again or pick another one.',
   noSubtitles: 'No text subtitles found for this file.',
   imageSubtitles: 'Image-based subtitles (PGS/VobSub) cannot be shown in the browser.',
   dim: 'Dim',

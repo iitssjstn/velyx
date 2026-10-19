@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { HlsSessions, KeyframesStopped, copyLayout, gridLayout, hlsArgs, playlist, readKeyframes, segmentAt, type HlsSource } from '../src/playback/hls.js';
 import type { RemuxPlan } from '../src/playback/remux.js';
 import { encodeArgs } from '../src/playback/transcode.js';
+import { createTestEnv, createUser, setupAdmin } from './helpers.js';
 
 let dir: string;
 let mkv: string;
@@ -154,6 +155,32 @@ describe('HLS pieces', () => {
     }
   });
 
+  it('stops FFmpeg far enough ahead where it cannot be paused (Windows), and starts again from the next piece', async () => {
+    const film = path.join(dir, 'Rest.mkv');
+    execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '90', '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '50', '-c:a', 'ac3', '-y', film]);
+    const cache = path.join(dir, 'cache-rest');
+    const sessions = new HlsSessions('ffmpeg', 'ffprobe', cache, undefined, { aheadSeconds: () => 12, canPause: false });
+    const made = () => fs.readdirSync(cache).flatMap((d) => fs.readdirSync(path.join(cache, d)).filter((f) => /^seg\d+\.m4s$/.test(f)));
+    try {
+      const layout = await sessions.layout('rest', film, 90, true);
+      const src: HlsSource = { key: 'u1:3:vt', input: film, videoCodec: 'h264', plan, layout, encode: encodeArgs('software') };
+      const init = await sessions.init(src);
+      expect(Math.abs(startOf([init, await sessions.segment(src, 0)]))).toBeLessThan(0.1);
+      // FFmpeg stops once it is 12 s ahead: the pieces stop coming, long before the end of the film.
+      let count = -1;
+      for (let i = 0; i < 100 && made().length !== count; i++) {
+        count = made().length;
+        await new Promise((r) => setTimeout(r, 400));
+      }
+      expect(count).toBeGreaterThan(1);
+      expect(count).toBeLessThan(layout.starts.length - 5);
+      // The player comes closer: a new run picks up at the next piece, with the right times.
+      for (let n = 1; n <= count + 4; n++) expect(Math.abs(startOf([init, await sessions.segment(src, n)]) - 4 * n)).toBeLessThan(0.1);
+    } finally {
+      sessions.stopAll();
+    }
+  });
+
   it('cuts converted pieces on the grid when no frame falls exactly on it (23.976 fps)', async () => {
     // At 23.976 fps a run's first frame lies just after its grid point, and the next forced keyframe
     // just under 4 s later. Every piece must still begin where the list says: the player sets its clock
@@ -178,6 +205,26 @@ describe('HLS pieces', () => {
       for (const n of [9, 10, 11]) expect(Math.abs(startOf([init, await resumed.segment(src, n)]) - 4 * n)).toBeLessThan(0.1);
     } finally {
       resumed.stopAll();
+    }
+  });
+});
+
+describe('how far ahead pieces are made', () => {
+  it('is set in seconds by an administrator only, within limits, and used for the next request', async () => {
+    const env = await createTestEnv();
+    try {
+      const admin = await setupAdmin(env.app);
+      const user = await createUser(env.app, admin, 'viewer');
+      const put = (cookie: string, payload: object) => env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie }, payload });
+      expect((await env.app.inject({ method: 'GET', url: '/api/admin/settings', headers: { cookie: admin } })).json().aheadSeconds).toBe(120);
+      expect((await put(user.cookie, { aheadSeconds: 600 })).statusCode).toBe(403);
+      for (const bad of [10, 5000, 90.5, '300']) expect((await put(admin, { aheadSeconds: bad })).statusCode).toBe(400);
+      const res = await put(admin, { aheadSeconds: 600 });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().aheadSeconds).toBe(600);
+      expect(env.ctx.settings.get().aheadSeconds).toBe(600);
+    } finally {
+      await env.cleanup();
     }
   });
 });

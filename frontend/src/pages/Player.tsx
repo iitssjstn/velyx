@@ -263,6 +263,10 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const restartTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const subKeyRef = useRef<string | null>(null);
   const [activeTrack, setActiveTrack] = useState<{ video: HTMLVideoElement; track: TextTrack; stream: string | null; load: number } | null>(null);
+  /** Subtitle files (by address) that loaded or failed: the chosen one shows "Loading subtitle…" until it is in. */
+  const trackLoads = useRef(new Map<string, 'loaded' | 'error'>());
+  const [subStatus, setSubStatus] = useState<'loading' | 'error' | null>(null);
+  const [subLoadingShown, setSubLoadingShown] = useState(false);
   const [subDelay, setSubDelay] = useState(0);
   // A live stream restarted at a new position: the last picture of the old one stays on screen
   // (drawn on a canvas, on black so the bars of a wide film stay black) until the new one shows its
@@ -560,6 +564,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       if (!v) return;
       const element = Array.from(v.querySelectorAll('track')).find((track) => track.dataset.subtitleKey === key);
       const selected = element?.track ?? null;
+      const loaded = element ? trackLoads.current.get(element.getAttribute('src') ?? '') : undefined;
+      setSubStatus(!element || loaded === 'loaded' || element.readyState === 2 ? null : loaded === 'error' || element.readyState === 3 ? 'error' : 'loading');
       for (let i = 0; i < v.textTracks.length; i++) {
         const track = v.textTracks[i]!;
         // "hidden" loads the cues without the browser drawing them; SubtitleOverlay renders them.
@@ -585,6 +591,15 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     },
     [cast.active, cast.setSubtitle, selectSubtitle, subs],
   );
+  // "Loading subtitle…" only once it takes a moment (a cached file is in at once, without a flash).
+  useEffect(() => {
+    if (subStatus !== 'loading') {
+      setSubLoadingShown(false);
+      return;
+    }
+    const timer = setTimeout(() => setSubLoadingShown(true), 600);
+    return () => clearTimeout(timer);
+  }, [subStatus]);
   // A subtitle chosen on the TV (its remote): shown here too and remembered, as if chosen here.
   useEffect(() => {
     if (!castHere || cast.tvSubtitleKey === undefined || cast.tvSubtitleKey === subKeyRef.current) return;
@@ -1199,11 +1214,34 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         >
           {subs.map((s) => (
             // Live streams start at `offset`, so their cues are shifted by the server to match.
-            <track key={s.key} data-subtitle-key={s.key} kind="subtitles" src={offset > 0 ? withParam(s.url, 'offset', offset.toFixed(3)) : s.url} label={s.label} srcLang={s.language ?? undefined} onLoadCapture={() => selectSubtitle(subKeyRef.current)} />
+            <track
+              key={s.key}
+              data-subtitle-key={s.key}
+              kind="subtitles"
+              src={offset > 0 ? withParam(s.url, 'offset', offset.toFixed(3)) : s.url}
+              label={s.label}
+              srcLang={s.language ?? undefined}
+              onLoadCapture={(e) => {
+                trackLoads.current.set(e.currentTarget.getAttribute('src') ?? '', 'loaded');
+                selectSubtitle(subKeyRef.current);
+              }}
+              onErrorCapture={(e) => {
+                trackLoads.current.set(e.currentTarget.getAttribute('src') ?? '', 'error');
+                selectSubtitle(subKeyRef.current);
+              }}
+            />
           ))}
         </video>
       )}
       <canvas ref={freezeRef} aria-hidden className={`pointer-events-none absolute inset-0 h-full w-full bg-black object-contain ${frozen && !mini && !postPlay ? '' : 'hidden'}`} />
+
+      {!mini && !postPlay && !cast.active && ((subStatus === 'loading' && subLoadingShown) || subStatus === 'error') && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-28 z-10 flex justify-center px-4" role="status">
+          <span className={`rounded-full bg-black/70 px-4 py-2 text-sm ${subStatus === 'error' ? 'text-red-300' : 'text-white/90'}`}>
+            {subStatus === 'error' ? t('player.subtitleFailed') : t('player.subtitleLoading')}
+          </span>
+        </div>
+      )}
 
       {/* The chosen subtitle stays selected while minimized; it is only not drawn on the small video. */}
       {!mini && !postPlay && <SubtitleOverlay video={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.video : null} track={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.track : null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />}
