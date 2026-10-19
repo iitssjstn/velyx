@@ -301,6 +301,15 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Knop "Seizoenen aanvragen" blijft staan als er niets meer aan te vragen is** (gemeld door de eigenaar 19 okt; nog
+  niet bouwen tot hij het zegt): bij een serie met één seizoen dat op de server staat, of als alle overige seizoenen al
+  aangevraagd zijn, staat de knop er nog. Wens: dan verdwijnt de knop. Oorzaak: de seriepagina (website `ShowDetail.tsx`,
+  app `app/src/app/show/[id].tsx`) toont de knop zodra Seerr aan staat en de TMDB-id bekend is; welke seizoenen open zijn
+  wordt pas bij het klikken bij Seerr opgehaald (bewuste keuze in 0.19.76, zodat de pagina Seerr niets extra vraagt).
+  Voorstel: de server geeft bij de serie mee of er nog seizoenen open zijn (aantal seizoenen volgens de metadata min wat
+  hier staat; aangevraagd uit Seerr, kort bewaard), en website en app tonen de knop alleen dan. Test die op de oude code
+  faalt (één seizoen hier, alles aangevraagd, wel nog een open seizoen).
+
 - **Kwaliteit kiezen in de speler** (vraag eigenaar 18 okt; nog niet bouwen tot hij het zegt): "Ik bouw vidalune niet
   alleen voor mijzelf"; de Athlon is een uitzondering, dus ontwerpen voor gewone servers (vaak met Intel Quick Sync via
   VAAPI of NVENC). Nu zet de server alleen om op de eigen resolutie (`encodeArgs`); de optimizer heeft 720p/1080p-kopieën.
