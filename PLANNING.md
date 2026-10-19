@@ -301,6 +301,16 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Hoe ver vooruit omzetten instelbaar** (wens eigenaar 19 okt; nog niet bouwen tot hij het zegt): nu vast
+  `AHEAD_SECONDS = 120` in `backend/src/playback/hls.ts` (FFmpeg pauzeert met `SIGSTOP` als hij 120 s voor de kijker
+  is en gaat verder bij 60 s). Besluit eigenaar: "Geef de beheerder gewoon een veld waar hij zelf de seconden in kan
+  typen". Dus onder Beheer > Afspelen een getalveld "Vooruit omzetten (seconden)", standaard 120, met korte uitleg
+  (hoger: verder vooruitspoelen gaat meteen en haperingen vallen minder op; lager: minder werk voor niets en meer
+  kijkers tegelijk; een snelle server heeft juist minder nodig). Zod met grenzen (bijvoorbeeld 30 tot 3600), alleen
+  beheerder, verder gaan blijft op de helft. Geldt voor website, app en tv; Engels en Nederlands; tests.
+  Meenemen: **rustig omzetten op Windows**: daar kan FFmpeg niet gepauzeerd worden en zet hij de hele film achter
+  elkaar om; oplossing: FFmpeg stoppen als hij ver genoeg voor is en later vanaf die plek opnieuw starten.
+
 - **Knop "Seizoenen aanvragen" blijft staan als er niets meer aan te vragen is** (gemeld door de eigenaar 19 okt; nog
   niet bouwen tot hij het zegt): bij een serie met één seizoen dat op de server staat, of als alle overige seizoenen al
   aangevraagd zijn, staat de knop er nog. Wens: dan verdwijnt de knop. Oorzaak: de seriepagina (website `ShowDetail.tsx`,
