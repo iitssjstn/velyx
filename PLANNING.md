@@ -310,6 +310,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   beheerder, verder gaan blijft op de helft. Geldt voor website, app en tv; Engels en Nederlands; tests.
   Meenemen: **rustig omzetten op Windows**: daar kan FFmpeg niet gepauzeerd worden en zet hij de hele film achter
   elkaar om; oplossing: FFmpeg stoppen als hij ver genoeg voor is en later vanaf die plek opnieuw starten.
+  Besluit eigenaar (19 okt): "Je kan windows meenemen in de volgende update": rustig omzetten op Windows hoort bij de
+  eerstvolgende versie (bouwen zodra hij die versie laat bouwen).
 
 - **Knop "Seizoenen aanvragen" blijft staan als er niets meer aan te vragen is** (gemeld door de eigenaar 19 okt; nog
   niet bouwen tot hij het zegt): bij een serie met één seizoen dat op de server staat, of als alle overige seizoenen al
