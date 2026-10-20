@@ -301,6 +301,15 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Gekozen audiospoor wordt niet onthouden** (gemeld door de eigenaar 20 okt; nog niet bouwen tot hij het zegt): kiest
+  een kijker bij een serie met Engels en Italiaans het Engelse spoor, dan start de volgende aflevering weer met het
+  standaardspoor. Oorzaak: een gekozen ondertitel wordt bewaard (website `setPrefs` in `chooseSubtitle`, app
+  `rememberSubtitle`), een gekozen audiospoor niet: website `selectServerAudio`/`selectNativeAudio` (`Player.tsx`) en app
+  `decide` (`app/src/app/play/[kind]/[id].tsx`) zetten alleen het spoor voor deze titel; bij de start telt alleen de
+  audiotaal uit de accountinstellingen (`preferredAudioIndex`). Voorstel: de taal van het gekozen spoor onthouden zoals
+  bij ondertitels (website en app, ook een keuze op de tv) en bij de volgende titel het spoor in die taal kiezen als het
+  er is; anders het standaardspoor. Tests die op de oude code falen.
+
 - **0.19.81 in aanbouw** (besluit eigenaar 19 okt: "Ja goede optie" voor 8, 9, 11 en 13 uit de werklijst; 20 okt:
   "Neem de dubbele beschrijving maar mee in 0.19.81"). Op de branch, nog geen PR:
   - Rustig omzetten op Windows (`HlsOptions.canPause` in `hls.ts`: FFmpeg stoppen als hij ver genoeg vooruit is,
