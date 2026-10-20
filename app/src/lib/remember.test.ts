@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as SecureStore from 'expo-secure-store';
-import { storedSubtitleStyle, storeSubtitleStyle } from './remember';
+import { rememberAudio, rememberedAudio, storedSubtitleStyle, storeSubtitleStyle } from './remember';
 import { DEFAULT_SUBTITLE_STYLE } from './subtitleStyle';
 
 vi.mock('expo-secure-store', () => ({
@@ -37,5 +37,23 @@ describe('stored subtitle styles', () => {
     expect(await storedSubtitleStyle()).toEqual(DEFAULT_SUBTITLE_STYLE);
     vi.mocked(SecureStore.setItemAsync).mockRejectedValue(new Error('Full'));
     await expect(storeSubtitleStyle(DEFAULT_SUBTITLE_STYLE)).resolves.toBeUndefined();
+  });
+});
+
+describe('the remembered audio language', () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it('is stored and read back', async () => {
+    await rememberAudio('eng');
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('velyx.audioLanguage', 'eng');
+    vi.mocked(SecureStore.getItemAsync).mockResolvedValue('eng');
+    expect(await rememberedAudio()).toBe('eng');
+  });
+
+  it('keeps the last language for a track without one, and survives a failing store', async () => {
+    await rememberAudio(null);
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+    vi.mocked(SecureStore.getItemAsync).mockRejectedValue(new Error('locked'));
+    expect(await rememberedAudio()).toBeNull();
   });
 });

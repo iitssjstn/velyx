@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -34,15 +34,16 @@ const seerrShow = {
   ],
 };
 
-function setup(opts: { tmdbId?: number; seerr?: boolean } = {}) {
+function setup(opts: { tmdbId?: number; seerr?: boolean; seasonOverview?: string; open?: boolean } = {}) {
   const calls: { method: string; url: string; body: unknown }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ method: init?.method ?? 'GET', url, body: init?.body ? JSON.parse(String(init.body)) : null });
     if (url === '/api/shows/7') return new Response(JSON.stringify({ ...show, tmdbId: opts.tmdbId ?? null }), { status: 200 });
     if (url === '/api/seerr') return new Response(JSON.stringify({ enabled: opts.seerr ?? false }), { status: 200 });
+    if (url === '/api/seerr/tv/1399/open') return new Response(JSON.stringify({ open: opts.open ?? true }), { status: 200 });
     if (url === '/api/seerr/tv/1399') return new Response(JSON.stringify(seerrShow), { status: 200 });
     if (url === '/api/seerr/requests') return new Response(JSON.stringify({ id: 3, title: 'Reacher', state: 'requested' }), { status: 200 });
-    if (url === '/api/shows/7/seasons/2') return new Response(JSON.stringify(season2), { status: 200 });
+    if (url === '/api/shows/7/seasons/2') return new Response(JSON.stringify({ ...season2, overview: opts.seasonOverview ?? null }), { status: 200 });
     if (url.includes('/similar')) return new Response(JSON.stringify([]), { status: 200 });
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }));
@@ -71,6 +72,14 @@ describe('series page', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /^Request/ }));
     await vi.waitFor(() => expect(calls.find((c) => c.method === 'POST' && c.url === '/api/seerr/requests')?.body).toEqual({ mediaType: 'tv', tmdbId: 1399, seasons: null }));
     await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('offers no requests when every season is here or requested already', async () => {
+    const calls = setup({ tmdbId: 1399, seerr: true, open: false });
+    expect(await screen.findByRole('heading', { name: 'Reacher' })).toBeTruthy();
+    await vi.waitFor(() => expect(calls.some((c) => c.url === '/api/seerr/tv/1399/open')).toBe(true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole('button', { name: 'Request seasons' })).toBeNull();
   });
 
   it('offers no requests without Seerr', async () => {
@@ -107,6 +116,15 @@ describe('series page', () => {
     expect(within(list).getByRole('link', { name: 'Resume S02E04 · Episode title 4' }).getAttribute('href')).toBe('/play/episode/24?t=1934');
     expect(within(list).getByRole('link', { name: 'Play S02E05' }).getAttribute('href')).toBe('/play/episode/25?t=0');
     expect(screen.getByText('8 episodes · 38% watched')).toBeTruthy();
+  });
+
+  it('leaves out a season description that repeats the show description, and shows one of its own', async () => {
+    setup({ seasonOverview: 'JACK REACHER…  ' });
+    await screen.findByRole('list', { name: 'Episodes' });
+    expect(screen.getAllByText(/Jack Reacher…/i)).toHaveLength(1);
+    cleanup();
+    setup({ seasonOverview: 'Reacher goes to New York.' });
+    expect(await screen.findByText('Reacher goes to New York.')).toBeTruthy();
   });
 
   it('labels a wide 1080p episode (1920×800, no black bars) as 1080p, not 720p', async () => {

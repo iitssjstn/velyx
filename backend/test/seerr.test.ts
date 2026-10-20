@@ -376,6 +376,46 @@ describe('Seerr', () => {
     expect(again.json().error).toBe('This has already been requested.');
   });
 
+  it('tells a show\'s page whether seasons are left to request (for its button), without asking Seerr on every visit', async () => {
+    await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
+    const viewer = await createUser(env.app, admin, 'viewer');
+    const lib = env.ctx.db.insert(libraries).values({ name: 'Series', type: 'shows', path: `${env.mediaDir}/series` }).returning().get();
+    const show = env.ctx.db.insert(shows).values({ libraryId: lib.id, groupKey: 'a-show', title: 'A Show', sortTitle: 'a show', parsedTitle: 'A Show', tmdbId: 1399 }).returning().get();
+    const here = (n: number) => {
+      const season = env.ctx.db.insert(seasons).values({ showId: show.id, seasonNumber: n }).returning().get();
+      const ep = env.ctx.db.insert(episodes).values({ showId: show.id, seasonId: season.id, seasonNumber: n, episodeNumber: 1 }).returning().get();
+      env.ctx.db.insert(mediaFiles).values({ libraryId: lib.id, episodeId: ep.id, path: `${env.mediaDir}/series/A Show/S0${n}E01.mkv`, size: 1, mtimeMs: 1 }).run();
+    };
+    const isOpen = async (cookie = viewer.cookie) => (await env.app.inject({ url: '/api/seerr/tv/1399/open', headers: { cookie } })).json().open;
+    const seerrCalls = () => calls.filter((c) => c.path.startsWith('/tv/1399')).length;
+    here(1);
+    // Season 1 here, season 2 not: the button stays.
+    expect(await isOpen()).toBe(true);
+    expect(seerrCalls()).toBe(1);
+    // Season 2 arrives (a scan): looked up here at once, Seerr is not asked again.
+    here(2);
+    expect(await isOpen()).toBe(false);
+    expect(seerrCalls()).toBe(1);
+  });
+
+  it('hides the button once every season left is requested, and keeps it when Seerr is away', async () => {
+    await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
+    const viewer = await createUser(env.app, admin, 'viewer');
+    const isOpen = async (cookie = viewer.cookie) => (await env.app.inject({ url: '/api/seerr/tv/1399/open', headers: { cookie } })).json().open;
+    expect(await isOpen()).toBe(true);
+    // Requesting forgets what was kept, so the page knows straight away.
+    expect((await env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: viewer.cookie }, payload: { mediaType: 'tv', tmdbId: 1399, seasons: [1, 2] } })).statusCode).toBe(200);
+    expect(await isOpen()).toBe(false);
+    // Seerr away with nothing kept: the button stays, as before.
+    await env.app.inject({ method: 'DELETE', url: `/api/admin/seerr/media/tv/1399`, headers: { cookie: admin } });
+    reachable = false;
+    expect(await isOpen()).toBe(true);
+    // Only for people who may use Seerr.
+    reachable = true;
+    await env.app.inject({ method: 'PUT', url: `/api/users/${viewer.id}`, headers: { cookie: admin }, payload: { seerrAccess: false } });
+    expect((await env.app.inject({ url: '/api/seerr/tv/1399/open', headers: { cookie: viewer.cookie } })).statusCode).toBe(403);
+  });
+
   it('requests only the seasons of a show that are still open, and shows similar titles', async () => {
     await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
     const viewer = await createUser(env.app, admin, 'viewer');

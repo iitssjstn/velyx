@@ -1,4 +1,5 @@
 import type { Api } from './api';
+import { sameLanguage } from './subtitles';
 
 /** What the device's decoders report (see modules/vidalune-codecs). */
 export interface Decoders {
@@ -166,6 +167,17 @@ export function subtitleUrl(api: Api, option: SubtitleOption, offset: number, me
 export function playerAudioPosition(tracks: AudioTrackInfo[], index: number | null): number {
   if (index === null) return -1;
   return [...tracks].sort((a, b) => a.index - b.index).findIndex((t) => t.index === index);
+}
+
+/**
+ * The audio track to start in for the language last chosen (or the account's language): the track
+ * already playing when it has that language, else the default or first one in it. Undefined when the
+ * file has no track in that language, or the one playing is already right.
+ */
+export function preferredAudio(tracks: AudioTrackInfo[], language: string | null | undefined, current: number | null): number | undefined {
+  const inLanguage = tracks.filter((t) => sameLanguage(t.language, language));
+  if (!inLanguage.length || inLanguage.some((t) => t.index === current)) return undefined;
+  return (inLanguage.find((t) => t.isDefault) ?? inLanguage[0]!).index;
 }
 
 /**

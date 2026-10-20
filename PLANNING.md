@@ -97,7 +97,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- Laatste release: **0.19.79** (PR #164, tv-speler volledig te bedienen met de afstandsbediening; gemerged 18 okt); release `v0.19.79` gecontroleerd: APK, beide `.deb`'s, `.aab` en `vidalune-0.19.79-setup.exe` aanwezig, accountservice-image na de Windows-workflow geslaagd. Daarvoor 0.19.78 (PR #163, eigen tv-speler en geen zwart vlak achter de ondertitels), 0.19.77 (PR #162, ondertitels gelijk na verder kijken tijdens een transcode), 0.19.76 (PR #161, seizoenen aanvragen op de seriepagina zelf), 0.19.75 (PR #160, andere seizoenen van een serie aanvragen), 0.19.74 (PR #159, Vidalune voor Windows), 0.19.73 (PR #158, 1080p-afleveringen niet meer als 720p), 0.19.72 (PR #157, wachtwoord in de app), 0.19.71 (PR #156, in- en uitloggen in de app, onleesbaar bestand), 0.19.70 (PR #155, app automatisch naar de interne test van de Play Store), 0.19.69 (PR #154, Control Center overzichtelijker), 0.19.68 (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer), 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.80** (PR #165, kopie van de optimizer naast de film en media standaard beschrijfbaar; gemerged 18 okt); release `v0.19.80` gecontroleerd: APK, beide `.deb`'s, `.aab` en `vidalune-0.19.80-setup.exe` aanwezig, accountservice-image na de Windows-workflow geslaagd. Daarvoor 0.19.79 (PR #164, tv-speler volledig te bedienen met de afstandsbediening), 0.19.78 (PR #163, eigen tv-speler en geen zwart vlak achter de ondertitels), 0.19.77 (PR #162, ondertitels gelijk na verder kijken tijdens een transcode), 0.19.76 (PR #161, seizoenen aanvragen op de seriepagina zelf), 0.19.75 (PR #160, andere seizoenen van een serie aanvragen), 0.19.74 (PR #159, Vidalune voor Windows), 0.19.73 (PR #158, 1080p-afleveringen niet meer als 720p), 0.19.72 (PR #157, wachtwoord in de app), 0.19.71 (PR #156, in- en uitloggen in de app, onleesbaar bestand), 0.19.70 (PR #155, app automatisch naar de interne test van de Play Store), 0.19.69 (PR #154, Control Center overzichtelijker), 0.19.68 (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer), 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -300,6 +300,63 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
    - Let ook op de Let's Encrypt-limiet van ongeveer 50 nieuwe certificaten per week per hoofddomein (controleer in hun documentatie); die geldt los van DNS en kan bij een piek aan nieuwe klanten eerder knellen.
 
 ## Gemeld tijdens het testen
+
+- **Vidalune als app op de Chromecast met Google TV** (vraag eigenaar 20 okt: "we hebben de fundering al liggen",
+  dus meteen meenemen na 0.19.81; nog niet bouwen tot hij het zegt). Dezelfde Android-app (Expo 57, RN 0.86,
+  `expo-video`), geen tweede app. Stappen:
+  1. Installeren en starten: Expo-configplugin met `LEANBACK_LAUNCHER`, `android.software.leanback` en touchscreen
+     niet verplicht, tv-banner (320×180). De telefoonversie blijft gelijk.
+  2. Afspelen met de afstandsbediening: OK, links/rechts (spoelen), omhoog/omlaag (balk en menu), Terug; logica en
+     ontwerp zoals de tv-speler van de cast (`cloud/web/cast/remote.js`, goedgekeurde voorbeelden van 0.19.79).
+  3. Alle schermen met pijltjes (Home, Films, Series, seriepagina, zoeken, instellingen): zichtbare focus, logisch
+     springen, grotere 10-foot-lay-out. Eerst kijken of gewone React Native volstaat of `react-native-tvos` nodig is.
+  4. Inloggen met een code: de tv toont een code, bevestigen op telefoon of vidalune.com (nieuw in accountservice
+     en app; de oude server-API `/api/auth/pair/*` bestaat nog).
+  5. Play Store voor tv: aparte beoordeling (tv-kwaliteitseisen, banner, tv-screenshots); tot dan de APK zelf
+     installeren.
+  Advies: eerste tv-versie = stap 1 en 2 (Home, titel openen, afspelen), op de eigen Chromecast testen; daarna 3 en 4
+  (een à twee versies). Casten vanaf de telefoon blijft zoals het is. Voordeel: de Chromecast speelt veel formaten
+  direct, dus minder omzetten op de server.
+
+- **Gekozen audiospoor wordt niet onthouden** (gemeld door de eigenaar 20 okt; gebouwd in 0.19.81): kiest
+  een kijker bij een serie met Engels en Italiaans het Engelse spoor, dan start de volgende aflevering weer met het
+  standaardspoor. Oorzaak: een gekozen ondertitel wordt bewaard (website `setPrefs` in `chooseSubtitle`, app
+  `rememberSubtitle`), een gekozen audiospoor niet: website `selectServerAudio`/`selectNativeAudio` (`Player.tsx`) en app
+  `decide` (`app/src/app/play/[kind]/[id].tsx`) zetten alleen het spoor voor deze titel; bij de start telt alleen de
+  audiotaal uit de accountinstellingen (`preferredAudioIndex`). Voorstel: de taal van het gekozen spoor onthouden zoals
+  bij ondertitels (website en app, ook een keuze op de tv) en bij de volgende titel het spoor in die taal kiezen als het
+  er is; anders het standaardspoor. Tests die op de oude code falen.
+
+- **Hoe ver vooruit omzetten instelbaar** (wens eigenaar 19 okt; gebouwd in 0.19.81, met rustig omzetten op Windows): nu vast
+  `AHEAD_SECONDS = 120` in `backend/src/playback/hls.ts` (FFmpeg pauzeert met `SIGSTOP` als hij 120 s voor de kijker
+  is en gaat verder bij 60 s). Besluit eigenaar: "Geef de beheerder gewoon een veld waar hij zelf de seconden in kan
+  typen". Dus onder Beheer > Afspelen een getalveld "Vooruit omzetten (seconden)", standaard 120, met korte uitleg
+  (hoger: verder vooruitspoelen gaat meteen en haperingen vallen minder op; lager: minder werk voor niets en meer
+  kijkers tegelijk; een snelle server heeft juist minder nodig). Zod met grenzen (bijvoorbeeld 30 tot 3600), alleen
+  beheerder, verder gaan blijft op de helft. Geldt voor website, app en tv; Engels en Nederlands; tests.
+  Meenemen: **rustig omzetten op Windows**: daar kan FFmpeg niet gepauzeerd worden en zet hij de hele film achter
+  elkaar om; oplossing: FFmpeg stoppen als hij ver genoeg voor is en later vanaf die plek opnieuw starten.
+  Besluit eigenaar (19 okt): "Je kan windows meenemen in de volgende update": rustig omzetten op Windows hoort bij de
+  eerstvolgende versie (bouwen zodra hij die versie laat bouwen).
+
+- **Knop "Seizoenen aanvragen" blijft staan als er niets meer aan te vragen is** (gemeld door de eigenaar 19 okt;
+  gebouwd in 0.19.81): bij een serie met één seizoen dat op de server staat, of als alle overige seizoenen al
+  aangevraagd zijn, staat de knop er nog. Wens: dan verdwijnt de knop. Oorzaak: de seriepagina (website `ShowDetail.tsx`,
+  app `app/src/app/show/[id].tsx`) toont de knop zodra Seerr aan staat en de TMDB-id bekend is; welke seizoenen open zijn
+  wordt pas bij het klikken bij Seerr opgehaald (bewuste keuze in 0.19.76, zodat de pagina Seerr niets extra vraagt).
+  Voorstel: de server geeft bij de serie mee of er nog seizoenen open zijn (aantal seizoenen volgens de metadata min wat
+  hier staat; aangevraagd uit Seerr, kort bewaard), en website en app tonen de knop alleen dan. Test die op de oude code
+  faalt (één seizoen hier, alles aangevraagd, wel nog een open seizoen).
+
+- **Kwaliteit kiezen in de speler** (vraag eigenaar 18 okt; nog niet bouwen tot hij het zegt): "Ik bouw vidalune niet
+  alleen voor mijzelf"; de Athlon is een uitzondering, dus ontwerpen voor gewone servers (vaak met Intel Quick Sync via
+  VAAPI of NVENC). Nu zet de server alleen om op de eigen resolutie (`encodeArgs`); de optimizer heeft 720p/1080p-kopieën.
+  Voorstel: stap 1 een keuze Automatisch / Origineel / 1080p / 720p / 480p (schalen + maximale bitrate, kopie van de
+  optimizer als die er is, herstart op dezelfde plek; "Automatisch" kiest bij de start op basis van de gemeten
+  verbinding, thuis meestal Origineel); beheerder kan een maximum voor kijkers buitenshuis instellen. Stap 2 echte
+  adaptieve kwaliteit (meerdere kwaliteiten in één HLS-lijst, de speler wisselt zelf), alleen met een hardware-encoder.
+  Besluit eigenaar (18 okt): stap 1 op de website, in de app en op de tv tegelijk ("zet dit in de planning"); bouwen
+  pas als hij het zegt.
 
 - **Kopie van de optimizer staat niet in de juiste map** (gemeld door de eigenaar 18 okt; gebouwd in 0.19.80): de kopie
   stond in `<DATA_DIR>/optimized/<bestands-id>/<profiel>.mp4`, niet naast de film. Keuze eigenaar: "In de map waar hij
@@ -651,7 +708,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 8. **Verwijderen via Seerr** (Sonarr/Radarr).
 9. **E-mailsysteem** op vidalune.com (alles in één keer).
 10. **Manipulatiedetectie** voor toegang op afstand (alleen als er misbruik wordt gezien).
-11. **TV-app** (Android TV), daarna de **Play Store** (1.0.0).
+11. **TV-app** (Android TV), daarna de **Play Store** (1.0.0). Naar voren gehaald: zie "Vidalune als app op de
+    Chromecast met Google TV" onder "Gemeld tijdens het testen" (na 0.19.81).
 
 ## Belangrijk: Quick Setup na installatie (gebruikerservaring / onboarding)
 
@@ -1639,3 +1697,31 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Door de eigenaar te testen: na het bijwerken (media al zonder `:ro`) een nieuwe kopie maken en kijken of hij naast de
   film staat; een minuut na het starten verhuizen bestaande kopieën uit `data/optimized/`.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1980) en beide lockfiles bijgewerkt.
+- PR #165 gemerged 18 okt op verzoek van de eigenaar ("merge het maar"; alle checks groen); release `v0.19.80`
+  gecontroleerd: APK, beide `.deb`'s, `.aab` en `vidalune-0.19.80-setup.exe`; de accountservice-image startte vanzelf na
+  de Windows-workflow en slaagde.
+
+## Versie 0.19.81 (rustig omzetten, ondertitel laden, audiospoor onthouden, seizoenenknop)
+
+- Besluit eigenaar (19 okt): "Ja goede optie" voor rustig omzetten op Windows, vooruit omzetten instelbaar, de
+  seizoenenknop en "Ondertitel laden…"; 20 okt: "Neem de dubbele beschrijving maar mee in 0.19.81" en voor het
+  audiospoor "Neem het mee in 0.19.81 en je hoeft niet te wachten op mijn idee".
+- Rustig omzetten op Windows (`HlsOptions.canPause` in `hls.ts`): waar FFmpeg niet gepauzeerd kan worden, wordt hij
+  gestopt als hij ver genoeg vooruit is (`restFrom`) en later vanaf het volgende stuk opnieuw gestart; een rustende
+  conversie telt mee in de conversielimiet. Test met echte FFmpeg faalt op de oude code.
+- Vooruit omzetten in seconden: `aheadSeconds` (standaard 120, Zod 30 tot 3600, alleen beheerder, auditlog), veld onder
+  Beheer > Afspelen (`AheadSettings`); verder gaan blijft op de helft. README bijgewerkt.
+- Speler (website): "Ondertitel laden…" na 0,6 s en "kon niet geladen worden" (`trackLoads`, `subStatus`).
+- Seriepagina (website): seizoenstekst verborgen als hij gelijk is aan die van de serie (`sameText`).
+- Audiospoor onthouden: de taal van het gekozen spoor wordt bewaard (website `setPrefs` `audioLanguage`, ook bij een
+  keuze op de tv en in Account; app `rememberAudio` op het toestel, ook een keuze op de tv) en de volgende titel start
+  in die taal als hij die heeft (`preferredAudio` in de app; anders de accounttaal, anders het standaardspoor). De tv
+  geeft de taal mee bij de volgende aflevering (`audioLanguage` in `/api/cast/tv/session`, Zod).
+- Seizoenenknop: `GET /api/seerr/tv/:id/open` zegt of er nog seizoenen aan te vragen zijn (wat Seerr weet 5 minuten
+  bewaard en na aanvragen, annuleren of resetten vergeten; wat hier staat telkens opgezocht; Seerr plat: knop blijft).
+  Website en app tonen de knop alleen dan.
+- Tests: backend (rusten op Windows, instelling, tv geeft taal door, seizoenenknop; falen op de oude code), website
+  (ondertitel laden, instelling, dubbele tekst, audiokeuze bewaard en toegepast, seizoenenknop weg), app
+  (`preferredAudio`, onthouden taal, `tvMedia` met audiospoor). Backend 604, frontend 355, cloud 192, app 178 tests;
+  typechecks, lint (4 bekende waarschuwingen) en builds slagen. De schermen van de app op de telefoon testen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1981) en beide lockfiles bijgewerkt.

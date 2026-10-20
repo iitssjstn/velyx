@@ -79,6 +79,13 @@ function EpisodeRow({ ep, onToggleWatched }: { ep: EpisodeSummary; onToggleWatch
 }
 
 /** Keyed by id, so going straight from one show to another starts with fresh state. */
+/** The same text, whatever its capitals, spaces, hyphens and punctuation (a miniseries' one season often repeats the
+ *  show's description, with "social-media" for "social media"). */
+function sameText(a: string, b: string | null | undefined): boolean {
+  const plain = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+  return !!b && plain(a) === plain(b);
+}
+
 export function ShowPage() {
   const id = Number(useParams().id);
   return <ShowScreen key={id} id={id} />;
@@ -93,6 +100,9 @@ function ShowScreen({ id }: { id: number }) {
   // With Seerr: the seasons that are not here yet are requested from the show's own page, in the
   // same question as on a request page. What Seerr knows of the show is asked when it opens.
   const seerr = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
+  // The button only while seasons are left to request (all here or requested: none).
+  const tmdbId = q.data?.tmdbId ?? null;
+  const openSeasons = useQuery({ queryKey: ['seerr', 'open', tmdbId], queryFn: () => api.get<{ open: boolean }>(`/api/seerr/tv/${tmdbId}/open`), enabled: !!seerr.data?.enabled && tmdbId !== null });
   const [asking, setAsking] = useState<SeerrDetails | null>(null);
   const [loadingSeasons, setLoadingSeasons] = useState(false);
   const askSeasons = async (tmdbId: number) => {
@@ -193,7 +203,7 @@ function ShowScreen({ id }: { id: number }) {
           <TrailerButton type="show" id={s.id} title={s.title} />
           <WatchlistButton key={String(s.watchlist)} type="show" id={s.id} initial={s.watchlist} />
           <FavoriteButton type="show" id={s.id} initial={s.favorite} />
-          {seerr.data?.enabled && s.tmdbId !== null && (
+          {seerr.data?.enabled && s.tmdbId !== null && openSeasons.data?.open && (
             <button type="button" disabled={loadingSeasons} onClick={() => void askSeasons(s.tmdbId!)} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink/10 px-5 font-medium whitespace-nowrap hover:bg-ink/20 disabled:opacity-60">
               {loadingSeasons ? <Spinner className="size-5" /> : <Send className="size-5" />}
               {t('detail.requestSeasons')}
@@ -249,7 +259,7 @@ function ShowScreen({ id }: { id: number }) {
             </div>
           )}
         </div>
-        {season.data?.overview && <p className="mt-4 max-w-3xl text-sm text-muted">{season.data.overview}</p>}
+        {season.data?.overview && !sameText(season.data.overview, s.overview) && <p className="mt-4 max-w-3xl text-sm text-muted">{season.data.overview}</p>}
         {season.isLoading ? (
           <div className="grid h-40 place-items-center">
             <Spinner className="size-6" />

@@ -717,6 +717,8 @@ export interface ServerSettings {
   maintenanceEnd: string;
   /** Background work also outside the window once the server has been quiet for a while. */
   maintenanceOutside: boolean;
+  /** How far ahead of the viewer the server converts before it rests (seconds of video). */
+  aheadSeconds: number;
   /** The server's clock now ("HH:MM") and its time zone, to check the window against. */
   serverTime: string;
   serverTimeZone: string;

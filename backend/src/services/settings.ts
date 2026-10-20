@@ -161,6 +161,8 @@ export interface ServerSettings {
   radarr: { url: string; apiKey: string };
   /** Converting video the device cannot play (opt-in). */
   transcoding: TranscodingSettings;
+  /** How far ahead of the viewer pieces are made before FFmpeg rests (seconds of video). */
+  aheadSeconds: number;
 }
 
 const DEFAULTS: ServerSettings = {
@@ -201,6 +203,7 @@ const DEFAULTS: ServerSettings = {
   sonarr: { url: '', apiKey: '' },
   radarr: { url: '', apiKey: '' },
   transcoding: DEFAULT_TRANSCODING,
+  aheadSeconds: 120,
 };
 
 export class SettingsService {

@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Player from './Player';
+import { getPrefs, setPrefs } from '../lib/prefs';
 
 const frameRequestDescriptor = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, 'requestVideoFrameCallback');
 const frameCancelDescriptor = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, 'cancelVideoFrameCallback');
@@ -57,6 +58,52 @@ function renderPlayer() {
 }
 
 const spinnerShown = () => screen.queryAllByLabelText('Loading').length > 0;
+
+describe('the audio track chosen', () => {
+  const twoTracks = [
+    { index: 1, codec: 'aac', language: 'ita', channels: 2, channelLayout: 'stereo', title: null, isDefault: true, languageName: 'Italiano' },
+    { index: 2, codec: 'aac', language: 'eng', channels: 2, channelLayout: 'stereo', title: null, isDefault: false, languageName: 'English' },
+  ];
+  const playbackBodies: Record<string, unknown>[] = [];
+  beforeEach(() => {
+    playbackBodies.length = 0;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      let body: unknown = {};
+      if (url === '/api/movies/3') body = { ...MOVIE, files: [{ ...MOVIE.files[0], audioTracks: twoTracks }] };
+      if (url === '/api/media/3/playback') {
+        playbackBodies.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>);
+        body = { ...PLAYBACK, file: { ...PLAYBACK.file, audioTracks: twoTracks } };
+      }
+      if (url === '/api/account/preferences') body = { audioLanguage: '', subtitleLanguage: '', subtitleFallback: '', subtitleMode: 'remember' };
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+  });
+  afterEach(() => setPrefs({ audioLanguage: '' }));
+
+  it('is remembered, and the next title starts with its language', async () => {
+    renderPlayer();
+    await vi.waitFor(() => expect(playbackBodies.length).toBeGreaterThan(0));
+    expect(playbackBodies[0]!.audioIndex).toBeUndefined();
+    fireEvent.click(await screen.findByRole('button', { name: 'Audio' }));
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /English/ }));
+    expect(getPrefs().audioLanguage).toBe('eng');
+    cleanup();
+    // The next title: this browser switches tracks itself (direct play), and picks English over the default.
+    renderPlayer();
+    const video = await vi.waitFor(() => {
+      const v = document.querySelector('video');
+      if (!v) throw new Error('no video');
+      return v;
+    });
+    fakeVideo(video);
+    const list = [{ id: '1', label: '', language: 'ita', enabled: true }, { id: '2', label: '', language: 'eng', enabled: false }];
+    Object.defineProperty(video, 'audioTracks', { configurable: true, value: Object.assign([...list], { length: 2 }) });
+    fireEvent.loadedMetadata(video);
+    expect(list[1]!.enabled).toBe(true);
+    expect(list[0]!.enabled).toBe(false);
+  });
+});
 
 describe('subtitles after seeking', () => {
   it('drops the old stream subtitle and loads shifted cues after a remux seek', async () => {
@@ -170,6 +217,52 @@ describe('subtitles after seeking', () => {
     fireEvent.keyDown(window, { key: '5' });
     await vi.waitFor(() => expect(keyframes).toHaveLength(1));
     expect(keyframes[0]).toBe('/api/media/3/keyframe?t=120.004&optimized=7');
+  });
+
+  it('says a chosen subtitle is loading until it is in, and says so when it could not be loaded', async () => {
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      let body: unknown = {};
+      if (url === '/api/movies/3') body = MOVIE;
+      if (url === '/api/media/3/playback')
+        body = {
+          ...PLAYBACK,
+          subtitles: [
+            { key: 'ext-1', kind: 'external', label: 'English', language: 'eng', forced: false, isDefault: true, url: '/api/subtitles/1.vtt' },
+            { key: 'ext-2', kind: 'external', label: 'Dutch', language: 'nld', forced: false, isDefault: false, url: '/api/subtitles/2.vtt' },
+          ],
+        };
+      if (url === '/api/account/preferences') body = { audioLanguage: '', subtitleLanguage: 'eng', subtitleFallback: '', subtitleMode: 'always' };
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    renderPlayer();
+    const video = await vi.waitFor(() => {
+      const element = document.querySelector('video');
+      if (element?.querySelectorAll('track').length !== 2) throw new Error('subtitle tracks not mounted');
+      return element;
+    });
+    fakeVideo(video);
+    const [english, dutch] = Array.from(video.querySelectorAll('track'));
+    const tracks = { length: 2, 0: { mode: 'disabled', cues: [] }, 1: { mode: 'disabled', cues: [] } };
+    Object.defineProperty(video, 'textTracks', { configurable: true, value: tracks });
+    Object.defineProperty(english, 'track', { configurable: true, value: tracks[0] });
+    Object.defineProperty(dutch, 'track', { configurable: true, value: tracks[1] });
+    fireEvent.loadedMetadata(video);
+    // Chosen from the preferences, not in yet: after a moment the player says it is loading.
+    expect(await screen.findByText('Loading subtitle…', undefined, { timeout: 2000 })).toBeTruthy();
+    fireEvent.load(english!);
+    await vi.waitFor(() => expect(screen.queryByText('Loading subtitle…')).toBeNull());
+    // Another one that fails to load: the player says so.
+    fireEvent.keyDown(window, { key: 'c' });
+    await vi.waitFor(() => expect(tracks[1].mode).toBe('hidden'));
+    fireEvent.error(dutch!);
+    expect(await screen.findByText(/The subtitle could not be loaded/)).toBeTruthy();
+    // Back to the one that loaded: no message.
+    fireEvent.keyDown(window, { key: 'c' });
+    fireEvent.keyDown(window, { key: 'c' });
+    await vi.waitFor(() => expect(tracks[0].mode).toBe('hidden'));
+    expect(screen.queryByText(/The subtitle could not be loaded/)).toBeNull();
+    expect(screen.queryByText('Loading subtitle…')).toBeNull();
   });
 
   it('reattaches the chosen subtitle when its text track becomes available after video metadata', async () => {

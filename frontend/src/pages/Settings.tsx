@@ -252,7 +252,11 @@ export function LanguageSettings() {
             {t('settings.languages.audio')}
             <span className="block text-sm text-muted">{t('settings.languages.audioHint')}</span>
           </label>
-          {langSelect('pref-audio', p?.audioLanguage ?? '', (v) => save.mutate({ audioLanguage: v }), t('settings.languages.original'))}
+          {langSelect('pref-audio', p?.audioLanguage ?? '', (v) => {
+            // Chosen here wins over the track last chosen in the player, until another one is chosen there.
+            setPrefs({ audioLanguage: v });
+            save.mutate({ audioLanguage: v });
+          }, t('settings.languages.original'))}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 py-3">
           <label htmlFor="pref-sub-mode">

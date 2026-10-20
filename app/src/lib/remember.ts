@@ -61,3 +61,23 @@ export async function storeSeekStep(step: SeekStep): Promise<void> {
     /* kept for this session only */
   }
 }
+
+const AUDIO_KEY = 'velyx.audioLanguage';
+
+/** The language of the audio track last chosen on this device (the next episode starts in it). */
+export async function rememberedAudio(): Promise<string | null> {
+  try {
+    return (await SecureStore.getItemAsync(AUDIO_KEY)) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function rememberAudio(language: string | null | undefined): Promise<void> {
+  if (!language) return;
+  try {
+    await SecureStore.setItemAsync(AUDIO_KEY, language);
+  } catch {
+    /* not remembered this time */
+  }
+}

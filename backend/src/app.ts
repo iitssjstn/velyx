@@ -217,7 +217,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const playback = new PlaybackRegistry();
   playback.register(new DirectPlayEngine());
   const transcoding = new TranscodingService(config.ffmpegPath, () => settings.get().transcoding, opts.encoderDetector);
-  const hls = new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls'));
+  const hls = new HlsSessions(config.ffmpegPath, config.ffprobePath, path.join(config.cacheDir, 'hls'), undefined, { aheadSeconds: () => settings.get().aheadSeconds });
   playback.register(new RemuxEngine(config.ffmpegPath, () => transcoding.current(), () => hls.convertingOther('')));
   // Last: only what neither plays as it is nor after repackaging is converted, when that is on.
   playback.register(new TranscodeEngine(() => transcoding.current()));

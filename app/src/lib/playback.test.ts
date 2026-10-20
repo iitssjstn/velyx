@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApi } from './api';
-import { NO_RETRIES, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, type PlaybackAnswer, type SubtitleOption } from './playback';
+import { NO_RETRIES, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, type PlaybackAnswer, type SubtitleOption, preferredAudio } from './playback';
 import { cueTextAt, parseVtt } from './vtt';
 
 const api = (respond: (url: string) => unknown = () => ({})) =>
@@ -193,5 +193,26 @@ describe('a title whose file cannot be read', () => {
     expect(noReadableFile([{ videoCodec: null, probeError: 'moov atom not found' }, { videoCodec: 'h264', probeError: null }])).toBe(false);
     expect(noReadableFile([{ videoCodec: 'h264', probeError: null }])).toBe(false);
     expect(noReadableFile([])).toBe(false);
+  });
+});
+
+describe('the audio language chosen last', () => {
+  const track = (index: number, language: string | null, isDefault = false) => ({ index, codec: 'aac', language, channels: 2, title: null, isDefault });
+  const tracks = [track(1, 'ita', true), track(2, 'eng'), track(3, 'eng')];
+
+  it('starts the next episode in the language chosen before', () => {
+    expect(preferredAudio(tracks, 'eng', 1)).toBe(2);
+    expect(preferredAudio(tracks, 'en', 1)).toBe(2);
+  });
+
+  it('keeps the track playing when it is already in that language, or when the file lacks it', () => {
+    expect(preferredAudio(tracks, 'eng', 3)).toBeUndefined();
+    expect(preferredAudio(tracks, 'ita', 1)).toBeUndefined();
+    expect(preferredAudio(tracks, 'fre', 1)).toBeUndefined();
+    expect(preferredAudio(tracks, null, 1)).toBeUndefined();
+  });
+
+  it('prefers the default track in that language', () => {
+    expect(preferredAudio([track(1, 'ita'), track(2, 'eng'), track(3, 'eng', true)], 'eng', 1)).toBe(3);
   });
 });

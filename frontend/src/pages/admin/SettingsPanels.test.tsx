@@ -9,7 +9,7 @@ vi.mock('../../lib/auth', () => ({
   useAuth: () => ({ user: { id: 1, username: 'justin', role: 'admin' }, refetchServer: () => undefined }),
 }));
 
-import { DetectionSettings, MaintenancePage, MetadataSettings, ScanSettings } from './SettingsPanels';
+import { AheadSettings, DetectionSettings, MaintenancePage, MetadataSettings, ScanSettings } from './SettingsPanels';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -35,6 +35,7 @@ const settings = {
   maintenanceStart: '02:00',
   maintenanceEnd: '06:00',
   maintenanceOutside: true,
+  aheadSeconds: 120,
   serverTime: '14:03',
   serverTimeZone: 'Europe/Amsterdam',
 };
@@ -91,6 +92,19 @@ describe('preparing subtitles ahead of time', () => {
 });
 
 describe('each panel saves only its own settings', () => {
+  it('converting ahead (on Playback): seconds typed in by the administrator', async () => {
+    const saved = setup(<AheadSettings />);
+    const field = (await screen.findByLabelText('Seconds ahead')) as HTMLInputElement;
+    expect(field.value).toBe('120');
+    expect(field.min).toBe('30');
+    expect(field.max).toBe('3600');
+    await userEvent.clear(field);
+    await userEvent.type(field, '600');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]).toEqual({ aheadSeconds: 600 });
+  });
+
   it('scanning (on Libraries)', async () => {
     const saved = setup(<ScanSettings />);
     await userEvent.click(await screen.findByRole('checkbox', { name: /Scan automatically when files are added/ }));

@@ -390,6 +390,7 @@ Off by default. With **Admin → Playback → Video conversion** an administrato
   ```
 - **Debian/Ubuntu package:** the user `vidalune` is added to the `render` and `video` groups. For Intel graphics install `intel-media-va-driver-non-free` (or `intel-media-va-driver`), for AMD `mesa-va-drivers`; NVIDIA needs its own driver.
 - The player's badge shows *Transcode*, and so does the stream in Admin → Dashboard. A Chromecast gets the converted stream too.
+- **Seconds ahead** (Admin → Playback, 120 by default, 30 to 3600): how far ahead of the viewer pieces are made. Then the conversion rests until the viewer is halfway there, so a stopped or paused viewer costs no work. Higher: seeking forward plays at once more often and hiccups show less; lower: less work for nothing and more viewers at the same time. On Windows, where FFmpeg cannot be paused, it is stopped and started again from the next piece.
 
 ### Compatible copies (optional)
 

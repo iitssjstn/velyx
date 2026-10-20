@@ -24,8 +24,8 @@ const log = createLogger('hls');
 export const GRID_SECONDS = 4;
 /** A GOP so long that the encoder makes no keyframes of its own between the forced ones (frames). */
 const KEYFRAME_FREE = 100_000;
-/** How far ahead of the player pieces are made before FFmpeg pauses (seconds of video). */
-const AHEAD_SECONDS = 120;
+/** How far ahead of the player pieces are made before FFmpeg rests (seconds of video), unless set otherwise. */
+export const AHEAD_SECONDS = 120;
 /** Reading a file's keyframes reads the whole file (minutes for a film on a NAS): at most this long. */
 const KEYFRAME_SCAN_MS = 20 * 60_000;
 /** Stopped and removed after this long without a request. */
@@ -181,6 +181,10 @@ interface Session {
   ended: boolean;
   failed: string | null;
   paused: boolean;
+  /** FFmpeg was stopped far enough ahead (where it cannot be paused): the run starts again at this piece. */
+  restFrom: number | null;
+  /** The source of the last request (to start the run again after a rest). */
+  src: HlsSource | null;
   lastRequested: number;
   lastUsed: number;
   encode: boolean;
@@ -207,7 +211,19 @@ export class KeyframesStopped extends Error {
   }
 }
 
+export interface HlsOptions {
+  /** How far ahead of the player pieces are made before FFmpeg rests (seconds of video; read each time). */
+  aheadSeconds?: () => number;
+  /**
+   * Whether FFmpeg can be paused. Windows cannot pause a process: there FFmpeg is stopped once it is far enough
+   * ahead, and started again from the next piece when the player comes closer.
+   */
+  canPause?: boolean;
+}
+
 export class HlsSessions {
+  private readonly aheadSeconds: () => number;
+  private readonly canPause: boolean;
   private readonly sessions = new Map<string, Session>();
   /** Keyframes found (also kept on disk, in `keyframesDir`, across restarts). */
   private readonly known = new Map<string, number[]>();
@@ -220,7 +236,10 @@ export class HlsSessions {
     private readonly ffprobePath: string,
     private readonly baseDir: string,
     private readonly keyframesDir: string = `${baseDir}-keyframes`,
+    options: HlsOptions = {},
   ) {
+    this.aheadSeconds = options.aheadSeconds ?? (() => AHEAD_SECONDS);
+    this.canPause = options.canPause ?? process.platform !== 'win32';
     fs.rmSync(baseDir, { recursive: true, force: true });
     fs.mkdirSync(baseDir, { recursive: true });
     fs.mkdirSync(keyframesDir, { recursive: true });
@@ -326,13 +345,15 @@ export class HlsSessions {
 
   /** Sessions whose video is converted (for the conversion limit), other than `key`. */
   convertingOther(key: string): number {
-    return [...this.sessions.values()].filter((s) => s.encode && s.key !== key && s.child && !s.ended).length;
+    // A run stopped while far ahead (Windows) still holds its place: it starts again when the player comes closer.
+    return [...this.sessions.values()].filter((s) => s.encode && s.key !== key && ((s.child && !s.ended) || s.restFrom !== null)).length;
   }
 
   /** The finished init segment of a session (starting it at the first piece when it has not started). */
   async init(src: HlsSource): Promise<string> {
     const s = this.session(src);
     s.lastUsed = Date.now();
+    s.src = src;
     // Not started yet, or the last run failed or was stopped before it made one: (re)start it.
     if (!s.child && s.init === null) this.start(s, src, s.lastRequested);
     await this.until(s, () => s.init !== null);
@@ -344,6 +365,7 @@ export class HlsSessions {
     const s = this.session(src);
     s.lastUsed = Date.now();
     s.lastRequested = n;
+    s.src = src;
     const file = path.join(s.dir, `seg${n}.m4s`);
     if (!s.done.has(n)) {
       // Close ahead of the run: wait for it. Behind it or far ahead: start again from here.
@@ -372,7 +394,7 @@ export class HlsSessions {
         this.drop(oldest);
       }
       const dir = fs.mkdtempSync(path.join(this.baseDir, 's-'));
-      s = { key: src.key, dir, child: null, from: 0, done: new Set(), tidied: new Set(), ended: false, failed: null, paused: false, lastRequested: 0, lastUsed: Date.now(), encode: !!src.encode, layout: src.layout, init: null };
+      s = { key: src.key, dir, child: null, from: 0, done: new Set(), tidied: new Set(), ended: false, failed: null, paused: false, restFrom: null, src, lastRequested: 0, lastUsed: Date.now(), encode: !!src.encode, layout: src.layout, init: null };
       this.sessions.set(src.key, s);
     }
     return s;
@@ -389,6 +411,8 @@ export class HlsSessions {
     s.ended = false;
     s.failed = null;
     s.paused = false;
+    s.restFrom = null;
+    s.src = src;
     const child = spawn(this.ffmpegPath, hlsArgs(src.input, src.videoCodec, src.plan, src.layout, from, s.dir, src.encode), { stdio: ['ignore', 'ignore', 'pipe'] });
     s.child = child;
     let stderr = '';
@@ -437,25 +461,36 @@ export class HlsSessions {
         /* next time */
       }
     }
-    // Far enough ahead of the player: FFmpeg rests until the player comes closer. Windows cannot
-    // pause a process, so there FFmpeg simply keeps going.
+    // Far enough ahead of the player: FFmpeg rests until the player comes closer. Where it cannot be
+    // paused (Windows), it is stopped and started again from the next piece later.
     const made = Math.max(s.from, ...s.done);
-    if (!s.paused && process.platform !== 'win32' && layoutSeconds(s.layout, s.lastRequested, made) > AHEAD_SECONDS && child.pid) {
+    if (s.paused || layoutSeconds(s.layout, s.lastRequested, made) <= this.aheadSeconds() || !child.pid) return;
+    if (this.canPause) {
       try {
         process.kill(child.pid, 'SIGSTOP');
         s.paused = true;
       } catch {
         /* gone */
       }
+      return;
     }
+    // The last piece is close: letting the run finish costs less than starting it again.
+    if (made + 1 >= s.layout.starts.length - 1) return;
+    this.stop(s);
+    s.restFrom = made + 1;
   }
 
   private resume(s: Session): void {
-    if (!s.paused || !s.child?.pid) return;
+    const resting = s.restFrom !== null && !s.child;
+    if (!resting && (!s.paused || !s.child?.pid)) return;
     const made = Math.max(s.from, ...s.done);
-    if (layoutSeconds(s.layout, s.lastRequested, made) > AHEAD_SECONDS / 2) return;
+    if (layoutSeconds(s.layout, s.lastRequested, made) > this.aheadSeconds() / 2) return;
+    if (resting) {
+      if (s.src) this.start(s, s.src, s.restFrom!);
+      return;
+    }
     try {
-      process.kill(s.child.pid, 'SIGCONT');
+      process.kill(s.child!.pid!, 'SIGCONT');
     } catch {
       /* gone */
     }

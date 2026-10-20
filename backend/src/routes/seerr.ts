@@ -13,6 +13,8 @@ const mediaType = z.enum(['movie', 'tv']);
 const tmdbId = z.coerce.number().int().positive().max(100_000_000);
 /** Requests one person may make per hour. */
 const REQUESTS_PER_HOUR = 20;
+/** How long what Seerr knows of a show's seasons is used for its page's button. */
+const SHOW_FRESH_MS = 5 * 60_000;
 /** Only asked again after this long (a list of requests does not ask Seerr for each one every time). */
 const STATE_FRESH_MS = 5 * 60_000;
 
@@ -155,6 +157,32 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return { ...r, results: withLibrary(r.results, request.user!) };
   });
 
+  /**
+   * Whether a show has seasons left to request, for the "Request seasons" button on its page. What
+   * Seerr knows is kept a few minutes (the page asks on every visit); what is here is looked up fresh.
+   * Seerr away: the button stays (true), as before.
+   */
+  const showDetails = new Map<number, { at: number; details: Awaited<ReturnType<typeof ctx.seerr.details>> }>();
+  const forget = (mediaType: string, id: number) => {
+    if (mediaType === 'tv') showDetails.delete(id);
+  };
+  app.get('/api/seerr/tv/:id/open', seerrUser, async (request) => {
+    const p = z.object({ id: tmdbId }).parse(request.params);
+    let hit = showDetails.get(p.id);
+    if (!hit || Date.now() - hit.at > SHOW_FRESH_MS) {
+      try {
+        hit = { at: Date.now(), details: await ctx.seerr.details('tv', p.id, lang(request.user!.language)) };
+      } catch {
+        return { open: true };
+      }
+      showDetails.delete(p.id);
+      showDetails.set(p.id, hit);
+      if (showDetails.size > 500) showDetails.delete(showDetails.keys().next().value!);
+    }
+    const d = withLibrary([hit.details], request.user!)[0]!;
+    return { open: d.seasons.some((s) => open(s.state)) };
+  });
+
   app.get('/api/seerr/:type/:id', seerrUser, async (request) => {
     const p = z.object({ type: mediaType, id: tmdbId }).parse(request.params);
     const d = await ctx.seerr.details(p.type, p.id, lang(request.user!.language));
@@ -201,6 +229,7 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
       }
     }
     const r = await ctx.seerr.request(body.mediaType, body.tmdbId, body.mediaType === 'tv' ? seasons : null);
+    forget(body.mediaType, body.tmdbId);
     mine.push(now);
     recent.set(user.id, mine);
     const row = db
@@ -259,6 +288,7 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     // Seerr no longer having it is fine: it is removed here too.
     const inSeerr = await ctx.seerr.cancel(row.seerrId);
     db.delete(seerrRequests).where(eq(seerrRequests.id, id)).run();
+    forget(row.mediaType, row.tmdbId);
     // No other request left for it: requestable again (instead of "being added" for good).
     try {
       await ctx.seerr.resetIfUnrequested(row.mediaType as 'movie' | 'tv', row.tmdbId);
@@ -276,6 +306,7 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
   app.delete('/api/admin/seerr/media/:type/:id', { preHandler: requireAdmin }, async (request) => {
     const p = z.object({ type: mediaType, id: tmdbId }).parse(request.params);
     const r = await ctx.seerr.reset(p.type, p.id);
+    forget(p.type, p.id);
     const mine = db.select().from(seerrRequests).where(and(eq(seerrRequests.mediaType, p.type), eq(seerrRequests.tmdbId, p.id))).all();
     db.delete(seerrRequests).where(and(eq(seerrRequests.mediaType, p.type), eq(seerrRequests.tmdbId, p.id))).run();
     ctx.audit.record('seerr.reset', { actor: request.user, ip: request.ip, target: mine[0]?.title ?? `${p.type} ${p.id}`, detail: `${r.requests} request(s)` });

@@ -242,6 +242,14 @@ describe('Vidalune\'s cast player operated with a remote', () => {
     const last = (await session(admin, fileOf(eps[2]!.id).id)).json().token;
     expect((await env.app.inject({ url: `/api/cast/tv?cast=${last}` })).json().next).toBeNull();
     expect((await post(last, { next: true })).statusCode).toBe(404);
+    // The next episode in the language the TV plays (not its default track), and its default without a match.
+    const audio = (language: string, isDefault: boolean, index: number) => ({ index, codec: 'aac', language, channels: 2, channelLayout: 'stereo', title: null, isDefault });
+    env.ctx.db.update(mediaFiles).set({ audioTracks: [audio('ita', true, 1), audio('eng', false, 2)] }).where(eq(mediaFiles.id, second.id)).run();
+    const english = await post(token, { next: true, audioLanguage: 'eng' });
+    expect(english.statusCode).toBe(200);
+    expect(english.json().decision.audioIndex).toBe(2);
+    expect((await post(token, { next: true, audioLanguage: 'fre' })).json().decision.audioIndex).not.toBe(2);
+    expect((await post(token, { next: true, audioLanguage: 'x'.repeat(40) })).statusCode).toBe(400);
     // The same file with another audio track (one the file has).
     const tracks = (await env.app.inject({ url: `/api/cast/tv?cast=${token}` })).json().audio as { index: number }[];
     if (tracks[0]) expect((await post(token, { audioIndex: tracks[0].index })).json().item).toMatchObject({ id: eps[0]!.id, fileId: first.id });

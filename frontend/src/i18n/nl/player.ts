@@ -83,6 +83,8 @@ export const player: Messages['player'] = {
   embedded: 'ingebouwd',
   file: 'bestand',
   noAudioTracks: 'Geen audiotracks gevonden voor dit bestand.',
+  subtitleLoading: 'Ondertitel laden…',
+  subtitleFailed: 'De ondertitel kon niet geladen worden. Kies hem opnieuw of kies een andere.',
   noSubtitles: 'Geen tekstondertitels gevonden voor dit bestand.',
   imageSubtitles: 'Ondertitels als afbeelding (PGS/VobSub) kunnen niet in de browser worden getoond.',
   dim: 'Gedimd',
