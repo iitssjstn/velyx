@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -34,7 +34,7 @@ const seerrShow = {
   ],
 };
 
-function setup(opts: { tmdbId?: number; seerr?: boolean } = {}) {
+function setup(opts: { tmdbId?: number; seerr?: boolean; seasonOverview?: string } = {}) {
   const calls: { method: string; url: string; body: unknown }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ method: init?.method ?? 'GET', url, body: init?.body ? JSON.parse(String(init.body)) : null });
@@ -42,7 +42,7 @@ function setup(opts: { tmdbId?: number; seerr?: boolean } = {}) {
     if (url === '/api/seerr') return new Response(JSON.stringify({ enabled: opts.seerr ?? false }), { status: 200 });
     if (url === '/api/seerr/tv/1399') return new Response(JSON.stringify(seerrShow), { status: 200 });
     if (url === '/api/seerr/requests') return new Response(JSON.stringify({ id: 3, title: 'Reacher', state: 'requested' }), { status: 200 });
-    if (url === '/api/shows/7/seasons/2') return new Response(JSON.stringify(season2), { status: 200 });
+    if (url === '/api/shows/7/seasons/2') return new Response(JSON.stringify({ ...season2, overview: opts.seasonOverview ?? null }), { status: 200 });
     if (url.includes('/similar')) return new Response(JSON.stringify([]), { status: 200 });
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }));
@@ -107,6 +107,15 @@ describe('series page', () => {
     expect(within(list).getByRole('link', { name: 'Resume S02E04 · Episode title 4' }).getAttribute('href')).toBe('/play/episode/24?t=1934');
     expect(within(list).getByRole('link', { name: 'Play S02E05' }).getAttribute('href')).toBe('/play/episode/25?t=0');
     expect(screen.getByText('8 episodes · 38% watched')).toBeTruthy();
+  });
+
+  it('leaves out a season description that repeats the show description, and shows one of its own', async () => {
+    setup({ seasonOverview: 'JACK REACHER…  ' });
+    await screen.findByRole('list', { name: 'Episodes' });
+    expect(screen.getAllByText(/Jack Reacher…/i)).toHaveLength(1);
+    cleanup();
+    setup({ seasonOverview: 'Reacher goes to New York.' });
+    expect(await screen.findByText('Reacher goes to New York.')).toBeTruthy();
   });
 
   it('labels a wide 1080p episode (1920×800, no black bars) as 1080p, not 720p', async () => {

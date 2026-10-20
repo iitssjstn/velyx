@@ -301,6 +301,21 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **0.19.81 in aanbouw** (besluit eigenaar 19 okt: "Ja goede optie" voor 8, 9, 11 en 13 uit de werklijst; 20 okt:
+  "Neem de dubbele beschrijving maar mee in 0.19.81"). Op de branch, nog geen PR:
+  - Rustig omzetten op Windows (`HlsOptions.canPause` in `hls.ts`: FFmpeg stoppen als hij ver genoeg vooruit is,
+    `restFrom`, later vanaf het volgende stuk opnieuw starten; telt mee in de conversielimiet). Test met echte FFmpeg
+    faalt op de oude code.
+  - Vooruit omzetten in seconden: `aheadSeconds` in de instellingen (standaard 120, Zod 30 tot 3600, alleen beheerder,
+    auditlog), veld onder Beheer > Afspelen (`AheadSettings`). Tests backend en website.
+  - "Ondertitel laden…" (na 0,6 s) en "kon niet geladen worden" in de speler (`trackLoads`, `subStatus` in
+    `Player.tsx`). Test.
+  - Dubbele beschrijving (gemeld 19 okt, screenshot van Carrie): de seizoenstekst onder de seizoenen stond er ook als
+    hij gelijk was aan die van de serie. Nu verborgen als hij op hoofdletters, spaties en leestekens na gelijk is
+    (`sameText` in `ShowDetail.tsx`); de app toont geen seizoenstekst. Test.
+  - Nog te doen: punt 11 (knop "Seizoenen aanvragen" weg als er niets open is); leeropdracht aan de eigenaar gegeven
+    (19 okt), wacht op zijn idee. Daarna versie, volledige testronde, PR.
+
 - **Hoe ver vooruit omzetten instelbaar** (wens eigenaar 19 okt; nog niet bouwen tot hij het zegt): nu vast
   `AHEAD_SECONDS = 120` in `backend/src/playback/hls.ts` (FFmpeg pauzeert met `SIGSTOP` als hij 120 s voor de kijker
   is en gaat verder bij 60 s). Besluit eigenaar: "Geef de beheerder gewoon een veld waar hij zelf de seconden in kan

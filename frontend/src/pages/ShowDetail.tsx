@@ -79,6 +79,13 @@ function EpisodeRow({ ep, onToggleWatched }: { ep: EpisodeSummary; onToggleWatch
 }
 
 /** Keyed by id, so going straight from one show to another starts with fresh state. */
+/** The same text, whatever its capitals, spaces, hyphens and punctuation (a miniseries' one season often repeats the
+ *  show's description, with "social-media" for "social media"). */
+function sameText(a: string, b: string | null | undefined): boolean {
+  const plain = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+  return !!b && plain(a) === plain(b);
+}
+
 export function ShowPage() {
   const id = Number(useParams().id);
   return <ShowScreen key={id} id={id} />;
@@ -249,7 +256,7 @@ function ShowScreen({ id }: { id: number }) {
             </div>
           )}
         </div>
-        {season.data?.overview && <p className="mt-4 max-w-3xl text-sm text-muted">{season.data.overview}</p>}
+        {season.data?.overview && !sameText(season.data.overview, s.overview) && <p className="mt-4 max-w-3xl text-sm text-muted">{season.data.overview}</p>}
         {season.isLoading ? (
           <div className="grid h-40 place-items-center">
             <Spinner className="size-6" />
