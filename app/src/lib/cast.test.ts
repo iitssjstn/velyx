@@ -227,6 +227,12 @@ describe('the cast player', () => {
     const cast = config.expo.plugins.find((p): p is [string, { receiverAppId: string }] => Array.isArray(p) && p[0] === 'react-native-google-cast');
     expect(cast?.[1].receiverAppId).toBe('920BF057');
   });
+
+  it('uses a fixed Google Cast version (the newest one can need a newer Android build)', () => {
+    const config = JSON.parse(readFileSync(new URL('../../app.json', import.meta.url), 'utf8')) as { expo: { plugins: unknown[] } };
+    const cast = config.expo.plugins.find((p): p is [string, { androidPlayServicesCastFrameworkVersion?: string }] => Array.isArray(p) && p[0] === 'react-native-google-cast');
+    expect(cast?.[1].androidPlayServicesCastFrameworkVersion).toMatch(/^\d+\.\d+\.\d+$/);
+  });
 });
 
 describe('following Vidalune\'s TV player', () => {

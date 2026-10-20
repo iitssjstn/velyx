@@ -1727,3 +1727,14 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1981) en beide lockfiles bijgewerkt.
 - PR #166 gemerged 20 okt op verzoek van de eigenaar ("Merge het maar"; alle checks groen). Release `v0.19.81` nog
   controleren: APK, beide `.deb`'s, `.aab` en `vidalune-0.19.81-setup.exe` (eigenaar heeft weinig tegoed; volgende sessie).
+
+## Versie 0.19.82 (Android-app bouwt weer)
+
+- Release `v0.19.81`: de Android-build faalde (`checkReleaseAarMetadata`). `react-native-google-cast` haalt standaard de
+  nieuwste `play-services-cast-framework` (`+`); die nam `androidx.mediarouter 1.9.0-beta01` mee, dat compileSdk 37 en
+  AGP 9.1 vraagt (wij: 36 en 8.12). Daardoor ontbraken APK, `.aab`, de Windows-installer en de nieuwe accountservice-image
+  van 0.19.81 (Docker en `.deb`'s wel).
+- Op verzoek van de eigenaar ("bouw maar en merge het daarna direct", 20 okt): versie vastgezet op 22.1.0
+  (`androidPlayServicesCastFrameworkVersion` in `app/app.json`), test dat er een vaste versie staat. De APK eerst met de
+  hand gebouwd op de branch (workflow "Android app", zonder Play Store).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1982) en beide lockfiles bijgewerkt.

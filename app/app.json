@@ -2,7 +2,7 @@
   "expo": {
     "name": "Vidalune",
     "slug": "vidalune",
-    "version": "0.19.81",
+    "version": "0.19.82",
     "scheme": "vidalune",
     "orientation": "default",
     "icon": "./assets/icon.png",
@@ -10,7 +10,7 @@
     "backgroundColor": "#14121c",
     "android": {
       "package": "com.vidalune.app",
-      "versionCode": 1981,
+      "versionCode": 1982,
       "adaptiveIcon": {
         "backgroundColor": "#14121c",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -48,7 +48,8 @@
         "react-native-google-cast",
         {
           "receiverAppId": "920BF057",
-          "expandedController": false
+          "expandedController": false,
+          "androidPlayServicesCastFrameworkVersion": "22.1.0"
         }
       ]
     ]
