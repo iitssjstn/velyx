@@ -301,6 +301,23 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Vidalune als app op de Chromecast met Google TV** (vraag eigenaar 20 okt: "we hebben de fundering al liggen",
+  dus meteen meenemen na 0.19.81; nog niet bouwen tot hij het zegt). Dezelfde Android-app (Expo 57, RN 0.86,
+  `expo-video`), geen tweede app. Stappen:
+  1. Installeren en starten: Expo-configplugin met `LEANBACK_LAUNCHER`, `android.software.leanback` en touchscreen
+     niet verplicht, tv-banner (320×180). De telefoonversie blijft gelijk.
+  2. Afspelen met de afstandsbediening: OK, links/rechts (spoelen), omhoog/omlaag (balk en menu), Terug; logica en
+     ontwerp zoals de tv-speler van de cast (`cloud/web/cast/remote.js`, goedgekeurde voorbeelden van 0.19.79).
+  3. Alle schermen met pijltjes (Home, Films, Series, seriepagina, zoeken, instellingen): zichtbare focus, logisch
+     springen, grotere 10-foot-lay-out. Eerst kijken of gewone React Native volstaat of `react-native-tvos` nodig is.
+  4. Inloggen met een code: de tv toont een code, bevestigen op telefoon of vidalune.com (nieuw in accountservice
+     en app; de oude server-API `/api/auth/pair/*` bestaat nog).
+  5. Play Store voor tv: aparte beoordeling (tv-kwaliteitseisen, banner, tv-screenshots); tot dan de APK zelf
+     installeren.
+  Advies: eerste tv-versie = stap 1 en 2 (Home, titel openen, afspelen), op de eigen Chromecast testen; daarna 3 en 4
+  (een à twee versies). Casten vanaf de telefoon blijft zoals het is. Voordeel: de Chromecast speelt veel formaten
+  direct, dus minder omzetten op de server.
+
 - **Gekozen audiospoor wordt niet onthouden** (gemeld door de eigenaar 20 okt; gebouwd in 0.19.81): kiest
   een kijker bij een serie met Engels en Italiaans het Engelse spoor, dan start de volgende aflevering weer met het
   standaardspoor. Oorzaak: een gekozen ondertitel wordt bewaard (website `setPrefs` in `chooseSubtitle`, app
@@ -691,7 +708,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 8. **Verwijderen via Seerr** (Sonarr/Radarr).
 9. **E-mailsysteem** op vidalune.com (alles in één keer).
 10. **Manipulatiedetectie** voor toegang op afstand (alleen als er misbruik wordt gezien).
-11. **TV-app** (Android TV), daarna de **Play Store** (1.0.0).
+11. **TV-app** (Android TV), daarna de **Play Store** (1.0.0). Naar voren gehaald: zie "Vidalune als app op de
+    Chromecast met Google TV" onder "Gemeld tijdens het testen" (na 0.19.81).
 
 ## Belangrijk: Quick Setup na installatie (gebruikerservaring / onboarding)
 
