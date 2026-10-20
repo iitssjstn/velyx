@@ -301,7 +301,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
-- **Gekozen audiospoor wordt niet onthouden** (gemeld door de eigenaar 20 okt; nog niet bouwen tot hij het zegt): kiest
+- **Gekozen audiospoor wordt niet onthouden** (gemeld door de eigenaar 20 okt; gebouwd in 0.19.81): kiest
   een kijker bij een serie met Engels en Italiaans het Engelse spoor, dan start de volgende aflevering weer met het
   standaardspoor. Oorzaak: een gekozen ondertitel wordt bewaard (website `setPrefs` in `chooseSubtitle`, app
   `rememberSubtitle`), een gekozen audiospoor niet: website `selectServerAudio`/`selectNativeAudio` (`Player.tsx`) en app
@@ -310,22 +310,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   bij ondertitels (website en app, ook een keuze op de tv) en bij de volgende titel het spoor in die taal kiezen als het
   er is; anders het standaardspoor. Tests die op de oude code falen.
 
-- **0.19.81 in aanbouw** (besluit eigenaar 19 okt: "Ja goede optie" voor 8, 9, 11 en 13 uit de werklijst; 20 okt:
-  "Neem de dubbele beschrijving maar mee in 0.19.81"). Op de branch, nog geen PR:
-  - Rustig omzetten op Windows (`HlsOptions.canPause` in `hls.ts`: FFmpeg stoppen als hij ver genoeg vooruit is,
-    `restFrom`, later vanaf het volgende stuk opnieuw starten; telt mee in de conversielimiet). Test met echte FFmpeg
-    faalt op de oude code.
-  - Vooruit omzetten in seconden: `aheadSeconds` in de instellingen (standaard 120, Zod 30 tot 3600, alleen beheerder,
-    auditlog), veld onder Beheer > Afspelen (`AheadSettings`). Tests backend en website.
-  - "Ondertitel laden…" (na 0,6 s) en "kon niet geladen worden" in de speler (`trackLoads`, `subStatus` in
-    `Player.tsx`). Test.
-  - Dubbele beschrijving (gemeld 19 okt, screenshot van Carrie): de seizoenstekst onder de seizoenen stond er ook als
-    hij gelijk was aan die van de serie. Nu verborgen als hij op hoofdletters, spaties en leestekens na gelijk is
-    (`sameText` in `ShowDetail.tsx`); de app toont geen seizoenstekst. Test.
-  - Nog te doen: punt 11 (knop "Seizoenen aanvragen" weg als er niets open is); leeropdracht aan de eigenaar gegeven
-    (19 okt), wacht op zijn idee. Daarna versie, volledige testronde, PR.
-
-- **Hoe ver vooruit omzetten instelbaar** (wens eigenaar 19 okt; nog niet bouwen tot hij het zegt): nu vast
+- **Hoe ver vooruit omzetten instelbaar** (wens eigenaar 19 okt; gebouwd in 0.19.81, met rustig omzetten op Windows): nu vast
   `AHEAD_SECONDS = 120` in `backend/src/playback/hls.ts` (FFmpeg pauzeert met `SIGSTOP` als hij 120 s voor de kijker
   is en gaat verder bij 60 s). Besluit eigenaar: "Geef de beheerder gewoon een veld waar hij zelf de seconden in kan
   typen". Dus onder Beheer > Afspelen een getalveld "Vooruit omzetten (seconden)", standaard 120, met korte uitleg
@@ -337,8 +322,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   Besluit eigenaar (19 okt): "Je kan windows meenemen in de volgende update": rustig omzetten op Windows hoort bij de
   eerstvolgende versie (bouwen zodra hij die versie laat bouwen).
 
-- **Knop "Seizoenen aanvragen" blijft staan als er niets meer aan te vragen is** (gemeld door de eigenaar 19 okt; nog
-  niet bouwen tot hij het zegt): bij een serie met één seizoen dat op de server staat, of als alle overige seizoenen al
+- **Knop "Seizoenen aanvragen" blijft staan als er niets meer aan te vragen is** (gemeld door de eigenaar 19 okt;
+  gebouwd in 0.19.81): bij een serie met één seizoen dat op de server staat, of als alle overige seizoenen al
   aangevraagd zijn, staat de knop er nog. Wens: dan verdwijnt de knop. Oorzaak: de seriepagina (website `ShowDetail.tsx`,
   app `app/src/app/show/[id].tsx`) toont de knop zodra Seerr aan staat en de TMDB-id bekend is; welke seizoenen open zijn
   wordt pas bij het klikken bij Seerr opgehaald (bewuste keuze in 0.19.76, zodat de pagina Seerr niets extra vraagt).
@@ -1697,3 +1682,28 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - PR #165 gemerged 18 okt op verzoek van de eigenaar ("merge het maar"; alle checks groen); release `v0.19.80`
   gecontroleerd: APK, beide `.deb`'s, `.aab` en `vidalune-0.19.80-setup.exe`; de accountservice-image startte vanzelf na
   de Windows-workflow en slaagde.
+
+## Versie 0.19.81 (rustig omzetten, ondertitel laden, audiospoor onthouden, seizoenenknop)
+
+- Besluit eigenaar (19 okt): "Ja goede optie" voor rustig omzetten op Windows, vooruit omzetten instelbaar, de
+  seizoenenknop en "Ondertitel laden…"; 20 okt: "Neem de dubbele beschrijving maar mee in 0.19.81" en voor het
+  audiospoor "Neem het mee in 0.19.81 en je hoeft niet te wachten op mijn idee".
+- Rustig omzetten op Windows (`HlsOptions.canPause` in `hls.ts`): waar FFmpeg niet gepauzeerd kan worden, wordt hij
+  gestopt als hij ver genoeg vooruit is (`restFrom`) en later vanaf het volgende stuk opnieuw gestart; een rustende
+  conversie telt mee in de conversielimiet. Test met echte FFmpeg faalt op de oude code.
+- Vooruit omzetten in seconden: `aheadSeconds` (standaard 120, Zod 30 tot 3600, alleen beheerder, auditlog), veld onder
+  Beheer > Afspelen (`AheadSettings`); verder gaan blijft op de helft. README bijgewerkt.
+- Speler (website): "Ondertitel laden…" na 0,6 s en "kon niet geladen worden" (`trackLoads`, `subStatus`).
+- Seriepagina (website): seizoenstekst verborgen als hij gelijk is aan die van de serie (`sameText`).
+- Audiospoor onthouden: de taal van het gekozen spoor wordt bewaard (website `setPrefs` `audioLanguage`, ook bij een
+  keuze op de tv en in Account; app `rememberAudio` op het toestel, ook een keuze op de tv) en de volgende titel start
+  in die taal als hij die heeft (`preferredAudio` in de app; anders de accounttaal, anders het standaardspoor). De tv
+  geeft de taal mee bij de volgende aflevering (`audioLanguage` in `/api/cast/tv/session`, Zod).
+- Seizoenenknop: `GET /api/seerr/tv/:id/open` zegt of er nog seizoenen aan te vragen zijn (wat Seerr weet 5 minuten
+  bewaard en na aanvragen, annuleren of resetten vergeten; wat hier staat telkens opgezocht; Seerr plat: knop blijft).
+  Website en app tonen de knop alleen dan.
+- Tests: backend (rusten op Windows, instelling, tv geeft taal door, seizoenenknop; falen op de oude code), website
+  (ondertitel laden, instelling, dubbele tekst, audiokeuze bewaard en toegepast, seizoenenknop weg), app
+  (`preferredAudio`, onthouden taal, `tvMedia` met audiospoor). Backend 604, frontend 355, cloud 192, app 178 tests;
+  typechecks, lint (4 bekende waarschuwingen) en builds slagen. De schermen van de app op de telefoon testen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1981) en beide lockfiles bijgewerkt.
