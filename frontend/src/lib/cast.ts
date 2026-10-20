@@ -151,17 +151,19 @@ export interface CastState {
   tvItem: { kind: 'movie' | 'episode'; id: number; fileId: number } | null;
   /** The subtitle on the TV (also one chosen there), once known; null = off. */
   tvSubtitleKey?: string | null;
+  /** The audio track the TV plays (also one chosen there), once known; null = the file's default. */
+  tvAudioIndex?: number | null;
 }
 
 /** How long a subtitle chosen here wins over what the TV still reports. */
 const SUBTITLE_SETTLE_MS = 5000;
 
 /** What Vidalune's TV player says it plays (customData of its media), or null. */
-export function tvMedia(mediaInfo: unknown): { fileId: number; item: { kind: 'movie' | 'episode'; id: number } | null } | null {
-  const data = (mediaInfo as { customData?: { vidalune?: { fileId?: unknown; item?: { kind?: unknown; id?: unknown } | null } } } | null | undefined)?.customData?.vidalune;
+export function tvMedia(mediaInfo: unknown): { fileId: number; item: { kind: 'movie' | 'episode'; id: number } | null; audioIndex: number | null } | null {
+  const data = (mediaInfo as { customData?: { vidalune?: { fileId?: unknown; item?: { kind?: unknown; id?: unknown } | null; audioIndex?: unknown } } } | null | undefined)?.customData?.vidalune;
   if (!data || typeof data.fileId !== 'number') return null;
   const item = data.item && (data.item.kind === 'movie' || data.item.kind === 'episode') && typeof data.item.id === 'number' ? { kind: data.item.kind as 'movie' | 'episode', id: data.item.id } : null;
-  return { fileId: data.fileId, item };
+  return { fileId: data.fileId, item, audioIndex: typeof data.audioIndex === 'number' ? data.audioIndex : null };
 }
 
 /** The subtitle key for the TV's active tracks (track i + 1 is subtitle i), or undefined when unknown. */
@@ -263,6 +265,7 @@ export function useCast(item: CastItem | null) {
             if (tvFile.current === tv.fileId) tvSubtitles.current = { fileId: tv.fileId, subtitles: s.subtitles };
           }).catch(() => undefined);
         }
+        if (tv && tv.fileId === tvFile.current) setState((st) => (st.tvAudioIndex === tv.audioIndex ? st : { ...st, tvAudioIndex: tv.audioIndex }));
         const list = tvSubtitles.current;
         if (!list || list.fileId !== tvFile.current) return;
         const ids = f.CastContext.getInstance().getCurrentSession()?.getMediaSession?.()?.activeTrackIds ?? player.current.activeTrackIds;
@@ -288,7 +291,7 @@ export function useCast(item: CastItem | null) {
         [f.RemotePlayerEventType.IS_CONNECTED_CHANGED, () => {
           if (!player.current.isConnected) {
             tvFile.current = null;
-            setState((st) => ({ ...st, active: false, fileId: null, device: null, tvItem: null, tvSubtitleKey: undefined }));
+            setState((st) => ({ ...st, active: false, fileId: null, device: null, tvItem: null, tvSubtitleKey: undefined, tvAudioIndex: undefined }));
           }
         }],
       ];
@@ -410,7 +413,7 @@ export function useCast(item: CastItem | null) {
   const stop = useCallback(() => {
     framework.current?.CastContext.getInstance().endCurrentSession(true);
     tvFile.current = null;
-    setState((st) => ({ ...st, active: false, fileId: null, device: null, tvItem: null, tvSubtitleKey: undefined }));
+    setState((st) => ({ ...st, active: false, fileId: null, device: null, tvItem: null, tvSubtitleKey: undefined, tvAudioIndex: undefined }));
   }, []);
 
   const togglePlay = useCallback(() => controller.current?.playOrPause(), []);

@@ -231,9 +231,10 @@ describe('the cast player', () => {
 
 describe('following Vidalune\'s TV player', () => {
   it('reads which file the TV plays, and the title when the TV started it itself', () => {
-    expect(tvMedia({ customData: { vidalune: { fileId: 6, item: { kind: 'episode', id: 42 } } } })).toEqual({ fileId: 6, item: { kind: 'episode', id: 42 } });
-    expect(tvMedia({ customData: { vidalune: { fileId: 5 } } })).toEqual({ fileId: 5, item: null });
-    expect(tvMedia({ customData: { vidalune: { fileId: 5, item: { kind: 'show', id: 1 } } } })).toEqual({ fileId: 5, item: null });
+    expect(tvMedia({ customData: { vidalune: { fileId: 6, item: { kind: 'episode', id: 42 } } } })).toEqual({ fileId: 6, item: { kind: 'episode', id: 42 }, audioIndex: null });
+    expect(tvMedia({ customData: { vidalune: { fileId: 5 } } })).toEqual({ fileId: 5, item: null, audioIndex: null });
+    expect(tvMedia({ customData: { vidalune: { fileId: 5, audioIndex: 2 } } })?.audioIndex).toBe(2);
+    expect(tvMedia({ customData: { vidalune: { fileId: 5, item: { kind: 'show', id: 1 } } } })).toEqual({ fileId: 5, item: null, audioIndex: null });
     expect(tvMedia({ customData: {} })).toBeNull();
     expect(tvMedia(null)).toBeNull();
   });
@@ -248,13 +249,13 @@ describe('following Vidalune\'s TV player', () => {
   });
 
   it('follows a title the TV started itself, but not an older one while this screen gives the TV its own', () => {
-    const next = { fileId: 6, item: { kind: 'episode' as const, id: 42 } };
+    const next = { fileId: 6, item: { kind: 'episode' as const, id: 42 }, audioIndex: null };
     expect(followTv(5, next, 5)).toEqual({ kind: 'episode', id: 42 });
     // Still the old title (it was started on the TV) while this screen's title is being loaded.
     expect(followTv(4, next, 5)).toBeNull();
     expect(followTv(null, next, 5)).toBeNull();
     // This screen's own title, or one the app or website loaded (no title in it).
-    expect(followTv(5, { fileId: 5, item: { kind: 'episode', id: 41 } }, 5)).toBeNull();
-    expect(followTv(5, { fileId: 6, item: null }, 5)).toBeNull();
+    expect(followTv(5, { fileId: 5, item: { kind: 'episode', id: 41 }, audioIndex: null }, 5)).toBeNull();
+    expect(followTv(5, { fileId: 6, item: null, audioIndex: null }, 5)).toBeNull();
   });
 });

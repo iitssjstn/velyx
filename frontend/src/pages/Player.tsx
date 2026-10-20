@@ -184,7 +184,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // Audio track to ask the server for. null = not decided yet, undefined = the file's default.
   const [audioChoice, setAudioChoice] = useState<number | undefined | null>(null);
   useEffect(() => {
-    if (file && audioChoice === null && prefsReady) setAudioChoice(preferredAudioIndex(file.audioTracks, langPrefs.current.audioLanguage || getPrefs().audioLanguage, NATIVE_AUDIO_SWITCHING));
+    // The language of the track last chosen goes first, then the one in the account's settings.
+    if (file && audioChoice === null && prefsReady) setAudioChoice(preferredAudioIndex(file.audioTracks, getPrefs().audioLanguage || langPrefs.current.audioLanguage, NATIVE_AUDIO_SWITCHING));
   }, [file, audioChoice, prefsReady]);
 
   const audioPrefs = { audioChannels: prefs.audioOutput, boostVoices: prefs.boostVoices, levelVolume: prefs.levelVolume };
@@ -600,6 +601,14 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     const timer = setTimeout(() => setSubLoadingShown(true), 600);
     return () => clearTimeout(timer);
   }, [subStatus]);
+  // An audio track chosen on the TV (its remote): remembered, as if chosen here.
+  useEffect(() => {
+    if (!castHere || cast.tvAudioIndex === undefined || cast.tvAudioIndex === null) return;
+    const language = file?.audioTracks.find((t) => t.index === cast.tvAudioIndex)?.language;
+    if (language) setPrefs({ audioLanguage: language });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [castHere, cast.tvAudioIndex]);
+
   // A subtitle chosen on the TV (its remote): shown here too and remembered, as if chosen here.
   useEffect(() => {
     if (!castHere || cast.tvSubtitleKey === undefined || cast.tvSubtitleKey === subKeyRef.current) return;
@@ -658,12 +667,17 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     const list = (videoRef.current as unknown as { audioTracks?: AudioTrackList } | null)?.audioTracks;
     if (!list) return;
     for (let i = 0; i < list.length; i++) list[i]!.enabled = list[i]!.id === trackId;
+    const picked = Array.from({ length: list.length }, (_, i) => list[i]!).find((t) => t.id === trackId);
+    if (picked?.language) setPrefs({ audioLanguage: picked.language });
     setAudioTracks(Array.from({ length: list.length }, (_, i) => ({ id: list[i]!.id, label: list[i]!.label, language: list[i]!.language, enabled: list[i]!.enabled })));
   }, []);
 
   const selectServerAudio = useCallback(
     (index: number) => {
       if (index === info?.decision.audioIndex) return;
+      // Remembered for the next episode or film (its track in this language, when it has one).
+      const language = file?.audioTracks.find((t) => t.index === index)?.language;
+      if (language) setPrefs({ audioLanguage: language });
       if (cast.active) {
         setAudioChoice(index);
         setMenu(null);
@@ -676,7 +690,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       setBuffering(true);
       setAudioChoice(index);
     },
-    [cast.active, cast.setAudio, info, currentTime],
+    [cast.active, cast.setAudio, info, currentTime, file],
   );
 
   const goNext = useCallback(() => {
@@ -750,7 +764,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       // Preferred audio language in browsers that switch tracks natively (direct play only).
       const list = (v as unknown as { audioTracks?: AudioTrackList }).audioTracks;
       if (!live && list && list.length > 0) {
-        const pref = langPrefs.current.audioLanguage || getPrefs().audioLanguage;
+        const pref = getPrefs().audioLanguage || langPrefs.current.audioLanguage;
         const tracks = Array.from({ length: list.length }, (_, i) => list[i]!);
         const match = pref ? tracks.find((t) => sameLanguage(t.language, pref)) : undefined;
         if (match) for (const t of tracks) t.enabled = t === match;

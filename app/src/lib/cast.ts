@@ -212,12 +212,12 @@ export function tvFilePosition(offset: number, streamSec: number): number | null
  * What Vidalune's TV player says it plays (customData of its media status): the file, and the title
  * when the TV started it itself (the next episode, with its remote). Null for anything else.
  */
-export function tvMedia(mediaInfo: unknown): { fileId: number; item: { kind: 'movie' | 'episode'; id: number } | null } | null {
-  const data = (mediaInfo as { customData?: { vidalune?: { fileId?: unknown; item?: { kind?: unknown; id?: unknown } | null } } } | null | undefined)?.customData?.vidalune;
+export function tvMedia(mediaInfo: unknown): { fileId: number; item: { kind: 'movie' | 'episode'; id: number } | null; audioIndex: number | null } | null {
+  const data = (mediaInfo as { customData?: { vidalune?: { fileId?: unknown; audioIndex?: unknown; item?: { kind?: unknown; id?: unknown } | null } } } | null | undefined)?.customData?.vidalune;
   if (!data || typeof data.fileId !== 'number') return null;
   const kind = data.item?.kind;
   const item = (kind === 'movie' || kind === 'episode') && typeof data.item?.id === 'number' ? { kind: kind as 'movie' | 'episode', id: data.item.id } : null;
-  return { fileId: data.fileId, item };
+  return { fileId: data.fileId, item, audioIndex: typeof data.audioIndex === 'number' ? data.audioIndex : null };
 }
 
 /** The subtitle (key) the TV shows for its active tracks (track i + 1 is subtitle i); undefined when unknown. */

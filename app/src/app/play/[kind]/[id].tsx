@@ -19,9 +19,9 @@ import { Button, styles } from '../../../components/ui';
 import { castSettled, castStartAt, castStatus } from '../../../lib/castStatus';
 import { applyCastTextTrackStyle, castLoadRequest, castTrackIds, followTv, loadCastWithCurrentSubtitle, sessionUsable, tvFilePosition, tvMedia, tvSubtitleKey, type CastSession } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
-import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
-import { rememberSubtitle, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
+import { rememberAudio, rememberSubtitle, rememberedAudio, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
 import { DEFAULT_SUBTITLE_STYLE, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { createSubtitleStyleSync, subtitlePreferencesReady, subtitleStyleAccountScope } from '../../../lib/subtitleStyleSync';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
@@ -53,6 +53,7 @@ interface Item {
 }
 
 interface Prefs extends SubtitlePrefs {
+  audioLanguage?: string | null;
   subtitleStyle?: SubtitleStyle | null;
   skipIntro?: SkipMode;
   skipCredits?: SkipMode;
@@ -406,7 +407,13 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
           return;
         }
         const caps = { ...capsRef.current, ...(wantedAudio !== undefined ? { audioIndex: wantedAudio } : {}), ...(answer?.file.id === item.fileId && answer.decision.optimized ? { optimizationId: answer.decision.optimized.id } : {}) };
-        const a = await api.post<PlaybackAnswer>(`/api/media/${item.fileId}/playback`, caps);
+        let a = await api.post<PlaybackAnswer>(`/api/media/${item.fileId}/playback`, caps);
+        if (wantedAudio === undefined && a.analysis.mode !== 'unsupported') {
+          // The audio language chosen last (on this device, else the account's), when this file has it.
+          const language = (await rememberedAudio()) ?? prefs?.audioLanguage ?? null;
+          const audio = preferredAudio(a.file.audioTracks, language, a.decision.audioIndex);
+          if (audio !== undefined) a = await api.post<PlaybackAnswer>(`/api/media/${item.fileId}/playback`, { ...caps, audioIndex: audio });
+        }
         if (a.analysis.mode === 'unsupported') {
           setProblem([t('player.cannotPlay'), ...a.analysis.problems].join('\n\n'));
           return;
@@ -432,7 +439,7 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
         setProblem(errorMessage(err, t));
       }
     },
-    [api, item.fileId, answer, load, castLoad, player, t],
+    [api, item.fileId, answer, load, castLoad, player, t, prefs?.audioLanguage],
   );
 
   // Start: resume where the viewer stopped (unless asked to start elsewhere).
@@ -619,6 +626,11 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
     if (tv) lastTvFile.current = tv.fileId;
     const next = casting && !castLoading.current ? followTv(before, tv, item.fileId) : null;
     if (next) router.replace(`/play/${next.kind}/${next.id}?tv=1`);
+    // An audio track chosen on the TV (its menu) is remembered for the next title too.
+    else if (casting && tv?.fileId === item.fileId && tv.audioIndex !== null && tv.audioIndex !== audioIndex) {
+      const track = answer?.file.audioTracks.find((x) => x.index === tv.audioIndex);
+      if (track) void rememberAudio(track.language);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [casting, mediaStatus?.mediaInfo]);
 
@@ -943,6 +955,7 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
                   selected={a.index === audioIndex}
                   onPress={() => {
                     setMenu(false);
+                    void rememberAudio(a.language);
                     if (a.index !== audioIndex) void decide(position, a.index);
                   }}
                 />

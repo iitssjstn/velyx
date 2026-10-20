@@ -244,8 +244,10 @@ const playNext = async () => {
   if (loadingNext || !info?.next) return;
   loadingNext = true;
   try {
-    const session = await askSession({ next: true });
-    if (session) await loadSession(session, { at: session.item?.resumeAt ?? 0 });
+    // The next episode in the language playing now (its default track when it does not have it).
+    const language = audioTracks().find((t) => t.index === audioIndex)?.language;
+    const session = await askSession({ next: true, ...(language ? { audioLanguage: language } : {}) });
+    if (session) await loadSession(session, { at: session.item?.resumeAt ?? 0, audio: Number.isInteger(session.decision?.audioIndex) ? session.decision.audioIndex : null });
     else loadingNext = false;
   } catch {
     loadingNext = false;

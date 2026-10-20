@@ -374,13 +374,16 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
    */
   app.post('/api/cast/tv/session', { preHandler: requireUser }, async (request) => {
     if (request.castFile === null) throw new HttpError(403, 'Only a Chromecast can ask this.');
-    const body = z.object({ next: z.boolean().optional(), audioIndex: z.number().int().min(0).max(1000).optional() }).strict().parse(request.body ?? {});
+    // `audioLanguage`: the language the TV plays now, so the next episode starts in it too (when it has it).
+    const body = z.object({ next: z.boolean().optional(), audioIndex: z.number().int().min(0).max(1000).optional(), audioLanguage: z.string().trim().min(1).max(16).optional() }).strict().parse(request.body ?? {});
     const title = castTitle(request);
     if (body.next) {
       if (title.kind !== 'episode') throw notFound('Next episode');
       const next = nextEpisode(request, title.episode.e.id);
       if (!next) throw notFound('Next episode');
-      return { ...(await castSession(request, { fileId: next.file.id })), item: episodeItem(request, next.row, next.file.id) };
+      const want = body.audioLanguage?.toLowerCase();
+      const same = want ? (next.file.audioTracks ?? []).find((t) => t.language?.toLowerCase() === want) : undefined;
+      return { ...(await castSession(request, { fileId: next.file.id, ...(same && !same.isDefault ? { audioIndex: same.index } : {}) })), item: episodeItem(request, next.row, next.file.id) };
     }
     const session = await castSession(request, { fileId: request.castFile, ...(body.audioIndex !== undefined ? { audioIndex: body.audioIndex } : {}) });
     if (title.kind === 'episode') return { ...session, item: episodeItem(request, title.episode, request.castFile) };
