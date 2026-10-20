@@ -301,6 +301,15 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Casten: twee spelers, poster kapot, keuzes vergeten bij hervatten** (gemeld door de eigenaar 20 okt, twee foto's van de
+  tv, Peaky Blinders S01E02; nog niet bouwen tot hij het zegt):
+  1. Soms verschijnt de eigen Vidalune-speler (balk met streepjes), soms Google's standaardspeler (30 s-knoppen, CC). Te
+     onderzoeken: welke app-ID (`920BF057` of nog `CC1AD845`) en vanuit waar (website, app, Google Home/hervatten op de tv)
+     gestart werd, en of `<cast-media-player>` nog ergens getekend wordt.
+  2. In de eigen speler is de poster linksonder een kapot plaatje (afbeelding laadt niet op de tv).
+  3. Bij hervatten van een serie worden ondertitel en audiospoor niet onthouden (ook na 0.19.81 nog te controleren
+     welke versie draaide).
+
 - **Voorbeeldbeeld bij het spoelen** (vraag eigenaar 20 okt: bij de muis boven de tijdlijn geen beeld; nog niet bouwen
   tot hij het zegt; na zijn tegoed-reset). Server: per bestand kleine plaatjes (bv. elke 10 s, 240 px breed) in
   sprites plus een tijdlijst, met FFmpeg alleen keyframes (`-skip_frame nokey`), als achtergrondtaak in het
