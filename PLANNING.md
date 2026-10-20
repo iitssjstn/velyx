@@ -301,6 +301,14 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Voorbeeldbeeld bij het spoelen** (vraag eigenaar 20 okt: bij de muis boven de tijdlijn geen beeld; nog niet bouwen
+  tot hij het zegt; na zijn tegoed-reset). Server: per bestand kleine plaatjes (bv. elke 10 s, 240 px breed) in
+  sprites plus een tijdlijst, met FFmpeg alleen keyframes (`-skip_frame nokey`), als achtergrondtaak in het
+  onderhoudsvenster (zoals ondertitels/keyframes vooraf), in de datamap (paar MB per film), endpoint met de gewone
+  afspeeltoegang. Website: plaatje met tijd boven de tijdlijn bij muis-over; zonder plaatjes alleen de tijd. Later app
+  (slepen) en tv (links/rechts). Schatting: server + website één sessie en één release; app en tv een halve tot hele
+  sessie erbij; bibliotheek heeft na een paar nachten overal plaatjes. Hoort bij "Later" punt 6.
+
 - **Vidalune als app op de Chromecast met Google TV** (vraag eigenaar 20 okt: "we hebben de fundering al liggen",
   dus meteen meenemen na 0.19.81; nog niet bouwen tot hij het zegt). Dezelfde Android-app (Expo 57, RN 0.86,
   `expo-video`), geen tweede app. Stappen:
