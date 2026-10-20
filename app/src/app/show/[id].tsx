@@ -27,6 +27,9 @@ export default function Show() {
   // same season picker as on a request screen. What Seerr knows of the show is asked when it opens.
   const qc = useQueryClient();
   const seerr = useQuery({ queryKey: [serverUrl, 'seerr'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
+  // The button only while seasons are left to request (all here or requested: none).
+  const tmdbId = q.data?.tmdbId ?? null;
+  const openSeasons = useQuery({ queryKey: [serverUrl, 'seerr', 'open', tmdbId], queryFn: () => api.get<{ open: boolean }>(`/api/seerr/tv/${tmdbId}/open`), enabled: !!seerr.data?.enabled && tmdbId !== null });
   const [asking, setAsking] = useState<SeerrDetails | null>(null);
   const [loadingSeasons, setLoadingSeasons] = useState(false);
   const askSeasons = async (tmdbId: number) => {
@@ -66,7 +69,7 @@ export default function Show() {
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
       {s.upNext && <Button label={t('show.continue', { code: episodeCode(s.upNext.seasonNumber, s.upNext.episodeNumber) })} onPress={() => router.push(`/play/episode/${s.upNext!.id}`)} />}
       <TrailerButton type="show" id={s.id} />
-      {seerr.data?.enabled && s.tmdbId ? <Button label={t('show.requestSeasons')} variant="ghost" busy={loadingSeasons} onPress={() => void askSeasons(s.tmdbId!)} /> : null}
+      {seerr.data?.enabled && s.tmdbId && openSeasons.data?.open ? <Button label={t('show.requestSeasons')} variant="ghost" busy={loadingSeasons} onPress={() => void askSeasons(s.tmdbId!)} /> : null}
     </View>
   );
   const toggles = (

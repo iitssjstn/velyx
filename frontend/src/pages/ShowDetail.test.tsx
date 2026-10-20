@@ -34,12 +34,13 @@ const seerrShow = {
   ],
 };
 
-function setup(opts: { tmdbId?: number; seerr?: boolean; seasonOverview?: string } = {}) {
+function setup(opts: { tmdbId?: number; seerr?: boolean; seasonOverview?: string; open?: boolean } = {}) {
   const calls: { method: string; url: string; body: unknown }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ method: init?.method ?? 'GET', url, body: init?.body ? JSON.parse(String(init.body)) : null });
     if (url === '/api/shows/7') return new Response(JSON.stringify({ ...show, tmdbId: opts.tmdbId ?? null }), { status: 200 });
     if (url === '/api/seerr') return new Response(JSON.stringify({ enabled: opts.seerr ?? false }), { status: 200 });
+    if (url === '/api/seerr/tv/1399/open') return new Response(JSON.stringify({ open: opts.open ?? true }), { status: 200 });
     if (url === '/api/seerr/tv/1399') return new Response(JSON.stringify(seerrShow), { status: 200 });
     if (url === '/api/seerr/requests') return new Response(JSON.stringify({ id: 3, title: 'Reacher', state: 'requested' }), { status: 200 });
     if (url === '/api/shows/7/seasons/2') return new Response(JSON.stringify({ ...season2, overview: opts.seasonOverview ?? null }), { status: 200 });
@@ -71,6 +72,14 @@ describe('series page', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /^Request/ }));
     await vi.waitFor(() => expect(calls.find((c) => c.method === 'POST' && c.url === '/api/seerr/requests')?.body).toEqual({ mediaType: 'tv', tmdbId: 1399, seasons: null }));
     await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('offers no requests when every season is here or requested already', async () => {
+    const calls = setup({ tmdbId: 1399, seerr: true, open: false });
+    expect(await screen.findByRole('heading', { name: 'Reacher' })).toBeTruthy();
+    await vi.waitFor(() => expect(calls.some((c) => c.url === '/api/seerr/tv/1399/open')).toBe(true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole('button', { name: 'Request seasons' })).toBeNull();
   });
 
   it('offers no requests without Seerr', async () => {
