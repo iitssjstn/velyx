@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, Text } from 'react-native';
+import { ActivityIndicator, Alert, Text } from 'react-native';
+import { FocusPressable } from './ui';
 import { Feather } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { errorMessage } from '../lib/connection';
@@ -40,7 +41,7 @@ export function Toggle({ active, icon, text, label, activeLabel, request, compac
   // Read aloud: what pressing does ("Add to watchlist" / "Remove from watchlist").
   const a11y = shown ? activeLabel : label;
   return (
-    <Pressable
+    <FocusPressable
       accessibilityRole="button"
       accessibilityState={{ selected: shown, busy }}
       accessibilityLabel={a11y}
@@ -67,6 +68,6 @@ export function Toggle({ active, icon, text, label, activeLabel, request, compac
     >
       {busy ? <ActivityIndicator size="small" color={shown ? colors.accentInk : colors.ink} /> : <Feather name={icon} size={compact ? 16 : 18} color={shown ? colors.accentInk : colors.ink} />}
       {!compact && text ? <Text style={{ color: shown ? colors.accentInk : colors.ink, fontWeight: '600' }}>{text}</Text> : null}
-    </Pressable>
+    </FocusPressable>
   );
 }

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
-import { Button, Field, styles } from '../components/ui';
+import { Button, Field, FocusPressable, styles } from '../components/ui';
 import { Logo } from '../components/Logo';
+import { TV } from '../components/screen';
+import { TvCodeSignIn } from '../components/TvCodeSignIn';
 import { autoOpenServer, CLOUD_ACCOUNT_KEY, CloudError, createCloud, FORGOT_PASSWORD_URL, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudAccount, type CloudServer } from '../lib/cloud';
 import { findServer, SERVER_PROBLEMS, ServerError } from '../lib/server';
 import { USER_AGENT, useSession } from '../lib/session';
@@ -26,6 +28,8 @@ export default function CloudAccountScreen() {
   const [account, setAccount] = useState<CloudAccount | null | undefined>(undefined);
   const [servers, setServers] = useState<CloudServer[] | null>(null);
   const [mode, setMode] = useState<'in' | 'up'>('in');
+  // On a TV: signing in with a code (and QR code) entered on a phone or computer; typing is the fallback.
+  const [withCode, setWithCode] = useState(TV);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -69,15 +73,19 @@ export default function CloudAccountScreen() {
         setNotice(t('cloud.claimSent', { email: a.email }));
         return;
       }
-      await SecureStore.setItemAsync(STORE_KEY, JSON.stringify(a));
-      setAccount(a);
       setPassword('');
-      await load(a);
+      await keepAccount(a);
     } catch (err) {
       setError(t(problemKey(err)));
     } finally {
       setBusy(null);
     }
+  };
+
+  const keepAccount = async (a: CloudAccount) => {
+    await SecureStore.setItemAsync(STORE_KEY, JSON.stringify(a));
+    setAccount(a);
+    await load(a);
   };
 
   /**
@@ -147,7 +155,7 @@ export default function CloudAccountScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24, gap: 20, width: '100%', maxWidth: 520, alignSelf: 'center' }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24, gap: 20, width: '100%', maxWidth: TV ? 900 : 520, alignSelf: 'center' }} keyboardShouldPersistTaps="handled">
           <Logo />
           {sessionEnded && (
             <Text style={[styles.body, { color: colors.ink, backgroundColor: colors.raised, borderRadius: radius.md, padding: 12 }]} accessibilityRole="alert">
@@ -160,7 +168,7 @@ export default function CloudAccountScreen() {
               {opening && <Text style={styles.muted} accessibilityLiveRegion="polite">{t('cloud.opening', { name: opening.name })}</Text>}
               {servers && servers.length === 0 && <Text style={styles.muted}>{t('cloud.none', { email: account.email })}</Text>}
               {servers?.map((s) => (
-                <Pressable
+                <FocusPressable
                   key={s.id}
                   onPress={() => void open(s)}
                   disabled={!serverAddresses(s).length || busy !== null}
@@ -172,10 +180,15 @@ export default function CloudAccountScreen() {
                   <Text style={styles.muted}>
                     {s.online ? t('cloud.online') : t('cloud.offline')}
                   </Text>
-                </Pressable>
+                </FocusPressable>
               ))}
               {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
               <Button label={t('cloud.signOut', { email: account.email })} variant="ghost" onPress={() => void signOut()} />
+            </>
+          ) : withCode ? (
+            <>
+              <TvCodeSignIn cloud={cloud} onSignedIn={(a) => void keepAccount(a)} />
+              <Button label={t('tv.useEmail')} variant="ghost" onPress={() => setWithCode(false)} />
             </>
           ) : (
             <>
@@ -190,6 +203,7 @@ export default function CloudAccountScreen() {
               <Button label={mode === 'up' ? t('cloud.signUp') : t('cloud.signIn')} onPress={() => void submit()} busy={busy === 'account'} disabled={!email.trim() || !password} />
               {mode === 'in' && <Button label={t('cloud.forgot')} variant="ghost" onPress={() => void Linking.openURL(FORGOT_PASSWORD_URL)} />}
               <Button label={mode === 'up' ? t('cloud.toSignIn') : t('cloud.toSignUp')} variant="ghost" onPress={() => { setMode(mode === 'up' ? 'in' : 'up'); setError(null); }} />
+              {TV && <Button label={t('tv.useCode')} variant="ghost" onPress={() => setWithCode(true)} />}
             </>
           )}
         </ScrollView>

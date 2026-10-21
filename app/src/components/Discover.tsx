@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Artwork, useWide } from './media';
-import { Heading } from './ui';
+import { FocusPressable, Heading } from './ui';
 import { catalogOnly, DISCOVER_ROWS, discoverPath, discoverTarget, mergePages, type DiscoverPage, type DiscoverRow, type SeerrResult } from '../lib/discover';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
@@ -34,7 +34,7 @@ export function useOpenDiscover() {
 export function DiscoverCard({ item, onPress, width }: { item: SeerrResult; onPress: () => void; width: number }) {
   const { t } = useSession();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={item.inLibrary ? `${item.title}, ${t('discover.inLibrary')}` : item.title} onPress={onPress} style={{ width }}>
+    <FocusPressable accessibilityRole="button" accessibilityLabel={item.inLibrary ? `${item.title}, ${t('discover.inLibrary')}` : item.title} onPress={onPress} style={{ width }}>
       <View>
         <Artwork path={item.posterPath} size="w342" label={item.title} style={{ width, height: width * 1.5, borderRadius: radius.md }} />
         {item.inLibrary ? (
@@ -54,7 +54,7 @@ export function DiscoverCard({ item, onPress, width }: { item: SeerrResult; onPr
         {item.mediaType === 'movie' ? t('request.movie') : t('request.show')}
         {item.year ? ` · ${item.year}` : ''}
       </Text>
-    </Pressable>
+    </FocusPressable>
   );
 }
 

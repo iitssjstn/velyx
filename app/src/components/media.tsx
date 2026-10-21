@@ -1,4 +1,4 @@
-import { FlatList, Pressable, Text, View, useWindowDimensions, type ListRenderItem } from 'react-native';
+import { FlatList, Text, View, useWindowDimensions, type ListRenderItem } from 'react-native';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import { imagePath, progressFraction, type ImageSize } from '../lib/format';
@@ -6,7 +6,7 @@ import { gridLayout, isWide } from '../lib/layout';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 import type { Card, ContinueItem } from '../lib/types';
-import { Heading, ProgressLine, styles } from './ui';
+import { FocusPressable, Heading, ProgressLine, styles } from './ui';
 
 /** Artwork from the server's image cache (the request carries the app's token). */
 export function Artwork({ path, size, style, label }: { path: string | null | undefined; size: ImageSize; style: object; label?: string }) {
@@ -32,7 +32,7 @@ export function PosterCard({ card, width }: { card: Card; width?: number }) {
   width = width ?? (wide ? 150 : 120);
   const progress = card.type === 'movie' ? progressFraction(card.progress) : 0;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={card.title} onPress={() => openCard(card)} style={{ width }}>
+    <FocusPressable accessibilityRole="button" accessibilityLabel={card.title} onPress={() => openCard(card)} style={{ width }}>
       <Artwork path={card.posterPath} size="w342" label={card.title} style={{ width, height: width * 1.5, borderRadius: radius.md }} />
       {progress > 0 && (
         <View style={{ marginTop: 4 }}>
@@ -41,7 +41,7 @@ export function PosterCard({ card, width }: { card: Card; width?: number }) {
       )}
       <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 13, marginTop: 6 }}>{card.title}</Text>
       {card.year ? <Text style={{ color: colors.faint, fontSize: 12 }}>{card.year}</Text> : null}
-    </Pressable>
+    </FocusPressable>
   );
 }
 
@@ -52,9 +52,9 @@ export function Shelf({ title, cards, more }: { title: string; cards: Card[]; mo
       {more ? (
         <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingRight: 16 }}>
           <Heading>{title}</Heading>
-          <Pressable accessibilityRole="link" accessibilityLabel={`${title}: ${more.label}`} hitSlop={10} onPress={() => router.push(more.href)}>
+          <FocusPressable accessibilityRole="link" accessibilityLabel={`${title}: ${more.label}`} hitSlop={10} onPress={() => router.push(more.href)}>
             <Text style={{ color: colors.accent, fontWeight: '600' }}>{more.label}</Text>
-          </Pressable>
+          </FocusPressable>
         </View>
       ) : (
         <Heading>{title}</Heading>
@@ -90,7 +90,7 @@ export function ContinueShelf({ title, items }: { title: string; items: Continue
         contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
         showsHorizontalScrollIndicator={false}
         renderItem={({ item }) => (
-          <Pressable accessibilityRole="button" accessibilityLabel={item.title} onPress={() => openContinue(item)} style={{ width: cardWidth }}>
+          <FocusPressable accessibilityRole="button" accessibilityLabel={item.title} onPress={() => openContinue(item)} style={{ width: cardWidth }}>
             <Artwork path={item.imagePath ?? item.posterPath} size="w780" label={item.title} style={{ width: cardWidth, height: cardWidth * 0.5625, borderRadius: radius.md }} />
             <View style={{ marginTop: 4 }}>
               <ProgressLine fraction={item.percent / 100} />
@@ -102,7 +102,7 @@ export function ContinueShelf({ title, items }: { title: string; items: Continue
                 {item.subtitle}
               </Text>
             ) : null}
-          </Pressable>
+          </FocusPressable>
         )}
       />
     </View>

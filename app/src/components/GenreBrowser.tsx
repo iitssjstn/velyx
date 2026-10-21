@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, ScrollView, Text, View } from 'react-native';
 import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DiscoverCard, useOpenDiscover } from './Discover';
 import { renderPoster, useGrid } from './media';
-import { ErrorState, Heading, styles } from './ui';
+import { ErrorState, FocusPressable, Heading, styles } from './ui';
 import { DISCOVER_ROWS, discoverPath, mergePages, type DiscoverPage, type DiscoverRow } from '../lib/discover';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
@@ -90,14 +90,14 @@ export function GenreBrowser() {
     else setKind(next as Kind);
   };
   const sourceButton = (value: Scope, label: string) => (
-    <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: scope === value }} onPress={() => toggle(value, 'scope')} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: scope === value ? colors.accent : colors.raised }}>
+    <FocusPressable key={value} accessibilityRole="button" accessibilityState={{ selected: scope === value }} onPress={() => toggle(value, 'scope')} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: scope === value ? colors.accent : colors.raised }}>
       <Text style={{ color: scope === value ? colors.accentInk : colors.ink, fontWeight: '600' }}>{label}</Text>
-    </Pressable>
+    </FocusPressable>
   );
   const kindButton = (value: Kind, label: string) => (
-    <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: kind === value }} onPress={() => toggle(value, 'kind')} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: kind === value ? colors.accent : colors.raised }}>
+    <FocusPressable key={value} accessibilityRole="button" accessibilityState={{ selected: kind === value }} onPress={() => toggle(value, 'kind')} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: kind === value ? colors.accent : colors.raised }}>
       <Text style={{ color: kind === value ? colors.accentInk : colors.ink, fontWeight: '600' }}>{label}</Text>
-    </Pressable>
+    </FocusPressable>
   );
 
   const header = (
@@ -113,9 +113,9 @@ export function GenreBrowser() {
         {kindButton('shows', t('genres.shows'))}
       </View>
       {selectedGenre !== null && (
-        <Pressable accessibilityRole="button" onPress={() => setSelectedGenre(null)} style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+        <FocusPressable accessibilityRole="button" onPress={() => setSelectedGenre(null)} style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
           <Text style={{ color: colors.accent, fontWeight: '600' }}>‹ {t('genres.all')}</Text>
-        </Pressable>
+        </FocusPressable>
       )}
     </View>
   );
@@ -135,10 +135,10 @@ export function GenreBrowser() {
         {options.length === 0 ? <Text style={[styles.muted, { paddingHorizontal: 32 }]}>{t('genres.none')}</Text> : (
           <ScrollView contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, paddingBottom: 24 }}>
             {options.map((genre) => (
-              <Pressable key={genre.id} accessibilityRole="button" onPress={() => setSelectedGenre(genre.id)} style={{ width: '48%', minHeight: 52, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+              <FocusPressable key={genre.id} accessibilityRole="button" onPress={() => setSelectedGenre(genre.id)} style={{ width: '48%', minHeight: 52, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.line }}>
                 <Text style={{ color: colors.ink, flexShrink: 1 }} numberOfLines={1}>{genre.name}</Text>
                 {scope === 'library' && <Text style={{ color: colors.faint, fontSize: 12 }}>{genre.count}</Text>}
-              </Pressable>
+              </FocusPressable>
             ))}
           </ScrollView>
         )}

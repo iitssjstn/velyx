@@ -6,15 +6,20 @@ import { errorMessage } from '../lib/connection';
 import { useSession } from '../lib/session';
 import { colors } from '../lib/theme';
 import { useCastStatus } from './CastStatus';
+import { TV } from './screen';
 
 /**
  * Always there: opens the Chromecast list, which searches the network itself (and "stop casting"
  * while connected). The standard button only shows once a Chromecast was already found in the
  * background, which can take long or not happen at all. On Android the list opens through a native
  * cast button, so an invisible one stays here. Connected from the home screen, the next title that
- * is opened plays on the TV.
+ * is opened plays on the TV. Not on a TV itself (Android TV / Google TV): it plays there already.
  */
-export function CastIcon({ size = 24, color = '#fff' }: { size?: number; color?: string }) {
+export function CastIcon(props: { size?: number; color?: string }) {
+  return TV ? null : <CastButtonIcon {...props} />;
+}
+
+function CastButtonIcon({ size = 24, color = '#fff' }: { size?: number; color?: string }) {
   const { t } = useSession();
   const device = useCastDevice();
   const status = useCastStatus();

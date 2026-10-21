@@ -140,6 +140,19 @@ describe('confirming the email address', () => {
   });
 });
 
+describe('a TV signed in with a code', () => {
+  it('tells the account by email, in its language', async () => {
+    await start();
+    const cookie = cookieOf(await signUp('ann@example.com'));
+    const tv = (await cloud.inject({ method: 'POST', url: '/api/tv/code', payload: {} })).json() as { code: string };
+    const res = await cloud.inject({ method: 'POST', url: '/api/tv/confirm', headers: { cookie }, payload: { code: tv.code, lang: 'nl' } });
+    expect(res.statusCode).toBe(200);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(sent.at(-1)).toMatchObject({ to: 'ann@example.com', subject: 'Er is een tv ingelogd met je account' });
+    expect(sent.at(-1)!.text).toContain('https://vidalune.com/account');
+  });
+});
+
 describe('an account made for someone (no password yet)', () => {
   it('is only taken over through a link sent to that address', async () => {
     await start();

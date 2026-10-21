@@ -1,21 +1,44 @@
-import type { ReactNode, Ref } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { useState, type ReactNode, type Ref } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type PressableProps, type TextInputProps } from 'react-native';
 import { colors, radius } from '../lib/theme';
 import { errorMessage } from '../lib/connection';
 import { useSession } from '../lib/session';
 import { textEntryDefaults } from '../lib/textEntry';
 
+/**
+ * A Pressable that shows where the focus is: on Android TV / Google TV the remote's arrows move the
+ * focus from one to the next and OK presses it. On a phone the focus never lands on it.
+ */
+export function FocusPressable({ style, onFocus, onBlur, ref, ...props }: PressableProps & { ref?: Ref<View> }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <Pressable
+      ref={ref}
+      {...props}
+      onFocus={(e) => {
+        setFocused(true);
+        onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        onBlur?.(e);
+      }}
+      style={(state) => [typeof style === 'function' ? style(state) : style, focused && styles.focused]}
+    />
+  );
+}
+
 export function Button({ label, onPress, busy, disabled, variant = 'primary' }: { label: string; onPress: () => void; busy?: boolean; disabled?: boolean; variant?: 'primary' | 'ghost' }) {
   const off = disabled || busy;
   return (
-    <Pressable
+    <FocusPressable
       accessibilityRole="button"
       accessibilityState={{ disabled: Boolean(off), busy: Boolean(busy) }}
       onPress={off ? undefined : onPress}
       style={({ pressed }) => [styles.button, variant === 'primary' ? styles.primary : styles.ghost, (pressed || off) && { opacity: off ? 0.5 : 0.8 }]}
     >
       {busy ? <ActivityIndicator color={variant === 'primary' ? colors.accentInk : colors.ink} /> : <Text style={[styles.buttonText, variant === 'primary' ? { color: colors.accentInk } : { color: colors.ink }]}>{label}</Text>}
-    </Pressable>
+    </FocusPressable>
   );
 }
 
@@ -77,4 +100,5 @@ export const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: 14, lineHeight: 20 },
   progressTrack: { height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
   progressFill: { height: 3, backgroundColor: colors.accent },
+  focused: { outlineWidth: 3, outlineColor: colors.accent, outlineOffset: 3, outlineStyle: 'solid' },
 });

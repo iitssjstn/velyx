@@ -15,7 +15,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   2. Blijft Google's balk staan: de eigen balk verbergen als Google TV zelf een balk tekent
      (`cast.framework.ui.Controls.getInstance().hasMediaControlsOverlay()`, eerst controleren dat die bestaat); pas na
      de test en akkoord van de eigenaar.
-  3. Volgende versie kiezen (eigenaar): Vidalune-app op de Chromecast met Google TV, of voorbeeldbeeld bij het spoelen.
+  3. Gekozen (21 okt): de Vidalune-app op de Chromecast met Google TV, "Bouw het meteen"; gebouwd als 0.19.84 (zie daar).
   4. Overige tests (eigenaar): tv-speler met de afstandsbediening, app-schermen (seizoenenknop, audiospoor, uitloggen,
      wachtwoord), Windows-installer op een echte pc, ondertitels na verder kijken tijdens een transcode.
 - Gebouwd op verzoek van de eigenaar: verbeterde cast-ondertitelstijl voor web en Android, met tv-default, live aanpassing/preview en accountopslag met lokale terugval. Bestaande stijlen blijven behouden; de standaard Cast-receiver bepaalt positie, marges, regelhoogte en regelbreedte. Geen nieuwe releaseversie gekozen; eerst afronding van 0.19.46 bevestigen.
@@ -1796,3 +1796,45 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   hervatten met dezelfde ondertitel en audio, een titel openen tijdens het casten met ondertitel.
 - PR #168 gemerged 21 okt op verzoek van de eigenaar ("merge het maar"; alle checks groen); release `v0.19.83`
   gecontroleerd: APK, beide `.deb`'s, `.aab`, `vidalune-0.19.83-setup.exe` en de accountservice-image.
+
+## Versie 0.19.84 (Vidalune-app op Google TV)
+
+- Op verzoek van de eigenaar (21 okt: "Ik wil eigenlijk verder met de chromecast app", keuze "Vidalune-app op Google TV",
+  "Bouw het meteen"): stap 1 en 2 uit "Vidalune als app op de Chromecast met Google TV" (installeren en starten,
+  afspelen met de afstandsbediening), plus een zichtbare focus zodat Home → titel → afspelen met de pijltjes gaat.
+- Installeren en starten: config-plugin `app/plugins/withTv.js` (`LEANBACK_LAUNCHER`, `android.software.leanback` en
+  touchscreen niet verplicht, `android:banner`), banner `app/assets/tv-banner.png` (320×180). Telefoon ongewijzigd.
+- Toetsen: lokale Expo-module `app/modules/vidalune-tv` (`RemoteKeysView`, Kotlin): houdt in de speler de focus en geeft
+  pijltjes, OK en mediatoetsen door; Terug via `BackHandler`. Logica `app/src/lib/tvRemote.ts` (`pressKey`, zelfde
+  keuzes als `cloud/web/cast/remote.js`): OK = afspelen/pauze of overslaan, ←/→ = stap (snel drukken telt op),
+  ↑/↓ = balk met knoppenrij (terug, pauze, vooruit, Ondertitels, Audio, Volgende aflevering), menu rechts met
+  Ondertitels/Audio, kaart "Volgende aflevering", Terug sluit en verlaat daarna de speler. Scherm `TvPlayer.tsx`.
+- Bladeren: `FocusPressable` (`ui.tsx`, rand in accentkleur bij focus) op kaarten, knoppen, links en tabbladen; op de tv
+  staan de tabbladen links. Geen castknop op de tv; de oriëntatie wordt op de tv nooit vastgezet.
+- **Inloggen met een code en QR-code** (eigenaar 21 okt: "Ja de optie met code is wel heel slim", "Nog in 0.19.84",
+  "Code is alleen bedoelt voor de chromecast app", "Kan het ook met een QR-code?"). Alleen op de tv; de telefoon logt in
+  zoals voorheen. Accountservice: `POST /api/tv/code` (code via `newLinkCode`, 10 minuten, eigen geheim voor de tv),
+  `POST /api/tv/confirm` (ingelogd, limiet 10 per minuut per account en IP) en `POST /api/tv/poll` (wachten, of eenmalig
+  een app-sessie; 410 als verlopen). In het geheugen, net als `handoffs`: na een herstart gewoon een nieuwe code. Pagina
+  vidalune.com/tv (`account.js`, eerst inloggen, code staat al ingevuld via de QR-code `…/tv#CODE`). App:
+  `TvCodeSignIn.tsx` (code, QR met `qrcode-generator` 2.0.4, elke 5 s navragen, verlopen → nieuwe code), met "Toch
+  inloggen met e-mail en wachtwoord". Tests: cloud `tv-sign-in.test.ts` (6: eenmalige sessie, alleen na bevestigen, fout/
+  gebruikt/verlopen, geschorst account, limiet, pagina), app `tvSignIn.test.ts` en `cloud.test.ts` (aanroepen, verlopen).
+- Securitycheck (eigenaar 21 okt: "Maak de pr, maar check eerst de security van dit allemaal", daarna "Los het op"):
+  gevonden "device code phishing": iedereen kan een code aanvragen en iemand de link/QR `vidalune.com/tv#CODE` sturen;
+  één klik van een ingelogd slachtoffer gaf de aanvrager een app-sessie (servers, tickets). Opgelost: na de code eerst
+  `POST /api/tv/lookup`, dan een waarschuwing en "Ja, dit is mijn tv"; komt de bevestiging van een ander netwerk dan
+  waar de tv de code vroeg (ander IPv4-adres of andere IPv6-/64, `sameNetwork`), dan ook de controlecode van 4 cijfers die
+  alleen op de tv staat (niet in de QR-code); 3 foute controlecodes en de code vervalt. Mail "Er is een tv ingelogd met je
+  account" (`tvSignedIn`); verstuurt pas als mail is ingesteld (eigenaar 21 okt: nog geen goede mailservice gevonden).
+  Restrisico: iemand achter hetzelfde publieke adres (zelfde wifi, of toevallig dezelfde CGNAT van een provider) heeft
+  geen controlecode nodig; de waarschuwing blijft. Cloud 204 tests (waarvan 10 voor de tv-code en 1 mail).
+- Niet in deze versie: grotere 10-foot-lay-out
+  van de andere schermen, Play Store voor tv. README bijgewerkt.
+- Tests: `tvRemote.test.ts` (toetscodes, knoppen, rij, menu, overslaan, volgende aflevering, Terug, streepjes) en
+  `tvApp.test.ts` (manifest, geen dubbele regels, plugin in app.json, bannermaat). App 199 en cloud 204 tests, alle
+  typechecks, lint (4 bekende waarschuwingen) en de versietests slagen; `expo prebuild` geeft het juiste manifest en koppelt de nieuwe module.
+- Niet hier te testen: de Kotlin-code (geen Android SDK; daarom de APK op de branch laten bouwen) en alles op een echte
+  Chromecast met Google TV. Door de eigenaar te testen (accountservice bijwerken voor de code): APK installeren, Vidalune op het startscherm, inloggen met de QR-code, met de
+  pijltjes een titel openen, afspelen, spoelen, ondertitels en audio kiezen, een serie tot de aftiteling, Terug.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1984) en beide lockfiles bijgewerkt.

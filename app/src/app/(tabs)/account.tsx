@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, ScrollView, Text, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
-import { Button, Field, styles } from '../../components/ui';
+import { Button, Field, FocusPressable, styles } from '../../components/ui';
 import type { Language } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
 import { colors, radius } from '../../lib/theme';
@@ -117,14 +117,14 @@ function Profile({ user, onSaved }: { user: User; onSaved: (u: User) => Promise<
 
 function LanguageChoice({ lang, selected, onPress }: { lang: Language; selected: boolean; onPress: () => void }) {
   return (
-    <Pressable
+    <FocusPressable
       accessibilityRole="radio"
       accessibilityState={{ selected }}
       onPress={selected ? undefined : onPress}
       style={{ flex: 1, height: 44, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? colors.accent : colors.raised }}
     >
       <Text style={{ color: selected ? colors.accentInk : colors.ink, fontWeight: '600' }}>{lang === 'nl' ? 'Nederlands' : 'English'}</Text>
-    </Pressable>
+    </FocusPressable>
   );
 }
 
@@ -139,10 +139,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Row({ icon, label, href }: { icon: React.ComponentProps<typeof Feather>['name']; label: string; href: Href }) {
   return (
-    <Pressable accessibilityRole="button" onPress={() => router.push(href)} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, opacity: pressed ? 0.7 : 1 })}>
+    <FocusPressable accessibilityRole="button" onPress={() => router.push(href)} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, opacity: pressed ? 0.7 : 1 })}>
       <Feather name={icon} size={18} color={colors.muted} />
       <Text style={[styles.body, { flex: 1 }]}>{label}</Text>
       <Feather name="chevron-right" size={18} color={colors.faint} />
-    </Pressable>
+    </FocusPressable>
   );
 }

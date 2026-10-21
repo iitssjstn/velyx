@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { errorMessage } from '../lib/connection';
@@ -7,7 +7,7 @@ import { ONLINE_SUBTITLE_LANGUAGES, languageName, type OnlineSubtitleResult } fr
 import type { SubtitleOption } from '../lib/playback';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
-import { styles } from './ui';
+import { FocusPressable, styles } from './ui';
 
 /**
  * "Search online" in the player's menu: subtitles at OpenSubtitles for this file in the chosen
@@ -35,7 +35,7 @@ export function OnlineSubtitles({ fileId, defaultLanguage, activeKey, onChosen }
   return (
     <View style={{ gap: 6 }}>
       <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('onlineSubs.heading')}</Text>
-      <Pressable
+      <FocusPressable
         accessibilityRole="button"
         accessibilityLabel={t('onlineSubs.language')}
         onPress={() => setPicking((p) => !p)}
@@ -44,11 +44,11 @@ export function OnlineSubtitles({ fileId, defaultLanguage, activeKey, onChosen }
         <Feather name="globe" size={16} color={colors.muted} />
         <Text style={{ color: colors.ink, flex: 1 }}>{languageName(language, appLanguage)}</Text>
         <Feather name={picking ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
-      </Pressable>
+      </FocusPressable>
       {picking && (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
           {names.map((l) => (
-            <Pressable
+            <FocusPressable
               key={l.code}
               accessibilityRole="radio"
               accessibilityState={{ selected: l.code === language }}
@@ -59,7 +59,7 @@ export function OnlineSubtitles({ fileId, defaultLanguage, activeKey, onChosen }
               style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: radius.sm, backgroundColor: l.code === language ? colors.accent : colors.raised }}
             >
               <Text style={{ color: l.code === language ? colors.bg : colors.ink, fontSize: 13 }}>{l.name}</Text>
-            </Pressable>
+            </FocusPressable>
           ))}
         </View>
       )}
@@ -77,7 +77,7 @@ export function OnlineSubtitles({ fileId, defaultLanguage, activeKey, onChosen }
         const busy = fetch.isPending && fetch.variables?.fileId === r.fileId;
         const facts = [r.hashMatch ? t('onlineSubs.matches') : null, r.hearingImpaired ? t('onlineSubs.hearingImpaired') : null, r.machineTranslated ? t('onlineSubs.machine') : null, t('onlineSubs.downloads', { count: r.downloads })].filter(Boolean).join(' · ');
         return (
-          <Pressable
+          <FocusPressable
             key={r.fileId}
             accessibilityRole="radio"
             accessibilityState={{ selected: active, busy }}
@@ -90,7 +90,7 @@ export function OnlineSubtitles({ fileId, defaultLanguage, activeKey, onChosen }
               <Text style={{ color: colors.ink }} numberOfLines={2}>{r.release || languageName(r.language, appLanguage)}</Text>
               <Text style={{ color: r.hashMatch ? colors.ok : colors.muted, fontSize: 12 }}>{facts}</Text>
             </View>
-          </Pressable>
+          </FocusPressable>
         );
       })}
       <Text style={{ color: colors.muted, fontSize: 11, paddingHorizontal: 8 }}>{t('onlineSubs.source')}</Text>

@@ -1,7 +1,9 @@
 import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
-import type { ColorValue } from 'react-native';
+import type { ColorValue, GestureResponderEvent } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { TV } from '../../components/screen';
+import { FocusPressable } from '../../components/ui';
 import { useSession } from '../../lib/session';
 import { signedOutRoute } from '../../lib/start';
 import { colors } from '../../lib/theme';
@@ -26,6 +28,18 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
         sceneStyle: { backgroundColor: colors.bg },
+        // On a TV: a bar on the left, the arrows move between the tabs and the screen.
+        ...(TV
+          ? {
+              tabBarPosition: 'left' as const,
+              tabBarStyle: { backgroundColor: colors.bg, borderRightColor: colors.line },
+              tabBarButton: ({ children, style, onPress, onLongPress, accessibilityState, accessibilityLabel, testID }) => (
+                <FocusPressable style={style} onPress={(e: GestureResponderEvent) => onPress?.(e)} onLongPress={onLongPress ?? undefined} accessibilityRole="tab" accessibilityState={accessibilityState} accessibilityLabel={accessibilityLabel} testID={testID}>
+                  {children}
+                </FocusPressable>
+              ),
+            }
+          : {}),
       }}
     >
       <Tabs.Screen name="home" options={{ title: t('tabs.home'), headerShown: false, tabBarIcon: icon('home') }} />

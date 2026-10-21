@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
+import { FocusPressable } from './ui';
 import { usePathname } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
@@ -38,7 +39,7 @@ export function ConnectionBanner() {
         <Text style={{ color: colors.muted, fontSize: 13 }}>{t(offline ? 'connection.offlineHint' : 'connection.unreachableHint')}</Text>
       </View>
       {!offline && (
-        <Pressable
+        <FocusPressable
           accessibilityRole="button"
           disabled={busy}
           onPress={async () => {
@@ -54,7 +55,7 @@ export function ConnectionBanner() {
           style={({ pressed }) => ({ paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.accent, opacity: pressed ? 0.8 : 1 })}
         >
           {busy ? <ActivityIndicator size="small" color={colors.accentInk} /> : <Text style={{ color: colors.accentInk, fontWeight: '600' }}>{t('connection.retry')}</Text>}
-        </Pressable>
+        </FocusPressable>
       )}
     </View>
   );

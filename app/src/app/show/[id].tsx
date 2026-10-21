@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Toggle } from '../../components/actions';
@@ -11,7 +11,7 @@ import { Block, DetailSkeleton } from '../../components/Skeleton';
 import { savedRequest, watchedRequest } from '../../lib/lists';
 import { errorMessage } from '../../lib/connection';
 import type { SeerrDetails } from '../../lib/discover';
-import { Button, ErrorState, ProgressLine, styles } from '../../components/ui';
+import { Button, ErrorState, FocusPressable, ProgressLine, styles } from '../../components/ui';
 import { episodeCode, formatRuntime, progressFraction } from '../../lib/format';
 import { useSession } from '../../lib/session';
 import { colors, radius } from '../../lib/theme';
@@ -118,7 +118,7 @@ export default function Show() {
       )}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: wide ? 24 : 16, gap: 8 }} accessibilityRole="tablist">
         {seasons.map((x) => (
-          <Pressable
+          <FocusPressable
             key={x.id}
             accessibilityRole="tab"
             accessibilityState={{ selected: x.seasonNumber === current }}
@@ -126,7 +126,7 @@ export default function Show() {
             style={{ paddingHorizontal: 14, height: 36, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: x.seasonNumber === current ? colors.accent : colors.raised }}
           >
             <Text style={{ color: x.seasonNumber === current ? colors.accentInk : colors.ink, fontWeight: '600' }}>{x.name}</Text>
-          </Pressable>
+          </FocusPressable>
         ))}
       </ScrollView>
       <View style={{ padding: wide ? 24 : 16, gap: 16, maxWidth: 1000 }}>
@@ -153,7 +153,7 @@ export default function Show() {
             </View>
           ))}
         {season.data?.episodes.map((e) => (
-          <Pressable
+          <FocusPressable
             key={e.id}
             accessibilityRole="button"
             accessibilityLabel={`${t('player.play')} ${episodeCode(e.seasonNumber, e.episodeNumber)}${e.title ? ` ${e.title}` : ''}`}
@@ -189,7 +189,7 @@ export default function Show() {
                 request={(on) => watchedRequest({ episodeId: e.id }, on)}
               />
             </View>
-          </Pressable>
+          </FocusPressable>
         ))}
       </View>
     </ScrollView>

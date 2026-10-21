@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Modal, ScrollView, Text, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, styles } from './ui';
+import { Button, FocusPressable, styles } from './ui';
 import { errorMessage } from '../lib/connection';
 import { openSeasons, seasonsToRequest, toggleSeason, type SeerrDetails } from '../lib/discover';
 import { useSession } from '../lib/session';
@@ -41,9 +41,9 @@ export function SeasonPicker({ details: d, visible, onClose, onRequested }: { de
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <Text style={[styles.muted, { flex: 1 }]}>{t('request.pickSeasons')}</Text>
             {all.length > 1 && (
-              <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setChosen(allPicked ? [] : all)}>
+              <FocusPressable accessibilityRole="button" hitSlop={8} onPress={() => setChosen(allPicked ? [] : all)}>
                 <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '600' }}>{allPicked ? t('request.selectNone') : t('request.selectAll')}</Text>
-              </Pressable>
+              </FocusPressable>
             )}
           </View>
           <ScrollView style={{ flexGrow: 0 }}>
@@ -51,7 +51,7 @@ export function SeasonPicker({ details: d, visible, onClose, onRequested }: { de
               const free = all.includes(s.seasonNumber);
               const on = free && chosen.includes(s.seasonNumber);
               return (
-                <Pressable
+                <FocusPressable
                   key={s.seasonNumber}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: on, disabled: !free }}
@@ -64,7 +64,7 @@ export function SeasonPicker({ details: d, visible, onClose, onRequested }: { de
                   </View>
                   <Text style={[styles.body, { flex: 1, opacity: free ? 1 : 0.6 }]}>{t('request.season', { n: s.seasonNumber, count: s.episodeCount })}</Text>
                   {!free && s.state ? <Text style={{ color: s.state === 'available' ? colors.ok : colors.accent, fontSize: 12 }}>{t(`request.state.${s.state}`)}</Text> : null}
-                </Pressable>
+                </FocusPressable>
               );
             })}
           </ScrollView>
