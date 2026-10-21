@@ -9,6 +9,15 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
+- **Nu open (21 okt, na 0.19.83):**
+  1. Castfixes testen op de tv (eigenaar): alleen de Vidalune-speler zonder Google's balk (30 s-knoppen, CC), poster
+     zichtbaar, serie hervatten met dezelfde ondertitel en audio, titel openen tijdens casten krijgt meteen ondertitel.
+  2. Blijft Google's balk staan: de eigen balk verbergen als Google TV zelf een balk tekent
+     (`cast.framework.ui.Controls.getInstance().hasMediaControlsOverlay()`, eerst controleren dat die bestaat); pas na
+     de test en akkoord van de eigenaar.
+  3. Volgende versie kiezen (eigenaar): Vidalune-app op de Chromecast met Google TV, of voorbeeldbeeld bij het spoelen.
+  4. Overige tests (eigenaar): tv-speler met de afstandsbediening, app-schermen (seizoenenknop, audiospoor, uitloggen,
+     wachtwoord), Windows-installer op een echte pc, ondertitels na verder kijken tijdens een transcode.
 - Gebouwd op verzoek van de eigenaar: verbeterde cast-ondertitelstijl voor web en Android, met tv-default, live aanpassing/preview en accountopslag met lokale terugval. Bestaande stijlen blijven behouden; de standaard Cast-receiver bepaalt positie, marges, regelhoogte en regelbreedte. Geen nieuwe releaseversie gekozen; eerst afronding van 0.19.46 bevestigen.
 - Cast-stijl lokaal gecontroleerd: 304 webtests, 148 apptests en 51 gerichte backendtests slagen; web/backend/app-typechecks en web-productiebuild slagen. Gewijzigde webcode heeft geen lintfouten (drie bestaande player-hookwaarschuwingen); app-TypeScript-lint slaagt. Echte Chromecast/telefoon en volledige film op de NAS blijven te testen; browsertool was niet beschikbaar.
 - Aanvullende review: castovername blijft werken wanneer stijltoepassing mislukt; app-saves worden over afleveringswissels heen geserialiseerd en gebruiken na herverbinden de actuele API. Regressies toegevoegd; read-only vervolgcontrole vindt geen significante problemen. Automatische review kon niet starten door ontbrekend model; CodeQL-analyse technisch mislukt, dus geen geldige securityuitslag.
