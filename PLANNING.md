@@ -15,7 +15,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   2. Blijft Google's balk staan: de eigen balk verbergen als Google TV zelf een balk tekent
      (`cast.framework.ui.Controls.getInstance().hasMediaControlsOverlay()`, eerst controleren dat die bestaat); pas na
      de test en akkoord van de eigenaar.
-  3. Volgende versie kiezen (eigenaar): Vidalune-app op de Chromecast met Google TV, of voorbeeldbeeld bij het spoelen.
+  3. Gekozen (21 okt): de Vidalune-app op de Chromecast met Google TV, "Bouw het meteen"; gebouwd als 0.19.84 (zie daar).
   4. Overige tests (eigenaar): tv-speler met de afstandsbediening, app-schermen (seizoenenknop, audiospoor, uitloggen,
      wachtwoord), Windows-installer op een echte pc, ondertitels na verder kijken tijdens een transcode.
 - Gebouwd op verzoek van de eigenaar: verbeterde cast-ondertitelstijl voor web en Android, met tv-default, live aanpassing/preview en accountopslag met lokale terugval. Bestaande stijlen blijven behouden; de standaard Cast-receiver bepaalt positie, marges, regelhoogte en regelbreedte. Geen nieuwe releaseversie gekozen; eerst afronding van 0.19.46 bevestigen.
@@ -1796,3 +1796,27 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   hervatten met dezelfde ondertitel en audio, een titel openen tijdens het casten met ondertitel.
 - PR #168 gemerged 21 okt op verzoek van de eigenaar ("merge het maar"; alle checks groen); release `v0.19.83`
   gecontroleerd: APK, beide `.deb`'s, `.aab`, `vidalune-0.19.83-setup.exe` en de accountservice-image.
+
+## Versie 0.19.84 (Vidalune-app op Google TV)
+
+- Op verzoek van de eigenaar (21 okt: "Ik wil eigenlijk verder met de chromecast app", keuze "Vidalune-app op Google TV",
+  "Bouw het meteen"): stap 1 en 2 uit "Vidalune als app op de Chromecast met Google TV" (installeren en starten,
+  afspelen met de afstandsbediening), plus een zichtbare focus zodat Home → titel → afspelen met de pijltjes gaat.
+- Installeren en starten: config-plugin `app/plugins/withTv.js` (`LEANBACK_LAUNCHER`, `android.software.leanback` en
+  touchscreen niet verplicht, `android:banner`), banner `app/assets/tv-banner.png` (320×180). Telefoon ongewijzigd.
+- Toetsen: lokale Expo-module `app/modules/vidalune-tv` (`RemoteKeysView`, Kotlin): houdt in de speler de focus en geeft
+  pijltjes, OK en mediatoetsen door; Terug via `BackHandler`. Logica `app/src/lib/tvRemote.ts` (`pressKey`, zelfde
+  keuzes als `cloud/web/cast/remote.js`): OK = afspelen/pauze of overslaan, ←/→ = stap (snel drukken telt op),
+  ↑/↓ = balk met knoppenrij (terug, pauze, vooruit, Ondertitels, Audio, Volgende aflevering), menu rechts met
+  Ondertitels/Audio, kaart "Volgende aflevering", Terug sluit en verlaat daarna de speler. Scherm `TvPlayer.tsx`.
+- Bladeren: `FocusPressable` (`ui.tsx`, rand in accentkleur bij focus) op kaarten, knoppen, links en tabbladen; op de tv
+  staan de tabbladen links. Geen castknop op de tv; de oriëntatie wordt op de tv nooit vastgezet.
+- Niet in deze versie: inloggen met een code (nu e-mail en wachtwoord met het schermtoetsenbord), grotere 10-foot-lay-out
+  van de andere schermen, Play Store voor tv. README bijgewerkt.
+- Tests: `tvRemote.test.ts` (toetscodes, knoppen, rij, menu, overslaan, volgende aflevering, Terug, streepjes) en
+  `tvApp.test.ts` (manifest, geen dubbele regels, plugin in app.json, bannermaat). App 194 tests, alle typechecks en de
+  versietests slagen; `expo prebuild` geeft het juiste manifest en koppelt de nieuwe module.
+- Niet hier te testen: de Kotlin-code (geen Android SDK; daarom de APK op de branch laten bouwen) en alles op een echte
+  Chromecast met Google TV. Door de eigenaar te testen: APK installeren, Vidalune op het startscherm, inloggen, met de
+  pijltjes een titel openen, afspelen, spoelen, ondertitels en audio kiezen, een serie tot de aftiteling, Terug.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1984) en beide lockfiles bijgewerkt.

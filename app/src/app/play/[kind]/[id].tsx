@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, View, type GestureResponderEvent } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, Modal, Pressable, ScrollView, Text, View, type GestureResponderEvent } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,12 +9,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, useMediaStatus, useRemoteMediaClient } from 'react-native-google-cast';
 import { deviceDecoders } from '../../../../modules/vidalune-codecs';
+import { RemoteKeys } from '../../../../modules/vidalune-tv';
 import { Artwork } from '../../../components/media';
 import { CastIcon } from '../../../components/CastIcon';
 import { useCastStatus } from '../../../components/CastStatus';
 import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
-import { castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
+import { TvPlayer } from '../../../components/TvPlayer';
+import { TV, castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
 import { castSettled, castStartAt, castStatus } from '../../../lib/castStatus';
 import { applyCastTextTrackStyle, castLoadRequest, castTrackIds, followTv, loadCastWithCurrentSubtitle, sessionUsable, tvChanged, tvFilePosition, tvMedia, tvSubtitleKey, type CastSession, type TvSeen } from '../../../lib/cast';
@@ -29,6 +31,7 @@ import { errorMessage } from '../../../lib/connection';
 import { useSession } from '../../../lib/session';
 import { addSeek, SEEK_COMBINE_MS, SEEK_STEPS, skipAt, upNextStart, type EpisodeSegments, type PendingSeek, type SeekStep, type SkipMode } from '../../../lib/skip';
 import { colors, radius } from '../../../lib/theme';
+import { TV_CONTROLS_MS, initialTvState, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, type RemoteKey, type TvContext } from '../../../lib/tvRemote';
 import { cueTextAt, parseVtt, type Cue } from '../../../lib/vtt';
 
 interface NextEpisode {
@@ -732,11 +735,16 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
   // time update — those come twice a second).
   const [touched, setTouched] = useState(0);
   const poke = () => setTouched((n) => n + 1);
+  // On a TV the row of buttons goes with them; an open menu stays.
+  const [tv, setTv] = useState(initialTvState);
   useEffect(() => {
-    if (!controls || !playing || menu || scrub !== null) return;
-    const timer = setTimeout(() => setControls(false), HIDE_CONTROLS_MS);
+    if (!controls || !playing || menu || tv.open === 'menu' || scrub !== null) return;
+    const timer = setTimeout(() => {
+      setControls(false);
+      setTv((s) => (s.open === 'bar' ? { ...s, open: 'none' } : s));
+    }, TV ? TV_CONTROLS_MS : HIDE_CONTROLS_MS);
     return () => clearTimeout(timer);
-  }, [controls, playing, menu, scrub, touched]);
+  }, [controls, playing, menu, tv.open, scrub, touched]);
 
   const seekTo = useCallback(
     (target: number) => {
@@ -829,13 +837,65 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
     return () => clearTimeout(timer);
   }, [seekFlash]);
 
+  const audioTracks = answer?.file.audioTracks ?? [];
+  const showNext = Boolean(item.next && countdown !== null && !nextDismissed);
+  /** Another audio track picked (menu or TV remote): remembered for the next title too. */
+  const chooseAudio = (index: number) => {
+    const track = audioTracks.find((a) => a.index === index);
+    if (track) void rememberAudio(track.language);
+    if (index !== audioIndex) void decide(position, index);
+  };
+  const skipNow = () => {
+    if (!askSkip) return;
+    if (askSkip.kind === 'credits' && askSkip.toNext && item.next) goNext();
+    else seekTo(askSkip.to);
+  };
+
+  // ---------------------------------------------------------------- TV remote
+  // On Android TV / Google TV the remote drives the player (lib/tvRemote.ts): RemoteKeys passes the
+  // arrows, OK and media keys, Back comes through BackHandler.
+  const tvContext: TvContext = {
+    buttons: tvButtons({ audioTracks: audioTracks.length, hasNext: Boolean(item.next) }),
+    tabs: tvTabs({ audioTracks: audioTracks.length }),
+    items: { subtitles: subtitleOptions.length + 1, audio: audioTracks.length },
+    selected: { subtitles: subtitle ? subtitleOptions.findIndex((o) => o.key === subtitle.key) + 1 : 0, audio: Math.max(0, audioTracks.findIndex((a) => a.index === audioIndex)) },
+    skip: Boolean(askSkip && !showNext),
+    upNext: showNext,
+  };
+  const onRemote = useRef<(key: RemoteKey) => boolean>(() => false);
+  onRemote.current = (key) => {
+    const r = pressKey(tv, key, tvContext);
+    setTv(r.state);
+    if (!r.handled) return false;
+    poke();
+    setControls(true);
+    const a = r.action;
+    if (a?.type === 'toggle') toggle();
+    else if (a?.type === 'step') seekBy(a.side);
+    else if (a?.type === 'seek') seekTo(position + a.by);
+    else if (a?.type === 'skip') skipNow();
+    else if (a?.type === 'next') goNext();
+    else if (a?.type === 'dismissNext') {
+      setNextDismissed(true);
+      setCountdown(null);
+    } else if (a?.type === 'pick' && a.tab === 'subtitles') chooseSubtitle(a.index === 0 ? null : subtitleOptions[a.index - 1] ?? null);
+    else if (a?.type === 'pick' && a.tab === 'audio') {
+      const track = audioTracks[a.index];
+      if (track) chooseAudio(track.index);
+    }
+    return true;
+  };
+  useEffect(() => {
+    if (!TV) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => onRemote.current('back'));
+    return () => sub.remove();
+  }, []);
+
   if (problem) return <Problem message={problem} />;
 
   // While casting the TV shows the subtitles.
   const text = casting ? null : cueTextAt(cues, position - subDelay);
   const shown = scrub ?? position;
-  const audioTracks = answer?.file.audioTracks ?? [];
-  const showNext = Boolean(item.next && countdown !== null && !nextDismissed);
   return (
     <View style={{ flex: 1 }} onLayout={(e) => {
         screenWidth.current = e.nativeEvent.layout.width;
@@ -862,6 +922,39 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
           </View>
         </View>
       )}
+      {TV ? (
+        <>
+          <RemoteKeys style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1 }} onKey={(e) => {
+            // A held key repeats quickly: every third repeat counts (each jump may restart a converted stream).
+            if (e.nativeEvent.repeat % 3 !== 0) return;
+            const key = remoteKey(e.nativeEvent.keyCode);
+            if (key) onRemote.current(key);
+          }} />
+          <TvPlayer
+            title={item.title}
+            subtitle={item.subtitle}
+            poster={item.poster ?? item.artwork}
+            position={position}
+            duration={duration}
+            playing={playing}
+            loading={loading}
+            ended={ended}
+            visible={controls || !playing || tv.open !== 'none'}
+            state={tv}
+            buttons={tvContext.buttons}
+            tabs={tvContext.tabs}
+            lines={{
+              subtitles: [t('player.off'), ...subtitleOptions.map(subtitleLabel)],
+              audio: audioTracks.map((a) => audioLabel(a, t)),
+            }}
+            selected={tvContext.selected}
+            marks={segmentMarks(item.segments, item.fileId, duration)}
+            seekStep={seekStep}
+            skipLabel={askSkip ? skipLabel(askSkip.kind, t) : null}
+            upNext={showNext && item.next ? { label: `${episodeCode(item.next.seasonNumber, item.next.episodeNumber)}${item.next.title ? ` · ${item.next.title}` : ''}`, countdown: countdown ?? 0, ended } : null}
+          />
+        </>
+      ) : (
       <Pressable accessibilityLabel={t('player.tracks')} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={onTap}>
         {controls && (
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'space-between', paddingTop: 16 + insets.top, paddingBottom: 16 + insets.bottom, paddingLeft: 16 + insets.left, paddingRight: 16 + insets.right }}>
@@ -889,6 +982,7 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
           </View>
         )}
       </Pressable>
+      )}
       {remote && (
         <CastRemotePanel
           title={item.title}
@@ -911,18 +1005,12 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
         />
       )}
       {/* Skip intro / credits: visible with or without the controls, above them. */}
-      {askSkip && !showNext && !casting && (
+      {askSkip && !showNext && !casting && !TV && (
         <View style={{ position: 'absolute', right: 24 + insets.right, bottom: (controls ? 110 : 32) + insets.bottom }}>
-          <Button
-            label={askSkip.kind === 'recap' ? t('player.skipRecap') : askSkip.kind === 'intro' ? t('player.skipIntro') : t('player.skipCredits')}
-            onPress={() => {
-              if (askSkip.kind === 'credits' && askSkip.toNext && item.next) goNext();
-              else seekTo(askSkip.to);
-            }}
-          />
+          <Button label={skipLabel(askSkip.kind, t)} onPress={skipNow} />
         </View>
       )}
-      {showNext && item.next && !casting && (
+      {showNext && item.next && !casting && !TV && (
         <View style={{ position: 'absolute', right: 24 + insets.right, bottom: (controls ? 110 : 32) + insets.bottom, width: 300, maxWidth: '80%', backgroundColor: 'rgba(20,18,28,0.92)', borderRadius: radius.lg, padding: 14, gap: 10, borderWidth: 1, borderColor: colors.line }}>
           <Text style={{ color: colors.muted, fontSize: 13 }}>{t('player.next')}</Text>
           <Text style={{ color: colors.ink, fontWeight: '700' }} numberOfLines={2}>
@@ -946,7 +1034,7 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
           </View>
         </View>
       )}
-      <Modal visible={menu} transparent statusBarTranslucent navigationBarTranslucent animationType="fade" onRequestClose={() => setMenu(false)} supportedOrientations={['landscape', 'portrait']}>
+      <Modal visible={menu && !TV} transparent statusBarTranslucent navigationBarTranslucent animationType="fade" onRequestClose={() => setMenu(false)} supportedOrientations={['landscape', 'portrait']}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'flex-end' }} onPress={() => setMenu(false)} accessibilityLabel={t('player.close')}>
           <Pressable style={{ width: 320 + insets.right, maxWidth: '90%', height: '100%', backgroundColor: colors.surface, paddingTop: 16 + insets.top, paddingBottom: 16 + insets.bottom, paddingLeft: 16, paddingRight: 16 + insets.right }} onPress={() => undefined}>
             <ScrollView contentContainerStyle={{ gap: 6 }}>
@@ -954,19 +1042,18 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
               {audioTracks.map((a) => (
                 <Choice
                   key={a.index}
-                  label={[a.title || a.languageName || a.language || `#${a.index}`, a.channels ? (a.channels === 6 ? '5.1' : a.channels === 8 ? '7.1' : a.channels === 2 ? 'Stereo' : t('player.channels', { n: a.channels })) : null, a.codec?.toUpperCase()].filter(Boolean).join(' · ')}
+                  label={audioLabel(a, t)}
                   selected={a.index === audioIndex}
                   onPress={() => {
                     setMenu(false);
-                    void rememberAudio(a.language);
-                    if (a.index !== audioIndex) void decide(position, a.index);
+                    chooseAudio(a.index);
                   }}
                 />
               ))}
               <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('player.subtitles')}</Text>
               <Choice label={t('player.off')} selected={!subtitle} onPress={() => chooseSubtitle(null)} />
               {subtitleOptions.map((s) => (
-                <Choice key={s.key} label={[s.languageName || s.label, s.title && s.title !== s.languageName ? s.title : null, s.forced ? 'Forced' : null].filter(Boolean).join(' · ')} selected={subtitle?.key === s.key} onPress={() => chooseSubtitle(s)} />
+                <Choice key={s.key} label={subtitleLabel(s)} selected={subtitle?.key === s.key} onPress={() => chooseSubtitle(s)} />
               ))}
               {answer?.onlineSubtitles ? (
                 <OnlineSubtitles
@@ -1116,6 +1203,21 @@ function CastRemotePanel({ title, subtitle, device, artwork, position, duration,
       </Modal>
     </View>
   );
+}
+
+type AudioTrack = PlaybackAnswer['file']['audioTracks'][number];
+type Translate = ReturnType<typeof useSession>['t'];
+
+function audioLabel(a: AudioTrack, t: Translate): string {
+  return [a.title || a.languageName || a.language || `#${a.index}`, a.channels ? (a.channels === 6 ? '5.1' : a.channels === 8 ? '7.1' : a.channels === 2 ? 'Stereo' : t('player.channels', { n: a.channels })) : null, a.codec?.toUpperCase()].filter(Boolean).join(' · ');
+}
+
+function subtitleLabel(s: SubtitleOption): string {
+  return [s.languageName || s.label, s.title && s.title !== s.languageName ? s.title : null, s.forced ? 'Forced' : null].filter(Boolean).join(' · ');
+}
+
+function skipLabel(kind: 'recap' | 'intro' | 'credits', t: Translate): string {
+  return kind === 'recap' ? t('player.skipRecap') : kind === 'intro' ? t('player.skipIntro') : t('player.skipCredits');
 }
 
 function IconButton({ name, label, onPress, size = 24 }: { name: React.ComponentProps<typeof Feather>['name']; label: string; onPress: () => void; size?: number }) {

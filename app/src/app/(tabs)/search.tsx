@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Keyboard, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Keyboard, ScrollView, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DiscoverCard, useCatalogSearch } from '../../components/Discover';
 import { Artwork, PosterCard } from '../../components/media';
-import { ErrorState, Heading, ProgressLine, styles } from '../../components/ui';
+import { ErrorState, FocusPressable, Heading, ProgressLine, styles } from '../../components/ui';
 import { useDebounced } from '../../components/useDebounced';
 import { episodeCode, progressFraction } from '../../lib/format';
 import { searchQuery } from '../../lib/lists';
@@ -52,9 +52,9 @@ export default function Search() {
           />
           {(q.isFetching || catalog.isFetching) && query ? <ActivityIndicator size="small" color={colors.accent} /> : null}
           {text ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={t('search.clear')} hitSlop={10} onPress={() => setText('')}>
+            <FocusPressable accessibilityRole="button" accessibilityLabel={t('search.clear')} hitSlop={10} onPress={() => setText('')}>
               <Feather name="x" size={18} color={colors.muted} />
-            </Pressable>
+            </FocusPressable>
           ) : null}
         </View>
       </View>
@@ -72,7 +72,7 @@ export default function Search() {
             <View style={{ gap: 12 }}>
               <Heading>{t('search.episodes')}</Heading>
               {r.episodes.map((e) => (
-                <Pressable
+                <FocusPressable
                   key={e.id}
                   accessibilityRole="button"
                   accessibilityLabel={`${e.showTitle} ${episodeCode(e.seasonNumber, e.episodeNumber)}${e.title ? ` ${e.title}` : ''}`}
@@ -94,7 +94,7 @@ export default function Search() {
                       {e.title ? ` · ${e.title}` : ''}
                     </Text>
                   </View>
-                </Pressable>
+                </FocusPressable>
               ))}
             </View>
           )}

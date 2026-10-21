@@ -435,7 +435,7 @@ Good to know:
 
 ## The Vidalune app for Android
 
-Besides installing the website as an app, Vidalune has its own Android app (for phones and tablets). It connects to your server, signs in, and shows Home (Continue Watching, your watchlist, recently added, movies, shows and favorites), search, all movies and all TV shows, and the pages of movies and shows with their seasons and episodes — and it plays them with its own player.
+Besides installing the website as an app, Vidalune has its own Android app (for phones, tablets and Android TV / Google TV, such as a Chromecast with Google TV). It connects to your server, signs in, and shows Home (Continue Watching, your watchlist, recently added, movies, shows and favorites), search, all movies and all TV shows, and the pages of movies and shows with their seasons and episodes — and it plays them with its own player.
 
 **Phones and tablets:** on a tablet (or a phone in landscape) movie and show pages put the poster beside the details instead of stretching the phone layout, posters and episode pictures are larger and grids show more columns. While a screen loads, grey placeholders show where the posters and details will appear. Pull down on Home, the lists and on movie and show pages to load them again.
 
@@ -924,6 +924,14 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 - While audio is converted and the file's keyframes are not known yet, seeking outside the already loaded part restarts the stream (about a second).
 - Intro and credits detection needs at least two episodes of a season with the same intro or credits. Movies are not analysed.
 - Music, photos and live TV are out of scope for this version.
+
+**On a TV (Android TV / Google TV):** the same app installs on a TV and starts from the TV's home screen (with a Vidalune banner); until it is in the Play Store for TV, install the APK yourself. Everything is operated with the remote: the arrows move between the tabs (on the left), the rows and the buttons, which show a coloured edge when chosen, and OK opens them. In the player:
+
+- **OK** plays or pauses — or skips the intro, recap or credits while *Skip intro* is shown; **←** and **→** go back or forward by the player's step (quick presses add up); the remote's play/pause, fast-forward and rewind keys work too (30 seconds).
+- **↑** or **↓** brings up the bar with the poster, title and time (marks on the bar show the recap, intro and credits) and a row of buttons: back, play/pause, forward, *Subtitles*, *Audio* (when there is more than one track) and *Next episode*. The chosen button is white and larger.
+- *Subtitles* and *Audio* open a menu on the right: **↑ ↓** choose, **← →** switch between subtitles and audio, **OK** picks (and remembers the choice, as on a phone).
+- At the end credits the *Next episode* card counts down: **OK** plays it now, **→** then **OK** watches the credits.
+- **Back** closes what is open, and then leaves the player.
 - The interface is available in English and Dutch. Titles and descriptions follow each account's language where TMDB has them in English or Dutch; genres and other details come in the server's one metadata language; a few details stored by older versions (such as audit-log notes) stay in English.
 
 ## Roadmap
@@ -931,7 +939,7 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 - Video conversion: a quality choice in the player (1080p, 720p, …) and a lower quality automatically away from home, HDR tone mapping.
 - Burn-in or OCR for image-based subtitles.
 - Trickplay thumbnails on the seek bar.
-- An app for TV (Android TV).
+- The TV app (Android TV / Google TV): signing in with a code shown on the TV, larger screens for the couch, the Play Store for TV.
 
 ## License
 

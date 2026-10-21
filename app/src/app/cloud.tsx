@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
-import { Button, Field, styles } from '../components/ui';
+import { Button, Field, FocusPressable, styles } from '../components/ui';
 import { Logo } from '../components/Logo';
 import { autoOpenServer, CLOUD_ACCOUNT_KEY, CloudError, createCloud, FORGOT_PASSWORD_URL, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudAccount, type CloudServer } from '../lib/cloud';
 import { findServer, SERVER_PROBLEMS, ServerError } from '../lib/server';
@@ -160,7 +160,7 @@ export default function CloudAccountScreen() {
               {opening && <Text style={styles.muted} accessibilityLiveRegion="polite">{t('cloud.opening', { name: opening.name })}</Text>}
               {servers && servers.length === 0 && <Text style={styles.muted}>{t('cloud.none', { email: account.email })}</Text>}
               {servers?.map((s) => (
-                <Pressable
+                <FocusPressable
                   key={s.id}
                   onPress={() => void open(s)}
                   disabled={!serverAddresses(s).length || busy !== null}
@@ -172,7 +172,7 @@ export default function CloudAccountScreen() {
                   <Text style={styles.muted}>
                     {s.online ? t('cloud.online') : t('cloud.offline')}
                   </Text>
-                </Pressable>
+                </FocusPressable>
               ))}
               {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
               <Button label={t('cloud.signOut', { email: account.email })} variant="ghost" onPress={() => void signOut()} />
