@@ -155,6 +155,27 @@ describe('HLS pieces', () => {
     }
   });
 
+  it('frees the conversion of a title the viewer moved on from, not another viewer\'s', async () => {
+    const sessions = new HlsSessions('ffmpeg', 'ffprobe', path.join(dir, 'cache-moved'));
+    try {
+      const layout = await sessions.layout('1', mkv, 30, true);
+      const mine: HlsSource = { key: 'u1:1:vt', input: mkv, videoCodec: 'h264', plan, layout, encode: encodeArgs('software') };
+      const theirs: HlsSource = { ...mine, key: 'u2:1:vt' };
+      await sessions.init(mine);
+      await sessions.init(theirs);
+      // Still being watched (asked for just now): kept.
+      sessions.releaseMovedOn('u1:2:vt');
+      expect(sessions.convertingOther('u1:2:vt')).toBe(2);
+      // No longer asked for: the same viewer's next title frees it; the other viewer keeps theirs.
+      sessions.releaseMovedOn('u1:2:vt', 0);
+      expect(sessions.convertingFor('u1:1:vt')).toBe(false);
+      expect(sessions.convertingFor('u2:1:vt')).toBe(true);
+      expect(sessions.convertingOther('u1:2:vt')).toBe(1);
+    } finally {
+      sessions.stopAll();
+    }
+  });
+
   it('stops FFmpeg far enough ahead where it cannot be paused (Windows), and starts again from the next piece', async () => {
     const film = path.join(dir, 'Rest.mkv');
     execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '90', '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '50', '-c:a', 'ac3', '-y', film]);

@@ -484,6 +484,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       const t = ctx.transcoding.current();
       if (!t) throw new HttpError(403, 'Video conversion is turned off on this server.');
       const remux = ctx.playback.get('remux') as RemuxEngine;
+      // The viewer's own earlier title they moved on from does not count (switching while casting).
+      if (!ctx.hls.convertingFor(key)) ctx.hls.releaseMovedOn(key);
       // Checked when a viewer starts, not on each piece: one who was let in is never cut off mid-film.
       if (t.maxStreams !== null && !ctx.hls.convertingFor(key) && ctx.hls.convertingOther(key) + remux.activeTranscodes >= t.maxStreams) {
         throw new HttpError(503, 'The server is already converting {n} videos, its limit. Try again in a moment.', { n: t.maxStreams });

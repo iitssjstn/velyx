@@ -1875,7 +1875,13 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - **Hervatpunt**: begon de tv vóór het hervatpunt, dan sloeg niemand meer iets op (tv en zenders wachtten tot de tv
   daar was). Nu stuurt de tv zichzelf er tot drie keer heen (`startSeek`) en slaat na een minuut kijken elders op waar
   je bent (`SETTLE_AFTER_SEC`).
-- Tests: backend (serverId), cloud (ondertitel terugzetten, hervatpunt opnieuw, opslaan na een minuut), website (tv
+- **Wisselen van titel tijdens casten** (gemeld door de eigenaar 21 okt: "als ik switch van film/serie stopt hij met
+  casten en krijg ik een error code 2100"): 2100 is Android's "verzoek mislukt"; de tv kon de nieuwe titel niet laden.
+  Oorzaak: de omzetting (transcode) van de vorige titel hield nog tot 3 minuten een plek in de conversielimiet; met een
+  limiet van 1 weigerde de server de nieuwe titel (503) en de app stopte het casten. Nu stopt de server, als iemand een
+  nieuwe omzetting start, zijn eigen omzettingen van andere titels die 20 s niet meer gevraagd zijn
+  (`releaseMovedOn` in `hls.ts`); die van andere kijkers blijven. Test met echte FFmpeg.
+- Tests: backend (serverId, omzetting vrijgeven), cloud (ondertitel terugzetten, hervatpunt opnieuw, opslaan na een minuut), website (tv
   meldt "uit": voorkeur blijft; customData en `androidReceiverCompatible`), app (`castConnect.test.ts`, customData,
   manifest en volgorde van de plugins). Niet hier te testen: de Kotlin-code (APK op de branch laten bouwen) en alles
   op een echte Chromecast met Google TV.
