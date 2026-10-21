@@ -332,6 +332,17 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
     (`startOptions` in `screen.js`), wat het framework zegt dat de pagina eigen bediening heeft. Niet hier op een
     echte Chromecast te testen; blijft Google's balk staan, dan komt die van Google TV zelf.
 
+- **Google's speler blijft bij casten, ondertitel vergeten** (gemeld door de eigenaar 21 okt, na 0.19.84: "de standaard
+  Google player is er nog steeds dat wil ik absoluut niet, hij onthoudt nog steeds niet de ondertiteling omdat hij de
+  standaard Google player gegevens pakt"; daarna: "Ik wil echt een Netflix achtige player hebben"). `touchScreenOptimizedApp`
+  (0.19.83) helpt niet: volgens de typen zet het alleen het ondoorzichtige scherm uit. Waarschijnlijk tekent Google TV zelf
+  een bediening over elke cast-webpagina (`hasMediaControlsOverlay` meldt dat alleen; uitzetten kan niet; Google's
+  documentatie was niet bereikbaar). Voorstel: **Cast Connect**, zoals Netflix: casten naar een Google TV met de Vidalune-app
+  opent die app (eigen speler uit 0.19.84, ondertitel en audio van het account) in plaats van de webpagina. Nodig: eigenaar
+  voegt in de Cast Developer Console bij `920BF057` de Android TV-app `com.vidalune.app` toe; app krijgt
+  `play-services-cast-tv` en een Kotlin-ontvanger; website en telefoon zetten `androidReceiverCompatible`. Andere
+  Chromecasts houden de webspeler. Voorgesteld als 0.19.85; wacht op "bouw het".
+
 - **Voorbeeldbeeld bij het spoelen** (vraag eigenaar 20 okt: bij de muis boven de tijdlijn geen beeld; nog niet bouwen
   tot hij het zegt; na zijn tegoed-reset). Server: per bestand kleine plaatjes (bv. elke 10 s, 240 px breed) in
   sprites plus een tijdlijst, met FFmpeg alleen keyframes (`-skip_frame nokey`), als achtergrondtaak in het
