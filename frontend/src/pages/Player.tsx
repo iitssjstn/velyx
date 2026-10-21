@@ -256,6 +256,9 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const streamRef = useRef(stream);
   streamRef.current = stream;
   const startedRef = useRef(false);
+  // Which file's start subtitle is picked (see pickStartSubtitle).
+  const subPickedFor = useRef<number | null>(null);
+  const [subReadyFor, setSubReadyFor] = useState<number | null>(null);
   const lastSaveRef = useRef(0);
   const lastTickRef = useRef(-1);
   const pendingSeekRef = useRef<number | null>(null);
@@ -474,6 +477,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const castLoading = useRef<number | null>(null);
   useEffect(() => {
     if (!cast.active || !file || !item.data || cast.fileId === file.id || askResume || castLoading.current === file.id) return;
+    // With the subtitle this title starts with (picked below once its list is known).
+    if (subReadyFor !== file.id) return;
     // The TV started a title itself (the next episode, with its remote): the page follows it instead.
     if (cast.tvItem && cast.tvItem.fileId === cast.fileId) return;
     castLoading.current = file.id;
@@ -481,7 +486,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       castLoading.current = null;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cast.active, cast.fileId, cast.tvItem, file?.id, item.data, askResume, start]);
+  }, [cast.active, cast.fileId, cast.tvItem, file?.id, item.data, askResume, start, subReadyFor]);
   useEffect(() => {
     if (cast.active && cast.tvItem && (cast.tvItem.kind !== kind || cast.tvItem.id !== id)) onPlayItem(cast.tvItem.kind, cast.tvItem.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -601,9 +606,19 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     const timer = setTimeout(() => setSubLoadingShown(true), 600);
     return () => clearTimeout(timer);
   }, [subStatus]);
+  // What the TV reported last for this file: its first report is what it was given (or its default),
+  // not a choice made there, so only a change after that counts as one.
+  const tvSeen = useRef<{ file: number; audio?: number | null; subtitle?: string | null } | null>(null);
+  const tvChanged = (field: 'audio' | 'subtitle', value: number | string | null): boolean => {
+    if (!file) return false;
+    const seen = tvSeen.current?.file === file.id ? tvSeen.current : { file: file.id };
+    tvSeen.current = { ...seen, [field]: value };
+    return field in seen && seen[field] !== value;
+  };
   // An audio track chosen on the TV (its remote): remembered, as if chosen here.
   useEffect(() => {
     if (!castHere || cast.tvAudioIndex === undefined || cast.tvAudioIndex === null) return;
+    if (!tvChanged('audio', cast.tvAudioIndex)) return;
     const language = file?.audioTracks.find((t) => t.index === cast.tvAudioIndex)?.language;
     if (language) setPrefs({ audioLanguage: language });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -611,7 +626,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
 
   // A subtitle chosen on the TV (its remote): shown here too and remembered, as if chosen here.
   useEffect(() => {
-    if (!castHere || cast.tvSubtitleKey === undefined || cast.tvSubtitleKey === subKeyRef.current) return;
+    if (!castHere || cast.tvSubtitleKey === undefined) return;
+    if (!tvChanged('subtitle', cast.tvSubtitleKey) || cast.tvSubtitleKey === subKeyRef.current) return;
     if (cast.tvSubtitleKey !== null && !subs.some((o) => o.key === cast.tvSubtitleKey)) return;
     chooseSubtitle(cast.tvSubtitleKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -740,6 +756,22 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     setBuffering(true);
   }, [kind, id]);
 
+  // The subtitle a title starts with (the account's choice or the last one), once per file: when the
+  // video loads, or straight away while casting (the TV plays, so the video here may never load and the
+  // cast would start without it).
+  const pickStartSubtitle = () => {
+    if (!file || info?.file.id !== file.id || subPickedFor.current === file.id) return;
+    subPickedFor.current = file.id;
+    const p = getPrefs();
+    const playingAudio = file.audioTracks.find((t) => t.index === info.decision.audioIndex)?.language ?? null;
+    selectSubtitle(initialSubtitle(subs, langPrefs.current, { language: p.subtitleLanguage, forced: p.subtitleForced, label: p.subtitleLabel }, playingAudio));
+    setSubReadyFor(file.id);
+  };
+  useEffect(() => {
+    if (cast.active) pickStartSubtitle();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cast.active, file?.id, info]);
+
   // ---------------------------------------------------------------- video element events
   const onLoadedMetadata = () => {
     const v = videoRef.current;
@@ -758,9 +790,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     }
     if (!startedRef.current) {
       startedRef.current = true;
-      const p = getPrefs();
-      const playingAudio = file?.audioTracks.find((t) => t.index === info?.decision.audioIndex)?.language ?? null;
-      selectSubtitle(initialSubtitle(subs, langPrefs.current, { language: p.subtitleLanguage, forced: p.subtitleForced, label: p.subtitleLabel }, playingAudio));
+      pickStartSubtitle();
       // Preferred audio language in browsers that switch tracks natively (direct play only).
       const list = (v as unknown as { audioTracks?: AudioTrackList }).audioTracks;
       if (!live && list && list.length > 0) {

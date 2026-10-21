@@ -1,5 +1,5 @@
 import { ProgressSaver, progressTarget, START_SLACK_SEC } from './progress.js';
-import { showsSplash } from './screen.js';
+import { showsSplash, startOptions } from './screen.js';
 import { barVisible, cueCss, fileTimes, formatTime } from './overlay.js';
 import {
   CONTROLS_FOR_MS,
@@ -91,6 +91,9 @@ const applyStyle = (style) => {
 };
 // Until a sender says otherwise: white letters with a shadow, no black box.
 applyStyle(tvStyle ? castStyle(tvStyle) : {});
+
+// A poster that does not load is left out (no broken image in the bar).
+$('poster').addEventListener('error', () => $('poster').removeAttribute('src'));
 
 /** The title, the line above it and the poster, from what was loaded. */
 const showTitle = (metadata) => {
@@ -465,4 +468,4 @@ player.addEventListener(EventType.MEDIA_FINISHED, (event) => {
   if (ended && info?.next && !nextDismissed && !loadingNext) void playNext();
 });
 
-context.start();
+context.start(startOptions(cast.framework.ui.UiConfig));
