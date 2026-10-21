@@ -10,6 +10,7 @@ import { TvCodeSignIn } from '../components/TvCodeSignIn';
 import { autoOpenServer, CLOUD_ACCOUNT_KEY, CloudError, createCloud, FORGOT_PASSWORD_URL, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudAccount, type CloudServer } from '../lib/cloud';
 import { findServer, SERVER_PROBLEMS, ServerError } from '../lib/server';
 import { USER_AGENT, useSession } from '../lib/session';
+import { castThen } from '../lib/castConnect';
 import { colors, radius } from '../lib/theme';
 import type { MessageKey } from '../lib/i18n';
 
@@ -23,7 +24,9 @@ export default function CloudAccountScreen() {
   const { t, language, setServer, signIn, deviceName, cloudServerId, signedIn, forgetServer, sessionEnded } = useSession();
   const [notice, setNotice] = useState<string | null>(null);
   // "Choose another server": show the list, do not open the last one again.
-  const { choose } = useLocalSearchParams<{ choose?: string }>();
+  const { choose, server: castServer, then } = useLocalSearchParams<{ choose?: string; server?: string; then?: string }>();
+  // A title cast to this TV from another server (Cast Connect): that server opens, then the player.
+  const afterOpen = castThen(then) ?? '/home';
   const autoOpened = useRef(false);
   const [account, setAccount] = useState<CloudAccount | null | undefined>(undefined);
   const [servers, setServers] = useState<CloudServer[] | null>(null);
@@ -119,7 +122,7 @@ export default function CloudAccountScreen() {
         const done = await signInWithTicket(url, opened.ticket, deviceName, USER_AGENT);
         await signIn(done.token, done.user);
         setBusy(null);
-        router.replace('/home');
+        router.replace(afterOpen as never);
       } catch (err) {
         // The server was reached but did not let this account in: say why, and stay on the list.
         await forgetServer();
@@ -138,14 +141,16 @@ export default function CloudAccountScreen() {
   // person picks from the list. When opening fails, the list stays with the reason.
   const [opening, setOpening] = useState<CloudServer | null>(null);
   useEffect(() => {
-    if (autoOpened.current || choose || signedIn || !servers) return;
-    const s = autoOpenServer(servers, cloudServerId);
+    if (autoOpened.current || !servers) return;
+    const cast = castServer ? servers.find((x) => x.id === castServer) : undefined;
+    if (!cast && (choose || signedIn)) return;
+    const s = cast ?? autoOpenServer(servers, cloudServerId);
     if (!s) return;
     autoOpened.current = true;
     setOpening(s);
     void open(s).finally(() => setOpening(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [servers, cloudServerId, signedIn, choose]);
+  }, [servers, cloudServerId, signedIn, choose, castServer]);
 
   const signOut = async () => {
     if (account) await cloud.signOut(account.token);

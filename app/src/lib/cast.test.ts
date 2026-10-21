@@ -23,12 +23,13 @@ describe('casting from the app', () => {
   });
 
   it('continues a file as it is where the phone was, with artwork and the chosen subtitle', () => {
-    const { request, offset } = castLoadRequest({ session: session('range'), url, title: 'Dune', subtitle: '2021', artwork: '/api/images/w780/back.jpg', at: 600, keyframe: null, subtitleKey: 'emb-3', fileId: 5, audioIndex: 1 });
+    const { request, offset } = castLoadRequest({ session: session('range'), url, title: 'Dune', subtitle: '2021', artwork: '/api/images/w780/back.jpg', at: 600, keyframe: null, subtitleKey: 'emb-3', fileId: 5, audioIndex: 1, item: { kind: 'movie', id: 7 } });
     expect(offset).toBe(0);
     expect(request).toMatchObject({ autoplay: true, startTime: 600, activeTrackIds: [2] });
     expect(request.mediaInfo).toMatchObject({ contentUrl: 'http://nas:3000/api/media/5/stream?cast=tok.en', contentType: 'video/mp4', streamDuration: 3000 });
     // Vidalune's own cast player saves the TV's progress itself, with the same token.
-    expect(request.mediaInfo.customData).toEqual({ vidalune: { progressUrl: 'http://nas:3000/api/cast/progress?cast=tok.en', offset: 0, durationSec: 3000, fileId: 5, audioIndex: 1 } });
+    // The Vidalune app on a Google TV opens the title itself (Cast Connect): server, title and subtitle.
+    expect(request.mediaInfo.customData).toEqual({ vidalune: { progressUrl: 'http://nas:3000/api/cast/progress?cast=tok.en', offset: 0, durationSec: 3000, fileId: 5, audioIndex: 1, serverId: null, title: { kind: 'movie', id: 7 }, subtitleKey: 'emb-3' } });
     expect(request.mediaInfo.metadata).toEqual({ type: 'generic', title: 'Dune', subtitle: '2021', images: [{ url: 'http://nas:3000/api/images/w780/back.jpg?cast=tok.en' }] });
     expect(request.mediaInfo.mediaTracks[1]).toEqual({ id: 2, type: 'text', subtype: 'subtitles', contentId: 'http://nas:3000/api/media/5/subtitles/3.vtt?cast=tok.en', contentType: 'text/vtt', name: 'Nederlands', language: 'nl' });
     expect(request.mediaInfo.streamType).toBe('BUFFERED');

@@ -9,16 +9,16 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- **Nu open (21 okt, na 0.19.84):**
-  1. Castfixes testen op de tv (eigenaar): alleen de Vidalune-speler zonder Google's balk (30 s-knoppen, CC), poster
-     zichtbaar, serie hervatten met dezelfde ondertitel en audio, titel openen tijdens casten krijgt meteen ondertitel.
-  2. Blijft Google's balk staan: de eigen balk verbergen als Google TV zelf een balk tekent
-     (`cast.framework.ui.Controls.getInstance().hasMediaControlsOverlay()`, eerst controleren dat die bestaat); pas na
-     de test en akkoord van de eigenaar.
-  3. 0.19.84 testen op de Chromecast met Google TV (eigenaar): accountservice bijwerken, APK installeren, inloggen met de
-     QR-code, met de pijltjes een titel openen, afspelen, spoelen, ondertitels/audio, een serie tot de aftiteling, Terug.
-  4. Overige tests (eigenaar): tv-speler met de afstandsbediening, app-schermen (seizoenenknop, audiospoor, uitloggen,
-     wachtwoord), Windows-installer op een echte pc, ondertitels na verder kijken tijdens een transcode.
+- **Nu open (21 okt, 0.19.85 in de PR):**
+  1. Eigenaar, vóór Cast Connect werkt: in de Cast Developer Console bij app-ID `920BF057` de Android TV-ontvanger
+     `com.vidalune.app` toevoegen; in de Play Console de vormfactor Android TV aanzetten en 0.19.85 naar de gesloten test.
+  2. 0.19.85 testen (eigenaar): casten vanaf telefoon en website naar de Chromecast met Google TV opent de Vidalune-app
+     (hervatpunt, ondertitel, audio; pauze/spoelen/ondertitel vanaf de telefoon); zonder app de webspeler met
+     onthouden ondertitel en hervatpunt.
+  3. 0.19.84 testen op de Chromecast met Google TV (eigenaar): inloggen met de QR-code, met de pijltjes een titel
+     openen, afspelen, spoelen, ondertitels/audio, een serie tot de aftiteling, Terug.
+  4. Overige tests (eigenaar): app-schermen (seizoenenknop, audiospoor, uitloggen, wachtwoord), Windows-installer op een
+     echte pc, ondertitels na verder kijken tijdens een transcode.
 - Gebouwd op verzoek van de eigenaar: verbeterde cast-ondertitelstijl voor web en Android, met tv-default, live aanpassing/preview en accountopslag met lokale terugval. Bestaande stijlen blijven behouden; de standaard Cast-receiver bepaalt positie, marges, regelhoogte en regelbreedte. Geen nieuwe releaseversie gekozen; eerst afronding van 0.19.46 bevestigen.
 - Cast-stijl lokaal gecontroleerd: 304 webtests, 148 apptests en 51 gerichte backendtests slagen; web/backend/app-typechecks en web-productiebuild slagen. Gewijzigde webcode heeft geen lintfouten (drie bestaande player-hookwaarschuwingen); app-TypeScript-lint slaagt. Echte Chromecast/telefoon en volledige film op de NAS blijven te testen; browsertool was niet beschikbaar.
 - Aanvullende review: castovername blijft werken wanneer stijltoepassing mislukt; app-saves worden over afleveringswissels heen geserialiseerd en gebruiken na herverbinden de actuele API. Regressies toegevoegd; read-only vervolgcontrole vindt geen significante problemen. Automatische review kon niet starten door ontbrekend model; CodeQL-analyse technisch mislukt, dus geen geldige securityuitslag.
@@ -341,7 +341,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   opent die app (eigen speler uit 0.19.84, ondertitel en audio van het account) in plaats van de webpagina. Nodig: eigenaar
   voegt in de Cast Developer Console bij `920BF057` de Android TV-app `com.vidalune.app` toe; app krijgt
   `play-services-cast-tv` en een Kotlin-ontvanger; website en telefoon zetten `androidReceiverCompatible`. Andere
-  Chromecasts houden de webspeler. Voorgesteld als 0.19.85; wacht op "bouw het".
+  Chromecasts houden de webspeler. Eigenaar: "Bouw het maar"; gebouwd in 0.19.85. Ook gemeld (21 okt): "Hij onthoudt
+  ook nog steeds niet als ik al een stuk van een film/serie gekeken heb" (meegenomen in 0.19.85).
 
 - **Voorbeeldbeeld bij het spoelen** (vraag eigenaar 20 okt: bij de muis boven de tijdlijn geen beeld; nog niet bouwen
   tot hij het zegt; na zijn tegoed-reset). Server: per bestand kleine plaatjes (bv. elke 10 s, 240 px breed) in
@@ -1853,3 +1854,29 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - PR #171 gemerged 21 okt op verzoek van de eigenaar ("Merge het maar"; alle checks groen, APK eerst op de branch gebouwd);
   release `v0.19.84` gecontroleerd: APK, beide `.deb`'s, `.aab`, `vidalune-0.19.84-setup.exe` en de accountservice-image.
   De automatische voettekst met een sessielink in de PR-teksten van #170 en #171 is achteraf weggehaald.
+
+## Versie 0.19.85 (Cast Connect, ondertitel en hervatpunt bij casten)
+
+- Op verzoek van de eigenaar ("Bouw het maar", 21 okt), na zijn melding (zie "Gemeld tijdens het testen": Google's
+  speler blijft bij casten, ondertitel vergeten) en "Hij onthoudt ook nog steeds niet als ik al een stuk van een
+  film/serie gekeken heb".
+- **Cast Connect**: casten naar een Google TV/Android TV met de Vidalune-app opent de titel in de eigen tv-speler van
+  de app (0.19.84) in plaats van de webpagina. Kotlin in `app/modules/vidalune-tv` (`CastConnect.kt`: ontvanger,
+  MediaSession, laadverzoek naar JavaScript, status en commando's terug; `VidaluneTvPackage.kt` start het met de app en
+  geeft de intents door; `VidaluneReceiverOptions`, `VidaluneCastOptions` met `androidReceiverCompatible` voor de
+  telefoon), `play-services-cast-tv` 21.1.1. Manifest via `withTv` (ontvangeropties, LAUNCH/LOAD-intents, eigen
+  castopties; de plugin staat vóór react-native-google-cast zodat die van ons gelden). JavaScript: `lib/castConnect.ts`
+  (route uit de customData: server, titel, positie, ondertitel, audio; andere server eerst openen via `/cloud?server=`),
+  `CastConnectListener` in de root, de speler meldt status en volgt pauze/spoelen/stop/ondertitel van de zender.
+- Zenders: website `androidReceiverCompatible: true`; website en app sturen `serverId` (nieuw in `/api/cast/session`),
+  de titel en de ondertitel mee in de customData.
+- **Ondertitel bij de webspeler**: de tv zet de gevraagde ondertitel terug als Google's framework hem bij het laden
+  kwijtraakt (`needsTracks`); website en app nemen "uit" van de tv niet meer over als keuze.
+- **Hervatpunt**: begon de tv vóór het hervatpunt, dan sloeg niemand meer iets op (tv en zenders wachtten tot de tv
+  daar was). Nu stuurt de tv zichzelf er tot drie keer heen (`startSeek`) en slaat na een minuut kijken elders op waar
+  je bent (`SETTLE_AFTER_SEC`).
+- Tests: backend (serverId), cloud (ondertitel terugzetten, hervatpunt opnieuw, opslaan na een minuut), website (tv
+  meldt "uit": voorkeur blijft; customData en `androidReceiverCompatible`), app (`castConnect.test.ts`, customData,
+  manifest en volgorde van de plugins). Niet hier te testen: de Kotlin-code (APK op de branch laten bouwen) en alles
+  op een echte Chromecast met Google TV.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1985) en beide lockfiles bijgewerkt.

@@ -8,8 +8,8 @@ import type { FastifyInstance } from 'fastify';
 import { buildCloudApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
-import { ProgressSaver, progressReport, progressTarget, SAVE_EVERY_MS, START_SLACK_SEC } from '../web/cast/progress.js';
-import { showsSplash, startOptions } from '../web/cast/screen.js';
+import { ProgressSaver, progressReport, progressTarget, SAVE_EVERY_MS, SETTLE_AFTER_SEC, START_SLACK_SEC, START_TRIES } from '../web/cast/progress.js';
+import { needsTracks, showsSplash, startOptions } from '../web/cast/screen.js';
 import { barVisible, cssColor, cueCss, fileTimes, formatTime, SHOW_FOR_MS } from '../web/cast/overlay.js';
 import { castStyle, castUrl, controlsFor, cycleStyle, DEFAULT_TV_STYLE, initialState, keyOf, loadRequestFor, press, segmentMarks, serverOf, skipAt, tabsFor, tvStyleFrom, upNextStart, words, type RemoteState } from '../web/cast/remote.js';
 
@@ -100,6 +100,17 @@ describe('the cast player\'s own screen', () => {
     expect(startOptions(UiConfig).uiConfig).toEqual({ touchScreenOptimizedApp: true });
     const receiver = fs.readFileSync(new URL('../web/cast/receiver.js', import.meta.url), 'utf8');
     expect(receiver).toContain('context.start(startOptions(cast.framework.ui.UiConfig));');
+  });
+
+  it('puts the subtitle the sender asked for back when the title loaded without it', () => {
+    expect(needsTracks([2], [], [1, 2])).toBe(true);
+    // One is on already, none was asked for, or the title does not have it: left alone.
+    expect(needsTracks([2], [2], [1, 2])).toBe(false);
+    expect(needsTracks([], [], [1, 2])).toBe(false);
+    expect(needsTracks([5], [], [1, 2])).toBe(false);
+    expect(needsTracks(undefined, undefined, undefined)).toBe(false);
+    const receiver = fs.readFileSync(new URL('../web/cast/receiver.js', import.meta.url), 'utf8');
+    expect(receiver).toContain('restoreTracks();');
   });
 });
 
@@ -225,6 +236,40 @@ describe('the cast player saving where the TV is', () => {
     saver.finish(2712, 6000);
     await new Promise((resolve) => setTimeout(resolve));
     expect(sent.at(-1)?.body).toEqual({ positionSec: 2712, durationSec: 6000 });
+  });
+
+  it('sends the TV to the resume point again when it began before it, a few times', () => {
+    const saver = new ProgressSaver(() => undefined);
+    saver.start(item, 2700);
+    const seeks: Array<number | null> = [];
+    for (let second = 0; second < 30; second++) {
+      seeks.push(saver.startSeek(second));
+      saver.tick(second, 6000);
+    }
+    expect(seeks.filter((s) => s !== null)).toEqual(Array(START_TRIES).fill(2700));
+    // There already, or no resume point: left alone.
+    saver.start(item, 2700);
+    expect(saver.startSeek(2695)).toBeNull();
+    saver.start(item);
+    expect(saver.startSeek(0)).toBeNull();
+  });
+
+  it('saves once the TV played a minute elsewhere: it did not get to the resume point, or the viewer went back', async () => {
+    const sent: Array<{ body: unknown }> = [];
+    let clock = 0;
+    const saver = new ProgressSaver((_url, body) => sent.push({ body }), () => clock);
+    saver.start(item, 2700);
+    for (let second = 0; second < SETTLE_AFTER_SEC - 1; second++) {
+      clock += 1000;
+      saver.tick(second, 6000);
+    }
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(sent).toHaveLength(0);
+    clock += 1000;
+    saver.tick(SETTLE_AFTER_SEC, 6000);
+    saver.finish(SETTLE_AFTER_SEC + 5, 6000);
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(sent.at(-1)?.body).toEqual({ positionSec: SETTLE_AFTER_SEC + 5, durationSec: 6000 });
   });
 });
 

@@ -365,7 +365,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // ---------------------------------------------------------------- casting (Chromecast)
   const cast = useCast(
     file && item.data
-      ? { fileId: file.id, audioIndex: info?.file.id === file.id ? info.decision.audioIndex : null, optimizationId: info?.file.id === file.id ? info.decision.optimized?.id : undefined, title: item.data.title, subtitle: item.data.subtitle, posterPath: item.data.poster ?? item.data.backdrop, subtitleKey: subKey, subtitleStyle: { subtitleSize: prefs.subtitleSize, subtitleColor: prefs.subtitleColor, subtitleBackground: prefs.subtitleBackground, subtitleEdge: prefs.subtitleEdge, castSubtitleDefaults: prefs.castSubtitleDefaults }, locate: (target) => locateStart(file.id, target, info?.file.id === file.id ? info.decision.optimized?.id : undefined) }
+      ? { fileId: file.id, item: { kind: item.data.kind, id: item.data.id }, audioIndex: info?.file.id === file.id ? info.decision.audioIndex : null, optimizationId: info?.file.id === file.id ? info.decision.optimized?.id : undefined, title: item.data.title, subtitle: item.data.subtitle, posterPath: item.data.poster ?? item.data.backdrop, subtitleKey: subKey, subtitleStyle: { subtitleSize: prefs.subtitleSize, subtitleColor: prefs.subtitleColor, subtitleBackground: prefs.subtitleBackground, subtitleEdge: prefs.subtitleEdge, castSubtitleDefaults: prefs.castSubtitleDefaults }, locate: (target) => locateStart(file.id, target, info?.file.id === file.id ? info.decision.optimized?.id : undefined) }
       : null,
   );
   const castingRef = useRef(false);
@@ -624,11 +624,13 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [castHere, cast.tvAudioIndex]);
 
-  // A subtitle chosen on the TV (its remote): shown here too and remembered, as if chosen here.
+  // A subtitle chosen on the TV (its remote): shown here too and remembered, as if chosen here. "Off"
+  // from the TV is not taken: Google's framework reports it when it loses the track (loading, a
+  // seek), and taking it would forget the subtitle; turning it off is done here.
   useEffect(() => {
     if (!castHere || cast.tvSubtitleKey === undefined) return;
     if (!tvChanged('subtitle', cast.tvSubtitleKey) || cast.tvSubtitleKey === subKeyRef.current) return;
-    if (cast.tvSubtitleKey !== null && !subs.some((o) => o.key === cast.tvSubtitleKey)) return;
+    if (cast.tvSubtitleKey === null || !subs.some((o) => o.key === cast.tvSubtitleKey)) return;
     chooseSubtitle(cast.tvSubtitleKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [castHere, cast.tvSubtitleKey]);

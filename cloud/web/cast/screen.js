@@ -16,3 +16,13 @@ export function startOptions(UiConfig) {
   uiConfig.touchScreenOptimizedApp = true;
   return { uiConfig };
 }
+
+/**
+ * Whether the subtitle the sender asked for must be put back after loading: the framework can load an
+ * HLS title without it (and then reports "off", which the sender would take as a choice). Only tracks
+ * the title has; nothing when one is on already.
+ */
+export function needsTracks(wanted, active, available) {
+  const want = (wanted ?? []).filter((id) => (available ?? []).includes(id));
+  return want.length > 0 && (active ?? []).length === 0;
+}

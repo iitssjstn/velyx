@@ -434,6 +434,9 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return {
       token,
       expiresAt,
+      // Which server this is: a TV with the Vidalune app (Cast Connect) plays the title itself when it
+      // is signed in to this server.
+      serverId: ctx.settings.get().cloud?.serverId ?? null,
       directUrl: publicDirectUrl,
       serverUrl: publicDirectUrl || publicServerUrl,
       decision: castDecision,

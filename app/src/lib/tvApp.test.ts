@@ -9,7 +9,7 @@ interface Tag { $: Record<string, string> }
 interface Manifest {
   manifest: {
     'uses-feature'?: Tag[];
-    application: (Tag & { activity: (Tag & { 'intent-filter': { action: Tag[]; category?: Tag[] }[] })[] })[];
+    application: (Tag & { 'meta-data'?: Tag[]; activity: (Tag & { 'intent-filter': { action: Tag[]; category?: Tag[] }[] })[] })[];
   };
 }
 
@@ -35,6 +35,10 @@ describe('the app on Android TV / Google TV', () => {
   it('is in the plugins, so the TV launcher shows it', () => {
     const config = JSON.parse(readFileSync(new URL('../../app.json', import.meta.url), 'utf8')) as { expo: { plugins: unknown[] } };
     expect(config.expo.plugins).toContain('./plugins/withTv');
+    // Before react-native-google-cast: plugins' manifest changes run last to first, so the phone's cast
+    // options with Cast Connect replace that library's.
+    const cast = config.expo.plugins.findIndex((p) => Array.isArray(p) && p[0] === 'react-native-google-cast');
+    expect(config.expo.plugins.indexOf('./plugins/withTv')).toBeLessThan(cast);
   });
 
   it('starts from the TV launcher, needs no touchscreen and has a banner', () => {
@@ -51,9 +55,24 @@ describe('the app on Android TV / Google TV', () => {
     expect(view!.category).toBeUndefined();
   });
 
+  it('takes casts from a phone or browser into the app on the TV (Cast Connect)', () => {
+    const app = applyTv(manifest()).manifest.application[0]!;
+    const meta = Object.fromEntries((app['meta-data'] ?? []).map((t) => [t.$['android:name'], t.$['android:value']]));
+    expect(meta['com.google.android.gms.cast.tv.RECEIVER_OPTIONS_PROVIDER_CLASS_NAME']).toBe('app.vidalune.tv.VidaluneReceiverOptions');
+    // The phone's cast options with Cast Connect on, instead of react-native-google-cast's.
+    expect(meta['com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME']).toBe('app.vidalune.tv.VidaluneCastOptions');
+    const casts = app.activity[0]!['intent-filter'].slice(2);
+    expect(casts.map((f) => [names(f.action), names(f.category)])).toEqual([
+      [['com.google.android.gms.cast.tv.action.LAUNCH'], ['android.intent.category.DEFAULT']],
+      [['com.google.android.gms.cast.tv.action.LOAD'], ['android.intent.category.DEFAULT']],
+    ]);
+  });
+
   it('adds nothing twice when it runs again', () => {
     const m = applyTv(applyTv(manifest()));
     expect(m.manifest['uses-feature']).toHaveLength(2);
+    expect(m.manifest.application[0]!.activity[0]!['intent-filter']).toHaveLength(4);
+    expect(m.manifest.application[0]!['meta-data']).toHaveLength(2);
     expect(names(m.manifest.application[0]!.activity[0]!['intent-filter'][0]!.category)).toHaveLength(2);
   });
 

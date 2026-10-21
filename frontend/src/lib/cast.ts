@@ -51,7 +51,9 @@ export interface CastSession {
   contentType: string;
   decision: { engine: string; streamUrl: string; seek: 'range' | 'restart'; durationSec: number | null; optimized?: { id: number; profile: 'compat-720p' | 'compat-1080p' } };
   subtitles: CastSubtitle[];
-  }
+  /** The server's id at vidalune.com (null when not linked). */
+  serverId?: string | null;
+}
 
 /** The Chromecast must fetch media directly from the server; the account-site relay is never a media host. */
 export function castBase(origin: string, s: Pick<CastSession, 'directUrl' | 'serverUrl'>): string | null {
@@ -95,7 +97,8 @@ export function loadCastSdk(): Promise<any | null> {
       clearTimeout(timer);
       if (!ok || !w.cast?.framework) return resolve(null);
       const context = w.cast.framework.CastContext.getInstance();
-      context.setOptions({ receiverApplicationId: VIDALUNE_CAST_APP_ID, autoJoinPolicy: w.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED });
+      // A Google TV with the Vidalune app plays the title in the app itself (Cast Connect).
+      context.setOptions({ receiverApplicationId: VIDALUNE_CAST_APP_ID, autoJoinPolicy: w.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED, androidReceiverCompatible: true });
       resolve(w.cast.framework);
     };
     const s = document.createElement('script');
@@ -112,6 +115,8 @@ export function loadCastSdk(): Promise<any | null> {
 
 export interface CastItem {
   fileId: number;
+  /** The film or episode: a TV with the Vidalune app opens it itself (Cast Connect). */
+  item?: { kind: 'movie' | 'episode'; id: number };
   audioIndex: number | null;
   optimizationId?: number;
   title: string;
@@ -343,7 +348,8 @@ export function useCast(item: CastItem | null) {
       media.metadata = meta;
       media.duration = s.decision.durationSec ?? undefined;
       // Vidalune's cast player saves where the TV is itself, also with this page closed.
-      media.customData = { vidalune: { progressUrl: castUrl(base, '/api/cast/progress', s.token), offset: offset.current, durationSec: s.decision.durationSec, fileId: it.fileId, audioIndex } };
+      // The Vidalune app on a Google TV opens the title itself, on the same server (serverId, title, subtitle).
+      media.customData = { vidalune: { progressUrl: castUrl(base, '/api/cast/progress', s.token), offset: offset.current, durationSec: s.decision.durationSec, fileId: it.fileId, audioIndex, serverId: s.serverId ?? null, title: it.item ?? null, subtitleKey: subtitleKey.current } };
       media.tracks = s.subtitles.map((sub, i) => {
         const track = new chromeCast.media.Track(i + 1, chromeCast.media.TrackType.TEXT);
         // The same clock as the stream (a repackaged one counts from its start).

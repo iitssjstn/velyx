@@ -13,3 +13,11 @@ android {
     versionName '1.0.0'
   }
 }
+
+dependencies {
+  // Cast Connect (the app as receiver on a TV) and the phone's cast options; the framework version is
+  // the one react-native-google-cast uses (app.json).
+  implementation 'com.google.android.gms:play-services-cast-tv:21.1.1'
+  implementation 'com.google.android.gms:play-services-cast-framework:22.1.0'
+  implementation 'androidx.media:media:1.7.0'
+}

@@ -148,6 +148,13 @@ describe('cast button in the player', () => {
     castState.extra = { ...castState.extra, tvSubtitleKey: 'emb-2' };
     view.rerender(tree());
     await vi.waitFor(() => expect(getPrefs().subtitleLanguage).toBe('fr'));
+    // The TV then reports no subtitle (Google's framework lost the track while loading): not a choice,
+    // so the subtitle stays remembered.
+    castState.extra = { ...castState.extra, tvSubtitleKey: null };
+    view.rerender(tree());
+    await new Promise((r) => setTimeout(r, 50));
+    expect(getPrefs().subtitleLanguage).toBe('fr');
+    expect(castMedia?.subtitleKey).not.toBeNull();
     setPrefs({ subtitleLanguage: '', subtitleForced: false, subtitleLabel: '', audioLanguage: '' });
   });
 

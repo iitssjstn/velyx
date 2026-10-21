@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
+import { CastConnectListener } from '../components/CastConnect';
 import { CastStatusBar } from '../components/CastStatus';
 import { ConnectionBanner } from '../components/ConnectionBanner';
 import { LaunchSplash } from '../components/LaunchSplash';
@@ -64,6 +65,7 @@ export default function RootLayout() {
           </Stack>
           <ConnectionBanner />
           <CastStatusBar />
+          <CastConnectListener />
           <LaunchSplash />
         </ThemeProvider>
       </SessionProvider>
