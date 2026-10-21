@@ -25,6 +25,29 @@ describe('Vidalune account service', () => {
     await expect(cloud({ error: 'Sign in first.' }).servers('t'.repeat(43))).rejects.toMatchObject({ problem: 'signedOut' });
   });
 
+  it('signs a TV in with a code: asks for one, then asks with its secret until it was entered', async () => {
+    const calls: Array<{ url: string; body: unknown }> = [];
+    const answers = [
+      { code: 'K7F3-Q9MA', device: 'd'.repeat(43), url: 'https://vidalune.example/tv', expiresIn: 600, interval: 5 },
+      { pending: true },
+      { email: 'a@b.nl', token: 't'.repeat(43) },
+    ];
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      calls.push({ url, body: JSON.parse(String(init.body)) });
+      return new Response(JSON.stringify(answers.shift()), { status: 200 });
+    }) as unknown as typeof fetch;
+    const cloud = createCloud(fetchImpl, 'https://vidalune.example');
+    const code = await cloud.tvCode();
+    expect(await cloud.tvPoll(code.device)).toEqual({ pending: true });
+    expect(await cloud.tvPoll(code.device)).toEqual({ email: 'a@b.nl', token: 't'.repeat(43) });
+    expect(calls.map((c) => c.url)).toEqual(['https://vidalune.example/api/tv/code', 'https://vidalune.example/api/tv/poll', 'https://vidalune.example/api/tv/poll']);
+    expect(calls[1]!.body).toEqual({ device: 'd'.repeat(43) });
+  });
+
+  it('says when a TV code has expired', async () => {
+    await expect(createCloud(answer(410, { error: 'expired' }) as unknown as typeof fetch, 'https://vidalune.example').tvPoll('d'.repeat(43))).rejects.toMatchObject({ problem: 'expired' });
+  });
+
   it('signs in as the app and sends the token afterwards', async () => {
     const calls: Array<{ url: string; init: RequestInit }> = [];
     const fetchImpl = (async (url: string, init: RequestInit) => {

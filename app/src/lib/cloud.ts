@@ -1,4 +1,6 @@
 /** The Vidalune account service: signing in with a Vidalune account and listing its servers. */
+import type { TvCode } from './tvSignIn';
+
 export const CLOUD_URL = 'https://vidalune.com';
 
 /** Where the app keeps the Vidalune account it signed in with. */
@@ -64,7 +66,7 @@ export interface CloudPending {
 export const FORGOT_PASSWORD_URL = `${CLOUD_URL}/account?forgot`;
 
 /** What went wrong, for a message in the app's language. */
-export type CloudProblem = 'wrong' | 'wrongPassword' | 'exists' | 'invalid' | 'tooMany' | 'signedOut' | 'unreachable' | 'failed';
+export type CloudProblem = 'wrong' | 'wrongPassword' | 'exists' | 'invalid' | 'tooMany' | 'expired' | 'signedOut' | 'unreachable' | 'failed';
 
 export class CloudError extends Error {
   constructor(readonly problem: CloudProblem) {
@@ -73,7 +75,7 @@ export class CloudError extends Error {
 }
 
 const problemFor = (status: number): CloudProblem =>
-  status === 401 ? 'wrong' : status === 409 ? 'exists' : status === 400 ? 'invalid' : status === 429 ? 'tooMany' : 'failed';
+  status === 401 ? 'wrong' : status === 409 ? 'exists' : status === 400 ? 'invalid' : status === 410 ? 'expired' : status === 429 ? 'tooMany' : 'failed';
 
 export function createCloud(fetchImpl: typeof fetch = fetch, baseUrl = CLOUD_URL, timeoutMs = 15_000) {
   async function request<T>(method: string, path: string, token: string | null, body?: unknown): Promise<T> {
@@ -112,6 +114,10 @@ export function createCloud(fetchImpl: typeof fetch = fetch, baseUrl = CLOUD_URL
     /** The Vidalune account's password (the one the app signs in with); its other sessions are signed out. */
     changePassword: (token: string, current: string, password: string, lang: 'en' | 'nl' = 'en') =>
       request<{ ok: true }>('POST', '/api/account/password', token, { current, password, lang }),
+    /** On a TV: a code to show, entered on vidalune.com/tv by someone signed in (lib/tvSignIn.ts). */
+    tvCode: () => request<TvCode>('POST', '/api/tv/code', null, {}),
+    /** Whether the code was entered: then the account, else still waiting ('expired' when it ran out). */
+    tvPoll: (device: string) => request<CloudAccount | { pending: true }>('POST', '/api/tv/poll', null, { device }),
   };
 }
 

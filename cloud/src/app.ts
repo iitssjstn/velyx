@@ -86,6 +86,9 @@ const APP_SESSION_DAYS = 180;
 const CODE_MINUTES = 10;
 /** A ticket to open a server is used within a minute (the browser goes there right away). */
 const TICKET_MS = 60_000;
+/** How long a code for signing in on a TV works, and how often the TV asks. */
+const TV_CODE_MS = 10 * 60_000;
+const TV_POLL_SECONDS = 5;
 /** A server's own id for one of its users. */
 const userRef = z.string().trim().min(1).max(64);
 /** A server's own id for an invitation; accepted, it stands in for the user until the server makes one. */
@@ -693,6 +696,58 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     if (!h || h.expiresAt < now()) return reply.redirect(`${APP_PREFIX}/`);
     startSession(reply, h.accountId, 'web');
     return reply.redirect(`${APP_PREFIX}/open?server=${encodeURIComponent(h.serverId)}`);
+  });
+
+  /**
+   * Signing in the app on a TV (Android TV / Google TV) with a code, without typing a password with
+   * the remote: the TV asks for a code and shows it, someone signed in on vidalune.com (phone or
+   * computer) enters it on /tv, and the TV, asking every few seconds with its own secret, then gets
+   * a session of that account. Kept in memory for ten minutes (a restart only means a new code).
+   */
+  const tvCodes = new Map<string, { deviceHash: string; accountId: number | null; expiresAt: number }>();
+  const tvPollLimiter = new RateLimiter(30, 60_000);
+  const tvCodeFor = (deviceHash: string) => [...tvCodes].find(([, v]) => v.deviceHash === deviceHash);
+  app.post('/api/tv/code', async (request) => {
+    limiter.check(`tv-code:${request.ip}`, now());
+    z.object({ lang }).parse(request.body ?? {});
+    const t = now();
+    for (const [k, v] of tvCodes) if (v.expiresAt < t) tvCodes.delete(k);
+    if (tvCodes.size > 10_000) throw new HttpError(503, 'Too many codes right now. Try again in a minute.');
+    let code = newLinkCode();
+    while (tvCodes.has(code)) code = newLinkCode();
+    const device = newToken();
+    tvCodes.set(code, { deviceHash: sha256(device), accountId: null, expiresAt: t + TV_CODE_MS });
+    return { code, device, url: `${config.publicUrl}/tv`, expiresIn: TV_CODE_MS / 1000, interval: TV_POLL_SECONDS };
+  });
+
+  /** On vidalune.com, signed in: the code shown on the TV. That TV gets this account. */
+  app.post('/api/tv/confirm', async (request) => {
+    const me = account(request);
+    limiter.check(`tv-confirm:${me.id}`, now());
+    limiter.check(`tv-confirm:${request.ip}`, now());
+    const code = normalizeLinkCode(z.object({ code: z.string().max(32) }).parse(request.body).code);
+    const entry = code ? tvCodes.get(code) : undefined;
+    if (!entry || entry.expiresAt < now() || entry.accountId !== null) throw new HttpError(400, 'This code does not work (any more). Check the code on the TV.');
+    entry.accountId = me.id;
+    return { ok: true };
+  });
+
+  /** The TV, every few seconds with its secret: still waiting, or signed in (once). */
+  app.post('/api/tv/poll', async (request, reply) => {
+    tvPollLimiter.check(`tv-poll:${request.ip}`, now());
+    const { device } = z.object({ device: z.string().min(20).max(200) }).parse(request.body);
+    const found = tvCodeFor(sha256(device));
+    if (!found || found[1].expiresAt < now()) {
+      if (found) tvCodes.delete(found[0]);
+      return reply.code(410).send({ error: 'This code has expired. Ask for a new one.' });
+    }
+    const [code, entry] = found;
+    if (entry.accountId === null) return { pending: true };
+    tvCodes.delete(code);
+    const a = db.select().from(accounts).where(eq(accounts.id, entry.accountId)).get();
+    if (!a || a.suspendedAt !== null) return reply.code(410).send({ error: 'This code has expired. Ask for a new one.' });
+    const token = startSession(reply, a.id, 'app');
+    return { email: a.email, token };
   });
 
   /** Deleting an account signs out everywhere and unlinks its servers. */
@@ -1404,6 +1459,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     app.get('/verify', page);
     app.get('/reset', page);
     app.get('/email', page);
+    app.get('/tv', page);
     // The Control Center: the page for everyone, its data only for the CEO and administrators
     // (checked by /api/ceo on every call). /ceo was its address before.
     app.get('/admin', (_req, reply) => reply.type('text/html').header('Cache-Control', 'no-cache').send(fs.readFileSync(path.join(webDir, 'ceo.html'))));

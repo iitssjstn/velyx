@@ -1811,17 +1811,21 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   Ondertitels/Audio, kaart "Volgende aflevering", Terug sluit en verlaat daarna de speler. Scherm `TvPlayer.tsx`.
 - Bladeren: `FocusPressable` (`ui.tsx`, rand in accentkleur bij focus) op kaarten, knoppen, links en tabbladen; op de tv
   staan de tabbladen links. Geen castknop op de tv; de oriëntatie wordt op de tv nooit vastgezet.
-- Eigenaar (21 okt) over inloggen met een code: "Ja de optie met code is wel heel slim". Voorstel: de tv vraagt bij
-  vidalune.com een korte code (bv. 8 tekens, 10 minuten geldig) en toont die met het adres vidalune.com/tv (en een
-  QR-code); op de telefoon of computer, al ingelogd, de code invullen en bevestigen; de tv vraagt elke paar seconden of de
-  code bevestigd is en krijgt dan een eigen sessie van het Vidalune-account. Nieuw in de accountservice (Zod, limiet op
-  pogingen, eenmalig, alleen de hash bewaard) en in de app. Wacht op het besluit: in 0.19.84 of als 0.19.85.
-- Niet in deze versie: inloggen met een code (nu e-mail en wachtwoord met het schermtoetsenbord), grotere 10-foot-lay-out
+- **Inloggen met een code en QR-code** (eigenaar 21 okt: "Ja de optie met code is wel heel slim", "Nog in 0.19.84",
+  "Code is alleen bedoelt voor de chromecast app", "Kan het ook met een QR-code?"). Alleen op de tv; de telefoon logt in
+  zoals voorheen. Accountservice: `POST /api/tv/code` (code via `newLinkCode`, 10 minuten, eigen geheim voor de tv),
+  `POST /api/tv/confirm` (ingelogd, limiet 10 per minuut per account en IP) en `POST /api/tv/poll` (wachten, of eenmalig
+  een app-sessie; 410 als verlopen). In het geheugen, net als `handoffs`: na een herstart gewoon een nieuwe code. Pagina
+  vidalune.com/tv (`account.js`, eerst inloggen, code staat al ingevuld via de QR-code `…/tv#CODE`). App:
+  `TvCodeSignIn.tsx` (code, QR met `qrcode-generator` 2.0.4, elke 5 s navragen, verlopen → nieuwe code), met "Toch
+  inloggen met e-mail en wachtwoord". Tests: cloud `tv-sign-in.test.ts` (6: eenmalige sessie, alleen na bevestigen, fout/
+  gebruikt/verlopen, geschorst account, limiet, pagina), app `tvSignIn.test.ts` en `cloud.test.ts` (aanroepen, verlopen).
+- Niet in deze versie: grotere 10-foot-lay-out
   van de andere schermen, Play Store voor tv. README bijgewerkt.
 - Tests: `tvRemote.test.ts` (toetscodes, knoppen, rij, menu, overslaan, volgende aflevering, Terug, streepjes) en
-  `tvApp.test.ts` (manifest, geen dubbele regels, plugin in app.json, bannermaat). App 194 tests, alle typechecks en de
-  versietests slagen; `expo prebuild` geeft het juiste manifest en koppelt de nieuwe module.
+  `tvApp.test.ts` (manifest, geen dubbele regels, plugin in app.json, bannermaat). App 199 en cloud 199 tests, alle
+  typechecks, lint (4 bekende waarschuwingen) en de versietests slagen; `expo prebuild` geeft het juiste manifest en koppelt de nieuwe module.
 - Niet hier te testen: de Kotlin-code (geen Android SDK; daarom de APK op de branch laten bouwen) en alles op een echte
-  Chromecast met Google TV. Door de eigenaar te testen: APK installeren, Vidalune op het startscherm, inloggen, met de
+  Chromecast met Google TV. Door de eigenaar te testen (accountservice bijwerken voor de code): APK installeren, Vidalune op het startscherm, inloggen met de QR-code, met de
   pijltjes een titel openen, afspelen, spoelen, ondertitels en audio kiezen, een serie tot de aftiteling, Terug.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1984) en beide lockfiles bijgewerkt.
