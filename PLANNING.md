@@ -317,7 +317,10 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
     Nu telt alleen een wissel na de eerste melding per bestand (`tvChanged`). Daarnaast kreeg de tv bij een titel die
     tijdens het casten opent geen ondertitel mee: de website koos die pas als de eigen video laadde. Nu meteen
     (`pickStartSubtitle`); de cast wacht daarop. Tests falen op de oude code.
-  - Twee spelers: nog open; navragen bij welke knop of handeling Google's speler verschijnt.
+  - Twee spelers: eigenaar (21 okt): Google's bediening staat er elke keer, met de eigen speler eronder. Het
+    framework tekende zijn eigen bediening over de pagina; nu start de tv met `uiConfig.touchScreenOptimizedApp`
+    (`startOptions` in `screen.js`), wat het framework zegt dat de pagina eigen bediening heeft. Niet hier op een
+    echte Chromecast te testen; blijft Google's balk staan, dan komt die van Google TV zelf.
 
 - **Voorbeeldbeeld bij het spoelen** (vraag eigenaar 20 okt: bij de muis boven de tijdlijn geen beeld; nog niet bouwen
   tot hij het zegt; na zijn tegoed-reset). Server: per bestand kleine plaatjes (bv. elke 10 s, 240 px breed) in

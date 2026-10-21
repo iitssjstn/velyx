@@ -9,7 +9,7 @@ import { buildCloudApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
 import { ProgressSaver, progressReport, progressTarget, SAVE_EVERY_MS, START_SLACK_SEC } from '../web/cast/progress.js';
-import { showsSplash } from '../web/cast/screen.js';
+import { showsSplash, startOptions } from '../web/cast/screen.js';
 import { barVisible, cssColor, cueCss, fileTimes, formatTime, SHOW_FOR_MS } from '../web/cast/overlay.js';
 import { castStyle, castUrl, controlsFor, cycleStyle, DEFAULT_TV_STYLE, initialState, keyOf, loadRequestFor, press, segmentMarks, serverOf, skipAt, tabsFor, tvStyleFrom, upNextStart, words, type RemoteState } from '../web/cast/remote.js';
 
@@ -93,6 +93,13 @@ describe('the cast player\'s own screen', () => {
   it('covers Google\'s white screen until the TV plays', () => {
     for (const state of ['IDLE', 'LOADING', undefined, null]) expect(showsSplash(state), String(state)).toBe(true);
     for (const state of ['PLAYING', 'PAUSED', 'BUFFERING']) expect(showsSplash(state), state).toBe(false);
+  });
+
+  it('starts Google\'s framework without its own controls over Vidalune\'s', () => {
+    class UiConfig { touchScreenOptimizedApp?: boolean; }
+    expect(startOptions(UiConfig).uiConfig).toEqual({ touchScreenOptimizedApp: true });
+    const receiver = fs.readFileSync(new URL('../web/cast/receiver.js', import.meta.url), 'utf8');
+    expect(receiver).toContain('context.start(startOptions(cast.framework.ui.UiConfig));');
   });
 });
 

@@ -58,8 +58,8 @@ Daarna kiest de eigenaar tussen de app op de Chromecast met Google TV en het voo
 
 ## 6. Specific next steps
 
-1. Vraag de eigenaar kort: wanneer verschijnt Google's speler? Na welke knop of handeling, en vanaf de app, de website of Google Home? Welke versie van de accountservice draaide toen?
-2. Kan het antwoord met een kleine fix opgelost worden, bouw die dan. Zo niet, laat punt 1 open in de planning.
+1. Twee spelers: de eigenaar meldt dat Google's bediening er elke keer staat, met de eigen speler eronder. Gebouwd: `context.start(startOptions(...))` met `uiConfig.touchScreenOptimizedApp = true` (`cloud/web/cast/screen.js`), plus test; cloud 193 tests slagen. Op de echte tv te bevestigen.
+2. Blijft Google's balk daarna staan, dan tekent Google TV hem zelf: dan onze eigen balk verbergen als `cast.framework.ui.Controls.getInstance().hasMediaControlsOverlay()` waar is (staat niet in de typen 6.0.27, eerst controleren).
 3. Hoog de versie op naar 0.19.83:
    - alle `package.json`'s;
    - `app/app.json`: `version` en `versionCode` 1983;
