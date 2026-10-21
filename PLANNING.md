@@ -1811,6 +1811,11 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   Ondertitels/Audio, kaart "Volgende aflevering", Terug sluit en verlaat daarna de speler. Scherm `TvPlayer.tsx`.
 - Bladeren: `FocusPressable` (`ui.tsx`, rand in accentkleur bij focus) op kaarten, knoppen, links en tabbladen; op de tv
   staan de tabbladen links. Geen castknop op de tv; de oriëntatie wordt op de tv nooit vastgezet.
+- Eigenaar (21 okt) over inloggen met een code: "Ja de optie met code is wel heel slim". Voorstel: de tv vraagt bij
+  vidalune.com een korte code (bv. 8 tekens, 10 minuten geldig) en toont die met het adres vidalune.com/tv (en een
+  QR-code); op de telefoon of computer, al ingelogd, de code invullen en bevestigen; de tv vraagt elke paar seconden of de
+  code bevestigd is en krijgt dan een eigen sessie van het Vidalune-account. Nieuw in de accountservice (Zod, limiet op
+  pogingen, eenmalig, alleen de hash bewaard) en in de app. Wacht op het besluit: in 0.19.84 of als 0.19.85.
 - Niet in deze versie: inloggen met een code (nu e-mail en wachtwoord met het schermtoetsenbord), grotere 10-foot-lay-out
   van de andere schermen, Play Store voor tv. README bijgewerkt.
 - Tests: `tvRemote.test.ts` (toetscodes, knoppen, rij, menu, overslaan, volgende aflevering, Terug, streepjes) en
