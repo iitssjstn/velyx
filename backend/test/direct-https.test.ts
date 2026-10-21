@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { DirectHttpsService } from '../src/services/direct-https.js';
+import { DirectHttpsService, servesDirect } from '../src/services/direct-https.js';
 import type { CloudService } from '../src/services/cloud.js';
 
 let dir: string;
@@ -36,5 +36,16 @@ describe('direct HTTPS certificate request', () => {
     expect(requests[1]).toBe(requests[0]);
     expect(fs.existsSync(path.join(dir, 'direct-access', 'tls.key'))).toBe(true);
     expect(fs.existsSync(path.join(dir, 'direct-access', 'tls.crt'))).toBe(false);
+  });
+});
+
+describe('what the direct port answers', () => {
+  it('serves what a cast opens, also the poster the TV shows, and nothing else', () => {
+    expect(servesDirect('/api/media/3/hls/index.m3u8')).toBe(true);
+    expect(servesDirect('/api/subtitles/4.vtt')).toBe(true);
+    expect(servesDirect('/api/images/w342/abc.jpg')).toBe(true);
+    expect(servesDirect('/api/cast/progress')).toBe(true);
+    expect(servesDirect('/api/movies/3')).toBe(false);
+    expect(servesDirect('/api/auth/login')).toBe(false);
   });
 });

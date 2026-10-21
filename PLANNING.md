@@ -309,6 +309,15 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   2. In de eigen speler is de poster linksonder een kapot plaatje (afbeelding laadt niet op de tv).
   3. Bij hervatten van een serie worden ondertitel en audiospoor niet onthouden (ook na 0.19.81 nog te controleren
      welke versie draaide).
+  Controleronde 21 okt (op verzoek eigenaar: "Je kan nu alvast beginnen"), op de branch voor 0.19.83:
+  - Poster: de directe HTTPS-poort weigerde plaatjes (404 voor `/api/images/...`, `direct-https.ts`), en de tv haalt
+    de poster via dat adres. Nu toegestaan met het cast-token (`servesDirect`); de tv laat een poster die niet laadt weg.
+  - Keuzes vergeten: website en app namen elke melding van de tv over als keuze en onthielden die, ook de eerste
+    direct na het laden (geen ondertitel, of het standaardspoor van de tv). Daarmee werd de voorkeur overschreven.
+    Nu telt alleen een wissel na de eerste melding per bestand (`tvChanged`). Daarnaast kreeg de tv bij een titel die
+    tijdens het casten opent geen ondertitel mee: de website koos die pas als de eigen video laadde. Nu meteen
+    (`pickStartSubtitle`); de cast wacht daarop. Tests falen op de oude code.
+  - Twee spelers: nog open; navragen bij welke knop of handeling Google's speler verschijnt.
 
 - **Voorbeeldbeeld bij het spoelen** (vraag eigenaar 20 okt: bij de muis boven de tijdlijn geen beeld; nog niet bouwen
   tot hij het zegt; na zijn tegoed-reset). Server: per bestand kleine plaatjes (bv. elke 10 s, 240 px breed) in

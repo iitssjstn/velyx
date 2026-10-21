@@ -3,14 +3,16 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Player from './Player';
+import { getPrefs, setPrefs } from '../lib/prefs';
 
 // A browser that can cast, before any Chromecast was found.
 const start = vi.fn(async (_at: number) => undefined);
 const castState: { connecting: boolean; extra: Record<string, unknown> } = { connecting: false, extra: {} };
 const reload = vi.fn(async (_at: number) => undefined);
+let castMedia: { subtitleKey?: string | null } | null = null;
 vi.mock('../lib/cast', async (original) => ({
   ...(await original<typeof import('../lib/cast')>()),
-  useCast: () => ({
+  useCast: (media: { subtitleKey?: string | null } | null) => (castMedia = media, {
     supported: true, available: false, connecting: castState.connecting, settled: false, active: false, fileId: null, device: null, time: 0, playing: false, volume: 1, muted: false, error: null,
     start, stop: vi.fn(), togglePlay: vi.fn(), seek: vi.fn(), setVolume: vi.fn(), toggleMute: vi.fn(), setAudio: vi.fn(), setSubtitle: vi.fn(), reload, tvItem: null,
     ...castState.extra,
@@ -97,6 +99,56 @@ describe('cast button in the player', () => {
     await screen.findAllByText('Test Film');
     await vi.waitFor(() => expect(onPlayItem).toHaveBeenCalledWith('episode', 42));
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('gives the TV the subtitle chosen before when a title opens while casting (the video here never loads)', async () => {
+    castState.extra = { active: true, fileId: 9, settled: true, tvItem: null };
+    setPrefs({ subtitleLanguage: 'en', subtitleForced: false, subtitleLabel: '' });
+    const sub = { key: 'emb-2', kind: 'embedded', label: 'English', language: 'eng', forced: false, isDefault: false, url: '/api/media/3/subtitles/2.vtt' };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url === '/api/movies/3' ? MOVIE : url === '/api/media/3/playback' ? { ...PLAYBACK, subtitles: [sub] } : url === '/api/account/preferences' ? { audioLanguage: '', subtitleLanguage: '', subtitleFallback: '', subtitleMode: 'remember' } : {};
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    renderPlayer('?t=0');
+    await vi.waitFor(() => expect(reload).toHaveBeenCalled());
+    expect(castMedia?.subtitleKey).toBe('emb-2');
+    setPrefs({ subtitleLanguage: '', subtitleForced: false, subtitleLabel: '' });
+  });
+
+  it('keeps the remembered subtitle and audio when the TV first reports what it was given, and takes a change made on the TV', async () => {
+    castState.extra = { active: true, fileId: 3, settled: true, tvItem: null, tvSubtitleKey: null, tvAudioIndex: 1 };
+    setPrefs({ subtitleLanguage: 'en', subtitleForced: false, subtitleLabel: '', audioLanguage: 'eng' });
+    const eng = { key: 'emb-1', kind: 'embedded', label: 'English', language: 'eng', forced: false, isDefault: false, url: '/api/media/3/subtitles/1.vtt' };
+    const sub = { key: 'emb-2', kind: 'embedded', label: 'Français', language: 'fre', forced: false, isDefault: false, url: '/api/media/3/subtitles/2.vtt' };
+    const ita = { ...PLAYBACK.file.audioTracks[0], index: 1, language: 'ita' };
+    const movie = { ...MOVIE, files: [{ ...MOVIE.files[0], audioTracks: [ita] }] };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url === '/api/movies/3' ? movie : url === '/api/media/3/playback' ? { ...PLAYBACK, file: { ...PLAYBACK.file, audioTracks: [ita] }, subtitles: [eng, sub] } : url === '/api/account/preferences' ? { audioLanguage: '', subtitleLanguage: '', subtitleFallback: '', subtitleMode: 'remember' } : {};
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    const tree = () => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <Player kind="movie" id={3} search="?t=0" mini={false} onMinimize={() => undefined} onRestore={() => undefined} onClose={() => undefined} onPlayItem={() => undefined} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(tree());
+    await screen.findAllByText('Test Film');
+    await new Promise((r) => setTimeout(r, 50));
+    // English is picked here; the TV first reports no subtitle and its default (Italian) track: not a
+    // choice made there.
+    await vi.waitFor(() => expect(castMedia?.subtitleKey).toBe('emb-1'));
+    expect(getPrefs().subtitleLanguage).toBe('en');
+    expect(getPrefs().audioLanguage).toBe('eng');
+    // Then the viewer picks French on the TV: that is remembered.
+    castState.extra = { ...castState.extra, tvSubtitleKey: 'emb-2' };
+    view.rerender(tree());
+    await vi.waitFor(() => expect(getPrefs().subtitleLanguage).toBe('fr'));
+    setPrefs({ subtitleLanguage: '', subtitleForced: false, subtitleLabel: '', audioLanguage: '' });
   });
 
   it('still gives the TV another title chosen here while casting', async () => {

@@ -236,3 +236,16 @@ export function followTv(before: number | null, tv: ReturnType<typeof tvMedia>, 
   if (!tv?.item || tv.fileId === fileId || before !== fileId) return null;
   return tv.item;
 }
+
+/** What the TV reported last for one file (its audio track and subtitle). */
+export type TvSeen = { fileId: number; audio?: number | null; subtitle?: string | null };
+
+/**
+ * Whether the TV changed its audio track or subtitle itself: its first report for a file is what it
+ * was given (or its default), not a choice made there, so only a change after that counts.
+ */
+export function tvChanged(seen: { current: TvSeen | null }, fileId: number, field: 'audio' | 'subtitle', value: number | string | null): boolean {
+  const before: TvSeen = seen.current?.fileId === fileId ? seen.current : { fileId };
+  seen.current = { ...before, [field]: value };
+  return field in before && before[field] !== value;
+}

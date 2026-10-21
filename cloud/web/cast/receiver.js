@@ -92,6 +92,9 @@ const applyStyle = (style) => {
 // Until a sender says otherwise: white letters with a shadow, no black box.
 applyStyle(tvStyle ? castStyle(tvStyle) : {});
 
+// A poster that does not load is left out (no broken image in the bar).
+$('poster').addEventListener('error', () => $('poster').removeAttribute('src'));
+
 /** The title, the line above it and the poster, from what was loaded. */
 const showTitle = (metadata) => {
   const title = typeof metadata?.title === 'string' ? metadata.title : '';

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SUBTITLE_STYLE } from './subtitleStyle';
-import { applyCastTextTrackStyle, castAddress, castLoadRequest, castTextTrackStyle, castTrackIds, loadCastWithCurrentSubtitle, openCastDialog, sessionUsable, tvFilePosition, followTv, tvMedia, tvSubtitleKey, type CastSession } from './cast';
+import { applyCastTextTrackStyle, castAddress, castLoadRequest, castTextTrackStyle, castTrackIds, loadCastWithCurrentSubtitle, openCastDialog, sessionUsable, tvFilePosition, followTv, tvMedia, tvSubtitleKey, tvChanged, type CastSession, type TvSeen } from './cast';
 
 const url = (path: string) => `http://nas:3000${path.startsWith('/') ? path : `/${path}`}`;
 const session = (seek: 'range' | 'restart'): CastSession => ({
@@ -263,5 +263,18 @@ describe('following Vidalune\'s TV player', () => {
     // This screen's own title, or one the app or website loaded (no title in it).
     expect(followTv(5, { fileId: 5, item: { kind: 'episode', id: 41 }, audioIndex: null }, 5)).toBeNull();
     expect(followTv(5, { fileId: 6, item: null, audioIndex: null }, 5)).toBeNull();
+  });
+});
+
+describe('a choice made on the TV', () => {
+  it('is only a change after the first report for a file (that is what the TV was given)', () => {
+    const seen: { current: TvSeen | null } = { current: null };
+    expect(tvChanged(seen, 5, 'subtitle', null)).toBe(false);
+    expect(tvChanged(seen, 5, 'subtitle', null)).toBe(false);
+    expect(tvChanged(seen, 5, 'subtitle', 'emb-2')).toBe(true);
+    expect(tvChanged(seen, 5, 'audio', 1)).toBe(false);
+    expect(tvChanged(seen, 5, 'audio', 2)).toBe(true);
+    // Another file starts over.
+    expect(tvChanged(seen, 6, 'subtitle', 'emb-3')).toBe(false);
   });
 });

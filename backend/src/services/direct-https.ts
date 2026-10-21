@@ -33,6 +33,14 @@ const FORWARDED_HEADERS = [
 class CertificatePending extends Error {}
 
 /** HTTPS media-only listener on the forwarded TCP port; TLS keys stay in the server data directory. */
+/**
+ * What the direct HTTPS port answers (always with a cast token): only what a cast may open, also its
+ * artwork (the TV shows the poster from this same address).
+ */
+export function servesDirect(pathname: string): boolean {
+  return castPath(pathname) !== null;
+}
+
 export class DirectHttpsService {
   private listener: https.Server | null = null;
   private hostname: string | null = null;
@@ -205,8 +213,7 @@ export class DirectHttpsService {
       for (const header of FORWARDED_HEADERS) delete request.headers[header];
       delete request.headers.cookie;
       delete request.headers.authorization;
-      const target = castPath(directUrl.pathname);
-      if (!target || target === 'image') {
+      if (!servesDirect(directUrl.pathname)) {
         reply.writeHead(404).end();
         return;
       }

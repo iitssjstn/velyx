@@ -17,7 +17,7 @@ import { SeekBar } from '../../../components/SeekBar';
 import { castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
 import { castSettled, castStartAt, castStatus } from '../../../lib/castStatus';
-import { applyCastTextTrackStyle, castLoadRequest, castTrackIds, followTv, loadCastWithCurrentSubtitle, sessionUsable, tvFilePosition, tvMedia, tvSubtitleKey, type CastSession } from '../../../lib/cast';
+import { applyCastTextTrackStyle, castLoadRequest, castTrackIds, followTv, loadCastWithCurrentSubtitle, sessionUsable, tvChanged, tvFilePosition, tvMedia, tvSubtitleKey, type CastSession, type TvSeen } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
@@ -604,12 +604,15 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
     // When the choice here changes only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [casting, client, subtitle]);
-  // A subtitle chosen on the TV (its remote): shown here and remembered, as if chosen here.
+  // A subtitle chosen on the TV (its remote): shown here and remembered, as if chosen here. Its first
+  // report for a title is what it was given, not a choice (see tvChanged).
+  const tvSeen = useRef<TvSeen | null>(null);
   useEffect(() => {
     if (!casting || !answer || castLoading.current || tvFile.current !== item.fileId) return;
     const key = tvSubtitleKey(mediaStatus?.activeTrackIds, castSession.current?.session ?? null);
     const sent = subtitleSent.current;
     if (key === undefined || (sent && key !== sent.key && Date.now() < sent.until)) return;
+    if (!tvChanged(tvSeen, item.fileId, 'subtitle', key)) return;
     subtitleSent.current = null;
     if (key === (subtitleRef.current?.key ?? null)) return;
     const option = key === null ? null : answer.subtitles.find((o) => o.key === key);
@@ -627,7 +630,7 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
     const next = casting && !castLoading.current ? followTv(before, tv, item.fileId) : null;
     if (next) router.replace(`/play/${next.kind}/${next.id}?tv=1`);
     // An audio track chosen on the TV (its menu) is remembered for the next title too.
-    else if (casting && tv?.fileId === item.fileId && tv.audioIndex !== null && tv.audioIndex !== audioIndex) {
+    else if (casting && tv?.fileId === item.fileId && tv.audioIndex !== null && tvChanged(tvSeen, item.fileId, 'audio', tv.audioIndex) && tv.audioIndex !== audioIndex) {
       const track = answer?.file.audioTracks.find((x) => x.index === tv.audioIndex);
       if (track) void rememberAudio(track.language);
     }
