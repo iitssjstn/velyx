@@ -28,7 +28,7 @@ describe('Vidalune account service', () => {
   it('signs a TV in with a code: asks for one, then asks with its secret until it was entered', async () => {
     const calls: Array<{ url: string; body: unknown }> = [];
     const answers = [
-      { code: 'K7F3-Q9MA', device: 'd'.repeat(43), url: 'https://vidalune.example/tv', expiresIn: 600, interval: 5 },
+      { code: 'K7F3-Q9MA', check: '4271', device: 'd'.repeat(43), url: 'https://vidalune.example/tv', expiresIn: 600, interval: 5 },
       { pending: true },
       { email: 'a@b.nl', token: 't'.repeat(43) },
     ];

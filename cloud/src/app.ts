@@ -89,6 +89,29 @@ const TICKET_MS = 60_000;
 /** How long a code for signing in on a TV works, and how often the TV asks. */
 const TV_CODE_MS = 10 * 60_000;
 const TV_POLL_SECONDS = 5;
+/** Wrong check codes before a code for a TV stops working. */
+const TV_CHECK_TRIES = 3;
+
+/**
+ * Whether two visitors come from the same network as vidalune.com sees it: the same IPv4 address
+ * (one router at home), or the same IPv6 /64.
+ */
+export function sameNetwork(a: string, b: string): boolean {
+  const v4 = (ip: string) => ip.replace(/^::ffff:/i, '');
+  if (isIP(v4(a)) === 4 || isIP(v4(b)) === 4) return v4(a) === v4(b);
+  const prefix = (ip: string) => expandIpv6(ip)?.slice(0, 4).join(':');
+  return isIP(a) === 6 && isIP(b) === 6 && prefix(a) === prefix(b);
+}
+
+/** The eight groups of an IPv6 address, written out ("2001:db8::1" → 2001, db8, 0, …, 1). */
+function expandIpv6(ip: string): string[] | null {
+  const [head, tail] = ip.split('%')[0]!.split('::') as [string, string?];
+  const left = head ? head.split(':') : [];
+  const right = tail !== undefined && tail !== '' ? tail.split(':') : [];
+  const fill = tail === undefined ? 0 : 8 - left.length - right.length;
+  const groups = [...left, ...Array<string>(Math.max(0, fill)).fill('0'), ...right].map((g) => g.toLowerCase().replace(/^0+(?=.)/, ''));
+  return groups.length === 8 ? groups : null;
+}
 /** A server's own id for one of its users. */
 const userRef = z.string().trim().min(1).max(64);
 /** A server's own id for an invitation; accepted, it stands in for the user until the server makes one. */
@@ -700,13 +723,30 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   /**
    * Signing in the app on a TV (Android TV / Google TV) with a code, without typing a password with
-   * the remote: the TV asks for a code and shows it, someone signed in on vidalune.com (phone or
-   * computer) enters it on /tv, and the TV, asking every few seconds with its own secret, then gets
-   * a session of that account. Kept in memory for ten minutes (a restart only means a new code).
+   * the remote: the TV asks for a code and shows it (with a QR code of vidalune.com/tv#CODE), someone
+   * signed in on vidalune.com enters it on /tv, and the TV, asking every few seconds with its own
+   * secret, then gets a session of that account. Kept in memory for ten minutes (a restart only means
+   * a new code).
+   *
+   * Anyone can ask for a code, so a code from a link or QR code someone else sent must not sign their
+   * device in with one click ("device code phishing"): the page warns and asks to confirm, and from
+   * another network than the TV's it also asks for the check code that only the TV shows (not in the
+   * QR code). Three wrong check codes end the code. The account gets an email when a TV signed in.
    */
-  const tvCodes = new Map<string, { deviceHash: string; accountId: number | null; expiresAt: number }>();
+  const tvCodes = new Map<string, { deviceHash: string; accountId: number | null; expiresAt: number; ip: string; check: string; wrongChecks: number }>();
   const tvPollLimiter = new RateLimiter(30, 60_000);
   const tvCodeFor = (deviceHash: string) => [...tvCodes].find(([, v]) => v.deviceHash === deviceHash);
+  /** A code entered on /tv that can still be confirmed, else an error that says it does not work. */
+  const openTvCode = (request: FastifyRequest, accountId: number, input: string) => {
+    limiter.check(`tv-confirm:${accountId}`, now());
+    limiter.check(`tv-confirm:${request.ip}`, now());
+    const code = normalizeLinkCode(input);
+    const entry = code ? tvCodes.get(code) : undefined;
+    if (!entry || entry.expiresAt < now() || entry.accountId !== null) throw new HttpError(400, 'This code does not work (any more). Check the code on the TV.');
+    return { code, entry, sameNetwork: sameNetwork(entry.ip, request.ip) };
+  };
+  const tvCodeInput = z.object({ code: z.string().max(32) });
+
   app.post('/api/tv/code', async (request) => {
     limiter.check(`tv-code:${request.ip}`, now());
     z.object({ lang }).parse(request.body ?? {});
@@ -716,19 +756,30 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     let code = newLinkCode();
     while (tvCodes.has(code)) code = newLinkCode();
     const device = newToken();
-    tvCodes.set(code, { deviceHash: sha256(device), accountId: null, expiresAt: t + TV_CODE_MS });
-    return { code, device, url: `${config.publicUrl}/tv`, expiresIn: TV_CODE_MS / 1000, interval: TV_POLL_SECONDS };
+    const check = String(crypto.randomInt(10_000)).padStart(4, '0');
+    tvCodes.set(code, { deviceHash: sha256(device), accountId: null, expiresAt: t + TV_CODE_MS, ip: request.ip, check, wrongChecks: 0 });
+    return { code, check, device, url: `${config.publicUrl}/tv`, expiresIn: TV_CODE_MS / 1000, interval: TV_POLL_SECONDS };
   });
 
-  /** On vidalune.com, signed in: the code shown on the TV. That TV gets this account. */
+  /** On vidalune.com, signed in: whether the code works, and whether the check code from the TV is needed too. */
+  app.post('/api/tv/lookup', async (request) => {
+    const me = account(request);
+    const { sameNetwork: same } = openTvCode(request, me.id, tvCodeInput.parse(request.body).code);
+    return { sameNetwork: same };
+  });
+
+  /** On vidalune.com, signed in: the code shown on the TV (and from another network its check code). That TV gets this account. */
   app.post('/api/tv/confirm', async (request) => {
     const me = account(request);
-    limiter.check(`tv-confirm:${me.id}`, now());
-    limiter.check(`tv-confirm:${request.ip}`, now());
-    const code = normalizeLinkCode(z.object({ code: z.string().max(32) }).parse(request.body).code);
-    const entry = code ? tvCodes.get(code) : undefined;
-    if (!entry || entry.expiresAt < now() || entry.accountId !== null) throw new HttpError(400, 'This code does not work (any more). Check the code on the TV.');
+    const body = tvCodeInput.extend({ check: z.string().max(8).optional(), lang }).parse(request.body);
+    const { code, entry, sameNetwork: same } = openTvCode(request, me.id, body.code);
+    if (!same && body.check?.trim() !== entry.check) {
+      entry.wrongChecks += 1;
+      if (entry.wrongChecks >= TV_CHECK_TRIES) tvCodes.delete(code);
+      throw new HttpError(403, 'Enter the check code shown on the TV, under the code.');
+    }
     entry.accountId = me.id;
+    sendMail(me.email, mailTemplates.tvSignedIn(mailLanguage(request), accountPage));
     return { ok: true };
   });
 

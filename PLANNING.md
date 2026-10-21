@@ -1820,10 +1820,19 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   `TvCodeSignIn.tsx` (code, QR met `qrcode-generator` 2.0.4, elke 5 s navragen, verlopen → nieuwe code), met "Toch
   inloggen met e-mail en wachtwoord". Tests: cloud `tv-sign-in.test.ts` (6: eenmalige sessie, alleen na bevestigen, fout/
   gebruikt/verlopen, geschorst account, limiet, pagina), app `tvSignIn.test.ts` en `cloud.test.ts` (aanroepen, verlopen).
+- Securitycheck (eigenaar 21 okt: "Maak de pr, maar check eerst de security van dit allemaal", daarna "Los het op"):
+  gevonden "device code phishing": iedereen kan een code aanvragen en iemand de link/QR `vidalune.com/tv#CODE` sturen;
+  één klik van een ingelogd slachtoffer gaf de aanvrager een app-sessie (servers, tickets). Opgelost: na de code eerst
+  `POST /api/tv/lookup`, dan een waarschuwing en "Ja, dit is mijn tv"; komt de bevestiging van een ander netwerk dan
+  waar de tv de code vroeg (ander IPv4-adres of andere IPv6-/64, `sameNetwork`), dan ook de controlecode van 4 cijfers die
+  alleen op de tv staat (niet in de QR-code); 3 foute controlecodes en de code vervalt. Mail "Er is een tv ingelogd met je
+  account" (`tvSignedIn`); verstuurt pas als mail is ingesteld (eigenaar 21 okt: nog geen goede mailservice gevonden).
+  Restrisico: iemand achter hetzelfde publieke adres (zelfde wifi, of toevallig dezelfde CGNAT van een provider) heeft
+  geen controlecode nodig; de waarschuwing blijft. Cloud 204 tests (waarvan 10 voor de tv-code en 1 mail).
 - Niet in deze versie: grotere 10-foot-lay-out
   van de andere schermen, Play Store voor tv. README bijgewerkt.
 - Tests: `tvRemote.test.ts` (toetscodes, knoppen, rij, menu, overslaan, volgende aflevering, Terug, streepjes) en
-  `tvApp.test.ts` (manifest, geen dubbele regels, plugin in app.json, bannermaat). App 199 en cloud 199 tests, alle
+  `tvApp.test.ts` (manifest, geen dubbele regels, plugin in app.json, bannermaat). App 199 en cloud 204 tests, alle
   typechecks, lint (4 bekende waarschuwingen) en de versietests slagen; `expo prebuild` geeft het juiste manifest en koppelt de nieuwe module.
 - Niet hier te testen: de Kotlin-code (geen Android SDK; daarom de APK op de branch laten bouwen) en alles op een echte
   Chromecast met Google TV. Door de eigenaar te testen (accountservice bijwerken voor de code): APK installeren, Vidalune op het startscherm, inloggen met de QR-code, met de

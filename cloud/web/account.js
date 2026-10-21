@@ -33,7 +33,9 @@
         emailPending: 'Open de link die we naar {email} stuurden om de wijziging af te ronden.',
         changePassword: 'Wachtwoord wijzigen', currentPassword: 'Huidig wachtwoord', changePasswordButton: 'Wachtwoord wijzigen', passwordChanged: 'Je wachtwoord is gewijzigd. Andere apparaten zijn afgemeld.',
         tvTitle: 'Inloggen op je tv', tvIntro: 'Vul de code in die de Vidalune-app op je tv toont. Je tv wordt dan ingelogd met dit account ({email}).',
-        tvSignIn: 'Log eerst in met je Vidalune-account. Daarna vul je de code van je tv in.', tvButton: 'Tv inloggen', tvDone: 'Gelukt: je tv is ingelogd. Kijk op je tv.', toAccount: 'Naar je account',
+        tvSignIn: 'Log eerst in met je Vidalune-account. Daarna vul je de code van je tv in.', tvButton: 'Verder', tvDone: 'Gelukt: je tv is ingelogd. Kijk op je tv.', toAccount: 'Naar je account',
+        tvWarning: 'Bevestig alleen als deze code nu op je eigen tv staat. Kreeg je deze link of QR-code van iemand anders? Bevestig dan niet: die persoon krijgt anders toegang tot je account en je servers.',
+        tvCheckIntro: 'Je zit niet op hetzelfde netwerk als de tv. Vul ter controle ook de controlecode in die op de tv onder de code staat.', tvCheck: 'Controlecode (4 cijfers)', tvConfirm: 'Ja, dit is mijn tv', cancel: 'Annuleren',
       }
     : {
         title: 'Vidalune account', intro: 'With a Vidalune account you find your own servers again, also outside your home network.',
@@ -65,7 +67,9 @@
         emailPending: 'Open the link we sent to {email} to finish the change.',
         changePassword: 'Change password', currentPassword: 'Current password', changePasswordButton: 'Change password', passwordChanged: 'Your password was changed. Other devices were signed out.',
         tvTitle: 'Sign in on your TV', tvIntro: 'Enter the code the Vidalune app shows on your TV. Your TV is then signed in with this account ({email}).',
-        tvSignIn: 'Sign in with your Vidalune account first. Then enter the code from your TV.', tvButton: 'Sign in TV', tvDone: 'Done: your TV is signed in. Have a look at your TV.', toAccount: 'Go to your account',
+        tvSignIn: 'Sign in with your Vidalune account first. Then enter the code from your TV.', tvButton: 'Continue', tvDone: 'Done: your TV is signed in. Have a look at your TV.', toAccount: 'Go to your account',
+        tvWarning: 'Only confirm if this code is on your own TV right now. Did someone else send you this link or QR code? Then do not confirm: that person would get access to your account and your servers.',
+        tvCheckIntro: 'You are not on the same network as the TV. To make sure, also enter the check code shown on the TV under the code.', tvCheck: 'Check code (4 digits)', tvConfirm: 'Yes, this is my TV', cancel: 'Cancel',
       };
   // On app.vidalune.com these pages live under /_vl (the rest of that site is the chosen server).
   const BASE = location.pathname === '/_vl' || location.pathname.startsWith('/_vl/') ? '/_vl' : '';
@@ -379,7 +383,11 @@
     );
   }
 
-  /** vidalune.com/tv: the code the app on a TV shows, so that TV signs in with this account. */
+  /**
+   * vidalune.com/tv: the code the app on a TV shows, so that TV signs in with this account. Never in
+   * one click: a code from a link someone else sent would sign their device in. So a warning and a
+   * confirmation, and from another network than the TV's the check code that only the TV shows.
+   */
   function tvPage(me) {
     show(
       el('div', { class: 'row' }, el('span', { class: 'small' }, me.email)),
@@ -387,11 +395,28 @@
       el('p', {}, t('tvIntro', { email: me.email })),
       el('div', { class: 'card' },
         form([el('label', {}, t('code'), el('input', { name: 'code', class: 'code', autocomplete: 'off', autocapitalize: 'characters', value: pendingCode(), maxlength: 12, required: true, autofocus: true }))], t('tvButton'), async (v) => {
-          await api('POST', '/api/tv/confirm', v);
-          history.replaceState(null, '', `${BASE}/tv`);
+          const { sameNetwork } = await api('POST', '/api/tv/lookup', v);
+          tvConfirmPage(me, v.code, sameNetwork);
+        }),
+      ),
+    );
+  }
+
+  function tvConfirmPage(me, code, sameNetwork) {
+    history.replaceState(null, '', `${BASE}/tv`);
+    show(
+      el('div', { class: 'row' }, el('span', { class: 'small' }, me.email)),
+      el('h1', {}, t('tvTitle')),
+      el('p', { class: 'code' }, code.toUpperCase()),
+      el('p', { class: 'notice', role: 'alert' }, t('tvWarning')),
+      el('div', { class: 'card' },
+        sameNetwork ? null : el('p', {}, t('tvCheckIntro')),
+        form(sameNetwork ? [] : [el('label', {}, t('tvCheck'), el('input', { name: 'check', inputmode: 'numeric', autocomplete: 'off', maxlength: 4, pattern: '[0-9]{4}', required: true }))], t('tvConfirm'), async (v) => {
+          await api('POST', '/api/tv/confirm', { code, ...v });
           show(el('h1', {}, t('tvTitle')), el('p', { class: 'ok', role: 'status' }, t('tvDone')), el('a', { href: `${BASE}/account` }, t('toAccount')));
         }),
       ),
+      el('a', { href: `${BASE}/account` }, t('cancel')),
     );
   }
 

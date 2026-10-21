@@ -9,6 +9,8 @@ import qrcode from 'qrcode-generator';
 /** What vidalune.com gives the TV: the code to show, its own secret to ask with, and how long it works. */
 export interface TvCode {
   code: string;
+  /** Asked on vidalune.com/tv when the code is confirmed from another network; not in the QR code. */
+  check: string;
   device: string;
   url: string;
   expiresIn: number;

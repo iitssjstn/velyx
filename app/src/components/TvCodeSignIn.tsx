@@ -67,6 +67,7 @@ export function TvCodeSignIn({ cloud, onSignedIn }: { cloud: ReturnType<typeof c
         <Text style={styles.title} accessibilityRole="header">{t('tv.title')}</Text>
         <Text style={styles.body}>{t('tv.scan', { url: code ? code.url.replace(/^https:\/\//, '') : 'vidalune.com/tv' })}</Text>
         <Text style={{ color: colors.ink, fontSize: 44, fontWeight: '800', letterSpacing: 6 }} accessibilityLabel={code?.code.split('').join(' ')}>{code?.code ?? '····-····'}</Text>
+        {code ? <Text style={{ color: colors.muted, fontSize: 20, letterSpacing: 2 }}>{t('tv.check', { check: code.check })}</Text> : null}
         {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : <Text style={styles.muted} accessibilityLiveRegion="polite">{code ? t('tv.waiting') : ' '}</Text>}
         {error && <Button label={t('tv.newCode')} variant="ghost" onPress={() => setRound((n) => n + 1)} />}
       </View>

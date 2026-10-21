@@ -196,6 +196,10 @@ export const mailTemplates = {
     lang === 'nl'
       ? layout(lang, 'Je wachtwoord is gewijzigd', ['Het wachtwoord van je Vidalune-account is zojuist gewijzigd.', 'Was jij dit niet? Kies dan meteen een nieuw wachtwoord via "Wachtwoord vergeten?" en neem contact op met Vidalune via info@vidalune.com.'], { label: 'Naar je account', url }, FOOTER.nl)
       : layout(lang, 'Your password was changed', ['The password of your Vidalune account was just changed.', 'Was this not you? Choose a new password right away with "Forgot password?" and contact Vidalune at info@vidalune.com.'], { label: 'Go to your account', url }, FOOTER.en),
+  tvSignedIn: (lang: MailLanguage, url: string) =>
+    lang === 'nl'
+      ? layout(lang, 'Er is een tv ingelogd met je account', ['Zojuist is een tv met de Vidalune-app ingelogd met je Vidalune-account, met een code die je op vidalune.com/tv bevestigde.', 'Was jij dit niet? Wijzig dan meteen je wachtwoord op je accountpagina: alle andere apparaten, ook die tv, worden dan afgemeld. Neem contact op met Vidalune via info@vidalune.com.'], { label: 'Naar je account', url }, FOOTER.nl)
+      : layout(lang, 'A TV signed in with your account', ['A TV with the Vidalune app just signed in with your Vidalune account, with a code you confirmed on vidalune.com/tv.', 'Was this not you? Change your password on your account page right away: all other devices, that TV too, are then signed out. Contact Vidalune at info@vidalune.com.'], { label: 'Go to your account', url }, FOOTER.en),
   test: (lang: MailLanguage, url: string) =>
     lang === 'nl'
       ? layout(lang, 'Testmail van Vidalune', ['Dit is een testmail uit het Control Center. Komt hij aan, dan werkt de mail van vidalune.com.'], { label: 'Naar het Control Center', url }, FOOTER.nl)

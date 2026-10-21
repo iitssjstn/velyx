@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
-import { buildCloudApp, SESSION_COOKIE } from '../src/app.js';
+import { buildCloudApp, sameNetwork, SESSION_COOKIE } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
 import { accounts } from '../src/db/schema.js';
@@ -28,18 +28,24 @@ afterEach(async () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+const HOME = '203.0.113.7';
+const ELSEWHERE = '198.51.100.20';
+
 async function account(email: string) {
-  const res = await cloud.inject({ method: 'POST', url: '/api/account', payload: { email, password: 'correct-horse' } });
+  const res = await cloud.inject({ method: 'POST', url: '/api/account', remoteAddress: HOME, payload: { email, password: 'correct-horse' } });
   return `${SESSION_COOKIE}=${res.cookies.find((c) => c.name === SESSION_COOKIE)!.value}`;
 }
-const newCode = async () => (await cloud.inject({ method: 'POST', url: '/api/tv/code', payload: {} })).json() as { code: string; device: string; url: string; expiresIn: number; interval: number };
-const poll = (device: string) => cloud.inject({ method: 'POST', url: '/api/tv/poll', payload: { device } });
-const confirm = (cookie: string, code: string) => cloud.inject({ method: 'POST', url: '/api/tv/confirm', headers: { cookie }, payload: { code } });
+// The TV asks from home; the code is confirmed from home too, unless said otherwise.
+const newCode = async () => (await cloud.inject({ method: 'POST', url: '/api/tv/code', remoteAddress: HOME, payload: {} })).json() as { code: string; check: string; device: string; url: string; expiresIn: number; interval: number };
+const poll = (device: string) => cloud.inject({ method: 'POST', url: '/api/tv/poll', remoteAddress: HOME, payload: { device } });
+const confirm = (cookie: string, code: string, from = HOME, check?: string) => cloud.inject({ method: 'POST', url: '/api/tv/confirm', remoteAddress: from, headers: { cookie }, payload: { code, ...(check !== undefined ? { check } : {}) } });
+const lookup = (cookie: string, code: string, from = HOME) => cloud.inject({ method: 'POST', url: '/api/tv/lookup', remoteAddress: from, headers: { cookie }, payload: { code } });
 
 describe('signing in on a TV with a code', () => {
   it('gives the TV a session of the account that entered its code, once', async () => {
     const tv = await newCode();
     expect(tv.code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    expect(tv.check).toMatch(/^\d{4}$/);
     expect(tv).toMatchObject({ url: 'https://vidalune.com/tv', expiresIn: 600, interval: 5 });
     expect((await poll(tv.device)).json()).toEqual({ pending: true });
 
@@ -98,10 +104,51 @@ describe('signing in on a TV with a code', () => {
     expect(answers.slice(10)).toEqual([429, 429]);
   });
 
-  it('serves the page to enter the code on', async () => {
+  it('does not sign in a device from a link someone else sent: another network needs the check code from the TV', async () => {
+    // The attacker asks for a code at their place and sends the victim vidalune.com/tv#CODE.
+    const theirs = await newCode();
+    const victim = await account('victim@example.com');
+    expect((await lookup(victim, theirs.code, ELSEWHERE)).json()).toEqual({ sameNetwork: false });
+    const without = await confirm(victim, theirs.code, ELSEWHERE);
+    expect(without.statusCode).toBe(403);
+    expect((await poll(theirs.device)).json()).toEqual({ pending: true });
+    // Guessing the check code: three wrong ones and the code is gone, also with the right one after.
+    const wrong = theirs.check === '0000' ? '1111' : '0000';
+    expect((await confirm(victim, theirs.code, ELSEWHERE, wrong)).statusCode).toBe(403);
+    expect((await confirm(victim, theirs.code, ELSEWHERE, wrong)).statusCode).toBe(403);
+    expect((await confirm(victim, theirs.code, ELSEWHERE, theirs.check)).statusCode).toBe(400);
+    expect((await poll(theirs.device)).statusCode).toBe(410);
+  });
+
+  it('signs a TV in from another network (a phone on mobile data) with the check code from the TV', async () => {
+    const tv = await newCode();
+    const cookie = await account('justin@example.com');
+    expect((await confirm(cookie, tv.code, ELSEWHERE, tv.check)).statusCode).toBe(200);
+    expect((await poll(tv.device)).json()).toMatchObject({ email: 'justin@example.com' });
+  });
+
+  it('needs no check code at home, on the same network as the TV', async () => {
+    const tv = await newCode();
+    const cookie = await account('justin@example.com');
+    expect((await lookup(cookie, tv.code)).json()).toEqual({ sameNetwork: true });
+    expect((await confirm(cookie, tv.code)).statusCode).toBe(200);
+  });
+
+  it('tells the same network apart: one IPv4 address, or one IPv6 /64', () => {
+    expect(sameNetwork('203.0.113.7', '203.0.113.7')).toBe(true);
+    expect(sameNetwork('203.0.113.7', '::ffff:203.0.113.7')).toBe(true);
+    expect(sameNetwork('203.0.113.7', '203.0.113.8')).toBe(false);
+    expect(sameNetwork('2001:db8:1:2::10', '2001:0db8:0001:0002:abcd::1')).toBe(true);
+    expect(sameNetwork('2001:db8:1:2::10', '2001:db8:1:3::10')).toBe(false);
+    expect(sameNetwork('2001:db8:1:2::10', '203.0.113.7')).toBe(false);
+  });
+
+  it('serves the page to enter the code on, with the warning', async () => {
     expect(fs.existsSync(path.join(import.meta.dirname, '../web/account.js'))).toBe(true);
     const js = fs.readFileSync(path.join(import.meta.dirname, '../web/account.js'), 'utf8');
     expect(js).toContain("page === '/tv'");
     expect(js).toContain('/api/tv/confirm');
+    expect(js).toContain('/api/tv/lookup');
+    expect(js).toContain('tvWarning');
   });
 });
