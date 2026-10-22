@@ -10,7 +10,6 @@ export const onlineSubs = {
     one: '{count} download',
     other: '{count} downloads',
   },
-  fetching: 'Fetching {name}…',
   added: 'Subtitle added',
   remove: 'Remove {name}',
   removed: 'Subtitle removed',

@@ -1,7 +1,5 @@
 export const server = {
   saved: 'Settings saved.',
-  url: 'Server URL',
-  urlHint: 'No manual address is needed. Vidalune uses the server\'s automatic HTTPS address for media.',
   metadataLanguage: 'Metadata language',
   metadataLanguageHint: 'TMDB language code, e.g. en-US or nl-NL, for titles and descriptions of all media. Refresh metadata to apply it to existing items. The interface language is chosen per account.',
   includeAdult: 'Include adult titles in TMDB searches',
@@ -45,7 +43,6 @@ export const server = {
   mediaRoots: 'Media roots (MEDIA_ROOTS)',
   tmdbTitle: 'Metadata',
   tmdbText: 'Posters, descriptions, cast and episode titles come from The Movie Database (TMDB) through vidalune.com, and subtitles from online through vidalune.com as well. There is nothing to set up for either: linking this server to a Vidalune account is enough.',
-  status: 'Status:',
   notConfigured: 'No metadata yet: link this server to a Vidalune account. Until then Vidalune uses file names only.',
   linkServer: 'Link this server',
   tmdbVidaluneOff: 'Metadata is not available through vidalune.com right now. Vidalune tries again by itself.',

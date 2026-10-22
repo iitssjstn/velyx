@@ -1,8 +1,6 @@
 import type { Messages } from '../index';
 export const server: Messages['server'] = {
   saved: 'Instellingen opgeslagen.',
-  url: 'Server-URL',
-  urlHint: 'Je hoeft geen adres in te vullen. Vidalune gebruikt automatisch het HTTPS-adres van de server voor media.',
   metadataLanguage: 'Taal van de metadata',
   metadataLanguageHint: 'TMDB-taalcode, bijv. en-US of nl-NL, voor titels en beschrijvingen van alle media. Vernieuw de metadata om dit op bestaande items toe te passen. De taal van de interface kiest elke gebruiker zelf.',
   includeAdult: 'Titels voor volwassenen meenemen in TMDB-zoekopdrachten',
@@ -46,7 +44,6 @@ export const server: Messages['server'] = {
   mediaRoots: 'Mediamappen (MEDIA_ROOTS)',
   tmdbTitle: 'Metadata',
   tmdbText: 'Posters, beschrijvingen, cast en afleveringstitels komen van The Movie Database (TMDB) via vidalune.com, en ondertitels van online ook via vidalune.com. Voor allebei hoef je niets in te stellen: deze server aan een Vidalune-account koppelen is genoeg.',
-  status: 'Status:',
   notConfigured: 'Nog geen metadata: koppel deze server aan een Vidalune-account. Tot dan gebruikt Vidalune alleen bestandsnamen.',
   linkServer: 'Server koppelen',
   tmdbVidaluneOff: 'Metadata is nu niet beschikbaar via vidalune.com. Vidalune probeert het vanzelf opnieuw.',

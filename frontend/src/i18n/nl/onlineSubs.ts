@@ -11,7 +11,6 @@ export const onlineSubs: Messages['onlineSubs'] = {
     one: '{count} download',
     other: '{count} downloads',
   },
-  fetching: '{name} ophalen…',
   added: 'Ondertiteling toegevoegd',
   remove: '{name} verwijderen',
   removed: 'Ondertiteling verwijderd',

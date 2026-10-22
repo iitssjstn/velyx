@@ -235,8 +235,19 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   - een ongebruikte import in `Discover.tsx`, en het `web`-blok met `favicon.png` uit `app.json` (de app is alleen Android).
   De tests die weg zijn, testten alleen de weggehaalde code (eigenaar akkoord). De server-API voor koppelen met code
   (`/api/auth/pair/*`, websitepagina `/link`) blijft: die hoort bij de server, niet bij de app.
-- App 224 tests, typecheck (ook met `--noUnusedLocals`) en de versietests slagen. De app verandert, dus de release bouwt
-  de APK en het `.aab`.
+- Daarna (eigenaar: "Ja check de rest ook maar en maak daarna de PR") server, website en accountservice nagelopen met
+  `knip` (ook alleen-productie, om code te vinden die alleen tests nog gebruiken) en `tsc --noUnusedLocals`. Weggehaald:
+  - server: `segmentAt` (`backend/src/playback/hls.ts`, alleen nog in een test) en `badRequest` (`http-error.ts`, nergens);
+    een ongebruikte parameter in `segments/visual.ts` heet nu `_`;
+  - website: 17 ongebruikte teksten in Engels en Nederlands (o.a. `nav.settings`, `server.url`/`urlHint` van het oude
+    adresveld, `optimization.queue.intro` met de verouderde tip "maak een kopie vanaf de filmpagina", `player.backTitle`/
+    `forwardTitle`, `settings.tabs.serverMetadata`/`libraries`), met de verwijzingen ernaar in `i18n.test.tsx`.
+  Bewust gelaten: `docker/velyx` (oude naam van de beheer-CLI, voor bestaande installaties), `scripts/brand-icons.mjs`
+  (maakt de iconen opnieuw), `resetSplash` (hulp voor tests), de `.d.ts`-bestanden van de tv-speler (typen voor de tests)
+  en de `file`-parameter van `serve` in `direct-play.ts` (zelfde aanroep als de andere afspeelwijzen). Geen ongebruikte
+  pakketten of bestanden gevonden.
+- App 224, frontend 357 en cloud 207 tests slagen; alle typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen.
+  De app verandert, dus de release bouwt de APK en het `.aab`.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1990) en beide lockfiles bijgewerkt.
 
 ## Versie 0.19.11

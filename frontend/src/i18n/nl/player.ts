@@ -69,8 +69,6 @@ export const player: Messages['player'] = {
   resumePlayback: 'Afspelen hervatten',
   keyboardShortcuts: 'Sneltoetsen',
   seek: 'Zoeken in de tijdlijn',
-  backTitle: '10 s terug (←)',
-  forwardTitle: '10 s vooruit (→)',
   unmute: 'Dempen opheffen',
   mute: 'Dempen',
   nextEpisodeTitle: 'Volgende aflevering (N)',

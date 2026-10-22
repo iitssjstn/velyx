@@ -68,8 +68,6 @@ export const player = {
   resumePlayback: 'Resume playback',
   keyboardShortcuts: 'Keyboard shortcuts',
   seek: 'Seek',
-  backTitle: 'Back 10 s (←)',
-  forwardTitle: 'Forward 10 s (→)',
   unmute: 'Unmute',
   mute: 'Mute',
   nextEpisodeTitle: 'Next episode (N)',

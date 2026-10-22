@@ -25,9 +25,7 @@ export const requests = {
   cancelled: 'Request cancelled: {title}.',
   cancelledHere: 'Seerr no longer had this request; removed here: {title}.',
   none: 'You have not requested anything yet.',
-  minutes: '{n} min',
   play: 'Play',
-  opening: 'Opening…',
   discover: {
     catalogLabel: 'Explore the catalog',
     catalogHint: 'Titles below may not be in your library yet.',
