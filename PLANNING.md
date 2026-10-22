@@ -420,6 +420,19 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Foutcode 2100 bij wisselen tijdens casten bestaat nog** (eigenaar 22 okt, na 0.19.90: vanuit de app casten, een
+  serie afspelen, tijdens het afspelen een andere serie kiezen → "Media control channel status code 2100" in de app).
+  Vermoedelijke oorzaak (code nagelopen, nog niet bevestigd met het serverlogboek): de fix van 0.19.85
+  (`releaseMovedOn`, `hls.ts`) laat een eigen omzetting pas los als die 20 s niet meer gevraagd is (`MOVED_ON_MS`). Bij
+  wisselen tijdens het afspelen vroeg de tv de oude stukjes net nog op, dus houdt de oude omzetting zijn plek, weigert
+  de server de nieuwe titel met 503 (conversielimiet, `hlsSource` in `routes/media.ts`) en kan de webspeler hem niet
+  laden. De tv-app via Cast Connect kan een laadverzoek niet weigeren (`CastConnect.kt` geeft altijd succes), dus
+  waarschijnlijk opende de webspeler (Cast Connect nog niet in de Cast Developer Console gezet?). Voorstel: als de limiet
+  bereikt is, eerst de eigen omzettingen van dezelfde gebruiker op hetzelfde apparaat (zelfde IP en User-Agent) loslaten,
+  ongeacht hoe kort geleden; een apparaat speelt maar één video. Andere apparaten en kijkers blijven ongemoeid. Test met
+  echte FFmpeg die op de huidige code faalt. Navragen: logboek, of beide series omgezet worden, wat de tv toonde.
+  Nog niet bouwen tot de eigenaar het zegt.
+
 - **Casten: twee spelers, poster kapot, keuzes vergeten bij hervatten** (gemeld door de eigenaar 20 okt, twee foto's van de
   tv, Peaky Blinders S01E02; nog niet bouwen tot hij het zegt):
   1. Soms verschijnt de eigen Vidalune-speler (balk met streepjes), soms Google's standaardspeler (30 s-knoppen, CC). Te
