@@ -306,7 +306,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   de hoofdknop, niet op elke poster (zwakke grafische chip). Telefoon ongewijzigd. Samen met de detailpagina als 0.19.92.
 - Besluiten eigenaar (22 okt): bij een film staat de cast ook onderaan, onder het blok "Details" (About); bij een serie
   dus: afleveringen, Details, cast. De gloed alleen op de film/serie (poster of kaart) waar je op staat ("is ook mooier"),
-  niet op alles. Nog wachten op "bouw het".
+  niet op alles. Eigenaar (22 okt): "als je op een hero zit dat iets de lucht in komt doe dat met een paarse gloed eronder
+  en dat alleen voor de hero waar je op staat": het item met de focus wordt nu al groter (10 %, `TvHome`, posters en
+  kaarten); daar komt een zachte paarse gloed onder, alleen bij dat item. Nog wachten op "bouw het".
 
 ## Versie 0.19.11
 
