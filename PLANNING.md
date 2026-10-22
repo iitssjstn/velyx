@@ -13,7 +13,11 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   1. Eigenaar: accountservice bijwerken (`docker compose pull && docker compose up -d`), de app op de tv bijwerken via de
      interne test; vóór Cast Connect werkt: in de Cast Developer Console bij app-ID `920BF057` de Android TV-ontvanger
      `com.vidalune.app` toevoegen; in de Play Console de vormfactor Android TV aanzetten (banner 1280 × 720 gemaakt) en
-     tv-screenshots (1920 × 1080) uploaden.
+     tv-screenshots (1920 × 1080) uploaden. Screenshots gemaakt 22 okt met adb (draadloze foutopsporing) op het
+     demo-account met vrije Blender-films: start, films, detail, inloggen (Nederlands; Engelse set alleen als Google
+     erom vraagt). Speler weggelaten: de videolaag komt zwart op een screenshot; eigenaar: niet belangrijk. Na de overstap
+     naar de gesloten test wilde de Play Store de app niet meer op de tv installeren; waarschijnlijk wacht de gesloten
+     test op Google's tv-beoordeling (de interne test heeft die niet nodig).
   2. 0.19.85 testen (eigenaar): menu bovenaan en de nieuwe tv-speler, na Terug uit een film weer bewegen met de pijltjes,
      titel wisselen tijdens casten (geen 2100 meer); casten vanaf telefoon en website naar de Chromecast met Google TV opent de Vidalune-app
      (hervatpunt, ondertitel, audio; pauze/spoelen/ondertitel vanaf de telefoon); zonder app de webspeler met
