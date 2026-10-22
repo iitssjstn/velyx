@@ -432,7 +432,14 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   ongeacht hoe kort geleden; een apparaat speelt maar één video. Andere apparaten en kijkers blijven ongemoeid. Test met
   echte FFmpeg die op de huidige code faalt. Navragen: logboek, of beide series omgezet worden, wat de tv toonde.
   Nog niet bouwen tot de eigenaar het zegt. Eigenaar daarna: server en accountservice draaiden nog niet op 0.19.89
-  (nu wel bijgewerkt); op de tv valt het casten weg. Eerst opnieuw testen op de bijgewerkte server.
+  (nu wel bijgewerkt); op de tv valt het casten weg. Na de update komt 2100 nog steeds. "Maximaal tegelijk" staat op
+  geen limiet (screenshot eigenaar), dus de 503 van de conversielimiet is NIET de oorzaak; voorstel hierboven vervalt.
+  De app toont 2100 als `loadMedia` mislukt (`castFailed` in `play/[kind]/[id].tsx`) en stopt dan de sessie; de tv
+  (vermoedelijk de webspeler) weigert dus het laden. Nog onbekend waarom. Kandidaten: de oude omzetting draait nog door
+  (tot 3 minuten) en de Athlon is te traag om de nieuwe op tijd te starten (laad-time-out), of een fout in de
+  webspeler/server bij de tweede titel. Gevraagd aan de eigenaar: wisselen tussen titels die niet omgezet worden,
+  eerst pauzeren en 30 s wachten, en dezelfde test vanaf de website in Chrome met de console open (foutcode).
+  Geweigerde verzoeken (4xx/503) staan niet in het serverlogboek; alleen 500-fouten worden gelogd.
 
 - **Casten: twee spelers, poster kapot, keuzes vergeten bij hervatten** (gemeld door de eigenaar 20 okt, twee foto's van de
   tv, Peaky Blinders S01E02; nog niet bouwen tot hij het zegt):
