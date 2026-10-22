@@ -315,6 +315,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   leesbaar blijft (zoals de website). Paars: de lichte lavendel (`colors.accent` #b69cff) als vulling van Afspelen en de
   gekozen tab wordt een dieper paars op de tv (tekst wit); de achtergrond van de app (`colors.bg` #14121c) is al bijna
   zwart, op de foto lichter door de camera. Navragen welke van de twee hij bedoelt.
+  Eigenaar (22 okt): "Kan de paarse knoppen, paars grijs achtig worden met een klein beetje gloed net als op de
+  voorbeeld". Dus de gevulde knoppen op de tv (Afspelen, gekozen tab) gedempt grijspaars zoals in het Cosmic Drift-ontwerp
+  (rond #7f6bb3, witte tekst) met een kleine vaste paarse gloed; de andere knoppen omlijnd in hetzelfde paars. De
+  achtergrond van de app blijft zoals hij is. Nog wachten op "bouw het".
 
 ## Versie 0.19.11
 
