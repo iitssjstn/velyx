@@ -298,6 +298,12 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   serie: knoppen, seizoenen, afleveringen, en daaronder de cast. Bij een film nog navragen (cast direct onder de knoppen
   zoals in het ontwerp, of ook onderaan).
 - Leeropdracht gegeven: hoe het horizontale verloop te maken (hint: `assets/fade.png` in de tv-speler).
+- Wens eigenaar (22 okt): "Kunnen we de style over de hele Chromecast app meenemen, met paarse gloed onder de knoppen
+  of hero's". Kan met React Native 0.86 zonder extra pakketten: `boxShadow` (gekleurde, zachte gloed) en een verloop als
+  achtergrond. Voorstel: één gedeelde stijl in `ui.tsx`/`theme.ts` (gloed onder de gevulde hoofdknop en onder het
+  gekozen item, zacht paars licht onder hero's, omlijnde knoppen) en die overal op de tv gebruiken: Home, Films, Series,
+  Genres, Zoeken, Account, detail- en aanvraagpagina. Let op de Chromecast: gloed alleen op het item met de focus en op
+  de hoofdknop, niet op elke poster (zwakke grafische chip). Telefoon ongewijzigd. Samen met de detailpagina als 0.19.92.
 
 ## Versie 0.19.11
 
