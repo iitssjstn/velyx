@@ -222,6 +222,23 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   eerst op een kapotte download van Ubuntu's server ("Hash Sum mismatch" bij `apt update`, niet onze code); na één
   herstart groen, daarna liep de keten door. De eigenaar zette de app daarna in de gesloten test van de Play Store.
 
+## Versie 0.19.90 (app opgeruimd)
+
+- Op verzoek van de eigenaar (22 okt: "Check de hele app op foutcodes of achtergebleven code en files wat niet meer nodig
+  is"; daarna "Alle code wat geen functie meer heeft mag weg"). Nagelopen met `knip` en `tsc --noUnusedLocals`: geen
+  fouten, alle schermen, onderdelen, plaatjes en beide native modules worden gebruikt. Weggehaald:
+  - het oude inloggen op de server zelf en koppelen met een code (`signInWithPassword`, `startPairing`, `checkPairing` in
+    `src/lib/auth.ts`, sinds 0.19.55 niet meer gebruikt; in 0.19.55 toen bewust laten staan), met hun tests;
+  - `connectPending`/`PENDING_CONNECT_KEY`/`KeyStore` in `src/lib/cloud.ts` (niets schreef die sleutel nog), met hun tests;
+  - vier ongebruikte teksten (`account.signedInAs`, `signOutOthers`, `passwordChangedOthers`, `appWeb`), Engels en
+    Nederlands;
+  - een ongebruikte import in `Discover.tsx`, en het `web`-blok met `favicon.png` uit `app.json` (de app is alleen Android).
+  De tests die weg zijn, testten alleen de weggehaalde code (eigenaar akkoord). De server-API voor koppelen met code
+  (`/api/auth/pair/*`, websitepagina `/link`) blijft: die hoort bij de server, niet bij de app.
+- App 224 tests, typecheck (ook met `--noUnusedLocals`) en de versietests slagen. De app verandert, dus de release bouwt
+  de APK en het `.aab`.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1990) en beide lockfiles bijgewerkt.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)

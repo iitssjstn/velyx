@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { autoOpenServer, CLOUD_ACCOUNT_KEY, CloudError, connectPending, createCloud, PENDING_CONNECT_KEY, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudServer, type KeyStore } from './cloud';
+import { autoOpenServer, CloudError, createCloud, serverAddresses, signInWithTicket, sortServers, TicketError, type CloudServer } from './cloud';
 
 const answer = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
 
@@ -141,38 +141,7 @@ describe('Vidalune account service', () => {
   });
 });
 
-describe('connecting the Vidalune account after a sign-in by password', () => {
-  const store = (initial: Record<string, string>): KeyStore & { data: Record<string, string> } => {
-    const data = { ...initial };
-    return {
-      data,
-      getItemAsync: async (k) => data[k] ?? null,
-      setItemAsync: async (k, v) => void (data[k] = v),
-      deleteItemAsync: async (k) => void delete data[k],
-    };
-  };
-  const cloudAnswering = (ticket: string) => createCloud((async () => new Response(JSON.stringify({ ticket, addresses: [] }), { status: 200 })) as unknown as typeof fetch, 'https://vidalune.example');
-
-  it('connects once, with a fresh ticket, and forgets the server afterwards', async () => {
-    const keys = store({ [PENDING_CONNECT_KEY]: 'srv-1', [CLOUD_ACCOUNT_KEY]: JSON.stringify({ email: 'a@b.nl', token: 't'.repeat(43) }) });
-    const posts: Array<[string, unknown]> = [];
-    expect(await connectPending(keys, async (path, body) => void posts.push([path, body]), cloudAnswering('x'.repeat(43)))).toBe(true);
-    expect(posts).toEqual([['/api/account/cloud/claim', { ticket: 'x'.repeat(43) }]]);
-    expect(keys.data[PENDING_CONNECT_KEY]).toBeUndefined();
-    // Nothing pending: nothing sent.
-    expect(await connectPending(keys, async (path, body) => void posts.push([path, body]), cloudAnswering('y'.repeat(43)))).toBe(false);
-    expect(posts).toHaveLength(1);
-  });
-
-  it('never gets in the way when it does not work', async () => {
-    const keys = store({ [PENDING_CONNECT_KEY]: 'srv-1', [CLOUD_ACCOUNT_KEY]: JSON.stringify({ email: 'a@b.nl', token: 't'.repeat(43) }) });
-    const failing = async () => {
-      throw new Error('server said no');
-    };
-    expect(await connectPending(keys, failing, cloudAnswering('x'.repeat(43)))).toBe(false);
-    expect(keys.data[PENDING_CONNECT_KEY]).toBeUndefined();
-  });
-
+describe('opening a server', () => {
   it('opens the server by itself after signing in: the one opened last, or the only one', () => {
     const s = (id: string, url: string | null, online = true, relayUrl: string | null = null): CloudServer => ({ id, name: id, version: '1', url, relayUrl, online, lastSeenAt: 0 });
     // The only server, online with an address (as for most people): straight in.
