@@ -9,6 +9,9 @@ import { useTvFocus } from './useTvFocus';
 import { DISCOVER_ROWS, discoverPath, mergePages, type DiscoverPage, type DiscoverRow, type SeerrResult } from '../lib/discover';
 import { cardTile, discoverTile, heroPick, rowScroll, tvPosterWidth, type TvTile } from '../lib/tvHome';
 import { useSession } from '../lib/session';
+import { glideTo } from '../../modules/vidalune-tv';
+import { Lift, TV_OUTLINE_INK, tvButton } from './ui';
+import { TV_TOP_BAR } from './TvTopBar';
 import { colors, radius } from '../lib/theme';
 import type { Card, ContinueItem, HomeData } from '../lib/types';
 
@@ -40,12 +43,15 @@ export function Focusable({ children, ...props }: Omit<PressableProps, 'children
   );
 }
 
-/** Dark shading over artwork, so text on it stays readable (the website's hero gradients). */
-export function Shade({ side, height = '60%' }: { side: 'left' | 'bottom'; height?: `${number}%` }) {
+/**
+ * Shading over artwork that runs into the background colour, so text on it stays readable (the
+ * website's hero gradients): from the left edge (`from` and `width` place it) or up from the bottom.
+ */
+export function Shade({ side, height = '60%', from = '0%', width = '75%' }: { side: 'left' | 'bottom'; height?: `${number}%`; from?: `${number}%`; width?: `${number}%` }) {
   return side === 'left' ? (
-    <RNImage source={require('../../assets/fade-side.png')} resizeMode="stretch" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '75%', height: '100%' }} />
+    <RNImage source={require('../../assets/shade-side.png')} resizeMode="stretch" tintColor={colors.bg} style={{ position: 'absolute', left: from, top: 0, bottom: 0, width, height: '100%' }} />
   ) : (
-    <RNImage source={require('../../assets/fade.png')} resizeMode="stretch" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', height, transform: [{ scaleY: -1 }] }} />
+    <RNImage source={require('../../assets/shade.png')} resizeMode="stretch" tintColor={colors.bg} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', height, transform: [{ scaleY: -1 }] }} />
   );
 }
 
@@ -53,22 +59,16 @@ function HeroButton({ label, icon, primary, onPress, onFocus }: { label: string;
   return (
     <Focusable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onFocus={onFocus}>
       {(focused) => (
+        // Play filled in grey-purple with a small glow, Details outlined (the owner's design).
         <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-            height: 46,
-            paddingHorizontal: 22,
-            borderRadius: radius.sm,
-            backgroundColor: primary ? colors.accent : 'rgba(236,232,244,0.12)',
-            borderWidth: 2,
-            borderColor: focused ? colors.ink : 'transparent',
-            transform: [{ scale: focused ? 1.05 : 1 }],
-          }}
+          style={[
+            { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, paddingHorizontal: 24, borderWidth: 2, borderColor: 'transparent' },
+            primary ? tvButton.filled : tvButton.outlined,
+            focused && { borderColor: colors.ink, transform: [{ scale: 1.05 }] },
+          ]}
         >
-          <Feather name={icon} size={18} color={primary ? colors.accentInk : colors.ink} />
-          <Text style={{ color: primary ? colors.accentInk : colors.ink, fontSize: 16, fontWeight: '700' }}>{label}</Text>
+          <Feather name={icon} size={18} color={primary ? colors.buttonInk : TV_OUTLINE_INK} />
+          <Text style={{ color: primary ? colors.buttonInk : TV_OUTLINE_INK, fontSize: 16, fontWeight: '700' }}>{label}</Text>
         </View>
       )}
     </Focusable>
@@ -94,13 +94,14 @@ function Hero({ data, onFocus }: { data: HomeData; onFocus: () => void }) {
   const show = card?.type === 'show';
   const play = () => (cw ? router.push(`/play/${cw.type}/${cw.id}`) : card!.type === 'movie' ? router.push(`/play/movie/${card!.id}`) : openCard(card!));
   return (
-    <View style={{ height: Math.round(height * 0.62), backgroundColor: colors.surface }}>
+    // Taller than before: the top bar lies over its top.
+    <View style={{ height: Math.round(height * 0.62) + TV_TOP_BAR, backgroundColor: colors.surface }}>
       <Artwork path={backdrop} size="w1280" style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, opacity: 0.9 }} />
       <Shade side="left" />
       <Shade side="bottom" />
       <View style={{ position: 'absolute', left: SIDE, bottom: 28, width: '55%' }}>
         <Text style={{ color: colors.accent, fontSize: 14, fontWeight: '700' }}>{cw ? t('home.pickUp') : t('home.recentlyAdded')}</Text>
-        <Text numberOfLines={2} style={{ color: colors.ink, fontSize: 42, lineHeight: 44, fontWeight: '700', marginTop: 6 }}>{title}</Text>
+        <Text numberOfLines={2} style={{ color: colors.ink, fontSize: 46, lineHeight: 50, fontWeight: '700', letterSpacing: -0.5, marginTop: 6 }}>{title}</Text>
         {detail ? <Text numberOfLines={2} style={{ color: 'rgba(236,232,244,0.85)', fontSize: 16, lineHeight: 22, marginTop: 10 }}>{detail}</Text> : null}
         {cw && cw.percent > 0 && (
           <View style={{ height: 4, width: 260, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', marginTop: 12, overflow: 'hidden' }}>
@@ -122,7 +123,8 @@ function Poster({ tile, width, onPress, onFocus }: { tile: TvTile; width: number
     <Focusable accessibilityRole="button" accessibilityLabel={tile.title} onPress={onPress} onFocus={onFocus} style={{ width }}>
       {(focused) => (
         <>
-          <View style={{ width, height: width * 1.5, borderRadius: radius.md, overflow: 'hidden', borderWidth: 3, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)', transform: [{ scale: focused ? FOCUS_SCALE : 1 }] }}>
+          <Lift focused={focused} scale={FOCUS_SCALE}>
+          <View style={{ width, height: width * 1.5, borderRadius: radius.md, overflow: 'hidden', borderWidth: 3, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)' }}>
             <Artwork path={tile.poster} size="w342" label={tile.title} style={{ width: '100%', height: '100%' }} />
             {focused && (
               <>
@@ -144,6 +146,7 @@ function Poster({ tile, width, onPress, onFocus }: { tile: TvTile; width: number
               </View>
             )}
           </View>
+          </Lift>
           <Text numberOfLines={1} style={{ color: focused ? colors.ink : 'rgba(236,232,244,0.9)', fontSize: 14, fontWeight: '500', marginTop: 8 }}>{tile.title}</Text>
           <Text numberOfLines={1} style={{ color: colors.faint, fontSize: 12 }}>{tile.sub || ' '}</Text>
         </>
@@ -160,7 +163,8 @@ function ContinueCard({ item, onFocus }: { item: ContinueItem; onFocus: () => vo
     <Focusable accessibilityRole="button" accessibilityLabel={item.title} onPress={() => router.push(`/play/${item.type}/${item.id}`)} onFocus={onFocus} style={{ width }}>
       {(focused) => (
         <>
-          <View style={{ width, height: width * 0.5625, borderRadius: radius.md, overflow: 'hidden', borderWidth: 3, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)', transform: [{ scale: focused ? FOCUS_SCALE : 1 }] }}>
+          <Lift focused={focused} scale={FOCUS_SCALE}>
+          <View style={{ width, height: width * 0.5625, borderRadius: radius.md, overflow: 'hidden', borderWidth: 3, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)' }}>
             <Artwork path={item.imagePath ?? item.posterPath} size="w780" label={item.title} style={{ width: '100%', height: '100%' }} />
             <Shade side="bottom" height="50%" />
             {focused && (
@@ -175,6 +179,7 @@ function ContinueCard({ item, onFocus }: { item: ContinueItem; onFocus: () => vo
               </View>
             )}
           </View>
+          </Lift>
           <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 14, fontWeight: '500', marginTop: 8 }}>{item.title}</Text>
           {item.subtitle ? (
             <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
@@ -192,7 +197,7 @@ function ContinueCard({ item, onFocus }: { item: ContinueItem; onFocus: () => vo
 function Row<T>({ title, items, keyOf, render, onEndReached }: { title: string; items: T[]; keyOf: (x: T) => string; render: (x: T, i: number) => ReactNode; onEndReached?: () => void }) {
   if (!items.length) return null;
   return (
-    <View style={{ marginTop: 28 }}>
+    <View style={{ marginTop: 14 }}>
       <Text style={{ color: colors.ink, fontSize: 20, fontWeight: '700', marginBottom: 12, paddingHorizontal: SIDE }}>{title}</Text>
       <FlatList
         horizontal
@@ -203,8 +208,8 @@ function Row<T>({ title, items, keyOf, render, onEndReached }: { title: string; 
         windowSize={5}
         onEndReached={onEndReached}
         onEndReachedThreshold={2}
-        // Room around the chosen poster, which grows.
-        contentContainerStyle={{ paddingHorizontal: SIDE, paddingVertical: 14, gap: GAP }}
+        // Room around the chosen poster, which grows and rises with its glow under it.
+        contentContainerStyle={{ paddingHorizontal: SIDE, paddingTop: 18, paddingBottom: 34, gap: GAP }}
         showsHorizontalScrollIndicator={false}
       />
     </View>
@@ -252,7 +257,8 @@ export function TvHome({ data }: { data: HomeData }) {
   const toActive = () => {
     const at = tops.current.get(active.current);
     const y = active.current === 'hero' || !at ? 0 : rowScroll(at.y, at.height, view.current);
-    scroll.current?.scrollTo({ y, animated: true });
+    // Quick at the start and easing out, like a swipe (Android's own smooth scroll).
+    glideTo(scroll.current, y);
   };
   const focusRow = (key: string, discoverIndex?: number) => () => {
     if (discoverIndex !== undefined && discoverIndex >= rows - 2) setRows((n) => Math.max(n, discoverIndex + 3));

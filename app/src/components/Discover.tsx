@@ -2,7 +2,7 @@ import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Artwork, useWide } from './media';
-import { FocusPressable, FocusRing, Heading } from './ui';
+import { FocusPressable, FocusRing, Lift, shelfPadding, Heading } from './ui';
 import { catalogOnly, DISCOVER_ROWS, discoverPath, discoverTarget, mergePages, type DiscoverPage, type DiscoverRow, type SeerrResult } from '../lib/discover';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
@@ -36,7 +36,7 @@ export function DiscoverCard({ item, onPress, width }: { item: SeerrResult; onPr
     <FocusPressable accessibilityRole="button" accessibilityLabel={item.inLibrary ? `${item.title}, ${t('discover.inLibrary')}` : item.title} onPress={onPress} style={{ width }}>
       {(focused) => (
         <>
-          <View>
+          <Lift focused={focused}>
             <Artwork path={item.posterPath} size="w342" label={item.title} style={{ width, height: width * 1.5, borderRadius: radius.md }} />
             {item.inLibrary ? (
               <View style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.ok, alignItems: 'center', justifyContent: 'center' }}>
@@ -50,7 +50,7 @@ export function DiscoverCard({ item, onPress, width }: { item: SeerrResult; onPr
               </View>
             ) : null}
             <FocusRing focused={focused} />
-          </View>
+          </Lift>
           <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 13, marginTop: 6 }}>{item.title}</Text>
           <Text style={{ color: colors.faint, fontSize: 12 }}>
             {item.mediaType === 'movie' ? t('request.movie') : t('request.show')}
@@ -94,7 +94,7 @@ function DiscoverShelf({ spec, onOpen }: { spec: DiscoverRow; onOpen: (item: See
           onEndReached={() => q.hasNextPage && !q.isFetchingNextPage && void q.fetchNextPage()}
           onEndReachedThreshold={1.5}
           ListFooterComponent={q.isFetchingNextPage ? <ActivityIndicator color={colors.accent} style={{ marginHorizontal: 16, height: width * 1.5 }} /> : null}
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+          contentContainerStyle={shelfPadding}
           showsHorizontalScrollIndicator={false}
         />
       )}

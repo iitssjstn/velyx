@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aboutFacts, episodeFacts, initials, startEpisode } from './tvDetail';
+import { aboutFacts, factLine, episodeFacts, initials, startEpisode } from './tvDetail';
 import { translator } from './i18n';
 import type { EpisodeSummary } from './types';
 
@@ -52,5 +52,13 @@ describe('initials', () => {
     expect(initials('Cillian Murphy')).toBe('CM');
     expect(initials('helen  mirren jr')).toBe('HM');
     expect(initials('Zendaya')).toBe('Z');
+  });
+});
+
+describe('factLine', () => {
+  it('joins the facts under a title with dots and leaves out empty ones', () => {
+    expect(factLine(['2h 18m', null, '★ 7.4', '', undefined, false, 'Drama, Crime'])).toBe('2h 18m • ★ 7.4 • Drama, Crime');
+    expect(factLine([3, 'AMC'])).toBe('3 • AMC');
+    expect(factLine([])).toBe('');
   });
 });

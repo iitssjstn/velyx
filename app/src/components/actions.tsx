@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Text } from 'react-native';
-import { FocusPressable } from './ui';
+import { ActivityIndicator, Alert, Platform, Text } from 'react-native';
+import { FocusPressable, TV_OUTLINE_INK, tvButton } from './ui';
 import { Feather } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { errorMessage } from '../lib/connection';
@@ -40,6 +40,8 @@ export function Toggle({ active, icon, text, label, activeLabel, request, compac
   useEffect(() => setShown(active), [active]);
   // Read aloud: what pressing does ("Add to watchlist" / "Remove from watchlist").
   const a11y = shown ? activeLabel : label;
+  const tv = Platform.isTV;
+  const ink = shown ? colors.buttonInk : tv ? TV_OUTLINE_INK : colors.ink;
   return (
     <FocusPressable
       accessibilityRole="button"
@@ -55,19 +57,24 @@ export function Toggle({ active, icon, text, label, activeLabel, request, compac
         if (!ok) setShown(!next);
         setBusy(false);
       }}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        height: compact ? 36 : 44,
-        paddingHorizontal: compact ? 10 : 16,
-        borderRadius: radius.pill,
-        backgroundColor: shown ? colors.accent : colors.raised,
-        opacity: pressed ? 0.8 : 1,
-      })}
+      style={({ pressed }) => [
+        {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+          height: compact ? 36 : 44,
+          paddingHorizontal: compact ? 10 : 16,
+          borderRadius: radius.pill,
+          backgroundColor: shown ? colors.button : colors.raised,
+          opacity: pressed ? 0.8 : 1,
+        },
+        // On a TV: as high as the other buttons, filled when on and outlined when off.
+        tv && { height: 48 },
+        tv && (shown ? tvButton.filled : tvButton.outlined),
+      ]}
     >
-      {busy ? <ActivityIndicator size="small" color={shown ? colors.accentInk : colors.ink} /> : <Feather name={icon} size={compact ? 16 : 18} color={shown ? colors.accentInk : colors.ink} />}
-      {!compact && text ? <Text style={{ color: shown ? colors.accentInk : colors.ink, fontWeight: '600' }}>{text}</Text> : null}
+      {busy ? <ActivityIndicator size="small" color={ink} /> : <Feather name={icon} size={compact ? 16 : 18} color={ink} />}
+      {!compact && text ? <Text style={{ color: ink, fontWeight: '600' }}>{text}</Text> : null}
     </FocusPressable>
   );
 }

@@ -6,7 +6,7 @@ import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DiscoverCard, useCatalogSearch } from '../../components/Discover';
 import { Artwork, PosterCard } from '../../components/media';
-import { ErrorState, FocusPressable, FocusRing, Heading, ProgressLine, styles } from '../../components/ui';
+import { ErrorState, FocusPressable, FocusRing, Lift, shelfPadding, Heading, ProgressLine, styles } from '../../components/ui';
 import { useDebounced } from '../../components/useDebounced';
 import { episodeCode, progressFraction } from '../../lib/format';
 import { searchQuery } from '../../lib/lists';
@@ -82,10 +82,10 @@ export default function Search() {
                   {(focused) => (
                     <>
                       <View style={{ width: 128 }}>
-                        <View>
+                        <Lift focused={focused} radius={radius.sm}>
                           <Artwork path={e.stillPath} size="w500" label={episodeCode(e.seasonNumber, e.episodeNumber)} style={{ width: 128, height: 72, borderRadius: radius.sm }} />
                           <FocusRing focused={focused} radius={radius.sm} />
-                        </View>
+                        </Lift>
                         {e.progress && !e.progress.completed ? (
                           <View style={{ marginTop: 3 }}>
                             <ProgressLine fraction={progressFraction(e.progress)} />
@@ -113,7 +113,7 @@ export default function Search() {
                 data={catalog.results}
                 keyExtractor={(c) => `${c.mediaType}-${c.tmdbId}`}
                 renderItem={({ item }) => <DiscoverCard item={item} width={120} onPress={() => router.push(`/request/${item.mediaType}/${item.tmdbId}`)} />}
-                contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+                contentContainerStyle={shelfPadding}
                 showsHorizontalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
               />
@@ -134,7 +134,7 @@ function Row({ title, cards }: { title: string; cards: SearchResults['movies'] |
         data={cards as Array<SearchResults['movies'][number] | SearchResults['shows'][number]>}
         keyExtractor={(c) => `${c.type}-${c.id}`}
         renderItem={({ item }) => <PosterCard card={item} />}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+        contentContainerStyle={shelfPadding}
         showsHorizontalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       />

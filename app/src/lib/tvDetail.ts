@@ -2,6 +2,11 @@ import { episodeCode, formatRuntime } from './format';
 import type { Translate } from './i18n';
 import type { EpisodeSummary, Person } from './types';
 
+/** The line under a title on the TV detail page: its facts with dots between, without empty ones. */
+export function factLine(parts: (string | number | null | undefined | false)[]): string {
+  return parts.filter((p) => p !== null && p !== undefined && p !== false && String(p).trim() !== '').map(String).join(' • ');
+}
+
 /** "S01E02 · 52m" under an episode on the TV detail page. */
 export function episodeFacts(e: EpisodeSummary): string {
   const runtime = formatRuntime(e.runtime ?? (e.durationSec ? Math.round(e.durationSec / 60) : null));

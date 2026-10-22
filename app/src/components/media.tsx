@@ -6,7 +6,7 @@ import { gridLayout, isWide } from '../lib/layout';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 import type { Card, ContinueItem } from '../lib/types';
-import { FocusPressable, FocusRing, Heading, ProgressLine, styles } from './ui';
+import { FocusPressable, FocusRing, Lift, shelfPadding, Heading, ProgressLine, styles } from './ui';
 
 /** Artwork from the server's image cache (the request carries the app's token). */
 export function Artwork({ path, size, style, label }: { path: string | null | undefined; size: ImageSize; style: object; label?: string }) {
@@ -35,10 +35,10 @@ export function PosterCard({ card, width }: { card: Card; width?: number }) {
     <FocusPressable accessibilityRole="button" accessibilityLabel={card.title} onPress={() => openCard(card)} style={{ width }}>
       {(focused) => (
         <>
-          <View>
+          <Lift focused={focused}>
             <Artwork path={card.posterPath} size="w342" label={card.title} style={{ width, height: width * 1.5, borderRadius: radius.md }} />
             <FocusRing focused={focused} />
-          </View>
+          </Lift>
           {progress > 0 && (
             <View style={{ marginTop: 4 }}>
               <ProgressLine fraction={progress} />
@@ -71,7 +71,7 @@ export function Shelf({ title, cards, more }: { title: string; cards: Card[]; mo
         data={cards}
         keyExtractor={(c) => `${c.type}-${c.id}`}
         renderItem={({ item }) => <PosterCard card={item} />}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+        contentContainerStyle={shelfPadding}
         showsHorizontalScrollIndicator={false}
       />
     </View>
@@ -94,16 +94,16 @@ export function ContinueShelf({ title, items }: { title: string; items: Continue
         horizontal
         data={items}
         keyExtractor={(c) => `${c.type}-${c.id}`}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+        contentContainerStyle={shelfPadding}
         showsHorizontalScrollIndicator={false}
         renderItem={({ item }) => (
           <FocusPressable accessibilityRole="button" accessibilityLabel={item.title} onPress={() => openContinue(item)} style={{ width: cardWidth }}>
             {(focused) => (
               <>
-                <View>
+                <Lift focused={focused}>
                   <Artwork path={item.imagePath ?? item.posterPath} size="w780" label={item.title} style={{ width: cardWidth, height: cardWidth * 0.5625, borderRadius: radius.md }} />
                   <FocusRing focused={focused} />
-                </View>
+                </Lift>
                 <View style={{ marginTop: 4 }}>
                   <ProgressLine fraction={item.percent / 100} />
                 </View>
