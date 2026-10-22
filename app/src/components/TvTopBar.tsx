@@ -3,29 +3,30 @@ import { Pressable, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { Logo } from './Logo';
-import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 
-function Chip({ label, active, onPress, children }: { label: string; active: boolean; onPress: () => void; children: (focused: boolean) => ReactNode }) {
+type IconName = React.ComponentProps<typeof Feather>['name'];
+const ICONS: Record<string, IconName> = { home: 'home', movies: 'film', shows: 'tv', genres: 'tag', search: 'search', account: 'user' };
+
+function Item({ label, active, onPress, children }: { label: string; active: boolean; onPress: () => void; children: (color: string) => ReactNode }) {
   const [focused, setFocused] = useState(false);
+  const color = focused || active ? colors.ink : colors.muted;
   return (
     <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={label} onPress={onPress} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}>
-      <View style={{ minWidth: 40, height: 40, paddingHorizontal: 16, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: focused ? colors.ink : active ? 'rgba(236,232,244,0.14)' : 'transparent' }}>{children(focused)}</View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 42, paddingHorizontal: 14, borderRadius: radius.sm, borderWidth: 2, borderColor: focused ? colors.accent : 'transparent', backgroundColor: active ? colors.raised : 'transparent' }}>
+        {children(color)}
+      </View>
     </Pressable>
   );
 }
 
 /**
- * The tabs on a TV: a bar at the top with the account on the left, search and the sections in the
- * middle and the logo on the right (the arrows move along it; ↓ goes to the screen). Only on a TV;
- * phones keep the tabs at the bottom.
+ * The tabs on a TV: the website's bar at the top, with the logo, the sections with their icons, and
+ * search and the account on the right (the arrows move along it; ↓ goes to the screen). Only on a
+ * TV; phones keep the tabs at the bottom.
  */
 export function TvTopBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const { user } = useSession();
-  const tab = (name: string) => {
-    const i = state.routes.findIndex((r) => r.name === name);
-    const route = state.routes[i];
-    if (!route) return null;
+  const tabs = state.routes.map((route, i) => {
     const options = descriptors[route.key]!.options;
     const label = typeof options.tabBarLabel === 'string' ? options.tabBarLabel : (options.title ?? route.name);
     const active = state.index === i;
@@ -33,40 +34,26 @@ export function TvTopBar({ state, descriptors, navigation }: BottomTabBarProps) 
       const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
       if (!active && !event.defaultPrevented) navigation.navigate(route.name, route.params);
     };
-    return { key: route.key, label, active, onPress };
-  };
-  const account = tab('account');
-  const search = tab('search');
-  const sections = ['home', 'shows', 'movies', 'genres'].map(tab).filter((x) => x !== null);
-  const initial = (user?.displayName || user?.username || '?').slice(0, 1).toUpperCase();
+    return { key: route.key, name: route.name, label, active, onPress };
+  });
+  const right = new Set(['search', 'account']);
+  const render = (tab: (typeof tabs)[number], withLabel: boolean) => (
+    <Item key={tab.key} label={tab.label} active={tab.active} onPress={tab.onPress}>
+      {(color) => (
+        <>
+          <Feather name={ICONS[tab.name] ?? 'circle'} size={18} color={color} />
+          {withLabel && <Text style={{ color, fontSize: 16, fontWeight: tab.active ? '700' : '500' }}>{tab.label}</Text>}
+        </>
+      )}
+    </Item>
+  );
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 48, paddingVertical: 14, backgroundColor: colors.bg }}>
-      <View style={{ flex: 1, flexDirection: 'row' }}>
-        {account && (
-          <Chip label={account.label} active={account.active} onPress={account.onPress}>
-            {(focused) => (
-              <View style={{ width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: focused ? colors.accentInk : colors.accent }}>
-                <Text style={{ color: focused ? colors.accent : colors.accentInk, fontSize: 16, fontWeight: '800' }}>{initial}</Text>
-              </View>
-            )}
-          </Chip>
-        )}
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24, paddingHorizontal: 48, paddingVertical: 12, backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+      <Logo />
+      <View style={{ flex: 1, flexDirection: 'row', gap: 4 }} accessibilityRole="tablist">
+        {tabs.filter((tab) => !right.has(tab.name)).map((tab) => render(tab, true))}
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} accessibilityRole="tablist">
-        {search && (
-          <Chip label={search.label} active={search.active} onPress={search.onPress}>
-            {(focused) => <Feather name="search" size={20} color={focused ? colors.bg : colors.ink} />}
-          </Chip>
-        )}
-        {sections.map((s) => (
-          <Chip key={s.key} label={s.label} active={s.active} onPress={s.onPress}>
-            {(focused) => <Text style={{ color: focused ? colors.bg : s.active ? colors.ink : colors.muted, fontSize: 17, fontWeight: s.active || focused ? '700' : '600' }}>{s.label}</Text>}
-          </Chip>
-        ))}
-      </View>
-      <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end' }}>
-        <Logo />
-      </View>
+      <View style={{ flexDirection: 'row', gap: 4 }}>{tabs.filter((tab) => right.has(tab.name)).map((tab) => render(tab, tab.name === 'account'))}</View>
     </View>
   );
 }

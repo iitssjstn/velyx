@@ -6,17 +6,15 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Artwork, openCard } from './media';
 import { useOpenDiscover } from './Discover';
 import { DISCOVER_ROWS, discoverPath, mergePages, type DiscoverPage, type DiscoverRow, type SeerrResult } from '../lib/discover';
-import { cardTile, continueTile, discoverTile, genreTiles, heroPick, rowOffset, tvSizes, type TvTile } from '../lib/tvHome';
+import { cardTile, discoverTile, heroPick, tvPosterWidth, type TvTile } from '../lib/tvHome';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 import type { Card, ContinueItem, HomeData } from '../lib/types';
 
-type Sizes = ReturnType<typeof tvSizes>;
-type Genre = { id: number; name: string; count: number };
-/** Height of the facts under the row that has the focus. */
-const INFO = 104;
+const SIDE = 48;
+const GAP = 16;
 
-/** A Pressable that knows it has the focus, for tiles and buttons that change look instead of getting a ring. */
+/** A Pressable that knows it has the focus, for posters and buttons that change look when chosen. */
 function Focusable({ children, ...props }: Omit<PressableProps, 'children'> & { children: (focused: boolean) => ReactNode }) {
   const [focused, setFocused] = useState(false);
   return (
@@ -36,56 +34,38 @@ function Focusable({ children, ...props }: Omit<PressableProps, 'children'> & { 
   );
 }
 
-function TvButton({ label, icon, onPress, onFocus }: { label: string; icon?: 'play' | 'info'; onPress: () => void; onFocus?: () => void }) {
+/** Dark shading over artwork, so text on it stays readable (the website's hero gradients). */
+function Shade({ side, height = '60%' }: { side: 'left' | 'bottom'; height?: `${number}%` }) {
+  return side === 'left' ? (
+    <RNImage source={require('../../assets/fade-side.png')} resizeMode="stretch" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '75%', height: '100%' }} />
+  ) : (
+    <RNImage source={require('../../assets/fade.png')} resizeMode="stretch" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', height, transform: [{ scaleY: -1 }] }} />
+  );
+}
+
+function HeroButton({ label, icon, primary, onPress, onFocus }: { label: string; icon: 'play' | 'info'; primary?: boolean; onPress: () => void; onFocus: () => void }) {
   return (
     <Focusable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onFocus={onFocus}>
       {(focused) => (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 22, borderRadius: radius.pill, backgroundColor: focused ? colors.accent : 'rgba(236,232,244,0.16)' }}>
-          {icon && <Feather name={icon} size={18} color={focused ? colors.accentInk : colors.ink} />}
-          <Text style={{ color: focused ? colors.accentInk : colors.ink, fontSize: 16, fontWeight: '700' }}>{label}</Text>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            height: 46,
+            paddingHorizontal: 22,
+            borderRadius: radius.sm,
+            backgroundColor: primary ? colors.accent : 'rgba(236,232,244,0.12)',
+            borderWidth: 2,
+            borderColor: focused ? colors.ink : 'transparent',
+            transform: [{ scale: focused ? 1.05 : 1 }],
+          }}
+        >
+          <Feather name={icon} size={18} color={primary ? colors.accentInk : colors.ink} />
+          <Text style={{ color: primary ? colors.accentInk : colors.ink, fontSize: 16, fontWeight: '700' }}>{label}</Text>
         </View>
       )}
     </Focusable>
-  );
-}
-
-/** Dark shading over artwork, so text on it stays readable. */
-function Shade({ side }: { side: 'left' | 'bottom' }) {
-  return side === 'left' ? (
-    <RNImage source={require('../../assets/fade-side.png')} resizeMode="stretch" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '70%', height: '100%' }} />
-  ) : (
-    <RNImage source={require('../../assets/fade.png')} resizeMode="stretch" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', height: '55%', transform: [{ scaleY: -1 }] }} />
-  );
-}
-
-function Hero({ data, sizes, onFocus }: { data: HomeData; sizes: Sizes; onFocus: () => void }) {
-  const { t } = useSession();
-  const { height } = useWindowDimensions();
-  const pick = heroPick(data);
-  if (!pick) return null;
-  const tile = pick.kind === 'continue' ? continueTile(pick.item, t) : cardTile(pick.card, t);
-  const play = () => (pick.kind === 'continue' ? router.push(`/play/${pick.item.type}/${pick.item.id}`) : pick.card.type === 'movie' ? router.push(`/play/movie/${pick.card.id}`) : openCard(pick.card));
-  const info = () => (pick.kind === 'continue' ? openContinueDetails(pick.item) : openCard(pick.card));
-  return (
-    <View style={{ marginHorizontal: sizes.side, height: Math.round(height * 0.56), borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.surface }}>
-      <Artwork path={tile.wide ?? tile.poster} size="w1280" style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }} />
-      <Shade side="left" />
-      <Shade side="bottom" />
-      <View style={{ position: 'absolute', left: 28, bottom: 24, right: '40%' }}>
-        <Text style={{ color: colors.accent, fontSize: 14, fontWeight: '700', marginBottom: 6 }}>{pick.kind === 'continue' ? t('home.continue') : t('home.recentlyAdded')}</Text>
-        <Text numberOfLines={2} style={{ color: colors.ink, fontSize: 40, lineHeight: 44, fontWeight: '800', letterSpacing: -0.5 }}>{tile.title}</Text>
-        {tile.meta.length > 0 && <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 15, fontWeight: '600', marginTop: 8 }}>{tile.meta.join('  ·  ')}</Text>}
-        {tile.progress > 0 && (
-          <View style={{ height: 4, width: 220, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)', marginTop: 10, overflow: 'hidden' }}>
-            <View style={{ height: 4, width: `${Math.round(tile.progress * 100)}%`, backgroundColor: colors.accent }} />
-          </View>
-        )}
-        <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-          <TvButton label={t('player.play')} icon="play" onPress={play} onFocus={onFocus} />
-          <TvButton label={t('home.moreInfo')} icon="info" onPress={info} onFocus={onFocus} />
-        </View>
-      </View>
-    </View>
   );
 }
 
@@ -94,122 +74,138 @@ function openContinueDetails(item: ContinueItem) {
   else if (item.showId) router.push(`/show/${item.showId}`);
 }
 
-/** Tiles with the genres of the library: OK opens the genre. */
-function GenreRow({ sizes, onFocus }: { sizes: Sizes; onFocus: () => void }) {
-  const { api, serverUrl } = useSession();
-  const movies = useQuery({ queryKey: [serverUrl, 'genres', 'movies'], queryFn: () => api.get<Genre[]>('/api/genres?type=movies'), staleTime: 5 * 60_000 });
-  const shows = useQuery({ queryKey: [serverUrl, 'genres', 'shows'], queryFn: () => api.get<Genre[]>('/api/genres?type=shows'), staleTime: 5 * 60_000 });
-  const tiles = genreTiles(movies.data ?? [], shows.data ?? []);
-  if (!tiles.length) return null;
+/** The website's hero: where you left off (or the newest title) over its artwork, with Play and Details. */
+function Hero({ data, onFocus }: { data: HomeData; onFocus: () => void }) {
+  const { t } = useSession();
+  const { height } = useWindowDimensions();
+  const pick = heroPick(data);
+  if (!pick) return null;
+  const cw = pick.kind === 'continue' ? pick.item : null;
+  const card = pick.kind === 'card' ? pick.card : null;
+  const title = cw ? cw.title : card!.title;
+  const backdrop = cw ? (cw.imagePath ?? cw.posterPath) : (card!.backdropPath ?? card!.posterPath);
+  const detail = cw ? [cw.subtitle, cw.episodeTitle].filter(Boolean).join(' · ') : (card!.overview ?? '');
+  const show = card?.type === 'show';
+  const play = () => (cw ? router.push(`/play/${cw.type}/${cw.id}`) : card!.type === 'movie' ? router.push(`/play/movie/${card!.id}`) : openCard(card!));
   return (
-    <FlatList
-      horizontal
-      data={tiles}
-      keyExtractor={(g) => `${g.kind}-${g.id}`}
-      style={{ marginTop: 18 }}
-      contentContainerStyle={{ paddingHorizontal: sizes.side, gap: 12 }}
-      showsHorizontalScrollIndicator={false}
-      renderItem={({ item }) => (
-        <Focusable accessibilityRole="button" accessibilityLabel={item.name} onFocus={onFocus} onPress={() => router.push({ pathname: '/genres', params: { scope: 'library', kind: item.kind, genre: String(item.id) } })}>
-          {(focused) => (
-            <View style={{ height: 64, minWidth: 150, paddingHorizontal: 22, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: focused ? colors.accent : colors.raised, transform: [{ scale: focused ? 1.06 : 1 }] }}>
-              <Text numberOfLines={1} style={{ color: focused ? colors.accentInk : colors.ink, fontSize: 19, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' }}>{item.name}</Text>
-            </View>
-          )}
-        </Focusable>
-      )}
-    />
+    <View style={{ height: Math.round(height * 0.62), backgroundColor: colors.surface }}>
+      <Artwork path={backdrop} size="w1280" style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, opacity: 0.9 }} />
+      <Shade side="left" />
+      <Shade side="bottom" />
+      <View style={{ position: 'absolute', left: SIDE, bottom: 28, width: '55%' }}>
+        <Text style={{ color: colors.accent, fontSize: 14, fontWeight: '700' }}>{cw ? t('home.pickUp') : t('home.recentlyAdded')}</Text>
+        <Text numberOfLines={2} style={{ color: colors.ink, fontSize: 42, lineHeight: 44, fontWeight: '700', marginTop: 6 }}>{title}</Text>
+        {detail ? <Text numberOfLines={2} style={{ color: 'rgba(236,232,244,0.85)', fontSize: 16, lineHeight: 22, marginTop: 10 }}>{detail}</Text> : null}
+        {cw && cw.percent > 0 && (
+          <View style={{ height: 4, width: 260, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', marginTop: 12, overflow: 'hidden' }}>
+            <View style={{ height: 4, width: `${Math.round(cw.percent)}%`, backgroundColor: colors.accent }} />
+          </View>
+        )}
+        <View style={{ flexDirection: 'row', gap: 12, marginTop: 18 }}>
+          <HeroButton primary label={t('player.play')} icon="play" onPress={play} onFocus={onFocus} />
+          {!show && <HeroButton label={t('home.details')} icon="info" onPress={() => (cw ? openContinueDetails(cw) : openCard(card!))} onFocus={onFocus} />}
+        </View>
+      </View>
+    </View>
   );
 }
 
-function Tile({ tile, chosen, sizes, onFocus, onBlur, onPress }: { tile: TvTile; chosen: boolean; sizes: Sizes; onFocus: () => void; onBlur: () => void; onPress: () => void }) {
-  const width = chosen ? sizes.wide : sizes.poster;
+/** A poster as on the website: a ring in the accent colour when chosen, with its details over it. */
+function Poster({ tile, width, onPress, onFocus }: { tile: TvTile; width: number; onPress: () => void; onFocus: () => void }) {
   return (
-    <Focusable accessibilityRole="button" accessibilityLabel={tile.title} onFocus={onFocus} onBlur={onBlur} onPress={onPress}>
-      {() => (
-        <View style={{ width, height: sizes.tile, borderRadius: radius.md, overflow: 'hidden', borderWidth: 3, borderColor: chosen ? colors.ink : 'transparent', backgroundColor: colors.raised }}>
-          <Artwork path={chosen ? (tile.wide ?? tile.poster) : tile.poster} size={chosen ? 'w780' : 'w342'} label={tile.title} style={{ width: '100%', height: '100%' }} />
-          {chosen && (
-            <>
-              <Shade side="bottom" />
-              <Text numberOfLines={2} style={{ position: 'absolute', left: 14, right: 14, bottom: tile.progress > 0 ? 16 : 10, color: colors.ink, fontSize: 22, fontWeight: '800' }}>{tile.title}</Text>
-            </>
-          )}
-          {tile.badge && (
-            <Text numberOfLines={1} style={{ position: 'absolute', top: 8, right: 8, maxWidth: width - 16, backgroundColor: 'rgba(20,18,28,0.85)', color: colors.accent, fontSize: 12, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, overflow: 'hidden' }}>{tile.badge}</Text>
-          )}
-          {tile.progress > 0 && (
-            <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: 'rgba(255,255,255,0.25)' }}>
-              <View style={{ height: 4, width: `${Math.round(tile.progress * 100)}%`, backgroundColor: colors.accent }} />
-            </View>
-          )}
-        </View>
+    <Focusable accessibilityRole="button" accessibilityLabel={tile.title} onPress={onPress} onFocus={onFocus} style={{ width }}>
+      {(focused) => (
+        <>
+          <View style={{ width, height: width * 1.5, borderRadius: radius.md, overflow: 'hidden', borderWidth: 2, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)', transform: [{ translateY: focused ? -4 : 0 }] }}>
+            <Artwork path={tile.poster} size="w342" label={tile.title} style={{ width: '100%', height: '100%' }} />
+            {focused && (
+              <>
+                <Shade side="bottom" height="75%" />
+                <View style={{ position: 'absolute', left: 10, right: 10, bottom: tile.progress > 0 ? 16 : 10 }}>
+                  <Text numberOfLines={2} style={{ color: colors.ink, fontSize: 14, fontWeight: '700' }}>{tile.title}</Text>
+                  {tile.facts ? <Text style={{ color: 'rgba(236,232,244,0.8)', fontSize: 12, marginTop: 3 }}>{tile.facts}</Text> : null}
+                  {tile.rating ? <Text style={{ color: 'rgba(236,232,244,0.8)', fontSize: 12, marginTop: 2 }}>★ {tile.rating.toFixed(1)}</Text> : null}
+                  {tile.genres ? <Text numberOfLines={1} style={{ color: 'rgba(236,232,244,0.65)', fontSize: 12, marginTop: 2 }}>{tile.genres}</Text> : null}
+                </View>
+              </>
+            )}
+            {tile.badge && (
+              <Text numberOfLines={1} style={{ position: 'absolute', top: 6, right: 6, maxWidth: width - 12, backgroundColor: 'rgba(20,18,28,0.85)', color: colors.accent, fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, overflow: 'hidden' }}>{tile.badge}</Text>
+            )}
+            {tile.progress > 0 && (
+              <View style={{ position: 'absolute', left: 8, right: 8, bottom: 6, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' }}>
+                <View style={{ height: 3, width: `${Math.round(tile.progress * 100)}%`, backgroundColor: colors.accent }} />
+              </View>
+            )}
+          </View>
+          <Text numberOfLines={1} style={{ color: focused ? colors.ink : 'rgba(236,232,244,0.9)', fontSize: 14, fontWeight: '500', marginTop: 8 }}>{tile.title}</Text>
+          <Text numberOfLines={1} style={{ color: colors.faint, fontSize: 12 }}>{tile.sub || ' '}</Text>
+        </>
       )}
     </Focusable>
   );
 }
 
-/**
- * A row: posters, and the one with the focus wide at the left edge with its facts and
- * description under the row (only in the row that has the focus).
- */
-function TvRow({ title, tiles, sizes, onPress, onFocusRow, onEndReached }: { title: string; tiles: TvTile[]; sizes: Sizes; onPress: (i: number) => void; onFocusRow: () => void; onEndReached?: () => void }) {
-  const list = useRef<FlatList<TvTile>>(null);
-  const focused = useRef<number | null>(null);
-  const [chosen, setChosen] = useState<number | null>(null);
-  if (!tiles.length) return null;
-  const pick = chosen !== null ? tiles[chosen] : undefined;
+/** Continue Watching as on the website: wide artwork with progress, title and episode underneath. */
+function ContinueCard({ item, onFocus }: { item: ContinueItem; onFocus: () => void }) {
+  const { t } = useSession();
+  const width = 300;
   return (
-    <View style={{ marginTop: 22 }}>
-      <Text style={{ color: colors.ink, fontSize: 20, fontWeight: '700', marginBottom: 10, paddingHorizontal: sizes.side }}>{title}</Text>
+    <Focusable accessibilityRole="button" accessibilityLabel={item.title} onPress={() => router.push(`/play/${item.type}/${item.id}`)} onFocus={onFocus} style={{ width }}>
+      {(focused) => (
+        <>
+          <View style={{ width, height: width * 0.5625, borderRadius: radius.md, overflow: 'hidden', borderWidth: 2, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)', transform: [{ translateY: focused ? -4 : 0 }] }}>
+            <Artwork path={item.imagePath ?? item.posterPath} size="w780" label={item.title} style={{ width: '100%', height: '100%' }} />
+            <Shade side="bottom" height="50%" />
+            {focused && (
+              <View style={{ position: 'absolute', left: 12, bottom: 16, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: 12, height: 30 }}>
+                <Feather name="play" size={14} color={colors.bg} />
+                <Text style={{ color: colors.bg, fontSize: 13, fontWeight: '700' }}>{t('player.play')}</Text>
+              </View>
+            )}
+            {item.percent > 0 && (
+              <View style={{ position: 'absolute', left: 10, right: 10, bottom: 8, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' }}>
+                <View style={{ height: 3, width: `${Math.round(item.percent)}%`, backgroundColor: colors.accent }} />
+              </View>
+            )}
+          </View>
+          <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 14, fontWeight: '500', marginTop: 8 }}>{item.title}</Text>
+          {item.subtitle ? (
+            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
+              {item.upNext ? `${t('home.upNext')} · ` : ''}
+              {item.subtitle}
+              {item.episodeTitle ? ` · ${item.episodeTitle}` : ''}
+            </Text>
+          ) : null}
+        </>
+      )}
+    </Focusable>
+  );
+}
+
+function Row<T>({ title, items, keyOf, render, onEndReached }: { title: string; items: T[]; keyOf: (x: T) => string; render: (x: T, i: number) => ReactNode; onEndReached?: () => void }) {
+  if (!items.length) return null;
+  return (
+    <View style={{ marginTop: 28 }}>
+      <Text style={{ color: colors.ink, fontSize: 20, fontWeight: '700', marginBottom: 12, paddingHorizontal: SIDE }}>{title}</Text>
       <FlatList
-        ref={list}
         horizontal
-        data={tiles}
-        keyExtractor={(x) => x.key}
-        extraData={chosen}
+        data={items}
+        keyExtractor={keyOf}
+        renderItem={({ item, index }) => <>{render(item, index)}</>}
         initialNumToRender={8}
         windowSize={5}
         onEndReached={onEndReached}
         onEndReachedThreshold={2}
-        contentContainerStyle={{ paddingHorizontal: sizes.side, gap: sizes.gap, paddingRight: sizes.side + sizes.wide }}
+        // Room above for the lift of the chosen poster.
+        contentContainerStyle={{ paddingHorizontal: SIDE, paddingTop: 6, gap: GAP }}
         showsHorizontalScrollIndicator={false}
-        renderItem={({ item, index }) => (
-          <Tile
-            tile={item}
-            chosen={chosen === index}
-            sizes={sizes}
-            onPress={() => onPress(index)}
-            onFocus={() => {
-              focused.current = index;
-              setChosen(index);
-              onFocusRow();
-              list.current?.scrollToOffset({ offset: rowOffset(index, sizes.poster, sizes.gap), animated: true });
-            }}
-            onBlur={() => {
-              focused.current = null;
-              // Moving within the row focuses the next tile right away; only leaving the row folds it up.
-              setTimeout(() => focused.current === null && setChosen(null), 0);
-            }}
-          />
-        )}
       />
-      {pick && (
-        <View style={{ height: INFO, paddingHorizontal: sizes.side, paddingTop: 12, maxWidth: '62%' }}>
-          {pick.meta.length > 0 && <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 15, fontWeight: '700' }}>{pick.meta.join('  ·  ')}</Text>}
-          {pick.overview ? <Text numberOfLines={3} style={{ color: colors.muted, fontSize: 15, lineHeight: 21, marginTop: 6 }}>{pick.overview}</Text> : null}
-        </View>
-      )}
     </View>
   );
 }
 
-function CardRow({ title, cards, sizes, onFocusRow }: { title: string; cards: Card[]; sizes: Sizes; onFocusRow: () => void }) {
-  const { t } = useSession();
-  return <TvRow title={title} tiles={cards.map((c) => cardTile(c, t))} sizes={sizes} onFocusRow={onFocusRow} onPress={(i) => openCard(cards[i]!)} />;
-}
-
-function DiscoverTvRow({ spec, sizes, onFocusRow, onOpen }: { spec: DiscoverRow; sizes: Sizes; onFocusRow: () => void; onOpen: (item: SeerrResult) => void }) {
+function DiscoverTvRow({ spec, width, onFocus, onOpen }: { spec: DiscoverRow; width: number; onFocus: () => void; onOpen: (item: SeerrResult) => void }) {
   const { api, t, serverUrl } = useSession();
   const q = useInfiniteQuery({
     queryKey: [serverUrl, 'discover', spec.row, spec.genre ?? null],
@@ -221,34 +217,33 @@ function DiscoverTvRow({ spec, sizes, onFocusRow, onOpen }: { spec: DiscoverRow;
   const items = mergePages(q.data?.pages ?? []);
   const title = spec.genreName ? t(spec.title, { genre: t(spec.genreName) }) : t(spec.title);
   return (
-    <TvRow
+    <Row
       title={title}
-      tiles={items.map((x) => discoverTile(x, t))}
-      sizes={sizes}
-      onFocusRow={onFocusRow}
-      onPress={(i) => onOpen(items[i]!)}
+      items={items}
+      keyOf={(x) => `${x.mediaType}-${x.tmdbId}`}
+      render={(x) => <Poster tile={discoverTile(x, t)} width={width} onFocus={onFocus} onPress={() => onOpen(x)} />}
       onEndReached={() => q.hasNextPage && !q.isFetchingNextPage && void q.fetchNextPage()}
     />
   );
 }
 
 /**
- * The home screen on a TV: a big title at the top, the genres, and rows in which the title with
- * the focus grows wide with its description underneath. The row with the focus scrolls to the top.
+ * The home screen on a TV, built like the website's: the hero at the top, then the rows. The row
+ * with the focus scrolls into view with the row title above it.
  */
 export function TvHome({ data }: { data: HomeData }) {
   const { api, t, serverUrl } = useSession();
-  const { width, height } = useWindowDimensions();
-  const sizes = tvSizes(width, height);
+  const { height } = useWindowDimensions();
+  const width = tvPosterWidth(height);
   const scroll = useRef<ScrollView>(null);
   const tops = useRef(new Map<string, number>());
-  const active = useRef<string>('hero');
+  const active = useRef('hero');
   const [rows, setRows] = useState(3);
   const seerr = useQuery({ queryKey: [serverUrl, 'seerr'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
   const { open } = useOpenDiscover();
 
   const toActive = () => {
-    const y = active.current === 'hero' ? 0 : (tops.current.get(active.current) ?? 0) - 8;
+    const y = active.current === 'hero' ? 0 : (tops.current.get(active.current) ?? 0) - 16;
     scroll.current?.scrollTo({ y: Math.max(0, y), animated: true });
   };
   const focusRow = (key: string, discoverIndex?: number) => () => {
@@ -257,45 +252,34 @@ export function TvHome({ data }: { data: HomeData }) {
     active.current = key;
     toActive();
   };
-  // A row above folds up or opens: everything under it moves, so follow the row with the focus.
-  const place = (key: string) => (y: number) => {
-    tops.current.set(key, y);
-    if (key === active.current) toActive();
-  };
   const section = (key: string, node: ReactNode) => (
-    <View key={key} onLayout={(e) => place(key)(e.nativeEvent.layout.y)}>
+    <View
+      key={key}
+      onLayout={(e) => {
+        tops.current.set(key, e.nativeEvent.layout.y);
+        if (key === active.current) toActive();
+      }}
+    >
       {node}
     </View>
   );
+  const cards = (key: string, title: string, list: Card[]) =>
+    section(key, <Row title={title} items={list} keyOf={(c) => `${c.type}-${c.id}`} render={(c) => <Poster tile={cardTile(c, t)} width={width} onFocus={focusRow(key)} onPress={() => openCard(c)} />} />);
 
   const d = data;
   return (
-    <ScrollView ref={scroll} contentContainerStyle={{ paddingTop: 8, paddingBottom: height }}>
-      {section('hero', <Hero data={d} sizes={sizes} onFocus={focusRow('hero')} />)}
-      {section('genres', <GenreRow sizes={sizes} onFocus={focusRow('hero')} />)}
-      {d.continueWatching.length > 0 &&
-        section(
-          'continue',
-          <TvRow
-            title={t('home.continue')}
-            tiles={d.continueWatching.map((c) => continueTile(c, t))}
-            sizes={sizes}
-            onFocusRow={focusRow('continue')}
-            onPress={(i) => {
-              const item = d.continueWatching[i]!;
-              router.push(`/play/${item.type}/${item.id}`);
-            }}
-          />,
-        )}
-      {section('watchlist', <CardRow title={t('home.watchlist')} cards={d.watchlist ?? []} sizes={sizes} onFocusRow={focusRow('watchlist')} />)}
-      {section('recent', <CardRow title={t('home.recentlyAdded')} cards={d.recentlyAdded} sizes={sizes} onFocusRow={focusRow('recent')} />)}
-      {section('movies', <CardRow title={t('home.movies')} cards={d.movies} sizes={sizes} onFocusRow={focusRow('movies')} />)}
-      {section('shows', <CardRow title={t('home.shows')} cards={d.shows} sizes={sizes} onFocusRow={focusRow('shows')} />)}
-      {section('favorites', <CardRow title={t('home.favorites')} cards={d.favorites ?? []} sizes={sizes} onFocusRow={focusRow('favorites')} />)}
+    <ScrollView ref={scroll} contentContainerStyle={{ paddingBottom: height / 2 }}>
+      {section('hero', <Hero data={d} onFocus={focusRow('hero')} />)}
+      {section('continue', <Row title={t('home.continue')} items={d.continueWatching} keyOf={(c) => `${c.type}-${c.id}`} render={(c) => <ContinueCard item={c} onFocus={focusRow('continue')} />} />)}
+      {cards('watchlist', t('home.watchlist'), d.watchlist ?? [])}
+      {cards('recent', t('home.recentlyAdded'), d.recentlyAdded)}
+      {cards('movies', t('home.movies'), d.movies)}
+      {cards('shows', t('home.shows'), d.shows)}
+      {cards('favorites', t('home.favorites'), d.favorites ?? [])}
       {seerr.data?.enabled &&
         DISCOVER_ROWS.slice(0, rows).map((spec, i) => {
           const key = `discover-${spec.row}-${spec.genre ?? ''}`;
-          return section(key, <DiscoverTvRow spec={spec} sizes={sizes} onFocusRow={focusRow(key, i)} onOpen={(item) => void open(item)} />);
+          return section(key, <DiscoverTvRow spec={spec} width={width} onFocus={focusRow(key, i)} onOpen={(item) => void open(item)} />);
         })}
     </ScrollView>
   );

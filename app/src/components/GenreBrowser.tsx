@@ -19,7 +19,7 @@ const PAGE = 60;
 
 export function GenreBrowser() {
   const { api, t, serverUrl } = useSession();
-  const params = useLocalSearchParams<{ scope?: string; kind?: string; genre?: string }>();
+  const params = useLocalSearchParams<{ scope?: string; kind?: string }>();
   const { columns, itemWidth } = useGrid();
   const [scope, setScope] = useState<Scope>(params.scope === 'seerr' ? 'seerr' : 'library');
   const [kind, setKind] = useState<Kind>(params.kind === 'shows' ? 'shows' : 'movies');
@@ -30,10 +30,8 @@ export function GenreBrowser() {
   useEffect(() => {
     if (params.scope === 'library' || params.scope === 'seerr') setScope(params.scope);
     if (params.kind === 'movies' || params.kind === 'shows') setKind(params.kind);
-    // A genre tile on the TV home screen opens that genre straight away.
-    const genre = Number(params.genre);
-    setSelectedGenre(Number.isInteger(genre) && genre > 0 ? genre : null);
-  }, [params.scope, params.kind, params.genre]);
+    setSelectedGenre(null);
+  }, [params.scope, params.kind]);
 
   const localGenres = useQuery({
     queryKey: [serverUrl, 'genres', kind],

@@ -10,8 +10,6 @@ export interface SeerrResult {
   year: number | null;
   overview: string;
   posterPath: string | null;
-  /** Wide artwork, when the catalog row has it. */
-  backdropPath?: string | null;
   state: RequestState | null;
   inLibrary: boolean;
   local: { type: 'movie' | 'show'; id: number } | null;
@@ -22,6 +20,7 @@ export interface SeerrDetails extends SeerrResult {
   runtime: number | null;
   /** Each season, with where it stands when it was requested before (older servers: no state). */
   seasons: Array<{ seasonNumber: number; episodeCount: number; state?: RequestState | null }>;
+  backdropPath?: string | null;
   tagline?: string | null;
   rating?: number | null;
   cast?: Array<{ id: number; name: string; character: string | null; profilePath: string | null }>;

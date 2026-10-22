@@ -1917,11 +1917,12 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Traag: niet aangewezen; minder hertekenen door de ondertitels. Navragen waar het traag voelt (bladeren of de speler).
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1986) en beide lockfiles bijgewerkt.
 
-- **Startscherm op de tv zoals een grote streamingdienst** (eigenaar 22 okt, drie foto's: "probeer dit zoveel mogelijk na te
-  maken, maar dan volledig in vidalune style", zonder de naam van die dienst te noemen): bovenbalk met het account links
-  (letter in accentkleur), zoeken en Home/Series/Films/Genres in het midden en het logo rechts (`TvTopBar`); Home op de tv
-  (`TvHome.tsx`, logica in `lib/tvHome.ts`): grote afgeronde kaart met verder kijken of de nieuwste titel, Afspelen en
-  Meer informatie; genretegels (films en series samen, opent de genre direct, `genre` in `GenreBrowser`); rijen waarin de
-  gekozen titel breed wordt met de feiten (soort · genre · jaar · lengte/seizoenen) en beschrijving eronder, en de rij met
-  de focus schuift naar boven. Catalogusrijen geven nu ook de brede afbeelding mee (`backdropPath` in `seerr.ts`). Telefoon
-  ongewijzigd. Tests: `tvHome.test.ts` (6) en de Seerr-test; app 215 tests, typechecks en lint slagen. Op de tv te testen.
+- **Startscherm op de tv zoals de website** (eigenaar 22 okt, eerst drie foto's van een grote streamingdienst: "probeer dit
+  zoveel mogelijk na te maken, maar dan volledig in vidalune style"; daarna: "Het moet niet op netflix lijken he", "ik ben
+  bang als het teveel op netflix lijkt dat ik er problemen mee ga krijgen"). Eerste versie (571943f) leek te veel op die
+  dienst (account links, tabbladen in het midden, genretegels, uitklappende kaarten); vervangen door de opbouw van de
+  eigen website: bovenbalk met logo, onderdelen met iconen en zoeken/account rechts (`TvTopBar`); Home op de tv
+  (`TvHome.tsx`, logica in `lib/tvHome.ts`) met de hero van de website (verder kijken of nieuwste titel, Afspelen en
+  Details), Verder kijken als brede kaarten, en posters die bij focus een rand in accentkleur krijgen met de details
+  erover (jaar • lengte/seizoenen, waardering, genres), zoals bij hover op de website. Telefoon ongewijzigd. Tests:
+  `tvHome.test.ts`; app 213 tests, typechecks en lint slagen. Op de tv te testen.

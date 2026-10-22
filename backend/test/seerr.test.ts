@@ -44,7 +44,7 @@ const fakeSeerr = async (url: string, init?: RequestInit) => {
   if (path.startsWith('/discover/')) {
     // Discover rows leave out mediaType for movie and tv lists (as Seerr does for some of them).
     const page = Number(u.searchParams.get('page'));
-    if (path === '/discover/trending') return json({ page, totalPages: 3, results: [{ id: 550, mediaType: 'movie', title: 'Already Here', releaseDate: '1999-10-15', posterPath: null }, { id: 1399, mediaType: 'tv', name: 'A Show', firstAirDate: '2011-04-17', posterPath: '/show.jpg', backdropPath: '/show-wide.jpg' }, { id: 1, mediaType: 'person', name: 'Somebody' }] });
+    if (path === '/discover/trending') return json({ page, totalPages: 3, results: [{ id: 550, mediaType: 'movie', title: 'Already Here', releaseDate: '1999-10-15', posterPath: null }, { id: 1399, mediaType: 'tv', name: 'A Show', firstAirDate: '2011-04-17', posterPath: '/show.jpg' }, { id: 1, mediaType: 'person', name: 'Somebody' }] });
     if (path === '/discover/movies/genre/28') return json({ page, totalPages: 400, results: [{ id: 603, title: 'The Matrix', releaseDate: '1999-03-30', voteAverage: 8.26, posterPath: '/matrix.jpg' }] });
     if (path === '/discover/tv/upcoming') return json({ page, totalPages: 1, results: [{ id: 1400, name: 'Coming Soon', firstAirDate: '2027-01-01', posterPath: null }] });
   }
@@ -227,10 +227,8 @@ describe('Seerr', () => {
     expect(trending.totalPages).toBe(3);
     expect(trending.results).toMatchObject([
       { mediaType: 'movie', tmdbId: 550, inLibrary: true, local: { type: 'movie', id: movie.id } },
-      { mediaType: 'tv', tmdbId: 1399, backdropPath: '/show-wide.jpg', inLibrary: true, local: { type: 'show', id: show.id } },
+      { mediaType: 'tv', tmdbId: 1399, inLibrary: true, local: { type: 'show', id: show.id } },
     ]);
-    // Wide artwork only when Seerr has it (the TV app shows it for the chosen title).
-    expect(trending.results[0]).not.toHaveProperty('backdropPath');
     // Rows are kept for a while: the same row again does not ask Seerr.
     const asked = calls.length;
     await row('row=trending');

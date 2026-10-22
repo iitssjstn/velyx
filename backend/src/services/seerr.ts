@@ -22,8 +22,6 @@ export interface SeerrResult {
   rating?: number | null;
   overview: string;
   posterPath: string | null;
-  /** Wide artwork (the TV app shows it for the chosen title). */
-  backdropPath?: string | null;
   /** What Seerr knows of it: already requested, being downloaded, available (null: nothing yet). */
   state: RequestState | null;
 }
@@ -186,7 +184,6 @@ export class SeerrService {
         ...(typeof x.voteAverage === 'number' ? { rating: Math.round(x.voteAverage * 10) / 10 } : {}),
         overview: String(x.overview ?? ''),
         posterPath: typeof x.posterPath === 'string' ? x.posterPath : null,
-        ...(typeof x.backdropPath === 'string' ? { backdropPath: x.backdropPath } : {}),
         state: mediaState(x.mediaInfo as RawMedia | undefined),
       });
     }
