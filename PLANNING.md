@@ -279,6 +279,25 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Door de eigenaar te testen: vanuit de app casten, tijdens het afspelen een andere serie kiezen (melding "Voorbereiden",
   daarna speelt hij, geen 2100); het pijltje linksboven; daarna de volgende aflevering (moet meteen starten).
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1991) en beide lockfiles bijgewerkt.
+- PR #178 aangemaakt 22 okt op verzoek van de eigenaar ("maak de pr maar"); automatische voettekst met sessielink meteen
+  weggehaald. Gemerged 22 okt met toestemming van de eigenaar ("Als alles groen is mag je het mergen"; alle checks groen).
+
+## Volgende: tv-detailpagina strakker (nog niet bouwen tot de eigenaar het zegt)
+
+- Wens eigenaar (22 okt, voorbeeldontwerp "Cosmic Drift": "Hoe mogelijk is het om dit type UI er in te maken zodat het wat
+  netter en strakker wordt"). Voorstel aan de eigenaar, alleen tv, telefoon ongewijzigd (`TvDetail.tsx`):
+  - achtergrondfoto alleen rechts en helder, naar links overlopend in donker (horizontaal verloop in plaats van de
+    dimlaag over het hele beeld);
+  - grote titel met het jaar in lichtere letters, één feitenregel met scheidingstekens;
+  - Afspelen gevuld in de accentkleur, Kijklijst en Favoriet als omlijnde knoppen met icoon;
+  - cast als staande kaartjes met foto en naam eronder; vergelijkbare titels met voortgangsbalk in een eigen rij (niet
+    gemengd met de cast in één rij: verwarrend met de pijltjes).
+  - Niet beschikbaar zonder serverwerk: leeftijdskeuring (PG-13; Vidalune haalt die niet op bij TMDB) en het logo van de
+    zender (alleen de naam is bekend). Voorstel: eerst weglaten / alleen de naam.
+- Besluit eigenaar (22 okt): "de cast moet altijd onderaan staan als het een serie is onder de afleveringen". Dus bij een
+  serie: knoppen, seizoenen, afleveringen, en daaronder de cast. Bij een film nog navragen (cast direct onder de knoppen
+  zoals in het ontwerp, of ook onderaan).
+- Leeropdracht gegeven: hoe het horizontale verloop te maken (hint: `assets/fade.png` in de tv-speler).
 
 ## Versie 0.19.11
 
