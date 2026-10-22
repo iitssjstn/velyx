@@ -322,6 +322,14 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   Daarna (eigenaar 22 okt): "Denk grijs met paars wel mooi is, dus achtergrond wat grijzig met paars er door heen". Dus
   op de tv ook de achtergrond: van bijna zwart (#14121c) naar donker grijs met een vleugje paars, zoals het voorbeeld
   (rond #1d1c25; vlakken en kaarten iets lichter, rond #26242f). Nog wachten op "bouw het".
+- Wens eigenaar (22 okt): "Kunnen we de besturing wat smoother aan laten voelen dus als iemand naar beneden gaat dat het
+  soort van swipen voelt maar dan wat sneller". Nu: `TvHome` schuift met `ScrollView.scrollTo({ animated: true })`; op
+  Android heeft die een vaste duur en verloop die niet in te stellen zijn, en rijen naar links/rechts schuift Android zelf
+  bij elke focusstap (schokkerig). Voorstel: zelf schuiven met `Animated` op de native thread (kort, rond 200 ms, snel
+  begin en zacht uitlopen, als een veeg), onderbreekbaar zodat snel achter elkaar drukken of vasthouden meteen doorgaat
+  vanaf waar het is in plaats van te wachten. Voor omlaag/omhoog op Home én opzij in de rijen; daarna dezelfde manier op
+  de detailpagina en de rasters (Films, Series, Genres). Op de tv te testen (Chromecast is traag; native driver nodig).
+  Meenemen in 0.19.92. Nog wachten op "bouw het".
 
 ## Versie 0.19.11
 
