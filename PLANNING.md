@@ -22,6 +22,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
      titel wisselen tijdens casten (geen 2100 meer); casten vanaf telefoon en website naar de Chromecast met Google TV opent de Vidalune-app
      (hervatpunt, ondertitel, audio; pauze/spoelen/ondertitel vanaf de telefoon); zonder app de webspeler met
      onthouden ondertitel en hervatpunt.
+  Eigenaar (22 okt): "De chromecast app is getest, ik heb gekeken naar de focus-rand etc" (tv-app tot en met 0.19.89, geen
+  fouten gemeld). Navragen wat nog niet getest is: Cast Connect, intro overslaan, titel wisselen tijdens casten.
   3. 0.19.84 testen op de Chromecast met Google TV (eigenaar): inloggen met de QR-code, met de pijltjes een titel
      openen, afspelen, spoelen, ondertitels/audio, een serie tot de aftiteling, Terug.
   4. Overige tests (eigenaar): app-schermen (seizoenenknop, audiospoor, uitloggen, wachtwoord), Windows-installer op een
