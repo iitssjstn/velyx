@@ -304,6 +304,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   gekozen item, zacht paars licht onder hero's, omlijnde knoppen) en die overal op de tv gebruiken: Home, Films, Series,
   Genres, Zoeken, Account, detail- en aanvraagpagina. Let op de Chromecast: gloed alleen op het item met de focus en op
   de hoofdknop, niet op elke poster (zwakke grafische chip). Telefoon ongewijzigd. Samen met de detailpagina als 0.19.92.
+- Besluiten eigenaar (22 okt): bij een film staat de cast ook onderaan, onder het blok "Details" (About); bij een serie
+  dus: afleveringen, Details, cast. De gloed alleen op de film/serie (poster of kaart) waar je op staat ("is ook mooier"),
+  niet op alles. Nog wachten op "bouw het".
 
 ## Versie 0.19.11
 
