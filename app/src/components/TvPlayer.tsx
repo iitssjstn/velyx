@@ -58,6 +58,7 @@ function Fade({ from }: { from: 'top' | 'bottom' }) {
 export function TvPlayer(p: TvPlayerProps) {
   const { t } = useSession();
   const { state } = p;
+  const backFocused = state.open === 'bar' && state.top;
   const fraction = p.duration > 0 ? Math.max(0, Math.min(1, p.position / p.duration)) : 0;
   const label = (b: TvButton) =>
     b === 'back' ? t('player.backSeconds', { n: p.seekStep }) : b === 'forward' ? t('player.forwardSeconds', { n: p.seekStep }) : b === 'play' ? (p.playing ? t('player.pause') : t('player.play')) : b === 'subtitles' ? t('player.subtitles') : b === 'audio' ? t('player.audio') : t('player.next');
@@ -80,9 +81,15 @@ export function TvPlayer(p: TvPlayerProps) {
           {/* Top: title and episode, as in the website's player. */}
           <View style={{ position: 'absolute', left: 0, right: 0, top: 0 }}>
             <Fade from="top" />
-            <View style={{ position: 'absolute', left: 40, right: 40, top: 28, gap: 2 }}>
-              <Text style={{ color: '#fff', fontSize: 22, fontWeight: '700' }} numberOfLines={1}>{p.title}</Text>
-              {p.subtitle ? <Text style={{ color: 'rgba(238,233,255,0.7)', fontSize: 15 }} numberOfLines={1}>{p.subtitle}</Text> : null}
+            <View style={{ position: 'absolute', left: 40, right: 40, top: 28, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              {/* Back to where the player was opened from; ← from the first button of the row reaches it. */}
+              <View accessibilityRole="button" accessibilityLabel={t('player.back')} accessibilityState={{ selected: backFocused }} style={{ width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: backFocused ? '#fff' : 'rgba(255,255,255,0.12)', transform: [{ scale: backFocused ? 1.1 : 1 }] }}>
+                <Feather name="arrow-left" size={24} color={backFocused ? colors.bg : '#fff'} />
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={{ color: '#fff', fontSize: 22, fontWeight: '700' }} numberOfLines={1}>{p.title}</Text>
+                {p.subtitle ? <Text style={{ color: 'rgba(238,233,255,0.7)', fontSize: 15 }} numberOfLines={1}>{p.subtitle}</Text> : null}
+              </View>
             </View>
           </View>
           {/* Bottom: the timeline, then the buttons and the time (left) and the tracks (right). */}
@@ -97,7 +104,7 @@ export function TvPlayer(p: TvPlayerProps) {
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, height: 52 }}>
                 {p.buttons.map((b, i) => {
-                  const focused = state.open === 'bar' && state.focus === i;
+                  const focused = state.open === 'bar' && !state.top && state.focus === i;
                   const button = (
                     <View key={b} accessibilityRole="button" accessibilityLabel={label(b)} accessibilityState={{ selected: focused }} style={{ width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: focused ? '#fff' : 'transparent', transform: [{ scale: focused ? 1.1 : 1 }] }}>
                       <Feather name={b === 'play' && p.playing ? 'pause' : ICONS[b]} size={b === 'play' ? 26 : 22} color={focused ? colors.bg : '#fff'} />

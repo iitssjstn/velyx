@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { Alert, Platform, ScrollView, Text, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
@@ -139,7 +139,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Row({ icon, label, href }: { icon: React.ComponentProps<typeof Feather>['name']; label: string; href: Href }) {
   return (
-    <FocusPressable accessibilityRole="button" onPress={() => router.push(href)} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, opacity: pressed ? 0.7 : 1 })}>
+    <FocusPressable accessibilityRole="button" onPress={() => router.push(href)} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, opacity: pressed ? 0.7 : 1, ...(Platform.isTV && { paddingHorizontal: 10, borderRadius: radius.sm }) })}>
       <Feather name={icon} size={18} color={colors.muted} />
       <Text style={[styles.body, { flex: 1 }]}>{label}</Text>
       <Feather name="chevron-right" size={18} color={colors.faint} />

@@ -2,7 +2,7 @@
  * The player on Android TV / Google TV, operated with the remote: which key does what and what is on
  * screen. The same choices as Vidalune's cast player on the TV (cloud/web/cast/remote.js), so both
  * feel alike: OK plays/pauses (or skips the intro when offered), ←/→ jump, ↑/↓ bring up the row of
- * buttons, Back closes what is open and then leaves the player.
+ * buttons (and hide it again), Back closes what is open and then leaves the player.
  */
 
 import type { EpisodeSegments } from './skip';
@@ -62,6 +62,8 @@ export interface TvState {
   open: 'none' | 'bar' | 'menu';
   /** The button with the focus in the row. */
   focus: number;
+  /** In the row: the Back button at the top left (next to the title) has the focus instead. */
+  top: boolean;
   tab: TvTab;
   /** The line with the focus in the menu. */
   item: number;
@@ -69,7 +71,7 @@ export interface TvState {
   nextFocus: 0 | 1;
 }
 
-export const initialTvState = (): TvState => ({ open: 'none', focus: 1, tab: 'subtitles', item: 0, nextFocus: 0 });
+export const initialTvState = (): TvState => ({ open: 'none', focus: 1, top: false, tab: 'subtitles', item: 0, nextFocus: 0 });
 
 export type TvAction =
   | { type: 'toggle' }
@@ -79,6 +81,7 @@ export type TvAction =
   | { type: 'dismissNext' }
   | { type: 'skip' }
   | { type: 'show' }
+  | { type: 'exit' }
   | { type: 'pick'; tab: TvTab; index: number };
 
 export interface TvContext {
@@ -122,11 +125,25 @@ export function pressKey(state: TvState, key: RemoteKey, ctx: TvContext): { stat
     return done();
   }
 
+  if (s.open === 'bar' && s.top) {
+    // The Back button at the top: OK leaves the player, ↓ or → go back to the row, ↑ hides the controls.
+    if (key === 'ok') return done({ type: 'exit' });
+    if (key === 'down' || key === 'right') s.top = false;
+    else if (key === 'up' || key === 'back') {
+      s.open = 'none';
+      s.top = false;
+      return done();
+    }
+    return done({ type: 'show' });
+  }
+
   if (s.open === 'bar') {
     s.focus = clamp(s.focus, 0, buttons.length - 1);
-    if (key === 'left') s.focus = clamp(s.focus - 1, 0, buttons.length - 1);
+    // ← past the first button reaches the Back button at the top left; ↑ and ↓ hide the controls.
+    if (key === 'left' && s.focus === 0) s.top = true;
+    else if (key === 'left') s.focus = clamp(s.focus - 1, 0, buttons.length - 1);
     else if (key === 'right') s.focus = clamp(s.focus + 1, 0, buttons.length - 1);
-    else if (key === 'down' || key === 'back') {
+    else if (key === 'up' || key === 'down' || key === 'back') {
       s.open = 'none';
       return done();
     } else if (key === 'ok') {
@@ -150,6 +167,7 @@ export function pressKey(state: TvState, key: RemoteKey, ctx: TvContext): { stat
     else if (key === 'back') return done({ type: 'dismissNext' });
     else if (key === 'up' || key === 'down') {
       s.open = 'bar';
+      s.top = false;
       s.focus = Math.max(0, buttons.indexOf('play'));
       return done({ type: 'show' });
     }
@@ -159,6 +177,7 @@ export function pressKey(state: TvState, key: RemoteKey, ctx: TvContext): { stat
   if (key === 'left' || key === 'right') return done({ type: 'step', side: key === 'left' ? 'back' : 'forward' });
   if (key === 'up' || key === 'down') {
     s.open = 'bar';
+    s.top = false;
     s.focus = Math.max(0, buttons.indexOf('play'));
     return done({ type: 'show' });
   }

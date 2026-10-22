@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Modal, ScrollView, Text, View } from 'react-native';
+import { Alert, Modal, Platform, ScrollView, Text, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, FocusPressable, styles } from './ui';
 import { errorMessage } from '../lib/connection';
@@ -41,7 +41,7 @@ export function SeasonPicker({ details: d, visible, onClose, onRequested }: { de
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <Text style={[styles.muted, { flex: 1 }]}>{t('request.pickSeasons')}</Text>
             {all.length > 1 && (
-              <FocusPressable accessibilityRole="button" hitSlop={8} onPress={() => setChosen(allPicked ? [] : all)}>
+              <FocusPressable accessibilityRole="button" hitSlop={8} onPress={() => setChosen(allPicked ? [] : all)} style={Platform.isTV ? styles.tvLink : undefined}>
                 <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '600' }}>{allPicked ? t('request.selectNone') : t('request.selectAll')}</Text>
               </FocusPressable>
             )}

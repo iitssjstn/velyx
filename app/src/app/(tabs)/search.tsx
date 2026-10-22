@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Keyboard, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Keyboard, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DiscoverCard, useCatalogSearch } from '../../components/Discover';
 import { Artwork, PosterCard } from '../../components/media';
-import { ErrorState, FocusPressable, Heading, ProgressLine, styles } from '../../components/ui';
+import { ErrorState, FocusPressable, FocusRing, Heading, ProgressLine, styles } from '../../components/ui';
 import { useDebounced } from '../../components/useDebounced';
 import { episodeCode, progressFraction } from '../../lib/format';
 import { searchQuery } from '../../lib/lists';
@@ -52,7 +52,7 @@ export default function Search() {
           />
           {(q.isFetching || catalog.isFetching) && query ? <ActivityIndicator size="small" color={colors.accent} /> : null}
           {text ? (
-            <FocusPressable accessibilityRole="button" accessibilityLabel={t('search.clear')} hitSlop={10} onPress={() => setText('')}>
+            <FocusPressable accessibilityRole="button" accessibilityLabel={t('search.clear')} hitSlop={10} onPress={() => setText('')} style={Platform.isTV ? styles.tvLink : undefined}>
               <Feather name="x" size={18} color={colors.muted} />
             </FocusPressable>
           ) : null}
@@ -79,21 +79,28 @@ export default function Search() {
                   onPress={() => router.push(`/show/${e.showId}`)}
                   style={({ pressed }) => ({ flexDirection: 'row', gap: 12, paddingHorizontal: 16, opacity: pressed ? 0.7 : 1 })}
                 >
-                  <View style={{ width: 128 }}>
-                    <Artwork path={e.stillPath} size="w500" label={episodeCode(e.seasonNumber, e.episodeNumber)} style={{ width: 128, height: 72, borderRadius: radius.sm }} />
-                    {e.progress && !e.progress.completed ? (
-                      <View style={{ marginTop: 3 }}>
-                        <ProgressLine fraction={progressFraction(e.progress)} />
+                  {(focused) => (
+                    <>
+                      <View style={{ width: 128 }}>
+                        <View>
+                          <Artwork path={e.stillPath} size="w500" label={episodeCode(e.seasonNumber, e.episodeNumber)} style={{ width: 128, height: 72, borderRadius: radius.sm }} />
+                          <FocusRing focused={focused} radius={radius.sm} />
+                        </View>
+                        {e.progress && !e.progress.completed ? (
+                          <View style={{ marginTop: 3 }}>
+                            <ProgressLine fraction={progressFraction(e.progress)} />
+                          </View>
+                        ) : null}
                       </View>
-                    ) : null}
-                  </View>
-                  <View style={{ flex: 1, justifyContent: 'center', gap: 2 }}>
-                    <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={1}>{e.showTitle}</Text>
-                    <Text style={styles.muted} numberOfLines={2}>
-                      {episodeCode(e.seasonNumber, e.episodeNumber)}
-                      {e.title ? ` · ${e.title}` : ''}
-                    </Text>
-                  </View>
+                      <View style={{ flex: 1, justifyContent: 'center', gap: 2 }}>
+                        <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={1}>{e.showTitle}</Text>
+                        <Text style={styles.muted} numberOfLines={2}>
+                          {episodeCode(e.seasonNumber, e.episodeNumber)}
+                          {e.title ? ` · ${e.title}` : ''}
+                        </Text>
+                      </View>
+                    </>
+                  )}
                 </FocusPressable>
               ))}
             </View>

@@ -113,7 +113,7 @@ export function GenreBrowser() {
         {kindButton('shows', t('genres.shows'))}
       </View>
       {selectedGenre !== null && (
-        <FocusPressable accessibilityRole="button" onPress={() => setSelectedGenre(null)} style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+        <FocusPressable accessibilityRole="button" onPress={() => setSelectedGenre(null)} style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: radius.sm }}>
           <Text style={{ color: colors.accent, fontWeight: '600' }}>‹ {t('genres.all')}</Text>
         </FocusPressable>
       )}
@@ -135,7 +135,7 @@ export function GenreBrowser() {
         {options.length === 0 ? <Text style={[styles.muted, { paddingHorizontal: 32 }]}>{t('genres.none')}</Text> : (
           <ScrollView contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: side, paddingBottom: 24 }}>
             {options.map((genre) => (
-              <FocusPressable key={genre.id} accessibilityRole="button" onPress={() => setSelectedGenre(genre.id)} style={{ width: Platform.isTV ? '23%' : '48%', minHeight: 52, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+              <FocusPressable key={genre.id} accessibilityRole="button" onPress={() => setSelectedGenre(genre.id)} style={{ width: Platform.isTV ? '23%' : '48%', minHeight: 52, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.line, borderRadius: Platform.isTV ? radius.sm : 0 }}>
                 <Text style={{ color: colors.ink, flexShrink: 1 }} numberOfLines={1}>{genre.name}</Text>
                 {scope === 'library' && <Text style={{ color: colors.faint, fontSize: 12 }}>{genre.count}</Text>}
               </FocusPressable>
