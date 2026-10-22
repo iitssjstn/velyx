@@ -82,7 +82,7 @@ export function TvPlayer(p: TvPlayerProps) {
           <View style={{ position: 'absolute', left: 0, right: 0, top: 0 }}>
             <Fade from="top" />
             <View style={{ position: 'absolute', left: 40, right: 40, top: 28, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-              {/* Back to where the player was opened from; ↑ from the row reaches it. */}
+              {/* Back to where the player was opened from; ← from the first button of the row reaches it. */}
               <View accessibilityRole="button" accessibilityLabel={t('player.back')} accessibilityState={{ selected: backFocused }} style={{ width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: backFocused ? '#fff' : 'rgba(255,255,255,0.12)', transform: [{ scale: backFocused ? 1.1 : 1 }] }}>
                 <Feather name="arrow-left" size={24} color={backFocused ? colors.bg : '#fff'} />
               </View>

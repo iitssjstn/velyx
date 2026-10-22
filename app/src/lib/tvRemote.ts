@@ -2,7 +2,7 @@
  * The player on Android TV / Google TV, operated with the remote: which key does what and what is on
  * screen. The same choices as Vidalune's cast player on the TV (cloud/web/cast/remote.js), so both
  * feel alike: OK plays/pauses (or skips the intro when offered), ←/→ jump, ↑/↓ bring up the row of
- * buttons, Back closes what is open and then leaves the player.
+ * buttons (and hide it again), Back closes what is open and then leaves the player.
  */
 
 import type { EpisodeSegments } from './skip';
@@ -126,10 +126,10 @@ export function pressKey(state: TvState, key: RemoteKey, ctx: TvContext): { stat
   }
 
   if (s.open === 'bar' && s.top) {
-    // The Back button at the top: OK leaves the player, ↓ goes back to the row.
+    // The Back button at the top: OK leaves the player, ↓ or → go back to the row, ↑ hides the controls.
     if (key === 'ok') return done({ type: 'exit' });
-    if (key === 'down') s.top = false;
-    else if (key === 'back') {
+    if (key === 'down' || key === 'right') s.top = false;
+    else if (key === 'up' || key === 'back') {
       s.open = 'none';
       s.top = false;
       return done();
@@ -139,10 +139,11 @@ export function pressKey(state: TvState, key: RemoteKey, ctx: TvContext): { stat
 
   if (s.open === 'bar') {
     s.focus = clamp(s.focus, 0, buttons.length - 1);
-    if (key === 'left') s.focus = clamp(s.focus - 1, 0, buttons.length - 1);
+    // ← past the first button reaches the Back button at the top left; ↑ and ↓ hide the controls.
+    if (key === 'left' && s.focus === 0) s.top = true;
+    else if (key === 'left') s.focus = clamp(s.focus - 1, 0, buttons.length - 1);
     else if (key === 'right') s.focus = clamp(s.focus + 1, 0, buttons.length - 1);
-    else if (key === 'up') s.top = true;
-    else if (key === 'down' || key === 'back') {
+    else if (key === 'up' || key === 'down' || key === 'back') {
       s.open = 'none';
       return done();
     } else if (key === 'ok') {

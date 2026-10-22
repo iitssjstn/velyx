@@ -65,15 +65,25 @@ describe('pressKey', () => {
     expect(back).toMatchObject({ handled: true, state: { open: 'none' } });
   });
 
-  it('reaches the Back button at the top with ↑ and leaves the player with OK', () => {
+  it('hides the controls with ↑ while they show', () => {
+    const r = pressKey(initialTvState(), 'down', ctx());
+    expect(r.state.open).toBe('bar');
+    expect(pressKey(r.state, 'up', ctx())).toMatchObject({ handled: true, state: { open: 'none' } });
+  });
+
+  it('reaches the Back button at the top left with ← from the first button and leaves the player with OK', () => {
     let r = pressKey(initialTvState(), 'up', ctx());
-    r = pressKey(r.state, 'up', ctx());
+    r = pressKey(r.state, 'left', ctx());
+    expect(r.state).toMatchObject({ open: 'bar', top: false, focus: 0 });
+    r = pressKey(r.state, 'left', ctx());
     expect(r.state).toMatchObject({ open: 'bar', top: true });
     expect(pressKey(r.state, 'ok', ctx()).action).toEqual({ type: 'exit' });
-    // ↓ goes back to the row where it was; ←/→ stay on the Back button.
-    expect(pressKey(r.state, 'right', ctx()).state).toMatchObject({ top: true });
+    // ← stays there; → and ↓ go back to the row; ↑ hides the controls.
+    expect(pressKey(r.state, 'left', ctx()).state).toMatchObject({ top: true });
+    expect(pressKey(r.state, 'right', ctx()).state).toMatchObject({ open: 'bar', top: false, focus: 0 });
+    expect(pressKey(r.state, 'up', ctx()).state).toMatchObject({ open: 'none', top: false });
     const down = pressKey(r.state, 'down', ctx());
-    expect(down.state).toMatchObject({ open: 'bar', top: false, focus: 1 });
+    expect(down.state).toMatchObject({ open: 'bar', top: false, focus: 0 });
     // Back closes everything; the row opens on play again, not on the Back button.
     const closed = pressKey(r.state, 'back', ctx());
     expect(closed).toMatchObject({ handled: true, state: { open: 'none', top: false } });

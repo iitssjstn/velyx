@@ -201,10 +201,12 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   het verloop onderaan hoger (80 %) en een lichte schaduw achter titel, feiten en beschrijving. Geldt voor film, serie
   en aanvraagpagina op de tv; telefoon ongewijzigd.
 - **Terug-knop in de tv-speler** (eigenaar 22 okt: "zodat mensen altijd het gevoel hebben dat ze terug kunnen").
-  Linksboven naast de titel een knop met pijl, zichtbaar zodra de bediening er staat; vanuit de knoppenrij met ↑
-  bereikbaar, OK verlaat de speler, ↓ terug naar de rij (`top` in `TvState`, actie `exit` in `lib/tvRemote.ts`,
-  `TvPlayer.tsx`). De Terug-toets van de afstandsbediening werkt zoals voorheen. Telefoon had al een terugknop.
-  Test in `tvRemote.test.ts`; app 227 tests.
+  Linksboven naast de titel een knop met pijl, zichtbaar zodra de bediening er staat; OK verlaat de speler (`top` in
+  `TvState`, actie `exit` in `lib/tvRemote.ts`, `TvPlayer.tsx`). De Terug-toets van de afstandsbediening werkt zoals
+  voorheen. Telefoon had al een terugknop.
+  Daarna (eigenaar 22 okt): "Als de player zichtbaar is moet je met pijltje naar boven de player weg kunnen doen". Nu
+  verbergen ↑ en ↓ de bediening; de Terug-knop is bereikbaar met ← vanaf de eerste knop van de rij (→ of ↓ terug naar
+  de rij, ↑ verbergt). Tests in `tvRemote.test.ts`; app 228 tests.
 
 ## Versie 0.19.11
 
