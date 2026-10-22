@@ -9,7 +9,7 @@ import { useFreshMetadata } from '../../components/useFreshMetadata';
 import { Artwork, useWide } from '../../components/media';
 import { Block, DetailSkeleton } from '../../components/Skeleton';
 import { TV } from '../../components/screen';
-import { TvDetail, TvEpisodeRow, TvSeasonTabs } from '../../components/TvDetail';
+import { TvAbout, TvDetail, TvEpisodeRow, TvSeasonTabs } from '../../components/TvDetail';
 import { savedRequest, watchedRequest } from '../../lib/lists';
 import { errorMessage } from '../../lib/connection';
 import type { SeerrDetails } from '../../lib/discover';
@@ -110,6 +110,7 @@ export default function Show() {
                   label={(e) => `${episodeCode(e.seasonNumber, e.episodeNumber)}${e.title ? ` ${e.title}` : ''}`}
                 />
               )}
+              <TvAbout detail={s} overview={s.overview} cast={s.cast ?? []} />
             </View>
           }
         >

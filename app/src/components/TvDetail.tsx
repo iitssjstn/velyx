@@ -3,10 +3,11 @@ import { FlatList, ScrollView, Text, View, useWindowDimensions } from 'react-nat
 import { router } from 'expo-router';
 import { Artwork } from './media';
 import { Focusable, SIDE, Shade } from './TvHome';
-import { episodeFacts, startEpisode } from '../lib/tvDetail';
+import { aboutFacts, episodeFacts, initials, startEpisode } from '../lib/tvDetail';
+import { useSession } from '../lib/session';
 import { progressFraction } from '../lib/format';
 import { colors, radius } from '../lib/theme';
-import type { EpisodeSummary } from '../lib/types';
+import type { EpisodeSummary, Person } from '../lib/types';
 
 const STILL = 300;
 
@@ -102,6 +103,69 @@ export function TvEpisodeRow({ episodes, upNextId, label }: { episodes: EpisodeS
         )}
       />
       {chosen?.overview ? <Text numberOfLines={3} style={{ color: 'rgba(236,232,244,0.85)', fontSize: 16, lineHeight: 23, paddingHorizontal: SIDE, maxWidth: 1000 }}>{chosen.overview}</Text> : null}
+    </View>
+  );
+}
+
+const FACE = 120;
+
+/**
+ * The "About" block at the bottom of a TV detail page, as on the website: the whole story, genres,
+ * who made it and the cast with their photos. Both parts can take the focus, so the arrows reach them.
+ */
+export function TvAbout({ detail, overview, tagline, cast }: { detail: Parameters<typeof aboutFacts>[0]; overview: string | null; tagline?: string | null; cast: Person[] }) {
+  const { t } = useSession();
+  const facts = aboutFacts(detail, t);
+  if (!overview && !facts.length && !cast.length) return null;
+  return (
+    <View style={{ marginTop: 32, gap: 16 }}>
+      <Text style={{ color: colors.ink, fontSize: 20, fontWeight: '700', paddingHorizontal: SIDE }}>{t('detail.about')}</Text>
+      <View style={{ paddingHorizontal: SIDE - 14 }}>
+        <Focusable accessibilityRole="text">
+          {(focused) => (
+            <View style={{ padding: 14, borderRadius: radius.md, borderWidth: 2, borderColor: focused ? colors.accent : 'transparent', backgroundColor: focused ? 'rgba(236,232,244,0.06)' : 'transparent', flexDirection: 'row', gap: 40, maxWidth: 1400 }}>
+              <View style={{ flex: 3, gap: 8 }}>
+                {tagline ? <Text style={{ color: colors.muted, fontSize: 16, fontStyle: 'italic' }}>{tagline}</Text> : null}
+                {overview ? <Text style={{ color: 'rgba(236,232,244,0.9)', fontSize: 16, lineHeight: 24 }}>{overview}</Text> : null}
+              </View>
+              {facts.length > 0 && (
+                <View style={{ flex: 2, gap: 10 }}>
+                  {facts.map((f) => (
+                    <Text key={f.label} style={{ color: colors.muted, fontSize: 15, lineHeight: 21 }}>
+                      {f.label}: <Text style={{ color: colors.ink }}>{f.value}</Text>
+                    </Text>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+        </Focusable>
+      </View>
+      {cast.length > 0 && (
+        <View>
+          <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '700', paddingHorizontal: SIDE }}>{t('detail.cast')}</Text>
+          <FlatList
+            horizontal
+            data={cast.slice(0, 30)}
+            keyExtractor={(p, i) => `${p.id ?? p.name}-${i}`}
+            contentContainerStyle={{ paddingHorizontal: SIDE, paddingVertical: 16, gap: 22 }}
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item: p }) => (
+              <Focusable accessibilityRole="text" accessibilityLabel={p.role ? `${p.name}, ${p.role}` : p.name} style={{ width: FACE }}>
+                {(focused) => (
+                  <>
+                    <View style={{ width: FACE, height: FACE, borderRadius: FACE / 2, overflow: 'hidden', borderWidth: 3, borderColor: focused ? colors.accent : 'transparent', backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center', transform: [{ scale: focused ? 1.08 : 1 }] }}>
+                      {p.profilePath ? <Artwork path={p.profilePath} size="w185" style={{ width: '100%', height: '100%' }} /> : <Text style={{ color: colors.muted, fontSize: 28, fontWeight: '700' }}>{initials(p.name)}</Text>}
+                    </View>
+                    <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 14, fontWeight: '600', textAlign: 'center', marginTop: 10 }}>{p.name}</Text>
+                    {p.role ? <Text numberOfLines={1} style={{ color: colors.faint, fontSize: 12, textAlign: 'center' }}>{p.role}</Text> : null}
+                  </>
+                )}
+              </Focusable>
+            )}
+          />
+        </View>
+      )}
     </View>
   );
 }

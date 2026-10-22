@@ -161,6 +161,11 @@ const en = {
   'show.requestSeasons': 'Request seasons',
   'detail.director': 'Director',
   'detail.cast': 'Cast',
+  'detail.about': 'About',
+  'detail.genres': 'Genres',
+  'detail.createdBy': 'Created by',
+  'detail.network': 'Network',
+  'detail.originalTitle': 'Original title',
 
   'player.play': 'Play',
   'detail.unreadableFile': 'This file cannot be read: it is empty or damaged, so it cannot be played. Replace the file, then scan the library again.',
@@ -451,6 +456,11 @@ const nl: Record<MessageKey, string> = {
   'show.requestSeasons': 'Seizoenen aanvragen',
   'detail.director': 'Regie',
   'detail.cast': 'Cast',
+  'detail.about': 'Over',
+  'detail.genres': 'Genres',
+  'detail.createdBy': 'Gemaakt door',
+  'detail.network': 'Zender',
+  'detail.originalTitle': 'Oorspronkelijke titel',
 
   'player.play': 'Afspelen',
   'detail.unreadableFile': 'Dit bestand kan niet gelezen worden: het is leeg of beschadigd en kan dus niet afspelen. Vervang het bestand en scan daarna de bibliotheek opnieuw.',

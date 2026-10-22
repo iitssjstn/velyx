@@ -23,9 +23,9 @@ export function Block({ width, height, round = radius.md }: { width: DimensionVa
 /** Placeholder for a poster grid (Movies, TV Shows, a list). */
 export function GridSkeleton() {
   const { t } = useSession();
-  const { columns, itemWidth } = useGrid();
+  const { columns, itemWidth, side, gap } = useGrid();
   return (
-    <View accessibilityLabel={t('common.loading')} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 16, rowGap: 16 }}>
+    <View accessibilityLabel={t('common.loading')} style={{ flexDirection: 'row', flexWrap: 'wrap', gap, padding: side, rowGap: gap + 4 }}>
       {Array.from({ length: columns * 3 }, (_, i) => (
         <View key={i} style={{ gap: 6 }}>
           <Block width={itemWidth} height={itemWidth * 1.5} />

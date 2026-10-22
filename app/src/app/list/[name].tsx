@@ -13,7 +13,7 @@ export default function SavedList() {
   const { name } = useLocalSearchParams<{ name: string }>();
   const list = name === 'favorites' ? 'favorites' : 'watchlist';
   const { api, t, serverUrl } = useSession();
-  const { columns, itemWidth } = useGrid();
+  const { columns, itemWidth, side, gap } = useGrid();
   const q = useQuery({ queryKey: [serverUrl, 'list', list], queryFn: () => api.get<Card[]>(`/api/${list}`) });
   const title = t(list === 'favorites' ? 'lists.favorites' : 'lists.watchlist');
   return (
@@ -30,8 +30,8 @@ export default function SavedList() {
           numColumns={columns}
           keyExtractor={(c) => `${c.type}-${c.id}`}
           renderItem={renderPoster(itemWidth)}
-          columnWrapperStyle={{ gap: 12 }}
-          contentContainerStyle={{ padding: 16, gap: 16 }}
+          columnWrapperStyle={{ gap }}
+          contentContainerStyle={{ padding: side, gap: gap + 4 }}
           refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => void q.refetch()} tintColor={colors.accent} colors={[colors.accent]} />}
           ListEmptyComponent={<Text style={styles.muted}>{t(list === 'favorites' ? 'lists.emptyFavorites' : 'lists.emptyWatchlist')}</Text>}
         />
