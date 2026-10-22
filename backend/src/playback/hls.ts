@@ -219,6 +219,8 @@ export class HlsSessions {
   private readonly known = new Map<string, number[]>();
   /** Keyframes being read: a viewer waiting for one keeps a background read from being stopped. */
   private readonly scans = new Map<string, { done: Promise<number[]>; joined: boolean; stop: () => void }>();
+  /** Files whose keyframes a viewer waited for but could not be read (asked again on the next cast). */
+  private readonly unreadable = new Set<string>();
   private readonly timer: NodeJS.Timeout;
 
   constructor(
@@ -270,6 +272,25 @@ export class HlsSessions {
     } finally {
       signal?.removeEventListener('abort', onAbort);
     }
+  }
+
+  /**
+   * Reads a file's keyframes now, at normal priority: a viewer is about to play it in pieces (a cast),
+   * and its list of pieces waits for them. Joins a background read of the same file.
+   */
+  prepare(cacheKey: string, input: string): Promise<void> {
+    if (this.ready(cacheKey)) return Promise.resolve();
+    this.unreadable.delete(cacheKey);
+    const read = this.keyframes(cacheKey, input).then(() => undefined);
+    read.catch(() => this.unreadable.add(cacheKey));
+    return read;
+  }
+
+  /** Where reading a file's keyframes for a viewer stands; null when nothing reads them. */
+  preparing(cacheKey: string): 'ready' | 'reading' | 'failed' | null {
+    if (this.ready(cacheKey)) return 'ready';
+    if (this.scans.has(cacheKey)) return 'reading';
+    return this.unreadable.has(cacheKey) ? 'failed' : null;
   }
 
   private keyframesFile(cacheKey: string): string {

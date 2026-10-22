@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
@@ -5,6 +7,7 @@ import { addLibrary, createTestEnv, createUser, fakeProbe, setupAdmin, touch, ty
 import { episodes, mediaFiles, onlineSubtitles, subtitles } from '../src/db/schema.js';
 import { saveManualSegments } from '../src/services/segments/store.js';
 import { castPath, playbackJwtExpiresAt, signPlaybackJwt, verifyPlaybackJwt } from '../src/services/cast.js';
+import { keyframesKey } from '../src/playback/hls.js';
 
 let env: TestEnv;
 afterEach(async () => env?.cleanup());
@@ -25,6 +28,11 @@ async function setup() {
   await addLibrary(env, admin, 'movies', 'movies');
   const file = (name: string) => env.ctx.db.select().from(mediaFiles).all().find((f) => f.path.includes(name))!;
   return { admin, dune: file('Dune'), arrival: file('Arrival'), mpeg2: file('Mpeg2') };
+}
+/** A few seconds of real H.264 video, so its keyframes can be read (files that are only named are not video). */
+function realVideo(file: string, seconds = 4) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', `testsrc2=size=160x90:rate=25`, '-t', String(seconds), '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '25', '-y', file]);
 }
 const session = (cookie: string, fileId: number) => env.app.inject({ method: 'POST', url: '/api/cast/session', headers: { cookie }, payload: { fileId } });
 
@@ -193,11 +201,83 @@ describe('casting to a Chromecast', () => {
   });
 });
 
+describe('casting a file whose keyframes are not known yet', () => {
+  // Copied video goes to the TV in pieces made from the file's keyframes, read from the whole file
+  // (minutes on a NAS). The TV gave up on the list of pieces while it waited: "status code 2100".
+  async function mkvSetup(write: (file: string) => void) {
+    env = await createTestEnv({ prober: async () => fakeProbe({ container: 'mkv', videoCodec: 'h264', audioCodec: 'aac' }) });
+    const admin = await setupAdmin(env.app);
+    write(path.join(env.mediaDir, 'movies', 'Arrival (2016).mkv'));
+    await addLibrary(env, admin, 'movies', 'movies');
+    const arrival = env.ctx.db.select().from(mediaFiles).all()[0]!;
+    const ready = async (cookie = admin) => (await env.app.inject({ url: `/api/cast/ready?fileId=${arrival.id}`, headers: { cookie } })).json().state as string;
+    const settled = async () => {
+      let state = await ready();
+      for (let i = 0; i < 200 && state === 'reading'; i++) {
+        await new Promise((r) => setTimeout(r, 50));
+        state = await ready();
+      }
+      return state;
+    };
+    return { admin, arrival, ready, settled };
+  }
+
+  it('says so and reads them at once, and the sender loads the TV when they are known', async () => {
+    const { admin, arrival, settled } = await mkvSetup((file) => realVideo(file));
+    const first = (await session(admin, arrival.id)).json();
+    expect(first.decision.streamUrl).toContain('/hls/index.m3u8');
+    expect(first.preparing).toBe(true);
+    expect(await settled()).toBe('ready');
+    expect((await session(admin, arrival.id)).json().preparing).toBe(false);
+    // The list of pieces is there right away now.
+    const list = await env.app.inject({ url: `${first.decision.streamUrl.replace(/^https?:\/\/[^/]+/, '')}&cast=${first.token}` });
+    expect(list.statusCode).toBe(200);
+    expect(list.body).toContain('#EXT-X-ENDLIST');
+  });
+
+  it('says when they cannot be read, instead of letting the sender wait forever', async () => {
+    const { admin, arrival, settled } = await mkvSetup((file) => touch(file, 'y'.repeat(4096)));
+    expect((await session(admin, arrival.id)).json().preparing).toBe(true);
+    expect(await settled()).toBe('failed');
+    // A new cast tries again.
+    await session(admin, arrival.id);
+    expect(await settled()).toBe('failed');
+  });
+
+  it('gets the next episode ready while one plays, so going on to it does not wait', async () => {
+    env = await createTestEnv({ prober: async () => fakeProbe({ container: 'mkv', videoCodec: 'h264', audioCodec: 'aac' }) });
+    const admin = await setupAdmin(env.app);
+    for (const f of ['S01E01.mkv', 'S01E02.mkv']) realVideo(path.join(env.mediaDir, 'tv', 'Reacher', f));
+    await addLibrary(env, admin, 'shows', 'tv');
+    const [e1, e2] = env.ctx.db.select().from(episodes).orderBy(episodes.episodeNumber).all();
+    const fileOf = (episodeId: number) => env.ctx.db.select().from(mediaFiles).where(eq(mediaFiles.episodeId, episodeId)).get()!;
+    const state = async (fileId: number) => (await env.app.inject({ url: `/api/cast/ready?fileId=${fileId}`, headers: { cookie: admin } })).json().state as string;
+    const second = keyframesKey(fileOf(e2!.id));
+    expect(env.ctx.hls.ready(second)).toBe(false);
+    await session(admin, fileOf(e1!.id).id);
+    // Nobody asks for the second episode: casting the first one started reading it.
+    for (let i = 0; i < 200 && !env.ctx.hls.ready(second); i++) await new Promise((r) => setTimeout(r, 50));
+    expect(env.ctx.hls.ready(second)).toBe(true);
+    expect(await state(fileOf(e2!.id).id)).toBe('ready');
+  });
+
+  it('only for a signed-in viewer who may see the file', async () => {
+    const { admin, arrival, ready } = await mkvSetup((file) => realVideo(file));
+    expect((await env.app.inject({ url: `/api/cast/ready?fileId=${arrival.id}` })).statusCode).toBe(401);
+    expect((await env.app.inject({ url: '/api/cast/ready?fileId=abc', headers: { cookie: admin } })).statusCode).toBe(400);
+    const anna = await createUser(env.app, admin, 'anna');
+    await env.app.inject({ method: 'PUT', url: `/api/users/${anna.id}`, headers: { cookie: admin }, payload: { libraryIds: [arrival.libraryId + 1000] } });
+    expect([403, 404]).toContain((await env.app.inject({ url: `/api/cast/ready?fileId=${arrival.id}`, headers: { cookie: anna.cookie } })).statusCode);
+    expect(['reading', 'ready']).toContain(await ready());
+  });
+});
+
 describe('Vidalune\'s cast player operated with a remote', () => {
   async function showSetup() {
     env = await createTestEnv();
     const admin = await setupAdmin(env.app);
-    for (const f of ['S01E01.mp4', 'S01E02.mp4', 'S01E03.mp4']) touch(path.join(env.mediaDir, 'tv', 'Reacher', f), 'x'.repeat(4096));
+    // Real video: the TV waits for an episode's keyframes when it is played in pieces (another audio track).
+    for (const f of ['S01E01.mp4', 'S01E02.mp4', 'S01E03.mp4']) realVideo(path.join(env.mediaDir, 'tv', 'Reacher', f));
     await addLibrary(env, admin, 'shows', 'tv');
     const eps = env.ctx.db.select().from(episodes).orderBy(episodes.episodeNumber).all();
     const fileOf = (episodeId: number) => env.ctx.db.select().from(mediaFiles).where(eq(mediaFiles.episodeId, episodeId)).get()!;

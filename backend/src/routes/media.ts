@@ -297,7 +297,23 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
    */
   app.post('/api/cast/session', { preHandler: requireUser }, async (request) => {
     const body = z.object({ fileId: z.number().int().positive(), audioIndex: z.number().int().min(0).max(1000).optional(), optimizationId: z.number().int().positive().optional() }).parse(request.body);
-    return castSession(request, body);
+    const session = await castSession(request, body);
+    warmNextEpisode(request, body.fileId);
+    return session;
+  });
+
+  /** Whether a file is ready to be cast (see `preparing` above): its keyframes are known, still read, or unreadable. */
+  app.get('/api/cast/ready', { preHandler: requireUser }, async (request) => {
+    const q = z.object({ fileId: z.coerce.number().int().positive(), optimizationId: z.coerce.number().int().positive().optional() }).strict().parse(request.query);
+    const { file, abs } = q.optimizationId === undefined ? loadFile(String(q.fileId), request.user!) : loadFile(String(q.fileId), request.user!, q.optimizationId);
+    const key = keyframesKey(file);
+    let state = ctx.hls.preparing(key);
+    // Not being read (the server restarted since the cast began): read now.
+    if (state === null) {
+      void ctx.hls.prepare(key, abs).catch(() => undefined);
+      state = ctx.hls.preparing(key) ?? 'reading';
+    }
+    return { state };
   });
 
   const catalog = new Catalog(db);
@@ -359,6 +375,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (title.kind === 'movie') return { item: { kind: 'movie', id: title.movie.id }, audio, segments: null, next: null };
     const segments = playbackSegments(db, title.episode.e.id);
     const next = nextEpisode(request, title.episode.e.id);
+    // The TV asks this for every title it starts: the episode after it gets ready meanwhile.
+    warmNextEpisode(request, request.castFile);
     return {
       item: { kind: 'episode', id: title.episode.e.id },
       audio,
@@ -383,9 +401,9 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       if (!next) throw notFound('Next episode');
       const want = body.audioLanguage?.toLowerCase();
       const same = want ? (next.file.audioTracks ?? []).find((t) => t.language?.toLowerCase() === want) : undefined;
-      return { ...(await castSession(request, { fileId: next.file.id, ...(same && !same.isDefault ? { audioIndex: same.index } : {}) })), item: episodeItem(request, next.row, next.file.id) };
+      return { ...(await castSession(request, { fileId: next.file.id, ...(same && !same.isDefault ? { audioIndex: same.index } : {}) }, true)), item: episodeItem(request, next.row, next.file.id) };
     }
-    const session = await castSession(request, { fileId: request.castFile, ...(body.audioIndex !== undefined ? { audioIndex: body.audioIndex } : {}) });
+    const session = await castSession(request, { fileId: request.castFile, ...(body.audioIndex !== undefined ? { audioIndex: body.audioIndex } : {}) }, true);
     if (title.kind === 'episode') return { ...session, item: episodeItem(request, title.episode, request.castFile) };
     const progress = catalog.movieProgress(request.user!.id, [title.movie.id]).get(title.movie.id);
     return { ...session, item: { kind: 'movie', id: title.movie.id, fileId: request.castFile, title: localized(title.movie, request.user!.language).title ?? title.movie.title, subtitle: title.movie.year ? String(title.movie.year) : null, posterPath: title.movie.posterPath, stillPath: null, resumeAt: progress && !progress.completed ? progress.positionSec : 0 } };
@@ -397,7 +415,27 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     );
 
   /** What a Chromecast is given for one file: its stream (as it is, repackaged or converted), a token for it, its subtitles. */
-  async function castSession(request: FastifyRequest, body: { fileId: number; audioIndex?: number; optimizationId?: number }) {
+  /** A cast that plays copied video in pieces: its list of pieces is made from the file's keyframes. */
+  const castNeedsKeyframes = (decision: { engine: string; streamUrl: string }) => decision.engine !== 'direct' && !decision.streamUrl.includes('vt=1');
+
+  /**
+   * Starts reading the keyframes of the episode after this file's, in the background, so the TV can go
+   * on to it (or the viewer switch to it) without waiting.
+   */
+  function warmNextEpisode(request: FastifyRequest, fileId: number): void {
+    const episodeId = db.select({ episodeId: mediaFiles.episodeId }).from(mediaFiles).where(eq(mediaFiles.id, fileId)).get()?.episodeId;
+    const next = episodeId ? nextEpisode(request, episodeId) : null;
+    if (!next) return;
+    try {
+      const { file, abs } = loadFile(String(next.file.id), request.user!);
+      const decision = ctx.playback.decide(file, CHROMECAST_CAPS, { audioChannels: 'stereo', lang: requestLanguage(request) });
+      if (decision && castNeedsKeyframes({ engine: decision.engine, streamUrl: decision.streamUrl })) void ctx.hls.learn(keyframesKey(file), abs).catch(() => undefined);
+    } catch {
+      // Not playable or gone: nothing to get ready.
+    }
+  }
+
+  async function castSession(request: FastifyRequest, body: { fileId: number; audioIndex?: number; optimizationId?: number }, wait = false) {
     const source = loadFile(String(body.fileId), request.user!);
     let loaded = body.optimizationId === undefined ? source : loadFile(String(body.fileId), request.user!, body.optimizationId);
     let file = await ensureVideoDetails(loaded.file, loaded.abs);
@@ -425,6 +463,16 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const castDecision = decision.engine === 'direct'
       ? decision
       : { ...decision, streamUrl: decision.streamUrl.replace(/\/remux(?=\?)/, '/hls/index.m3u8'), seek: 'range' as const };
+    // Copied video in pieces needs the file's keyframes for its list of pieces, read from the whole
+    // file (minutes on a NAS). A TV gives up long before that: the read starts now, the sender waits.
+    let preparing = castNeedsKeyframes(castDecision) && !ctx.hls.ready(keyframesKey(file));
+    if (preparing && wait) {
+      // The TV itself asks (the next episode, another audio track): it waits for the answer.
+      await ctx.hls.prepare(keyframesKey(file), loaded.abs).catch(() => {
+        throw new HttpError(409, 'This file could not be read. Scan the library again, or replace the file.');
+      });
+      preparing = false;
+    } else if (preparing) void ctx.hls.prepare(keyframesKey(file), loaded.abs).catch(() => undefined);
     const expiresAt = playbackJwtExpiresAt(file.durationSec);
     const token = await signPlaybackJwt(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt, artwork: true });
     const directUrl = ctx.cloud.status().directAccess?.url ?? null;
@@ -440,6 +488,8 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       directUrl: publicDirectUrl,
       serverUrl: publicDirectUrl || publicServerUrl,
       decision: castDecision,
+      // Load it on the TV once GET /api/cast/ready says so.
+      preparing,
       contentType: decision.engine === 'direct' ? (file.container === 'webm' ? 'video/webm' : 'video/mp4') : 'application/vnd.apple.mpegurl',
       // Text subtitles only (a Chromecast shows WebVTT), from this file.
       subtitles: subtitleList(loaded.sourceFile, request.user!).filter((s) => s.kind === 'external' || s.kind === 'embedded'),

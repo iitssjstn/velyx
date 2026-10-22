@@ -74,6 +74,40 @@ export interface CastSession {
   subtitles: CastSubtitle[];
   /** The server's id at vidalune.com (null when not linked). */
   serverId?: string | null;
+  /**
+   * The server still reads the file's keyframes for the TV's playlist (minutes for a large file on a NAS):
+   * the TV is given the title once `/api/cast/ready` says so, or it gives up waiting (error 2100).
+   */
+  preparing?: boolean;
+}
+
+/**
+ * Waits until the server has the file ready for the TV (`/api/cast/ready`). False when this was
+ * given up (`active` turned false); throws when the file cannot be read.
+ */
+export async function waitForCastReady(options: {
+  ask: () => Promise<{ state: 'ready' | 'reading' | 'failed' }>;
+  active: () => boolean;
+  sleep?: (ms: number) => Promise<void>;
+  unreadable: string;
+}): Promise<boolean> {
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  for (;;) {
+    if (!options.active()) return false;
+    const { state } = await options.ask();
+    if (state === 'ready') return options.active();
+    if (state === 'failed') throw new Error(options.unreadable);
+    await sleep(2000);
+  }
+}
+
+/**
+ * Google's "Media control channel status code 2100" means the TV could not load the title (it did not
+ * answer in time, or the stream failed); said in words instead of the code.
+ */
+export function castLoadFailed(err: unknown): boolean {
+  const e = err as { code?: unknown; message?: unknown } | null;
+  return e?.code === 2100 || (typeof e?.message === 'string' && /\b2100\b/.test(e.message));
 }
 
 /** The same shape as react-native-google-cast's MediaLoadRequest (only what is used). */

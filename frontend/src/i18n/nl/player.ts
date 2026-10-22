@@ -45,6 +45,8 @@ export const player: Messages['player'] = {
   castFailed: 'Afspelen op de tv lukte niet: {reason}',
   castNoDevice: 'geen Chromecast gevonden op dit netwerk',
   castConnecting: 'Verbinden met de Chromecast…',
+  castPreparing: 'Voorbereiden voor de tv… Een groot bestand wordt eerst één keer gelezen; dit kan een paar minuten duren.',
+  castUnreadable: 'Dit bestand kon niet voor de tv worden gelezen. Scan de bibliotheek opnieuw, of vervang het bestand.',
   backSeconds: '{seconds} seconden terug (←)',
   forwardSeconds: '{seconds} seconden vooruit (→)',
   errors: {

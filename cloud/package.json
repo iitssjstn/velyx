@@ -1,6 +1,6 @@
 {
   "name": "@vidalune/cloud",
-  "version": "0.19.90",
+  "version": "0.19.91",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
