@@ -24,7 +24,7 @@ import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
 import { rememberAudio, rememberSubtitle, rememberedAudio, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
-import { DEFAULT_SUBTITLE_STYLE, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
+import { DEFAULT_SUBTITLE_STYLE, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { createSubtitleStyleSync, subtitlePreferencesReady, subtitleStyleAccountScope } from '../../../lib/subtitleStyleSync';
 import { castConnectData, castGiven, castPlayerState, castSubtitleFor, castSubtitleKeys, castTrackIdsFor } from '../../../lib/castConnect';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
@@ -952,6 +952,14 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
 
   // While casting the TV shows the subtitles.
   const text = casting ? null : cueTextAt(cues, position - subDelay);
+  // On a TV the subtitles go above the bar while it shows (it is taller than the phone's controls).
+  const tvBarShown = TV && (controls || !playing || tv.open !== 'none');
+  const subtitleAt = TV ? tvSubtitleBottom(subStyle, screenHeight, tvBarShown) : subtitleBottom(subStyle, screenHeight, controls);
+  const subtitleView = text ? (
+    <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleAt + insets.bottom, alignItems: 'center' }}>
+      <Text style={subtitleTextStyle(subStyle, screenHeight)}>{text}</Text>
+    </View>
+  ) : null;
   const shown = scrub ?? position;
   return (
     <View style={{ flex: 1 }} onLayout={(e) => {
@@ -966,11 +974,7 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
           <Text style={{ color: colors.muted, textAlign: 'center' }}>{t('player.castingHint')}</Text>
         </View>
       )}
-      {text ? (
-        <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleBottom(subStyle, screenHeight, controls) + insets.bottom, alignItems: 'center' }}>
-          <Text style={subtitleTextStyle(subStyle, screenHeight)}>{text}</Text>
-        </View>
-      ) : null}
+      {!TV && subtitleView}
       {seekFlash && (
         <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, [seekFlash.side === 'back' ? 'left' : 'right']: 48, justifyContent: 'center' }}>
           <View style={{ backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 999, paddingVertical: 14, paddingHorizontal: 18, alignItems: 'center', gap: 4 }}>
@@ -990,13 +994,13 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
           <TvPlayer
             title={item.title}
             subtitle={item.subtitle}
-            poster={item.poster ?? item.artwork}
             position={position}
             duration={duration}
             playing={playing}
             loading={loading}
             ended={ended}
-            visible={controls || !playing || tv.open !== 'none'}
+            visible={tvBarShown}
+            overlayBottom={tvBarShown ? TV_BAR_HEIGHT + 16 : 48}
             state={tv}
             buttons={tvContext.buttons}
             tabs={tvContext.tabs}
@@ -1010,6 +1014,8 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
             skipLabel={askSkip ? skipLabel(askSkip.kind, t) : null}
             upNext={showNext && item.next ? { label: `${episodeCode(item.next.seasonNumber, item.next.episodeNumber)}${item.next.title ? ` · ${item.next.title}` : ''}`, countdown: countdown ?? 0, ended } : null}
           />
+          {/* Over the bar's shading, so they stay readable. */}
+          {subtitleView}
         </>
       ) : (
       <Pressable accessibilityLabel={t('player.tracks')} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={onTap}>

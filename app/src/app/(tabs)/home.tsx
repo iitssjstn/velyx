@@ -7,6 +7,7 @@ import { DiscoverShelves } from '../../components/Discover';
 import { ShelvesSkeleton } from '../../components/Skeleton';
 import { ErrorState, styles } from '../../components/ui';
 import { Logo } from '../../components/Logo';
+import { TV } from '../../components/screen';
 import { CastIcon } from '../../components/CastIcon';
 import { useSession } from '../../lib/session';
 import { colors } from '../../lib/theme';
@@ -25,10 +26,13 @@ export default function Home() {
   if (q.isLoading)
     return (
       <SafeAreaView edges={['top']} style={styles.screen}>
-        <View style={{ padding: 16, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Logo />
-          <CastIcon size={26} color={colors.ink} />
-        </View>
+        {/* On a TV the logo is in the bar at the top (TvTopBar). */}
+        {!TV && (
+          <View style={{ padding: 16, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Logo />
+            <CastIcon size={26} color={colors.ink} />
+          </View>
+        )}
         <ShelvesSkeleton poster={wide ? 150 : 120} />
       </SafeAreaView>
     );
@@ -38,10 +42,13 @@ export default function Home() {
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <ScrollView onScroll={onScroll} scrollEventThrottle={250} refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => void q.refetch()} tintColor={colors.accent} colors={[colors.accent]} />} contentContainerStyle={{ paddingBottom: 24 }}>
-        <View style={{ padding: 16, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Logo />
-          <CastIcon size={26} color={colors.ink} />
-        </View>
+        {/* On a TV the logo is in the bar at the top (TvTopBar). */}
+        {!TV && (
+          <View style={{ padding: 16, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Logo />
+            <CastIcon size={26} color={colors.ink} />
+          </View>
+        )}
         {empty && <Text style={[styles.muted, { paddingHorizontal: 16 }]}>{t('home.empty')}</Text>}
         <ContinueShelf title={t('home.continue')} items={d.continueWatching} />
         <Shelf title={t('home.watchlist')} cards={d.watchlist ?? []} more={{ label: t('home.seeAll'), href: '/list/watchlist' }} />

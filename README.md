@@ -926,14 +926,14 @@ The `PlaybackEngine` interface decides per file and client how media is delivere
 - Intro and credits detection needs at least two episodes of a season with the same intro or credits. Movies are not analysed.
 - Music, photos and live TV are out of scope for this version.
 
-**On a TV (Android TV / Google TV):** the same app installs on a TV and starts from the TV's home screen (with a Vidalune banner); until it is in the Play Store for TV, install the APK yourself. Everything is operated with the remote: the arrows move between the tabs (on the left), the rows and the buttons, which show a coloured edge when chosen, and OK opens them.
+**On a TV (Android TV / Google TV):** the same app installs on a TV and starts from the TV's home screen (with a Vidalune banner); until it is in the Play Store for TV, install the APK yourself. Everything is operated with the remote: the arrows move between the sections in the bar at the top (as on the website), the rows and the buttons, which show a coloured edge when chosen, and OK opens them.
 
 - **Signing in on the TV** needs no typing: the TV shows a code and a QR code. Scan the QR code with your phone (or go to **vidalune.com/tv** on a phone or computer), sign in with your Vidalune account if you are not yet, and confirm the code; the TV signs in with that account within a few seconds and opens your server. A code works for 10 minutes and once; an expired code is replaced by a new one. Because anyone can ask for a code, vidalune.com/tv never signs a device in with one click: it warns to confirm only a code that is on your own TV right now, and when your phone or computer is not on the same network as the TV (a phone on mobile data) it also asks for the 4-digit check code the TV shows under the code — it is not in the QR code, so a link or QR code someone else sends you is not enough; three wrong check codes end the code. With mail set up, the account gets an email when a TV signed in. *Sign in with email and password instead* is there too. The phone app signs in as before.
 
 In the player:
 
 - **OK** plays or pauses — or skips the intro, recap or credits while *Skip intro* is shown; **←** and **→** go back or forward by the player's step (quick presses add up); the remote's play/pause, fast-forward and rewind keys work too (30 seconds).
-- **↑** or **↓** brings up the bar with the poster, title and time (marks on the bar show the recap, intro and credits) and a row of buttons: back, play/pause, forward, *Subtitles*, *Audio* (when there is more than one track) and *Next episode*. The chosen button is white and larger.
+- **↑** or **↓** brings up the controls, laid out like the website's player: the title at the top, and at the bottom the timeline (marks show the recap, intro and credits) with the buttons back, play/pause and forward and the time under it, and *Subtitles*, *Audio* (when there is more than one track) and *Next episode* on the right. The chosen button is white. Subtitles move up above the controls while they show.
 - *Subtitles* and *Audio* open a menu on the right: **↑ ↓** choose, **← →** switch between subtitles and audio, **OK** picks (and remembers the choice, as on a phone).
 - At the end credits the *Next episode* card counts down: **OK** plays it now, **→** then **OK** watches the credits.
 - **Back** closes what is open, and then leaves the player.

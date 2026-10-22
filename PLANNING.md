@@ -1885,4 +1885,13 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   meldt "uit": voorkeur blijft; customData en `androidReceiverCompatible`), app (`castConnect.test.ts`, customData,
   manifest en volgorde van de plugins). Niet hier te testen: de Kotlin-code (APK op de branch laten bouwen) en alles
   op een echte Chromecast met Google TV.
+- **Tv-app als de website** (eigenaar 22 okt, na de eerste test op zijn Chromecast met foto's: "ik wil dat menu boven aan
+  komt te staan net als de website", "de ondertiteling valt onder de tijdlijn", "maak de player zoveel mogelijk hetzelfde
+  als de website en app, maak de player wel wat kleiner"; en "als je terug gaat uit de film/serie kan je niet meer bewegen"):
+  tabbladen als balk bovenaan met logo (`TvTopBar`; de linkerbalk bleef open staan met een leeg vak bovenaan); de
+  tv-speler zoals de website (titel linksboven, onderaan tijdlijn met daaronder terug/pauze/vooruit en de tijd, rechts
+  ondertitels/audio/volgende; verloop in plaats van een blok; kleiner); ondertitels boven de bediening en boven het
+  verloop (`tvSubtitleBottom`, `TV_BAR_HEIGHT`); na het verlaten van de speler krijgt het scherm eronder weer de focus
+  (`RemoteKeysView.onDetachedFromWindow`). Oorzaak van de vastgelopen afstandsbediening: de speler hield de focus vast en
+  bij het sluiten had niets meer de focus. Ook gevonden: de accountservice was nog niet bijgewerkt (geen code op de tv).
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1985) en beide lockfiles bijgewerkt.
