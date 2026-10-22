@@ -106,6 +106,7 @@ const en = {
   'home.shows': 'TV Shows',
   'home.empty': 'Nothing here yet. Once an administrator adds libraries, your movies and shows appear here.',
   'home.upNext': 'Up next',
+  'home.moreInfo': 'More info',
 
   'discover.trending': 'Trending now',
   'discover.popularMovies': 'Popular movies',
@@ -394,6 +395,7 @@ const nl: Record<MessageKey, string> = {
   'home.shows': 'Series',
   'home.empty': 'Hier staat nog niets. Zodra een beheerder bibliotheken toevoegt, verschijnen je films en series hier.',
   'home.upNext': 'Hierna',
+  'home.moreInfo': 'Meer informatie',
 
   'discover.trending': 'Nu populair',
   'discover.popularMovies': 'Populaire films',
