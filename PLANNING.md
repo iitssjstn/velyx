@@ -213,7 +213,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   foto). Telefoon ongewijzigd.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1989) en beide lockfiles bijgewerkt. PR aangemaakt op
   verzoek van de eigenaar ("Maak de PR aan", 22 okt).
-- PR #176 gemerged 22 okt op verzoek van de eigenaar ("Merge het maar als het groen is"; alle checks groen).
+- PR #176 gemerged 22 okt op verzoek van de eigenaar ("Merge het maar als het groen is"; alle checks groen). Release
+  `v0.19.89` compleet: APK, beide `.deb`'s, `.aab` en `vidalune-0.19.89-setup.exe`. De Debian-test op Ubuntu 24.04 faalde
+  eerst op een kapotte download van Ubuntu's server ("Hash Sum mismatch" bij `apt update`, niet onze code); na één
+  herstart groen, daarna liep de keten door. De eigenaar zette de app daarna in de gesloten test van de Play Store.
 
 ## Versie 0.19.11
 
