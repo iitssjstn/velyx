@@ -4,7 +4,9 @@ name: Android app
 # main, where the APK is attached to the same GitHub release. With the upload key in the repository
 # secrets it also builds an app bundle (.aab) signed with that key, for the Play Store, and with a Play
 # service account it sends that bundle to the internal test track when the app changed since the
-# previous release. Not on pull requests, to save build minutes: CI runs the app's typecheck and tests there.
+# previous release. A release whose app did not change (only its version number) builds nothing: it
+# carries the previous release's APK and bundle over, so the release and the website still have them.
+# Not on pull requests, to save build minutes: CI runs the app's typecheck and tests there.
 on:
   workflow_run:
     workflows: ['Debian package']
@@ -45,29 +47,57 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
 
+      # A release whose app is unchanged since the previous release builds nothing (to save build
+      # minutes); a manual run always builds.
+      - name: Decide whether to build the app
+        id: build
+        working-directory: .
+        env:
+          EVENT: ${{ github.event_name }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          needed=true
+          previous=""
+          version=$(node -p "require('./app/package.json').version")
+          if [ "$EVENT" = workflow_run ] && [ "$(git rev-list -n 1 "v$version" 2>/dev/null)" = "$SHA" ]; then
+            previous=$(git describe --tags --match 'v*' --abbrev=0 "$SHA^" 2>/dev/null || true)
+            if [ -n "$previous" ] && [ "$(.github/scripts/app-changed.sh "$previous" "$SHA")" = false ]; then needed=false; fi
+          fi
+          echo "App build needed: $needed (previous release: ${previous:-none})"
+          echo "needed=$needed" >> "$GITHUB_OUTPUT"
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
+        if: steps.build.outputs.needed == 'true'
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: app/package-lock.json
 
       - uses: actions/setup-java@v4
+        if: steps.build.outputs.needed == 'true'
         with:
           distribution: temurin
           java-version: 17
 
       - uses: gradle/actions/setup-gradle@v4
+        if: steps.build.outputs.needed == 'true'
 
       - name: Install dependencies
+        if: steps.build.outputs.needed == 'true'
         run: npm ci
 
       - name: Typecheck
+        if: steps.build.outputs.needed == 'true'
         run: npm run typecheck
 
       - name: Test
+        if: steps.build.outputs.needed == 'true'
         run: npm test
 
       - name: Check the app and server versions match
+        if: steps.build.outputs.needed == 'true'
         run: |
           app=$(node -p "require('./package.json').version")
           config=$(node -p "require('./app.json').expo.version")
@@ -78,6 +108,7 @@ jobs:
           test "$app" = "$config" && test "$app" = "$server" && test "$code" = "$expected"
 
       - name: Generate the Android project
+        if: steps.build.outputs.needed == 'true'
         run: npx expo prebuild --platform android --no-install
         env:
           CI: 1
@@ -85,6 +116,7 @@ jobs:
       # The generated project gives Gradle 2 GB, too little to merge the release build's code; the
       # runner has 16 GB.
       - name: Give Gradle enough memory
+        if: steps.build.outputs.needed == 'true'
         working-directory: app/android
         run: |
           sed -i '/^org.gradle.jvmargs=/d' gradle.properties
@@ -93,10 +125,12 @@ jobs:
           tail -n 3 gradle.properties
 
       - name: Build the APK
+        if: steps.build.outputs.needed == 'true'
         working-directory: app/android
         run: ./gradlew assembleRelease --no-daemon
 
       - name: Name the APK
+        if: steps.build.outputs.needed == 'true'
         id: apk
         run: |
           version=$(node -p "require('./package.json').version")
@@ -107,6 +141,7 @@ jobs:
           ls -la out
 
       - uses: actions/upload-artifact@v4
+        if: steps.build.outputs.needed == 'true'
         with:
           name: vidalune-${{ steps.apk.outputs.version }}-apk
           path: ${{ steps.apk.outputs.file }}
@@ -116,6 +151,7 @@ jobs:
       # so installed copies keep updating. The key is passed to this one Gradle run only and is never
       # written into the project.
       - name: Build the app bundle for the Play Store
+        if: steps.build.outputs.needed == 'true'
         id: aab
         working-directory: app/android
         run: |
@@ -147,7 +183,7 @@ jobs:
           echo "file=app/out/vidalune-$version.aab" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
-        if: steps.aab.outputs.file != ''
+        if: steps.build.outputs.needed == 'true' && steps.aab.outputs.file != ''
         with:
           name: vidalune-${{ steps.apk.outputs.version }}-aab
           path: ${{ steps.aab.outputs.file }}
@@ -158,7 +194,9 @@ jobs:
         if: github.event_name == 'workflow_run'
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.apk.outputs.version }}
+          VERSION: ${{ steps.build.outputs.version }}
+          NEEDED: ${{ steps.build.outputs.needed }}
+          PREVIOUS: ${{ steps.build.outputs.previous }}
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           tag="v$VERSION"
@@ -167,9 +205,18 @@ jobs:
             echo "$tag does not point at this commit; nothing to attach."
             exit 0
           fi
-          gh release view "$tag" > /dev/null 2>&1 || gh release create "$tag" --verify-tag --title "Vidalune $VERSION" --notes "Vidalune $VERSION. The Android app is attached as vidalune-$VERSION.apk (install it on an Android phone or tablet; see the README)."
-          gh release upload "$tag" "out/vidalune-$VERSION.apk" --clobber
-          if [ -f "out/vidalune-$VERSION.aab" ]; then gh release upload "$tag" "out/vidalune-$VERSION.aab" --clobber; fi
+          gh release view "$tag" > /dev/null 2>&1 || gh release create "$tag" --verify-tag --title "Vidalune $VERSION" --notes "Vidalune $VERSION. The Android app is attached as an .apk (install it on an Android phone or tablet; see the README)."
+          if [ "$NEEDED" = true ]; then
+            gh release upload "$tag" "out/vidalune-$VERSION.apk" --clobber
+            if [ -f "out/vidalune-$VERSION.aab" ]; then gh release upload "$tag" "out/vidalune-$VERSION.aab" --clobber; fi
+          else
+            # The app did not change: the previous release's app goes along, under its own version.
+            mkdir -p carried
+            gh release download "$PREVIOUS" --pattern 'vidalune-*.apk' --pattern 'vidalune-*.aab' --dir carried
+            ls -la carried
+            ls carried/vidalune-*.apk > /dev/null
+            gh release upload "$tag" carried/* --clobber
+          fi
 
       # Only a release whose app changed (more than its version number) goes to the Play Store; a
       # manual run goes when asked. Always the internal test track: production stays a step in the

@@ -68,6 +68,21 @@ export function skipAt(segments: EpisodeSegments | null | undefined, fileId: num
   return null;
 }
 
+/** A skip that was just done (by the button or automatically): the part and where it went. */
+export interface DoneSkip {
+  kind: SkipAction['kind'];
+  to: number;
+}
+
+/**
+ * Whether the skip button stays away after a skip: a repackaged stream starts at the keyframe
+ * before where it was asked, so the last seconds of the part can still play. Until playback is past
+ * where the skip went, the same part is not offered again (a seek of the viewer's own clears it).
+ */
+export function justSkipped(skip: SkipAction | null, done: DoneSkip | null, time: number): boolean {
+  return Boolean(skip && done && skip.kind === done.kind && time < done.to);
+}
+
 /**
  * When the next episode is offered: at the start of the credits when nothing follows them,
  * otherwise (a post-credits scene, or unknown credits) in the last seconds of the episode.

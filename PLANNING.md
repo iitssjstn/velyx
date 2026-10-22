@@ -9,10 +9,13 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 
 ## Stand van zaken
 
-- **Nu open (21 okt, 0.19.85 in de PR):**
-  1. Eigenaar, vóór Cast Connect werkt: in de Cast Developer Console bij app-ID `920BF057` de Android TV-ontvanger
-     `com.vidalune.app` toevoegen; in de Play Console de vormfactor Android TV aanzetten en 0.19.85 naar de gesloten test.
-  2. 0.19.85 testen (eigenaar): casten vanaf telefoon en website naar de Chromecast met Google TV opent de Vidalune-app
+- **Nu open (22 okt, na 0.19.85):**
+  1. Eigenaar: accountservice bijwerken (`docker compose pull && docker compose up -d`), de app op de tv bijwerken via de
+     interne test; vóór Cast Connect werkt: in de Cast Developer Console bij app-ID `920BF057` de Android TV-ontvanger
+     `com.vidalune.app` toevoegen; in de Play Console de vormfactor Android TV aanzetten (banner 1280 × 720 gemaakt) en
+     tv-screenshots (1920 × 1080) uploaden.
+  2. 0.19.85 testen (eigenaar): menu bovenaan en de nieuwe tv-speler, na Terug uit een film weer bewegen met de pijltjes,
+     titel wisselen tijdens casten (geen 2100 meer); casten vanaf telefoon en website naar de Chromecast met Google TV opent de Vidalune-app
      (hervatpunt, ondertitel, audio; pauze/spoelen/ondertitel vanaf de telefoon); zonder app de webspeler met
      onthouden ondertitel en hervatpunt.
   3. 0.19.84 testen op de Chromecast met Google TV (eigenaar): inloggen met de QR-code, met de pijltjes een titel
@@ -107,7 +110,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   telt ook de laatste aanvraag per seizoen mee (4K-aanvragen niet). De testnabootsing van Seerr gedroeg
   zich anders dan de echte en is gelijkgetrokken; de nieuwe test faalt op de oude code. Backend 560 tests
   slagen. Uitgebracht in 0.19.48.
-- Laatste release: **0.19.84** (PR #171, Vidalune-app op Google TV met inloggen via code/QR; gemerged 21 okt; release gecontroleerd: APK, beide `.deb`'s, `.aab`, `setup.exe` en accountservice-image; Android-run inclusief Play-stap geslaagd). Daarvoor **0.19.82** (PR #167, vaste Google Cast-versie; gemerged 20 okt; release gecontroleerd: APK, beide `.deb`'s, `.aab`, `setup.exe` en accountservice-image). Daarna **0.19.83** (PR #168, castfixes; gemerged 21 okt; release gecontroleerd: APK, beide `.deb`'s, `.aab`, `setup.exe` en accountservice-image). Daarvoor **0.19.81** (PR #166, rustig omzetten, ondertitel laden, audiospoor onthouden, seizoenenknop; Android-build faalde, zie 0.19.82). Daarvoor **0.19.80** (PR #165, kopie van de optimizer naast de film en media standaard beschrijfbaar; gemerged 18 okt); release `v0.19.80` gecontroleerd: APK, beide `.deb`'s, `.aab` en `vidalune-0.19.80-setup.exe` aanwezig, accountservice-image na de Windows-workflow geslaagd. Daarvoor 0.19.79 (PR #164, tv-speler volledig te bedienen met de afstandsbediening), 0.19.78 (PR #163, eigen tv-speler en geen zwart vlak achter de ondertitels), 0.19.77 (PR #162, ondertitels gelijk na verder kijken tijdens een transcode), 0.19.76 (PR #161, seizoenen aanvragen op de seriepagina zelf), 0.19.75 (PR #160, andere seizoenen van een serie aanvragen), 0.19.74 (PR #159, Vidalune voor Windows), 0.19.73 (PR #158, 1080p-afleveringen niet meer als 720p), 0.19.72 (PR #157, wachtwoord in de app), 0.19.71 (PR #156, in- en uitloggen in de app, onleesbaar bestand), 0.19.70 (PR #155, app automatisch naar de interne test van de Play Store), 0.19.69 (PR #154, Control Center overzichtelijker), 0.19.68 (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer), 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
+- Laatste release: **0.19.85** (PR #172, Cast Connect, casten, tv-app zoals de website; gemerged 22 okt op verzoek van de eigenaar; release gecontroleerd: APK, beide `.deb`'s, `.aab`, `setup.exe` en accountservice-image). Daarvoor **0.19.84** (PR #171, Vidalune-app op Google TV met inloggen via code/QR; gemerged 21 okt; release gecontroleerd: APK, beide `.deb`'s, `.aab`, `setup.exe` en accountservice-image; Android-run inclusief Play-stap geslaagd). Daarvoor **0.19.82** (PR #167, vaste Google Cast-versie; gemerged 20 okt; release gecontroleerd: APK, beide `.deb`'s, `.aab`, `setup.exe` en accountservice-image). Daarna **0.19.83** (PR #168, castfixes; gemerged 21 okt; release gecontroleerd: APK, beide `.deb`'s, `.aab`, `setup.exe` en accountservice-image). Daarvoor **0.19.81** (PR #166, rustig omzetten, ondertitel laden, audiospoor onthouden, seizoenenknop; Android-build faalde, zie 0.19.82). Daarvoor **0.19.80** (PR #165, kopie van de optimizer naast de film en media standaard beschrijfbaar; gemerged 18 okt); release `v0.19.80` gecontroleerd: APK, beide `.deb`'s, `.aab` en `vidalune-0.19.80-setup.exe` aanwezig, accountservice-image na de Windows-workflow geslaagd. Daarvoor 0.19.79 (PR #164, tv-speler volledig te bedienen met de afstandsbediening), 0.19.78 (PR #163, eigen tv-speler en geen zwart vlak achter de ondertitels), 0.19.77 (PR #162, ondertitels gelijk na verder kijken tijdens een transcode), 0.19.76 (PR #161, seizoenen aanvragen op de seriepagina zelf), 0.19.75 (PR #160, andere seizoenen van een serie aanvragen), 0.19.74 (PR #159, Vidalune voor Windows), 0.19.73 (PR #158, 1080p-afleveringen niet meer als 720p), 0.19.72 (PR #157, wachtwoord in de app), 0.19.71 (PR #156, in- en uitloggen in de app, onleesbaar bestand), 0.19.70 (PR #155, app automatisch naar de interne test van de Play Store), 0.19.69 (PR #154, Control Center overzichtelijker), 0.19.68 (PR #153, Seerr per gebruiker, privacybeleid, geen TMDB-sleutel/ondertitelinstellingen in Beheer), 0.19.67 (PR #152, app-bundel voor de Play Store), 0.19.66 (PR #151, donker scherm op de tv, hervatpunt blijft bij casten, cast-pagina alleen voor Chromecasts), 0.19.65 (PR #150, casten: verbinden zichtbaar, hervatten, meteen de besturing), 0.19.64 (PR #149, castknop rechtsboven), 0.19.63 (PR #148, eigen cast-speler), 0.19.62 (PR #147, verwijzing per catalogusrij), 0.19.61 (PR #146, technische info ingeklapt), 0.19.60 (PR #145, metadata via vidalune.com meteen), 0.19.59 (PR #144, metadata via vidalune.com voor iedereen), 0.19.58 (PR #143, één lijst op Aanvragen en Optimalisatie), 0.19.57 (PR #142, mail-instellingen), 0.19.56 (PR #141, mailsysteem), 0.19.55 (PR #140, app alleen via het Vidalune-account), 0.19.54 (PR #139, zwarte balken bij spoelen), 0.19.53 (PR #138, beheerinstellingen op de juiste pagina), 0.19.52 (PR #137, zijbalk tegen de rand), 0.19.51 (PR #136, zijbalk in Beheer), 0.19.50 (PR #135, spoelen binnen één stream), 0.19.49 (PR #134, ondertitels vooraf klaarzetten en onderhoudsvenster), 0.19.48 (PR #133, aanvraagknop), 0.19.47 (PR #132, cast-ondertitelstijl, bugaudit en vervangen schijf),  0.19.46 (ondertitels na vooruitspoelen), 0.19.45 (PR #129, hervatbare en stopbare optimalisaties). Daarvoor 0.19.44 (PR #128, repo-brede bugfixronde en optimalisatiebediening onder Beheer), 0.19.43 (PR #126, inclusief #125: DNS-opschoning en optimalisatiewachtrij), 0.19.41 (PR #124, DNS-01; afspelen werkt in productie), 0.19.37 (PR #120, autoritatieve TXT-controle), 0.19.36 (PR #119, DNS-01-wachtstap), 0.19.35 (PR #118, directe media-endpoints), 0.19.34 (PR #117, CSP), 0.19.33 (PR #115, publieke serverpoort), 0.19.25 (PR #102, startscherm), 0.19.24 (PR #101, persistent geoptimaliseerde
   afspeelkopieën), 0.19.23 (PR #100, Sonarr/Radarr-integratie),
   0.19.22 (PR #99, JSON-LD voor de publieke site),
   0.19.21 (PR #98, cast-remote-fixes en SEO-basis),
@@ -137,6 +140,13 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Na een merge: controleren dat release `v<versie>` de APK en beide `.deb`-bestanden (amd64 en arm64) heeft.
 - Bij een nieuwe versie: `app/app.json` (version + versionCode), alle `package.json`'s, de versies in
   de lockfiles bijwerken. De versietests lezen `APP_VERSION`; geen vaste versietekst meer aanpassen.
+- **App alleen bouwen als de app verandert** (eigenaar 22 okt: "je moet niet bij elke verandering de app build te laten
+  draaien"; "de app build moet pas gebeuren als de PR gepushed wordt naar de main"; "als de app echt verandert de app
+  build doen, maar zolang de app niet verandert hoef je het niet te builden"): geen APK-build meer met de hand op de
+  branch. Bij de release bouwt `android.yml` alleen als er in `app/` meer dan het versienummer veranderd is
+  (`app-changed.sh`); anders gaan de APK en het `.aab` van de vorige release mee (met hun eigen versienummer) en gaat
+  er niets naar Play. Releasecontrole: dan staat er een APK van een oudere versie bij de release, dat is goed. Kotlin
+  wordt pas bij de release gecompileerd; faalt die build, dan een herstelversie. Ingevoerd in 0.19.86.
 - **Zuinig met GitHub-buildminuten** (de eigenaar zat op 90%, 2 okt): pas pushen als een versie klaar
   en lokaal getest is; planning-updates meesturen met code in plaats van apart. Sinds 0.19.9 draaien
   APK, `.deb`'s en de arm64-test alleen bij een release (na de merge), niet bij PR-pushes; CI draait
@@ -1895,3 +1905,46 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   (`RemoteKeysView.onDetachedFromWindow`). Oorzaak van de vastgelopen afstandsbediening: de speler hield de focus vast en
   bij het sluiten had niets meer de focus. Ook gevonden: de accountservice was nog niet bijgewerkt (geen code op de tv).
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1985) en beide lockfiles bijgewerkt.
+- PR #172 gemerged 22 okt op verzoek van de eigenaar ("Merge het maar als het groen is"; alle checks groen, APK eerst op de
+  branch gebouwd); release `v0.19.85` gecontroleerd: APK, beide `.deb`'s, `.aab`, `vidalune-0.19.85-setup.exe` en de
+  accountservice-image.
+
+## Versie 0.19.86 (tv: ondertitels op tijd, vloeiend verloop, focus na de speler)
+
+- Gemeld door de eigenaar (22 okt, foto van 0.19.85 op de tv): "Ondertiteling heeft een beetje vertraging, de app voelt
+  beetje traag aan", "de shadow boven en onder aan heel erg zichtbaar", "de besturing valt nog steeds weg na het bekijken
+  van een film/serie".
+- Ondertitels (app, telefoon en tv): de regel kwam van de tijdmeldingen van de speler (elke 0,5 s), dus tot een halve
+  seconde te laat. Nu leest de speler de tijd zelf 8 keer per seconde; het scherm tekent alleen opnieuw als de regel wisselt.
+- Verloop achter de bediening: 12 losse banden gaven zichtbare strepen; nu één vloeiend plaatje (`assets/fade.png`,
+  uitgerekt, minder donker aan de rand).
+- Focus na de speler: in 0.19.85 werd één keer na 300 ms de focus teruggezet. Nu probeert de app het 3 s lang elke 200 ms
+  zolang niets zichtbaars de focus heeft, en pakt de speler de focus alleen terug zolang hij zelf in beeld is. Niet op een
+  echte tv te testen; blijft het, dan precies navragen wanneer (Terug, einde van de aflevering, volgende aflevering).
+- Traag: niet aangewezen; minder hertekenen door de ondertitels. Navragen waar het traag voelt (bladeren of de speler).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1986) en beide lockfiles bijgewerkt.
+
+- **Wensen eigenaar na het tv-startscherm** (22 okt: "Als je naar beneden gaat dat alles gewoon gecentreerd is zodat het
+  niet half in beeld staat, dat zijn voor mij de belangrijke dingen, en de besturing moet blijven werken als je uit de
+  film/serie gaat maakt niet uit of de serie afgelopen is"; "de hero iets vergroten waardoor het nog makkelijker is om te
+  zien waar je bent"):
+  - De rij met de focus schuift naar het midden van het scherm (`rowScroll` in `lib/tvHome.ts`).
+  - Na de speler (Terug, of na de laatste aflevering) krijgt de knop of poster die hem opende de focus terug via
+    `hasTVPreferredFocus` (`lib/tvFocus.ts`, `useTvFocus` in `FocusPressable`, `TvHome` en `TvTopBar`), naast de
+    bestaande terugval in `RemoteKeysView`. Op de tv te bevestigen.
+  - "Hero vergroten" opgevat als: het gekozen item groter maken. De gekozen poster/kaart wordt 10 % groter met een
+    dikkere rand in accentkleur, tabbladen in de bovenbalk 8 %. Navragen of hij het grote blok bovenaan bedoelde.
+- **"Intro overslaan" leek niet te werken** (eigenaar 22 okt). Waarschijnlijke oorzaak: bij een omgepakte of omgezette
+  stream begint het beeld op het keyframe vóór het einde van de intro; de laatste seconden van de intro speelden dan
+  opnieuw en de knop kwam meteen terug (ook na automatisch overslaan). Nu blijft de knop weg tot het afspelen voorbij
+  het punt is waar het overslaan heen ging (`justSkipped` in `lib/skip.ts`); zelf spoelen biedt hem weer aan. Op de tv te
+  bevestigen; werkt het dan nog niet, precies navragen wat er gebeurt (niets, pauze, of de intro speelt verder).
+- **Startscherm op de tv zoals de website** (eigenaar 22 okt, eerst drie foto's van een grote streamingdienst: "probeer dit
+  zoveel mogelijk na te maken, maar dan volledig in vidalune style"; daarna: "Het moet niet op netflix lijken he", "ik ben
+  bang als het teveel op netflix lijkt dat ik er problemen mee ga krijgen"). Eerste versie (571943f) leek te veel op die
+  dienst (account links, tabbladen in het midden, genretegels, uitklappende kaarten); vervangen door de opbouw van de
+  eigen website: bovenbalk met logo, onderdelen met iconen en zoeken/account rechts (`TvTopBar`); Home op de tv
+  (`TvHome.tsx`, logica in `lib/tvHome.ts`) met de hero van de website (verder kijken of nieuwste titel, Afspelen en
+  Details), Verder kijken als brede kaarten, en posters die bij focus een rand in accentkleur krijgen met de details
+  erover (jaar • lengte/seizoenen, waardering, genres), zoals bij hover op de website. Telefoon ongewijzigd. Tests:
+  `tvHome.test.ts`; app 213 tests, typechecks en lint slagen. Op de tv te testen.

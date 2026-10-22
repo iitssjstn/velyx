@@ -28,8 +28,8 @@ class RemoteKeysView(context: Context, appContext: AppContext) : ExpoView(contex
       if (event.action == KeyEvent.ACTION_DOWN) onKey(mapOf("keyCode" to keyCode, "repeat" to event.repeatCount))
       true
     }
-    // Something else took the focus (a view that appeared): take it back.
-    setOnFocusChangeListener { _, focused -> if (!focused) post { if (isAttachedToWindow) requestFocus() } }
+    // Something else took the focus (a view that appeared): take it back, while the player is on screen.
+    setOnFocusChangeListener { _, focused -> if (!focused) post { if (isAttachedToWindow && isShown) requestFocus() } }
   }
 
   override fun onAttachedToWindow() {
@@ -40,12 +40,24 @@ class RemoteKeysView(context: Context, appContext: AppContext) : ExpoView(contex
   override fun onDetachedFromWindow() {
     val root = rootView as? ViewGroup
     super.onDetachedFromWindow()
-    // Leaving the player: nothing has the focus then, and the remote's arrows would do nothing. Give
-    // it to the screen underneath (its first focusable view) once it is back.
-    root?.postDelayed({ if (root.findFocus() == null) root.requestFocus(View.FOCUS_DOWN) }, 300)
+    // Leaving the player: the focus can be left on nothing, or on a view that is no longer on screen, and
+    // then the remote's arrows do nothing. Give it to the screen underneath once that is back (its
+    // transition takes a moment), checking a few times.
+    if (root != null) restoreFocus(root, RESTORE_TRIES)
+  }
+
+  private fun restoreFocus(root: ViewGroup, tries: Int) {
+    root.postDelayed({
+      val focused = root.findFocus()
+      if (focused == null || !focused.isShown) root.requestFocus(View.FOCUS_DOWN)
+      val now = root.findFocus()
+      if ((now == null || !now.isShown) && tries > 1) restoreFocus(root, tries - 1)
+    }, RESTORE_EVERY_MS)
   }
 
   companion object {
+    private const val RESTORE_TRIES = 15
+    private const val RESTORE_EVERY_MS = 200L
     private val KEYS = setOf(
       KeyEvent.KEYCODE_DPAD_UP,
       KeyEvent.KEYCODE_DPAD_DOWN,

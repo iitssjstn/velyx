@@ -30,8 +30,9 @@ import { castConnectData, castGiven, castPlayerState, castSubtitleFor, castSubti
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
 import { errorMessage } from '../../../lib/connection';
 import { useSession } from '../../../lib/session';
-import { addSeek, SEEK_COMBINE_MS, SEEK_STEPS, skipAt, upNextStart, type EpisodeSegments, type PendingSeek, type SeekStep, type SkipMode } from '../../../lib/skip';
+import { addSeek, justSkipped, SEEK_COMBINE_MS, SEEK_STEPS, skipAt, upNextStart, type DoneSkip, type EpisodeSegments, type PendingSeek, type SeekStep, type SkipMode } from '../../../lib/skip';
 import { colors, radius } from '../../../lib/theme';
+import { tvFocus } from '../../../lib/tvFocus';
 import { TV_CONTROLS_MS, initialTvState, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, type RemoteKey, type TvContext } from '../../../lib/tvRemote';
 import { cueTextAt, parseVtt, type Cue } from '../../../lib/vtt';
 
@@ -232,6 +233,8 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
   const capsRef = useRef<PlaybackCaps>(playbackCaps(deviceDecoders()));
   const triedFallback = useRef(false);
   const autoSkipped = useRef(new Set<string>());
+  /** The last skip, so its button does not come back while the stream lands just before where it went. */
+  const doneSkip = useRef<DoneSkip | null>(null);
 
   const duration = answer?.file.durationSec ?? answer?.decision.durationSec ?? 0;
   const position = offset + time;
@@ -490,6 +493,21 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
     };
   }, [subtitle, api, mediaEndpoint]);
 
+  // The subtitle line now, read from the player several times a second: its time events come every 0.5 s,
+  // which shows a line up to half a second late. Only a new line draws the screen again.
+  const [cueText, setCueText] = useState('');
+  useEffect(() => {
+    setCueText('');
+    if (casting || !cues.length) return;
+    const tick = () => {
+      const now = cueTextAt(cues, offset + player.currentTime - subDelay);
+      setCueText((old) => (old === now ? old : now));
+    };
+    tick();
+    const timer = setInterval(tick, 120);
+    return () => clearInterval(timer);
+  }, [player, cues, offset, subDelay, casting]);
+
   const lastTime = useRef(0);
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
     if (castingRef.current) return;
@@ -702,7 +720,7 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
   const modes = { recap: prefs?.skipRecap ?? prefs?.skipIntro ?? 'ask', intro: prefs?.skipIntro ?? 'ask', credits: prefs?.skipCredits ?? 'ask' };
   const skip = answer && !loading ? skipAt(item.segments, item.fileId, position, modes) : null;
   // Skipped automatically once, then watched again (seeked back into it): offer the button instead.
-  const askSkip = skip && (skip.mode === 'ask' || autoSkipped.current.has(skip.kind)) ? skip : null;
+  const askSkip = skip && !justSkipped(skip, doneSkip.current, position) && (skip.mode === 'ask' || autoSkipped.current.has(skip.kind)) ? skip : null;
   const goNext = useCallback(() => {
     if (item.next) router.replace(`/play/episode/${item.next.id}?t=0`);
   }, [item.next]);
@@ -760,6 +778,8 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
     (target: number) => {
       if (!answer) return;
       const tt = Math.max(0, Math.min(Math.max(0, duration - 1), target));
+      // A seek of the viewer's own: a part skipped before may be offered again.
+      doneSkip.current = null;
       setEnded(false);
       setTouched((n) => n + 1);
       if (castingRef.current) {
@@ -842,6 +862,7 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
     }
     autoSkipped.current.add(skip.kind);
     seekTo(skip.to);
+    doneSkip.current = { kind: skip.kind, to: skip.to };
   }, [skip, item.next, goNext, seekTo, position]);
 
   const toggle = () => {
@@ -905,7 +926,10 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
   const skipNow = () => {
     if (!askSkip) return;
     if (askSkip.kind === 'credits' && askSkip.toNext && item.next) goNext();
-    else seekTo(askSkip.to);
+    else {
+      seekTo(askSkip.to);
+      doneSkip.current = { kind: askSkip.kind, to: askSkip.to };
+    }
   };
 
   // ---------------------------------------------------------------- TV remote
@@ -947,11 +971,16 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
     const sub = BackHandler.addEventListener('hardwareBackPress', () => onRemote.current('back'));
     return () => sub.remove();
   }, []);
+  // Leaving the player (Back, or after the last episode): the button or poster that opened it takes
+  // the focus again, so the remote keeps working on the screen underneath.
+  useEffect(() => () => {
+    if (TV) tvFocus.restore();
+  }, []);
 
   if (problem) return <Problem message={problem} />;
 
   // While casting the TV shows the subtitles.
-  const text = casting ? null : cueTextAt(cues, position - subDelay);
+  const text = cueText;
   // On a TV the subtitles go above the bar while it shows (it is taller than the phone's controls).
   const tvBarShown = TV && (controls || !playing || tv.open !== 'none');
   const subtitleAt = TV ? tvSubtitleBottom(subStyle, screenHeight, tvBarShown) : subtitleBottom(subStyle, screenHeight, controls);

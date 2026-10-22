@@ -8,6 +8,7 @@ import { ShelvesSkeleton } from '../../components/Skeleton';
 import { ErrorState, styles } from '../../components/ui';
 import { Logo } from '../../components/Logo';
 import { TV } from '../../components/screen';
+import { TvHome } from '../../components/TvHome';
 import { CastIcon } from '../../components/CastIcon';
 import { useSession } from '../../lib/session';
 import { colors } from '../../lib/theme';
@@ -39,6 +40,13 @@ export default function Home() {
   if (!q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const d = q.data;
   const empty = !d.continueWatching.length && !d.recentlyAdded.length && !d.movies.length && !d.shows.length;
+  // A TV has its own home screen: a big title, the genres and rows that open up (TvHome).
+  if (TV && !empty)
+    return (
+      <View style={styles.screen}>
+        <TvHome data={d} />
+      </View>
+    );
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <ScrollView onScroll={onScroll} scrollEventThrottle={250} refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => void q.refetch()} tintColor={colors.accent} colors={[colors.accent]} />} contentContainerStyle={{ paddingBottom: 24 }}>

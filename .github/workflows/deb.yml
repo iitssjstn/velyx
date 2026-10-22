@@ -130,5 +130,5 @@ jobs:
             echo "$tag does not point at this commit; nothing to attach."
             exit 0
           fi
-          gh release view "$tag" > /dev/null 2>&1 || gh release create "$tag" --verify-tag --title "Vidalune $version" --notes "Vidalune $version. The Android app is attached as vidalune-$version.apk (install it on an Android phone or tablet; see the README)." || gh release view "$tag" > /dev/null
+          gh release view "$tag" > /dev/null 2>&1 || gh release create "$tag" --verify-tag --title "Vidalune $version" --notes "Vidalune $version. The Android app is attached as an .apk (install it on an Android phone or tablet; see the README)." || gh release view "$tag" > /dev/null
           gh release upload "$tag" out/*.deb --clobber

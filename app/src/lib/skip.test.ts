@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addSeek, readSeekStep, SEEK_COMBINE_MS, skipAt, skipWindow, upNextStart, type EpisodeSegments } from './skip';
+import { addSeek, justSkipped, readSeekStep, SEEK_COMBINE_MS, skipAt, skipWindow, upNextStart, type EpisodeSegments } from './skip';
 
 const seg = (over: Partial<EpisodeSegments> = {}): EpisodeSegments => ({ fileId: 5, intro: { start: 60, end: 120 }, credits: { start: 2500, end: 2590 }, postCredits: null, ...over });
 const ask = { intro: 'ask', credits: 'ask' } as const;
@@ -44,5 +44,19 @@ describe('recaps, certainty and seeking (as on the website)', () => {
     expect(readSeekStep(30)).toBe(30);
     expect(readSeekStep(7)).toBe(10);
     expect(readSeekStep(undefined)).toBe(10);
+  });
+});
+
+describe('justSkipped', () => {
+  const intro = { kind: 'intro' as const, to: 90, toNext: false, mode: 'ask' as const };
+  it('keeps the button away while the stream lands just before where the skip went', () => {
+    // A repackaged stream starts at the keyframe before 90 s: the last seconds of the intro play again.
+    expect(justSkipped(intro, { kind: 'intro', to: 90 }, 86)).toBe(true);
+    expect(justSkipped(intro, { kind: 'intro', to: 90 }, 90)).toBe(false);
+  });
+  it('offers it again without a skip, or for another part', () => {
+    expect(justSkipped(intro, null, 86)).toBe(false);
+    expect(justSkipped(intro, { kind: 'recap', to: 90 }, 86)).toBe(false);
+    expect(justSkipped(null, { kind: 'intro', to: 90 }, 86)).toBe(false);
   });
 });

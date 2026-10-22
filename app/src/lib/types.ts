@@ -24,6 +24,10 @@ export interface MovieCard {
   backdropPath: string | null;
   rating: number | null;
   runtime: number | null;
+  /** In the viewer's language (older servers: missing). */
+  overview?: string | null;
+  /** Up to two genres (older servers: missing). */
+  genres?: string[];
   progress: Progress | null;
 }
 
@@ -35,6 +39,8 @@ export interface ShowCard {
   posterPath: string | null;
   backdropPath: string | null;
   rating: number | null;
+  overview?: string | null;
+  genres?: string[];
   seasonCount: number;
   episodeCount: number;
   watchedCount: number;
@@ -60,6 +66,8 @@ export interface ContinueItem {
 }
 
 export interface HomeData {
+  /** Where the viewer left off, for the big title at the top (older servers: missing). */
+  hero?: ContinueItem | null;
   continueWatching: ContinueItem[];
   recentlyAdded: Card[];
   watchlist: Card[];
