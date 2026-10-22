@@ -10,6 +10,7 @@ import { colors, radius } from '../lib/theme';
 import type { EpisodeSummary, Person } from '../lib/types';
 
 const STILL = 300;
+const TEXT_SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 };
 
 /**
  * A title's page on a TV, in the style of the website's detail page: its artwork dimmed over the
@@ -20,14 +21,16 @@ export function TvDetail({ backdrop, title, facts, overview, children, below }: 
   const { height } = useWindowDimensions();
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <Artwork path={backdrop} size="w1280" style={{ position: 'absolute', left: 0, top: 0, right: 0, height, opacity: 0.55 }} />
+      <Artwork path={backdrop} size="w1280" style={{ position: 'absolute', left: 0, top: 0, right: 0, height, opacity: 0.45 }} />
+      {/* A dark veil over the whole picture, then the gradients: bright artwork no longer washes out the text. */}
+      <View style={{ position: 'absolute', left: 0, top: 0, right: 0, height, backgroundColor: 'rgba(0,0,0,0.3)' }} />
       <Shade side="left" />
-      <Shade side="bottom" height="70%" />
+      <Shade side="bottom" height="80%" />
       <ScrollView contentContainerStyle={{ paddingBottom: 48 }}>
         <View style={{ minHeight: below ? height * 0.58 : height, justifyContent: 'flex-end', paddingHorizontal: SIDE, paddingTop: 48, paddingBottom: 24, width: '62%', gap: 12 }}>
-          <Text accessibilityRole="header" numberOfLines={2} style={{ color: colors.ink, fontSize: 40, lineHeight: 44, fontWeight: '700' }}>{title}</Text>
-          {facts ? <Text style={{ color: 'rgba(236,232,244,0.8)', fontSize: 16 }}>{facts}</Text> : null}
-          {overview ? <Text numberOfLines={4} style={{ color: 'rgba(236,232,244,0.9)', fontSize: 16, lineHeight: 23 }}>{overview}</Text> : null}
+          <Text accessibilityRole="header" numberOfLines={2} style={{ color: colors.ink, fontSize: 40, lineHeight: 44, fontWeight: '700', ...TEXT_SHADOW }}>{title}</Text>
+          {facts ? <Text style={{ color: 'rgba(236,232,244,0.85)', fontSize: 16, ...TEXT_SHADOW }}>{facts}</Text> : null}
+          {overview ? <Text numberOfLines={4} style={{ color: 'rgba(236,232,244,0.92)', fontSize: 16, lineHeight: 23, ...TEXT_SHADOW }}>{overview}</Text> : null}
           <View style={{ gap: 12, marginTop: 6 }}>{children}</View>
         </View>
         {below}

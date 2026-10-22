@@ -196,6 +196,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   tv binnenmarge en afgeronde hoeken: "Alles bekijken" bij rijen, "Alles kiezen" in het aanvraagvenster, wissen in
   Zoeken (`styles.tvLink`), de rijen op Account, en "Alle genres" en de genrerijen. Knoppen, seizoenen, cast,
   afleveringen op de detailpagina en het startscherm waren al goed. Lint 0 fouten (4 bekende waarschuwingen).
+- **Achtergrond van de detailpagina te helder** (eigenaar 22 okt: "kan er iets van een schaduw over de achtergrond heen
+  zodat de tekst meer zichtbaarder wordt"). `TvDetail`: foto minder fel (0,45), een donkere laag over het hele beeld,
+  het verloop onderaan hoger (80 %) en een lichte schaduw achter titel, feiten en beschrijving. Geldt voor film, serie
+  en aanvraagpagina op de tv; telefoon ongewijzigd.
 
 ## Versie 0.19.11
 
