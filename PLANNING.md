@@ -140,10 +140,13 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Na een merge: controleren dat release `v<versie>` de APK en beide `.deb`-bestanden (amd64 en arm64) heeft.
 - Bij een nieuwe versie: `app/app.json` (version + versionCode), alle `package.json`'s, de versies in
   de lockfiles bijwerken. De versietests lezen `APP_VERSION`; geen vaste versietekst meer aanpassen.
-- **Geen APK-build op de branch** (eigenaar 22 okt: "je moet niet bij elke verandering de app build te laten draaien";
-  daarna "de app build moet pas gebeuren als de PR gepushed wordt naar de main"): de workflow "Android app" niet meer
-  met de hand op de branch starten; de APK wordt alleen gebouwd bij de release na de merge. Kotlin wordt dus pas daar
-  gecompileerd; faalt die build, dan een herstelversie.
+- **App alleen bouwen als de app verandert** (eigenaar 22 okt: "je moet niet bij elke verandering de app build te laten
+  draaien"; "de app build moet pas gebeuren als de PR gepushed wordt naar de main"; "als de app echt verandert de app
+  build doen, maar zolang de app niet verandert hoef je het niet te builden"): geen APK-build meer met de hand op de
+  branch. Bij de release bouwt `android.yml` alleen als er in `app/` meer dan het versienummer veranderd is
+  (`app-changed.sh`); anders gaan de APK en het `.aab` van de vorige release mee (met hun eigen versienummer) en gaat
+  er niets naar Play. Releasecontrole: dan staat er een APK van een oudere versie bij de release, dat is goed. Kotlin
+  wordt pas bij de release gecompileerd; faalt die build, dan een herstelversie. Ingevoerd in 0.19.86.
 - **Zuinig met GitHub-buildminuten** (de eigenaar zat op 90%, 2 okt): pas pushen als een versie klaar
   en lokaal getest is; planning-updates meesturen met code in plaats van apart. Sinds 0.19.9 draaien
   APK, `.deb`'s en de arm64-test alleen bij een release (na de merge), niet bij PR-pushes; CI draait
