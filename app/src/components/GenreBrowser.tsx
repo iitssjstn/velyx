@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, ScrollView, Text, View } from 'react-native';
 import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,7 +20,7 @@ const PAGE = 60;
 export function GenreBrowser() {
   const { api, t, serverUrl } = useSession();
   const params = useLocalSearchParams<{ scope?: string; kind?: string }>();
-  const { columns, itemWidth } = useGrid();
+  const { columns, itemWidth, side, gap } = useGrid();
   const [scope, setScope] = useState<Scope>(params.scope === 'seerr' ? 'seerr' : 'library');
   const [kind, setKind] = useState<Kind>(params.kind === 'shows' ? 'shows' : 'movies');
   const [selectedGenre, setSelectedGenre] = useState<number | null>(null);
@@ -101,7 +101,7 @@ export function GenreBrowser() {
   );
 
   const header = (
-    <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, gap: 12 }}>
+    <View style={{ paddingHorizontal: Platform.isTV ? side - 16 : 16, paddingTop: 12, paddingBottom: 16, gap: 12 }}>
       <Heading>{selectedName ?? t('genres.title')}</Heading>
       <Text style={[styles.muted, { paddingHorizontal: 16 }]}>{t('genres.intro')}</Text>
       <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16 }}>
@@ -133,9 +133,9 @@ export function GenreBrowser() {
       <SafeAreaView edges={['top']} style={styles.screen}>
         {header}
         {options.length === 0 ? <Text style={[styles.muted, { paddingHorizontal: 32 }]}>{t('genres.none')}</Text> : (
-          <ScrollView contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, paddingBottom: 24 }}>
+          <ScrollView contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: side, paddingBottom: 24 }}>
             {options.map((genre) => (
-              <FocusPressable key={genre.id} accessibilityRole="button" onPress={() => setSelectedGenre(genre.id)} style={{ width: '48%', minHeight: 52, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+              <FocusPressable key={genre.id} accessibilityRole="button" onPress={() => setSelectedGenre(genre.id)} style={{ width: Platform.isTV ? '23%' : '48%', minHeight: 52, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.line }}>
                 <Text style={{ color: colors.ink, flexShrink: 1 }} numberOfLines={1}>{genre.name}</Text>
                 {scope === 'library' && <Text style={{ color: colors.faint, fontSize: 12 }}>{genre.count}</Text>}
               </FocusPressable>
@@ -152,7 +152,7 @@ export function GenreBrowser() {
     return (
       <SafeAreaView edges={['top']} style={styles.screen}>
         {header}
-        <FlatList key={columns} data={localItems} numColumns={columns} keyExtractor={(item) => `${item.type}-${item.id}`} renderItem={renderPoster(itemWidth)} columnWrapperStyle={{ gap: 12 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, gap: 16 }} onEndReached={() => localResults.hasNextPage && !localResults.isFetchingNextPage && void localResults.fetchNextPage()} onEndReachedThreshold={0.6} ListEmptyComponent={<Text style={styles.muted}>{t('genres.none')}</Text>} />
+        <FlatList key={columns} data={localItems} numColumns={columns} keyExtractor={(item) => `${item.type}-${item.id}`} renderItem={renderPoster(itemWidth)} columnWrapperStyle={{ gap }} contentContainerStyle={{ paddingHorizontal: side, paddingBottom: 24, gap: gap + 4 }} onEndReached={() => localResults.hasNextPage && !localResults.isFetchingNextPage && void localResults.fetchNextPage()} onEndReachedThreshold={0.6} ListEmptyComponent={<Text style={styles.muted}>{t('genres.none')}</Text>} />
       </SafeAreaView>
     );
   }
@@ -162,7 +162,7 @@ export function GenreBrowser() {
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       {header}
-      <FlatList key={columns} data={catalogItems} numColumns={columns} keyExtractor={(item) => `${item.mediaType}-${item.tmdbId}`} renderItem={({ item }) => <DiscoverCard item={item} width={itemWidth} onPress={() => void openDiscover(item)} />} columnWrapperStyle={{ gap: 12 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, gap: 16 }} onEndReached={() => catalogResults.hasNextPage && !catalogResults.isFetchingNextPage && void catalogResults.fetchNextPage()} onEndReachedThreshold={0.6} ListEmptyComponent={<Text style={styles.muted}>{t('genres.none')}</Text>} />
+      <FlatList key={columns} data={catalogItems} numColumns={columns} keyExtractor={(item) => `${item.mediaType}-${item.tmdbId}`} renderItem={({ item }) => <DiscoverCard item={item} width={itemWidth} onPress={() => void openDiscover(item)} />} columnWrapperStyle={{ gap }} contentContainerStyle={{ paddingHorizontal: side, paddingBottom: 24, gap: gap + 4 }} onEndReached={() => catalogResults.hasNextPage && !catalogResults.isFetchingNextPage && void catalogResults.fetchNextPage()} onEndReachedThreshold={0.6} ListEmptyComponent={<Text style={styles.muted}>{t('genres.none')}</Text>} />
     </SafeAreaView>
   );
 }

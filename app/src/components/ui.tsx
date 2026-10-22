@@ -1,5 +1,5 @@
 import { useState, type ReactNode, type Ref } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type PressableProps, type TextInputProps } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View, type PressableProps, type TextInputProps } from 'react-native';
 import { colors, radius } from '../lib/theme';
 import { errorMessage } from '../lib/connection';
 import { useSession } from '../lib/session';
@@ -104,5 +104,7 @@ export const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: 14, lineHeight: 20 },
   progressTrack: { height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
   progressFill: { height: 3, backgroundColor: colors.accent },
-  focused: { outlineWidth: 3, outlineColor: colors.accent, outlineOffset: 3, outlineStyle: 'solid' },
+  // On a TV the ring is drawn inside the item: outside it, a list that clips its children (a scroll
+  // view, a dialog) cut off its sides, leaving two loose lines above and below.
+  focused: { outlineWidth: 3, outlineColor: colors.accent, outlineOffset: Platform.isTV ? -3 : 3, outlineStyle: 'solid' },
 });

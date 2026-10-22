@@ -1,4 +1,4 @@
-import { FlatList, Text, View, useWindowDimensions, type ListRenderItem } from 'react-native';
+import { FlatList, Platform, Text, View, useWindowDimensions, type ListRenderItem } from 'react-native';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import { imagePath, progressFraction, type ImageSize } from '../lib/format';
@@ -111,7 +111,7 @@ export function ContinueShelf({ title, items }: { title: string; items: Continue
 
 /** Columns and poster width for a grid: three across on a phone, more on a tablet or in landscape. */
 export function useGrid() {
-  return gridLayout(useWindowDimensions().width);
+  return gridLayout(useWindowDimensions().width, Platform.isTV);
 }
 
 export const renderPoster =

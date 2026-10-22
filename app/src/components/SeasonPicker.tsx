@@ -36,7 +36,7 @@ export function SeasonPicker({ details: d, visible, onClose, onRequested }: { de
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 }}>
-        <View accessibilityViewIsModal style={{ backgroundColor: colors.surface, borderRadius: radius.lg, padding: 20, gap: 12, maxHeight: '85%' }}>
+        <View accessibilityViewIsModal style={{ backgroundColor: colors.surface, borderRadius: radius.lg, padding: 20, gap: 12, maxHeight: '85%', width: '100%', maxWidth: 760, alignSelf: 'center' }}>
           <Text style={styles.title} accessibilityRole="header">{t('request.confirmTitle', { title: d.title })}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <Text style={[styles.muted, { flex: 1 }]}>{t('request.pickSeasons')}</Text>
@@ -57,7 +57,7 @@ export function SeasonPicker({ details: d, visible, onClose, onRequested }: { de
                   accessibilityState={{ checked: on, disabled: !free }}
                   disabled={!free}
                   onPress={() => setChosen(toggleSeason(chosen, s.seasonNumber, !on))}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 10, borderRadius: radius.sm }}
                 >
                   <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: on ? colors.accent : colors.line, backgroundColor: on ? colors.accent : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
                     {on && <Text style={{ color: colors.accentInk, fontWeight: '800', fontSize: 13 }}>✓</Text>}

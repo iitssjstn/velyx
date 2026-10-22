@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Alert, FlatList, ScrollView, Text, View } from 'react-native';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DiscoverCard, useOpenDiscover } from '../../../components/Discover';
 import { Artwork } from '../../../components/media';
 import { SeasonPicker } from '../../../components/SeasonPicker';
 import { TrailerButton } from '../../../components/TrailerButton';
 import { DetailSkeleton } from '../../../components/Skeleton';
+import { TV } from '../../../components/screen';
+import { TvAbout, TvDetail } from '../../../components/TvDetail';
+import { SIDE } from '../../../components/TvHome';
 import { Button, ErrorState, styles } from '../../../components/ui';
 import { errorMessage } from '../../../lib/connection';
 import { canRequestTitle, openSeasons, type SeerrDetails, type SeerrResult } from '../../../lib/discover';
@@ -55,6 +58,48 @@ export default function RequestScreen() {
   };
   const cast = d.cast ?? [];
   const alike = similar.data?.results ?? [];
+  const buttons = (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+      {d.local && <Button label={t('player.play')} busy={busy} onPress={() => void open(d)} />}
+      {requestable && <Button label={t('request.request')} busy={request.isPending} onPress={confirm} />}
+      <TrailerButton type={d.mediaType === 'movie' ? 'movie' : 'show'} id={d.tmdbId} outsideLibrary />
+    </View>
+  );
+  if (TV)
+    // On a TV: the same page as a title in the library, with titles like it at the bottom.
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        {isShow && <SeasonPicker details={d} visible={picking} onClose={() => setPicking(false)} onRequested={requested} />}
+        <TvDetail
+          backdrop={d.backdropPath ?? d.posterPath}
+          title={d.title}
+          facts={facts}
+          overview={d.overview}
+          below={
+            <View>
+              <TvAbout detail={{ title: d.title, genres: d.genres.map((name) => ({ name })) }} overview={d.overview} tagline={d.tagline} cast={cast.map((c) => ({ id: c.id, name: c.name, role: c.character ?? null, profilePath: c.profilePath }))} />
+              {alike.length > 0 && (
+                <View style={{ marginTop: 24 }}>
+                  <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '700', paddingHorizontal: SIDE }}>{t('request.similar')}</Text>
+                  <FlatList
+                    horizontal
+                    data={alike}
+                    keyExtractor={(item) => `${item.mediaType}-${item.tmdbId}`}
+                    contentContainerStyle={{ paddingHorizontal: SIDE, paddingVertical: 16, gap: 20 }}
+                    showsHorizontalScrollIndicator={false}
+                    renderItem={({ item }) => <DiscoverCard item={item} width={140} onPress={() => void open(item)} />}
+                  />
+                </View>
+              )}
+            </View>
+          }
+        >
+          {d.inLibrary ? <Text style={{ color: colors.ok, fontSize: 15 }}>{t('discover.inLibrary')}</Text> : d.state ? <Text style={{ color: colors.accent, fontSize: 15 }}>{t(`request.state.${d.state}`)}</Text> : null}
+          {buttons}
+        </TvDetail>
+      </>
+    );
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       {d.backdropPath ? <Artwork path={d.backdropPath} size="w780" label="" style={{ width: '100%', height: 200 }} /> : null}

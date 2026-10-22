@@ -12,7 +12,7 @@ const PAGE = 60;
 /** All movies or all shows as a poster grid, loaded page by page while scrolling. */
 export function Library({ kind }: { kind: 'movies' | 'shows' }) {
   const { api, t, serverUrl } = useSession();
-  const { columns, itemWidth } = useGrid();
+  const { columns, itemWidth, side, gap } = useGrid();
   const q = useInfiniteQuery({
     queryKey: [serverUrl, kind, 'list'],
     initialPageParam: 1,
@@ -29,8 +29,8 @@ export function Library({ kind }: { kind: 'movies' | 'shows' }) {
       numColumns={columns}
       keyExtractor={(c) => `${c.type}-${c.id}`}
       renderItem={renderPoster(itemWidth)}
-      columnWrapperStyle={{ gap: 12 }}
-      contentContainerStyle={{ padding: 16, gap: 16 }}
+      columnWrapperStyle={{ gap }}
+      contentContainerStyle={{ padding: side, gap: gap + 4 }}
       onEndReached={() => q.hasNextPage && !q.isFetchingNextPage && void q.fetchNextPage()}
       onEndReachedThreshold={0.6}
       refreshControl={<RefreshControl refreshing={q.isRefetching && !q.isFetchingNextPage} onRefresh={() => void q.refetch()} tintColor={colors.accent} colors={[colors.accent]} />}
