@@ -125,5 +125,6 @@ export const styles = StyleSheet.create({
   // view, a dialog) cut off its sides, leaving two loose lines above and below.
   /** On the TV a text link gets room around it, so the focus ring (drawn inside) does not cross the text. */
   tvLink: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm },
-  focused: { outlineWidth: 3, outlineColor: colors.accent, outlineOffset: Platform.isTV ? -3 : 3, outlineStyle: 'solid' },
+  // White on the TV: many buttons are filled with the accent colour, and a ring in that colour vanished on them.
+  focused: { outlineWidth: 3, outlineColor: Platform.isTV ? colors.ink : colors.accent, outlineOffset: Platform.isTV ? -3 : 3, outlineStyle: 'solid' },
 });

@@ -207,6 +207,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   Daarna (eigenaar 22 okt): "Als de player zichtbaar is moet je met pijltje naar boven de player weg kunnen doen". Nu
   verbergen ↑ en ↓ de bediening; de Terug-knop is bereikbaar met ← vanaf de eerste knop van de rij (→ of ↓ terug naar
   de rij, ↑ verbergt). Tests in `tvRemote.test.ts`; app 228 tests.
+- **Paarse knoppen geselecteerd niet te zien** (eigenaar 22 okt: "de omlijning is ook paars"). De focusrand van
+  `FocusPressable` (`styles.focused` in `ui.tsx`) is op de tv nu wit in plaats van de accentkleur; geldt voor alle
+  knoppen, tabbladen en rijen in de app. Posters, stills en cast houden hun paarse rand (daar is de achtergrond een
+  foto). Telefoon ongewijzigd.
 
 ## Versie 0.19.11
 
