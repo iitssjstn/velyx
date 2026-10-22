@@ -6,7 +6,7 @@ import { gridLayout, isWide } from '../lib/layout';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 import type { Card, ContinueItem } from '../lib/types';
-import { FocusPressable, Heading, ProgressLine, styles } from './ui';
+import { FocusPressable, FocusRing, Heading, ProgressLine, styles } from './ui';
 
 /** Artwork from the server's image cache (the request carries the app's token). */
 export function Artwork({ path, size, style, label }: { path: string | null | undefined; size: ImageSize; style: object; label?: string }) {
@@ -33,14 +33,21 @@ export function PosterCard({ card, width }: { card: Card; width?: number }) {
   const progress = card.type === 'movie' ? progressFraction(card.progress) : 0;
   return (
     <FocusPressable accessibilityRole="button" accessibilityLabel={card.title} onPress={() => openCard(card)} style={{ width }}>
-      <Artwork path={card.posterPath} size="w342" label={card.title} style={{ width, height: width * 1.5, borderRadius: radius.md }} />
-      {progress > 0 && (
-        <View style={{ marginTop: 4 }}>
-          <ProgressLine fraction={progress} />
-        </View>
+      {(focused) => (
+        <>
+          <View>
+            <Artwork path={card.posterPath} size="w342" label={card.title} style={{ width, height: width * 1.5, borderRadius: radius.md }} />
+            <FocusRing focused={focused} />
+          </View>
+          {progress > 0 && (
+            <View style={{ marginTop: 4 }}>
+              <ProgressLine fraction={progress} />
+            </View>
+          )}
+          <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 13, marginTop: 6 }}>{card.title}</Text>
+          {card.year ? <Text style={{ color: colors.faint, fontSize: 12 }}>{card.year}</Text> : null}
+        </>
       )}
-      <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 13, marginTop: 6 }}>{card.title}</Text>
-      {card.year ? <Text style={{ color: colors.faint, fontSize: 12 }}>{card.year}</Text> : null}
     </FocusPressable>
   );
 }
@@ -91,17 +98,24 @@ export function ContinueShelf({ title, items }: { title: string; items: Continue
         showsHorizontalScrollIndicator={false}
         renderItem={({ item }) => (
           <FocusPressable accessibilityRole="button" accessibilityLabel={item.title} onPress={() => openContinue(item)} style={{ width: cardWidth }}>
-            <Artwork path={item.imagePath ?? item.posterPath} size="w780" label={item.title} style={{ width: cardWidth, height: cardWidth * 0.5625, borderRadius: radius.md }} />
-            <View style={{ marginTop: 4 }}>
-              <ProgressLine fraction={item.percent / 100} />
-            </View>
-            <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 14, marginTop: 6, fontWeight: '600' }}>{item.title}</Text>
-            {item.subtitle ? (
-              <Text numberOfLines={1} style={styles.muted}>
-                {item.upNext ? `${t('home.upNext')} · ` : ''}
-                {item.subtitle}
-              </Text>
-            ) : null}
+            {(focused) => (
+              <>
+                <View>
+                  <Artwork path={item.imagePath ?? item.posterPath} size="w780" label={item.title} style={{ width: cardWidth, height: cardWidth * 0.5625, borderRadius: radius.md }} />
+                  <FocusRing focused={focused} />
+                </View>
+                <View style={{ marginTop: 4 }}>
+                  <ProgressLine fraction={item.percent / 100} />
+                </View>
+                <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 14, marginTop: 6, fontWeight: '600' }}>{item.title}</Text>
+                {item.subtitle ? (
+                  <Text numberOfLines={1} style={styles.muted}>
+                    {item.upNext ? `${t('home.upNext')} · ` : ''}
+                    {item.subtitle}
+                  </Text>
+                ) : null}
+              </>
+            )}
           </FocusPressable>
         )}
       />

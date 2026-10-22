@@ -183,6 +183,15 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - PR #175 gemerged 22 okt op verzoek van de eigenaar ("merge het maar"; alle checks groen). De PR-tekst kreeg
   automatisch een voettekst met een sessielink; die is vóór de merge weggehaald, net als achteraf bij #174.
 
+## Volgende versie (0.19.89, nog niet uitgebracht)
+
+- **Paarse focusrand staat niet mooi** (eigenaar 22 okt, foto van Movies op de tv met 0.19.88). In rasters en rijen
+  (Films, Series, Genres, lijsten, zoeken, Verder kijken, catalogus) liep de rand om de hele kaart: hoekig om poster
+  plus titel en jaar, de afgeronde hoeken van de poster niet gevolgd en over de tekst heen. Nu om alleen de poster
+  of still, met dezelfde afgeronde hoeken (`FocusRing`; `FocusPressable` met children als functie tekent geen eigen
+  rand), zoals op het startscherm. `PosterCard`/Verder kijken in `media.tsx`, `DiscoverCard`. Telefoon ongewijzigd
+  (daar krijgt niets de focus). App 226 tests en typecheck slagen; op de tv te bevestigen.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)

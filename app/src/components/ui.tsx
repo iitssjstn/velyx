@@ -8,9 +8,18 @@ import { useTvFocus } from './useTvFocus';
 
 /**
  * A Pressable that shows where the focus is: on Android TV / Google TV the remote's arrows move the
- * focus from one to the next and OK presses it. On a phone the focus never lands on it.
+ * focus from one to the next and OK presses it. On a phone the focus never lands on it. With children
+ * as a function it draws no ring of its own: the children show the focus (a poster with its title
+ * under it rings only the poster, see `FocusRing`).
  */
-export function FocusPressable({ style, onFocus, onBlur, ref, ...props }: PressableProps & { ref?: Ref<View> }) {
+export function FocusPressable({
+  style,
+  onFocus,
+  onBlur,
+  ref,
+  children,
+  ...props
+}: Omit<PressableProps, 'children'> & { ref?: Ref<View>; children?: ReactNode | ((focused: boolean) => ReactNode) }) {
   const [focused, setFocused] = useState(false);
   const tvFocus = useTvFocus();
   return (
@@ -27,9 +36,17 @@ export function FocusPressable({ style, onFocus, onBlur, ref, ...props }: Pressa
         setFocused(false);
         onBlur?.(e);
       }}
-      style={(state) => [typeof style === 'function' ? style(state) : style, focused && styles.focused]}
-    />
+      style={(state) => [typeof style === 'function' ? style(state) : style, focused && typeof children !== 'function' && styles.focused]}
+    >
+      {typeof children === 'function' ? children(focused) : children}
+    </Pressable>
   );
+}
+
+/** The focus ring over artwork, following its rounded corners (lay it over the artwork, not the card). */
+export function FocusRing({ focused, radius: r = radius.md }: { focused: boolean; radius?: number }) {
+  if (!focused) return null;
+  return <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: r, borderWidth: 3, borderColor: colors.accent }} />;
 }
 
 export function Button({ label, onPress, busy, disabled, variant = 'primary' }: { label: string; onPress: () => void; busy?: boolean; disabled?: boolean; variant?: 'primary' | 'ghost' }) {

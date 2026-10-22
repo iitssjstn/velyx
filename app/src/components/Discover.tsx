@@ -3,7 +3,7 @@ import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Artwork, useWide } from './media';
-import { FocusPressable, Heading } from './ui';
+import { FocusPressable, FocusRing, Heading } from './ui';
 import { catalogOnly, DISCOVER_ROWS, discoverPath, discoverTarget, mergePages, type DiscoverPage, type DiscoverRow, type SeerrResult } from '../lib/discover';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
@@ -35,25 +35,30 @@ export function DiscoverCard({ item, onPress, width }: { item: SeerrResult; onPr
   const { t } = useSession();
   return (
     <FocusPressable accessibilityRole="button" accessibilityLabel={item.inLibrary ? `${item.title}, ${t('discover.inLibrary')}` : item.title} onPress={onPress} style={{ width }}>
-      <View>
-        <Artwork path={item.posterPath} size="w342" label={item.title} style={{ width, height: width * 1.5, borderRadius: radius.md }} />
-        {item.inLibrary ? (
-          <View style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.ok, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: colors.bg, fontWeight: '800', fontSize: 13 }}>✓</Text>
+      {(focused) => (
+        <>
+          <View>
+            <Artwork path={item.posterPath} size="w342" label={item.title} style={{ width, height: width * 1.5, borderRadius: radius.md }} />
+            {item.inLibrary ? (
+              <View style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.ok, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: colors.bg, fontWeight: '800', fontSize: 13 }}>✓</Text>
+              </View>
+            ) : item.state ? (
+              <View style={{ position: 'absolute', left: 6, right: 6, bottom: 6, alignItems: 'center' }}>
+                <Text numberOfLines={1} style={{ backgroundColor: 'rgba(20,18,28,0.85)', color: colors.accent, fontSize: 11, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, overflow: 'hidden' }}>
+                  {t(`request.state.${item.state}`)}
+                </Text>
+              </View>
+            ) : null}
+            <FocusRing focused={focused} />
           </View>
-        ) : item.state ? (
-          <View style={{ position: 'absolute', left: 6, right: 6, bottom: 6, alignItems: 'center' }}>
-            <Text numberOfLines={1} style={{ backgroundColor: 'rgba(20,18,28,0.85)', color: colors.accent, fontSize: 11, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, overflow: 'hidden' }}>
-              {t(`request.state.${item.state}`)}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-      <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 13, marginTop: 6 }}>{item.title}</Text>
-      <Text style={{ color: colors.faint, fontSize: 12 }}>
-        {item.mediaType === 'movie' ? t('request.movie') : t('request.show')}
-        {item.year ? ` · ${item.year}` : ''}
-      </Text>
+          <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 13, marginTop: 6 }}>{item.title}</Text>
+          <Text style={{ color: colors.faint, fontSize: 12 }}>
+            {item.mediaType === 'movie' ? t('request.movie') : t('request.show')}
+            {item.year ? ` · ${item.year}` : ''}
+          </Text>
+        </>
+      )}
     </FocusPressable>
   );
 }
