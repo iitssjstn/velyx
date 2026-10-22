@@ -318,7 +318,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   Eigenaar (22 okt): "Kan de paarse knoppen, paars grijs achtig worden met een klein beetje gloed net als op de
   voorbeeld". Dus de gevulde knoppen op de tv (Afspelen, gekozen tab) gedempt grijspaars zoals in het Cosmic Drift-ontwerp
   (rond #7f6bb3, witte tekst) met een kleine vaste paarse gloed; de andere knoppen omlijnd in hetzelfde paars. De
-  achtergrond van de app blijft zoals hij is. Nog wachten op "bouw het".
+  achtergrond van de app blijft zoals hij is.
+  Daarna (eigenaar 22 okt): "Denk grijs met paars wel mooi is, dus achtergrond wat grijzig met paars er door heen". Dus
+  op de tv ook de achtergrond: van bijna zwart (#14121c) naar donker grijs met een vleugje paars, zoals het voorbeeld
+  (rond #1d1c25; vlakken en kaarten iets lichter, rond #26242f). Nog wachten op "bouw het".
 
 ## Versie 0.19.11
 
