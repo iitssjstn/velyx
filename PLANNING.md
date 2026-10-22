@@ -309,6 +309,12 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   niet op alles. Eigenaar (22 okt): "als je op een hero zit dat iets de lucht in komt doe dat met een paarse gloed eronder
   en dat alleen voor de hero waar je op staat": het item met de focus wordt nu al groter (10 %, `TvHome`, posters en
   kaarten); daar komt een zachte paarse gloed onder, alleen bij dat item. Nog wachten op "bouw het".
+- Eigenaar (22 okt, foto van Home op de tv met Breaking Bad): "Maak de achtergrond kleur paars ook wat donkerder, en de top
+  nav mag kleiner of doorzichtiger want het neemt aardig wat ruimte in beslag". Voorstel: bovenbalk lager (minder
+  binnenruimte, kleinere tabbladen) en doorzichtig over de hero heen, met een donker verloop van boven zodat de tekst
+  leesbaar blijft (zoals de website). Paars: de lichte lavendel (`colors.accent` #b69cff) als vulling van Afspelen en de
+  gekozen tab wordt een dieper paars op de tv (tekst wit); de achtergrond van de app (`colors.bg` #14121c) is al bijna
+  zwart, op de foto lichter door de camera. Navragen welke van de twee hij bedoelt.
 
 ## Versie 0.19.11
 
