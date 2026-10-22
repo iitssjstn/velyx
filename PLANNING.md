@@ -1966,7 +1966,8 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   tv-detailpagina in de stijl van de website (`DetailHero`): de achtergrondfoto gedimd over het hele scherm, geen
   losse grote poster; links titel, feiten, beschrijving en knoppen (Afspelen/Verder, Trailer, Seizoenen aanvragen,
   Kijklijst, Favoriet); voor een serie seizoenkeuze en de afleveringen als rij met still, en de beschrijving van de
-  gekozen aflevering eronder. Ook nagaan waarom de teksten Engels zijn (taal van de tv of van het account).
+  gekozen aflevering eronder. Engelse teksten: de eigenaar heeft zelf alles in het Engels staan
+  (persoonlijke voorkeur); geen fout, niets aan doen.
   Eigenaar (22 okt): "Dat idee lijkt mij heel nice", "Niet 1 op 1 nagemaakt". Akkoord op het voorstel; bouwen pas als
   hij het zegt.
 
