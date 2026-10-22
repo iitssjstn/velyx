@@ -23,7 +23,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
      (hervatpunt, ondertitel, audio; pauze/spoelen/ondertitel vanaf de telefoon); zonder app de webspeler met
      onthouden ondertitel en hervatpunt.
   Eigenaar (22 okt): "De chromecast app is getest, ik heb gekeken naar de focus-rand etc" (tv-app tot en met 0.19.89, geen
-  fouten gemeld). Navragen wat nog niet getest is: Cast Connect, intro overslaan, titel wisselen tijdens casten.
+  fouten gemeld). Foutcode 2100 niet meer getest ("omdat we nu de chromecast app hebben"); de fix zit op de server en
+  geldt ook voor wie zonder app cast en voor wisselen in de tv-app. Nog navragen: Cast Connect en intro overslaan.
   3. 0.19.84 testen op de Chromecast met Google TV (eigenaar): inloggen met de QR-code, met de pijltjes een titel
      openen, afspelen, spoelen, ondertitels/audio, een serie tot de aftiteling, Terug.
   4. Overige tests (eigenaar): app-schermen (seizoenenknop, audiospoor, uitloggen, wachtwoord), Windows-installer op een
