@@ -11,6 +11,16 @@ export const SAVE_EVERY_MS = 10_000;
 export const START_SLACK_SEC = 15;
 
 /**
+ * Playing this long elsewhere than the asked start counts as watching from there: the TV did not
+ * get there, or the viewer went back. Saving then, so nothing watched is lost.
+ */
+export const SETTLE_AFTER_SEC = 60;
+
+/** Tries to get the TV to the asked start when it began before it (the framework can ignore the start time). */
+export const START_TRIES = 3;
+const START_TRY_EVERY_SEC = 5;
+
+/**
  * What to save: the position in the file (a repackaged stream can start `offset` seconds into it)
  * and its length. Null when there is nothing worth saving (no length, or not started).
  */
@@ -42,16 +52,32 @@ export class ProgressSaver {
    * stream (the resume point).
    */
   start(target, startAt = 0) {
-    this.item = target ? { ...target, played: false, savedAt: 0, startAt: Number(startAt) > 0 ? Number(startAt) : 0 } : null;
+    this.item = target ? { ...target, played: false, savedAt: 0, startAt: Number(startAt) > 0 ? Number(startAt) : 0, elsewhere: 0, tries: 0 } : null;
   }
 
   /**
-   * While it plays: saved every SAVE_EVERY_MS. Only once the TV got to where it was asked to start:
-   * playing from the beginning first would otherwise overwrite the resume point with a few seconds.
+   * Called each second while it plays: where to send the TV when it plays before the asked start
+   * (a few tries, a few seconds apart), else null.
+   */
+  startSeek(time) {
+    const item = this.item;
+    if (!item || item.played || !Number.isFinite(time) || time + START_SLACK_SEC >= item.startAt) return null;
+    if (item.tries >= START_TRIES || item.elsewhere % START_TRY_EVERY_SEC !== 0) return null;
+    item.tries += 1;
+    return item.startAt;
+  }
+
+  /**
+   * While it plays (each second): saved every SAVE_EVERY_MS. Only once the TV got to where it was
+   * asked to start: playing from the beginning first would otherwise overwrite the resume point with
+   * a few seconds. Or once it played SETTLE_AFTER_SEC elsewhere: then the viewer watches from there.
    */
   tick(time, duration) {
     if (!this.item) return;
-    if (!this.item.played && Number.isFinite(time) && time + START_SLACK_SEC < this.item.startAt) return;
+    if (!this.item.played && Number.isFinite(time) && time + START_SLACK_SEC < this.item.startAt) {
+      this.item.elsewhere += 1;
+      if (this.item.elsewhere < SETTLE_AFTER_SEC) return;
+    }
     this.item.played = true;
     if (this.now() - this.item.savedAt >= SAVE_EVERY_MS) this.save(time, duration);
   }

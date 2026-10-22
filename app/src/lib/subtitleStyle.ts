@@ -91,6 +91,15 @@ export function subtitleBottom(style: SubtitleStyle, height: number, controls: b
   return base + Math.round((height * clampPosition(style.position)) / 100);
 }
 
+/**
+ * On a TV, while the bar shows: above its timeline and buttons (the lowest ~95 px of the screen),
+ * where the subtitle style's own position counts from.
+ */
+export const TV_BAR_HEIGHT = 120;
+export function tvSubtitleBottom(style: SubtitleStyle, height: number, barShown: boolean): number {
+  return (barShown ? TV_BAR_HEIGHT : Math.round(height * 0.05)) + Math.round((height * clampPosition(style.position)) / 100);
+}
+
 /** One step of the subtitle timing: 0.5 s, kept to one decimal, within ±30 s. */
 export function stepDelay(delay: number, direction: 1 | -1): number {
   return Math.max(-30, Math.min(30, Math.round((delay + direction * 0.5) * 10) / 10));

@@ -1,5 +1,5 @@
 import { ProgressSaver, progressTarget, START_SLACK_SEC } from './progress.js';
-import { showsSplash, startOptions } from './screen.js';
+import { needsTracks, showsSplash, startOptions } from './screen.js';
 import { barVisible, cueCss, fileTimes, formatTime } from './overlay.js';
 import {
   CONTROLS_FOR_MS,
@@ -47,6 +47,8 @@ const now = () => [player.getCurrentTimeSec(), player.getDurationSec()];
 
 // Where the sender asked the TV to start (the resume point), and where in the file the stream begins.
 let wantedStart = 0;
+// The subtitle the sender asked for: the framework can drop it while loading (HLS), so it is put back.
+let wantedTracks = [];
 let target = null;
 // The server and cast token of what plays, and what the server told the TV about it (/api/cast/tv).
 let server = null;
@@ -132,6 +134,7 @@ const prepare = (request) => {
     media.hlsVideoSegmentFormat = HlsVideoSegmentFormat.FMP4;
   }
   wantedStart = Number(request.currentTime) > 0 ? Number(request.currentTime) : 0;
+  wantedTracks = Array.isArray(request.activeTrackIds) ? request.activeTrackIds.slice() : [];
   target = progressTarget(media?.customData);
   const data = media?.customData?.vidalune;
   server = target ? serverOf(target.url) : null;
@@ -173,6 +176,7 @@ if (MessageType.EDIT_TRACKS_INFO)
 if (EventType.PLAYER_LOAD_COMPLETE)
   player.addEventListener(EventType.PLAYER_LOAD_COMPLETE, () => {
     if (wantedStart > START_SLACK_SEC && player.getCurrentTimeSec() + START_SLACK_SEC < wantedStart) player.seek(wantedStart);
+    restoreTracks();
     loadingNext = false;
     showBar();
   });
@@ -204,6 +208,17 @@ const seekTo = (fileTime) => {
 };
 
 /* ---- Subtitles and audio as the menu lists them. ---- */
+// Puts the asked subtitle back when the title loaded without one (once per load).
+const restoreTracks = () => {
+  const wanted = wantedTracks;
+  wantedTracks = [];
+  try {
+    const manager = player.getTextTracksManager();
+    if (needsTracks(wanted, manager.getActiveIds(), manager.getTracks()?.map((t) => t.trackId))) manager.setActiveByIds(wanted);
+  } catch {
+    // No text tracks on this title.
+  }
+};
 const textTracks = () => {
   try {
     return player.getTextTracksManager().getTracks() ?? [];
@@ -450,7 +465,12 @@ setInterval(render, 250);
 
 setInterval(() => {
   const state = player.getPlayerState();
-  if (state === PlayerState.PLAYING) saver.tick(...now());
+  if (state === PlayerState.PLAYING) {
+    // Still before the resume point (the framework ignored the start time): sent there again.
+    const to = saver.startSeek(player.getCurrentTimeSec());
+    if (to !== null) player.seek(to);
+    saver.tick(...now());
+  }
   // The card counts down while the film plays; at zero the next episode starts.
   if (state === PlayerState.PLAYING && upNextNow() && remote.open === 'none') {
     countdown -= 1;

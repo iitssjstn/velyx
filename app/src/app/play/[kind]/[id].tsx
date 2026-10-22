@@ -9,13 +9,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { CastContext, MediaPlayerIdleReason, MediaPlayerState, useCastDevice, useMediaStatus, useRemoteMediaClient } from 'react-native-google-cast';
 import { deviceDecoders } from '../../../../modules/vidalune-codecs';
-import { RemoteKeys } from '../../../../modules/vidalune-tv';
 import { Artwork } from '../../../components/media';
 import { CastIcon } from '../../../components/CastIcon';
 import { useCastStatus } from '../../../components/CastStatus';
 import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
 import { TvPlayer } from '../../../components/TvPlayer';
+import { CastReceiver, RemoteKeys, type CastCommand } from '../../../../modules/vidalune-tv';
 import { TV, castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
 import { castSettled, castStartAt, castStatus } from '../../../lib/castStatus';
@@ -24,8 +24,9 @@ import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
 import { rememberAudio, rememberSubtitle, rememberedAudio, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
-import { DEFAULT_SUBTITLE_STYLE, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, type SubtitleStyle } from '../../../lib/subtitleStyle';
+import { DEFAULT_SUBTITLE_STYLE, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { createSubtitleStyleSync, subtitlePreferencesReady, subtitleStyleAccountScope } from '../../../lib/subtitleStyleSync';
+import { castConnectData, castGiven, castPlayerState, castSubtitleFor, castSubtitleKeys, castTrackIdsFor } from '../../../lib/castConnect';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
 import { errorMessage } from '../../../lib/connection';
 import { useSession } from '../../../lib/session';
@@ -69,7 +70,10 @@ const NEXT_COUNTDOWN = 10;
 const DOUBLE_TAP_MS = 300;
 
 export default function Player() {
-  const { kind, id, t: startParam, tv: tvParam } = useLocalSearchParams<{ kind: string; id: string; t?: string; tv?: string }>();
+  const { kind, id, t: startParam, tv: tvParam, sub, audio, o, n } = useLocalSearchParams<{ kind: string; id: string; t?: string; tv?: string; sub?: string; audio?: string; o?: string; n?: string }>();
+  // Cast to this TV from a phone or browser (Cast Connect): their subtitle and audio track. Each cast
+  // (n) starts the player again, also for the title that plays (the sender jumped or chose other audio).
+  const given = castGiven({ sub, audio, o });
   const { api, t, serverUrl } = useSession();
   const [castActive, setCastActive] = useState(false);
 
@@ -109,7 +113,7 @@ export default function Player() {
       {item.error ? (
         <Problem message={errorMessage(item.error, t)} />
       ) : item.data && subtitlePreferencesReady(prefs) ? (
-        <Playback key={`${item.data.kind}-${item.data.id}`} item={item.data} prefs={prefs.data ?? null} startAt={startParam !== undefined ? Number(startParam) : null} onTv={tvParam === '1'} onCastingChange={setCastActive} />
+        <Playback key={`${item.data.kind}-${item.data.id}-${n ?? ''}`} item={item.data} prefs={prefs.data ?? null} startAt={startParam !== undefined ? Number(startParam) : null} onTv={tvParam === '1'} given={given} onCastingChange={setCastActive} />
       ) : (
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} size="large" />
@@ -129,7 +133,7 @@ function Problem({ message }: { message: string }) {
   );
 }
 
-function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item; prefs: Prefs | null; startAt: number | null; /** Opened because the TV started this title itself: it plays there already. */ onTv: boolean; onCastingChange: (active: boolean) => void }) {
+function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item: Item; prefs: Prefs | null; startAt: number | null; /** Opened because the TV started this title itself: it plays there already. */ onTv: boolean; /** The subtitle and audio a cast to this TV came with. */ given: ReturnType<typeof castGiven>; onCastingChange: (active: boolean) => void }) {
   const { api, t, serverUrl, language, cloudServerId, user } = useSession();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
@@ -360,7 +364,7 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
         const keyframe = s.session.decision.seek === 'restart' && at > 0 ? await api.get<{ start: number; seek: number }>(`/api/media/${item.fileId}/keyframe?t=${at.toFixed(3)}${s.session.decision.optimized ? `&optimized=${s.session.decision.optimized.id}` : ''}`).then((r) => ({ offset: r.start, seek: r.seek })) : null;
         if (!active()) return;
         // Load the safe TV preset first; unsupported custom styling must not prevent playback.
-        const { request, offset: from } = castLoadRequest({ session: s.session, url: (path) => new URL(path, `${s!.session.serverUrl}/`).toString(), title: item.title, subtitle: item.subtitle, artwork: imagePath(item.poster ?? item.artwork, 'w780'), at, keyframe, subtitleKey: subtitleRef.current?.key ?? null, fileId: item.fileId, audioIndex: audio });
+        const { request, offset: from } = castLoadRequest({ session: s.session, url: (path) => new URL(path, `${s!.session.serverUrl}/`).toString(), title: item.title, subtitle: item.subtitle, artwork: imagePath(item.poster ?? item.artwork, 'w780'), at, keyframe, subtitleKey: subtitleRef.current?.key ?? null, fileId: item.fileId, audioIndex: audio, item: { kind: item.kind, id: item.id } });
         setOffset(from);
         setTime(Math.max(0, at - from));
         tvStartedAt.current = at;
@@ -447,7 +451,7 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
 
   // Start: resume where the viewer stopped (unless asked to start elsewhere).
   useEffect(() => {
-    void decide(startAt ?? resumePoint(item.progress) ?? 0);
+    void decide(startAt ?? resumePoint(item.progress) ?? 0, given.audioIndex);
     // Once per item.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -457,6 +461,11 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
   useEffect(() => {
     if (!answer || subtitlePicked.current) return;
     subtitlePicked.current = true;
+    // The one a phone or browser showed when it cast this title to the TV.
+    if (given.subtitleKey !== undefined) {
+      const sent = given.subtitleKey === null ? null : answer.subtitles.find((o) => o.key === given.subtitleKey);
+      if (sent !== undefined) return setSubtitle(sent);
+    }
     const audio = answer.file.audioTracks.find((a) => a.index === answer.decision.audioIndex);
     void rememberedSubtitle().then((remembered) => setSubtitle((current) => current ?? initialSubtitle(answer.subtitles, prefs, remembered, audio?.language ?? null)));
   }, [answer, prefs]);
@@ -608,7 +617,8 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [casting, client, subtitle]);
   // A subtitle chosen on the TV (its remote): shown here and remembered, as if chosen here. Its first
-  // report for a title is what it was given, not a choice (see tvChanged).
+  // report for a title is what it was given, not a choice (see tvChanged). "Off" from the TV is not
+  // taken: Google's framework reports it when it loses the track (loading, a seek).
   const tvSeen = useRef<TvSeen | null>(null);
   useEffect(() => {
     if (!casting || !answer || castLoading.current || tvFile.current !== item.fileId) return;
@@ -617,9 +627,9 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
     if (key === undefined || (sent && key !== sent.key && Date.now() < sent.until)) return;
     if (!tvChanged(tvSeen, item.fileId, 'subtitle', key)) return;
     subtitleSent.current = null;
-    if (key === (subtitleRef.current?.key ?? null)) return;
-    const option = key === null ? null : answer.subtitles.find((o) => o.key === key);
-    if (option === undefined) return;
+    if (key === null || key === (subtitleRef.current?.key ?? null)) return;
+    const option = answer.subtitles.find((o) => o.key === key);
+    if (!option) return;
     setSubtitle(option);
     void rememberSubtitle(choiceFor(option));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -771,6 +781,53 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
     [answer, duration, load, player, client, castLoad, castFailed],
   );
 
+  // ---------------------------------------------------------------- Cast Connect (on a TV)
+  // A phone or browser cast to this TV: they see what plays here and control it (CastConnect.kt
+  // ignores all this until a sender cast to the TV).
+  const castKeys = castSubtitleKeys(answer?.subtitles ?? []);
+  useEffect(() => {
+    if (!TV || !CastReceiver || !answer) return;
+    const tracks = castKeys.map((key, i) => {
+      const option = answer.subtitles.find((o) => o.key === key)!;
+      return { id: i + 1, name: option.label, language: option.language ?? null };
+    });
+    // No artwork: the server's images need its sign-in, which senders do not have.
+    void CastReceiver.castMedia(item.title, item.subtitle, null, Math.max(0, duration - given.offset), castConnectData(item, audioIndex), tracks).catch(() => undefined);
+    // When the title, its subtitles or the audio track change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answer, audioIndex]);
+  const castTick = Math.floor(position / 5);
+  useEffect(() => {
+    if (!TV || !CastReceiver || !answer) return;
+    void CastReceiver.castStatus(castPlayerState({ playing, loading }), Math.max(0, position - given.offset), castTrackIdsFor(subtitle?.key ?? null, castKeys)).catch(() => undefined);
+    // On a change of state or subtitle, and every 5 s of playing (senders count on from the state).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answer, playing, loading, castTick, subtitle?.key]);
+  const castAt = useRef(0);
+  castAt.current = position;
+  useEffect(() => () => void CastReceiver?.castStatus('idle', Math.max(0, castAt.current - given.offset), []).catch(() => undefined), []);
+  const onCastCommand = useRef<(c: CastCommand) => void>(() => undefined);
+  onCastCommand.current = (c) => {
+    if (c.type === 'play') player.play();
+    else if (c.type === 'pause') player.pause();
+    else if (c.type === 'seek') seekTo(c.position + given.offset);
+    else if (c.type === 'stop') router.back();
+    else if (c.type === 'subtitle') {
+      const key = castSubtitleFor(c.trackId, castKeys);
+      if (key === undefined) return;
+      const option = key === null ? null : subtitleOptions.find((o) => o.key === key) ?? null;
+      if (key !== null && !option) return;
+      // A choice made on the phone or browser: remembered here too.
+      setSubtitle(option);
+      void rememberSubtitle(choiceFor(option));
+    }
+  };
+  useEffect(() => {
+    if (!TV || !CastReceiver) return;
+    const sub = CastReceiver.addListener('onCastCommand', (c) => onCastCommand.current(c));
+    return () => sub.remove();
+  }, []);
+
   // Always-skip: once per part and item, as on the website; credits with nothing after them go
   // straight to the next episode when there is one.
   useEffect(() => {
@@ -895,6 +952,14 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
 
   // While casting the TV shows the subtitles.
   const text = casting ? null : cueTextAt(cues, position - subDelay);
+  // On a TV the subtitles go above the bar while it shows (it is taller than the phone's controls).
+  const tvBarShown = TV && (controls || !playing || tv.open !== 'none');
+  const subtitleAt = TV ? tvSubtitleBottom(subStyle, screenHeight, tvBarShown) : subtitleBottom(subStyle, screenHeight, controls);
+  const subtitleView = text ? (
+    <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleAt + insets.bottom, alignItems: 'center' }}>
+      <Text style={subtitleTextStyle(subStyle, screenHeight)}>{text}</Text>
+    </View>
+  ) : null;
   const shown = scrub ?? position;
   return (
     <View style={{ flex: 1 }} onLayout={(e) => {
@@ -909,11 +974,7 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
           <Text style={{ color: colors.muted, textAlign: 'center' }}>{t('player.castingHint')}</Text>
         </View>
       )}
-      {text ? (
-        <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleBottom(subStyle, screenHeight, controls) + insets.bottom, alignItems: 'center' }}>
-          <Text style={subtitleTextStyle(subStyle, screenHeight)}>{text}</Text>
-        </View>
-      ) : null}
+      {!TV && subtitleView}
       {seekFlash && (
         <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, [seekFlash.side === 'back' ? 'left' : 'right']: 48, justifyContent: 'center' }}>
           <View style={{ backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 999, paddingVertical: 14, paddingHorizontal: 18, alignItems: 'center', gap: 4 }}>
@@ -933,13 +994,13 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
           <TvPlayer
             title={item.title}
             subtitle={item.subtitle}
-            poster={item.poster ?? item.artwork}
             position={position}
             duration={duration}
             playing={playing}
             loading={loading}
             ended={ended}
-            visible={controls || !playing || tv.open !== 'none'}
+            visible={tvBarShown}
+            overlayBottom={tvBarShown ? TV_BAR_HEIGHT + 16 : 48}
             state={tv}
             buttons={tvContext.buttons}
             tabs={tvContext.tabs}
@@ -953,6 +1014,8 @@ function Playback({ item, prefs, startAt, onTv, onCastingChange }: { item: Item;
             skipLabel={askSkip ? skipLabel(askSkip.kind, t) : null}
             upNext={showNext && item.next ? { label: `${episodeCode(item.next.seasonNumber, item.next.episodeNumber)}${item.next.title ? ` · ${item.next.title}` : ''}`, countdown: countdown ?? 0, ended } : null}
           />
+          {/* Over the bar's shading, so they stay readable. */}
+          {subtitleView}
         </>
       ) : (
       <Pressable accessibilityLabel={t('player.tracks')} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={onTap}>

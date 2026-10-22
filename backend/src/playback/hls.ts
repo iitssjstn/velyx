@@ -30,6 +30,8 @@ export const AHEAD_SECONDS = 120;
 const KEYFRAME_SCAN_MS = 20 * 60_000;
 /** Stopped and removed after this long without a request. */
 const IDLE_MS = 3 * 60_000;
+/** A viewer's converted stream not asked for this long, when they start another one: they moved on. */
+export const MOVED_ON_MS = 20_000;
 /** At most this many being made at once (the oldest stops). */
 const MAX_SESSIONS = 8;
 
@@ -341,6 +343,18 @@ export class HlsSessions {
   /** A converting session for `key` exists: that viewer was let in, its next pieces count as one stream. */
   convertingFor(key: string): boolean {
     return Boolean(this.sessions.get(key)?.encode);
+  }
+
+  /**
+   * A viewer starts converting another title: their converted streams of other titles that are no
+   * longer asked for stop now, instead of holding a place in the conversion limit until they go idle
+   * (switching titles while casting would otherwise be refused on a server that converts one at a time).
+   */
+  releaseMovedOn(key: string, idleMs = MOVED_ON_MS): void {
+    const viewer = key.slice(0, key.indexOf(':') + 1);
+    if (!viewer) return;
+    const now = Date.now();
+    for (const s of [...this.sessions.values()]) if (s.encode && s.key !== key && s.key.startsWith(viewer) && now - s.lastUsed >= idleMs) this.drop(s);
   }
 
   /** Sessions whose video is converted (for the conversion limit), other than `key`. */

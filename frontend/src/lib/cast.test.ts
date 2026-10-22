@@ -256,11 +256,11 @@ describe('casting from the player', () => {
       sessions.push(fileId);
       return new Response(JSON.stringify({
         token: `tok${fileId}`, expiresAt: Date.now() + 3_600_000, directUrl: null, serverUrl: null, contentType: 'video/mp4',
-        decision: { engine: 'direct', streamUrl: `/api/media/${fileId}/stream`, seek: 'range', durationSec: 2500 }, subtitles: [],
+        decision: { engine: 'direct', streamUrl: `/api/media/${fileId}/stream`, seek: 'range', durationSec: 2500 }, subtitles: [], serverId: 'srv-1',
       }), { status: 200 });
     }));
     const { useCast } = await import('./cast');
-    const { result, rerender, unmount } = renderHook(({ fileId }: { fileId: number }) => useCast({ fileId, audioIndex: null, title: 'Show', subtitleKey: null, locate: async () => ({ offset: 0, seek: 0 }) }), { initialProps: { fileId: 5 } });
+    const { result, rerender, unmount } = renderHook(({ fileId }: { fileId: number }) => useCast({ fileId, item: { kind: 'episode', id: fileId * 10 }, audioIndex: null, title: 'Show', subtitleKey: null, locate: async () => ({ offset: 0, seek: 0 }) }), { initialProps: { fileId: 5 } });
     await waitFor(() => expect(sdk.context.setOptions).toHaveBeenCalled());
     await act(() => result.current.start(2400));
     expect(result.current.fileId).toBe(5);
@@ -271,8 +271,9 @@ describe('casting from the player', () => {
     expect(sessions).toEqual([5, 6]);
     expect(sdk.loaded.at(-1)).toMatchObject({ url: `${location.origin}/api/media/6/stream?cast=tok6`, currentTime: 0 });
     // Vidalune's own cast player, which saves the TV's progress for the file it was given.
-    expect(sdk.context.setOptions).toHaveBeenCalledWith(expect.objectContaining({ receiverApplicationId: '920BF057' }));
-    expect(sdk.loaded.at(-1)?.customData).toEqual({ vidalune: { progressUrl: `${location.origin}/api/cast/progress?cast=tok6`, offset: 0, durationSec: 2500, fileId: 6, audioIndex: null } });
+    // A Google TV with the Vidalune app takes the title in the app (Cast Connect): server, title and subtitle.
+    expect(sdk.context.setOptions).toHaveBeenCalledWith(expect.objectContaining({ receiverApplicationId: '920BF057', androidReceiverCompatible: true }));
+    expect(sdk.loaded.at(-1)?.customData).toEqual({ vidalune: { progressUrl: `${location.origin}/api/cast/progress?cast=tok6`, offset: 0, durationSec: 2500, fileId: 6, audioIndex: null, serverId: 'srv-1', title: { kind: 'episode', id: 60 }, subtitleKey: null } });
     expect(result.current).toMatchObject({ active: true, fileId: 6, time: 0 });
     unmount();
   });

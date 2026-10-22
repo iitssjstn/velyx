@@ -46,6 +46,13 @@ describe('casting to a Chromecast', () => {
     expect((await env.app.inject({ method: 'POST', url: '/api/cast/session', payload: { fileId: dune.id } })).statusCode).toBe(401);
   });
 
+  it('names the server, so a TV with the Vidalune app plays the title itself when signed in to it', async () => {
+    const { admin, dune } = await setup();
+    expect((await session(admin, dune.id)).json().serverId).toBeNull();
+    env.ctx.settings.update({ cloud: { serverId: 'server-id', secret: 'server-secret-at-least-20-characters', account: 'justin@example.com' } });
+    expect((await session(admin, dune.id)).json().serverId).toBe('server-id');
+  });
+
   it('offers only the automatically provisioned direct address for web playback', async () => {
     const { admin, dune, arrival } = await setup();
     env.ctx.settings.update({

@@ -72,6 +72,8 @@ export interface CastSession {
   contentType: string;
   decision: { engine: string; streamUrl: string; seek: 'range' | 'restart'; durationSec: number | null; optimized?: { id: number; profile: 'compat-720p' | 'compat-1080p' } };
   subtitles: CastSubtitle[];
+  /** The server's id at vidalune.com (null when not linked). */
+  serverId?: string | null;
 }
 
 /** The same shape as react-native-google-cast's MediaLoadRequest (only what is used). */
@@ -87,7 +89,7 @@ export interface CastLoadRequest {
     textTrackStyle: ReturnType<typeof castTextTrackStyle>;
     metadata: { type: 'generic'; title: string; subtitle?: string; images?: { url: string }[] };
     /** For Vidalune's own cast player: where it saves the TV's progress itself. */
-    customData: { vidalune: { progressUrl: string; offset: number; durationSec: number | null; fileId: number | null; audioIndex: number | null } };
+    customData: { vidalune: { progressUrl: string; offset: number; durationSec: number | null; fileId: number | null; audioIndex: number | null; serverId: string | null; title: { kind: 'movie' | 'episode'; id: number } | null; subtitleKey: string | null } };
     mediaTracks: { id: number; type: 'text'; subtype: 'subtitles'; contentId: string; contentType: string; name: string; language?: string }[];
   };
 }
@@ -124,6 +126,8 @@ export function castLoadRequest(opts: {
   /** The file and audio track (Vidalune's TV player offers the others, and says which file it plays). */
   fileId?: number;
   audioIndex?: number | null;
+  /** The film or episode: a Google TV with the Vidalune app opens it itself (Cast Connect). */
+  item?: { kind: 'movie' | 'episode'; id: number };
 }): { request: CastLoadRequest; offset: number } {
   const { session: s, url, at } = opts;
   const restart = s.decision.seek === 'restart' && at > 0 && opts.keyframe !== null;
@@ -143,7 +147,8 @@ export function castLoadRequest(opts: {
         textTrackStyle: castTextTrackStyle(opts.subtitleStyle),
         ...(s.decision.durationSec ? { streamDuration: Math.max(0, s.decision.durationSec - offset) } : {}),
         // Vidalune's cast player saves where the TV is itself, also with the app in the background.
-        customData: { vidalune: { progressUrl: castAddress(url('/api/cast/progress'), s.token), offset, durationSec: s.decision.durationSec, fileId: opts.fileId ?? null, audioIndex: opts.audioIndex ?? null } },
+        // The Vidalune app on a Google TV opens the title itself, on the same server (serverId, title, subtitle).
+        customData: { vidalune: { progressUrl: castAddress(url('/api/cast/progress'), s.token), offset, durationSec: s.decision.durationSec, fileId: opts.fileId ?? null, audioIndex: opts.audioIndex ?? null, serverId: s.serverId ?? null, title: opts.item ?? null, subtitleKey: opts.subtitleKey } },
         metadata: {
           type: 'generic',
           title: opts.title,

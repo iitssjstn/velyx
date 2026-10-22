@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SUBTITLE_STYLE, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, readSubtitleStyle, stepDelay, subtitleBottom, subtitleFontSize, subtitleTextStyle } from './subtitleStyle';
+import { DEFAULT_SUBTITLE_STYLE, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, readSubtitleStyle, stepDelay, subtitleBottom, subtitleFontSize, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT } from './subtitleStyle';
 
 describe('reading a stored subtitle style', () => {
   it('falls back to the defaults for nothing or garbage', () => {
@@ -60,6 +60,13 @@ describe('how subtitles look', () => {
     expect(subtitleBottom(DEFAULT_SUBTITLE_STYLE, 400, true)).toBe(96);
     expect(subtitleBottom(DEFAULT_SUBTITLE_STYLE, 400, false)).toBe(20);
     expect(subtitleBottom({ ...DEFAULT_SUBTITLE_STYLE, position: 10 }, 400, false)).toBe(60);
+  });
+
+  it('on a TV, stays above the bar\'s timeline and buttons while the bar shows', () => {
+    expect(tvSubtitleBottom(DEFAULT_SUBTITLE_STYLE, 1080, true)).toBe(TV_BAR_HEIGHT);
+    expect(TV_BAR_HEIGHT).toBeGreaterThanOrEqual(110);
+    expect(tvSubtitleBottom(DEFAULT_SUBTITLE_STYLE, 1080, false)).toBe(54);
+    expect(tvSubtitleBottom({ ...DEFAULT_SUBTITLE_STYLE, position: 10 }, 1080, true)).toBe(TV_BAR_HEIGHT + 108);
   });
 });
 

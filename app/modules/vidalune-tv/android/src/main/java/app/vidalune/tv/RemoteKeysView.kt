@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
@@ -34,6 +35,14 @@ class RemoteKeysView(context: Context, appContext: AppContext) : ExpoView(contex
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
     post { requestFocus() }
+  }
+
+  override fun onDetachedFromWindow() {
+    val root = rootView as? ViewGroup
+    super.onDetachedFromWindow()
+    // Leaving the player: nothing has the focus then, and the remote's arrows would do nothing. Give
+    // it to the screen underneath (its first focusable view) once it is back.
+    root?.postDelayed({ if (root.findFocus() == null) root.requestFocus(View.FOCUS_DOWN) }, 300)
   }
 
   companion object {
