@@ -1,4 +1,4 @@
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { formatClock } from '../lib/format';
 import { useSession } from '../lib/session';
@@ -45,16 +45,9 @@ const TIME_AFTER = 2;
 /** Height of the shaded strip behind the top and bottom of the controls. */
 const FADE = 170;
 
-/** A strip that goes from dark at the edge to clear, like the website's gradient (no gradient view in the app). */
+/** Dark at the edge to clear, like the website's gradient: one smooth image, stretched (no gradient view in the app). */
 function Fade({ from }: { from: 'top' | 'bottom' }) {
-  const steps = 12;
-  return (
-    <View style={{ height: FADE, flexDirection: from === 'top' ? 'column' : 'column-reverse' }}>
-      {Array.from({ length: steps }, (_, i) => (
-        <View key={i} style={{ flex: 1, backgroundColor: `rgba(0,0,0,${(0.8 * (1 - i / steps)).toFixed(3)})` }} />
-      ))}
-    </View>
-  );
+  return <Image source={require('../../assets/fade.png')} resizeMode="stretch" style={{ width: '100%', height: FADE, transform: from === 'bottom' ? [{ scaleY: -1 }] : [] }} />;
 }
 
 /**

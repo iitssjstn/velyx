@@ -1901,3 +1901,18 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - PR #172 gemerged 22 okt op verzoek van de eigenaar ("Merge het maar als het groen is"; alle checks groen, APK eerst op de
   branch gebouwd); release `v0.19.85` gecontroleerd: APK, beide `.deb`'s, `.aab`, `vidalune-0.19.85-setup.exe` en de
   accountservice-image.
+
+## Versie 0.19.86 (tv: ondertitels op tijd, vloeiend verloop, focus na de speler)
+
+- Gemeld door de eigenaar (22 okt, foto van 0.19.85 op de tv): "Ondertiteling heeft een beetje vertraging, de app voelt
+  beetje traag aan", "de shadow boven en onder aan heel erg zichtbaar", "de besturing valt nog steeds weg na het bekijken
+  van een film/serie".
+- Ondertitels (app, telefoon en tv): de regel kwam van de tijdmeldingen van de speler (elke 0,5 s), dus tot een halve
+  seconde te laat. Nu leest de speler de tijd zelf 8 keer per seconde; het scherm tekent alleen opnieuw als de regel wisselt.
+- Verloop achter de bediening: 12 losse banden gaven zichtbare strepen; nu één vloeiend plaatje (`assets/fade.png`,
+  uitgerekt, minder donker aan de rand).
+- Focus na de speler: in 0.19.85 werd één keer na 300 ms de focus teruggezet. Nu probeert de app het 3 s lang elke 200 ms
+  zolang niets zichtbaars de focus heeft, en pakt de speler de focus alleen terug zolang hij zelf in beeld is. Niet op een
+  echte tv te testen; blijft het, dan precies navragen wanneer (Terug, einde van de aflevering, volgende aflevering).
+- Traag: niet aangewezen; minder hertekenen door de ondertitels. Navragen waar het traag voelt (bladeren of de speler).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1986) en beide lockfiles bijgewerkt.

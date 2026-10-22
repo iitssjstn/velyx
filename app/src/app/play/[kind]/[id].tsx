@@ -490,6 +490,21 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
     };
   }, [subtitle, api, mediaEndpoint]);
 
+  // The subtitle line now, read from the player several times a second: its time events come every 0.5 s,
+  // which shows a line up to half a second late. Only a new line draws the screen again.
+  const [cueText, setCueText] = useState('');
+  useEffect(() => {
+    setCueText('');
+    if (casting || !cues.length) return;
+    const tick = () => {
+      const now = cueTextAt(cues, offset + player.currentTime - subDelay);
+      setCueText((old) => (old === now ? old : now));
+    };
+    tick();
+    const timer = setInterval(tick, 120);
+    return () => clearInterval(timer);
+  }, [player, cues, offset, subDelay, casting]);
+
   const lastTime = useRef(0);
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
     if (castingRef.current) return;
@@ -951,7 +966,7 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
   if (problem) return <Problem message={problem} />;
 
   // While casting the TV shows the subtitles.
-  const text = casting ? null : cueTextAt(cues, position - subDelay);
+  const text = cueText;
   // On a TV the subtitles go above the bar while it shows (it is taller than the phone's controls).
   const tvBarShown = TV && (controls || !playing || tv.open !== 'none');
   const subtitleAt = TV ? tvSubtitleBottom(subStyle, screenHeight, tvBarShown) : subtitleBottom(subStyle, screenHeight, controls);
