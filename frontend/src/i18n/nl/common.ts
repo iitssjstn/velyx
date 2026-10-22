@@ -1,6 +1,5 @@
 import type { Messages } from '../index';
 export const common: Messages['common'] = {
-  optional: '(optioneel)',
   loading: 'Laden',
   tryAgain: 'Opnieuw proberen',
   done: 'Klaar',
@@ -8,7 +7,6 @@ export const common: Messages['common'] = {
   close: 'Sluiten',
   cancel: 'Annuleren',
   no: 'Nee',
-  yes: 'Ja',
   goBack: 'Terug',
   name: 'Naam',
   save: 'Opslaan',

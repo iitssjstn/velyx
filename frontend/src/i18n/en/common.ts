@@ -1,5 +1,4 @@
 export const common = {
-  optional: '(optional)',
   loading: 'Loading',
   tryAgain: 'Try again',
   done: 'Done',
@@ -7,7 +6,6 @@ export const common = {
   close: 'Close',
   cancel: 'Cancel',
   no: 'No',
-  yes: 'Yes',
   goBack: 'Go back',
   name: 'Name',
   save: 'Save',

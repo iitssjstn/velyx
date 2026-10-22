@@ -37,7 +37,6 @@ export const cloud = {
     unreachable: 'vidalune.com cannot be reached right now. The server keeps trying.',
     closed: 'The connection closed. The server is reconnecting.',
   },
-  relayNeedsLink: 'Link this server first to use the relay.',
   directTitle: 'Direct connection',
   directPortIntro: 'Enter the public TCP port. In your router, forward that TCP port to port {port} on this server.',
   directPort: 'Public port',

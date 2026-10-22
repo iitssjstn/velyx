@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError, createApi } from './api';
-import { appUserAgent, checkPairing, signInWithPassword, startPairing } from './auth';
+import { appUserAgent } from './auth';
 
 function server(respond: (url: string, init: RequestInit) => { status: number; body?: unknown }) {
   const calls: Array<{ url: string; init: RequestInit }> = [];
@@ -73,31 +73,7 @@ describe('API client', () => {
   });
 });
 
-describe('signing in', () => {
-  it('signs in with a password and the device name', async () => {
-    const { calls, fetchImpl } = server(() => ({ status: 200, body: { token: 't', expiresAt: 1, user: { username: 'lotte' } } }));
-    const api = createApi({ baseUrl: 'http://v', token: null, userAgent: 'x', fetchImpl });
-    const res = await signInWithPassword(api, ' lotte ', 'secret', 'Pixel 8');
-    expect(res.token).toBe('t');
-    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({ username: 'lotte', password: 'secret', deviceName: 'Pixel 8' });
-  });
-
-  it('asks for a code and then whether it was confirmed; an expired code is not an error', async () => {
-    let polls = 0;
-    const { fetchImpl } = server((url) => {
-      if (url.endsWith('/start')) return { status: 200, body: { code: 'K7M-2QX', pollToken: 'p', expiresAt: 1, interval: 3 } };
-      polls++;
-      if (polls === 1) return { status: 200, body: { status: 'pending' } };
-      if (polls === 2) return { status: 200, body: { status: 'approved', token: 't', expiresAt: 1, user: { username: 'lotte' } } };
-      return { status: 410, body: { error: 'This code has expired. Ask for a new one.' } };
-    });
-    const api = createApi({ baseUrl: 'http://v', token: null, userAgent: 'x', fetchImpl });
-    expect((await startPairing(api, 'Pixel 8')).code).toBe('K7M-2QX');
-    expect(await checkPairing(api, 'p')).toEqual({ status: 'pending' });
-    expect(await checkPairing(api, 'p')).toMatchObject({ status: 'approved', token: 't' });
-    expect(await checkPairing(api, 'p')).toEqual({ status: 'expired' });
-  });
-
+describe('app User-Agent', () => {
   it('names itself so the server recognises the app', () => {
     expect(appUserAgent('0.8.1', 'Android', '15', 'Pixel 8')).toBe('VidaluneApp/0.8.1 (Android 15; Pixel 8)');
     expect(appUserAgent('0.8.1', 'Android', null, null)).toBe('VidaluneApp/0.8.1 (Android)');

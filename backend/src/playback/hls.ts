@@ -58,18 +58,6 @@ export function gridLayout(duration: number, step = GRID_SECONDS): Layout {
   return { starts: starts.length ? starts : [0], duration };
 }
 
-/** The piece that holds time `t`. */
-export function segmentAt(layout: Layout, t: number): number {
-  let lo = 0;
-  let hi = layout.starts.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (layout.starts[mid]! <= t) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo;
-}
-
 /** The list of pieces (VOD playlist). `query` rides along on every address (it carries the audio plan). */
 export function playlist(layout: Layout, query: string): string {
   const lengths = layout.starts.map((s, i) => (layout.starts[i + 1] ?? layout.duration) - s);

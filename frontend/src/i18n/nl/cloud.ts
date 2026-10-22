@@ -39,7 +39,6 @@ export const cloud: Messages['cloud'] = {
     unreachable: 'vidalune.com is nu niet bereikbaar. De server blijft het proberen.',
     closed: 'De verbinding werd verbroken. De server maakt opnieuw verbinding.',
   },
-  relayNeedsLink: 'Koppel deze server eerst om de relay te gebruiken.',
   directTitle: 'Directe verbinding',
   directPortIntro: 'Vul de publieke TCP-poort in. Stel in je router een TCP-doorschakeling in van deze poort naar poort {port} van deze server.',
   directPort: 'Publieke poort',

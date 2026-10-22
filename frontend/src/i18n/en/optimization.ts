@@ -5,7 +5,6 @@ export const optimization = {
   p720: 'Compatible · 720p',
   p1080: 'Compatible · 1080p',
   sourceVersion: 'Source file',
-  fileVersion: 'Version {n}',
   unknownQuality: 'Unknown quality',
   create: 'Optimize',
   retry: 'Retry',
@@ -35,7 +34,6 @@ export const optimization = {
   },
   queue: {
     title: 'Optimization queue',
-    intro: 'Compatible copies are made one at a time, on up to four cores. A copy pauses while someone is watching and the server is busy, and while a library scan runs. Create a copy from a movie or episode page.',
     paused: 'On hold: someone is watching and the server is busy, or a library scan is running. The copy continues by itself afterwards.',
     emptyTitle: 'No optimized copies',
     empty: 'No copies queued.',

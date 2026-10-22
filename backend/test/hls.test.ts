@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { HlsSessions, KeyframesStopped, copyLayout, gridLayout, hlsArgs, playlist, readKeyframes, segmentAt, type HlsSource } from '../src/playback/hls.js';
+import { HlsSessions, KeyframesStopped, copyLayout, gridLayout, hlsArgs, playlist, readKeyframes, type HlsSource } from '../src/playback/hls.js';
 import type { RemuxPlan } from '../src/playback/remux.js';
 import { encodeArgs } from '../src/playback/transcode.js';
 import { createTestEnv, createUser, setupAdmin } from './helpers.js';
@@ -28,9 +28,6 @@ describe('HLS pieces', () => {
     expect(keyframes.map((t) => Math.round(t))).toEqual([0, 3, 6, 9, 12, 15, 18, 21, 24, 27]);
     const layout = copyLayout(keyframes, 30);
     expect(layout.starts).toHaveLength(10);
-    expect(segmentAt(layout, 0)).toBe(0);
-    expect(segmentAt(layout, 16.5)).toBe(5);
-    expect(segmentAt(layout, 99)).toBe(9);
     const list = playlist(layout, '?audio=1&ch=2');
     expect(list).toContain('#EXT-X-PLAYLIST-TYPE:VOD');
     expect(list).toContain('#EXT-X-MAP:URI="init.mp4?audio=1&ch=2"');

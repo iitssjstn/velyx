@@ -6,7 +6,6 @@ export const optimization: Messages['optimization'] = {
   p720: 'Compatibel · 720p',
   p1080: 'Compatibel · 1080p',
   sourceVersion: 'Bronbestand',
-  fileVersion: 'Versie {n}',
   unknownQuality: 'Onbekende kwaliteit',
   create: 'Optimaliseren',
   retry: 'Opnieuw proberen',
@@ -36,7 +35,6 @@ export const optimization: Messages['optimization'] = {
   },
   queue: {
     title: 'Optimalisatiewachtrij',
-    intro: 'Compatibele kopieën worden een voor een gemaakt, met maximaal vier kernen. Een kopie pauzeert zolang iemand kijkt en de server druk is, en tijdens een bibliotheekscan. Maak een kopie vanaf de pagina van een film of aflevering.',
     paused: 'Gepauzeerd: iemand kijkt en de server is druk, of er loopt een bibliotheekscan. De kopie gaat daarna vanzelf verder.',
     emptyTitle: 'Geen geoptimaliseerde kopieën',
     empty: 'Geen kopieën in de wachtrij.',

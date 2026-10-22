@@ -121,7 +121,7 @@ export function findCredits(frames: FrameStats[], duration: number): VisualCredi
     if (end - start < MIN_CREDITS_SEC || creditFrames < 4 || share < 0.5) continue;
     const confidence = end - start >= 30 && share >= 0.7 ? 'high' : 'medium';
     // Real content after the credits is a scene; a few seconds of logos or black are not.
-    const after = frames.filter((f, i) => i > block.to && kinds[i] === 'scene');
+    const after = frames.filter((_, i) => i > block.to && kinds[i] === 'scene');
     const tail = duration - end;
     if (after.length >= 2 && tail >= POST_CREDITS_MIN_SEC) return { start: round(start), end: round(end), postCredits: { start: round(end), end: round(duration) }, confidence };
     return { start: round(start), end: round(duration), postCredits: null, confidence };

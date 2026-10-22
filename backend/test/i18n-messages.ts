@@ -21,7 +21,7 @@ export function serverMessages(): string[] {
   for (const file of sourceFiles(SRC)) {
     for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
       if (/^\s*(\/\/|\*)/.test(line)) continue;
-      if (/HttpError\(|badRequest\(|\.refine\(|\.regex\(|message: '|return '[A-Z]|error: '[A-Z]|fail\('|row\(/.test(line)) {
+      if (/HttpError\(|\.refine\(|\.regex\(|message: '|return '[A-Z]|error: '[A-Z]|fail\('|row\(/.test(line)) {
         for (const l of literals(line)) if (/^[A-Z{].* /.test(l) && !l.includes('${')) found.add(l);
       }
       for (const m of line.matchAll(/notFound\('([^']+)'\)/g)) found.add(`${m[1]} not found.`);

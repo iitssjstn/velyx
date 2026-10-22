@@ -27,9 +27,7 @@ export const requests: Messages['requests'] = {
   cancelled: 'Aanvraag geannuleerd: {title}.',
   cancelledHere: 'Seerr had deze aanvraag niet meer; hier verwijderd: {title}.',
   none: 'Je hebt nog niets aangevraagd.',
-  minutes: '{n} min',
   play: 'Afspelen',
-  opening: 'Openen…',
   discover: {
     catalogLabel: 'Catalogus ontdekken',
     catalogHint: 'Titels hieronder staan mogelijk nog niet in je bibliotheek.',
