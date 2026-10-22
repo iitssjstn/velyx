@@ -317,7 +317,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   zwart, op de foto lichter door de camera. Navragen welke van de twee hij bedoelt.
   Eigenaar (22 okt): "Kan de paarse knoppen, paars grijs achtig worden met een klein beetje gloed net als op de
   voorbeeld". Dus de gevulde knoppen op de tv (Afspelen, gekozen tab) gedempt grijspaars zoals in het Cosmic Drift-ontwerp
-  (rond #7f6bb3, witte tekst) met een kleine vaste paarse gloed; de andere knoppen omlijnd in hetzelfde paars. De
+  (eerst #7f6bb3; eigenaar na het voorbeeld 22 okt: "Knop mag wat grijzer", dus rond #6b6582, witte tekst) met een
+  kleine vaste paarse gloed; de andere knoppen omlijnd in hetzelfde paars. De
   achtergrond van de app blijft zoals hij is.
   Daarna (eigenaar 22 okt): "Denk grijs met paars wel mooi is, dus achtergrond wat grijzig met paars er door heen". Dus
   op de tv ook de achtergrond: van bijna zwart (#14121c) naar donker grijs met een vleugje paars, zoals het voorbeeld
