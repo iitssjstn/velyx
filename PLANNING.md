@@ -431,7 +431,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   bereikt is, eerst de eigen omzettingen van dezelfde gebruiker op hetzelfde apparaat (zelfde IP en User-Agent) loslaten,
   ongeacht hoe kort geleden; een apparaat speelt maar één video. Andere apparaten en kijkers blijven ongemoeid. Test met
   echte FFmpeg die op de huidige code faalt. Navragen: logboek, of beide series omgezet worden, wat de tv toonde.
-  Nog niet bouwen tot de eigenaar het zegt.
+  Nog niet bouwen tot de eigenaar het zegt. Eigenaar daarna: server en accountservice draaiden nog niet op 0.19.89
+  (nu wel bijgewerkt); op de tv valt het casten weg. Eerst opnieuw testen op de bijgewerkte server.
 
 - **Casten: twee spelers, poster kapot, keuzes vergeten bij hervatten** (gemeld door de eigenaar 20 okt, twee foto's van de
   tv, Peaky Blinders S01E02; nog niet bouwen tot hij het zegt):
