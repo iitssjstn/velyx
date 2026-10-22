@@ -276,7 +276,9 @@ export function TvHome({ data }: { data: HomeData }) {
 
   const d = data;
   return (
-    <ScrollView ref={scroll} onLayout={(e) => (view.current = e.nativeEvent.layout.height)} contentContainerStyle={{ paddingBottom: height / 2 }}>
+    // Only the move to the middle (toActive): Android's own scroll to the chosen poster came first, so
+    // going down took two steps.
+    <ScrollView ref={scroll} scrollsChildToFocus={false} onLayout={(e) => (view.current = e.nativeEvent.layout.height)} contentContainerStyle={{ paddingBottom: height / 2 }}>
       {section('hero', <Hero data={d} onFocus={focusRow('hero')} />)}
       {section('continue', <Row title={t('home.continue')} items={d.continueWatching} keyOf={(c) => `${c.type}-${c.id}`} render={(c) => <ContinueCard item={c} onFocus={focusRow('continue')} />} />)}
       {cards('watchlist', t('home.watchlist'), d.watchlist ?? [])}

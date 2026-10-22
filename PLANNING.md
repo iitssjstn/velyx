@@ -1948,3 +1948,11 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   Details), Verder kijken als brede kaarten, en posters die bij focus een rand in accentkleur krijgen met de details
   erover (jaar • lengte/seizoenen, waardering, genres), zoals bij hover op de website. Telefoon ongewijzigd. Tests:
   `tvHome.test.ts`; app 213 tests, typechecks en lint slagen. Op de tv te testen.
+
+## Volgende versie (0.19.87, nog niet gestart: eerst release 0.19.86 compleet)
+
+- **Naar beneden gaat in meerdere stappen** (eigenaar 22 okt, op de bijgewerkte app op de Chromecast). Oorzaak: bij elke
+  stap omlaag schoof Android de lijst eerst zelf net ver genoeg om de gekozen poster in beeld te krijgen
+  (`scrollsChildToFocus`, standaard aan), en daarna schoof Vidalune de rij naar het midden (`toActive`). Nu doet alleen
+  Vidalune het: `scrollsChildToFocus={false}` op de lijst van `TvHome`. Op de tv te bevestigen.
+
