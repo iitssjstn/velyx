@@ -256,6 +256,30 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   meteen weggehaald.
 - PR #177 gemerged 22 okt op verzoek van de eigenaar ("Merge het maar"; alle checks groen).
 
+## Versie 0.19.91 (casten: eerst voorbereiden, geen 2100; bediening wegvegen)
+
+- Op verzoek van de eigenaar (22 okt: "Bouw het maar, en kan je een dropdown icon linksboven maken dat een smooth dropdown
+  doet als je aan het casten bent zodat je makkelijker uit de bediening kan als je aan het casten bent").
+- **Foutcode 2100** (oorzaak zie "Gemeld tijdens het testen"): `/api/cast/session` geeft `preparing: true` als de tv HLS
+  van gekopieerde video krijgt en de keyframes nog niet bekend zijn, en start het lezen meteen (normale prioriteit,
+  `HlsSessions.prepare`). Nieuw `GET /api/cast/ready?fileId=&optimizationId=` (ingelogd, Zod strikt, bibliotheektoegang):
+  `ready`, `reading` of `failed` (`HlsSessions.preparing`). Website (`useCast`) en app (`castLoad`) vragen elke 2 s na en
+  geven de tv de titel pas als het klaar is, met "Voorbereiden voor de tv… Een groot bestand wordt eerst één keer gelezen";
+  onleesbaar bestand: duidelijke melding. Wat de tv zelf start (volgende aflevering, ander audiospoor via
+  `/api/cast/tv/session`) wacht op de server zelf (409 bij een onleesbaar bestand). Bij een aflevering leest de server
+  meteen op de achtergrond de keyframes van de volgende (`warmNextEpisode`, ook als de tv `/api/cast/tv` vraagt).
+  Mislukt het laden op de tv toch, dan zegt de app "De tv kon deze titel niet laden" in plaats van de code
+  (`castLoadFailed`).
+- **Bediening wegvegen (app)**: linksboven op de cast-afstandsbediening een pijltje omlaag; de bediening schuift soepel
+  naar beneden weg (280 ms) en het scherm sluit; de tv speelt door en bewaart zelf de voortgang. Website ongewijzigd.
+- Tests: backend (voorbereiden → klaar → afspeellijst, onleesbaar bestand, toegang, volgende aflevering vooraf; de eerste
+  drie falen op de oude code; de testafleveringen zijn nu echte korte video's), website (de tv krijgt de titel pas na
+  "ready"; onleesbaar), app (`waitForCastReady`, `castLoadFailed`). Backend 611, frontend 359, cloud 207, app 227 tests;
+  alle typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen.
+- Door de eigenaar te testen: vanuit de app casten, tijdens het afspelen een andere serie kiezen (melding "Voorbereiden",
+  daarna speelt hij, geen 2100); het pijltje linksboven; daarna de volgende aflevering (moet meteen starten).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1991) en beide lockfiles bijgewerkt.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
@@ -450,7 +474,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   Voorstel: (1) `/api/cast/session` zegt of de keyframes nog gelezen worden en start dat meteen (normale prioriteit);
   app en website tonen "Voorbereiden voor de tv…" en laden pas als het klaar is; (2) bij een aflevering meteen de
   keyframes van de volgende aflevering(en) lezen; (3) mislukt het laden toch, een duidelijke melding in plaats van 2100.
-  Wacht op "bouw het".
+  Eigenaar: "Bouw het maar"; gebouwd in 0.19.91 (zie daar).
 
 - **Casten: twee spelers, poster kapot, keuzes vergeten bij hervatten** (gemeld door de eigenaar 20 okt, twee foto's van de
   tv, Peaky Blinders S01E02; nog niet bouwen tot hij het zegt):

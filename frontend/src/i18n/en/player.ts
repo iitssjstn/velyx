@@ -44,6 +44,8 @@ export const player = {
   castFailed: 'Could not play on the TV: {reason}',
   castNoDevice: 'no Chromecast found on this network',
   castConnecting: 'Connecting to the Chromecast…',
+  castPreparing: 'Getting ready for the TV… A large file is read once first; this can take a few minutes.',
+  castUnreadable: 'This file could not be read for the TV. Scan the library again, or replace the file.',
   backSeconds: 'Back {seconds} seconds (←)',
   forwardSeconds: 'Forward {seconds} seconds (→)',
   errors: {

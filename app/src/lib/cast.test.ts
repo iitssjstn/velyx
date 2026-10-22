@@ -279,3 +279,28 @@ describe('a choice made on the TV', () => {
     expect(tvChanged(seen, 6, 'subtitle', 'emb-3')).toBe(false);
   });
 });
+
+describe('casting a file the server still gets ready (error 2100)', () => {
+  it('waits until the server says it is ready, and gives up when no longer wanted', async () => {
+    const { waitForCastReady } = await import('./cast');
+    const ask = vi.fn().mockResolvedValueOnce({ state: 'reading' }).mockResolvedValueOnce({ state: 'reading' }).mockResolvedValueOnce({ state: 'ready' });
+    await expect(waitForCastReady({ ask, active: () => true, sleep: async () => undefined, unreadable: 'x' })).resolves.toBe(true);
+    expect(ask).toHaveBeenCalledTimes(3);
+    let on = true;
+    const stops = vi.fn(async () => { on = false; return { state: 'reading' as const }; });
+    await expect(waitForCastReady({ ask: stops, active: () => on, sleep: async () => undefined, unreadable: 'x' })).resolves.toBe(false);
+  });
+
+  it('says so when the file cannot be read', async () => {
+    const { waitForCastReady } = await import('./cast');
+    await expect(waitForCastReady({ ask: async () => ({ state: 'failed' }), active: () => true, sleep: async () => undefined, unreadable: 'unreadable' })).rejects.toThrow('unreadable');
+  });
+
+  it('recognises the TV failing to load (2100) to say it in words', async () => {
+    const { castLoadFailed } = await import('./cast');
+    expect(castLoadFailed(new Error('Media control channel status code 2100'))).toBe(true);
+    expect(castLoadFailed({ code: 2100 })).toBe(true);
+    expect(castLoadFailed(new Error('Network request failed'))).toBe(false);
+    expect(castLoadFailed(new Error('code 21000'))).toBe(false);
+  });
+});

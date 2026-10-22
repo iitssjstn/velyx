@@ -120,7 +120,7 @@ function fakeSdk() {
       },
     },
   };
-  return { framework, chrome, loaded, context, controller, remote, listeners, applied, mediaSession };
+  return { framework, chrome, loaded, session, context, controller, remote, listeners, applied, mediaSession };
 }
 
 describe('casting from the player', () => {
@@ -190,6 +190,46 @@ describe('casting from the player', () => {
     await act(() => started);
     expect(result.current).toMatchObject({ connecting: false, active: true });
     unmount();
+  });
+
+  it('gives the TV the title only once the server has the file ready for it (error 2100)', async () => {
+    vi.resetModules();
+    const sdk = fakeSdk();
+    vi.stubGlobal('chrome', sdk.chrome);
+    vi.spyOn(document.head, 'append').mockImplementation(() => {
+      (window as unknown as { cast: unknown }).cast = { framework: sdk.framework };
+      setTimeout(() => (window as unknown as { __onGCastApiAvailable: (ok: boolean) => void }).__onGCastApiAvailable(true));
+    });
+    let ready: (r: Response) => void = () => undefined;
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      urls.push(String(url));
+      if (String(url).includes('/api/cast/ready')) return new Promise<Response>((resolve) => (ready = resolve));
+      return Promise.resolve(new Response(JSON.stringify({ token: 'tok', expiresAt: Date.now() + 3_600_000, directUrl: 'https://nas.media.vidalune.com:32400', serverUrl: null, contentType: 'application/vnd.apple.mpegurl', decision: { engine: 'remux', streamUrl: '/api/cast/5/hls/index.m3u8', seek: 'range', durationSec: 3000 }, subtitles: [], preparing: true }), { status: 200 }));
+    }));
+    const { useCast } = await import('./cast');
+    const { result, unmount } = renderHook(() => useCast({ fileId: 5, audioIndex: null, title: 'Dune', subtitleKey: null, locate: async () => ({ offset: 0, seek: 0 }) }));
+    await waitFor(() => expect(result.current.supported).toBe(true));
+    let started: Promise<void> = Promise.resolve();
+    act(() => { started = result.current.start(0); });
+    await waitFor(() => expect(result.current.preparing).toBe(true));
+    expect(urls.some((u) => u.includes('/api/cast/ready?fileId=5'))).toBe(true);
+    expect(sdk.session.loadMedia).not.toHaveBeenCalled();
+    ready(new Response(JSON.stringify({ state: 'ready' }), { status: 200 }));
+    await act(() => started);
+    expect(sdk.session.loadMedia).toHaveBeenCalledTimes(1);
+    expect(result.current).toMatchObject({ preparing: false, active: true });
+    unmount();
+  });
+
+  it('says so when the server cannot read the file for the TV', async () => {
+    const { waitForCastReady } = await import('./cast');
+    const ask = vi.fn().mockResolvedValueOnce({ state: 'reading' }).mockResolvedValueOnce({ state: 'failed' });
+    await expect(waitForCastReady({ ask, active: () => true, sleep: async () => undefined, unreadable: 'unreadable' })).rejects.toThrow('unreadable');
+    expect(ask).toHaveBeenCalledTimes(2);
+    let on = true;
+    const stops = vi.fn(async () => { on = false; return { state: 'reading' as const }; });
+    await expect(waitForCastReady({ ask: stops, active: () => on, sleep: async () => undefined, unreadable: 'x' })).resolves.toBe(false);
   });
 
   it('counts the TV as settled only once it got to the resume point', async () => {

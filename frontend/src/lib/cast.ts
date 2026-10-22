@@ -53,6 +53,31 @@ export interface CastSession {
   subtitles: CastSubtitle[];
   /** The server's id at vidalune.com (null when not linked). */
   serverId?: string | null;
+  /**
+   * The server still reads the file's keyframes for the TV's playlist (minutes for a large file on a NAS):
+   * the TV is given the title once `/api/cast/ready` says so, or it gives up waiting (error 2100).
+   */
+  preparing?: boolean;
+}
+
+/**
+ * Waits until the server has the file ready for the TV (`/api/cast/ready`). False when this was
+ * given up (`active` turned false); throws when the file cannot be read.
+ */
+export async function waitForCastReady(options: {
+  ask: () => Promise<{ state: 'ready' | 'reading' | 'failed' }>;
+  active: () => boolean;
+  sleep?: (ms: number) => Promise<void>;
+  unreadable: string;
+}): Promise<boolean> {
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  for (;;) {
+    if (!options.active()) return false;
+    const { state } = await options.ask();
+    if (state === 'ready') return options.active();
+    if (state === 'failed') throw new Error(options.unreadable);
+    await sleep(2000);
+  }
 }
 
 /** The Chromecast must fetch media directly from the server; the account-site relay is never a media host. */
@@ -136,6 +161,8 @@ export interface CastState {
   available: boolean;
   /** A Chromecast was picked and is being connected, or is being given the title. */
   connecting: boolean;
+  /** The server gets the file ready for the TV first (a large file is read once). */
+  preparing?: boolean;
   /** Playing on a Chromecast now. */
   active: boolean;
   /** The file the TV was given (null while not casting): another file means the TV is still on the old one. */
@@ -326,6 +353,20 @@ export function useCast(item: CastItem | null) {
       if (!session.current || session.current.expiresAt < Date.now() + 60_000 || audioOverride !== undefined) session.current = await api.post<CastSession>('/api/cast/session', { fileId: it.fileId, ...(audioIndex !== null ? { audioIndex } : {}), ...(it.optimizationId ? { optimizationId: it.optimizationId } : {}) });
       if (loadId !== loads.current) return;
       const s = session.current;
+      if (s.preparing) {
+        setState((st) => ({ ...st, preparing: true }));
+        try {
+          const ready = await waitForCastReady({
+            ask: () => api.get<{ state: 'ready' | 'reading' | 'failed' }>(`/api/cast/ready?fileId=${it.fileId}${it.optimizationId ? `&optimizationId=${it.optimizationId}` : ''}`),
+            active: () => loadId === loads.current && mounted.current && f.CastContext.getInstance().getCurrentSession() === castSession,
+            unreadable: t('player.castUnreadable'),
+          });
+          if (!ready) return;
+          s.preparing = false;
+        } finally {
+          setState((st) => ({ ...st, preparing: false }));
+        }
+      }
       const base = castBase(window.location.origin, s);
       if (!base) throw new Error(t('player.errors.directServerRequired'));
       let start = 0;

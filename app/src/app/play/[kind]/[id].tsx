@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, BackHandler, Modal, Pressable, ScrollView, Text, View, type GestureResponderEvent } from 'react-native';
+import { ActivityIndicator, Alert, Animated, BackHandler, Easing, Modal, Pressable, ScrollView, Text, View, type GestureResponderEvent } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +19,7 @@ import { CastReceiver, RemoteKeys, type CastCommand } from '../../../../modules/
 import { TV, castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
 import { castSettled, castStartAt, castStatus } from '../../../lib/castStatus';
-import { applyCastTextTrackStyle, castLoadRequest, castTrackIds, followTv, loadCastWithCurrentSubtitle, sessionUsable, tvChanged, tvFilePosition, tvMedia, tvSubtitleKey, type CastSession, type TvSeen } from '../../../lib/cast';
+import { applyCastTextTrackStyle, castLoadFailed, castLoadRequest, castTrackIds, followTv, loadCastWithCurrentSubtitle, sessionUsable, tvChanged, tvFilePosition, tvMedia, tvSubtitleKey, waitForCastReady, type CastSession, type TvSeen } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
@@ -319,13 +319,14 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
   // The phone did not load the video because a Chromecast was connected.
   const localSkipped = useRef(false);
   const castSession = useRef<{ session: CastSession; audio: number | null } | null>(null);
+  const [castPreparing, setCastPreparing] = useState(false);
   const subtitleRef = useRef<SubtitleOption | null>(null);
   subtitleRef.current = subtitle;
 
   const castFailed = useCallback(
     (err: unknown, stop = true) => {
       if (!mounted.current) return;
-      Alert.alert(t('player.castFailed'), errorMessage(err, t));
+      Alert.alert(t('player.castFailed'), castLoadFailed(err) ? t('player.castTvFailed') : errorMessage(err, t));
       if (stop) void CastContext.getSessionManager().endCurrentSession(true).catch(() => undefined);
     },
     [t],
@@ -361,6 +362,17 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
           const session = await api.post<CastSession>('/api/cast/session', { fileId: item.fileId, ...(audio !== null ? { audioIndex: audio } : {}), ...(answer?.file.id === item.fileId && answer.decision.optimized ? { optimizationId: answer.decision.optimized.id } : {}) });
           if (!active()) return;
           s = castSession.current = { session, audio };
+        }
+        if (s.session.preparing) {
+          // A large file is read once before the TV can have it; without waiting the TV gives up (2100).
+          setCastPreparing(true);
+          try {
+            const optimized = s.session.decision.optimized ? `&optimizationId=${s.session.decision.optimized.id}` : '';
+            if (!(await waitForCastReady({ ask: () => api.get(`/api/cast/ready?fileId=${item.fileId}${optimized}`), active, unreadable: t('player.castUnreadable') }))) return;
+            s.session.preparing = false;
+          } finally {
+            if (mounted.current) setCastPreparing(false);
+          }
         }
         if (!s.session.serverUrl) throw new Error(t('player.noDirectEndpoint'));
         // A repackaged stream starts at the keyframe before `at`.
@@ -1086,6 +1098,7 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
           duration={duration}
           playing={playing}
           starting={!casting || loading}
+          preparing={castPreparing}
           volume={mediaStatus?.volume ?? 1}
           muted={mediaStatus?.isMuted ?? false}
           insets={insets}
@@ -1093,6 +1106,7 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
           onTogglePlay={toggle}
           onOpenTracks={() => setMenu(true)}
           onStop={() => void CastContext.getSessionManager().endCurrentSession(true)}
+          onClose={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           onVolume={(value) => void client?.setStreamVolume(value).catch(() => undefined)}
           onToggleMute={() => void client?.setStreamMuted(!(mediaStatus?.isMuted ?? false)).catch(() => undefined)}
         />
@@ -1208,7 +1222,7 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
   );
 }
 
-function CastRemotePanel({ title, subtitle, device, artwork, position, duration, playing, starting, volume, muted, insets, onSeek, onTogglePlay, onOpenTracks, onStop, onVolume, onToggleMute }: {
+function CastRemotePanel({ title, subtitle, device, artwork, position, duration, playing, starting, preparing, volume, muted, insets, onSeek, onTogglePlay, onOpenTracks, onStop, onClose, onVolume, onToggleMute }: {
   title: string;
   subtitle: string | null;
   device: string | null;
@@ -1218,6 +1232,8 @@ function CastRemotePanel({ title, subtitle, device, artwork, position, duration,
   playing: boolean;
   /** The TV is being given the title: shown instead of play/pause. */
   starting: boolean;
+  /** The server reads a large file once before the TV can have it. */
+  preparing: boolean;
   volume: number;
   muted: boolean;
   insets: { top: number; bottom: number; left: number; right: number };
@@ -1225,16 +1241,28 @@ function CastRemotePanel({ title, subtitle, device, artwork, position, duration,
   onTogglePlay: () => void;
   onOpenTracks: () => void;
   onStop: () => void;
+  /** Leaves the remote; casting goes on (the TV saves where it is itself). */
+  onClose: () => void;
   onVolume: (volume: number) => void;
   onToggleMute: () => void;
 }) {
   const { t } = useSession();
+  // The remote slides down out of view before the screen closes.
+  const [height, setHeight] = useState(800);
+  const drop = useRef(new Animated.Value(0)).current;
+  const closing = useRef(false);
+  const close = () => {
+    if (closing.current) return;
+    closing.current = true;
+    Animated.timing(drop, { toValue: height, duration: 280, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => onClose());
+  };
   const [volumeOpen, setVolumeOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const action = { minWidth: 76, minHeight: 60, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 4, paddingHorizontal: 8, borderRadius: radius.md };
   return (
-    <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 100, elevation: 100, backgroundColor: colors.bg, paddingTop: 12 + insets.top, paddingBottom: 12 + insets.bottom, paddingLeft: 18 + insets.left, paddingRight: 18 + insets.right }}>
+    <Animated.View onLayout={(e) => setHeight(e.nativeEvent.layout.height)} style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 100, elevation: 100, backgroundColor: colors.bg, paddingTop: 12 + insets.top, paddingBottom: 12 + insets.bottom, paddingLeft: 18 + insets.left, paddingRight: 18 + insets.right, transform: [{ translateY: drop }] }}>
       <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+        <IconButton name="chevron-down" label={t('player.closeRemote')} onPress={close} />
         <View style={{ alignItems: 'center', flex: 1 }}>
           <Text style={{ color: colors.faint, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>{t('player.castRemote').toUpperCase()}</Text>
           <Text style={{ color: colors.ink, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{device ?? t('player.casting')}</Text>
@@ -1247,9 +1275,9 @@ function CastRemotePanel({ title, subtitle, device, artwork, position, duration,
           <Text style={{ color: colors.ink, fontSize: 21, fontWeight: '800', textAlign: 'center' }} numberOfLines={2}>{title}</Text>
           {subtitle ? <Text style={{ color: colors.muted, fontSize: 14 }}>{subtitle}</Text> : null}
           {starting ? (
-            <View accessibilityRole="progressbar" accessibilityLabel={t('player.castLoading')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+            <View accessibilityRole="progressbar" accessibilityLabel={preparing ? t('player.castPreparing') : t('player.castLoading')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, maxWidth: 340 }}>
               <ActivityIndicator color={colors.accent} />
-              <Text style={{ color: colors.muted }}>{t('player.castLoading')}</Text>
+              <Text style={{ color: colors.muted, textAlign: 'center', flexShrink: 1 }}>{preparing ? t('player.castPreparing') : t('player.castLoading')}</Text>
             </View>
           ) : null}
         </View>
@@ -1294,7 +1322,7 @@ function CastRemotePanel({ title, subtitle, device, artwork, position, duration,
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </Animated.View>
   );
 }
 

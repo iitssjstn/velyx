@@ -1505,11 +1505,11 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         )}
       </div>
       {/* Picking a Chromecast takes a few seconds before the TV answers: said here, whether or not the controls show. */}
-      {cast.connecting && !mini && (
+      {(cast.connecting || cast.preparing) && !mini && (
         <div role="status" className="pointer-events-none absolute inset-x-0 top-20 z-[61] flex justify-center px-4 sm:top-24">
           <span className="flex items-center gap-2 rounded-full bg-black/80 px-4 py-2 text-sm text-ink ring-1 ring-white/10 backdrop-blur">
             <Spinner className="size-4" />
-            {t('player.castConnecting')}
+            {cast.preparing ? t('player.castPreparing') : t('player.castConnecting')}
           </span>
         </div>
       )}
