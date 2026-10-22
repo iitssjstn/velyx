@@ -440,6 +440,17 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   webspeler/server bij de tweede titel. Gevraagd aan de eigenaar: wisselen tussen titels die niet omgezet worden,
   eerst pauzeren en 30 s wachten, en dezelfde test vanaf de website in Chrome met de console open (foutcode).
   Geweigerde verzoeken (4xx/503) staan niet in het serverlogboek; alleen 500-fouten worden gelogd.
+  Eigenaar: "zoek het zelf eerst uit". Gevonden (code nagelopen): bij casten krijgt elke titel die niet direct speelt
+  HLS (`/api/cast/session` in `routes/media.ts` zet `/remux` om naar `/hls/index.m3u8`), ook als de keyframes van het
+  bestand nog niet bekend zijn. De website doet dat bewust niet (`hlsUrl` alleen met `ctx.hls.ready`). Bij gekopieerde
+  video (bv. HEVC-MKV, die de Chromecast zelf afspeelt) maakt de server de lijst pas als FFprobe het hele bestand heeft
+  gelezen (`readKeyframes`, alle pakketten; tot 20 minuten), op de NAS minuten. De tv wacht zo lang niet, het laden
+  mislukt, de app toont 2100 en stopt de sessie. De eerste serie had zijn keyframes al (vooraf klaargezet of eerder
+  gespeeld), de tweede nog niet. Niet afhankelijk van wisselen: een titel zonder keyframes casten mislukt altijd.
+  Voorstel: (1) `/api/cast/session` zegt of de keyframes nog gelezen worden en start dat meteen (normale prioriteit);
+  app en website tonen "Voorbereiden voor de tv…" en laden pas als het klaar is; (2) bij een aflevering meteen de
+  keyframes van de volgende aflevering(en) lezen; (3) mislukt het laden toch, een duidelijke melding in plaats van 2100.
+  Wacht op "bouw het".
 
 - **Casten: twee spelers, poster kapot, keuzes vergeten bij hervatten** (gemeld door de eigenaar 20 okt, twee foto's van de
   tv, Peaky Blinders S01E02; nog niet bouwen tot hij het zegt):
