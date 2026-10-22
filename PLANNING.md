@@ -1952,7 +1952,7 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   erover (jaar • lengte/seizoenen, waardering, genres), zoals bij hover op de website. Telefoon ongewijzigd. Tests:
   `tvHome.test.ts`; app 213 tests, typechecks en lint slagen. Op de tv te testen.
 
-## Volgende versie (0.19.87, meldingen verzamelen; pas bouwen als de eigenaar het zegt)
+## Versie 0.19.87 (tv: detailpagina zoals de website, één stap omlaag)
 
 - **Naar beneden gaat in meerdere stappen** (eigenaar 22 okt, op de bijgewerkte app op de Chromecast). Oorzaak: bij elke
   stap omlaag schoof Android de lijst eerst zelf net ver genoeg om de gekozen poster in beeld te krijgen
@@ -1968,6 +1968,13 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   Kijklijst, Favoriet); voor een serie seizoenkeuze en de afleveringen als rij met still, en de beschrijving van de
   gekozen aflevering eronder. Engelse teksten: de eigenaar heeft zelf alles in het Engels staan
   (persoonlijke voorkeur); geen fout, niets aan doen.
-  Eigenaar (22 okt): "Dat idee lijkt mij heel nice", "Niet 1 op 1 nagemaakt". Akkoord op het voorstel; bouwen pas als
-  hij het zegt.
+  Eigenaar (22 okt): "Dat idee lijkt mij heel nice", "Niet 1 op 1 nagemaakt"; daarna "Oke doe dit maar eerst" en
+  "Wil de update ook niet al te groot maken". Gebouwd, klein gehouden: `TvDetail.tsx` (`TvDetail`, `TvSeasonTabs`,
+  `TvEpisodeRow`), logica in `lib/tvDetail.ts` (`episodeFacts`, `startEpisode`); film- en seriepagina gebruiken het
+  alleen op de tv (zonder kopbalk), de telefoon is ongewijzigd. Achtergrond gedimd over het hele scherm, links titel,
+  feiten, beschrijving en de bestaande knoppen; bij een serie seizoenen als tabbladen en de afleveringen als één rij
+  stills die begint bij de volgende aflevering, met de beschrijving van de gekozen aflevering eronder. Tests:
+  `tvDetail.test.ts`; app 222 tests, typechecks en lint (4 bekende waarschuwingen) slagen. Op de tv te testen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1987) en beide lockfiles bijgewerkt. De app verandert,
+  dus de release bouwt de APK en het `.aab` (geen build op de branch).
 

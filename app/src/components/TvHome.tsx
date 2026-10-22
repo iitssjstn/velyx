@@ -12,13 +12,13 @@ import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 import type { Card, ContinueItem, HomeData } from '../lib/types';
 
-const SIDE = 48;
+export const SIDE = 48;
 const GAP = 20;
 /** The chosen poster or card grows a little, so it is easy to see where you are. */
 const FOCUS_SCALE = 1.1;
 
 /** A Pressable that knows it has the focus, for posters and buttons that change look when chosen. */
-function Focusable({ children, ...props }: Omit<PressableProps, 'children'> & { children: (focused: boolean) => ReactNode }) {
+export function Focusable({ children, ...props }: Omit<PressableProps, 'children'> & { children: (focused: boolean) => ReactNode }) {
   const [focused, setFocused] = useState(false);
   const tvFocus = useTvFocus();
   return (
@@ -41,7 +41,7 @@ function Focusable({ children, ...props }: Omit<PressableProps, 'children'> & { 
 }
 
 /** Dark shading over artwork, so text on it stays readable (the website's hero gradients). */
-function Shade({ side, height = '60%' }: { side: 'left' | 'bottom'; height?: `${number}%` }) {
+export function Shade({ side, height = '60%' }: { side: 'left' | 'bottom'; height?: `${number}%` }) {
   return side === 'left' ? (
     <RNImage source={require('../../assets/fade-side.png')} resizeMode="stretch" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '75%', height: '100%' }} />
   ) : (

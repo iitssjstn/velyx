@@ -8,6 +8,8 @@ import { TrailerButton } from '../../components/TrailerButton';
 import { useFreshMetadata } from '../../components/useFreshMetadata';
 import { Artwork, useWide } from '../../components/media';
 import { Block, DetailSkeleton } from '../../components/Skeleton';
+import { TV } from '../../components/screen';
+import { TvDetail, TvEpisodeRow, TvSeasonTabs } from '../../components/TvDetail';
 import { savedRequest, watchedRequest } from '../../lib/lists';
 import { errorMessage } from '../../lib/connection';
 import type { SeerrDetails } from '../../lib/discover';
@@ -86,6 +88,36 @@ export default function Show() {
       />
     </View>
   );
+  const picker = asking && <SeasonPicker details={asking} visible onClose={() => setAsking(null)} onRequested={(title) => Alert.alert('Vidalune', t('request.requested', { title }))} />;
+  if (TV)
+    return (
+      <>
+        <Stack.Screen options={{ title: s.title, headerShown: false }} />
+        {picker}
+        <TvDetail
+          backdrop={s.backdropPath ?? s.posterPath}
+          title={s.title}
+          facts={facts}
+          overview={s.overview}
+          below={
+            <View style={{ gap: 4 }}>
+              <TvSeasonTabs seasons={seasons} current={current} onPick={setPicked} />
+              {season.data && (
+                <TvEpisodeRow
+                  key={season.data.seasonNumber}
+                  episodes={season.data.episodes}
+                  upNextId={s.upNext?.id ?? null}
+                  label={(e) => `${episodeCode(e.seasonNumber, e.episodeNumber)}${e.title ? ` ${e.title}` : ''}`}
+                />
+              )}
+            </View>
+          }
+        >
+          {continueButton}
+          {toggles}
+        </TvDetail>
+      </>
+    );
   const thumb = wide ? 200 : 140;
   return (
     <ScrollView
@@ -93,7 +125,7 @@ export default function Show() {
       refreshControl={<RefreshControl refreshing={q.isRefetching || season.isRefetching} onRefresh={() => void Promise.all([q.refetch(), season.refetch()])} tintColor={colors.accent} colors={[colors.accent]} />}
     >
       <Stack.Screen options={{ title: s.title }} />
-      {asking && <SeasonPicker details={asking} visible onClose={() => setAsking(null)} onRequested={(title) => Alert.alert('Vidalune', t('request.requested', { title }))} />}
+      {picker}
       <Artwork path={s.backdropPath} size="w1280" style={{ width: '100%', height: wide ? Math.min(360, width * 0.3) : width * 0.5625 }} />
       {wide ? (
         <View style={{ flexDirection: 'row', gap: 24, padding: 24 }}>
