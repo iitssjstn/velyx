@@ -123,5 +123,7 @@ export const styles = StyleSheet.create({
   progressFill: { height: 3, backgroundColor: colors.accent },
   // On a TV the ring is drawn inside the item: outside it, a list that clips its children (a scroll
   // view, a dialog) cut off its sides, leaving two loose lines above and below.
+  /** On the TV a text link gets room around it, so the focus ring (drawn inside) does not cross the text. */
+  tvLink: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm },
   focused: { outlineWidth: 3, outlineColor: colors.accent, outlineOffset: Platform.isTV ? -3 : 3, outlineStyle: 'solid' },
 });

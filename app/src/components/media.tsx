@@ -59,7 +59,7 @@ export function Shelf({ title, cards, more }: { title: string; cards: Card[]; mo
       {more ? (
         <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingRight: 16 }}>
           <Heading>{title}</Heading>
-          <FocusPressable accessibilityRole="link" accessibilityLabel={`${title}: ${more.label}`} hitSlop={10} onPress={() => router.push(more.href)}>
+          <FocusPressable accessibilityRole="link" accessibilityLabel={`${title}: ${more.label}`} hitSlop={10} onPress={() => router.push(more.href)} style={Platform.isTV ? styles.tvLink : undefined}>
             <Text style={{ color: colors.accent, fontWeight: '600' }}>{more.label}</Text>
           </FocusPressable>
         </View>

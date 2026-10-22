@@ -191,6 +191,11 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   of still, met dezelfde afgeronde hoeken (`FocusRing`; `FocusPressable` met children als functie tekent geen eigen
   rand), zoals op het startscherm. `PosterCard`/Verder kijken in `media.tsx`, `DiscoverCard`. Telefoon ongewijzigd
   (daar krijgt niets de focus). App 226 tests en typecheck slagen; op de tv te bevestigen.
+- **Rest van de app nagelopen** (eigenaar 22 okt: "Check het of het bij andere pagina's het ook gebeurt"). Hetzelfde bij
+  de afleveringen in Zoeken (rand nu alleen om de still). Waar de rand (binnen het item) over tekst of iconen viel, op de
+  tv binnenmarge en afgeronde hoeken: "Alles bekijken" bij rijen, "Alles kiezen" in het aanvraagvenster, wissen in
+  Zoeken (`styles.tvLink`), de rijen op Account, en "Alle genres" en de genrerijen. Knoppen, seizoenen, cast,
+  afleveringen op de detailpagina en het startscherm waren al goed. Lint 0 fouten (4 bekende waarschuwingen).
 
 ## Versie 0.19.11
 
