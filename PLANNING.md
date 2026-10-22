@@ -1917,6 +1917,11 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Traag: niet aangewezen; minder hertekenen door de ondertitels. Navragen waar het traag voelt (bladeren of de speler).
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1986) en beide lockfiles bijgewerkt.
 
+- **"Intro overslaan" leek niet te werken** (eigenaar 22 okt). Waarschijnlijke oorzaak: bij een omgepakte of omgezette
+  stream begint het beeld op het keyframe vóór het einde van de intro; de laatste seconden van de intro speelden dan
+  opnieuw en de knop kwam meteen terug (ook na automatisch overslaan). Nu blijft de knop weg tot het afspelen voorbij
+  het punt is waar het overslaan heen ging (`justSkipped` in `lib/skip.ts`); zelf spoelen biedt hem weer aan. Op de tv te
+  bevestigen; werkt het dan nog niet, precies navragen wat er gebeurt (niets, pauze, of de intro speelt verder).
 - **Startscherm op de tv zoals de website** (eigenaar 22 okt, eerst drie foto's van een grote streamingdienst: "probeer dit
   zoveel mogelijk na te maken, maar dan volledig in vidalune style"; daarna: "Het moet niet op netflix lijken he", "ik ben
   bang als het teveel op netflix lijkt dat ik er problemen mee ga krijgen"). Eerste versie (571943f) leek te veel op die
