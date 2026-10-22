@@ -183,7 +183,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - PR #175 gemerged 22 okt op verzoek van de eigenaar ("merge het maar"; alle checks groen). De PR-tekst kreeg
   automatisch een voettekst met een sessielink; die is vóór de merge weggehaald, net als achteraf bij #174.
 
-## Volgende versie (0.19.89, nog niet uitgebracht)
+## Versie 0.19.89 (tv: focusrand, donkere detailpagina, Terug-knop in de speler)
 
 - **Paarse focusrand staat niet mooi** (eigenaar 22 okt, foto van Movies op de tv met 0.19.88). In rasters en rijen
   (Films, Series, Genres, lijsten, zoeken, Verder kijken, catalogus) liep de rand om de hele kaart: hoekig om poster
@@ -211,6 +211,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   `FocusPressable` (`styles.focused` in `ui.tsx`) is op de tv nu wit in plaats van de accentkleur; geldt voor alle
   knoppen, tabbladen en rijen in de app. Posters, stills en cast houden hun paarse rand (daar is de achtergrond een
   foto). Telefoon ongewijzigd.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1989) en beide lockfiles bijgewerkt. PR aangemaakt op
+  verzoek van de eigenaar ("Maak de PR aan", 22 okt).
 
 ## Versie 0.19.11
 
