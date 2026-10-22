@@ -157,6 +157,16 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - OpenSubtitles-gegevens alleen via het Control Center, nooit in compose. De apt-ondertekeningssleutel
   nooit in de chat.
 
+## Volgende versie (0.19.88, meldingen verzamelen; pas bouwen als de eigenaar het zegt)
+
+- **Tv-detailpagina mist de metadata** (eigenaar 22 okt, foto van MobLand op 0.19.87: "Dit is al goed begin, er is geen
+  detailed pagina met de meta data"). Nu staan op de tv alleen titel, jaar/zender/seizoenen, 2-4 regels beschrijving,
+  knoppen, seizoenen en afleveringen. De server geeft al meer mee dan de app gebruikt: bij een serie ook `cast` en
+  `crew` (makers), bij een film regisseur, cast, tagline en genres (`backend/src/routes/library.ts`; de website toont ze
+  met `CastRow` en "Gemaakt door"). Voorstel: onderaan de tv-pagina (één stap omlaag na de afleveringen) een blok
+  "Details" zoals op de website: volledige beschrijving, genres, waardering, makers/regisseur en een rij cast met foto
+  en rol. Navragen of hij dat bedoelt, of een aparte infopagina/knop.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
