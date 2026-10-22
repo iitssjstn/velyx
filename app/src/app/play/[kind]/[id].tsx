@@ -956,6 +956,7 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
     else if (a?.type === 'seek') seekTo(position + a.by);
     else if (a?.type === 'skip') skipNow();
     else if (a?.type === 'next') goNext();
+    else if (a?.type === 'exit') router.back();
     else if (a?.type === 'dismissNext') {
       setNextDismissed(true);
       setCountdown(null);

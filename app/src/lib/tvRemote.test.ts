@@ -65,6 +65,21 @@ describe('pressKey', () => {
     expect(back).toMatchObject({ handled: true, state: { open: 'none' } });
   });
 
+  it('reaches the Back button at the top with ↑ and leaves the player with OK', () => {
+    let r = pressKey(initialTvState(), 'up', ctx());
+    r = pressKey(r.state, 'up', ctx());
+    expect(r.state).toMatchObject({ open: 'bar', top: true });
+    expect(pressKey(r.state, 'ok', ctx()).action).toEqual({ type: 'exit' });
+    // ↓ goes back to the row where it was; ←/→ stay on the Back button.
+    expect(pressKey(r.state, 'right', ctx()).state).toMatchObject({ top: true });
+    const down = pressKey(r.state, 'down', ctx());
+    expect(down.state).toMatchObject({ open: 'bar', top: false, focus: 1 });
+    // Back closes everything; the row opens on play again, not on the Back button.
+    const closed = pressKey(r.state, 'back', ctx());
+    expect(closed).toMatchObject({ handled: true, state: { open: 'none', top: false } });
+    expect(pressKey(closed.state, 'down', ctx()).state).toMatchObject({ open: 'bar', top: false, focus: 1 });
+  });
+
   it('opens the menu on the chosen subtitle, switches tabs and picks a line', () => {
     let r = pressKey({ ...initialTvState(), open: 'bar', focus: 3 }, 'ok', ctx());
     expect(r.state).toMatchObject({ open: 'menu', tab: 'subtitles', item: 1 });

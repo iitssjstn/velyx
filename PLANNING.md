@@ -200,6 +200,11 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   zodat de tekst meer zichtbaarder wordt"). `TvDetail`: foto minder fel (0,45), een donkere laag over het hele beeld,
   het verloop onderaan hoger (80 %) en een lichte schaduw achter titel, feiten en beschrijving. Geldt voor film, serie
   en aanvraagpagina op de tv; telefoon ongewijzigd.
+- **Terug-knop in de tv-speler** (eigenaar 22 okt: "zodat mensen altijd het gevoel hebben dat ze terug kunnen").
+  Linksboven naast de titel een knop met pijl, zichtbaar zodra de bediening er staat; vanuit de knoppenrij met ↑
+  bereikbaar, OK verlaat de speler, ↓ terug naar de rij (`top` in `TvState`, actie `exit` in `lib/tvRemote.ts`,
+  `TvPlayer.tsx`). De Terug-toets van de afstandsbediening werkt zoals voorheen. Telefoon had al een terugknop.
+  Test in `tvRemote.test.ts`; app 227 tests.
 
 ## Versie 0.19.11
 
