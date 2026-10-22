@@ -246,9 +246,11 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   (maakt de iconen opnieuw), `resetSplash` (hulp voor tests), de `.d.ts`-bestanden van de tv-speler (typen voor de tests)
   en de `file`-parameter van `serve` in `direct-play.ts` (zelfde aanroep als de andere afspeelwijzen). Geen ongebruikte
   pakketten of bestanden gevonden.
-- App 224, frontend 357 en cloud 207 tests slagen; alle typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen.
+- Backend 607, app 224, frontend 357 en cloud 207 tests slagen; alle typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen.
   De app verandert, dus de release bouwt de APK en het `.aab`.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1990) en beide lockfiles bijgewerkt.
+- PR #177 aangemaakt 22 okt op verzoek van de eigenaar ("maak daarna de PR"); automatische voettekst met sessielink
+  meteen weggehaald.
 
 ## Versie 0.19.11
 
