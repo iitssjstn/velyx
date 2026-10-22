@@ -4,6 +4,7 @@ import { colors, radius } from '../lib/theme';
 import { errorMessage } from '../lib/connection';
 import { useSession } from '../lib/session';
 import { textEntryDefaults } from '../lib/textEntry';
+import { useTvFocus } from './useTvFocus';
 
 /**
  * A Pressable that shows where the focus is: on Android TV / Google TV the remote's arrows move the
@@ -11,12 +12,15 @@ import { textEntryDefaults } from '../lib/textEntry';
  */
 export function FocusPressable({ style, onFocus, onBlur, ref, ...props }: PressableProps & { ref?: Ref<View> }) {
   const [focused, setFocused] = useState(false);
+  const tvFocus = useTvFocus();
   return (
     <Pressable
       ref={ref}
+      hasTVPreferredFocus={tvFocus.preferred}
       {...props}
       onFocus={(e) => {
         setFocused(true);
+        tvFocus.remember();
         onFocus?.(e);
       }}
       onBlur={(e) => {

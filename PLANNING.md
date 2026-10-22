@@ -1917,6 +1917,16 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
 - Traag: niet aangewezen; minder hertekenen door de ondertitels. Navragen waar het traag voelt (bladeren of de speler).
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1986) en beide lockfiles bijgewerkt.
 
+- **Wensen eigenaar na het tv-startscherm** (22 okt: "Als je naar beneden gaat dat alles gewoon gecentreerd is zodat het
+  niet half in beeld staat, dat zijn voor mij de belangrijke dingen, en de besturing moet blijven werken als je uit de
+  film/serie gaat maakt niet uit of de serie afgelopen is"; "de hero iets vergroten waardoor het nog makkelijker is om te
+  zien waar je bent"):
+  - De rij met de focus schuift naar het midden van het scherm (`rowScroll` in `lib/tvHome.ts`).
+  - Na de speler (Terug, of na de laatste aflevering) krijgt de knop of poster die hem opende de focus terug via
+    `hasTVPreferredFocus` (`lib/tvFocus.ts`, `useTvFocus` in `FocusPressable`, `TvHome` en `TvTopBar`), naast de
+    bestaande terugval in `RemoteKeysView`. Op de tv te bevestigen.
+  - "Hero vergroten" opgevat als: het gekozen item groter maken. De gekozen poster/kaart wordt 10 % groter met een
+    dikkere rand in accentkleur, tabbladen in de bovenbalk 8 %. Navragen of hij het grote blok bovenaan bedoelde.
 - **"Intro overslaan" leek niet te werken** (eigenaar 22 okt). Waarschijnlijke oorzaak: bij een omgepakte of omgezette
   stream begint het beeld op het keyframe vóór het einde van de intro; de laatste seconden van de intro speelden dan
   opnieuw en de knop kwam meteen terug (ook na automatisch overslaan). Nu blijft de knop weg tot het afspelen voorbij

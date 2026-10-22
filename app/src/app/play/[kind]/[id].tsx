@@ -32,6 +32,7 @@ import { errorMessage } from '../../../lib/connection';
 import { useSession } from '../../../lib/session';
 import { addSeek, justSkipped, SEEK_COMBINE_MS, SEEK_STEPS, skipAt, upNextStart, type DoneSkip, type EpisodeSegments, type PendingSeek, type SeekStep, type SkipMode } from '../../../lib/skip';
 import { colors, radius } from '../../../lib/theme';
+import { tvFocus } from '../../../lib/tvFocus';
 import { TV_CONTROLS_MS, initialTvState, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, type RemoteKey, type TvContext } from '../../../lib/tvRemote';
 import { cueTextAt, parseVtt, type Cue } from '../../../lib/vtt';
 
@@ -969,6 +970,11 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
     if (!TV) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => onRemote.current('back'));
     return () => sub.remove();
+  }, []);
+  // Leaving the player (Back, or after the last episode): the button or poster that opened it takes
+  // the focus again, so the remote keeps working on the screen underneath.
+  useEffect(() => () => {
+    if (TV) tvFocus.restore();
   }, []);
 
   if (problem) return <Problem message={problem} />;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { translator } from './i18n';
-import { cardFacts, cardTile, discoverTile, heroPick, tvPosterWidth } from './tvHome';
+import { cardFacts, cardTile, discoverTile, heroPick, rowScroll, tvPosterWidth } from './tvHome';
 import type { ContinueItem, HomeData, MovieCard, ShowCard } from './types';
 
 const t = translator('nl');
@@ -36,5 +36,15 @@ describe('tv home', () => {
     expect(tvPosterWidth(540)).toBe(130);
     expect(tvPosterWidth(300)).toBe(110);
     expect(tvPosterWidth(1080)).toBe(150);
+  });
+
+  it('puts the row with the focus in the middle of the screen', () => {
+    // A row of 280 high at 1000 on a screen with 480 visible: 100 above it and 100 under it.
+    expect(rowScroll(1000, 280, 480)).toBe(900);
+    // Near the top it never scrolls above the start.
+    expect(rowScroll(50, 280, 480)).toBe(0);
+    // Taller than the screen: its top at the top.
+    expect(rowScroll(1000, 600, 480)).toBe(1000);
+    expect(rowScroll(1000, 280, 0)).toBe(1000);
   });
 });

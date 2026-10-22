@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { Logo } from './Logo';
+import { useTvFocus } from './useTvFocus';
 import { colors, radius } from '../lib/theme';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
@@ -10,10 +11,14 @@ const ICONS: Record<string, IconName> = { home: 'home', movies: 'film', shows: '
 
 function Item({ label, active, onPress, children }: { label: string; active: boolean; onPress: () => void; children: (color: string) => ReactNode }) {
   const [focused, setFocused] = useState(false);
+  const tvFocus = useTvFocus();
   const color = focused || active ? colors.ink : colors.muted;
   return (
-    <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={label} onPress={onPress} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 42, paddingHorizontal: 14, borderRadius: radius.sm, borderWidth: 2, borderColor: focused ? colors.accent : 'transparent', backgroundColor: active ? colors.raised : 'transparent' }}>
+    <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={label} onPress={onPress} hasTVPreferredFocus={tvFocus.preferred} onFocus={() => {
+        setFocused(true);
+        tvFocus.remember();
+      }} onBlur={() => setFocused(false)}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 42, paddingHorizontal: 14, borderRadius: radius.sm, borderWidth: 2, borderColor: focused ? colors.accent : 'transparent', backgroundColor: active ? colors.raised : 'transparent', transform: [{ scale: focused ? 1.08 : 1 }] }}>
         {children(color)}
       </View>
     </Pressable>

@@ -5,23 +5,29 @@ import { Feather } from '@expo/vector-icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Artwork, openCard } from './media';
 import { useOpenDiscover } from './Discover';
+import { useTvFocus } from './useTvFocus';
 import { DISCOVER_ROWS, discoverPath, mergePages, type DiscoverPage, type DiscoverRow, type SeerrResult } from '../lib/discover';
-import { cardTile, discoverTile, heroPick, tvPosterWidth, type TvTile } from '../lib/tvHome';
+import { cardTile, discoverTile, heroPick, rowScroll, tvPosterWidth, type TvTile } from '../lib/tvHome';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 import type { Card, ContinueItem, HomeData } from '../lib/types';
 
 const SIDE = 48;
-const GAP = 16;
+const GAP = 20;
+/** The chosen poster or card grows a little, so it is easy to see where you are. */
+const FOCUS_SCALE = 1.1;
 
 /** A Pressable that knows it has the focus, for posters and buttons that change look when chosen. */
 function Focusable({ children, ...props }: Omit<PressableProps, 'children'> & { children: (focused: boolean) => ReactNode }) {
   const [focused, setFocused] = useState(false);
+  const tvFocus = useTvFocus();
   return (
     <Pressable
+      hasTVPreferredFocus={tvFocus.preferred}
       {...props}
       onFocus={(e) => {
         setFocused(true);
+        tvFocus.remember();
         props.onFocus?.(e);
       }}
       onBlur={(e) => {
@@ -116,7 +122,7 @@ function Poster({ tile, width, onPress, onFocus }: { tile: TvTile; width: number
     <Focusable accessibilityRole="button" accessibilityLabel={tile.title} onPress={onPress} onFocus={onFocus} style={{ width }}>
       {(focused) => (
         <>
-          <View style={{ width, height: width * 1.5, borderRadius: radius.md, overflow: 'hidden', borderWidth: 2, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)', transform: [{ translateY: focused ? -4 : 0 }] }}>
+          <View style={{ width, height: width * 1.5, borderRadius: radius.md, overflow: 'hidden', borderWidth: 3, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)', transform: [{ scale: focused ? FOCUS_SCALE : 1 }] }}>
             <Artwork path={tile.poster} size="w342" label={tile.title} style={{ width: '100%', height: '100%' }} />
             {focused && (
               <>
@@ -154,7 +160,7 @@ function ContinueCard({ item, onFocus }: { item: ContinueItem; onFocus: () => vo
     <Focusable accessibilityRole="button" accessibilityLabel={item.title} onPress={() => router.push(`/play/${item.type}/${item.id}`)} onFocus={onFocus} style={{ width }}>
       {(focused) => (
         <>
-          <View style={{ width, height: width * 0.5625, borderRadius: radius.md, overflow: 'hidden', borderWidth: 2, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)', transform: [{ translateY: focused ? -4 : 0 }] }}>
+          <View style={{ width, height: width * 0.5625, borderRadius: radius.md, overflow: 'hidden', borderWidth: 3, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)', transform: [{ scale: focused ? FOCUS_SCALE : 1 }] }}>
             <Artwork path={item.imagePath ?? item.posterPath} size="w780" label={item.title} style={{ width: '100%', height: '100%' }} />
             <Shade side="bottom" height="50%" />
             {focused && (
@@ -197,8 +203,8 @@ function Row<T>({ title, items, keyOf, render, onEndReached }: { title: string; 
         windowSize={5}
         onEndReached={onEndReached}
         onEndReachedThreshold={2}
-        // Room above for the lift of the chosen poster.
-        contentContainerStyle={{ paddingHorizontal: SIDE, paddingTop: 6, gap: GAP }}
+        // Room around the chosen poster, which grows.
+        contentContainerStyle={{ paddingHorizontal: SIDE, paddingVertical: 14, gap: GAP }}
         showsHorizontalScrollIndicator={false}
       />
     </View>
@@ -229,22 +235,24 @@ function DiscoverTvRow({ spec, width, onFocus, onOpen }: { spec: DiscoverRow; wi
 
 /**
  * The home screen on a TV, built like the website's: the hero at the top, then the rows. The row
- * with the focus scrolls into view with the row title above it.
+ * with the focus moves to the middle of the screen, so it is never half in view.
  */
 export function TvHome({ data }: { data: HomeData }) {
   const { api, t, serverUrl } = useSession();
   const { height } = useWindowDimensions();
   const width = tvPosterWidth(height);
   const scroll = useRef<ScrollView>(null);
-  const tops = useRef(new Map<string, number>());
+  const tops = useRef(new Map<string, { y: number; height: number }>());
   const active = useRef('hero');
   const [rows, setRows] = useState(3);
   const seerr = useQuery({ queryKey: [serverUrl, 'seerr'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
   const { open } = useOpenDiscover();
 
+  const view = useRef(0);
   const toActive = () => {
-    const y = active.current === 'hero' ? 0 : (tops.current.get(active.current) ?? 0) - 16;
-    scroll.current?.scrollTo({ y: Math.max(0, y), animated: true });
+    const at = tops.current.get(active.current);
+    const y = active.current === 'hero' || !at ? 0 : rowScroll(at.y, at.height, view.current);
+    scroll.current?.scrollTo({ y, animated: true });
   };
   const focusRow = (key: string, discoverIndex?: number) => () => {
     if (discoverIndex !== undefined && discoverIndex >= rows - 2) setRows((n) => Math.max(n, discoverIndex + 3));
@@ -256,7 +264,7 @@ export function TvHome({ data }: { data: HomeData }) {
     <View
       key={key}
       onLayout={(e) => {
-        tops.current.set(key, e.nativeEvent.layout.y);
+        tops.current.set(key, { y: e.nativeEvent.layout.y, height: e.nativeEvent.layout.height });
         if (key === active.current) toActive();
       }}
     >
@@ -268,7 +276,7 @@ export function TvHome({ data }: { data: HomeData }) {
 
   const d = data;
   return (
-    <ScrollView ref={scroll} contentContainerStyle={{ paddingBottom: height / 2 }}>
+    <ScrollView ref={scroll} onLayout={(e) => (view.current = e.nativeEvent.layout.height)} contentContainerStyle={{ paddingBottom: height / 2 }}>
       {section('hero', <Hero data={d} onFocus={focusRow('hero')} />)}
       {section('continue', <Row title={t('home.continue')} items={d.continueWatching} keyOf={(c) => `${c.type}-${c.id}`} render={(c) => <ContinueCard item={c} onFocus={focusRow('continue')} />} />)}
       {cards('watchlist', t('home.watchlist'), d.watchlist ?? [])}

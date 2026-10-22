@@ -69,3 +69,12 @@ export function heroPick(d: HomeData): { kind: 'continue'; item: ContinueItem } 
 export function tvPosterWidth(height: number): number {
   return Math.round(Math.min(150, Math.max(110, height * 0.24)));
 }
+
+/**
+ * Where the home screen scrolls to for the row with the focus: that row in the middle of what is
+ * visible, so it is never half in view (never above the top).
+ */
+export function rowScroll(top: number, height: number, visible: number): number {
+  if (!(visible > 0)) return Math.max(0, top);
+  return Math.max(0, Math.round(top - Math.max(0, visible - height) / 2));
+}
