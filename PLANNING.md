@@ -1958,4 +1958,13 @@ Verklein de filmische hero zodat de eerste kijkrij eerder zichtbaar is. Geef op 
   stap omlaag schoof Android de lijst eerst zelf net ver genoeg om de gekozen poster in beeld te krijgen
   (`scrollsChildToFocus`, standaard aan), en daarna schoof Vidalune de rij naar het midden (`toActive`). Nu doet alleen
   Vidalune het: `scrollsChildToFocus={false}` op de lijst van `TvHome`. Op de tv te bevestigen.
+- **Detailpagina van een film/serie op de tv voelt niet fijn** (eigenaar 22 okt, 6 foto's: 4 van een grote streamingdienst
+  als voorbeeld, 2 van Vidalune; "je hebt een hele grote banner en hele grote foto van de film/serie"). Nu op de tv: de
+  telefoonpagina (`app/src/app/movie/[id].tsx`, `show/[id].tsx`): smalle banner bovenaan met daaronder een grote poster,
+  titel, knoppen, en een lange lijst afleveringen onder elkaar; de koppen staan in het Engels ("Continue with S01E02",
+  "Request seasons", "Series 1"). Voorstel (nog bespreken, niet de indeling van die dienst overnemen): een eigen
+  tv-detailpagina in de stijl van de website (`DetailHero`): de achtergrondfoto gedimd over het hele scherm, geen
+  losse grote poster; links titel, feiten, beschrijving en knoppen (Afspelen/Verder, Trailer, Seizoenen aanvragen,
+  Kijklijst, Favoriet); voor een serie seizoenkeuze en de afleveringen als rij met still, en de beschrijving van de
+  gekozen aflevering eronder. Ook nagaan waarom de teksten Engels zijn (taal van de tv of van het account).
 
