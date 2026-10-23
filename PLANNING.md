@@ -563,6 +563,15 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Castbalk onderaan tijdens casten** (eigenaar 23 okt: na het wegvegen van de cast-bediening in de app is de titel weg
+  terwijl de tv doorspeelt). Voorbeeld goedgekeurd op hoofdlijn; aanvullingen eigenaar: teken op de poster om terug naar
+  volledig scherm te gaan, wegvegen en terugkomen heel vloeiend. App: balk net boven de tabbalk (poster met ⤢, titel,
+  Chromecast, pauze, voortgangslijn); tikken opent de afstandsbediening, die omhoog schuift. Website: zelfde balk onderaan
+  elke pagina (⤢-poster, titel, 10 s terug, pauze, 10 s vooruit, tijdlijn, stoppen). Nog niet bouwen tot de eigenaar het zegt.
+- **Schuiven op de tv nog te snel** (eigenaar 23 okt: "de smoothness voor de besturing is nog wel iets te snel als iemand
+  naar beneden of naar boven gaat"). `glideTo` gebruikt Android's `smoothScrollTo` met een vaste duur van 250 ms. Voorstel:
+  eigen animatie (`ValueAnimator`, ~400 ms, zacht uitlopen), onderbreekbaar bij snel drukken. Meenemen met de castbalk.
+
 - **Casten kan niet op een iPhone** (eigenaar 23 okt: "Op iPhone is het casten niet mogelijk omdat je via een manifest niet
   de cast icon ziet"). Oorzaak: Google's Cast-SDK voor websites (`cast_sender.js`, `frontend/src/lib/cast.ts`) werkt
   alleen in Chrome op pc/Android; op iOS gebruiken alle browsers WebKit en laadt hij nooit (`supported` blijft false, dus
