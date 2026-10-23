@@ -384,7 +384,14 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   gloed (`shadow-glow`), secundaire knoppen omlijnd, posters en Verder kijken komen bij muis/focus omhoog met paarse gloed
   (`shadow-lift`). Ook `index.html`, `offline.html` en het manifest. Accountsite en Control Center (`cloud/web/style.css`)
   dezelfde kleuren en knoppen. De cast-webspeler op de tv is niet veranderd.
-- Tests: app 235 (`continue.test.ts`, `tvHome.test.ts`, `palette.test.ts`), frontend 359, cloud 207; alle typechecks, lint
+- Casten vanaf pc/laptop (eigenaar 23 okt, foto: "de besturing wordt donkerder en daardoor lijkt het niet te werken";
+  "misschien een manier maken dat als iemand via de pc of laptop casted er een grotere besturing komt"). Oorzaak: op een
+  computer lag tijdens casten een donkere laag (`bg-bg/80`, z-10) over de gewone bedieningsbalk; klikken ging er wel
+  doorheen. Nu krijgt ook een computer de grote afstandsbediening van de telefoon (`CastRemote`, was `MobileCastRemote`
+  met `md:hidden`), met een terugknop; de gewone balk is weg tijdens casten. Ook "0:00 / 0:00": bij direct afspelen kwam
+  de lengte van de eigen video, die tijdens casten nooit laadt; nu terugval op de lengte van de server. Test
+  (`PlayerCast.test.tsx`) faalt op de oude code. Teksten `castingTo`/`castingHint` weg (niet meer gebruikt).
+- Tests: app 235 (`continue.test.ts`, `tvHome.test.ts`, `palette.test.ts`), frontend 360, cloud 207; alle typechecks, lint
   (0 fouten, 4 bekende waarschuwingen) en de frontend-build slagen. Website lokaal gedraaid en bekeken (setup, Home,
   Beheer). Op de tv en telefoon te bekijken.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1993) en beide lockfiles bijgewerkt.
