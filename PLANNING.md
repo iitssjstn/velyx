@@ -443,6 +443,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   heeft alleen `hasMediaControlsOverlay` om het te melden). Alleen Cast Connect geeft enkel de Vidalune-speler: casten naar
   een Chromecast met Google TV opent dan de Vidalune-app. Nodig van de eigenaar: in de Cast Developer Console bij app-ID
   `920BF057` de Android TV-ontvanger `com.vidalune.app` toevoegen, en de Vidalune-app op de tv geïnstalleerd (interne test).
+- **Iconen op de tv-detailpagina slecht te zien** (eigenaar 23 okt: "de 3 icons kunnen bij belichte foto's niet goed
+  gezien worden"). `TvDetail`: lichte schaduw over de hele foto (zwart 25 %) en een langer verloop naar links en onderaan
+  (55 %); de ronde knoppen Watchlist, Favoriet en Gezien op de tv hebben uit een donkere binnenkant (`Toggle`). Telefoon
+  ongewijzigd. Op de tv te bekijken.
 - Tests: cloud (`SubtitleLoad`, `ccLabel`, onderdelen op de pagina), app (`cuesFrom`). Cloud 209, app 242 tests; alle
   typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen. Op de tv te bekijken.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1995) en beide lockfiles bijgewerkt.
