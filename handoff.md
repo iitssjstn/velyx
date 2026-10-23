@@ -1,43 +1,59 @@
-# Handoff
+# Handoff (23 okt)
 
-## 1. Goal
+## Goal
 
-- Versie 0.19.83 (castfixes) is af en uitgebracht. De eigenaar test op de tv:
-  - is alleen de Vidalune-speler in beeld, zonder de balk van Google (30 s-knoppen, CC)?
-  - is de poster linksonder zichtbaar?
-  - hervat een serie met dezelfde ondertitel en hetzelfde audiospoor?
-- Daarna kiest de eigenaar tussen de app op de Chromecast met Google TV en het voorbeeldbeeld bij het spoelen.
-  Geen van beide bouwen voordat hij het zegt.
-- Nieuw (21 okt): skill `/hervat` om in een nieuwe chat verder te gaan (`.claude/skills/hervat/SKILL.md`).
+De tv-app (Vidalune op de Chromecast met Google TV) netter en strakker maken, naar het voorbeeldontwerp van de eigenaar,
+zonder dat het op een grote streamingdienst lijkt. Besluiten van de eigenaar:
+- "de cast moet altijd onderaan staan" (serie: afleveringen, Details, cast; film: "Ook onder aan, dus onder de about tab");
+- gloed "alleen als je op de film/serie zit, is ook mooier"; "als je op een hero zit dat iets de lucht in komt doe dat met
+  een paarse gloed eronder en dat alleen voor de hero waar je op staat";
+- "de top nav mag kleiner of doorzichtiger"; knoppen "paars grijs achtig ... met een klein beetje gloed", daarna
+  "Knop mag wat grijzer"; achtergrond "wat grijzig met paars er door heen";
+- "als iemand naar beneden gaat dat het soort van swipen voelt maar dan wat sneller";
+- "Doe dit maar bouwen, misschien pakt het iets anders uit op de Chromecast zelf daar wil ik het eerst goed bekijken".
 
-## 2. Staat van de PR
+## Staat van de PR
 
-- PR [iitssjstn/velyx#168](https://github.com/iitssjstn/velyx/pull/168) (0.19.83) is gemerged op 21 okt.
-- Release `v0.19.83` gecontroleerd: APK, beide `.deb`'s, `.aab`, `vidalune-0.19.83-setup.exe` en de accountservice-image.
-- Branch `claude/sweet-meitner-2lgfrj` staat op `main` plus de skill `/hervat` en deze handoff (nog geen PR).
+- 0.19.92: [iitssjstn/velyx#179](https://github.com/iitssjstn/velyx/pull/179), gemerged 23 okt op verzoek van de eigenaar
+  ("merge het maar"; alle checks groen). Merge-commit `9d1393c` op `main`.
+- Branch `claude/dazzling-einstein-c1hf7k` is daarna opnieuw op `origin/main` gezet (alleen deze handoff en de planning).
+- Release `v0.19.92` liep op 23 okt 10:06 UTC nog: Docker, Debian en accountservice-image geslaagd; Android-build bezig
+  (daarna Windows-installer). Nog niet gecontroleerd.
+- Vorige release `v0.19.91` (PR #178, casten zonder 2100) is compleet en gecontroleerd.
 
-## 3. Active files
+## Active files
 
-- `.claude/skills/hervat/SKILL.md`: de nieuwe skill.
-- `cloud/web/cast/screen.js` (`startOptions`) en `cloud/web/cast/receiver.js`: de tv-speler; hier verder als
-  Google's balk blijft staan.
-- `PLANNING.md`: sectie "Gemeld tijdens het testen" > "Casten: twee spelers, poster kapot, keuzes vergeten bij hervatten".
+- `app/src/lib/palette.ts` (+ test): kleuren per apparaat, `GLOW`, `LIFT`; `theme.ts` kiest met `Platform.isTV`.
+- `app/src/components/ui.tsx`: `Lift` (gloed onder het item met de focus), `tvButton`, `shelfPadding`, `Button` op de tv.
+- `app/src/components/TvTopBar.tsx`: lage bovenbalk over het scherm, `TV_TOP_BAR`; `(tabs)/_layout.tsx` geeft schermen ruimte.
+- `app/src/components/TvHome.tsx`: hero onder de balk, knoppen, `Shade` met getinte verlopen, `glideTo` voor schuiven.
+- `app/src/components/TvDetail.tsx`: foto rechts, titel met jaar, knoppen op een rij, cast als kaartjes onderaan.
+- `app/modules/vidalune-tv` (`VidaluneTvModule.kt`, `index.ts`): `glideTo` met Android's `smoothScrollTo`.
+- `app/src/app/movie|show|request/...`: tv-takken met `year`, `factLine`, `above`.
 
-## 4. Veranderingen gemaakt
+## Veranderingen gemaakt
 
-- 0.19.83: poster via de directe poort met het cast-token (`servesDirect`), de eerste melding van de tv overschrijft
-  de keuzes niet meer (`tvChanged`), ondertitel bij een titel die tijdens het casten opent (`pickStartSubtitle`), en
-  Google's eigen bediening uit (`uiConfig.touchScreenOptimizedApp`). Backend 605, frontend 357, cloud 193, app 180 tests.
+- 0.19.91 (castfix 2100, cast-bediening wegvegen) en 0.19.92 (tv-stijl) gebouwd, gemerged.
+- 0.19.92 lokaal: app 231 tests, typechecks, lint (0 fouten, 4 bekende waarschuwingen), Android-bundel (Hermes-export)
+  geslaagd; CI op de PR groen. Kotlin (`glideTo`) wordt pas in de release-build gecompileerd.
 
-## 5. Failed attempts
+## Failed attempts
 
-- Google's documentatie en het framework (`gstatic.com`) waren vanuit de sessie niet bereikbaar; de fix voor de twee
-  spelers is daarom niet op een echte Chromecast of in de bron van het framework bevestigd. `hasMediaControlsOverlay`
-  staat niet in de typen van `@types/chromecast-caf-receiver` 6.0.27.
+- 2100: eerst gedacht aan de conversielimiet (503); de eigenaar heeft "geen limiet", dus verworpen. Echte oorzaak:
+  keyframes lezen van gekopieerde video duurt te lang voor de tv (opgelost in 0.19.91).
+- Screenshots met headless Chromium: met `--window-size=1920,1080` is het beeld maar ~993 hoog; render op 1920×1167 en
+  snijd bij naar 1080. `--headless=old` werkt niet met deze Chromium.
+- Schuiven: React Natives `scrollTo({animated})` heeft een vaste duur en traag begin; daarom Android's `smoothScrollTo`
+  via de eigen module. Een eigen `Animated`-transform is bewust niet gedaan (risico voor de focus-navigatie).
 
-## 6. Specific next steps
+## Specific next steps
 
-1. Wachten op de test van de eigenaar op de tv.
-2. Blijft Google's balk staan: dan tekent Google TV hem zelf. Verberg dan de eigen balk als
-   `cast.framework.ui.Controls.getInstance().hasMediaControlsOverlay()` waar is (eerst controleren dat die bestaat).
-3. De skill `/hervat` moet op `main` staan om in een nieuwe chat te werken: vraag de eigenaar of hij een PR wil.
+1. Release `v0.19.92` controleren: APK, beide `.deb`'s, `.aab`, `vidalune-0.19.92-setup.exe`, accountservice-image
+   (geslaagd). Faalt de Android-build (Kotlin `glideTo`), oorzaak zoeken en een herstelversie 0.19.93 voorstellen;
+   niet mergen zonder akkoord. Uitkomst in `PLANNING.md` bij "Versie 0.19.92" en "Laatste release".
+2. Eigenaar bekijkt 0.19.92 op de Chromecast (interne test): kleuren, gloed, bovenbalk, detailpagina, schuiven. Zijn
+   reacties in de planning en per wens een voorstel; pas bouwen als hij het zegt.
+3. Nog open bij de eigenaar: 0.19.91 testen (casten, andere serie kiezen, pijltje, volgende aflevering), Cast Connect in
+   de Cast Developer Console, intro overslaan; zie "Nu open" in de planning.
+4. Niet gedaan, op verzoek mogelijk: leeftijdskeuring en zenderlogo (serverwerk, TMDB), Kotlin-vrij alternatief voor
+   schuiven als het op de tv niet goed voelt.
