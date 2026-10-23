@@ -10,6 +10,7 @@ import { Artwork, useWide } from '../../components/media';
 import { Block, DetailSkeleton } from '../../components/Skeleton';
 import { TV } from '../../components/screen';
 import { TvAbout, TvDetail, TvEpisodeRow, TvSeasonTabs } from '../../components/TvDetail';
+import { factLine } from '../../lib/tvDetail';
 import { savedRequest, watchedRequest } from '../../lib/lists';
 import { errorMessage } from '../../lib/connection';
 import type { SeerrDetails } from '../../lib/discover';
@@ -97,7 +98,8 @@ export default function Show() {
         <TvDetail
           backdrop={s.backdropPath ?? s.posterPath}
           title={s.title}
-          facts={facts}
+          year={s.year}
+          facts={factLine([s.network, regular === 1 ? t('show.season') : t('show.seasons', { n: regular }), t('show.episodes', { n: s.episodeCount })])}
           overview={s.overview}
           below={
             <View style={{ gap: 4 }}>

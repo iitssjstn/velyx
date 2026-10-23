@@ -145,8 +145,8 @@ export function TvPlayer(p: TvPlayerProps) {
         <View style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: 440, backgroundColor: 'rgba(20,18,28,0.97)', paddingVertical: 40, paddingHorizontal: 28, gap: 18 }}>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {p.tabs.map((tab) => (
-              <View key={tab} style={{ borderRadius: radius.pill, paddingHorizontal: 18, paddingVertical: 8, backgroundColor: tab === state.tab ? colors.accent : 'rgba(255,255,255,0.08)' }}>
-                <Text style={{ color: tab === state.tab ? colors.accentInk : colors.ink, fontSize: 17, fontWeight: '600' }}>{tab === 'subtitles' ? t('player.subtitles') : t('player.audio')}</Text>
+              <View key={tab} style={{ borderRadius: radius.pill, paddingHorizontal: 18, paddingVertical: 8, backgroundColor: tab === state.tab ? colors.button : 'rgba(255,255,255,0.08)' }}>
+                <Text style={{ color: tab === state.tab ? colors.buttonInk : colors.ink, fontSize: 17, fontWeight: '600' }}>{tab === 'subtitles' ? t('player.subtitles') : t('player.audio')}</Text>
               </View>
             ))}
           </View>

@@ -52,9 +52,9 @@ export function ConnectionBanner() {
             }
           }}
           hitSlop={8}
-          style={({ pressed }) => ({ paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.accent, opacity: pressed ? 0.8 : 1 })}
+          style={({ pressed }) => ({ paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.button, opacity: pressed ? 0.8 : 1 })}
         >
-          {busy ? <ActivityIndicator size="small" color={colors.accentInk} /> : <Text style={{ color: colors.accentInk, fontWeight: '600' }}>{t('connection.retry')}</Text>}
+          {busy ? <ActivityIndicator size="small" color={colors.buttonInk} /> : <Text style={{ color: colors.buttonInk, fontWeight: '600' }}>{t('connection.retry')}</Text>}
         </FocusPressable>
       )}
     </View>

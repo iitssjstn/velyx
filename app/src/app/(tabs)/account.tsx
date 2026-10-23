@@ -121,9 +121,9 @@ function LanguageChoice({ lang, selected, onPress }: { lang: Language; selected:
       accessibilityRole="radio"
       accessibilityState={{ selected }}
       onPress={selected ? undefined : onPress}
-      style={{ flex: 1, height: 44, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? colors.accent : colors.raised }}
+      style={{ flex: 1, height: 44, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? colors.button : colors.raised }}
     >
-      <Text style={{ color: selected ? colors.accentInk : colors.ink, fontWeight: '600' }}>{lang === 'nl' ? 'Nederlands' : 'English'}</Text>
+      <Text style={{ color: selected ? colors.buttonInk : colors.ink, fontWeight: '600' }}>{lang === 'nl' ? 'Nederlands' : 'English'}</Text>
     </FocusPressable>
   );
 }

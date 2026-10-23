@@ -3,6 +3,7 @@ import { FlatList, ScrollView, Text, View, useWindowDimensions } from 'react-nat
 import { router } from 'expo-router';
 import { Artwork } from './media';
 import { Focusable, SIDE, Shade } from './TvHome';
+import { Lift } from './ui';
 import { aboutFacts, episodeFacts, initials, startEpisode } from '../lib/tvDetail';
 import { useSession } from '../lib/session';
 import { progressFraction } from '../lib/format';
@@ -13,25 +14,28 @@ const STILL = 300;
 const TEXT_SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 };
 
 /**
- * A title's page on a TV, in the style of the website's detail page: its artwork dimmed over the
- * whole screen, and on the left the title, facts, story and buttons. `children` are the buttons;
- * `below` is what follows (a show's seasons and episodes).
+ * A title's page on a TV (the owner's design): the artwork bright on the right, running into the
+ * background on the left; there a big title with its year, the facts, the buttons in one row and the
+ * story. `above` goes over the buttons (progress), `children` are the buttons, `below` is what follows
+ * (a show's seasons and episodes, then About with the cast at the bottom).
  */
-export function TvDetail({ backdrop, title, facts, overview, children, below }: { backdrop: string | null; title: string; facts: string; overview: string | null; children: ReactNode; below?: ReactNode }) {
+export function TvDetail({ backdrop, title, year, facts, overview, above, children, below }: { backdrop: string | null; title: string; year?: number | null; facts: string; overview: string | null; above?: ReactNode; children: ReactNode; below?: ReactNode }) {
   const { height } = useWindowDimensions();
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <Artwork path={backdrop} size="w1280" style={{ position: 'absolute', left: 0, top: 0, right: 0, height, opacity: 0.45 }} />
-      {/* A dark veil over the whole picture, then the gradients: bright artwork no longer washes out the text. */}
-      <View style={{ position: 'absolute', left: 0, top: 0, right: 0, height, backgroundColor: 'rgba(0,0,0,0.3)' }} />
-      <Shade side="left" />
-      <Shade side="bottom" height="80%" />
+      <Artwork path={backdrop} size="w1280" style={{ position: 'absolute', left: '30%', top: 0, right: 0, height }} />
+      <Shade side="left" from="30%" width="45%" />
+      <Shade side="bottom" height="45%" />
       <ScrollView contentContainerStyle={{ paddingBottom: 48 }}>
-        <View style={{ minHeight: below ? height * 0.58 : height, justifyContent: 'flex-end', paddingHorizontal: SIDE, paddingTop: 48, paddingBottom: 24, width: '62%', gap: 12 }}>
-          <Text accessibilityRole="header" numberOfLines={2} style={{ color: colors.ink, fontSize: 40, lineHeight: 44, fontWeight: '700', ...TEXT_SHADOW }}>{title}</Text>
-          {facts ? <Text style={{ color: 'rgba(236,232,244,0.85)', fontSize: 16, ...TEXT_SHADOW }}>{facts}</Text> : null}
-          {overview ? <Text numberOfLines={4} style={{ color: 'rgba(236,232,244,0.92)', fontSize: 16, lineHeight: 23, ...TEXT_SHADOW }}>{overview}</Text> : null}
-          <View style={{ gap: 12, marginTop: 6 }}>{children}</View>
+        <View style={{ minHeight: below ? height * 0.6 : height, justifyContent: 'flex-end', paddingHorizontal: SIDE, paddingTop: 56, paddingBottom: 24, width: '60%', gap: 14 }}>
+          <Text accessibilityRole="header" numberOfLines={2} style={{ color: colors.ink, fontSize: 52, lineHeight: 58, fontWeight: '700', letterSpacing: -1, ...TEXT_SHADOW }}>
+            {title}
+            {year ? <Text style={{ fontWeight: '300', color: 'rgba(236,232,244,0.6)' }}> ({year})</Text> : null}
+          </Text>
+          {facts ? <Text style={{ color: colors.muted, fontSize: 17, ...TEXT_SHADOW }}>{facts}</Text> : null}
+          {above}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 4 }}>{children}</View>
+          {overview ? <Text numberOfLines={4} style={{ color: 'rgba(236,232,244,0.88)', fontSize: 17, lineHeight: 25, maxWidth: 760, ...TEXT_SHADOW }}>{overview}</Text> : null}
         </View>
         {below}
       </ScrollView>
@@ -48,8 +52,9 @@ export function TvSeasonTabs({ seasons, current, onPick }: { seasons: { id: numb
         return (
           <Focusable key={x.id} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onPick(x.seasonNumber)}>
             {(focused) => (
-              <View style={{ paddingHorizontal: 18, height: 40, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: on ? colors.accent : 'rgba(236,232,244,0.12)', borderWidth: 2, borderColor: focused ? colors.ink : 'transparent', transform: [{ scale: focused ? 1.06 : 1 }] }}>
-                <Text style={{ color: on ? colors.accentInk : colors.ink, fontSize: 15, fontWeight: '600' }}>{x.name}</Text>
+              // The chosen season filled in grey-purple, the others outlined; white edge on the focus.
+              <View style={{ paddingHorizontal: 18, height: 40, borderRadius: radius.md, justifyContent: 'center', backgroundColor: on ? colors.button : 'transparent', borderWidth: 2, borderColor: focused ? colors.ink : on ? 'transparent' : colors.outline, transform: [{ scale: focused ? 1.06 : 1 }] }}>
+                <Text style={{ color: on ? colors.buttonInk : colors.muted, fontSize: 15, fontWeight: '600' }}>{x.name}</Text>
               </View>
             )}
           </Focusable>
@@ -74,7 +79,8 @@ export function TvEpisodeRow({ episodes, upNextId, label }: { episodes: EpisodeS
         keyExtractor={(e) => String(e.id)}
         getItemLayout={(_, index) => ({ length: STILL + 20, offset: SIDE + (STILL + 20) * index, index })}
         initialScrollIndex={start}
-        contentContainerStyle={{ paddingHorizontal: SIDE, paddingVertical: 16, gap: 20 }}
+        // Room for the chosen still, which rises with its glow under it.
+        contentContainerStyle={{ paddingHorizontal: SIDE, paddingTop: 16, paddingBottom: 30, gap: 20 }}
         showsHorizontalScrollIndicator={false}
         renderItem={({ item: e }) => (
           <Focusable
@@ -87,7 +93,8 @@ export function TvEpisodeRow({ episodes, upNextId, label }: { episodes: EpisodeS
           >
             {(focused) => (
               <>
-                <View style={{ width: STILL, height: STILL * 0.5625, borderRadius: radius.md, overflow: 'hidden', borderWidth: 3, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)', transform: [{ scale: focused ? 1.08 : 1 }] }}>
+                <Lift focused={focused} scale={1.08}>
+                <View style={{ width: STILL, height: STILL * 0.5625, borderRadius: radius.md, overflow: 'hidden', borderWidth: 3, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)' }}>
                   <Artwork path={e.stillPath} size="w500" label={label(e)} style={{ width: '100%', height: '100%' }} />
                   {e.progress && !e.progress.completed && progressFraction(e.progress) > 0 ? (
                     <View style={{ position: 'absolute', left: 10, right: 10, bottom: 8, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' }}>
@@ -95,6 +102,7 @@ export function TvEpisodeRow({ episodes, upNextId, label }: { episodes: EpisodeS
                     </View>
                   ) : null}
                 </View>
+                </Lift>
                 <Text numberOfLines={1} style={{ color: focused ? colors.ink : 'rgba(236,232,244,0.9)', fontSize: 15, fontWeight: '600', marginTop: 10 }}>{e.title ?? episodeFacts(e)}</Text>
                 <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
                   {episodeFacts(e)}
@@ -110,11 +118,12 @@ export function TvEpisodeRow({ episodes, upNextId, label }: { episodes: EpisodeS
   );
 }
 
-const FACE = 120;
+const FACE = 140;
 
 /**
- * The "About" block at the bottom of a TV detail page, as on the website: the whole story, genres,
- * who made it and the cast with their photos. Both parts can take the focus, so the arrows reach them.
+ * The "About" block at the bottom of a TV detail page: the whole story, genres and who made it, and
+ * under it the cast as cards with photo and name (always at the very bottom, for a movie and a show).
+ * Both parts can take the focus, so the arrows reach them.
  */
 export function TvAbout({ detail, overview, tagline, cast }: { detail: Parameters<typeof aboutFacts>[0]; overview: string | null; tagline?: string | null; cast: Person[] }) {
   const { t } = useSession();
@@ -126,7 +135,7 @@ export function TvAbout({ detail, overview, tagline, cast }: { detail: Parameter
       <View style={{ paddingHorizontal: SIDE - 14 }}>
         <Focusable accessibilityRole="text">
           {(focused) => (
-            <View style={{ padding: 14, borderRadius: radius.md, borderWidth: 2, borderColor: focused ? colors.accent : 'transparent', backgroundColor: focused ? 'rgba(236,232,244,0.06)' : 'transparent', flexDirection: 'row', gap: 40, maxWidth: 1400 }}>
+            <View style={{ padding: 22, borderRadius: radius.lg, borderWidth: 2, borderColor: focused ? colors.ink : 'transparent', backgroundColor: colors.surface, flexDirection: 'row', gap: 48, maxWidth: 1400 }}>
               <View style={{ flex: 3, gap: 8 }}>
                 {tagline ? <Text style={{ color: colors.muted, fontSize: 16, fontStyle: 'italic' }}>{tagline}</Text> : null}
                 {overview ? <Text style={{ color: 'rgba(236,232,244,0.9)', fontSize: 16, lineHeight: 24 }}>{overview}</Text> : null}
@@ -151,18 +160,23 @@ export function TvAbout({ detail, overview, tagline, cast }: { detail: Parameter
             horizontal
             data={cast.slice(0, 30)}
             keyExtractor={(p, i) => `${p.id ?? p.name}-${i}`}
-            contentContainerStyle={{ paddingHorizontal: SIDE, paddingVertical: 16, gap: 22 }}
+            contentContainerStyle={{ paddingHorizontal: SIDE, paddingTop: 16, paddingBottom: 30, gap: 20 }}
             showsHorizontalScrollIndicator={false}
             renderItem={({ item: p }) => (
               <Focusable accessibilityRole="text" accessibilityLabel={p.role ? `${p.name}, ${p.role}` : p.name} style={{ width: FACE }}>
                 {(focused) => (
-                  <>
-                    <View style={{ width: FACE, height: FACE, borderRadius: FACE / 2, overflow: 'hidden', borderWidth: 3, borderColor: focused ? colors.accent : 'transparent', backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center', transform: [{ scale: focused ? 1.08 : 1 }] }}>
-                      {p.profilePath ? <Artwork path={p.profilePath} size="w185" style={{ width: '100%', height: '100%' }} /> : <Text style={{ color: colors.muted, fontSize: 28, fontWeight: '700' }}>{initials(p.name)}</Text>}
+                  // A standing card: the photo with name and role under it, rising with its glow when chosen.
+                  <Lift focused={focused} scale={1.06}>
+                    <View style={{ width: FACE, borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors.surface, borderWidth: 3, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)' }}>
+                      <View style={{ width: '100%', height: Math.round(FACE * 1.3), backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center' }}>
+                        {p.profilePath ? <Artwork path={p.profilePath} size="w185" style={{ width: '100%', height: '100%' }} /> : <Text style={{ color: colors.muted, fontSize: 34, fontWeight: '700' }}>{initials(p.name)}</Text>}
+                      </View>
+                      <View style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
+                        <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 14, fontWeight: '600' }}>{p.name}</Text>
+                        <Text numberOfLines={1} style={{ color: colors.faint, fontSize: 12 }}>{p.role || ' '}</Text>
+                      </View>
                     </View>
-                    <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 14, fontWeight: '600', textAlign: 'center', marginTop: 10 }}>{p.name}</Text>
-                    {p.role ? <Text numberOfLines={1} style={{ color: colors.faint, fontSize: 12, textAlign: 'center' }}>{p.role}</Text> : null}
-                  </>
+                  </Lift>
                 )}
               </Focusable>
             )}

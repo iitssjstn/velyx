@@ -9,6 +9,7 @@ import { TrailerButton } from '../../../components/TrailerButton';
 import { DetailSkeleton } from '../../../components/Skeleton';
 import { TV } from '../../../components/screen';
 import { TvAbout, TvDetail } from '../../../components/TvDetail';
+import { factLine } from '../../../lib/tvDetail';
 import { SIDE } from '../../../components/TvHome';
 import { Button, ErrorState, styles } from '../../../components/ui';
 import { errorMessage } from '../../../lib/connection';
@@ -74,11 +75,13 @@ export default function RequestScreen() {
         <TvDetail
           backdrop={d.backdropPath ?? d.posterPath}
           title={d.title}
-          facts={facts}
+          year={d.year}
+          facts={factLine([d.mediaType === 'movie' ? t('request.movie') : t('request.show'), d.runtime ? t('request.minutes', { n: d.runtime }) : null, d.rating ? `★ ${d.rating.toFixed(1)}` : null, d.genres.join(', ')])}
           overview={d.overview}
+          above={d.inLibrary ? <Text style={{ color: colors.ok, fontSize: 15 }}>{t('discover.inLibrary')}</Text> : d.state ? <Text style={{ color: colors.accent, fontSize: 15 }}>{t(`request.state.${d.state}`)}</Text> : null}
           below={
+            // Titles like it first: the cast is always at the very bottom, under About.
             <View>
-              <TvAbout detail={{ title: d.title, genres: d.genres.map((name) => ({ name })) }} overview={d.overview} tagline={d.tagline} cast={cast.map((c) => ({ id: c.id, name: c.name, role: c.character ?? null, profilePath: c.profilePath }))} />
               {alike.length > 0 && (
                 <View style={{ marginTop: 24 }}>
                   <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '700', paddingHorizontal: SIDE }}>{t('request.similar')}</Text>
@@ -92,10 +95,10 @@ export default function RequestScreen() {
                   />
                 </View>
               )}
+              <TvAbout detail={{ title: d.title, genres: d.genres.map((name) => ({ name })) }} overview={d.overview} tagline={d.tagline} cast={cast.map((c) => ({ id: c.id, name: c.name, role: c.character ?? null, profilePath: c.profilePath }))} />
             </View>
           }
         >
-          {d.inLibrary ? <Text style={{ color: colors.ok, fontSize: 15 }}>{t('discover.inLibrary')}</Text> : d.state ? <Text style={{ color: colors.accent, fontSize: 15 }}>{t(`request.state.${d.state}`)}</Text> : null}
           {buttons}
         </TvDetail>
       </>

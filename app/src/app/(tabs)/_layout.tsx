@@ -3,7 +3,7 @@ import { Tabs } from 'expo-router/js-tabs';
 import type { ColorValue } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { TV } from '../../components/screen';
-import { TvTopBar } from '../../components/TvTopBar';
+import { TV_TOP_BAR, TvTopBar } from '../../components/TvTopBar';
 import { useSession } from '../../lib/session';
 import { signedOutRoute } from '../../lib/start';
 import { colors } from '../../lib/theme';
@@ -28,14 +28,15 @@ export default function TabsLayout() {
         tabBarStyle: { backgroundColor: colors.bg, borderTopColor: colors.line },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
-        sceneStyle: { backgroundColor: colors.bg },
+        // On a TV the bar lies over the screens (Home's hero runs under it), so they start under it.
+        sceneStyle: { backgroundColor: colors.bg, ...(TV ? { paddingTop: TV_TOP_BAR } : {}) },
         // On a TV the tabs are a bar at the top, as on the website (TvTopBar).
         ...(TV ? { tabBarPosition: 'top' as const } : {}),
       }}
     >
-      <Tabs.Screen name="home" options={{ title: t('tabs.home'), headerShown: false, tabBarIcon: icon('home') }} />
+      <Tabs.Screen name="home" options={{ title: t('tabs.home'), headerShown: false, tabBarIcon: icon('home'), ...(TV ? { sceneStyle: { backgroundColor: colors.bg } } : {}) }} />
       {/* On a TV the bar at the top already names the screen, so no header under it; search keeps away from the screen's edge. */}
-      <Tabs.Screen name="search" options={{ title: t('tabs.search'), headerShown: false, tabBarIcon: icon('search'), ...(TV ? { sceneStyle: { backgroundColor: colors.bg, paddingHorizontal: 32 } } : {}) }} />
+      <Tabs.Screen name="search" options={{ title: t('tabs.search'), headerShown: false, tabBarIcon: icon('search'), ...(TV ? { sceneStyle: { backgroundColor: colors.bg, paddingHorizontal: 32, paddingTop: TV_TOP_BAR } } : {}) }} />
       <Tabs.Screen name="movies" options={{ title: t('tabs.movies'), headerShown: !TV, tabBarIcon: icon('film') }} />
       <Tabs.Screen name="shows" options={{ title: t('tabs.shows'), headerShown: !TV, tabBarIcon: icon('tv') }} />
       <Tabs.Screen name="genres" options={{ title: t('tabs.genres'), headerShown: !TV, tabBarIcon: icon('grid') }} />

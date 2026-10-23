@@ -90,13 +90,13 @@ export function GenreBrowser() {
     else setKind(next as Kind);
   };
   const sourceButton = (value: Scope, label: string) => (
-    <FocusPressable key={value} accessibilityRole="button" accessibilityState={{ selected: scope === value }} onPress={() => toggle(value, 'scope')} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: scope === value ? colors.accent : colors.raised }}>
-      <Text style={{ color: scope === value ? colors.accentInk : colors.ink, fontWeight: '600' }}>{label}</Text>
+    <FocusPressable key={value} accessibilityRole="button" accessibilityState={{ selected: scope === value }} onPress={() => toggle(value, 'scope')} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: scope === value ? colors.button : colors.raised }}>
+      <Text style={{ color: scope === value ? colors.buttonInk : colors.ink, fontWeight: '600' }}>{label}</Text>
     </FocusPressable>
   );
   const kindButton = (value: Kind, label: string) => (
-    <FocusPressable key={value} accessibilityRole="button" accessibilityState={{ selected: kind === value }} onPress={() => toggle(value, 'kind')} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: kind === value ? colors.accent : colors.raised }}>
-      <Text style={{ color: kind === value ? colors.accentInk : colors.ink, fontWeight: '600' }}>{label}</Text>
+    <FocusPressable key={value} accessibilityRole="button" accessibilityState={{ selected: kind === value }} onPress={() => toggle(value, 'kind')} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: kind === value ? colors.button : colors.raised }}>
+      <Text style={{ color: kind === value ? colors.buttonInk : colors.ink, fontWeight: '600' }}>{label}</Text>
     </FocusPressable>
   );
 

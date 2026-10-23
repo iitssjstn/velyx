@@ -8,6 +8,7 @@ import { Artwork, useWide } from '../../components/media';
 import { DetailSkeleton } from '../../components/Skeleton';
 import { TV } from '../../components/screen';
 import { TvAbout, TvDetail } from '../../components/TvDetail';
+import { factLine } from '../../lib/tvDetail';
 import { Button, ErrorState, ProgressLine, styles } from '../../components/ui';
 import { formatClock, formatRuntime, progressFraction } from '../../lib/format';
 import { savedRequest, watchedRequest } from '../../lib/lists';
@@ -90,10 +91,15 @@ export default function Movie() {
     return (
       <>
         <Stack.Screen options={{ title: m.title, headerShown: false }} />
-        <TvDetail backdrop={m.backdropPath ?? m.posterPath} title={m.title} facts={[facts, m.genres.map((g) => g.name).join(', ')].filter(Boolean).join(' · ')} overview={m.overview}
+        <TvDetail
+          backdrop={m.backdropPath ?? m.posterPath}
+          title={m.title}
+          year={m.year}
+          facts={factLine([formatRuntime(m.runtime), m.rating ? `★ ${m.rating.toFixed(1)}` : null, m.genres.map((g) => g.name).join(', ')])}
+          overview={m.overview}
+          above={progress}
           below={<TvAbout detail={m} overview={m.overview} tagline={m.tagline} cast={m.cast} />}
         >
-          {progress}
           {play}
           {toggles}
         </TvDetail>
