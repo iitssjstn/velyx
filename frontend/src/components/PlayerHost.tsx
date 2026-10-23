@@ -13,20 +13,25 @@ const Player = lazy(() => import('../pages/Player'));
 export function PlayRoute() {
   const { kind, id } = useParams();
   const { search } = useLocation();
-  const { open, close, miniRef } = usePlaybackSession();
+  const { open, close, setMini, miniRef, castingRef } = usePlaybackSession();
   useEffect(() => {
     open({ kind: kind === 'episode' ? 'episode' : 'movie', id: Number(id), search });
     // `search` (?t=, ?file=) only matters when an item starts; changing it must not restart playback.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, id, open]);
-  // Leaving the player page without minimizing (Back, a link) ends playback, as before.
-  useEffect(() => () => void (miniRef.current || close()), [close, miniRef]);
+  // Leaving the player page without minimizing (Back, a link) ends playback, as before; while casting
+  // the TV keeps playing, so the player stays as the cast bar.
+  useEffect(() => () => {
+    if (miniRef.current) return;
+    if (castingRef.current) setMini(true);
+    else close();
+  }, [close, setMini, miniRef, castingRef]);
   return null;
 }
 
 /** Renders the one player instance: full screen on /play, as a mini-player everywhere else. */
 export function PlayerHost() {
-  const { session, mini, setMini, switchTo, close } = usePlaybackSession();
+  const { session, mini, setMini, switchTo, close, castingRef } = usePlaybackSession();
   const navigate = useNavigate();
   // On phones the mini-player is a bar along the bottom: keep page content scrollable above it.
   useEffect(() => {
@@ -60,6 +65,7 @@ export function PlayerHost() {
           close();
           if (!wasMini) leavePlayerPage(backHref);
         }}
+        onCasting={(active) => void (castingRef.current = active)}
         onPlayItem={(kind, id) => {
           if (mini) switchTo({ kind, id, search: '' });
           else navigate(`/play/${kind}/${id}`, { replace: true });

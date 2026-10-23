@@ -22,6 +22,8 @@ interface SessionContext {
   close: () => void;
   /** Read synchronously by the /play route when it unmounts (minimize vs. leaving the player). */
   miniRef: React.MutableRefObject<boolean>;
+  /** Set by the player while a Chromecast plays its title: leaving the page then keeps the cast bar. */
+  castingRef: React.MutableRefObject<boolean>;
 }
 
 const Ctx = createContext<SessionContext | null>(null);
@@ -30,6 +32,7 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<PlaybackSession | null>(null);
   const [mini, setMiniState] = useState(false);
   const miniRef = useRef(false);
+  const castingRef = useRef(false);
 
   const setMini = useCallback((m: boolean) => {
     miniRef.current = m;
@@ -47,11 +50,12 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
   const switchTo = useCallback((next: PlaybackSession) => setSession(next), []);
 
   const close = useCallback(() => {
+    castingRef.current = false;
     setSession(null);
     setMini(false);
   }, [setMini]);
 
-  const value = useMemo(() => ({ session, mini, open, setMini, switchTo, close, miniRef }), [session, mini, open, setMini, switchTo, close]);
+  const value = useMemo(() => ({ session, mini, open, setMini, switchTo, close, miniRef, castingRef }), [session, mini, open, setMini, switchTo, close]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

@@ -399,6 +399,31 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   automatische voettekst met sessielink meteen weggehaald. Gemerged 23 okt (alle checks groen). Release `v0.19.93` nog te
   controleren.
 
+## Versie 0.19.94 (castbalk onderaan, vloeiend wegvegen, rustiger schuiven op de tv)
+
+- Op verzoek van de eigenaar (23 okt, na het voorbeeldplaatje: "Misschien met een tekentje voor de logo dat je weer naar
+  volledig scherm kan, maak de dropdown en up motion heel smooth"; daarna "Maak het maar"). Melding: na het wegvegen van
+  de cast-bediening in de app was de titel nergens meer te zien terwijl de tv doorspeelde.
+- **App (telefoon)**: `CastMiniBar` net boven de tabbalk zolang een Chromecast een Vidalune-titel speelt: poster met
+  ⤢-teken, titel, naam van de Chromecast, pauze/afspelen en een dunne voortgangslijn. Komt in 340 ms omhoog van achter de
+  tabbalk (het scherm erboven maakt mee ruimte) en zakt weer weg als het casten stopt. Tikken opent de afstandsbediening,
+  gekoppeld aan wat de tv speelt (`?tv=1`, niets opnieuw laden); vanaf de balk schuift het scherm omhoog
+  (`slide_from_bottom`, `bar=1`) en bij sluiten weer omlaag. Wegvegen vanuit de speler zelf: 360 ms, zacht.
+  Wat er speelt komt uit de status van de tv (`castNow` in `lib/castNow.ts`, getest): titel, poster, film/aflevering
+  (`title` van de zender of `item` van de tv), lengte.
+- **Website**: de bestaande mini-speler wordt tijdens het casten een balk over de volle breedte onderaan elke pagina
+  (`CastBar` in `Player.tsx`): poster met ⤢ en titel openen de grote bediening weer, 10 s terug, pauze, 10 s vooruit,
+  tijdlijn, stoppen (stopt casten en sluit); op een smalle telefoon alleen pauze en een voortgangslijn. De grote
+  bediening schuift omhoog (`animate-sheet-up`) en met het pijltje omlaag weer weg (340 ms) naar de balk; de balk komt
+  omhoog (`animate-bar-up`) en de pagina krijgt ruimte (`has-cast-bar`). Verlaat iemand de spelerpagina tijdens het
+  casten (terug in de browser, een link), dan blijft de speler als balk (`castingRef` in `playback-session.tsx`).
+- **Tv**: `glideTo` schuift nu met een eigen animatie van 420 ms (zacht begin, lang uitlopen) in plaats van Android's
+  `smoothScrollTo` (altijd 250 ms); snel drukken gaat door vanaf waar hij is. Kotlin wordt pas bij de release
+  gecompileerd. Op de Chromecast te voelen; sneller of trager is één getal (`GLIDE_MS`).
+- Tests: app `castNow.test.ts`; website (grote bediening schuift weg naar de balk, balk met titel, tijd, openen en
+  stoppen; spelerpagina verlaten tijdens casten houdt de balk, faalt op de oude code).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1994) en beide lockfiles bijgewerkt.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
@@ -563,14 +588,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
-- **Castbalk onderaan tijdens casten** (eigenaar 23 okt: na het wegvegen van de cast-bediening in de app is de titel weg
-  terwijl de tv doorspeelt). Voorbeeld goedgekeurd op hoofdlijn; aanvullingen eigenaar: teken op de poster om terug naar
-  volledig scherm te gaan, wegvegen en terugkomen heel vloeiend. App: balk net boven de tabbalk (poster met ⤢, titel,
-  Chromecast, pauze, voortgangslijn); tikken opent de afstandsbediening, die omhoog schuift. Website: zelfde balk onderaan
-  elke pagina (⤢-poster, titel, 10 s terug, pauze, 10 s vooruit, tijdlijn, stoppen). Nog niet bouwen tot de eigenaar het zegt.
-- **Schuiven op de tv nog te snel** (eigenaar 23 okt: "de smoothness voor de besturing is nog wel iets te snel als iemand
-  naar beneden of naar boven gaat"). `glideTo` gebruikt Android's `smoothScrollTo` met een vaste duur van 250 ms. Voorstel:
-  eigen animatie (`ValueAnimator`, ~400 ms, zacht uitlopen), onderbreekbaar bij snel drukken. Meenemen met de castbalk.
+- **Castbalk onderaan tijdens casten** en **schuiven op de tv te snel** (eigenaar 23 okt): gebouwd in 0.19.94 (zie daar).
 
 - **Casten kan niet op een iPhone** (eigenaar 23 okt: "Op iPhone is het casten niet mogelijk omdat je via een manifest niet
   de cast icon ziet"). Oorzaak: Google's Cast-SDK voor websites (`cast_sender.js`, `frontend/src/lib/cast.ts`) werkt

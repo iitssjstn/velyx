@@ -33,6 +33,28 @@
 
   --radius-card: 0.9rem;
 
+  /* The cast remote sliding up, and the cast bar rising from the bottom edge: soft, not quick. */
+  --animate-sheet-up: velyx-sheet-up 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  @keyframes velyx-sheet-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+  --animate-bar-up: velyx-bar-up 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+  @keyframes velyx-bar-up {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   /* The Next episode card rising into view at the end of an episode. */
   --animate-rise: velyx-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   @keyframes velyx-rise {
@@ -134,6 +156,11 @@ input[type='range'].seek::-moz-range-track {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Room for the cast bar along the bottom, on every screen (see Player). */
+.has-cast-bar body {
+  padding-bottom: 6rem;
 }
 
 /* Room for the mini-player bar on phones (see PlayerHost). */

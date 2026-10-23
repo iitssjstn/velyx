@@ -33,6 +33,7 @@ export const player = {
   skipRecap: 'Skip recap',
   cast: 'Play on a TV (Chromecast)',
   castRemote: 'Cast remote',
+  closeRemote: 'Close the remote (the TV keeps playing)',
   castStop: 'Stop playing on the TV',
   stopCasting: 'Stop casting',
   audioSubtitles: 'Audio & subtitles',

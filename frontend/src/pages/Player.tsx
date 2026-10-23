@@ -6,6 +6,7 @@ import {
   AudioLines,
   Captions,
   Cast,
+  ChevronDown,
   Check,
   Keyboard,
   Maximize,
@@ -19,6 +20,7 @@ import {
   RotateCw,
   Settings2,
   SkipForward,
+  Square,
   TriangleAlert,
   Volume1,
   Volume2,
@@ -159,13 +161,15 @@ export interface PlayerProps {
   onClose: (backHref: string | undefined) => void;
   /** Plays another item in this same player (next episode). */
   onPlayItem: (kind: 'movie' | 'episode', id: number) => void;
+  /** Whether a Chromecast plays this title: leaving the page then keeps the cast bar. */
+  onCasting?: (active: boolean) => void;
 }
 
 /**
  * The video player. One instance (and one <video> element) is kept alive by PlayerHost while an
  * item plays; minimizing only changes the layout, so the stream, position and tracks carry on.
  */
-export default function Player({ kind, id, search, mini, onMinimize, onRestore, onClose, onPlayItem }: PlayerProps) {
+export default function Player({ kind, id, search, mini, onMinimize, onRestore, onClose, onPlayItem, onCasting }: PlayerProps) {
   // Re-renders the player (never remounts it) when the interface language changes.
   useT();
   const params = useMemo(() => new URLSearchParams(search), [search]);
@@ -457,8 +461,15 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     const v = videoRef.current;
     if (cast.active && !was) v?.pause();
     if (!cast.active && was) seekTo(cast.time);
+    onCasting?.(cast.active);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cast.active]);
+  // Minimized while casting, the player is the cast bar along the bottom: the page makes room for it.
+  const castBar = mini && cast.active;
+  useEffect(() => {
+    document.documentElement.classList.toggle('has-cast-bar', castBar);
+    return () => document.documentElement.classList.remove('has-cast-bar');
+  }, [castBar]);
   // The TV's position belongs to the file it plays: after the next episode starts here, it is the old
   // episode's until the TV has the new one (otherwise it would count as near the end of this one too).
   const castHere = cast.active && file !== undefined && file !== null && cast.fileId === file.id;
@@ -1169,11 +1180,11 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   return (
     <div
       ref={wrapRef}
-      className={mini ? `${MINI_CLASSES} select-none` : `fixed inset-0 z-50 bg-black text-ink select-none [--player-controls:10rem] ${showUi || postPlay ? '' : 'cursor-none'}`}
+      className={castBar ? `${CAST_BAR_CLASSES} select-none` : mini ? `${MINI_CLASSES} select-none` : `fixed inset-0 z-50 bg-black text-ink select-none [--player-controls:10rem] ${showUi || postPlay ? '' : 'cursor-none'}`}
       onMouseMove={mini ? undefined : poke}
       onTouchStart={mini ? undefined : poke}
       role={mini ? 'region' : undefined}
-      aria-label={mini ? t('player.miniPlayer') : undefined}
+      aria-label={castBar ? t('player.castRemote') : mini ? t('player.miniPlayer') : undefined}
     >
       {!mini && showUnavailable && info && (
         <PlaybackUnavailable
@@ -1214,7 +1225,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           disableRemotePlayback
           className={
             mini
-              ? 'h-full w-28 shrink-0 cursor-pointer bg-black object-cover sm:w-full sm:object-contain'
+              ? `h-full w-28 shrink-0 cursor-pointer bg-black object-cover sm:w-full sm:object-contain ${castBar ? 'hidden' : ''}`
               : `relative h-full w-full origin-top-left transition-[translate,scale,opacity,border-radius] duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${revealed ? 'opacity-100' : 'opacity-0'} ${
                   postPlay ? 'translate-x-[4vw] translate-y-[8vh] scale-[0.62] cursor-pointer object-top sm:translate-y-[7vh] sm:scale-[0.36] sm:rounded-3xl sm:bg-black sm:object-center sm:shadow-2xl sm:ring-1 sm:ring-white/15' : ''
                 }`
@@ -1311,7 +1322,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           subtitles={[{ id: null, label: t('player.off'), selected: !subKey }, ...subs.map((track) => ({ id: track.key, label: subtitleName(track), selected: subKey === track.key }))]}
           onSeek={seekTo}
           onTogglePlay={togglePlay}
-          onBack={exit}
+          onBack={minimize}
           onStop={cast.stop}
           onVolume={(value) => applyVolume(value, cast.muted)}
           onToggleMute={() => applyVolume(cast.volume, !cast.muted)}
@@ -1725,7 +1736,25 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           </div>
         </div>
       </div>
-      {mini && (
+      {castBar && item.data && (
+        <CastBar
+          title={item.data.title}
+          subtitle={item.data.subtitle}
+          device={cast.device}
+          poster={imageUrl(item.data.poster, 'w342')}
+          time={cast.time}
+          duration={totalDuration}
+          playing={cast.playing}
+          onSeek={seekTo}
+          onTogglePlay={togglePlay}
+          onRestore={onRestore}
+          onStop={() => {
+            cast.stop();
+            exit();
+          }}
+        />
+      )}
+      {mini && !castBar && (
         <MiniBar
           title={item.data?.title ?? ''}
           subtitle={item.data?.subtitle ?? null}
@@ -1746,10 +1775,17 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
  * Floating player: bottom-right card on larger screens, a compact bar along the bottom edge on
  * phones. The <video> stays the same element as in the full player.
  */
+/** Minimized while casting: a bar along the bottom of every page, rising into view. */
+const CAST_BAR_CLASSES =
+  'fixed inset-x-0 bottom-0 z-50 h-[4.5rem] border-t border-line bg-surface/95 text-ink shadow-[0_-10px_30px_rgb(0_0_0/0.45),0_-2px_20px_rgb(139_108_255/0.18)] backdrop-blur animate-bar-up sm:h-20';
+
 const MINI_CLASSES =
   'fixed z-50 flex h-16 items-center overflow-hidden rounded-xl bg-black text-ink shadow-2xl ring-1 ring-white/10 inset-x-2 bottom-2 sm:inset-x-auto sm:right-4 sm:bottom-4 sm:block sm:h-auto sm:w-[22rem] sm:aspect-video';
 
 interface RemoteChoice { id: number | string | null; label: string; selected: boolean }
+
+/** How long the cast remote takes to slide down (it slides up in the same time, see index.css). */
+const REMOTE_SLIDE_MS = 340;
 
 function CastRemote({
   title,
@@ -1787,7 +1823,7 @@ function CastRemote({
   subtitles: RemoteChoice[];
   onSeek: (time: number) => void;
   onTogglePlay: () => void;
-  /** Leaves the player; the TV keeps playing. */
+  /** Leaves the remote for the cast bar; the TV keeps playing. */
   onBack: () => void;
   onStop: () => void;
   onVolume: (volume: number) => void;
@@ -1801,18 +1837,25 @@ function CastRemote({
   const scrubRef = useRef<number | null>(null);
   const seekValue = scrub ?? time;
   const close = () => setSheet(null);
+  // Slides up into view, and down again before going back to the page (the cast bar).
+  const [leaving, setLeaving] = useState(false);
+  const back = () => {
+    if (leaving) return;
+    setLeaving(true);
+    window.setTimeout(onBack, REMOTE_SLIDE_MS);
+  };
   const action = 'flex min-h-14 min-w-20 flex-col items-center justify-center gap-1 rounded-xl px-3 text-xs text-ink/80 transition hover:bg-white/10 active:bg-white/15';
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-bg" role="region" aria-label={t('player.castRemote')}>
+    <div className={`fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-bg ${leaving ? 'translate-y-full transition-transform duration-[340ms] ease-[cubic-bezier(0.55,0,0.85,0.4)]' : 'animate-sheet-up'}`} role="region" aria-label={t('player.castRemote')}>
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         {backdrop && <img src={backdrop} alt="" className="h-[58vh] w-full object-cover opacity-35" />}
         <div className="absolute inset-0 bg-gradient-to-b from-bg/30 via-bg/70 to-bg" />
       </div>
       <div className="relative flex min-h-dvh flex-col px-5" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
         <header className="relative flex items-center justify-center gap-2 py-3 text-center">
-          <button type="button" onClick={onBack} className="absolute left-0 grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label={t('common.back')}>
-            <ArrowLeft className="size-5" />
+          <button type="button" onClick={back} className="absolute left-0 grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label={t('player.closeRemote')} title={t('player.closeRemote')}>
+            <ChevronDown className="size-6" />
           </button>
           <Cast className="size-4 text-accent" />
           <div className="min-w-0">
@@ -1887,6 +1930,72 @@ function CastRemote({
           {sheet === 'more' && <button type="button" onClick={() => { close(); onStop(); }} className="min-h-12 w-full rounded-lg bg-danger/15 px-4 text-left font-semibold text-danger hover:bg-danger/25">{t('player.stopCasting')}</button>}
         </section>
       </div>}
+    </div>
+  );
+}
+
+/**
+ * Minimized while casting: what plays on the TV, along the bottom of every page. The poster (with the
+ * sign for full screen) and the title open the big remote again; on a computer also 10 s back/forward,
+ * the timeline and stop; on a phone play/pause and a thin line with how far it is.
+ */
+function CastBar({ title, subtitle, device, poster, time, duration, playing, onSeek, onTogglePlay, onRestore, onStop }: {
+  title: string;
+  subtitle: string | null;
+  device: string | null;
+  poster: string | null;
+  time: number;
+  duration: number;
+  playing: boolean;
+  onSeek: (time: number) => void;
+  onTogglePlay: () => void;
+  onRestore: () => void;
+  onStop: () => void;
+}) {
+  const { t } = useT();
+  const [scrub, setScrub] = useState<number | null>(null);
+  const shown = scrub ?? time;
+  const ghost = 'grid size-10 shrink-0 place-items-center rounded-full border-2 border-outline text-ink transition hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+  const play = (
+    <button type="button" onClick={onTogglePlay} className="grid size-11 shrink-0 place-items-center rounded-full bg-button text-button-ink shadow-glow transition hover:bg-button-strong" aria-label={playing ? t('player.pause') : t('player.play')}>
+      {playing ? <Pause className="size-5 fill-current" /> : <Play className="ml-0.5 size-5 fill-current" />}
+    </button>
+  );
+  return (
+    <div className="relative flex h-full items-center gap-3 px-3 sm:gap-5 sm:px-6">
+      <button type="button" onClick={onRestore} className="group relative size-12 shrink-0 overflow-hidden rounded-lg bg-raised ring-1 ring-white/10" aria-label={t('player.openFull')} title={t('player.openFull')}>
+        {poster ? <img src={poster} alt="" className="size-full object-cover" /> : <Cast className="mx-auto size-5 text-faint" />}
+        <span className="absolute inset-0 grid place-items-center bg-black/40 transition group-hover:bg-black/55"><Maximize2 className="size-5 text-white" /></span>
+      </button>
+      <button type="button" onClick={onRestore} className="min-w-0 flex-1 text-left sm:w-64 sm:flex-none">
+        <span className="block truncate text-sm font-semibold">{[title, subtitle].filter(Boolean).join(' · ')}</span>
+        <span className="flex items-center gap-1.5 truncate text-xs text-accent"><Cast className="size-3.5 shrink-0" />{device ?? t('player.casting')}</span>
+      </button>
+      <div className="hidden min-w-0 flex-1 items-center justify-center gap-3 sm:flex">
+        <button type="button" onClick={() => onSeek(Math.max(0, time - 10))} className={ghost} aria-label={t('player.backSeconds', { seconds: 10 })}><RotateCcw className="size-4" /></button>
+        {play}
+        <button type="button" onClick={() => onSeek(Math.min(duration, time + 10))} className={ghost} aria-label={t('player.forwardSeconds', { seconds: 10 })}><RotateCw className="size-4" /></button>
+        <span className="ml-2 text-xs tabular-nums text-muted">{formatClock(shown)}</span>
+        <input
+          type="range"
+          min={0}
+          max={Math.max(1, duration)}
+          step={1}
+          value={Math.min(shown, duration || 0)}
+          onChange={(event) => setScrub(Number(event.target.value))}
+          onPointerUp={() => { if (scrub !== null) onSeek(scrub); setScrub(null); }}
+          onKeyUp={() => { if (scrub !== null) onSeek(scrub); setScrub(null); }}
+          aria-label={t('player.seek')}
+          aria-valuetext={formatClock(shown)}
+          className="w-full max-w-md accent-[var(--color-accent)]"
+        />
+        <span className="text-xs tabular-nums text-muted">{formatClock(duration)}</span>
+      </div>
+      <div className="sm:hidden">{play}</div>
+      <button type="button" onClick={onStop} className={`${ghost} hidden sm:grid`} aria-label={t('player.stopCasting')} title={t('player.stopCasting')}><Square className="size-3.5 fill-current" /></button>
+      <div className="absolute inset-x-0 bottom-0 h-0.5 bg-white/10 sm:hidden" aria-hidden>
+        <div className="h-full bg-accent" style={{ width: `${duration ? Math.min(1, time / duration) * 100 : 0}%` }} />
+      </div>
     </div>
   );
 }
