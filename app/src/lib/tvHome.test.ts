@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { translator } from './i18n';
-import { cardFacts, cardTile, discoverTile, heroPick, rowScroll, tvPosterWidth } from './tvHome';
+import { cardFacts, cardTile, discoverTile, heroPick, overHeroStore, rowScroll, tvPosterWidth } from './tvHome';
 import type { ContinueItem, HomeData, MovieCard, ShowCard } from './types';
 
 const t = translator('nl');
@@ -46,5 +46,25 @@ describe('tv home', () => {
     // Taller than the screen: its top at the top.
     expect(rowScroll(1000, 600, 480)).toBe(1000);
     expect(rowScroll(1000, 280, 0)).toBe(1000);
+  });
+
+  it('keeps the hero out of view once a row under it has the focus', () => {
+    // First row at 730 under a hero ending there: centred it would scroll to 630, leaving the
+    // hero's buttons under the top bar (60); now the hero ends at the bar.
+    expect(rowScroll(730, 280, 480)).toBe(630);
+    expect(rowScroll(730, 280, 480, 730 - 60)).toBe(670);
+    // Further down the middle wins.
+    expect(rowScroll(1500, 280, 480, 670)).toBe(1400);
+  });
+
+  it('tells the top bar whether it lies over the hero', () => {
+    const store = overHeroStore();
+    let calls = 0;
+    store.subscribe(() => calls++);
+    expect(store.get()).toBe(true);
+    store.set(false);
+    store.set(false);
+    expect(store.get()).toBe(false);
+    expect(calls).toBe(1);
   });
 });

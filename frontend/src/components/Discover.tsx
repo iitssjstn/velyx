@@ -112,7 +112,7 @@ export function DiscoverCard({ item, onSelect, className = '' }: { item: SeerrRe
   const { t } = useT();
   return (
     <button type="button" onClick={() => onSelect(item)} className={`group block space-y-2 text-left focus-visible:outline-none ${className}`}>
-      <div className="relative overflow-hidden rounded-lg ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:ring-accent/60 group-focus-visible:ring-2 group-focus-visible:ring-accent">
+      <div className="relative overflow-hidden rounded-lg ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:shadow-lift group-hover:ring-accent/60 group-focus-visible:shadow-lift group-focus-visible:ring-2 group-focus-visible:ring-accent">
         <Poster path={item.posterPath} title={item.title} />
         {item.inLibrary ? (
           <span className="absolute top-2 right-2 grid size-6 place-items-center rounded-full bg-ok text-bg shadow" title={t('requests.inLibrary')}>

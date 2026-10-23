@@ -40,8 +40,6 @@ export const player: Messages['player'] = {
   more: 'Meer',
   volume: 'Volume',
   casting: 'Speelt af op de tv',
-  castingTo: 'Speelt af op {device}',
-  castingHint: 'Bedien hem met de knoppen hier: afspelen, pauzeren, skippen en spoelen.',
   castFailed: 'Afspelen op de tv lukte niet: {reason}',
   castNoDevice: 'geen Chromecast gevonden op dit netwerk',
   castConnecting: 'Verbinden met de Chromecast…',

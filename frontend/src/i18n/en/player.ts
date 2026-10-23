@@ -39,8 +39,6 @@ export const player = {
   more: 'More',
   volume: 'Volume',
   casting: 'Playing on the TV',
-  castingTo: 'Playing on {device}',
-  castingHint: 'Use the buttons here to control it: play, pause, skip and seek.',
   castFailed: 'Could not play on the TV: {reason}',
   castNoDevice: 'no Chromecast found on this network',
   castConnecting: 'Connecting to the Chromecast…',

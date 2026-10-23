@@ -220,7 +220,7 @@ export function PlaybackUnavailable({
               {t('player.nextEpisode')}
             </button>
           )}
-          <button type="button" onClick={onBack} className="h-10 rounded-lg bg-accent px-4 font-semibold text-accent-ink">
+          <button type="button" onClick={onBack} className="h-10 rounded-lg bg-button px-4 font-semibold text-button-ink">
             {t('common.goBack')}
           </button>
         </div>

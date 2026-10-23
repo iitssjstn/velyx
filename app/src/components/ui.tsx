@@ -66,9 +66,9 @@ export function Button({ label, onPress, busy, disabled, variant = 'primary' }: 
       accessibilityRole="button"
       accessibilityState={{ disabled: Boolean(off), busy: Boolean(busy) }}
       onPress={off ? undefined : onPress}
-      style={({ pressed }) => [styles.button, variant === 'primary' ? styles.primary : styles.ghost, Platform.isTV && (variant === 'primary' ? tvButton.filled : tvButton.outlined), (pressed || off) && { opacity: off ? 0.5 : 0.8 }]}
+      style={({ pressed }) => [styles.button, variant === 'primary' ? buttonLook.filled : buttonLook.outlined, (pressed || off) && { opacity: off ? 0.5 : 0.8 }]}
     >
-      {busy ? <ActivityIndicator color={variant === 'primary' ? colors.buttonInk : colors.ink} /> : <Text style={[styles.buttonText, variant === 'primary' ? { color: colors.buttonInk } : { color: Platform.isTV ? TV_OUTLINE_INK : colors.ink }]}>{label}</Text>}
+      {busy ? <ActivityIndicator color={variant === 'primary' ? colors.buttonInk : OUTLINE_INK} /> : <Text style={[styles.buttonText, { color: variant === 'primary' ? colors.buttonInk : OUTLINE_INK }]}>{label}</Text>}
     </FocusPressable>
   );
 }
@@ -118,14 +118,14 @@ export function ProgressLine({ fraction }: { fraction: number }) {
 /** A row of posters: on a TV with room above and below for the chosen one, which rises with its glow. */
 export const shelfPadding = Platform.isTV ? { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 28, gap: 12 } : { paddingHorizontal: 16, gap: 12 };
 
-/** Text on an outlined button on a TV. */
-export const TV_OUTLINE_INK = '#ddd3ff';
+/** Text on an outlined button. */
+export const OUTLINE_INK = '#ddd3ff';
 
 /**
- * Buttons on a TV, as in the owner's design: filled ones grey-purple with a small glow, the others
- * outlined in purple; rounded corners instead of pills.
+ * Buttons, as in the owner's design (phone, TV and website alike): filled ones grey-purple with a
+ * small glow, the others outlined in purple; rounded corners instead of pills.
  */
-export const tvButton = StyleSheet.create({
+export const buttonLook = StyleSheet.create({
   filled: { borderRadius: radius.md, backgroundColor: colors.button, boxShadow: GLOW.button },
   outlined: { borderRadius: radius.md, backgroundColor: 'rgba(38,36,47,0.4)', borderWidth: 2, borderColor: colors.outline },
 });
@@ -133,9 +133,7 @@ export const tvButton = StyleSheet.create({
 export const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
-  button: { height: 48, borderRadius: radius.pill, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
-  primary: { backgroundColor: colors.button },
-  ghost: { backgroundColor: colors.raised },
+  button: { height: 48, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
   buttonText: { fontSize: 16, fontWeight: '600' },
   label: { color: colors.muted, fontSize: 14 },
   input: { height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: 14, fontSize: 16 },

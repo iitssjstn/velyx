@@ -3,13 +3,24 @@
 @import '@fontsource-variable/figtree';
 
 @theme {
-  --color-bg: #14121c;
-  --color-surface: #1e1b29;
-  --color-raised: #2a2638;
-  --color-line: #37314a;
+  /* One style with the app and the TV: grey with a touch of purple (the owner's design). */
+  --color-bg: #1d1c25;
+  --color-surface: #26242f;
+  --color-raised: #302d3b;
+  --color-line: #3a3648;
   --color-ink: #ece8f4;
-  --color-muted: #9a93ad;
-  --color-faint: #6c6580;
+  --color-muted: #a49fb3;
+  --color-faint: #777189;
+  /* Filled buttons: muted grey-purple with white text and a small purple glow. */
+  --color-button: #6b6582;
+  --color-button-strong: #7a7394;
+  --color-button-ink: #ffffff;
+  /* Outlined buttons. */
+  --color-outline: rgb(170 150 225 / 0.55);
+  --color-outline-ink: #ddd3ff;
+  --shadow-glow: 0 6px 18px -6px rgb(130 110 190 / 0.55);
+  /* Under the poster or card you are on, as on the TV. */
+  --shadow-lift: 0 12px 26px -6px rgb(150 120 235 / 0.8);
   --color-accent: #b69cff;
   --color-accent-strong: #9f7fff;
   --color-accent-ink: #1b1430;

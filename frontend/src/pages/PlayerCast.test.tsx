@@ -92,6 +92,20 @@ describe('cast button in the player', () => {
     expect(screen.getByRole('button', { name: 'Play on a TV (Chromecast)' }).getAttribute('aria-busy')).toBe('true');
   });
 
+  it('gives a computer the same big remote as a phone while casting, not the dimmed controls', async () => {
+    castState.extra = { active: true, fileId: 3, settled: true, device: 'Living room', tvItem: null };
+    renderPlayer('?t=0');
+    const remote = await screen.findByRole('region', { name: 'Cast remote' });
+    // No md:hidden: on a computer it used to be hidden, with a dark layer over the normal controls instead.
+    expect(remote.className).not.toContain('md:hidden');
+    expect(within(remote).getByText('Living room')).toBeTruthy();
+    expect(within(remote).getByRole('button', { name: 'Back' })).toBeTruthy();
+    // The length comes from the server: the video here never loads while casting.
+    expect(within(remote).getByText('4:00')).toBeTruthy();
+    // The normal control bar is not shown at all while casting.
+    expect(screen.getByRole('button', { name: 'Full screen', hidden: true }).closest('.hidden')).toBeTruthy();
+  });
+
   it('follows the next episode the TV started itself, without loading the old title on the TV again', async () => {
     castState.extra = { active: true, fileId: 9, settled: true, tvItem: { kind: 'episode', id: 42, fileId: 9 } };
     const onPlayItem = vi.fn();

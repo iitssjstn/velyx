@@ -313,7 +313,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const suggestedStart = useMemo(() => startPosition(params.get('t'), item.data?.progress), [params, item.data?.progress]);
   const askResume = params.get('t') === null && suggestedStart > 0 && startChoice === null && !startedRef.current;
   const start = startChoice ?? suggestedStart;
-  const totalDuration = live ? (info?.decision.durationSec ?? file?.durationSec ?? 0) : duration;
+  // The video here gives the length of a direct-play file, but it never loads while casting (0:00 / 0:00): then the server's.
+  const totalDuration = live ? (info?.decision.durationSec ?? file?.durationSec ?? 0) : duration || (info?.decision.durationSec ?? file?.durationSec ?? 0);
   const streamSrc = current ? (live && current.seek > 0 ? withParam(current.base, 'start', current.seek.toFixed(3)) : current.base) : null;
 
   // HLS through hls.js: the pieces are loaded into the video element (Safari plays the list itself).
@@ -1292,17 +1293,10 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       {/* The chosen subtitle stays selected while minimized; it is only not drawn on the small video. */}
       {!mini && !postPlay && <SubtitleOverlay video={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.video : null} track={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.track : null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />}
 
-      {!mini && cast.active && (
-        <div className="pointer-events-none absolute inset-0 z-10 hidden place-items-center bg-bg/80 md:grid" role="status">
-          <div className="flex flex-col items-center gap-3 px-6 text-center">
-            <Cast className="size-12 text-accent" />
-            <p className="text-lg font-semibold">{cast.device ? t('player.castingTo', { device: cast.device }) : t('player.casting')}</p>
-            <p className="max-w-sm text-sm text-muted">{t('player.castingHint')}</p>
-          </div>
-        </div>
-      )}
+      {/* While casting, phone and computer get the same big remote. On a computer a dark layer used to lie over the
+          normal controls, which then looked switched off although they still worked. */}
       {!mini && cast.active && item.data && (
-        <MobileCastRemote
+        <CastRemote
           title={item.data.title}
           subtitle={item.data.subtitle}
           device={cast.device}
@@ -1317,6 +1311,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           subtitles={[{ id: null, label: t('player.off'), selected: !subKey }, ...subs.map((track) => ({ id: track.key, label: subtitleName(track), selected: subKey === track.key }))]}
           onSeek={seekTo}
           onTogglePlay={togglePlay}
+          onBack={exit}
           onStop={cast.stop}
           onVolume={(value) => applyVolume(value, cast.muted)}
           onToggleMute={() => applyVolume(cast.volume, !cast.muted)}
@@ -1349,7 +1344,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             <div className="mt-6 flex justify-center gap-3">
               <button type="button" onClick={exit} className="h-10 rounded-lg bg-raised px-4">{t('common.goBack')}</button>
               {!errorGone && (
-                <button type="button" onClick={retry} className="flex h-10 items-center gap-2 rounded-lg bg-accent px-4 font-semibold text-accent-ink">
+                <button type="button" onClick={retry} className="flex h-10 items-center gap-2 rounded-lg bg-button px-4 font-semibold text-button-ink">
                   <RotateCcw className="size-4" /> {t('common.tryAgain')}
                 </button>
               )}
@@ -1427,7 +1422,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
               <button type="button" onClick={() => { setEnded(false); if (live && offset > 0) restartAt(0); else { const v = videoRef.current; if (v) { v.currentTime = 0; void v.play(); } } }} className="flex h-10 items-center gap-2 rounded-lg bg-raised px-4">
                 <RotateCcw className="size-4" /> {t('player.watchAgain')}
               </button>
-              <Link to={item.data?.backHref ?? '/'} className="flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">{t('common.done')}</Link>
+              <Link to={item.data?.backHref ?? '/'} className="flex h-10 items-center rounded-lg bg-button px-4 font-semibold text-button-ink">{t('common.done')}</Link>
             </div>
           </div>
         </div>
@@ -1438,7 +1433,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           <div className="w-full max-w-xs rounded-2xl border border-line bg-surface/95 p-5 text-center shadow-2xl backdrop-blur">
             <p className="font-display text-lg font-semibold">{t('player.resumeFrom', { time: formatClock(suggestedStart) })}</p>
             <div className="mt-4 flex gap-2">
-              <button type="button" autoFocus onClick={() => setStartChoice(suggestedStart)} className="h-10 flex-1 rounded-lg bg-accent font-semibold text-accent-ink">{t('player.resume')}</button>
+              <button type="button" autoFocus onClick={() => setStartChoice(suggestedStart)} className="h-10 flex-1 rounded-lg bg-button font-semibold text-button-ink">{t('player.resume')}</button>
               <button type="button" onClick={() => setStartChoice(0)} className="h-10 flex-1 rounded-lg bg-raised">{t('player.startOver')}</button>
             </div>
           </div>
@@ -1516,7 +1511,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
 
       {/* Bottom controls */}
       <div
-        className={`absolute inset-x-0 bottom-0 ${mini ? 'hidden' : cast.active ? 'hidden md:block' : ''} bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-16 pb-4 transition-opacity duration-300 sm:px-8 sm:pt-24 sm:pb-7 ${showUi ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`absolute inset-x-0 bottom-0 ${mini || cast.active ? 'hidden' : ''} bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-16 pb-4 transition-opacity duration-300 sm:px-8 sm:pt-24 sm:pb-7 ${showUi ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Seek bar */}
@@ -1756,7 +1751,7 @@ const MINI_CLASSES =
 
 interface RemoteChoice { id: number | string | null; label: string; selected: boolean }
 
-function MobileCastRemote({
+function CastRemote({
   title,
   subtitle,
   device,
@@ -1771,6 +1766,7 @@ function MobileCastRemote({
   subtitles,
   onSeek,
   onTogglePlay,
+  onBack,
   onStop,
   onVolume,
   onToggleMute,
@@ -1791,6 +1787,8 @@ function MobileCastRemote({
   subtitles: RemoteChoice[];
   onSeek: (time: number) => void;
   onTogglePlay: () => void;
+  /** Leaves the player; the TV keeps playing. */
+  onBack: () => void;
   onStop: () => void;
   onVolume: (volume: number) => void;
   onToggleMute: () => void;
@@ -1806,13 +1804,16 @@ function MobileCastRemote({
   const action = 'flex min-h-14 min-w-20 flex-col items-center justify-center gap-1 rounded-xl px-3 text-xs text-ink/80 transition hover:bg-white/10 active:bg-white/15';
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-bg md:hidden" role="region" aria-label={t('player.castRemote')}>
+    <div className="fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-bg" role="region" aria-label={t('player.castRemote')}>
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         {backdrop && <img src={backdrop} alt="" className="h-[58vh] w-full object-cover opacity-35" />}
         <div className="absolute inset-0 bg-gradient-to-b from-bg/30 via-bg/70 to-bg" />
       </div>
       <div className="relative flex min-h-dvh flex-col px-5" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
-        <header className="flex items-center justify-center gap-2 py-3 text-center">
+        <header className="relative flex items-center justify-center gap-2 py-3 text-center">
+          <button type="button" onClick={onBack} className="absolute left-0 grid size-10 place-items-center rounded-full hover:bg-white/10" aria-label={t('common.back')}>
+            <ArrowLeft className="size-5" />
+          </button>
           <Cast className="size-4 text-accent" />
           <div className="min-w-0">
             <p className="text-[10px] font-semibold tracking-wide text-faint uppercase">{t('player.casting')}</p>
@@ -1940,7 +1941,7 @@ function Segmented<T extends string>({ label, value, options, onChange }: { labe
       <p className="pb-1 text-xs text-faint">{label}</p>
       <div className="flex gap-1" role="radiogroup" aria-label={label}>
         {options.map(([v, text]) => (
-          <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)} className={`flex-1 rounded-md px-1 py-1 text-xs ${value === v ? 'bg-accent font-semibold text-accent-ink' : 'bg-raised hover:bg-line'}`}>
+          <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)} className={`flex-1 rounded-md px-1 py-1 text-xs ${value === v ? 'bg-button font-semibold text-button-ink' : 'bg-raised hover:bg-line'}`}>
             {text}
           </button>
         ))}

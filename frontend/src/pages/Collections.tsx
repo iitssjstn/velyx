@@ -107,7 +107,7 @@ function SmartCollections({ isAdmin }: { isAdmin: boolean }) {
         {q.data.map((c) => (
           <div key={c.key} className="relative">
             <Link to={smartHref(c)} className="group block focus-visible:outline-none">
-              <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:ring-accent/60 group-focus-visible:ring-2 group-focus-visible:ring-accent">
+              <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:shadow-lift group-hover:ring-accent/60 group-focus-visible:shadow-lift group-focus-visible:ring-2 group-focus-visible:ring-accent">
                 <Artwork path={c.posterPath} title={smartName(c)} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                 <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-xs text-ink backdrop-blur">
@@ -168,7 +168,7 @@ export function CollectionsPage() {
         <div className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]">
           {q.data.map((c) => (
             <Link key={c.id} to={`/collections/${c.id}`} className="group block focus-visible:outline-none">
-              <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:ring-accent/60 group-focus-visible:ring-2 group-focus-visible:ring-accent">
+              <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:shadow-lift group-hover:ring-accent/60 group-focus-visible:shadow-lift group-focus-visible:ring-2 group-focus-visible:ring-accent">
                 <Artwork path={c.posterPath} title={c.name} />
                 <span className="absolute top-2 right-2 rounded-full bg-black/70 px-2 py-0.5 text-xs font-semibold text-ink backdrop-blur">{c.itemCount}</span>
               </div>

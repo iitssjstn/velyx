@@ -29,7 +29,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
           <h1 className="font-display text-3xl font-semibold">{t('errors.generic')}</h1>
           <p className="mt-3 text-muted">{t('errors.crashText')}</p>
           <div className="mt-6 flex justify-center gap-3">
-            <button className="h-10 rounded-lg bg-accent px-4 font-semibold text-accent-ink" onClick={() => window.location.reload()}>
+            <button className="h-10 rounded-lg bg-button px-4 font-semibold text-button-ink" onClick={() => window.location.reload()}>
               {t('common.tryAgain')}
             </button>
             <a className="grid h-10 place-items-center rounded-lg bg-raised px-4" href="/">

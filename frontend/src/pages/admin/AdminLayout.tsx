@@ -86,7 +86,7 @@ function SideNav({ unread }: { unread: number }) {
                   <Icon className="size-5 shrink-0" aria-hidden />
                   <span className="min-w-0 flex-1 truncate">{t(label)}</span>
                   {to === 'notifications' && unread > 0 && (
-                    <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-ink" aria-label={t('notifications.unread', { count: unread })}>
+                    <span className="rounded-full bg-button px-1.5 py-0.5 text-[10px] font-semibold text-button-ink" aria-label={t('notifications.unread', { count: unread })}>
                       {unread}
                     </span>
                   )}

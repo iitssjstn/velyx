@@ -331,7 +331,7 @@ export function BrowsePage({ kind }: { kind: Kind }) {
           </>}
           <Button variant="secondary" icon={<SlidersHorizontal className="size-4" />} onClick={() => setPanel(true)} aria-label={filtered ? t('browse.filtersActive', { count: chips.length }) : t('browse.filtersTitle')}>
             <span className="hidden sm:inline">{t('browse.filtersTitle')}</span>
-            {filtered && <span className="rounded-full bg-accent px-1.5 text-xs font-semibold text-accent-ink">{chips.length}</span>}
+            {filtered && <span className="rounded-full bg-button px-1.5 text-xs font-semibold text-button-ink">{chips.length}</span>}
           </Button>
         </div>
       </div>
@@ -377,7 +377,7 @@ export function BrowsePage({ kind }: { kind: Kind }) {
             ) : filtered ? (
               <Button variant="secondary" onClick={() => clearKeys([...activeFilterKeys])}>{t('browse.clearFilters')}</Button>
             ) : source !== 'seerr' && user?.role === 'admin' ? (
-              <Link to="/admin/libraries" className="inline-flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">{t('home.manageLibraries')}</Link>
+              <Link to="/admin/libraries" className="inline-flex h-10 items-center rounded-lg bg-button px-4 font-semibold text-button-ink">{t('home.manageLibraries')}</Link>
             ) : undefined
           }
         >

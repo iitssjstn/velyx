@@ -55,17 +55,17 @@ function Hero({ data, greetingText }: { data: HomeData; greetingText: string }) 
             </div>
           )}
           <div className="mt-6 flex flex-wrap gap-2.5 sm:gap-3">
-            <Link to={playLink} className="inline-flex h-12 items-center gap-2 rounded-md bg-accent px-6 font-semibold whitespace-nowrap text-accent-ink transition hover:bg-accent-strong">
+            <Link to={playLink} className="inline-flex h-12 items-center gap-2 rounded-md bg-button px-6 font-semibold whitespace-nowrap text-button-ink shadow-glow transition hover:bg-button-strong">
               <Play className="size-5 fill-current" />
               {cw && started ? t('player.resume') : featuredShow ? t('home.episodes') : t('player.play')}
             </Link>
             {cw && started && (
-              <Link to={startOverHref(cw)} className="inline-flex h-12 items-center gap-2 rounded-md bg-ink/10 px-5 font-medium whitespace-nowrap backdrop-blur transition hover:bg-ink/20">
+              <Link to={startOverHref(cw)} className="inline-flex h-12 items-center gap-2 rounded-md border-2 border-outline bg-surface/40 px-5 font-medium whitespace-nowrap text-outline-ink backdrop-blur transition hover:bg-raised/70">
                 <RotateCcw className="size-5" />
                 {t('player.startOver')}
               </Link>
             )}
-            {!featuredShow && <Link to={infoHref} className="inline-flex h-12 items-center gap-2 rounded-md bg-ink/10 px-5 font-medium whitespace-nowrap backdrop-blur transition hover:bg-ink/20">
+            {!featuredShow && <Link to={infoHref} className="inline-flex h-12 items-center gap-2 rounded-md border-2 border-outline bg-surface/40 px-5 font-medium whitespace-nowrap text-outline-ink backdrop-blur transition hover:bg-raised/70">
               <Info className="size-5" />
               {t('home.details')}
             </Link>}
@@ -117,7 +117,7 @@ export function HomePage() {
             title={d.counts.libraries === 0 ? t('home.noLibraries') : t('home.librariesEmpty')}
             action={
               user?.role === 'admin' ? (
-                <Link to="/admin/libraries" className="inline-flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">
+                <Link to="/admin/libraries" className="inline-flex h-10 items-center rounded-lg bg-button px-4 font-semibold text-button-ink">
                   {d.counts.libraries === 0 ? t('home.addLibrary') : t('home.manageLibraries')}
                 </Link>
               ) : undefined

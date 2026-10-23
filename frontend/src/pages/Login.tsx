@@ -68,7 +68,7 @@ export function LoginPage() {
             e.preventDefault();
             openWithVidalune();
           }}
-          className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-accent font-semibold text-accent-ink hover:brightness-110">
+          className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-button font-semibold text-button-ink shadow-glow hover:brightness-110">
           <Cloud className="size-5" aria-hidden="true" />
           {t('auth.withVidalune')}
         </a>

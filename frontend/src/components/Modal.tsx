@@ -90,7 +90,7 @@ export function ConfirmModal({
           type="button"
           onClick={onConfirm}
           disabled={loading || confirmDisabled}
-          className={`h-10 rounded-lg px-4 font-semibold disabled:opacity-50 ${danger ? 'bg-danger text-bg' : 'bg-accent text-accent-ink'}`}
+          className={`h-10 rounded-lg px-4 font-semibold disabled:opacity-50 ${danger ? 'bg-danger text-bg' : 'bg-button text-button-ink'}`}
         >
           {confirmLabel}
         </button>

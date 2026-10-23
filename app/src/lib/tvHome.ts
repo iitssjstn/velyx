@@ -72,9 +72,33 @@ export function tvPosterWidth(height: number): number {
 
 /**
  * Where the home screen scrolls to for the row with the focus: that row in the middle of what is
- * visible, so it is never half in view (never above the top).
+ * visible, so it is never half in view (never above the top). `atLeast` keeps the hero out of view
+ * once a row has the focus: its buttons showed half under the top bar.
  */
-export function rowScroll(top: number, height: number, visible: number): number {
-  if (!(visible > 0)) return Math.max(0, top);
-  return Math.max(0, Math.round(top - Math.max(0, visible - height) / 2));
+export function rowScroll(top: number, height: number, visible: number, atLeast = 0): number {
+  const middle = visible > 0 ? Math.round(top - Math.max(0, visible - height) / 2) : top;
+  return Math.max(0, atLeast, middle);
 }
+
+/**
+ * Whether the TV's top bar lies see-through over Home's hero (true) or on the background colour
+ * (false, once a row below the hero has the focus). Home sets it, the top bar follows it.
+ */
+export function overHeroStore() {
+  let over = true;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => over,
+    set(next: boolean) {
+      if (next === over) return;
+      over = next;
+      listeners.forEach((l) => l());
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+  };
+}
+
+export const overHero = overHeroStore();

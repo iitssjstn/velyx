@@ -7,10 +7,11 @@ import { Artwork, openCard } from './media';
 import { useOpenDiscover } from './Discover';
 import { useTvFocus } from './useTvFocus';
 import { DISCOVER_ROWS, discoverPath, mergePages, type DiscoverPage, type DiscoverRow, type SeerrResult } from '../lib/discover';
-import { cardTile, discoverTile, heroPick, rowScroll, tvPosterWidth, type TvTile } from '../lib/tvHome';
+import { cardTile, discoverTile, heroPick, overHero, rowScroll, tvPosterWidth, type TvTile } from '../lib/tvHome';
 import { useSession } from '../lib/session';
+import { continueLine } from '../lib/continue';
 import { glideTo } from '../../modules/vidalune-tv';
-import { Lift, TV_OUTLINE_INK, tvButton } from './ui';
+import { Lift, OUTLINE_INK, buttonLook } from './ui';
 import { TV_TOP_BAR } from './TvTopBar';
 import { colors, radius } from '../lib/theme';
 import type { Card, ContinueItem, HomeData } from '../lib/types';
@@ -19,6 +20,8 @@ export const SIDE = 48;
 const GAP = 20;
 /** The chosen poster or card grows a little, so it is easy to see where you are. */
 const FOCUS_SCALE = 1.1;
+/** The corners inside a card's 3-point edge. */
+const CARD_INNER = radius.md - 3;
 
 /** A Pressable that knows it has the focus, for posters and buttons that change look when chosen. */
 export function Focusable({ children, ...props }: Omit<PressableProps, 'children'> & { children: (focused: boolean) => ReactNode }) {
@@ -46,12 +49,14 @@ export function Focusable({ children, ...props }: Omit<PressableProps, 'children
 /**
  * Shading over artwork that runs into the background colour, so text on it stays readable (the
  * website's hero gradients): from the left edge (`from` and `width` place it) or up from the bottom.
+ * Inside a rounded card give it the card's `radius`: Android does not clip it to the card's corners,
+ * which left small square corners under the card's rounded edge.
  */
-export function Shade({ side, height = '60%', from = '0%', width = '75%' }: { side: 'left' | 'bottom'; height?: `${number}%`; from?: `${number}%`; width?: `${number}%` }) {
+export function Shade({ side, height = '60%', from = '0%', width = '75%', radius: r = 0 }: { side: 'left' | 'bottom'; height?: `${number}%`; from?: `${number}%`; width?: `${number}%`; radius?: number }) {
   return side === 'left' ? (
     <RNImage source={require('../../assets/shade-side.png')} resizeMode="stretch" tintColor={colors.bg} style={{ position: 'absolute', left: from, top: 0, bottom: 0, width, height: '100%' }} />
   ) : (
-    <RNImage source={require('../../assets/shade.png')} resizeMode="stretch" tintColor={colors.bg} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', height, transform: [{ scaleY: -1 }] }} />
+    <RNImage source={require('../../assets/shade.png')} resizeMode="stretch" tintColor={colors.bg} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', height, borderRadius: r, transform: [{ scaleY: -1 }] }} />
   );
 }
 
@@ -63,12 +68,12 @@ function HeroButton({ label, icon, primary, onPress, onFocus }: { label: string;
         <View
           style={[
             { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, paddingHorizontal: 24, borderWidth: 2, borderColor: 'transparent' },
-            primary ? tvButton.filled : tvButton.outlined,
+            primary ? buttonLook.filled : buttonLook.outlined,
             focused && { borderColor: colors.ink, transform: [{ scale: 1.05 }] },
           ]}
         >
-          <Feather name={icon} size={18} color={primary ? colors.buttonInk : TV_OUTLINE_INK} />
-          <Text style={{ color: primary ? colors.buttonInk : TV_OUTLINE_INK, fontSize: 16, fontWeight: '700' }}>{label}</Text>
+          <Feather name={icon} size={18} color={primary ? colors.buttonInk : OUTLINE_INK} />
+          <Text style={{ color: primary ? colors.buttonInk : OUTLINE_INK, fontSize: 16, fontWeight: '700' }}>{label}</Text>
         </View>
       )}
     </Focusable>
@@ -90,7 +95,7 @@ function Hero({ data, onFocus }: { data: HomeData; onFocus: () => void }) {
   const card = pick.kind === 'card' ? pick.card : null;
   const title = cw ? cw.title : card!.title;
   const backdrop = cw ? (cw.imagePath ?? cw.posterPath) : (card!.backdropPath ?? card!.posterPath);
-  const detail = cw ? [cw.subtitle, cw.episodeTitle].filter(Boolean).join(' · ') : (card!.overview ?? '');
+  const detail = cw ? continueLine(cw, t) : (card!.overview ?? '');
   const show = card?.type === 'show';
   const play = () => (cw ? router.push(`/play/${cw.type}/${cw.id}`) : card!.type === 'movie' ? router.push(`/play/movie/${card!.id}`) : openCard(card!));
   return (
@@ -125,10 +130,10 @@ function Poster({ tile, width, onPress, onFocus }: { tile: TvTile; width: number
         <>
           <Lift focused={focused} scale={FOCUS_SCALE}>
           <View style={{ width, height: width * 1.5, borderRadius: radius.md, overflow: 'hidden', borderWidth: 3, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)' }}>
-            <Artwork path={tile.poster} size="w342" label={tile.title} style={{ width: '100%', height: '100%' }} />
+            <Artwork path={tile.poster} size="w342" label={tile.title} style={{ width: '100%', height: '100%', borderRadius: CARD_INNER }} />
             {focused && (
               <>
-                <Shade side="bottom" height="75%" />
+                <Shade side="bottom" height="75%" radius={CARD_INNER} />
                 <View style={{ position: 'absolute', left: 10, right: 10, bottom: tile.progress > 0 ? 16 : 10 }}>
                   <Text numberOfLines={2} style={{ color: colors.ink, fontSize: 14, fontWeight: '700' }}>{tile.title}</Text>
                   {tile.facts ? <Text style={{ color: 'rgba(236,232,244,0.8)', fontSize: 12, marginTop: 3 }}>{tile.facts}</Text> : null}
@@ -165,8 +170,8 @@ function ContinueCard({ item, onFocus }: { item: ContinueItem; onFocus: () => vo
         <>
           <Lift focused={focused} scale={FOCUS_SCALE}>
           <View style={{ width, height: width * 0.5625, borderRadius: radius.md, overflow: 'hidden', borderWidth: 3, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)' }}>
-            <Artwork path={item.imagePath ?? item.posterPath} size="w780" label={item.title} style={{ width: '100%', height: '100%' }} />
-            <Shade side="bottom" height="50%" />
+            <Artwork path={item.imagePath ?? item.posterPath} size="w780" label={item.title} style={{ width: '100%', height: '100%', borderRadius: CARD_INNER }} />
+            <Shade side="bottom" height="50%" radius={CARD_INNER} />
             {focused && (
               <View style={{ position: 'absolute', left: 12, bottom: 16, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: 12, height: 30 }}>
                 <Feather name="play" size={14} color={colors.bg} />
@@ -183,9 +188,7 @@ function ContinueCard({ item, onFocus }: { item: ContinueItem; onFocus: () => vo
           <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 14, fontWeight: '500', marginTop: 8 }}>{item.title}</Text>
           {item.subtitle ? (
             <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
-              {item.upNext ? `${t('home.upNext')} · ` : ''}
-              {item.subtitle}
-              {item.episodeTitle ? ` · ${item.episodeTitle}` : ''}
+              {continueLine(item, t)}
             </Text>
           ) : null}
         </>
@@ -256,7 +259,11 @@ export function TvHome({ data }: { data: HomeData }) {
   const view = useRef(0);
   const toActive = () => {
     const at = tops.current.get(active.current);
-    const y = active.current === 'hero' || !at ? 0 : rowScroll(at.y, at.height, view.current);
+    const hero = tops.current.get('hero');
+    const onHero = active.current === 'hero' || !at;
+    // Under the hero, the hero goes fully out of view and the top bar gets its background.
+    const y = onHero ? 0 : rowScroll(at.y, at.height, view.current, hero ? hero.y + hero.height - TV_TOP_BAR : 0);
+    overHero.set(onHero);
     // Quick at the start and easing out, like a swipe (Android's own smooth scroll).
     glideTo(scroll.current, y);
   };
