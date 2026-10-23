@@ -553,6 +553,15 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Casten kan niet op een iPhone** (eigenaar 23 okt: "Op iPhone is het casten niet mogelijk omdat je via een manifest niet
+  de cast icon ziet"). Oorzaak: Google's Cast-SDK voor websites (`cast_sender.js`, `frontend/src/lib/cast.ts`) werkt
+  alleen in Chrome op pc/Android; op iOS gebruiken alle browsers WebKit en laadt hij nooit (`supported` blijft false, dus
+  geen knop). Ligt niet aan het manifest: in Safari of Chrome op de iPhone is het hetzelfde. De Vidalune-app is alleen
+  Android. Opties aan de eigenaar voorgelegd: (1) melding in de speler op iPhone met verwijzing naar de tv-app op Google
+  TV; (2) AirPlay-knop in de webspeler op iPhone (Apple TV en tv's met AirPlay, niet Chromecast); (3) iOS-app met
+  Google Cast (zelfde Expo-code, `react-native-google-cast` kan iOS; nodig: Apple Developer Program, macOS-builds,
+  App Store-beoordeling). Nog niet bouwen tot de eigenaar kiest.
+
 - **Foutcode 2100 bij wisselen tijdens casten bestaat nog** (eigenaar 22 okt, na 0.19.90: vanuit de app casten, een
   serie afspelen, tijdens het afspelen een andere serie kiezen → "Media control channel status code 2100" in de app).
   Vermoedelijke oorzaak (code nagelopen, nog niet bevestigd met het serverlogboek): de fix van 0.19.85
