@@ -34,6 +34,8 @@ export interface TvPlayerProps {
   seekStep: number;
   /** "Skip intro" (or recap, credits) when offered. */
   skipLabel: string | null;
+  /** The subtitle that is on (its name), shown as CC next to the time; null when off. */
+  captions: string | null;
   /** The "Next episode" card: what comes next and the seconds left. */
   upNext: { label: string; countdown: number; ended: boolean } | null;
   /** Where the skip button and the next-episode card sit (above the bar while it shows). */
@@ -116,6 +118,11 @@ export function TvPlayer(p: TvPlayerProps) {
                     <Text key="time" style={{ color: 'rgba(238,233,255,0.8)', fontSize: 16, marginLeft: 8, marginRight: 'auto' }}>
                       {formatClock(p.position)} <Text style={{ color: 'rgba(238,233,255,0.4)' }}>/ {formatClock(p.duration)}</Text>
                     </Text>,
+                    p.captions ? (
+                      <Text key="cc" accessibilityLabel={`${t('player.subtitles')}: ${p.captions}`} style={{ color: '#fff', fontSize: 14, fontWeight: '700', borderWidth: 2, borderColor: 'rgba(238,233,255,0.7)', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, marginRight: 12 }} numberOfLines={1}>
+                        CC · {p.captions}
+                      </Text>
+                    ) : null,
                   ] : button;
                 })}
               </View>

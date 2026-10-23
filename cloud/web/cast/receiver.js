@@ -1,6 +1,6 @@
 import { ProgressSaver, progressTarget, START_SLACK_SEC } from './progress.js';
 import { needsTracks, showsSplash, startOptions } from './screen.js';
-import { barVisible, cueCss, fileTimes, formatTime } from './overlay.js';
+import { SubtitleLoad, barVisible, ccLabel, cueCss, fileTimes, formatTime } from './overlay.js';
 import {
   CONTROLS_FOR_MS,
   DEFAULT_TV_STYLE,
@@ -234,6 +234,13 @@ const activeText = () => {
     return -1;
   }
 };
+// Whether the chosen subtitle is still coming from the server (shown as "Loading subtitle…").
+const subtitleLoad = new SubtitleLoad(async (url) => {
+  const res = await fetch(url);
+  // Only whether it came: the framework reads the file itself.
+  void res.body?.cancel().catch(() => undefined);
+  return res.ok;
+});
 const audioTracks = () => (Array.isArray(info?.audio) ? info.audio : []);
 const activeAudio = () => Math.max(0, audioTracks().findIndex((t) => t.index === audioIndex));
 
@@ -442,6 +449,7 @@ function render() {
   if (up) {
     $('position').textContent = formatTime(shown);
     $('length').textContent = length > 0 ? formatTime(length) : '';
+    $('cc').textContent = ccLabel(textTracks()[activeText()] ?? null);
     $('played').style.width = length > 0 ? `${Math.min(100, (shown / length) * 100)}%` : '0';
     setHtml($('marks'), segmentMarks(info?.segments ?? null, length).map((f) => `<i style="left:${(f * 100).toFixed(2)}%"></i>`).join(''));
     drawControls(paused);
@@ -458,6 +466,11 @@ function render() {
   const skip = card || active ? null : skipNow();
   $('skip').classList.toggle('on', Boolean(skip));
   document.body.classList.toggle('bar-on', up);
+  subtitleLoad.watch(textTracks()[activeText()]?.trackContentId ?? null);
+  const subtitleState = subtitleLoad.shown();
+  $('subload').classList.toggle('on', Boolean(subtitleState));
+  $('subload').classList.toggle('error', subtitleState === 'error');
+  $('subload').textContent = subtitleState === 'error' ? say.subtitleFailed : subtitleState ? say.subtitleLoading : '';
   if (skip) setHtml($('skip'), `${ICONS.next}${esc(say[skip.kind === 'recap' ? 'skipRecap' : skip.kind === 'credits' ? 'skipCredits' : 'skipIntro'])}`);
 }
 if (EventType.MEDIA_STATUS) player.addEventListener(EventType.MEDIA_STATUS, render);

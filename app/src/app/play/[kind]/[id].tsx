@@ -34,7 +34,7 @@ import { addSeek, justSkipped, SEEK_COMBINE_MS, SEEK_STEPS, skipAt, upNextStart,
 import { colors, radius } from '../../../lib/theme';
 import { tvFocus } from '../../../lib/tvFocus';
 import { TV_CONTROLS_MS, initialTvState, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, type RemoteKey, type TvContext } from '../../../lib/tvRemote';
-import { cueTextAt, parseVtt, type Cue } from '../../../lib/vtt';
+import { SUBTITLE_ERROR_FOR_MS, SUBTITLE_LOADING_AFTER_MS, cueTextAt, cuesFrom, type Cue } from '../../../lib/vtt';
 
 interface NextEpisode {
   id: number;
@@ -492,16 +492,33 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   };
 
   // Subtitles are shown by the app (the same for direct play and remux), from the server's WebVTT.
+  // A subtitle inside the file is read by the server first (minutes on a NAS): "Loading subtitle…"
+  // once it takes a moment, and a message when it could not be loaded, instead of nothing at all.
+  const [subLoad, setSubLoad] = useState<'loading' | 'error' | null>(null);
   useEffect(() => {
     setCues([]);
+    setSubLoad(null);
     if (!subtitle) return;
     let alive = true;
+    const slow = setTimeout(() => alive && setSubLoad('loading'), SUBTITLE_LOADING_AFTER_MS);
+    let gone: ReturnType<typeof setTimeout> | undefined;
     fetch(subtitleUrl(api, subtitle, 0, mediaEndpoint ?? undefined), { headers: mediaEndpoint ? {} : api.headers() })
-      .then((r) => r.text())
-      .then((text) => alive && setCues(parseVtt(text)))
-      .catch(() => undefined);
+      .then(cuesFrom)
+      .then((list) => {
+        if (!alive) return;
+        setCues(list);
+        setSubLoad(null);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setSubLoad('error');
+        gone = setTimeout(() => alive && setSubLoad(null), SUBTITLE_ERROR_FOR_MS);
+      })
+      .finally(() => clearTimeout(slow));
     return () => {
       alive = false;
+      clearTimeout(slow);
+      clearTimeout(gone);
     };
   }, [subtitle, api, mediaEndpoint]);
 
@@ -1001,6 +1018,12 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
     <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleAt + insets.bottom, alignItems: 'center' }}>
       <Text style={subtitleTextStyle(subStyle, screenHeight)}>{text}</Text>
     </View>
+  ) : subLoad && !casting ? (
+    <View pointerEvents="none" accessibilityRole="alert" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleAt + insets.bottom, alignItems: 'center' }}>
+      <Text style={{ color: subLoad === 'error' ? '#ff9aa8' : '#fff', fontSize: TV ? 22 : 15, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 999, overflow: 'hidden', paddingHorizontal: TV ? 26 : 16, paddingVertical: TV ? 12 : 8 }}>
+        {subLoad === 'error' ? t('player.subtitleFailed') : t('player.subtitleLoading')}
+      </Text>
+    </View>
   ) : null;
   const shown = scrub ?? position;
   return (
@@ -1054,6 +1077,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
             marks={segmentMarks(item.segments, item.fileId, duration)}
             seekStep={seekStep}
             skipLabel={askSkip ? skipLabel(askSkip.kind, t) : null}
+            captions={subtitle ? subtitleLabel(subtitle) : null}
             upNext={showNext && item.next ? { label: `${episodeCode(item.next.seasonNumber, item.next.episodeNumber)}${item.next.title ? ` · ${item.next.title}` : ''}`, countdown: countdown ?? 0, ended } : null}
           />
           {/* Over the bar's shading, so they stay readable. */}
