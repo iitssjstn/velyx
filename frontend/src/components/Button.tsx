@@ -4,8 +4,9 @@ import { LoaderCircle } from 'lucide-react';
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-accent text-accent-ink hover:bg-accent-strong font-semibold',
-  secondary: 'bg-raised text-ink hover:bg-line',
+  primary: 'bg-button text-button-ink shadow-glow hover:bg-button-strong font-semibold',
+  // Outlined in purple, as on the TV and in the app.
+  secondary: 'border-2 border-outline bg-surface/40 text-outline-ink hover:bg-raised',
   ghost: 'text-muted hover:text-ink hover:bg-raised',
   danger: 'bg-danger/15 text-danger hover:bg-danger/25',
 };

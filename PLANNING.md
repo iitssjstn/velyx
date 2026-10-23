@@ -362,6 +362,33 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   weggehaald. Gemerged 23 okt op verzoek van de eigenaar ("merge het maar"; alle checks groen). Eigenaar (23 okt):
   "Alles is goed gemaakt, ik heb de app gepushed naar de gesloten test"; de gesloten test wacht op Google's beoordeling.
 
+## Versie 0.19.93 (één stijl op tv, telefoon en website; fixes uit de tv-foto's)
+
+- Eigenaar (23 okt, drie foto's van 0.19.92 op de tv: "Dit is hoe het eruit ziet"). Gevonden en gemeld: (1) de titel van de
+  aflevering (en "Up next"/"Next:") stond dubbel onder Verder kijken en in de hero; (2) bij omlaag naar Verder kijken
+  stonden Play en Details van de hero half onder de doorzichtige bovenbalk; (3) de knoppen op de detailpagina liepen
+  over drie regels. Eigenaar: "voor de rest heb je volledig gelijk doe dat maar, kan dezelfde style in de app en op de
+  website doen dan hou je alles in 1 style". Daarna: "je ziet onderaan de hero kleine hoekjes zitten" (de kaart met de
+  focus).
+- Dubbele titel: de server zet titel en een Engelse "Next:" al in `subtitle`; tv en telefoon plakten ze er nog eens
+  achter. Nu `continueLine` (`app/src/lib/continue.ts`, getest) uit de losse velden. De website deed het al goed.
+- Bovenbalk: zodra een rij onder de hero de focus heeft, gaat de hero helemaal uit beeld (`rowScroll(..., atLeast)`) en
+  krijgt de balk de achtergrondkleur (`overHero` in `lib/tvHome.ts`, getest; `TvTopBar` volgt het).
+- Hoekjes: het donkere verloop onderin een kaart werd op Android niet mee afgerond; `Shade` en de artwork krijgen de
+  binnenhoek van de kaart (`radius`, `CARD_INNER`), ook bij de afleveringen.
+- Detailpagina: de tekst blijft links (60 %), de knoppen mogen breder; Watchlist, Favoriet en Gezien zijn op de tv ronde
+  knoppen met alleen een icoon (voorgelezen wat ze doen), zodat alles op één rij past.
+- Eén stijl: de telefoon-app gebruikt nu dezelfde kleuren als de tv (`palette`, geen tv-verschil meer) en dezelfde
+  knoppen (`buttonLook`: grijspaars gevuld met gloed, omlijnd in paars, afgeronde hoeken). Website (`index.css`):
+  achtergrond, vlakken en lijnen grijs met paars, nieuwe kleuren `button`/`outline`, gevulde knoppen grijspaars met
+  gloed (`shadow-glow`), secundaire knoppen omlijnd, posters en Verder kijken komen bij muis/focus omhoog met paarse gloed
+  (`shadow-lift`). Ook `index.html`, `offline.html` en het manifest. Accountsite en Control Center (`cloud/web/style.css`)
+  dezelfde kleuren en knoppen. De cast-webspeler op de tv is niet veranderd.
+- Tests: app 235 (`continue.test.ts`, `tvHome.test.ts`, `palette.test.ts`), frontend 359, cloud 207; alle typechecks, lint
+  (0 fouten, 4 bekende waarschuwingen) en de frontend-build slagen. Website lokaal gedraaid en bekeken (setup, Home,
+  Beheer). Op de tv en telefoon te bekijken.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1993) en beide lockfiles bijgewerkt.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)

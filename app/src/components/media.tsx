@@ -6,6 +6,7 @@ import { gridLayout, isWide } from '../lib/layout';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 import type { Card, ContinueItem } from '../lib/types';
+import { continueLine } from '../lib/continue';
 import { FocusPressable, FocusRing, Lift, shelfPadding, Heading, ProgressLine, styles } from './ui';
 
 /** Artwork from the server's image cache (the request carries the app's token). */
@@ -110,8 +111,7 @@ export function ContinueShelf({ title, items }: { title: string; items: Continue
                 <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 14, marginTop: 6, fontWeight: '600' }}>{item.title}</Text>
                 {item.subtitle ? (
                   <Text numberOfLines={1} style={styles.muted}>
-                    {item.upNext ? `${t('home.upNext')} · ` : ''}
-                    {item.subtitle}
+                    {continueLine(item, t)}
                   </Text>
                 ) : null}
               </>

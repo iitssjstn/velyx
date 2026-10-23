@@ -363,7 +363,7 @@ export function UsersPage() {
             <div className="space-y-4">
               <p className="text-sm text-muted">{t('users.inviteNeedsLink')}</p>
               <div className="flex justify-end">
-                <Link className="inline-flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink hover:bg-accent-strong" to="/admin/cloud" onClick={() => setInviting(false)}>{t('users.inviteToCloud')}</Link>
+                <Link className="inline-flex h-10 items-center rounded-lg bg-button px-4 font-semibold text-button-ink hover:bg-button-strong" to="/admin/cloud" onClick={() => setInviting(false)}>{t('users.inviteToCloud')}</Link>
               </div>
             </div>
           ) : (

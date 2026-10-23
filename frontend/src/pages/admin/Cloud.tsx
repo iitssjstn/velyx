@@ -171,7 +171,7 @@ export function CloudPage() {
             <p className="font-mono text-4xl font-semibold tracking-[0.2em]" aria-label={s.code.code.split('').join(' ')}>{s.code.code}</p>
             <p className="text-sm text-muted">{t('cloud.waitingHelp')} {t('cloud.expires', { time: time(s.code.expiresAt) })}</p>
             <div className="flex flex-wrap gap-2">
-              <a className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-accent px-3 text-sm font-semibold text-accent-ink" href={s.code.linkUrl} target="_blank" rel="noopener noreferrer">
+              <a className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-button px-3 text-sm font-semibold text-button-ink" href={s.code.linkUrl} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="size-4" aria-hidden="true" />
                 {t('cloud.openPage')}
               </a>

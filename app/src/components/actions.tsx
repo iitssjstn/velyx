@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Text } from 'react-native';
-import { FocusPressable, TV_OUTLINE_INK, tvButton } from './ui';
+import { FocusPressable, OUTLINE_INK, buttonLook } from './ui';
 import { Feather } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { errorMessage } from '../lib/connection';
@@ -41,7 +41,7 @@ export function Toggle({ active, icon, text, label, activeLabel, request, compac
   // Read aloud: what pressing does ("Add to watchlist" / "Remove from watchlist").
   const a11y = shown ? activeLabel : label;
   const tv = Platform.isTV;
-  const ink = shown ? colors.buttonInk : tv ? TV_OUTLINE_INK : colors.ink;
+  const ink = shown ? colors.buttonInk : OUTLINE_INK;
   return (
     <FocusPressable
       accessibilityRole="button"
@@ -64,17 +64,16 @@ export function Toggle({ active, icon, text, label, activeLabel, request, compac
           gap: 8,
           height: compact ? 36 : 44,
           paddingHorizontal: compact ? 10 : 16,
-          borderRadius: radius.pill,
-          backgroundColor: shown ? colors.button : colors.raised,
           opacity: pressed ? 0.8 : 1,
         },
-        // On a TV: as high as the other buttons, filled when on and outlined when off.
-        tv && { height: 48 },
-        tv && (shown ? tvButton.filled : tvButton.outlined),
+        // Filled when on, outlined when off (the buttons' look everywhere).
+        shown ? buttonLook.filled : buttonLook.outlined,
+        // On a TV a round icon as high as the other buttons, so all fit on one row; what it does is read aloud.
+        tv && { height: 48, width: 48, paddingHorizontal: 0, justifyContent: 'center', borderRadius: radius.pill },
       ]}
     >
       {busy ? <ActivityIndicator size="small" color={ink} /> : <Feather name={icon} size={compact ? 16 : 18} color={ink} />}
-      {!compact && text ? <Text style={{ color: ink, fontWeight: '600' }}>{text}</Text> : null}
+      {!compact && !tv && text ? <Text style={{ color: ink, fontWeight: '600' }}>{text}</Text> : null}
     </FocusPressable>
   );
 }

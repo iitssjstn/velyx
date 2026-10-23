@@ -18,7 +18,7 @@ export function PosterCard({ item, className = '' }: { item: Card; className?: s
   const unwatchedEpisodes = item.type === 'show' ? item.episodeCount - item.watchedCount : 0;
   return (
     <Link to={href} className={`group block focus-visible:outline-none ${className}`}>
-      <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:ring-accent/60 group-focus-visible:ring-2 group-focus-visible:ring-accent">
+      <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:shadow-lift group-hover:ring-accent/60 group-focus-visible:shadow-lift group-focus-visible:ring-2 group-focus-visible:ring-accent">
         <Artwork path={item.posterPath} title={item.title} />
         {watched && (
           <span className="absolute top-2 right-2 z-10 grid size-6 place-items-center rounded-full bg-ok text-bg shadow" title={t('library.watched')}>
@@ -26,7 +26,7 @@ export function PosterCard({ item, className = '' }: { item: Card; className?: s
           </span>
         )}
         {item.type === 'show' && !watched && item.watchedCount > 0 && unwatchedEpisodes > 0 && (
-          <span className="absolute top-2 right-2 z-10 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-ink" title={t('library.unwatchedCount', { count: unwatchedEpisodes })}>
+          <span className="absolute top-2 right-2 z-10 rounded-full bg-button px-2 py-0.5 text-xs font-semibold text-button-ink" title={t('library.unwatchedCount', { count: unwatchedEpisodes })}>
             {unwatchedEpisodes}
           </span>
         )}
@@ -111,7 +111,7 @@ export function ContinueCard({ item, onDismiss, onMarkWatched }: { item: Continu
   return (
     <div className="group relative w-72 shrink-0 sm:w-80">
       <Link to={detailsHref} className="block focus-visible:outline-none" aria-label={t('continueWatching.details', { name })}>
-        <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition group-hover:ring-accent/60 group-has-[a:focus-visible]:ring-2 group-has-[a:focus-visible]:ring-accent">
+        <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:shadow-lift group-hover:ring-accent/60 group-has-[a:focus-visible]:shadow-lift group-has-[a:focus-visible]:ring-2 group-has-[a:focus-visible]:ring-accent">
           <Artwork path={item.imagePath ?? item.posterPath} size="w780" aspect="wide" title={item.title} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
           {started && (

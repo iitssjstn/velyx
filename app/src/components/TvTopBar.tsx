@@ -1,10 +1,11 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { Logo } from './Logo';
 import { useTvFocus } from './useTvFocus';
 import { colors, radius } from '../lib/theme';
+import { overHero } from '../lib/tvHome';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
 const ICONS: Record<string, IconName> = { home: 'home', movies: 'film', shows: 'tv', genres: 'tag', search: 'search', account: 'user' };
@@ -46,7 +47,9 @@ export function TvTopBar({ state, descriptors, navigation }: BottomTabBarProps) 
     return { key: route.key, name: route.name, label, active, onPress };
   });
   const right = new Set(['search', 'account']);
-  const home = state.routes[state.index]?.name === 'home';
+  // See-through only over Home's hero; on its rows (and elsewhere) on the background colour.
+  const onHero = useSyncExternalStore(overHero.subscribe, overHero.get);
+  const seeThrough = state.routes[state.index]?.name === 'home' && onHero;
   const render = (tab: (typeof tabs)[number], withLabel: boolean) => (
     <Item key={tab.key} label={tab.label} active={tab.active} onPress={tab.onPress}>
       {(color) => (
@@ -58,8 +61,8 @@ export function TvTopBar({ state, descriptors, navigation }: BottomTabBarProps) 
     </Item>
   );
   return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: TV_TOP_BAR, zIndex: 10, elevation: 10, flexDirection: 'row', alignItems: 'center', gap: 20, paddingHorizontal: 48, backgroundColor: home ? 'transparent' : colors.bg }}>
-      {home && <Image source={require('../../assets/shade.png')} resizeMode="stretch" tintColor={colors.bg} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: TV_TOP_BAR + 40, width: '100%', opacity: 0.9 }} />}
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: TV_TOP_BAR, zIndex: 10, elevation: 10, flexDirection: 'row', alignItems: 'center', gap: 20, paddingHorizontal: 48, backgroundColor: seeThrough ? 'transparent' : colors.bg }}>
+      {seeThrough && <Image source={require('../../assets/shade.png')} resizeMode="stretch" tintColor={colors.bg} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: TV_TOP_BAR + 40, width: '100%', opacity: 0.9 }} />}
       <Logo small />
       <View style={{ flex: 1, flexDirection: 'row', gap: 4 }} accessibilityRole="tablist">
         {tabs.filter((tab) => !right.has(tab.name)).map((tab) => render(tab, true))}

@@ -15,9 +15,10 @@ const TEXT_SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { wi
 
 /**
  * A title's page on a TV (the owner's design): the artwork bright on the right, running into the
- * background on the left; there a big title with its year, the facts, the buttons in one row and the
- * story. `above` goes over the buttons (progress), `children` are the buttons, `below` is what follows
- * (a show's seasons and episodes, then About with the cast at the bottom).
+ * background on the left; there a big title with its year, the facts, the buttons in one row (Watchlist,
+ * Favorite and Watched as round icons) and the story. `above` goes over the buttons (progress),
+ * `children` are the buttons, `below` is what follows (a show's seasons and episodes, then About
+ * with the cast at the bottom).
  */
 export function TvDetail({ backdrop, title, year, facts, overview, above, children, below }: { backdrop: string | null; title: string; year?: number | null; facts: string; overview: string | null; above?: ReactNode; children: ReactNode; below?: ReactNode }) {
   const { height } = useWindowDimensions();
@@ -27,15 +28,16 @@ export function TvDetail({ backdrop, title, year, facts, overview, above, childr
       <Shade side="left" from="30%" width="45%" />
       <Shade side="bottom" height="45%" />
       <ScrollView contentContainerStyle={{ paddingBottom: 48 }}>
-        <View style={{ minHeight: below ? height * 0.6 : height, justifyContent: 'flex-end', paddingHorizontal: SIDE, paddingTop: 56, paddingBottom: 24, width: '60%', gap: 14 }}>
-          <Text accessibilityRole="header" numberOfLines={2} style={{ color: colors.ink, fontSize: 52, lineHeight: 58, fontWeight: '700', letterSpacing: -1, ...TEXT_SHADOW }}>
+        {/* The text keeps to the left 60 %; the buttons may run further, so they stay on one row. */}
+        <View style={{ minHeight: below ? height * 0.6 : height, justifyContent: 'flex-end', paddingHorizontal: SIDE, paddingTop: 56, paddingBottom: 24, gap: 14 }}>
+          <Text accessibilityRole="header" numberOfLines={2} style={{ color: colors.ink, fontSize: 52, lineHeight: 58, fontWeight: '700', letterSpacing: -1, maxWidth: '60%', ...TEXT_SHADOW }}>
             {title}
             {year ? <Text style={{ fontWeight: '300', color: 'rgba(236,232,244,0.6)' }}> ({year})</Text> : null}
           </Text>
-          {facts ? <Text style={{ color: colors.muted, fontSize: 17, ...TEXT_SHADOW }}>{facts}</Text> : null}
-          {above}
+          {facts ? <Text style={{ color: colors.muted, fontSize: 17, maxWidth: '60%', ...TEXT_SHADOW }}>{facts}</Text> : null}
+          {above ? <View style={{ maxWidth: '60%' }}>{above}</View> : null}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 4 }}>{children}</View>
-          {overview ? <Text numberOfLines={4} style={{ color: 'rgba(236,232,244,0.88)', fontSize: 17, lineHeight: 25, maxWidth: 760, ...TEXT_SHADOW }}>{overview}</Text> : null}
+          {overview ? <Text numberOfLines={4} style={{ color: 'rgba(236,232,244,0.88)', fontSize: 17, lineHeight: 25, maxWidth: '60%', ...TEXT_SHADOW }}>{overview}</Text> : null}
         </View>
         {below}
       </ScrollView>
@@ -95,7 +97,7 @@ export function TvEpisodeRow({ episodes, upNextId, label }: { episodes: EpisodeS
               <>
                 <Lift focused={focused} scale={1.08}>
                 <View style={{ width: STILL, height: STILL * 0.5625, borderRadius: radius.md, overflow: 'hidden', borderWidth: 3, borderColor: focused ? colors.accent : 'rgba(255,255,255,0.05)' }}>
-                  <Artwork path={e.stillPath} size="w500" label={label(e)} style={{ width: '100%', height: '100%' }} />
+                  <Artwork path={e.stillPath} size="w500" label={label(e)} style={{ width: '100%', height: '100%', borderRadius: radius.md - 3 }} />
                   {e.progress && !e.progress.completed && progressFraction(e.progress) > 0 ? (
                     <View style={{ position: 'absolute', left: 10, right: 10, bottom: 8, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' }}>
                       <View style={{ height: 3, width: `${Math.round(progressFraction(e.progress) * 100)}%`, backgroundColor: colors.accent }} />

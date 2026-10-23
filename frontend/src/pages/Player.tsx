@@ -1349,7 +1349,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
             <div className="mt-6 flex justify-center gap-3">
               <button type="button" onClick={exit} className="h-10 rounded-lg bg-raised px-4">{t('common.goBack')}</button>
               {!errorGone && (
-                <button type="button" onClick={retry} className="flex h-10 items-center gap-2 rounded-lg bg-accent px-4 font-semibold text-accent-ink">
+                <button type="button" onClick={retry} className="flex h-10 items-center gap-2 rounded-lg bg-button px-4 font-semibold text-button-ink">
                   <RotateCcw className="size-4" /> {t('common.tryAgain')}
                 </button>
               )}
@@ -1427,7 +1427,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
               <button type="button" onClick={() => { setEnded(false); if (live && offset > 0) restartAt(0); else { const v = videoRef.current; if (v) { v.currentTime = 0; void v.play(); } } }} className="flex h-10 items-center gap-2 rounded-lg bg-raised px-4">
                 <RotateCcw className="size-4" /> {t('player.watchAgain')}
               </button>
-              <Link to={item.data?.backHref ?? '/'} className="flex h-10 items-center rounded-lg bg-accent px-4 font-semibold text-accent-ink">{t('common.done')}</Link>
+              <Link to={item.data?.backHref ?? '/'} className="flex h-10 items-center rounded-lg bg-button px-4 font-semibold text-button-ink">{t('common.done')}</Link>
             </div>
           </div>
         </div>
@@ -1438,7 +1438,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           <div className="w-full max-w-xs rounded-2xl border border-line bg-surface/95 p-5 text-center shadow-2xl backdrop-blur">
             <p className="font-display text-lg font-semibold">{t('player.resumeFrom', { time: formatClock(suggestedStart) })}</p>
             <div className="mt-4 flex gap-2">
-              <button type="button" autoFocus onClick={() => setStartChoice(suggestedStart)} className="h-10 flex-1 rounded-lg bg-accent font-semibold text-accent-ink">{t('player.resume')}</button>
+              <button type="button" autoFocus onClick={() => setStartChoice(suggestedStart)} className="h-10 flex-1 rounded-lg bg-button font-semibold text-button-ink">{t('player.resume')}</button>
               <button type="button" onClick={() => setStartChoice(0)} className="h-10 flex-1 rounded-lg bg-raised">{t('player.startOver')}</button>
             </div>
           </div>
@@ -1940,7 +1940,7 @@ function Segmented<T extends string>({ label, value, options, onChange }: { labe
       <p className="pb-1 text-xs text-faint">{label}</p>
       <div className="flex gap-1" role="radiogroup" aria-label={label}>
         {options.map(([v, text]) => (
-          <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)} className={`flex-1 rounded-md px-1 py-1 text-xs ${value === v ? 'bg-accent font-semibold text-accent-ink' : 'bg-raised hover:bg-line'}`}>
+          <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)} className={`flex-1 rounded-md px-1 py-1 text-xs ${value === v ? 'bg-button font-semibold text-button-ink' : 'bg-raised hover:bg-line'}`}>
             {text}
           </button>
         ))}

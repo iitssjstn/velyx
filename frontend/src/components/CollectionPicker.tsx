@@ -72,7 +72,7 @@ export function CollectionPicker({ type, id, current, onClose }: { type: 'movie'
                       aria-pressed={on}
                       className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-raised"
                     >
-                      <span className={`grid size-5 place-items-center rounded border ${on ? 'border-accent bg-accent text-accent-ink' : 'border-line'}`}>
+                      <span className={`grid size-5 place-items-center rounded border ${on ? 'border-accent bg-button text-button-ink' : 'border-line'}`}>
                         {on && <Check className="size-3.5" strokeWidth={3} />}
                       </span>
                       <span className="flex-1 truncate">{c.name}</span>
@@ -88,7 +88,7 @@ export function CollectionPicker({ type, id, current, onClose }: { type: 'movie'
             <button type="button" onClick={() => setCreating(true)} className="inline-flex h-10 items-center gap-2 rounded-lg px-3 text-muted hover:bg-raised hover:text-ink">
               <Plus className="size-4" /> {t('collections.new')}
             </button>
-            <button type="button" onClick={onClose} className="h-10 rounded-lg bg-accent px-4 font-semibold text-accent-ink">
+            <button type="button" onClick={onClose} className="h-10 rounded-lg bg-button px-4 font-semibold text-button-ink">
               {t('common.done')}
             </button>
           </div>

@@ -1,7 +1,6 @@
-import { Platform } from 'react-native';
 import { palette } from './palette';
 
-/** Vidalune's colours (the website's dark theme on a phone; grey-purple on a TV, see palette). */
-export const colors = palette(Platform.isTV);
+/** Vidalune's colours: one style on the phone, the TV and the website (see palette). */
+export const colors = palette;
 
 export const radius = { sm: 8, md: 12, lg: 16, pill: 999 };

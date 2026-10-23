@@ -98,7 +98,7 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
               type="button"
               // A show's seasons are chosen in the question that opens (nothing ticked beforehand).
               onClick={() => setConfirming(true)}
-              className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-semibold text-accent-ink hover:brightness-110 disabled:opacity-60"
+              className="inline-flex h-12 items-center gap-2 rounded-full bg-button px-6 font-semibold text-button-ink shadow-glow hover:brightness-110 disabled:opacity-60"
             >
               <Send className="size-5" />
               {t('requests.request')}
