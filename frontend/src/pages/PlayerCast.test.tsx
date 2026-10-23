@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Player from './Player';
@@ -44,11 +44,12 @@ afterEach(() => {
   reload.mockClear();
 });
 
-function renderPlayer(search: string, onPlayItem: (kind: 'movie' | 'episode', id: number) => void = () => undefined) {
+type Hooks = Partial<Pick<Parameters<typeof Player>[0], 'mini' | 'onMinimize' | 'onRestore' | 'onClose' | 'onCasting'>>;
+function renderPlayer(search: string, onPlayItem: (kind: 'movie' | 'episode', id: number) => void = () => undefined, hooks: Hooks = {}) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
-        <Player kind="movie" id={3} search={search} mini={false} onMinimize={() => undefined} onRestore={() => undefined} onClose={() => undefined} onPlayItem={onPlayItem} />
+        <Player kind="movie" id={3} search={search} mini={false} onMinimize={() => undefined} onRestore={() => undefined} onClose={() => undefined} onPlayItem={onPlayItem} {...hooks} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -99,11 +100,59 @@ describe('cast button in the player', () => {
     // No md:hidden: on a computer it used to be hidden, with a dark layer over the normal controls instead.
     expect(remote.className).not.toContain('md:hidden');
     expect(within(remote).getByText('Living room')).toBeTruthy();
-    expect(within(remote).getByRole('button', { name: 'Back' })).toBeTruthy();
+    expect(within(remote).getByRole('button', { name: 'Close the remote (the TV keeps playing)' })).toBeTruthy();
     // The length comes from the server: the video here never loads while casting.
     expect(within(remote).getByText('4:00')).toBeTruthy();
     // The normal control bar is not shown at all while casting.
     expect(screen.getByRole('button', { name: 'Full screen', hidden: true }).closest('.hidden')).toBeTruthy();
+  });
+
+  it('closes the remote by sliding it down to the cast bar, with the TV playing on', async () => {
+    castState.extra = { active: true, fileId: 3, settled: true, device: 'Living room', tvItem: null };
+    const onMinimize = vi.fn();
+    const onClose = vi.fn();
+    const onCasting = vi.fn();
+    renderPlayer('?t=0', undefined, { onMinimize, onClose, onCasting });
+    const remote = await screen.findByRole('region', { name: 'Cast remote' });
+    expect(remote.className).toContain('animate-sheet-up');
+    expect(onCasting).toHaveBeenLastCalledWith(true);
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(within(remote).getByRole('button', { name: 'Close the remote (the TV keeps playing)' }));
+      expect(remote.className).toContain('translate-y-full');
+      expect(onMinimize).not.toHaveBeenCalled();
+      act(() => void vi.advanceTimersByTime(400));
+    } finally {
+      vi.useRealTimers();
+    }
+    // Minimized, not closed: the player stays (as the cast bar) and casting goes on.
+    expect(onMinimize).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('is a cast bar along the bottom when minimized while casting', async () => {
+    const stop = vi.fn();
+    castState.extra = { active: true, fileId: 3, settled: true, device: 'Living room', tvItem: null, time: 60, playing: true, stop };
+    const onRestore = vi.fn();
+    const onClose = vi.fn();
+    renderPlayer('?t=0', undefined, { mini: true, onRestore, onClose });
+    const bar = await screen.findByRole('region', { name: 'Cast remote' });
+    expect(bar.className).toContain('inset-x-0');
+    expect(bar.className).toContain('animate-bar-up');
+    expect(document.documentElement.classList.contains('has-cast-bar')).toBe(true);
+    await within(bar).findByText('Test Film');
+    expect(within(bar).getByText('Living room')).toBeTruthy();
+    // Not the small video player: its picture is hidden, and the TV's position shows.
+    expect(bar.querySelector('video:not(.hidden)')).toBeNull();
+    const controls = within(within(bar).getByRole('button', { name: 'Stop casting' }).parentElement!);
+    expect(controls.getByText('1:00')).toBeTruthy();
+    expect(controls.getByText('4:00')).toBeTruthy();
+    // The poster with the full-screen sign (and the title) open the big remote again.
+    fireEvent.click(controls.getAllByRole('button', { name: 'Open full player' })[0]!);
+    expect(onRestore).toHaveBeenCalledTimes(1);
+    fireEvent.click(controls.getByRole('button', { name: 'Stop casting' }));
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('follows the next episode the TV started itself, without loading the old title on the TV again', async () => {

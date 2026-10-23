@@ -1,7 +1,8 @@
 import { Redirect } from 'expo-router';
-import { Tabs } from 'expo-router/js-tabs';
+import { BottomTabBar, Tabs } from 'expo-router/js-tabs';
 import type { ColorValue } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { CastMiniBar } from '../../components/CastMiniBar';
 import { TV } from '../../components/screen';
 import { TV_TOP_BAR, TvTopBar } from '../../components/TvTopBar';
 import { useSession } from '../../lib/session';
@@ -20,7 +21,8 @@ export default function TabsLayout() {
   if (!signedIn) return <Redirect href={signedOutRoute(sessionEnded)} />;
   return (
     <Tabs
-      tabBar={TV ? (props) => <TvTopBar {...props} /> : undefined}
+      // On a phone, what plays on the Chromecast sits just above the tabs (CastMiniBar).
+      tabBar={(props) => (TV ? <TvTopBar {...props} /> : <><CastMiniBar /><BottomTabBar {...props} /></>)}
       screenOptions={{
         headerStyle: { backgroundColor: colors.bg },
         headerTintColor: colors.ink,

@@ -61,7 +61,8 @@ export default function RootLayout() {
             <Stack.Screen name="request/[type]/[id]" options={{ title: '' }} />
             <Stack.Screen name="account/password" options={{ title: '' }} />
             <Stack.Screen name="account/sessions" options={{ title: '' }} />
-            <Stack.Screen name="play/[kind]/[id]" options={{ headerShown: false, animation: 'fade' }} />
+            {/* From the cast bar the remote slides up over the screens (and down again); otherwise the player fades in. */}
+            <Stack.Screen name="play/[kind]/[id]" options={({ route }) => ({ headerShown: false, animation: (route.params as { bar?: string } | undefined)?.bar === '1' ? 'slide_from_bottom' : 'fade' })} />
           </Stack>
           <ConnectionBanner />
           <CastStatusBar />

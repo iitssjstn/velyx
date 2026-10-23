@@ -18,6 +18,7 @@ vi.mock('../pages/Player', () => ({
         <button onClick={p.onRestore}>restore</button>
         <button onClick={() => p.onClose('/movies/1')}>close</button>
         <button onClick={() => p.onPlayItem('episode', 7)}>next</button>
+        <button onClick={() => p.onCasting?.(true)}>cast</button>
       </div>
     );
   },
@@ -117,5 +118,21 @@ describe('mini-player', () => {
     expect(p.dataset.item).toBe('movie:2');
     expect(p.dataset.mini).toBe('false');
     expect(screen.getAllByTestId('player')).toHaveLength(1);
+  });
+
+  it('stays as the cast bar when the viewer leaves the full player while a Chromecast plays it', async () => {
+    const router = setup();
+    await act(() => router.navigate('/play/movie/1'));
+    await act(async () => screen.getByText('cast').click());
+    await act(() => router.navigate(-1));
+    expect(router.state.location.pathname).toBe('/movies/1');
+    const p = await player();
+    expect(p.dataset.mini).toBe('true');
+    expect(mounts.count).toBe(1);
+    // Closed from the bar, the next player starts without casting.
+    await act(async () => screen.getByText('close').click());
+    await act(() => router.navigate('/play/movie/2'));
+    await act(() => router.navigate(-1));
+    expect(screen.queryByTestId('player')).toBeNull();
   });
 });

@@ -71,7 +71,7 @@ const NEXT_COUNTDOWN = 10;
 const DOUBLE_TAP_MS = 300;
 
 export default function Player() {
-  const { kind, id, t: startParam, tv: tvParam, sub, audio, o, n } = useLocalSearchParams<{ kind: string; id: string; t?: string; tv?: string; sub?: string; audio?: string; o?: string; n?: string }>();
+  const { kind, id, t: startParam, tv: tvParam, bar, sub, audio, o, n } = useLocalSearchParams<{ kind: string; id: string; t?: string; tv?: string; bar?: string; sub?: string; audio?: string; o?: string; n?: string }>();
   // Cast to this TV from a phone or browser (Cast Connect): their subtitle and audio track. Each cast
   // (n) starts the player again, also for the title that plays (the sender jumped or chose other audio).
   const given = castGiven({ sub, audio, o });
@@ -114,7 +114,7 @@ export default function Player() {
       {item.error ? (
         <Problem message={errorMessage(item.error, t)} />
       ) : item.data && subtitlePreferencesReady(prefs) ? (
-        <Playback key={`${item.data.kind}-${item.data.id}-${n ?? ''}`} item={item.data} prefs={prefs.data ?? null} startAt={startParam !== undefined ? Number(startParam) : null} onTv={tvParam === '1'} given={given} onCastingChange={setCastActive} />
+        <Playback key={`${item.data.kind}-${item.data.id}-${n ?? ''}`} item={item.data} prefs={prefs.data ?? null} startAt={startParam !== undefined ? Number(startParam) : null} onTv={tvParam === '1'} fromBar={bar === '1'} given={given} onCastingChange={setCastActive} />
       ) : (
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} size="large" />
@@ -134,7 +134,7 @@ function Problem({ message }: { message: string }) {
   );
 }
 
-function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item: Item; prefs: Prefs | null; startAt: number | null; /** Opened because the TV started this title itself: it plays there already. */ onTv: boolean; /** The subtitle and audio a cast to this TV came with. */ given: ReturnType<typeof castGiven>; onCastingChange: (active: boolean) => void }) {
+function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange }: { item: Item; prefs: Prefs | null; startAt: number | null; /** Opened because the TV started this title itself: it plays there already. */ onTv: boolean; /** Opened from the cast bar: the screen slides up from it (and down when closed). */ fromBar: boolean; /** The subtitle and audio a cast to this TV came with. */ given: ReturnType<typeof castGiven>; onCastingChange: (active: boolean) => void }) {
   const { api, t, serverUrl, language, cloudServerId, user } = useSession();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
@@ -1090,6 +1090,7 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
       )}
       {remote && (
         <CastRemotePanel
+          rise={fromBar}
           title={item.title}
           subtitle={item.subtitle}
           device={castDevice?.friendlyName ?? null}
@@ -1222,7 +1223,12 @@ function Playback({ item, prefs, startAt, onTv, given, onCastingChange }: { item
   );
 }
 
-function CastRemotePanel({ title, subtitle, device, artwork, position, duration, playing, starting, preparing, volume, muted, insets, onSeek, onTogglePlay, onOpenTracks, onStop, onClose, onVolume, onToggleMute }: {
+/** How long the cast remote takes to slide up or down. */
+const REMOTE_SLIDE_MS = 360;
+
+function CastRemotePanel({ rise, title, subtitle, device, artwork, position, duration, playing, starting, preparing, volume, muted, insets, onSeek, onTogglePlay, onOpenTracks, onStop, onClose, onVolume, onToggleMute }: {
+  /** Opened from the cast bar: the screen itself slides up, and down again when closed. */
+  rise: boolean;
   title: string;
   subtitle: string | null;
   device: string | null;
@@ -1247,14 +1253,16 @@ function CastRemotePanel({ title, subtitle, device, artwork, position, duration,
   onToggleMute: () => void;
 }) {
   const { t } = useSession();
-  // The remote slides down out of view before the screen closes.
+  // The remote slides down out of view before the screen closes (back to the cast bar): soft, slow
+  // enough to follow. Opened from the bar, the whole screen slides up and back down itself.
   const [height, setHeight] = useState(800);
   const drop = useRef(new Animated.Value(0)).current;
   const closing = useRef(false);
   const close = () => {
     if (closing.current) return;
     closing.current = true;
-    Animated.timing(drop, { toValue: height, duration: 280, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => onClose());
+    if (rise) return onClose();
+    Animated.timing(drop, { toValue: height, duration: REMOTE_SLIDE_MS, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => onClose());
   };
   const [volumeOpen, setVolumeOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);

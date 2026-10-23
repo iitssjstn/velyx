@@ -29,7 +29,7 @@ declare class CastReceiverModule extends NativeModule<{ onCastLoad: (load: CastC
 export const CastReceiver = requireOptionalNativeModule<CastReceiverModule>('VidaluneTv');
 
 /**
- * Scrolls to `y` like a swipe on a TV (quick start, easing out; see VidaluneTvModule.glideTo), else
+ * Scrolls to `y` like a swipe on a TV (soft start, long ease out; see VidaluneTvModule.glideTo), else
  * React Native's own animated scroll.
  */
 export function glideTo(scroll: ScrollView | null, y: number): void {

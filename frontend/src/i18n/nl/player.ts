@@ -34,6 +34,7 @@ export const player: Messages['player'] = {
   skipRecap: 'Terugblik overslaan',
   cast: 'Afspelen op een tv (Chromecast)',
   castRemote: 'Cast-afstandsbediening',
+  closeRemote: 'Bediening sluiten (de tv speelt door)',
   castStop: 'Stoppen met afspelen op de tv',
   stopCasting: 'Casten stoppen',
   audioSubtitles: 'Audio en ondertiteling',
