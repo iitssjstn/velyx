@@ -617,6 +617,15 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 - **Castbalk onderaan tijdens casten** en **schuiven op de tv te snel** (eigenaar 23 okt): gebouwd in 0.19.94 (zie daar).
 
+- **Stemmen versterken** (wens eigenaar 24 okt: "In de app zit geen voice boost etc dat zou een fijne toevoeging wezen als
+  iemand graag wat beter de stemmen wilt horen op tv of op mobiel"; nog niet bouwen tot hij het zegt). Voorstel: in het
+  menu van de speler bij Audio "Stemmen": Normaal / Stemmen versterken / Nachtstand (stemmen plus harde geluiden
+  zachter). Op de server met FFmpeg (5.1-filters, geen `dialoguenhance`): bij 5.1 het middenkanaal zwaarder bij het
+  omzetten naar stereo (`pan`), bij stereo de stemfrequenties iets op (`equalizer`) met `acompressor`; nachtstand
+  sterker comprimeren. Werkt zo gelijk op website, app, tv-app en Chromecast. Alleen het geluid wordt omgezet (video
+  gekopieerd); een direct afspelend bestand wordt dan omgepakt. Wisselen herstart het geluid op dezelfde plek, zoals een
+  ander audiospoor. Keuze bewaard per account. Gevraagd: in 0.19.95, en drie standen of alleen aan/uit.
+
 - **Casten kan niet op een iPhone** (eigenaar 23 okt: "Op iPhone is het casten niet mogelijk omdat je via een manifest niet
   de cast icon ziet"). Oorzaak: Google's Cast-SDK voor websites (`cast_sender.js`, `frontend/src/lib/cast.ts`) werkt
   alleen in Chrome op pc/Android; op iOS gebruiken alle browsers WebKit en laadt hij nooit (`supported` blijft false, dus
