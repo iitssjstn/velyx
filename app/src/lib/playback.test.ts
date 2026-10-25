@@ -60,6 +60,21 @@ describe('where a stream starts', () => {
     expect(stream.mediaToken).toBe('scoped-token');
   });
 
+  it('reuses the address that answered when a seek restarts the stream, without asking the others again', async () => {
+    const playback = { ...answer('range', '/api/media/7/stream'), directPlayback: { token: 'scoped-token', endpoints: [
+      { type: 'lan' as const, url: 'https://192.168.1.50:32400' },
+      { type: 'public' as const, url: 'https://server.media.vidalune.com:32400' },
+    ] } };
+    const fetchImpl = vi.fn();
+    const stream = await streamFrom(api(), playback, 600, fetchImpl, 'https://server.media.vidalune.com:32400');
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(stream.uri).toBe('https://server.media.vidalune.com:32400/api/media/7/stream?cast=scoped-token');
+    // An address that is not one of this playback's: asked as before.
+    fetchImpl.mockResolvedValue(new Response(null, { status: 200 }));
+    await streamFrom(api(), playback, 600, fetchImpl, 'https://elsewhere.example:32400');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('starts a remux stream at the keyframe the server names, and offsets positions by it', async () => {
     const a = api((url) => (url.includes('/keyframe?t=600.000') ? { start: 598.5, seek: 600 } : {}));
     expect(await streamFrom(a, answer('restart', '/api/media/7/remux?audio=1&ch=2'), 600)).toEqual({ uri: 'http://vidalune.local/api/media/7/remux?audio=1&ch=2&start=600.000', offset: 598.5 });

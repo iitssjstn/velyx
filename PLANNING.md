@@ -494,6 +494,16 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   het menu blijft open, zodat de kijker meteen ziet wat het doet (staat er geen ondertitel in beeld, dan een
   voorbeeldzin links van het menu). Bewaard zoals op de telefoon (toestel en account, `changeStyle`). Tests:
   `subtitleStyle.test.ts`, `tvRemote.test.ts`; app 248 tests en typecheck slagen. Op de tv te bevestigen.
+- **Spoelen op de tv reageert pas na een paar seconden** (eigenaar 25 okt: "je ziet wel de +10 of -10 maar dan gebeurt er
+  paar seconden niks"). Code nagelopen: bij een omgepakte/omgezette stream (`seek: 'restart'`, de app speelt nog geen HLS)
+  start elke sprong een nieuwe stream: eerst opnieuw elk direct adres proberen (HEAD, tot 4 s per adres dat niet
+  antwoordt, bv. een Docker-adres, zie "localEndpoints"), dan het keyframe opvragen (FFmpeg op de server), dan FFmpeg
+  starten; ondertussen bleven tijd en balk staan en speelde het oude beeld door. Nu: het adres dat al antwoordde wordt
+  hergebruikt (`streamFrom(..., reached)` in `lib/playback.ts`, getest), en tijd en balk springen meteen naar het doel met
+  de laadcirkel en het oude beeld stopt (`seekingTo` in de speler). Direct afspelen (bestand zoals het is) spoelde al
+  meteen; daar is de wachttijd het bufferen van de NAS. Echt snel spoelen bij omgepakte bestanden vraagt HLS in de app
+  (Later punt 4: stukjes blijven bewaard, spoelen binnen één stream); voorstel aan de eigenaar. App 249 tests en
+  typecheck slagen. Op de tv te bevestigen.
 
 ## Versie 0.19.11
 

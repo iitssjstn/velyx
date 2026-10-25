@@ -244,14 +244,23 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   const position = offset + time;
 
   /** Loads the stream (again) for `at` seconds into the file. */
+  /** The direct address that answered for this playback (by its token), reused when a seek restarts the stream. */
+  const reachedRef = useRef<{ token: string; base: string } | null>(null);
+  /** Where a seek that restarts the stream goes: shown at once, until the new stream is there. */
+  const [seekingTo, setSeekingTo] = useState<number | null>(null);
   const load = useCallback(
     async (a: PlaybackAnswer, at: number, autoplay = true) => {
       // Playing on a Chromecast: the phone stays quiet.
       if (castingRef.current) return;
       const loadId = ++loads.current;
       setLoading(true);
-      const s = await streamFrom(api, a, at);
+      const reached = reachedRef.current?.token === a.directPlayback?.token ? reachedRef.current?.base : undefined;
+      const s = await streamFrom(api, a, at, fetch, reached).catch((err) => {
+        if (loadId === loads.current) setSeekingTo(null);
+        throw err;
+      });
       if (loadId !== loads.current) return;
+      reachedRef.current = s.mediaBase && s.mediaToken ? { token: s.mediaToken, base: s.mediaBase } : null;
       setMediaEndpoint(s.mediaBase && s.mediaToken ? { baseUrl: s.mediaBase, token: s.mediaToken } : null);
       setOffset(s.offset);
       setTime(Math.max(0, at - s.offset));
@@ -262,6 +271,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
       setEnded(false);
       await player.replaceAsync({ uri: s.uri, headers: s.mediaToken ? {} : api.headers(), metadata: { title: item.title, artist: item.subtitle ?? undefined } });
       if (loadId !== loads.current) return;
+      setSeekingTo(null);
       if (autoplay && !castingRef.current) player.play();
       else setLoading(false);
     },
@@ -824,14 +834,21 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
         }
         return;
       }
-      if (answer.decision.seek === 'restart') void load(answer, tt);
+      if (answer.decision.seek === 'restart') {
+        // The new stream takes a moment (the server starts it at the keyframe before): the bar and the
+        // time jump there now, with the spinner, and the old picture stops instead of playing on.
+        setSeekingTo(tt);
+        setLoading(true);
+        player.pause();
+        void load(answer, tt).catch((err) => setProblem(errorMessage(err, t)));
+      }
       else {
         player.currentTime = tt;
         // Show the new position straight away instead of after the next time update.
         setTime(tt);
       }
     },
-    [answer, duration, load, player, client, castLoad, castFailed],
+    [answer, duration, load, player, client, castLoad, castFailed, t],
   );
 
   // ---------------------------------------------------------------- Cast Connect (on a TV)
@@ -915,7 +932,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
 
   /** Back or forward by the step; quick taps add up from where the previous one aimed. */
   const seekBy = (side: 'back' | 'forward') => {
-    const p = addSeek(seekRun.current, Date.now(), position, side === 'back' ? -seekStep : seekStep, duration);
+    const p = addSeek(seekRun.current, Date.now(), seekingTo ?? position, side === 'back' ? -seekStep : seekStep, duration);
     seekRun.current = p;
     seekTo(p.target);
     setSeekFlash({ side, total: p.total, at: p.at });
@@ -1054,7 +1071,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
       </Text>
     </View>
   ) : null;
-  const shown = scrub ?? position;
+  const shown = scrub ?? seekingTo ?? position;
   return (
     <View style={{ flex: 1 }} onLayout={(e) => {
         screenWidth.current = e.nativeEvent.layout.width;
@@ -1088,7 +1105,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
           <TvPlayer
             title={item.title}
             subtitle={item.subtitle}
-            position={position}
+            position={seekingTo ?? position}
             duration={duration}
             playing={playing}
             loading={loading}
@@ -1132,7 +1149,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
               <IconButton name="rotate-cw" label={t('player.forwardSeconds', { n: seekStep })} onPress={() => seekBy('forward')} size={30} />
             </View>
             <View style={{ gap: 4 }}>
-              <SeekBar position={position} duration={duration} onScrub={setScrub} onSeek={seekTo} label={t('player.seek')} />
+              <SeekBar position={seekingTo ?? position} duration={duration} onScrub={setScrub} onSeek={seekTo} label={t('player.seek')} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ color: '#fff' }}>{formatClock(shown)}</Text>
                 <Text style={{ color: colors.muted }}>{formatClock(duration)}</Text>

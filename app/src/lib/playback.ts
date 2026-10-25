@@ -114,10 +114,13 @@ function withParam(url: string, key: string, value: string): string {
  * The stream for a position. Direct play reads the file (the player seeks itself); a remux stream
  * begins at the keyframe before `at`, which the server tells, so positions are offset by it.
  */
-export async function streamFrom(api: Api, answer: PlaybackAnswer, at: number, fetchImpl: typeof fetch = fetch): Promise<StreamStart> {
+export async function streamFrom(api: Api, answer: PlaybackAnswer, at: number, fetchImpl: typeof fetch = fetch, reached?: string): Promise<StreamStart> {
   let mediaBase: string | undefined;
   const mediaToken = answer.directPlayback?.token;
-  if (answer.directPlayback) {
+  // The address that answered for this playback before (a seek restarts the stream): not asked
+  // again, so a seek does not wait for an address that does not answer (up to 4 s each).
+  if (answer.directPlayback && reached && answer.directPlayback.endpoints.some((e) => new URL(e.url).origin === reached)) mediaBase = reached;
+  else if (answer.directPlayback) {
     if (!mediaToken || !answer.directPlayback.endpoints.length) throw new Error('No direct media endpoint is available.');
     for (const endpoint of answer.directPlayback.endpoints) {
       try {
