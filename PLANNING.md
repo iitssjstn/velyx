@@ -477,7 +477,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   gecontroleerd: APK (Kotlin-build geslaagd), `.aab`, beide `.deb`'s, `vidalune-0.19.95-setup.exe` en de
   accountservice-image. Eigenaar: accountservice bijwerken, dan bewaart vidalune.com TMDB-antwoorden 10 minuten.
 
-## Volgende versie (0.19.96, nog geen PR)
+## Versie 0.19.96 (tv: ondertitelmenu en stijl, sneller spoelen, HLS in de app)
 
 - **Ondertitelmenu in de tv-app komt niet goed in beeld** (eigenaar 25 okt, foto van Lupin S04E05 op de tv: "Ondertiteling
   menu komt niet lekker in beeld en je kan de ondertiteling niet aanpassen"). Gevonden: het menu toonde altijd 9 regels,
@@ -514,6 +514,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   Casten ongewijzigd (gebruikte al HLS). Een bestand zonder bekende keyframes spoelt de eerste keer nog als voorheen.
   Tests: `playback.test.ts` (lijst en spoelen zonder keyframe-vraag, bestanden en streams zonder stukjes ongemoeid,
   terugval); app 252 tests en typecheck slagen. Op de tv en telefoon te bevestigen (ExoPlayer met onze fMP4-stukjes).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1996) en beide lockfiles bijgewerkt.
+- PR aangemaakt 25 okt op verzoek van de eigenaar ("Maak de PR als alles groen is mag je het mergen").
 
 ## Versie 0.19.11
 
