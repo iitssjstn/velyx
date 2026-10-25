@@ -24,7 +24,7 @@ import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
 import { rememberAudio, rememberSubtitle, rememberedAudio, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
-import { DEFAULT_SUBTITLE_STYLE, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT, type SubtitleStyle } from '../../../lib/subtitleStyle';
+import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, nextStyleValue, stepDelay, subtitleBottom, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { createSubtitleStyleSync, subtitlePreferencesReady, subtitleStyleAccountScope } from '../../../lib/subtitleStyleSync';
 import { castConnectData, castGiven, castPlayerState, castSubtitleFor, castSubtitleKeys, castTrackIdsFor } from '../../../lib/castConnect';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
@@ -989,7 +989,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
     // The audio menu always has a choice: the file's tracks, then the audio modes.
     buttons: tvButtons({ audioTracks: audioTracks.length + AUDIO_MODES.length, hasNext: Boolean(item.next) }),
     tabs: tvTabs({ audioTracks: audioTracks.length + AUDIO_MODES.length }),
-    items: { subtitles: subtitleOptions.length + 1, audio: audioTracks.length + AUDIO_MODES.length },
+    items: { subtitles: subtitleOptions.length + 1, style: STYLE_LINES.length, audio: audioTracks.length + AUDIO_MODES.length },
     selected: { subtitles: subtitle ? subtitleOptions.findIndex((o) => o.key === subtitle.key) + 1 : 0, audio: Math.max(0, audioTracks.findIndex((a) => a.index === audioIndex)) },
     skip: Boolean(askSkip && !showNext),
     upNext: showNext,
@@ -1012,7 +1012,10 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
       setNextDismissed(true);
       setCountdown(null);
     } else if (a?.type === 'pick' && a.tab === 'subtitles') chooseSubtitle(a.index === 0 ? null : subtitleOptions[a.index - 1] ?? null);
-    else if (a?.type === 'pick' && a.tab === 'audio') {
+    else if (a?.type === 'pick' && a.tab === 'style') {
+      const line = STYLE_LINES[a.index];
+      if (line) changeStyle(nextStyleValue(styleRef.current, line));
+    } else if (a?.type === 'pick' && a.tab === 'audio') {
       const pick = audioMenuPick(a.index, audioTracks.length);
       if (pick?.kind === 'track') chooseAudio(audioTracks[pick.index]!.index);
       else if (pick?.kind === 'mode') void chooseAudioMode(pick.mode);
@@ -1033,7 +1036,8 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   if (problem) return <Problem message={problem} />;
 
   // While casting the TV shows the subtitles.
-  const text = cueText;
+  // While the Style tab is open on the TV, a sample shows the change when no line is on screen.
+  const text = cueText || (TV && tv.open === 'menu' && tv.tab === 'style' ? t('subtitleStyle.previewText') : '');
   // On a TV the subtitles go above the bar while it shows (it is taller than the phone's controls).
   const tvBarShown = TV && (controls || !playing || tv.open !== 'none');
   const subtitleAt = TV ? tvSubtitleBottom(subStyle, screenHeight, tvBarShown) : subtitleBottom(subStyle, screenHeight, controls);
@@ -1096,6 +1100,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
             tabs={tvContext.tabs}
             lines={{
               subtitles: [t('player.off'), ...subtitleOptions.map(subtitleLabel)],
+              style: STYLE_LINES.map((line) => `${t(`subtitleStyle.${line}`)}: ${styleValueLabel(subStyle, line, t)}`),
               audio: [...audioTracks.map((a) => audioLabel(a, t)), ...AUDIO_MODES.map((m) => `${m === audioMode ? '✓ ' : ''}${t('player.voices')} · ${t(`player.voiceMode.${m}`)}`)],
             }}
             selected={tvContext.selected}
@@ -1468,4 +1473,13 @@ function Stepper({ label, value, hint, onMinus, onPlus, onReset }: { label: stri
       </View>
     </View>
   );
+}
+
+/** The value of a line of the TV player's Style tab, as shown next to its name (OK moves it on). */
+function styleValueLabel(style: SubtitleStyle, line: (typeof STYLE_LINES)[number], t: ReturnType<typeof useSession>['t']): string {
+  if (line === 'size') return { small: 'S', medium: 'M', large: 'L', xlarge: 'XL' }[style.size];
+  if (line === 'color') return t(`subtitleStyle.${style.color}`);
+  if (line === 'background') return t(`subtitleStyle.${{ none: 'none', translucent: 'dimmed', solid: 'solid' }[style.background] as 'none' | 'dimmed' | 'solid'}`);
+  if (line === 'edge') return t(`subtitleStyle.${style.edge}`);
+  return style.position === 0 ? '0' : `+${style.position} %`;
 }

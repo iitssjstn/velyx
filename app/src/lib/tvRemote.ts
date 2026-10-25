@@ -45,16 +45,16 @@ export const FAST_STEP = 30;
 export const TV_CONTROLS_MS = 6000;
 
 export type TvButton = 'back' | 'play' | 'forward' | 'subtitles' | 'audio' | 'next';
-export type TvTab = 'subtitles' | 'audio';
+export type TvTab = 'subtitles' | 'style' | 'audio';
 
 /** The buttons in the row, in order: only those that do something for this title. */
 export function tvButtons({ audioTracks = 0, hasNext = false }: { audioTracks?: number; hasNext?: boolean } = {}): TvButton[] {
   return ['back', 'play', 'forward', 'subtitles', ...(audioTracks > 1 ? (['audio'] as const) : []), ...(hasNext ? (['next'] as const) : [])];
 }
 
-/** The menu's tabs: audio only when there is a choice. */
+/** The menu's tabs: the subtitles and right next to them how they look; audio only when there is a choice. */
 export function tvTabs({ audioTracks = 0 }: { audioTracks?: number } = {}): TvTab[] {
-  return ['subtitles', ...(audioTracks > 1 ? (['audio'] as const) : [])];
+  return ['subtitles', 'style', ...(audioTracks > 1 ? (['audio'] as const) : [])];
 }
 
 export interface TvState {
@@ -119,7 +119,8 @@ export function pressKey(state: TvState, key: RemoteKey, ctx: TvContext): { stat
       s.tab = tabs[clamp(at + (key === 'left' ? -1 : 1), 0, tabs.length - 1)] ?? s.tab;
       s.item = ctx.selected[s.tab] ?? 0;
     } else if (key === 'ok') {
-      s.open = 'none';
+      // The style stays open, so the change shows on the subtitles and the next one is a press away.
+      if (s.tab !== 'style') s.open = 'none';
       return done({ type: 'pick', tab: s.tab, index: s.item });
     } else if (key === 'back') s.open = 'bar';
     return done();

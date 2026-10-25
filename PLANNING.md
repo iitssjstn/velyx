@@ -486,8 +486,14 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   "uit"-vinkjes toch grijs, en de ondertitels liepen over het menu. Nu (`TvPlayer.tsx`): zoveel regels als passen
   (`menuRows`/`visibleLines` in `lib/tvRemote.ts`, getest), pijltjes als er meer boven of onder staat, een dicht menu in
   de achtergrondkleur met rand, alleen een vinkje bij de gekozen regel, en ondertitels links van het menu zolang het open
-  is. App 246 tests en typecheck slagen. Op de tv te bevestigen. Navragen: bedoelt "aanpassen" ook de stijl (grootte,
-  kleur, achtergrond)? De tv-app heeft geen tab Stijl (de webspeler op de Chromecast wel).
+  is. App 246 tests en typecheck slagen. Op de tv te bevestigen.
+- **Ondertitelstijl op de tv** (eigenaar 25 okt: "Zet het ondertiteling aanpassen menu altijd boven aan of maak een
+  aparte lijst, zodat de kijker makkelijk het kan aanpassen"). Gekozen: een aparte tab **Stijl**, altijd direct rechts
+  van Ondertitels (`tvTabs`: Ondertitels, Stijl, Audio). Regels Grootte, Kleur, Achtergrond, Rand en Positie met de
+  huidige waarde; OK zet de regel op de volgende waarde (`nextStyleValue`/`STYLE_LINES` in `lib/subtitleStyle.ts`) en
+  het menu blijft open, zodat de kijker meteen ziet wat het doet (staat er geen ondertitel in beeld, dan een
+  voorbeeldzin links van het menu). Bewaard zoals op de telefoon (toestel en account, `changeStyle`). Tests:
+  `subtitleStyle.test.ts`, `tvRemote.test.ts`; app 248 tests en typecheck slagen. Op de tv te bevestigen.
 
 ## Versie 0.19.11
 

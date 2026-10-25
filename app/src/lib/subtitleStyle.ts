@@ -104,3 +104,18 @@ export function tvSubtitleBottom(style: SubtitleStyle, height: number, barShown:
 export function stepDelay(delay: number, direction: 1 | -1): number {
   return Math.max(-30, Math.min(30, Math.round((delay + direction * 0.5) * 10) / 10));
 }
+
+/** The lines of the "Style" tab in the TV player's menu, in order; OK on a line moves it to its next value. */
+export const STYLE_LINES = ['size', 'color', 'background', 'edge', 'position'] as const;
+export type StyleLine = (typeof STYLE_LINES)[number];
+
+const next = <T>(list: readonly T[], value: T): T => list[(list.indexOf(value) + 1) % list.length]!;
+
+/** The change OK makes on a line of the "Style" tab (position goes up in steps of 5, then back to 0). */
+export function nextStyleValue(style: SubtitleStyle, line: StyleLine): Partial<SubtitleStyle> {
+  if (line === 'size') return { size: next(SIZES, style.size) };
+  if (line === 'color') return { color: next(COLORS, style.color) };
+  if (line === 'background') return { background: next(BACKGROUNDS, style.background) };
+  if (line === 'edge') return { edge: next(EDGES, style.edge) };
+  return { position: style.position >= 20 ? 0 : clampPosition(style.position + 5) };
+}
