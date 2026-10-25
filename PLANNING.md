@@ -449,6 +449,13 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   ongewijzigd. Op de tv te bekijken.
 - Tests: cloud (`SubtitleLoad`, `ccLabel`, onderdelen op de pagina), app (`cuesFrom`). Cloud 209, app 242 tests; alle
   typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen. Op de tv te bekijken.
+- **Metadata altijd vers** (eigenaar 25 okt, na Lupin seizoen 4 zonder stills): een film of serie openen haalt de
+  metadata nu elke keer opnieuw op (`FRESH_FOR_MS` 1 minuut in plaats van 1 uur, `fresh-metadata.ts`; die minuut vangt
+  alleen gelijktijdig openen en het nog eens vragen van een wachtende pagina op). vidalune.com bewaart antwoorden van TMDB
+  10 minuten in plaats van een dag (`TMDB_TTL_MS`, ook voor "niet gevonden"). Mislukt verversen: 10 minuten niet opnieuw
+  (was een uur). Trailers blijven een uur. Handmatig vernieuwen slaat de cache van vidalune.com niet over: met 10 minuten
+  weinig winst, en elke server zou dan de gedeelde cache kunnen omzeilen. Tests falen op de oude code. Backend 612,
+  cloud 209, frontend 363 tests; typechecks en lint slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1995) en beide lockfiles bijgewerkt.
 
 ## Versie 0.19.11
@@ -627,7 +634,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   zodat iedereen altijd de juiste informatie heeft" (vervangt de drempel van 1 uur uit 0.19.7). Voorstel: bij elk openen
   verversen (pagina opent meteen met wat er is, gelijktijdige verzoeken samen), vidalune.com bewaart antwoorden nog maar
   ~10 minuten (gedeeld tussen servers, onder de TMDB-limiet), en handmatig vernieuwen door de beheerder slaat de cache
-  over. Wacht op "bouw het".
+  over. Eigenaar: "Ja 10 minuten is beter" (25 okt). Gebouwd in 0.19.95 (zie daar).
 
 - **Stemmen versterken** (wens eigenaar 24 okt: "In de app zit geen voice boost etc dat zou een fijne toevoeging wezen als
   iemand graag wat beter de stemmen wilt horen op tv of op mobiel"; nog niet bouwen tot hij het zegt). Voorstel: in het

@@ -6,7 +6,8 @@ import type { FastifyInstance } from 'fastify';
 import { buildCloudApp, SESSION_COOKIE } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
-import { questionKey } from '../src/tmdb.js';
+import { questionKey, TMDB_TTL_MS } from '../src/tmdb.js';
+import { tmdbCache } from '../src/db/schema.js';
 // The Vidalune server's side: it asks vidalune.com when it has no TMDB key of its own.
 import { CloudService } from '../../backend/src/services/cloud.js';
 import { TmdbClient, TmdbError } from '../../backend/src/services/tmdb.js';
@@ -121,6 +122,13 @@ describe('metadata through vidalune.com', () => {
     await client.searchMovies('The Matrix', 1999);
     await client.movie(603);
     expect(tmdb.asked).toHaveLength(2);
+
+    // Ten minutes later TMDB is asked again (what was added there, such as new stills, comes through).
+    expect(TMDB_TTL_MS).toBe(10 * 60 * 1000);
+    db.update(tmdbCache).set({ fetchedAt: Date.now() - TMDB_TTL_MS - 1000 }).run();
+    await client.movie(603);
+    expect(tmdb.asked).toHaveLength(3);
+    tmdb.asked.length = 2;
 
     // Something TMDB does not have stays TMDB's answer: a 404, as from TMDB itself.
     await expect(client.movie(999999)).rejects.toMatchObject({ status: 404 });

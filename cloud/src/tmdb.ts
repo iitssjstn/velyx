@@ -8,15 +8,19 @@ import { serviceSettings, tmdbCache } from './db/schema.js';
  * Metadata for linked Vidalune servers, with one TMDB key for everyone (set by the CEO in the
  * Control Center, stored in the database and never shown again), so nobody has to bring their own.
  * Servers ask what they would ask TMDB themselves; only the questions Vidalune asks are passed on,
- * and every answer is reused for a day by every server. Images do not come through here: servers
+ * and every answer is reused for ten minutes by every server. Images do not come through here: servers
  * fetch those from TMDB's image host themselves. Nothing about users or what anyone watches is sent.
  */
 
 const API_BASE = 'https://api.themoviedb.org/3';
-/** How long an answer is reused for the same question. */
-export const TMDB_TTL_MS = 24 * 60 * 60 * 1000;
-/** Something TMDB does not have is asked again sooner (it may be added). */
-export const TMDB_MISSING_TTL_MS = 60 * 60 * 1000;
+/**
+ * How long an answer is reused for the same question: short, so what is added at TMDB (stills and
+ * descriptions of a season that just came out) reaches every server within minutes, while many
+ * servers opening the same title at once still ask TMDB once.
+ */
+export const TMDB_TTL_MS = 10 * 60 * 1000;
+/** Something TMDB does not have (it may be added). */
+export const TMDB_MISSING_TTL_MS = 10 * 60 * 1000;
 /** Requests to TMDB start at most this often (TMDB allows about 50 a second). */
 const MIN_INTERVAL_MS = 25;
 /** At most this many requests to TMDB at the same time. */
@@ -190,7 +194,7 @@ export class TmdbProxy {
     }
   }
 
-  /** TMDB's answer to an allowed question: from here when any server asked it in the last day. */
+  /** TMDB's answer to an allowed question: from here when any server asked it in the last ten minutes. */
   async answer(key: string): Promise<{ status: number; body: string }> {
     const { db } = this.deps;
     const now = this.deps.now();

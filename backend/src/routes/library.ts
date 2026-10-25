@@ -366,7 +366,7 @@ export async function libraryRoutes(app: FastifyInstance, ctx: AppContext): Prom
   });
 
   // ---- fresh metadata: a detail page asks for it after opening with what is stored. Fetched anew
-  // at TMDB when the last refresh is over an hour old; within that hour everyone gets the same.
+  // at TMDB every time, unless the title was refreshed less than a minute ago.
   app.post<{ Params: { id: string } }>('/api/movies/:id/refresh', { preHandler: requireUser }, async (request) => {
     const m = assertMovie(db, scopeOf(request), parseId(request.params.id));
     return ctx.freshMetadata.refresh('movie', m.id);
