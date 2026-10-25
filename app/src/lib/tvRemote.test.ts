@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FAST_STEP, initialTvState, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, type TvContext } from './tvRemote';
+import { FAST_STEP, MENU_LINE, initialTvState, menuRows, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, visibleLines, type TvContext } from './tvRemote';
 
 const ctx = (over: Partial<TvContext> = {}): TvContext => ({
   buttons: tvButtons({ audioTracks: 2, hasNext: true }),
@@ -121,5 +121,28 @@ describe('segmentMarks', () => {
     const segments = { fileId: 8, intro: span(60, 90), credits: null, postCredits: null };
     expect(segmentMarks(segments, 7, 2500)).toEqual([]);
     expect(segmentMarks({ ...segments, fileId: 7 }, 7, 0)).toEqual([]);
+  });
+});
+
+describe('the menu on a TV screen', () => {
+  it('shows only as many lines as fit, so the focused line is never off the screen', () => {
+    // A Chromecast with Google TV is 540 high: nine lines did not fit.
+    expect(menuRows(540)).toBeLessThan(9);
+    expect(menuRows(540) * MENU_LINE + 130).toBeLessThanOrEqual(540);
+    expect(menuRows(1080)).toBeGreaterThan(menuRows(540));
+    expect(menuRows(200)).toBe(3);
+  });
+
+  it('scrolls the lines along with the focus and says when there is more', () => {
+    const lines = Array.from({ length: 20 }, (_, i) => `line ${i}`);
+    const first = visibleLines(lines, 0, 7);
+    expect(first.map((l) => l.index)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(first[0]!.more).toEqual({ above: false, below: true });
+    const last = visibleLines(lines, 19, 7);
+    expect(last.map((l) => l.index)).toContain(19);
+    expect(last[0]!.more).toEqual({ above: true, below: false });
+    const middle = visibleLines(lines, 10, 7);
+    expect(middle.map((l) => l.index)).toContain(10);
+    expect(visibleLines(['a', 'b'], 1, 7).map((l) => l.text)).toEqual(['a', 'b']);
   });
 });

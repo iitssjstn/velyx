@@ -14,7 +14,7 @@ import { CastIcon } from '../../../components/CastIcon';
 import { useCastStatus } from '../../../components/CastStatus';
 import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
-import { TvPlayer } from '../../../components/TvPlayer';
+import { TV_MENU_WIDTH, TvPlayer } from '../../../components/TvPlayer';
 import { CastReceiver, RemoteKeys, type CastCommand } from '../../../../modules/vidalune-tv';
 import { TV, castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
@@ -1037,8 +1037,10 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   // On a TV the subtitles go above the bar while it shows (it is taller than the phone's controls).
   const tvBarShown = TV && (controls || !playing || tv.open !== 'none');
   const subtitleAt = TV ? tvSubtitleBottom(subStyle, screenHeight, tvBarShown) : subtitleBottom(subStyle, screenHeight, controls);
+  // On the TV the menu covers the right side: subtitles stay left of it, not over the lines.
+  const subtitleRight = TV && tv.open === 'menu' ? TV_MENU_WIDTH + 24 : 24;
   const subtitleView = text ? (
-    <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleAt + insets.bottom, alignItems: 'center' }}>
+    <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: subtitleRight, bottom: subtitleAt + insets.bottom, alignItems: 'center' }}>
       <Text style={subtitleTextStyle(subStyle, screenHeight)}>{text}</Text>
     </View>
   ) : subLoad && !casting ? (

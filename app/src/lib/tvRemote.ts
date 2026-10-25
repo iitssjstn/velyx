@@ -195,3 +195,20 @@ export function segmentMarks(segments: EpisodeSegments | null | undefined, fileI
     .filter((t) => t > 0 && t < length)
     .map((t) => Math.round((t / length) * 10000) / 10000);
 }
+
+/** Height of one line of the player's menu, with the gap under it. */
+export const MENU_LINE = 54;
+/** Room the menu needs above and below its lines (padding and the tabs). */
+const MENU_CHROME = 130;
+
+/** How many lines of the menu fit on a screen this tall (a Chromecast with Google TV is 540 high). */
+export function menuRows(height: number): number {
+  return Math.max(3, Math.floor((height - MENU_CHROME) / MENU_LINE));
+}
+
+/** The lines of the menu that are drawn: `size` around the focused one, so a long list scrolls along. */
+export function visibleLines(lines: string[], focus: number, size: number): { text: string; index: number; more: { above: boolean; below: boolean } }[] {
+  const start = Math.max(0, Math.min(focus - Math.floor(size / 2), lines.length - size));
+  const shown = lines.slice(start, start + size);
+  return shown.map((text, i) => ({ text, index: start + i, more: { above: start > 0, below: start + shown.length < lines.length } }));
+}

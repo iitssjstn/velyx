@@ -1,9 +1,9 @@
-import { ActivityIndicator, Image, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Text, useWindowDimensions, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { formatClock } from '../lib/format';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
-import type { TvButton, TvState, TvTab } from '../lib/tvRemote';
+import { menuRows, visibleLines, type TvButton, type TvState, type TvTab } from '../lib/tvRemote';
 
 const ICONS: Record<TvButton, React.ComponentProps<typeof Feather>['name']> = {
   back: 'rotate-ccw',
@@ -42,6 +42,9 @@ export interface TvPlayerProps {
   overlayBottom: number;
 }
 
+/** Width of the menu on the right; subtitles keep to the left of it while it is open. */
+export const TV_MENU_WIDTH = 440;
+
 /** The buttons back, play and forward come first; the time follows the third. */
 const TIME_AFTER = 2;
 /** Height of the shaded strip behind the top and bottom of the controls. */
@@ -59,7 +62,9 @@ function Fade({ from }: { from: 'top' | 'bottom' }) {
  */
 export function TvPlayer(p: TvPlayerProps) {
   const { t } = useSession();
+  const { height } = useWindowDimensions();
   const { state } = p;
+  const menuLines = state.open === 'menu' ? visibleLines(p.lines[state.tab], state.item, menuRows(height)) : [];
   const backFocused = state.open === 'bar' && state.top;
   const fraction = p.duration > 0 ? Math.max(0, Math.min(1, p.position / p.duration)) : 0;
   const label = (b: TvButton) =>
@@ -149,7 +154,8 @@ export function TvPlayer(p: TvPlayerProps) {
       )}
 
       {state.open === 'menu' && (
-        <View style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: 440, backgroundColor: 'rgba(20,18,28,0.97)', paddingVertical: 40, paddingHorizontal: 28, gap: 18 }}>
+        // Solid, so nothing of the bar or the picture shows through; as many lines as fit the screen.
+        <View style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: TV_MENU_WIDTH, backgroundColor: colors.bg, borderLeftWidth: 1, borderLeftColor: colors.line, paddingTop: 32, paddingBottom: 24, paddingHorizontal: 28, gap: 16 }}>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {p.tabs.map((tab) => (
               <View key={tab} style={{ borderRadius: radius.pill, paddingHorizontal: 18, paddingVertical: 8, backgroundColor: tab === state.tab ? colors.button : 'rgba(255,255,255,0.08)' }}>
@@ -158,16 +164,18 @@ export function TvPlayer(p: TvPlayerProps) {
             ))}
           </View>
           <View style={{ gap: 6 }}>
-            {visibleLines(p.lines[state.tab], state.item).map(({ text, index }) => {
+            {menuLines[0]?.more.above ? <Feather name="chevron-up" size={18} color={colors.muted} style={{ alignSelf: 'center', marginTop: -10, marginBottom: -8 }} /> : null}
+            {menuLines.map(({ text, index }) => {
               const focused = index === state.item;
               const chosen = index === p.selected[state.tab];
               return (
                 <View key={index} accessibilityRole="radio" accessibilityState={{ selected: chosen }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: focused ? '#fff' : 'transparent' }}>
-                  <Feather name="check" size={20} color={chosen ? (focused ? colors.bg : colors.accent) : 'transparent'} />
+                  {chosen ? <Feather name="check" size={20} color={focused ? colors.bg : colors.accent} /> : <View style={{ width: 20 }} />}
                   <Text style={{ color: focused ? colors.bg : colors.ink, fontSize: 18, flex: 1 }} numberOfLines={1}>{text}</Text>
                 </View>
               );
             })}
+            {menuLines[menuLines.length - 1]?.more.below ? <Feather name="chevron-down" size={18} color={colors.muted} style={{ alignSelf: 'center', marginTop: -4 }} /> : null}
           </View>
         </View>
       )}
@@ -175,12 +183,6 @@ export function TvPlayer(p: TvPlayerProps) {
   );
 }
 
-/** At most nine lines around the focused one, so a long list scrolls along. */
-function visibleLines(lines: string[], focus: number): { text: string; index: number }[] {
-  const size = 9;
-  const start = Math.max(0, Math.min(focus - Math.floor(size / 2), lines.length - size));
-  return lines.slice(start, start + size).map((text, i) => ({ text, index: start + i }));
-}
 
 function Choice({ label, focused }: { label: string; focused: boolean }) {
   return (

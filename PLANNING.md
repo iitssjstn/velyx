@@ -477,6 +477,18 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   gecontroleerd: APK (Kotlin-build geslaagd), `.aab`, beide `.deb`'s, `vidalune-0.19.95-setup.exe` en de
   accountservice-image. Eigenaar: accountservice bijwerken, dan bewaart vidalune.com TMDB-antwoorden 10 minuten.
 
+## Volgende versie (0.19.96, nog geen PR)
+
+- **Ondertitelmenu in de tv-app komt niet goed in beeld** (eigenaar 25 okt, foto van Lupin S04E05 op de tv: "Ondertiteling
+  menu komt niet lekker in beeld en je kan de ondertiteling niet aanpassen"). Gevonden: het menu toonde altijd 9 regels,
+  maar een Chromecast met Google TV is 540 hoog; de regel met de focus viel onderaan buiten beeld (witte streep), dus
+  kiezen leek niet te werken. Het menu was bijna doorzichtig (de balk eronder scheen door), op Android tekenden de
+  "uit"-vinkjes toch grijs, en de ondertitels liepen over het menu. Nu (`TvPlayer.tsx`): zoveel regels als passen
+  (`menuRows`/`visibleLines` in `lib/tvRemote.ts`, getest), pijltjes als er meer boven of onder staat, een dicht menu in
+  de achtergrondkleur met rand, alleen een vinkje bij de gekozen regel, en ondertitels links van het menu zolang het open
+  is. App 246 tests en typecheck slagen. Op de tv te bevestigen. Navragen: bedoelt "aanpassen" ook de stijl (grootte,
+  kleur, achtergrond)? De tv-app heeft geen tab Stijl (de webspeler op de Chromecast wel).
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
