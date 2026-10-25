@@ -30,7 +30,7 @@ import {
 import { api, ApiError, errorMessage, request } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
-import { getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
+import { AUDIO_MODES, audioModeOf, audioModePrefs, getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
 import { addSeek, creditsPlaying, initialSubtitle, isTyping, preferredAudioIndex, SEEK_COMBINE_MS, selectDirectPlayback, skipAt, startPosition, subtitleName, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type PendingSeek, type SkipAction } from '../lib/player';
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo, SubtitleOption } from '../lib/types';
 import { defaultOnlineLanguage } from '../lib/online-subtitles';
@@ -1696,8 +1696,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
                         ))}
                     <div className="mt-2 space-y-3 border-t border-line/60 px-4 pt-3 pb-1">
                       <Segmented label={t('settings.audio.sound')} value={prefs.audioOutput} onChange={(v) => changeAudioPrefs({ audioOutput: v })} options={[['stereo', t('media.stereo')], ['surround', t('settings.audio.surround')]]} />
-                      <Toggle label={t('settings.audio.boostVoices')} checked={prefs.boostVoices} onChange={(v) => changeAudioPrefs({ boostVoices: v })} />
-                      <Toggle label={t('settings.audio.levelVolume')} hint={t('player.levelVolumeHint')} checked={prefs.levelVolume} onChange={(v) => changeAudioPrefs({ levelVolume: v })} />
+                      <Segmented label={t('settings.audio.voices')} value={audioModeOf(prefs)} onChange={(v) => changeAudioPrefs(audioModePrefs(v))} options={AUDIO_MODES.map((m) => [m, t(`player.voiceModesShort.${m}`)])} />
                     </div>
                     {info?.decision.note && <p className="px-4 pt-2 text-xs text-faint">{info.decision.note}</p>}
                   </>

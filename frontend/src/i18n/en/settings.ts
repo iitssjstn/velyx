@@ -100,14 +100,13 @@ export const settings = {
     warn: 'Warn about files this browser may not play',
   },
   audio: {
-    description: 'Used when Vidalune converts audio (Dolby/DTS in browsers, or when an option below is on). Stored in this browser.',
+    description: 'Used when Vidalune converts audio (Dolby/DTS in browsers, or when voices are boosted).',
     sound: 'Sound',
     soundHint: 'Surround keeps up to 5.1 channels; stereo mixes down for speakers and headphones.',
     surround: 'Surround 5.1',
-    boostVoices: 'Boost voices',
-    boostVoicesHint: 'Makes dialogue clearer. Always converts the audio.',
-    levelVolume: 'Level volume',
-    levelVolumeHint: 'Evens out loud and quiet scenes (night mode). Always converts the audio.',
+    voices: 'Voices',
+    voicesHint: 'Boost voices makes dialogue clearer; night mode also makes loud scenes softer. Converts the audio; stored with your account (website, app and TV).',
+    voiceModes: { normal: 'Normal', voices: 'Boost voices', night: 'Night mode' },
   },
   subtitles: {
     title: 'Subtitle appearance',

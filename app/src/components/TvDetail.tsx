@@ -25,8 +25,11 @@ export function TvDetail({ backdrop, title, year, facts, overview, above, childr
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Artwork path={backdrop} size="w1280" style={{ position: 'absolute', left: '30%', top: 0, right: 0, height }} />
-      <Shade side="left" from="30%" width="45%" />
-      <Shade side="bottom" height="45%" />
+      {/* A light shadow over the whole photo and a longer fade to the left: the buttons and icons stay
+          readable on a bright photo too. */}
+      <View style={{ position: 'absolute', left: '30%', top: 0, right: 0, height, backgroundColor: 'rgba(0,0,0,0.25)' }} />
+      <Shade side="left" from="30%" width="55%" />
+      <Shade side="bottom" height="55%" />
       <ScrollView contentContainerStyle={{ paddingBottom: 48 }}>
         {/* The text keeps to the left 60 %; the buttons may run further, so they stay on one row. */}
         <View style={{ minHeight: below ? height * 0.6 : height, justifyContent: 'flex-end', paddingHorizontal: SIDE, paddingTop: 56, paddingBottom: 24, gap: 14 }}>

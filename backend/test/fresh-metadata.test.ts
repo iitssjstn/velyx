@@ -2,7 +2,7 @@ import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { episodes, movies, shows } from '../src/db/schema.js';
-import { FRESH_FOR_MS, FreshMetadata } from '../src/services/fresh-metadata.js';
+import { FRESH_FOR_MS, FreshMetadata, RETRY_AFTER_FAILURE_MS } from '../src/services/fresh-metadata.js';
 import type { FetchLike } from '../src/services/tmdb.js';
 import { addLibrary, createTestEnv, createUser, setupAdmin, touch, type TestEnv } from './helpers.js';
 import { createMockTmdb, type MockTmdb } from './tmdb-mock.js';
@@ -33,7 +33,7 @@ async function start() {
 const refresh = (type: 'movies' | 'shows', id: number | string, cookie: string | null = admin) =>
   env.app.inject({ method: 'POST', url: `/api/${type}/${id}/refresh`, headers: cookie ? { cookie } : {} });
 const tmdbCalls = (p: string) => tmdb.calls.filter((c) => c.split('?')[0] === `/3${p}`).length;
-/** Makes the title's last refresh older than the hour. */
+/** Makes the title's last refresh older than a minute. */
 const age = (table: typeof movies | typeof shows, id: number) =>
   env.ctx.db.update(table).set({ metadataUpdatedAt: Date.now() - FRESH_FOR_MS - 1000 }).where(eq(table.id, id)).run();
 
@@ -45,7 +45,7 @@ async function movie() {
 }
 
 describe('fresh metadata when a title is opened', () => {
-  it('fetches a movie anew after an hour; within the hour everyone gets the stored metadata', async () => {
+  it('fetches a movie anew every time it is opened, except within a minute of the last refresh', async () => {
     await start();
     const { id } = await movie();
     const before = tmdbCalls('/movie/157336');
@@ -54,18 +54,26 @@ describe('fresh metadata when a title is opened', () => {
     expect((await refresh('movies', id)).json()).toEqual({ status: 'fresh' });
     expect(tmdbCalls('/movie/157336')).toBe(before);
 
-    // Over an hour old, and changed at TMDB in the meantime (here: the stored title is outdated).
+    // Two minutes later (well within the old hour), and changed at TMDB in the meantime (here: the
+    // stored title is outdated): fetched anew.
+    env.ctx.db.update(movies).set({ metadataUpdatedAt: Date.now() - 2 * 60_000 }).where(eq(movies.id, id)).run();
+    env.ctx.db.update(movies).set({ title: 'Old title', overview: 'Old overview' }).where(eq(movies.id, id)).run();
+    expect((await refresh('movies', id)).json()).toEqual({ status: 'refreshed', id });
+    expect(tmdbCalls('/movie/157336')).toBe(before + 1);
+    expect(env.ctx.db.select().from(movies).where(eq(movies.id, id)).get()!.title).toBe('Interstellar');
+
+    // Changed again later.
     env.ctx.db.update(movies).set({ title: 'Old title', overview: 'Old overview' }).where(eq(movies.id, id)).run();
     age(movies, id);
     expect((await refresh('movies', id)).json()).toEqual({ status: 'refreshed', id });
-    expect(tmdbCalls('/movie/157336')).toBe(before + 1);
+    expect(tmdbCalls('/movie/157336')).toBe(before + 2);
     const page = (await env.app.inject({ url: `/api/movies/${id}`, headers: { cookie: admin } })).json();
     expect(page).toMatchObject({ title: 'Interstellar', overview: 'Interstellar overview' });
 
-    // Someone else opening it within the hour: the same stored metadata, no new request.
+    // Someone else opening it in the same minute: the same stored metadata, no new request.
     const user = await createUser(env.app, admin, 'viewer');
     expect((await refresh('movies', id, user.cookie)).json()).toEqual({ status: 'fresh' });
-    expect(tmdbCalls('/movie/157336')).toBe(before + 1);
+    expect(tmdbCalls('/movie/157336')).toBe(before + 2);
   });
 
   it('shares one refresh between people opening the same title at the same moment', async () => {
@@ -112,6 +120,21 @@ describe('fresh metadata when a title is opened', () => {
     expect(env.ctx.db.select().from(movies).where(eq(movies.id, id)).get()!.title).toBe('Interstellar');
     expect((await refresh('movies', id)).json()).toEqual({ status: 'skipped' });
     expect(tmdb.calls.length).toBe(asked);
+  });
+
+  it('asks TMDB again ten minutes after a failed refresh', async () => {
+    await start();
+    const { id } = await movie();
+    age(movies, id);
+    let now = Date.now();
+    const fresh = new FreshMetadata(env.ctx.db, env.ctx.metadata, { now: () => now });
+    tmdb.offline = true;
+    expect(await fresh.refresh('movie', id)).toEqual({ status: 'skipped' });
+    tmdb.offline = false;
+    now += RETRY_AFTER_FAILURE_MS - 1000;
+    expect(await fresh.refresh('movie', id)).toEqual({ status: 'skipped' });
+    now += 2000;
+    expect(await fresh.refresh('movie', id)).toEqual({ status: 'refreshed', id });
   });
 
   it('answers "pending" while TMDB is slow, and the refresh goes on', async () => {

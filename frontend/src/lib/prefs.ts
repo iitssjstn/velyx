@@ -35,6 +35,18 @@ export interface PlaybackPrefs {
   seekStep: SeekStep;
 }
 
+/** How audio is processed (stored with the account, on every device): voices boosted, or night (also loud scenes softer). */
+export type AudioMode = 'normal' | 'voices' | 'night';
+export const AUDIO_MODES: AudioMode[] = ['normal', 'voices', 'night'];
+
+export function audioModeOf(p: Pick<PlaybackPrefs, 'boostVoices' | 'levelVolume'>): AudioMode {
+  return p.levelVolume ? 'night' : p.boostVoices ? 'voices' : 'normal';
+}
+
+export function audioModePrefs(mode: AudioMode): Pick<PlaybackPrefs, 'boostVoices' | 'levelVolume'> {
+  return { boostVoices: mode !== 'normal', levelVolume: mode === 'night' };
+}
+
 export const SEEK_STEPS = [5, 10, 15, 30] as const;
 export type SeekStep = (typeof SEEK_STEPS)[number];
 
@@ -66,6 +78,7 @@ let current: PlaybackPrefs = load();
 let accountGeneration = 0;
 let accountActive = false;
 let styleRevision = 0;
+let audioRevision = 0;
 let pendingSave = Promise.resolve();
 let accountSaveFailed = false;
 
@@ -88,12 +101,22 @@ type AccountSubtitleStyle = { size: SubtitleSize; color: SubtitleColor; backgrou
 export function syncSubtitlePrefs(): () => void {
   const generation = ++accountGeneration;
   const revision = styleRevision;
+  const audio = audioRevision;
   accountActive = true;
   setAccountSaveFailed(false);
-  void api.get<{ subtitleStyle?: AccountSubtitleStyle | null }>('/api/account/preferences').then(({ subtitleStyle: s }) => {
-    if (!s || generation !== accountGeneration || revision !== styleRevision) return;
-    current = { ...current, ...readSubtitlePrefs({ subtitleSize: s.size, subtitleColor: s.color, subtitleBackground: s.background, subtitleEdge: s.edge, subtitlePosition: s.position, castSubtitleDefaults: s.castDefaults ?? false }) };
-    persist();
+  void api.get<{ subtitleStyle?: AccountSubtitleStyle | null; audioMode?: AudioMode }>('/api/account/preferences').then(({ subtitleStyle: s, audioMode }) => {
+    if (generation !== accountGeneration) return;
+    let changed = false;
+    // The account's audio mode wins, unless it was changed here while it loaded.
+    if (audioMode && AUDIO_MODES.includes(audioMode) && audio === audioRevision) {
+      current = { ...current, ...audioModePrefs(audioMode) };
+      changed = true;
+    }
+    if (s && revision === styleRevision) {
+      current = { ...current, ...readSubtitlePrefs({ subtitleSize: s.size, subtitleColor: s.color, subtitleBackground: s.background, subtitleEdge: s.edge, subtitlePosition: s.position, castSubtitleDefaults: s.castDefaults ?? false }) };
+      changed = true;
+    }
+    if (changed) persist();
   }).catch(() => undefined);
   return () => {
     if (generation === accountGeneration) {
@@ -137,6 +160,13 @@ export function getPrefs(): PlaybackPrefs {
 
 export function setPrefs(patch: Partial<PlaybackPrefs>): void {
   current = { ...current, ...patch };
+  if ('boostVoices' in patch || 'levelVolume' in patch) {
+    ++audioRevision;
+    if (accountActive) {
+      const audioMode = audioModeOf(current);
+      pendingSave = pendingSave.then(async () => { await api.put('/api/account/preferences', { audioMode }); }).catch(() => undefined);
+    }
+  }
   const styleChanged = ['subtitleSize', 'subtitleColor', 'subtitleBackground', 'subtitleEdge', 'subtitlePosition', 'castSubtitleDefaults'].some((key) => key in patch);
   if (styleChanged) {
     ++styleRevision;

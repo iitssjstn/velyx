@@ -37,6 +37,8 @@ export const users = sqliteTable('users', {
   prefSkipCredits: text('pref_skip_credits', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
   /** Skipping a detected recap ("previously on"). */
   prefSkipRecap: text('pref_skip_recap', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
+  /** How audio is processed: normal, voices boosted, or night (voices boosted and loud scenes softened). */
+  prefAudioMode: text('pref_audio_mode', { enum: ['normal', 'voices', 'night'] }).notNull().default('normal'),
   /** Interface language (en, nl, …); independent of the audio/subtitle languages above. */
   language: text('language').notNull().default('en'),
   createdAt: integer('created_at').notNull().default(now),

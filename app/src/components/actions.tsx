@@ -69,7 +69,9 @@ export function Toggle({ active, icon, text, label, activeLabel, request, compac
         // Filled when on, outlined when off (the buttons' look everywhere).
         shown ? buttonLook.filled : buttonLook.outlined,
         // On a TV a round icon as high as the other buttons, so all fit on one row; what it does is read aloud.
+        // An outlined one gets a dark inside, so its icon shows on a bright photo too.
         tv && { height: 48, width: 48, paddingHorizontal: 0, justifyContent: 'center', borderRadius: radius.pill },
+        tv && !shown && { backgroundColor: 'rgba(20,18,28,0.7)' },
       ]}
     >
       {busy ? <ActivityIndicator size="small" color={ink} /> : <Feather name={icon} size={compact ? 16 : 18} color={ink} />}

@@ -5,8 +5,8 @@ const PENDING_WAIT_MS = 3_000;
 const PENDING_TRIES = 5;
 
 /**
- * Asks the server for fresh metadata of a movie or show (it fetches anew when the last refresh is
- * over an hour old). Resolves to the id of the item holding new metadata, or null when nothing changed.
+ * Asks the server for fresh metadata of a movie or show (it fetches anew unless the last refresh is
+ * less than a minute old). Resolves to the id of the item holding new metadata, or null when nothing changed.
  * While the server is still busy ("pending") it asks again a few times.
  */
 export async function askFreshMetadata(

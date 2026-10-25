@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `pref_audio_mode` text DEFAULT 'normal' NOT NULL;

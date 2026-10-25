@@ -64,3 +64,61 @@ export function cueCss(style) {
   const rules = { 'font-family': "Roboto, 'Google Sans', system-ui, sans-serif", 'font-size': `${Math.round(4.6 * scale * 100) / 100}vh`, 'line-height': '1.25', color, 'background-color': background, 'text-shadow': shadow };
   return `video::cue { ${Object.entries(rules).map(([k, v]) => `${k}: ${v} !important;`).join(' ')} }`;
 }
+
+/** How long a subtitle may take before the TV says it is loading (a file the server has ready is in at once). */
+export const SUBTITLE_LOADING_AFTER_MS = 600;
+/** How long "could not be loaded" stays on the screen. */
+export const SUBTITLE_ERROR_FOR_MS = 6000;
+
+/**
+ * Whether the chosen subtitle is still on its way: for a subtitle inside the file the server reads
+ * the whole file first (minutes on a NAS), and until then the TV shows nothing. The TV asks for the
+ * file itself, so it can say it is loading, or that it could not be loaded.
+ */
+export class SubtitleLoad {
+  /** @param get resolves true when the file came (false or a rejection: it did not). */
+  constructor(get, clock = Date.now) {
+    this.get = get;
+    this.clock = clock;
+    this.url = null;
+    this.state = null;
+    this.since = 0;
+    this.done = new Set();
+  }
+
+  /** The subtitle the TV shows now (null: none); the same one again changes nothing. */
+  watch(url) {
+    if (url === this.url) return;
+    this.url = url;
+    this.since = this.clock();
+    if (!url || this.done.has(url)) {
+      this.state = null;
+      return;
+    }
+    this.state = 'loading';
+    const settle = (ok) => {
+      if (ok) this.done.add(url);
+      if (this.url !== url) return;
+      this.state = ok ? null : 'error';
+      this.since = this.clock();
+    };
+    Promise.resolve()
+      .then(() => this.get(url))
+      .then((ok) => settle(Boolean(ok)), () => settle(false));
+  }
+
+  /** What to show now: 'loading' once it takes a moment, 'error' for a while, else null. */
+  shown() {
+    const age = this.clock() - this.since;
+    if (this.state === 'loading') return age >= SUBTITLE_LOADING_AFTER_MS ? 'loading' : null;
+    if (this.state === 'error') return age < SUBTITLE_ERROR_FOR_MS ? 'error' : null;
+    return null;
+  }
+}
+
+/** "CC · English" for the subtitle that is on, or nothing when subtitles are off. */
+export function ccLabel(track) {
+  if (!track) return '';
+  const name = String(track.name || track.language || '').trim();
+  return name ? `CC · ${name}` : 'CC';
+}

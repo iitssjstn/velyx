@@ -61,7 +61,7 @@ Vidalune is a lightweight, Docker-first, self-hosted media server for movies and
 - **Cast to a TV** — from the player in Chrome or the Android app, send what you are watching to a Chromecast or a TV with Chromecast built in; it continues where you were and the player becomes its remote (see [Casting to a TV](#casting-to-a-tv)).
 - **Automatic audio conversion** — files with audio the browser cannot decode (EAC3, AC3, DTS, TrueHD) play anyway: the video is passed through untouched and only the audio is converted to AAC on the fly (stereo or 5.1 surround). Light enough for low-end CPUs.
 - **Skip recaps, intros and credits** — Vidalune recognises the intro of TV episodes by its recurring sound (per season), a recap ("previously on") by its clips of earlier episodes, and the end credits by the text in the picture — also when the credits music changes every episode — all on your own server. Chapters named Recap, Intro or Credits are used when a file has them. A *Skip recap* / *Skip intro* / *Skip credits* button appears while they play (or they are skipped automatically, if you prefer), and again when you go back into them; a scene after the credits is never skipped.
-- **Audio options** — *Boost voices* (clearer dialogue) and *Level volume* (night mode), switchable from the player.
+- **Audio options** — *Voices*: *Boost voices* (clearer dialogue) or *Night mode* (also quieter loud scenes), switchable from the player on the website, in the app and on the TV, and kept with your account.
 - **Subtitles your way** — size, colour, background, outline/shadow, position and timing (sync) adjustable from the player; subtitles always stay above the controls.
 - **Subtitles from OpenSubtitles.com** — on a server linked to a Vidalune account, through vidalune.com (no key of your own needed), the subtitle menu of the player on the website and in the app searches online by itself, in your subtitle language, as soon as you open it. Pick another language from the list, choose a subtitle (the ones made for exactly your file come first) and it plays straight away. In more than 40 languages.
 - **Requests with Seerr (optional)** — connect Seerr and everyone can search for movies and shows that are not in the library, request them from Vidalune and follow their requests; the home screen then also shows the catalog in rows, where what is here plays with one tap and the rest is one tap from a request (see [Requests with Seerr](#requests-with-seerr-optional)).
@@ -287,9 +287,9 @@ The first visit opens a setup wizard where you create the administrator account,
 
 ## TMDB metadata
 
-**Through your Vidalune account (no key needed).** Link the server to a Vidalune account (**Admin → Vidalune account**) and metadata comes through vidalune.com, which asks TMDB with its own key. Only the questions Vidalune asks (searching, movie and show details, seasons, translations, trailers) are passed on, and each answer is reused for a day by every server, so a title that someone else already has comes at once. Images do not go through vidalune.com: the server fetches them from TMDB itself, as before. Nothing about users or what anyone watches is sent. There is nothing to set up for it: **Admin → Metadata** only has the metadata language and whether adult titles are searched, and says so when metadata does not come in (the server is not linked, or vidalune.com cannot be reached). When it becomes available (after linking), Vidalune fetches metadata for existing items automatically. Artwork is proxied and cached by Vidalune. Items that cannot be matched confidently appear in **Admin → Metadata** for review. Use **Refresh metadata** on a library (or on an item's menu) to update everything.
+**Through your Vidalune account (no key needed).** Link the server to a Vidalune account (**Admin → Vidalune account**) and metadata comes through vidalune.com, which asks TMDB with its own key. Only the questions Vidalune asks (searching, movie and show details, seasons, translations, trailers) are passed on, and each answer is reused for ten minutes by every server, so many servers opening the same title at once ask TMDB once, and what is added at TMDB (such as the stills of a season that just came out) arrives within minutes. Images do not go through vidalune.com: the server fetches them from TMDB itself, as before. Nothing about users or what anyone watches is sent. There is nothing to set up for it: **Admin → Metadata** only has the metadata language and whether adult titles are searched, and says so when metadata does not come in (the server is not linked, or vidalune.com cannot be reached). When it becomes available (after linking), Vidalune fetches metadata for existing items automatically. Artwork is proxied and cached by Vidalune. Items that cannot be matched confidently appear in **Admin → Metadata** for review. Use **Refresh metadata** on a library (or on an item's menu) to update everything.
 
-**Fresh metadata when a title is opened.** Opening a movie or show (website, app.vidalune.com or the Android app) fetches its metadata anew from TMDB when it was last refreshed more than an hour ago — for a show also its seasons and episodes on the server. The page opens at once with what is stored and updates itself when the new metadata has come. Everyone who opens the title within that hour gets the same stored metadata without a new request to TMDB, and people opening it at the same moment share one request. When TMDB cannot be reached, the stored metadata stays and the title is not asked for again until the hour is over. Pages of titles that are not in the library come straight from Seerr every time they are opened.
+**Fresh metadata when a title is opened.** Opening a movie or show (website, app.vidalune.com or the Android app) fetches its metadata anew from TMDB every time — for a show also its seasons and episodes on the server — unless it was refreshed less than a minute ago. The page opens at once with what is stored and updates itself when the new metadata has come. People opening it at the same moment share one request. When TMDB cannot be reached, the stored metadata stays and the title is not asked for again for ten minutes. Pages of titles that are not in the library come straight from Seerr every time they are opened.
 
 Without a key or a link Vidalune still works: titles come from the file names and a typographic placeholder replaces posters.
 
@@ -351,15 +351,15 @@ In the player, a small badge shows the mode (*Direct Play*, or *Remux • Audio 
 
 ### Audio options
 
-Available in the player's audio menu and in **Account → Playback** (saved per browser):
+Available in the player's audio menu (website, app and TV app) and in **Account → Playback**. *Sound* is saved per browser; *Voices* is saved with your account and used on every device, also when casting:
 
 | Option | What it does |
 | --- | --- |
 | Sound: Stereo / Surround 5.1 | Channel layout for converted audio. Surround keeps up to 5.1 (7.1 is folded to 5.1); stereo mixes down for speakers and headphones. |
-| Boost voices | 5.1 sources: dialogue (center channel) emphasised in the mix. Stereo sources: speech frequencies lifted. |
-| Level volume | Dynamic range compression — quieter explosions, louder dialogue. |
+| Voices: Boost voices | 5.1 sources: dialogue (center channel) emphasised in the mix. Stereo sources: speech frequencies lifted. |
+| Voices: Night mode | Boost voices plus dynamic range compression — quieter explosions, louder dialogue. |
 
-Boost voices and Level volume always convert the audio.
+Boost voices and Night mode always convert the audio (the video is copied as it is). Changing it during playback restarts the sound at the same spot, like choosing another audio track.
 
 **Account → Playback** also shows what the current browser supports.
 

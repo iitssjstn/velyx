@@ -53,4 +53,20 @@ describe('subtitle preference persistence', () => {
     expect(JSON.parse(localStorage.getItem('velyx.playback')!).subtitleColor).toBe('yellow');
     stop();
   });
+
+  it('takes the audio mode (voices, night) from the account and saves a change there', async () => {
+    const { api } = await import('./api');
+    vi.spyOn(api, 'get').mockResolvedValue({ subtitleStyle: null, audioMode: 'night' });
+    const put = vi.spyOn(api, 'put').mockResolvedValue({});
+    const prefs = await import('./prefs');
+    const stop = prefs.syncSubtitlePrefs();
+    await vi.waitFor(() => expect(prefs.getPrefs()).toMatchObject({ boostVoices: true, levelVolume: true }));
+    expect(prefs.audioModeOf(prefs.getPrefs())).toBe('night');
+    prefs.setPrefs(prefs.audioModePrefs('voices'));
+    expect(prefs.getPrefs()).toMatchObject({ boostVoices: true, levelVolume: false });
+    await vi.waitFor(() => expect(put).toHaveBeenCalledWith('/api/account/preferences', { audioMode: 'voices' }));
+    // Not a subtitle style change.
+    expect(put).not.toHaveBeenCalledWith('/api/account/preferences', expect.objectContaining({ subtitleStyle: expect.anything() }));
+    stop();
+  });
 });

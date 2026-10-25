@@ -10,7 +10,7 @@ import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
 import { ProgressSaver, progressReport, progressTarget, SAVE_EVERY_MS, SETTLE_AFTER_SEC, START_SLACK_SEC, START_TRIES } from '../web/cast/progress.js';
 import { needsTracks, showsSplash, startOptions } from '../web/cast/screen.js';
-import { barVisible, cssColor, cueCss, fileTimes, formatTime, SHOW_FOR_MS } from '../web/cast/overlay.js';
+import { barVisible, ccLabel, cssColor, cueCss, fileTimes, formatTime, SHOW_FOR_MS, SubtitleLoad, SUBTITLE_ERROR_FOR_MS, SUBTITLE_LOADING_AFTER_MS } from '../web/cast/overlay.js';
 import { castStyle, castUrl, controlsFor, cycleStyle, DEFAULT_TV_STYLE, initialState, keyOf, loadRequestFor, press, segmentMarks, serverOf, skipAt, tabsFor, tvStyleFrom, upNextStart, words, type RemoteState } from '../web/cast/remote.js';
 
 let dir: string;
@@ -58,7 +58,7 @@ describe('cast.vidalune.com', () => {
     // Vidalune's own player: Google's framework plays into Vidalune's video, not into its own player with its bar.
     expect(page.body).toContain('<video id="video">');
     expect(page.body).not.toContain('<cast-media-player>');
-    for (const id of ['splash', 'bar', 'title', 'played', 'paused', 'waiting', 'cue-style', 'controls', 'menu', 'skip', 'upnext', 'keys']) expect(page.body, id).toContain(`id="${id}"`);
+    for (const id of ['splash', 'bar', 'title', 'played', 'paused', 'waiting', 'cue-style', 'controls', 'menu', 'skip', 'upnext', 'keys', 'subload', 'cc']) expect(page.body, id).toContain(`id="${id}"`);
     expect(page.headers['content-security-policy']).toBe("frame-ancestors 'none'");
     for (const [file, type] of [['receiver.js', 'text/javascript'], ['progress.js', 'text/javascript'], ['screen.js', 'text/javascript'], ['overlay.js', 'text/javascript'], ['remote.js', 'text/javascript'], ['cast.css', 'text/css'], ['logo.svg', 'image/svg+xml']]) {
       const res = await get('cast.vidalune.example', `/${file}`);
@@ -149,6 +149,64 @@ describe('the cast player\'s own bar and subtitles', () => {
     expect(cueCss({ foregroundColor: '#FFFFFFFF', edgeType: 'DROP_SHADOW' })).toContain('background-color: rgba(0, 0, 0, 0) !important');
     expect(cueCss(null)).toContain('background-color: rgba(0, 0, 0, 0) !important');
     expect(cueCss({ edgeType: 'NONE' })).toContain('text-shadow: none !important');
+  });
+  it('shows that subtitles are on, and which, next to the time', () => {
+    expect(ccLabel({ name: 'English', language: 'en' })).toBe('CC · English');
+    expect(ccLabel({ name: '', language: 'nl' })).toBe('CC · nl');
+    expect(ccLabel({})).toBe('CC');
+    expect(ccLabel(null)).toBe('');
+  });
+
+  it('says the subtitle is loading while the server still reads it, and when it could not be loaded', async () => {
+    let now = 0;
+    const answers = new Map<string, (ok: boolean) => void>();
+    const asked: string[] = [];
+    const load = new SubtitleLoad((url) => {
+      asked.push(url);
+      return new Promise<boolean>((resolve) => answers.set(url, resolve));
+    }, () => now);
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+    load.watch('https://s/sub/1.vtt');
+    await settle();
+    // A file that is there at once does not flash the message.
+    expect(load.shown()).toBeNull();
+    now = SUBTITLE_LOADING_AFTER_MS;
+    expect(load.shown()).toBe('loading');
+    // Asked once, also when the TV reports the same subtitle again.
+    load.watch('https://s/sub/1.vtt');
+    expect(asked).toEqual(['https://s/sub/1.vtt']);
+    answers.get('https://s/sub/1.vtt')!(true);
+    await settle();
+    expect(load.shown()).toBeNull();
+    // Off, and back to the one that loaded: nothing to wait for.
+    load.watch(null);
+    expect(load.shown()).toBeNull();
+    load.watch('https://s/sub/1.vtt');
+    expect(load.shown()).toBeNull();
+    expect(asked).toHaveLength(1);
+    // Another one that fails: the message says so for a while.
+    load.watch('https://s/sub/2.vtt');
+    await settle();
+    now += SUBTITLE_LOADING_AFTER_MS;
+    expect(load.shown()).toBe('loading');
+    answers.get('https://s/sub/2.vtt')!(false);
+    await settle();
+    expect(load.shown()).toBe('error');
+    now += SUBTITLE_ERROR_FOR_MS;
+    expect(load.shown()).toBeNull();
+    // An answer for a subtitle that is no longer chosen changes nothing.
+    load.watch('https://s/sub/3.vtt');
+    await settle();
+    load.watch(null);
+    answers.get('https://s/sub/3.vtt')!(false);
+    await settle();
+    expect(load.shown()).toBeNull();
+    // A network error counts as not loaded.
+    const failing = new SubtitleLoad(() => Promise.reject(new Error('offline')), () => now);
+    failing.watch('https://s/sub/4.vtt');
+    await settle();
+    await settle();
+    expect(failing.shown()).toBe('error');
   });
 });
 

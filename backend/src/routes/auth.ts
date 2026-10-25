@@ -104,6 +104,7 @@ const preferencesBody = z.object({
   skipCredits: z.enum(['never', 'ask', 'always']).optional(),
   skipRecap: z.enum(['never', 'ask', 'always']).optional(),
   subtitleStyle: subtitleStyleSchema.nullable().optional(),
+  audioMode: z.enum(['normal', 'voices', 'night']).optional(),
 });
 
 function accountSubtitleStyle(stored: string | null): z.infer<typeof subtitleStyleSchema> | null {
@@ -117,7 +118,7 @@ function accountSubtitleStyle(stored: string | null): z.infer<typeof subtitleSty
 }
 
 function preferencesView(u: typeof users.$inferSelect) {
-  return { audioLanguage: u.prefAudioLanguage, subtitleLanguage: u.prefSubtitleLanguage, subtitleFallback: u.prefSubtitleFallback, subtitleMode: u.prefSubtitleMode, skipIntro: u.prefSkipIntro, skipCredits: u.prefSkipCredits, skipRecap: u.prefSkipRecap, subtitleStyle: accountSubtitleStyle(u.prefSubtitleStyle) };
+  return { audioLanguage: u.prefAudioLanguage, subtitleLanguage: u.prefSubtitleLanguage, subtitleFallback: u.prefSubtitleFallback, subtitleMode: u.prefSubtitleMode, skipIntro: u.prefSkipIntro, skipCredits: u.prefSkipCredits, skipRecap: u.prefSkipRecap, audioMode: u.prefAudioMode, subtitleStyle: accountSubtitleStyle(u.prefSubtitleStyle) };
 }
 
 const AVATAR_TYPES: Record<string, { ext: string; magic: (b: Buffer) => boolean }> = {
@@ -408,6 +409,7 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
         ...(b.skipIntro !== undefined ? { prefSkipIntro: b.skipIntro } : {}),
         ...(b.skipCredits !== undefined ? { prefSkipCredits: b.skipCredits } : {}),
         ...(b.skipRecap !== undefined ? { prefSkipRecap: b.skipRecap } : {}),
+        ...(b.audioMode !== undefined ? { prefAudioMode: b.audioMode } : {}),
         ...(b.subtitleStyle !== undefined ? { prefSubtitleStyle: b.subtitleStyle === null ? null : JSON.stringify(b.subtitleStyle) } : {}),
         updatedAt: Date.now(),
       })

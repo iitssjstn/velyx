@@ -33,8 +33,9 @@ import { useSession } from '../../../lib/session';
 import { addSeek, justSkipped, SEEK_COMBINE_MS, SEEK_STEPS, skipAt, upNextStart, type DoneSkip, type EpisodeSegments, type PendingSeek, type SeekStep, type SkipMode } from '../../../lib/skip';
 import { colors, radius } from '../../../lib/theme';
 import { tvFocus } from '../../../lib/tvFocus';
+import { AUDIO_MODES, audioMenuPick, isAudioMode, type AudioMode } from '../../../lib/audioMode';
 import { TV_CONTROLS_MS, initialTvState, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, type RemoteKey, type TvContext } from '../../../lib/tvRemote';
-import { cueTextAt, parseVtt, type Cue } from '../../../lib/vtt';
+import { SUBTITLE_ERROR_FOR_MS, SUBTITLE_LOADING_AFTER_MS, cueTextAt, cuesFrom, type Cue } from '../../../lib/vtt';
 
 interface NextEpisode {
   id: number;
@@ -59,6 +60,7 @@ interface Item {
 
 interface Prefs extends SubtitlePrefs {
   audioLanguage?: string | null;
+  audioMode?: AudioMode;
   subtitleStyle?: SubtitleStyle | null;
   skipIntro?: SkipMode;
   skipCredits?: SkipMode;
@@ -154,6 +156,8 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   const [controls, setControls] = useState(true);
   const [menu, setMenu] = useState(false);
   const [audioIndex, setAudioIndex] = useState<number | null>(null);
+  /** Voices boosted or night mode: stored with the account, the server converts the audio for it. */
+  const [audioMode, setAudioMode] = useState<AudioMode>(isAudioMode(prefs?.audioMode) ? prefs.audioMode : 'normal');
   const [subtitle, setSubtitle] = useState<SubtitleOption | null>(null);
   /** Subtitles fetched online during this playback (the server lists them too from the next time). */
   const [fetchedSubs, setFetchedSubs] = useState<SubtitleOption[]>([]);
@@ -492,16 +496,33 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   };
 
   // Subtitles are shown by the app (the same for direct play and remux), from the server's WebVTT.
+  // A subtitle inside the file is read by the server first (minutes on a NAS): "Loading subtitle…"
+  // once it takes a moment, and a message when it could not be loaded, instead of nothing at all.
+  const [subLoad, setSubLoad] = useState<'loading' | 'error' | null>(null);
   useEffect(() => {
     setCues([]);
+    setSubLoad(null);
     if (!subtitle) return;
     let alive = true;
+    const slow = setTimeout(() => alive && setSubLoad('loading'), SUBTITLE_LOADING_AFTER_MS);
+    let gone: ReturnType<typeof setTimeout> | undefined;
     fetch(subtitleUrl(api, subtitle, 0, mediaEndpoint ?? undefined), { headers: mediaEndpoint ? {} : api.headers() })
-      .then((r) => r.text())
-      .then((text) => alive && setCues(parseVtt(text)))
-      .catch(() => undefined);
+      .then(cuesFrom)
+      .then((list) => {
+        if (!alive) return;
+        setCues(list);
+        setSubLoad(null);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setSubLoad('error');
+        gone = setTimeout(() => alive && setSubLoad(null), SUBTITLE_ERROR_FOR_MS);
+      })
+      .finally(() => clearTimeout(slow));
     return () => {
       alive = false;
+      clearTimeout(slow);
+      clearTimeout(gone);
     };
   }, [subtitle, api, mediaEndpoint]);
 
@@ -935,6 +956,23 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
     if (track) void rememberAudio(track.language);
     if (index !== audioIndex) void decide(position, index);
   };
+  /** Another audio mode: saved with the account first (the server reads it), then the stream restarts here. */
+  const chooseAudioMode = async (mode: AudioMode) => {
+    if (mode === audioMode) return;
+    const before = audioMode;
+    setAudioMode(mode);
+    try {
+      await api.put('/api/account/preferences', { audioMode: mode });
+    } catch {
+      // Not saved (server unreachable): it stays as it was.
+      setAudioMode(before);
+      return;
+    }
+    qc.setQueryData<Prefs>([serverUrl, 'account-prefs'], (current) => (current ? { ...current, audioMode: mode } : current));
+    // Casting: a new session for the TV (its stream carries the conversion).
+    if (castingRef.current) castSession.current = null;
+    void decide(position, audioIndex ?? undefined);
+  };
   const skipNow = () => {
     if (!askSkip) return;
     if (askSkip.kind === 'credits' && askSkip.toNext && item.next) goNext();
@@ -948,9 +986,10 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   // On Android TV / Google TV the remote drives the player (lib/tvRemote.ts): RemoteKeys passes the
   // arrows, OK and media keys, Back comes through BackHandler.
   const tvContext: TvContext = {
-    buttons: tvButtons({ audioTracks: audioTracks.length, hasNext: Boolean(item.next) }),
-    tabs: tvTabs({ audioTracks: audioTracks.length }),
-    items: { subtitles: subtitleOptions.length + 1, audio: audioTracks.length },
+    // The audio menu always has a choice: the file's tracks, then the audio modes.
+    buttons: tvButtons({ audioTracks: audioTracks.length + AUDIO_MODES.length, hasNext: Boolean(item.next) }),
+    tabs: tvTabs({ audioTracks: audioTracks.length + AUDIO_MODES.length }),
+    items: { subtitles: subtitleOptions.length + 1, audio: audioTracks.length + AUDIO_MODES.length },
     selected: { subtitles: subtitle ? subtitleOptions.findIndex((o) => o.key === subtitle.key) + 1 : 0, audio: Math.max(0, audioTracks.findIndex((a) => a.index === audioIndex)) },
     skip: Boolean(askSkip && !showNext),
     upNext: showNext,
@@ -974,8 +1013,9 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
       setCountdown(null);
     } else if (a?.type === 'pick' && a.tab === 'subtitles') chooseSubtitle(a.index === 0 ? null : subtitleOptions[a.index - 1] ?? null);
     else if (a?.type === 'pick' && a.tab === 'audio') {
-      const track = audioTracks[a.index];
-      if (track) chooseAudio(track.index);
+      const pick = audioMenuPick(a.index, audioTracks.length);
+      if (pick?.kind === 'track') chooseAudio(audioTracks[pick.index]!.index);
+      else if (pick?.kind === 'mode') void chooseAudioMode(pick.mode);
     }
     return true;
   };
@@ -1000,6 +1040,12 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   const subtitleView = text ? (
     <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleAt + insets.bottom, alignItems: 'center' }}>
       <Text style={subtitleTextStyle(subStyle, screenHeight)}>{text}</Text>
+    </View>
+  ) : subLoad && !casting ? (
+    <View pointerEvents="none" accessibilityRole="alert" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleAt + insets.bottom, alignItems: 'center' }}>
+      <Text style={{ color: subLoad === 'error' ? '#ff9aa8' : '#fff', fontSize: TV ? 22 : 15, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 999, overflow: 'hidden', paddingHorizontal: TV ? 26 : 16, paddingVertical: TV ? 12 : 8 }}>
+        {subLoad === 'error' ? t('player.subtitleFailed') : t('player.subtitleLoading')}
+      </Text>
     </View>
   ) : null;
   const shown = scrub ?? position;
@@ -1048,12 +1094,13 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
             tabs={tvContext.tabs}
             lines={{
               subtitles: [t('player.off'), ...subtitleOptions.map(subtitleLabel)],
-              audio: audioTracks.map((a) => audioLabel(a, t)),
+              audio: [...audioTracks.map((a) => audioLabel(a, t)), ...AUDIO_MODES.map((m) => `${m === audioMode ? '✓ ' : ''}${t('player.voices')} · ${t(`player.voiceMode.${m}`)}`)],
             }}
             selected={tvContext.selected}
             marks={segmentMarks(item.segments, item.fileId, duration)}
             seekStep={seekStep}
             skipLabel={askSkip ? skipLabel(askSkip.kind, t) : null}
+            captions={subtitle ? subtitleLabel(subtitle) : null}
             upNext={showNext && item.next ? { label: `${episodeCode(item.next.seasonNumber, item.next.episodeNumber)}${item.next.title ? ` · ${item.next.title}` : ''}`, countdown: countdown ?? 0, ended } : null}
           />
           {/* Over the bar's shading, so they stay readable. */}
@@ -1155,6 +1202,18 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
                   onPress={() => {
                     setMenu(false);
                     chooseAudio(a.index);
+                  }}
+                />
+              ))}
+              <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('player.voices')}</Text>
+              {AUDIO_MODES.map((m) => (
+                <Choice
+                  key={m}
+                  label={t(`player.voiceMode.${m}`)}
+                  selected={m === audioMode}
+                  onPress={() => {
+                    setMenu(false);
+                    void chooseAudioMode(m);
                   }}
                 />
               ))}

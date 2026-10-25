@@ -45,3 +45,17 @@ export function cueTextAt(cues: Cue[], time: number): string {
   }
   return active.join('\n');
 }
+
+/** How long a subtitle may take before the player says it is loading (a file the server has ready is in at once). */
+export const SUBTITLE_LOADING_AFTER_MS = 600;
+/** How long "could not be loaded" stays on the screen. */
+export const SUBTITLE_ERROR_FOR_MS = 6000;
+
+/**
+ * The cues of a subtitle from the server's answer. A failed answer (the file could not be read) is an
+ * error, not an empty subtitle: the player says it could not be loaded instead of showing nothing.
+ */
+export async function cuesFrom(res: { ok: boolean; status: number; text: () => Promise<string> }): Promise<Cue[]> {
+  if (!res.ok) throw new Error(`Subtitle not loaded (${res.status})`);
+  return parseVtt(await res.text());
+}

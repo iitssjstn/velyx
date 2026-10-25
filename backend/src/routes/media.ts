@@ -5,7 +5,7 @@ import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { describeUserAgent, type SessionUser } from '../auth/sessions.js';
 import { requireUser } from '../app.js';
-import { libraries, mediaFiles, onlineSubtitles, subtitles, type AudioTrackInfo } from '../db/schema.js';
+import { libraries, mediaFiles, onlineSubtitles, subtitles, users, type AudioTrackInfo } from '../db/schema.js';
 import { Catalog } from '../services/catalog.js';
 import { localized } from '../services/localize.js';
 import { playbackSegments } from '../services/segments/store.js';
@@ -20,7 +20,7 @@ import { languageName } from '../services/parser.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
 import { fileInfo } from './library.js';
 import { canSee } from '../services/access.js';
-import type { PlaybackDecision } from '../playback/engine.js';
+import { audioModeOptions, type PlaybackDecision } from '../playback/engine.js';
 import { analyzePlayback } from '../playback/compatibility.js';
 import { clientProfile, deviceSupport, effectiveCapabilities, profileName } from '../playback/client-profile.js';
 import { requestLanguage } from '../i18n/index.js';
@@ -242,7 +242,9 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     const ua = request.headers['user-agent'];
     const { caps, confidence } = effectiveCapabilities(reportedCaps, clientProfile(ua));
     const lang = requestLanguage(request);
-    const options = { audioIndex, audioChannels, boostVoices, levelVolume, lang };
+    // Without an explicit choice, the account's audio mode (voices boosted, night) counts, on every device.
+    const account = accountAudio(request.user!.id);
+    const options = { audioIndex, audioChannels, boostVoices: boostVoices ?? account.boostVoices, levelVolume: levelVolume ?? account.levelVolume, lang };
     let decision = ctx.playback.decide(file, caps, options);
     if (!loaded.optimization && needsCompatibilityCopy(decision)) {
       for (const ready of ctx.optimizations.findReadyVariants(file.id, file.size, file.mtimeMs)) {
@@ -435,13 +437,19 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     }
   }
 
+  /** The processing the account's audio mode asks for. */
+  function accountAudio(userId: number) {
+    const mode = db.select({ mode: users.prefAudioMode }).from(users).where(eq(users.id, userId)).get()?.mode ?? 'normal';
+    return audioModeOptions(mode);
+  }
+
   async function castSession(request: FastifyRequest, body: { fileId: number; audioIndex?: number; optimizationId?: number }, wait = false) {
     const source = loadFile(String(body.fileId), request.user!);
     let loaded = body.optimizationId === undefined ? source : loadFile(String(body.fileId), request.user!, body.optimizationId);
     let file = await ensureVideoDetails(loaded.file, loaded.abs);
     if (body.audioIndex !== undefined && !(file.audioTracks ?? []).some((t) => t.index === body.audioIndex)) throw new HttpError(400, 'Unknown audio track.');
     const lang = requestLanguage(request);
-    const options = { audioIndex: body.audioIndex, audioChannels: 'stereo' as const, lang };
+    const options = { audioIndex: body.audioIndex, audioChannels: 'stereo' as const, ...accountAudio(request.user!.id), lang };
     let decision = ctx.playback.decide(file, CHROMECAST_CAPS, options);
     if (!loaded.optimization && needsCompatibilityCopy(decision)) {
       for (const ready of ctx.optimizations.findReadyVariants(file.id, file.size, file.mtimeMs)) {

@@ -24,7 +24,9 @@ html, body { margin: 0; height: 100%; background: #0f0d15; overflow: hidden; col
 .progress { position: relative; height: 6px; border-radius: 3px; background: rgba(238, 233, 255, 0.22); }
 #played { height: 100%; width: 0; background: #b69cff; border-radius: 3px; }
 #marks i { position: absolute; top: -6px; bottom: -6px; width: 4px; margin-left: -2px; border-radius: 2px; background: rgba(238, 233, 255, 0.55); }
-.times { display: flex; justify-content: space-between; margin-top: 12px; font-size: 22px; color: #b9b0d4; font-variant-numeric: tabular-nums; }
+.times { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: 22px; color: #b9b0d4; font-variant-numeric: tabular-nums; }
+/* Which subtitle is on (CC), between the times; empty when off. */
+.cc:not(:empty) { padding: 4px 14px; border: 2px solid rgba(238, 233, 255, 0.7); border-radius: 8px; color: #eee9ff; font-size: 18px; font-weight: 600; }
 
 /* Buttons the remote moves between: the chosen one white and a little bigger, to see from the couch. */
 #controls { display: none; justify-content: center; gap: 22px; margin-top: 28px; }
@@ -43,6 +45,11 @@ html, body { margin: 0; height: 100%; background: #0f0d15; overflow: hidden; col
 #skip.on { display: flex; }
 body.bar-on #skip { bottom: 330px; }
 #skip svg { width: 32px; height: 32px; }
+/* "Loading subtitle…" while the server still reads it, above where the subtitles go. */
+#subload { position: fixed; left: 50%; bottom: 14vh; z-index: 3; transform: translateX(-50%); display: none; padding: 14px 30px; border-radius: 40px; background: rgba(0, 0, 0, 0.72); color: #eee9ff; font-size: 26px; font-weight: 500; white-space: nowrap; }
+#subload.on { display: block; }
+#subload.error { color: #ff9aa8; }
+body.bar-on #subload { bottom: 330px; }
 
 /* "Next episode in 10 s". */
 #upnext { position: fixed; right: 5vw; bottom: 6vh; z-index: 4; width: 640px; padding: 28px; border-radius: 22px; background: rgba(21, 18, 33, 0.96); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6); display: none; }
