@@ -617,6 +617,12 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 - **Castbalk onderaan tijdens casten** en **schuiven op de tv te snel** (eigenaar 23 okt): gebouwd in 0.19.94 (zie daar).
 
+- **Lupin seizoen 4 zonder stills en beschrijvingen** (eigenaar 25 okt, screenshot). Geen fout in de code gevonden: het
+  seizoen kwam op 23 okt uit en TMDB heeft dan vaak nog geen plaatjes en beschrijvingen ("Chapter 1" is de naam van TMDB,
+  dus het ophalen werkt). "1 season" is het aantal seizoenen op de server. Vertraging: vidalune.com bewaart antwoorden van
+  TMDB een dag (`tmdb_cache`), en de pagina vraagt opnieuw na een uur. Mogelijke verbetering (nog niet bouwen): kortere
+  cache voor seizoenen die minder dan ~2 weken oud zijn of waarvan afleveringen nog geen `still_path` hebben.
+
 - **Stemmen versterken** (wens eigenaar 24 okt: "In de app zit geen voice boost etc dat zou een fijne toevoeging wezen als
   iemand graag wat beter de stemmen wilt horen op tv of op mobiel"; nog niet bouwen tot hij het zegt). Voorstel: in het
   menu van de speler bij Audio "Stemmen": Normaal / Stemmen versterken / Nachtstand (stemmen plus harde geluiden
