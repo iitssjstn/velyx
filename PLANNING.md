@@ -504,6 +504,16 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   meteen; daar is de wachttijd het bufferen van de NAS. Echt snel spoelen bij omgepakte bestanden vraagt HLS in de app
   (Later punt 4: stukjes blijven bewaard, spoelen binnen één stream); voorstel aan de eigenaar. App 249 tests en
   typecheck slagen. Op de tv te bevestigen.
+- **HLS in de app** (eigenaar 25 okt: "Bouw het", met 10 % tegoed tot woensdag; in één keer gedaan). Biedt de server
+  de stukjes aan (`hlsUrl`: keyframes al bekend, of omgezette video), dan speelt de app (telefoon en tv) die in plaats
+  van de live stream (`withHls` in `lib/playback.ts`): de speler spoelt in de lijst zelf (`seek: 'range'`, geen
+  keyframe-vraag, geen nieuwe stream), gemaakte stukjes komen meteen terug, ondertitels op de tijd van het bestand
+  (offset 0). `contentType: 'hls'` voor de speler; het audiospoor zit in de stukjes zelf (dus niet nog eens in de speler
+  kiezen). Speelt de lijst op dit apparaat niet, dan terug naar de live stream vanaf dezelfde plek voor de rest van de
+  titel (`withoutHls`, `noHls`). Server ongewijzigd (de stukjes en het cast-token mochten al via het directe adres).
+  Casten ongewijzigd (gebruikte al HLS). Een bestand zonder bekende keyframes spoelt de eerste keer nog als voorheen.
+  Tests: `playback.test.ts` (lijst en spoelen zonder keyframe-vraag, bestanden en streams zonder stukjes ongemoeid,
+  terugval); app 252 tests en typecheck slagen. Op de tv en telefoon te bevestigen (ExoPlayer met onze fMP4-stukjes).
 
 ## Versie 0.19.11
 

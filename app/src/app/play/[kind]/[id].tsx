@@ -21,7 +21,7 @@ import { Button, styles } from '../../../components/ui';
 import { castSettled, castStartAt, castStatus } from '../../../lib/castStatus';
 import { applyCastTextTrackStyle, castLoadFailed, castLoadRequest, castTrackIds, followTv, loadCastWithCurrentSubtitle, sessionUsable, tvChanged, tvFilePosition, tvMedia, tvSubtitleKey, waitForCastReady, type CastSession, type TvSeen } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
-import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { NO_RETRIES, endOfStream, fallbackCaps, withHls, withoutHls, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
 import { rememberAudio, rememberSubtitle, rememberedAudio, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
 import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, nextStyleValue, stepDelay, subtitleBottom, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT, type SubtitleStyle } from '../../../lib/subtitleStyle';
@@ -246,6 +246,8 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   /** Loads the stream (again) for `at` seconds into the file. */
   /** The direct address that answered for this playback (by its token), reused when a seek restarts the stream. */
   const reachedRef = useRef<{ token: string; base: string } | null>(null);
+  /** The pieces (HLS) failed to play on this device: the live stream from then on. */
+  const noHls = useRef(false);
   /** Where a seek that restarts the stream goes: shown at once, until the new stream is there. */
   const [seekingTo, setSeekingTo] = useState<number | null>(null);
   const load = useCallback(
@@ -269,7 +271,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
       tracksSet.current = false;
       streamReady.current = false;
       setEnded(false);
-      await player.replaceAsync({ uri: s.uri, headers: s.mediaToken ? {} : api.headers(), metadata: { title: item.title, artist: item.subtitle ?? undefined } });
+      await player.replaceAsync({ uri: s.uri, ...(a.decision.hls ? { contentType: 'hls' as const } : {}), headers: s.mediaToken ? {} : api.headers(), metadata: { title: item.title, artist: item.subtitle ?? undefined } });
       if (loadId !== loads.current) return;
       setSeekingTo(null);
       if (autoplay && !castingRef.current) player.play();
@@ -454,6 +456,8 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
           setProblem([t('player.cannotPlay'), ...a.analysis.problems].join('\n\n'));
           return;
         }
+        // In pieces when the server offers them (seeking without a new stream), unless they did not play here.
+        if (!noHls.current) a = withHls(a);
         const sameStream = answer && a.decision.streamUrl === answer.decision.streamUrl && a.decision.seek === 'range';
         setAnswer(a);
         setAudioIndex(a.decision.audioIndex);
@@ -575,12 +579,21 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
       player.subtitleTrack = null;
       const pos = playerAudioPosition(answer.file.audioTracks, answer.decision.audioIndex);
       const track = pos >= 0 ? player.availableAudioTracks[pos] : undefined;
-      if (track && answer.decision.seek === 'range') player.audioTrack = track;
+      // The pieces carry only the chosen audio track; a file has them all.
+      if (track && answer.decision.seek === 'range' && !answer.decision.hls) player.audioTrack = track;
     }
     if (status === 'error') {
       // It played, then failed (a lost connection; a converted stream the server ended while the
       // app was in the background): continue from the same spot.
       if (streamReady.current && continueAt(position)) return;
+      // The pieces did not play on this device: the live stream from the same spot, for the rest of this title.
+      if (answer?.decision.hls && !noHls.current) {
+        noHls.current = true;
+        const live = withoutHls(answer);
+        setAnswer(live);
+        void load(live, position).catch((err: unknown) => setProblem(errorMessage(err, t)));
+        return;
+      }
       // The original file did not play after all: once, ask the server for a repackaged stream.
       if (answer?.decision.engine === 'direct' && !triedFallback.current) {
         triedFallback.current = true;

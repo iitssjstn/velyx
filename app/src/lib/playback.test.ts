@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApi } from './api';
-import { NO_RETRIES, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, type PlaybackAnswer, type SubtitleOption, preferredAudio } from './playback';
+import { NO_RETRIES, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, withHls, withoutHls, type PlaybackAnswer, type SubtitleOption, preferredAudio } from './playback';
 import { cueTextAt, parseVtt } from './vtt';
 
 const api = (respond: (url: string) => unknown = () => ({})) =>
@@ -229,5 +229,37 @@ describe('the audio language chosen last', () => {
 
   it('prefers the default track in that language', () => {
     expect(preferredAudio([track(1, 'ita'), track(2, 'eng'), track(3, 'eng', true)], 'eng', 1)).toBe(3);
+  });
+});
+
+describe('pieces (HLS) instead of a stream that restarts on every seek', () => {
+  const remux = (): PlaybackAnswer => {
+    const a = answer('restart', '/api/media/7/remux?audio=1&ch=2');
+    return { ...a, decision: { ...a.decision, hlsUrl: '/api/media/7/hls/index.m3u8?audio=1&ch=2' } };
+  };
+
+  it('plays the list and seeks in it like a file, from the start of the file', async () => {
+    const hls = withHls(remux());
+    expect(hls.decision).toMatchObject({ streamUrl: '/api/media/7/hls/index.m3u8?audio=1&ch=2', seek: 'range', hls: true, remuxUrl: '/api/media/7/remux?audio=1&ch=2' });
+    // No keyframe question and no offset: the list starts at 0 of the file, as the subtitles do.
+    const a = { ...api(), get: vi.fn() };
+    expect(await streamFrom(a, hls, 600)).toEqual({ uri: 'http://vidalune.local/api/media/7/hls/index.m3u8?audio=1&ch=2', offset: 0 });
+    expect(a.get).not.toHaveBeenCalled();
+    expect(withHls(hls)).toBe(hls);
+  });
+
+  it('leaves files that play as they are, and streams without pieces, alone', () => {
+    const direct = answer('range', '/api/media/7/stream');
+    expect(withHls(direct)).toBe(direct);
+    const live = answer('restart', '/api/media/7/remux?audio=1');
+    expect(withHls(live)).toBe(live);
+  });
+
+  it('goes back to the live stream when the pieces do not play', () => {
+    const back = withoutHls(withHls(remux()));
+    expect(back.decision).toMatchObject({ streamUrl: '/api/media/7/remux?audio=1&ch=2', seek: 'restart', hls: false });
+    expect(withHls(back)).toBe(back);
+    const direct = answer('range', '/api/media/7/stream');
+    expect(withoutHls(direct)).toBe(direct);
   });
 });
