@@ -45,16 +45,16 @@ export const FAST_STEP = 30;
 export const TV_CONTROLS_MS = 6000;
 
 export type TvButton = 'back' | 'play' | 'forward' | 'subtitles' | 'audio' | 'next';
-export type TvTab = 'subtitles' | 'audio';
+export type TvTab = 'subtitles' | 'style' | 'audio';
 
 /** The buttons in the row, in order: only those that do something for this title. */
 export function tvButtons({ audioTracks = 0, hasNext = false }: { audioTracks?: number; hasNext?: boolean } = {}): TvButton[] {
   return ['back', 'play', 'forward', 'subtitles', ...(audioTracks > 1 ? (['audio'] as const) : []), ...(hasNext ? (['next'] as const) : [])];
 }
 
-/** The menu's tabs: audio only when there is a choice. */
+/** The menu's tabs: the subtitles and right next to them how they look; audio only when there is a choice. */
 export function tvTabs({ audioTracks = 0 }: { audioTracks?: number } = {}): TvTab[] {
-  return ['subtitles', ...(audioTracks > 1 ? (['audio'] as const) : [])];
+  return ['subtitles', 'style', ...(audioTracks > 1 ? (['audio'] as const) : [])];
 }
 
 export interface TvState {
@@ -119,7 +119,8 @@ export function pressKey(state: TvState, key: RemoteKey, ctx: TvContext): { stat
       s.tab = tabs[clamp(at + (key === 'left' ? -1 : 1), 0, tabs.length - 1)] ?? s.tab;
       s.item = ctx.selected[s.tab] ?? 0;
     } else if (key === 'ok') {
-      s.open = 'none';
+      // The style stays open, so the change shows on the subtitles and the next one is a press away.
+      if (s.tab !== 'style') s.open = 'none';
       return done({ type: 'pick', tab: s.tab, index: s.item });
     } else if (key === 'back') s.open = 'bar';
     return done();
@@ -194,4 +195,21 @@ export function segmentMarks(segments: EpisodeSegments | null | undefined, fileI
     .flatMap((span) => (span ? [span.start, span.end] : []))
     .filter((t) => t > 0 && t < length)
     .map((t) => Math.round((t / length) * 10000) / 10000);
+}
+
+/** Height of one line of the player's menu, with the gap under it. */
+export const MENU_LINE = 54;
+/** Room the menu needs above and below its lines (padding and the tabs). */
+const MENU_CHROME = 130;
+
+/** How many lines of the menu fit on a screen this tall (a Chromecast with Google TV is 540 high). */
+export function menuRows(height: number): number {
+  return Math.max(3, Math.floor((height - MENU_CHROME) / MENU_LINE));
+}
+
+/** The lines of the menu that are drawn: `size` around the focused one, so a long list scrolls along. */
+export function visibleLines(lines: string[], focus: number, size: number): { text: string; index: number; more: { above: boolean; below: boolean } }[] {
+  const start = Math.max(0, Math.min(focus - Math.floor(size / 2), lines.length - size));
+  const shown = lines.slice(start, start + size);
+  return shown.map((text, i) => ({ text, index: start + i, more: { above: start > 0, below: start + shown.length < lines.length } }));
 }

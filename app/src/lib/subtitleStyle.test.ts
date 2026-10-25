@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SUBTITLE_STYLE, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, readSubtitleStyle, stepDelay, subtitleBottom, subtitleFontSize, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT } from './subtitleStyle';
+import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, nextStyleValue, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, readSubtitleStyle, stepDelay, subtitleBottom, subtitleFontSize, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT } from './subtitleStyle';
 
 describe('reading a stored subtitle style', () => {
   it('falls back to the defaults for nothing or garbage', () => {
@@ -79,5 +79,20 @@ describe('subtitle timing', () => {
   it('stays within 30 seconds', () => {
     expect(stepDelay(30, 1)).toBe(30);
     expect(stepDelay(-30, -1)).toBe(-30);
+  });
+});
+
+describe('the Style tab on the TV', () => {
+  it('moves each line to its next value and wraps around', () => {
+    const s = DEFAULT_SUBTITLE_STYLE;
+    expect(nextStyleValue(s, 'size')).toEqual({ size: 'large' });
+    expect(nextStyleValue({ ...s, size: 'xlarge' }, 'size')).toEqual({ size: 'small' });
+    expect(nextStyleValue(s, 'color')).toEqual({ color: 'yellow' });
+    expect(nextStyleValue({ ...s, color: 'yellow' }, 'color')).toEqual({ color: 'white' });
+    expect(nextStyleValue(s, 'background')).toEqual({ background: 'translucent' });
+    expect(nextStyleValue(s, 'edge')).toEqual({ edge: 'outline' });
+    expect(nextStyleValue(s, 'position')).toEqual({ position: 5 });
+    expect(nextStyleValue({ ...s, position: 20 }, 'position')).toEqual({ position: 0 });
+    expect(STYLE_LINES).toHaveLength(5);
   });
 });

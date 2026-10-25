@@ -14,17 +14,17 @@ import { CastIcon } from '../../../components/CastIcon';
 import { useCastStatus } from '../../../components/CastStatus';
 import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
-import { TvPlayer } from '../../../components/TvPlayer';
+import { TV_MENU_WIDTH, TvPlayer } from '../../../components/TvPlayer';
 import { CastReceiver, RemoteKeys, type CastCommand } from '../../../../modules/vidalune-tv';
 import { TV, castRemoteOrientation, playbackOrientation, playerScreenState } from '../../../components/screen';
 import { Button, styles } from '../../../components/ui';
 import { castSettled, castStartAt, castStatus } from '../../../lib/castStatus';
 import { applyCastTextTrackStyle, castLoadFailed, castLoadRequest, castTrackIds, followTv, loadCastWithCurrentSubtitle, sessionUsable, tvChanged, tvFilePosition, tvMedia, tvSubtitleKey, waitForCastReady, type CastSession, type TvSeen } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
-import { NO_RETRIES, endOfStream, fallbackCaps, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { NO_RETRIES, endOfStream, fallbackCaps, withHls, withoutHls, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
 import { rememberAudio, rememberSubtitle, rememberedAudio, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
-import { DEFAULT_SUBTITLE_STYLE, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, stepDelay, subtitleBottom, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT, type SubtitleStyle } from '../../../lib/subtitleStyle';
+import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, nextStyleValue, stepDelay, subtitleBottom, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { createSubtitleStyleSync, subtitlePreferencesReady, subtitleStyleAccountScope } from '../../../lib/subtitleStyleSync';
 import { castConnectData, castGiven, castPlayerState, castSubtitleFor, castSubtitleKeys, castTrackIdsFor } from '../../../lib/castConnect';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
@@ -244,14 +244,25 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   const position = offset + time;
 
   /** Loads the stream (again) for `at` seconds into the file. */
+  /** The direct address that answered for this playback (by its token), reused when a seek restarts the stream. */
+  const reachedRef = useRef<{ token: string; base: string } | null>(null);
+  /** The pieces (HLS) failed to play on this device: the live stream from then on. */
+  const noHls = useRef(false);
+  /** Where a seek that restarts the stream goes: shown at once, until the new stream is there. */
+  const [seekingTo, setSeekingTo] = useState<number | null>(null);
   const load = useCallback(
     async (a: PlaybackAnswer, at: number, autoplay = true) => {
       // Playing on a Chromecast: the phone stays quiet.
       if (castingRef.current) return;
       const loadId = ++loads.current;
       setLoading(true);
-      const s = await streamFrom(api, a, at);
+      const reached = reachedRef.current?.token === a.directPlayback?.token ? reachedRef.current?.base : undefined;
+      const s = await streamFrom(api, a, at, fetch, reached).catch((err) => {
+        if (loadId === loads.current) setSeekingTo(null);
+        throw err;
+      });
       if (loadId !== loads.current) return;
+      reachedRef.current = s.mediaBase && s.mediaToken ? { token: s.mediaToken, base: s.mediaBase } : null;
       setMediaEndpoint(s.mediaBase && s.mediaToken ? { baseUrl: s.mediaBase, token: s.mediaToken } : null);
       setOffset(s.offset);
       setTime(Math.max(0, at - s.offset));
@@ -260,8 +271,9 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
       tracksSet.current = false;
       streamReady.current = false;
       setEnded(false);
-      await player.replaceAsync({ uri: s.uri, headers: s.mediaToken ? {} : api.headers(), metadata: { title: item.title, artist: item.subtitle ?? undefined } });
+      await player.replaceAsync({ uri: s.uri, ...(a.decision.hls ? { contentType: 'hls' as const } : {}), headers: s.mediaToken ? {} : api.headers(), metadata: { title: item.title, artist: item.subtitle ?? undefined } });
       if (loadId !== loads.current) return;
+      setSeekingTo(null);
       if (autoplay && !castingRef.current) player.play();
       else setLoading(false);
     },
@@ -444,6 +456,8 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
           setProblem([t('player.cannotPlay'), ...a.analysis.problems].join('\n\n'));
           return;
         }
+        // In pieces when the server offers them (seeking without a new stream), unless they did not play here.
+        if (!noHls.current) a = withHls(a);
         const sameStream = answer && a.decision.streamUrl === answer.decision.streamUrl && a.decision.seek === 'range';
         setAnswer(a);
         setAudioIndex(a.decision.audioIndex);
@@ -565,12 +579,21 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
       player.subtitleTrack = null;
       const pos = playerAudioPosition(answer.file.audioTracks, answer.decision.audioIndex);
       const track = pos >= 0 ? player.availableAudioTracks[pos] : undefined;
-      if (track && answer.decision.seek === 'range') player.audioTrack = track;
+      // The pieces carry only the chosen audio track; a file has them all.
+      if (track && answer.decision.seek === 'range' && !answer.decision.hls) player.audioTrack = track;
     }
     if (status === 'error') {
       // It played, then failed (a lost connection; a converted stream the server ended while the
       // app was in the background): continue from the same spot.
       if (streamReady.current && continueAt(position)) return;
+      // The pieces did not play on this device: the live stream from the same spot, for the rest of this title.
+      if (answer?.decision.hls && !noHls.current) {
+        noHls.current = true;
+        const live = withoutHls(answer);
+        setAnswer(live);
+        void load(live, position).catch((err: unknown) => setProblem(errorMessage(err, t)));
+        return;
+      }
       // The original file did not play after all: once, ask the server for a repackaged stream.
       if (answer?.decision.engine === 'direct' && !triedFallback.current) {
         triedFallback.current = true;
@@ -824,14 +847,21 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
         }
         return;
       }
-      if (answer.decision.seek === 'restart') void load(answer, tt);
+      if (answer.decision.seek === 'restart') {
+        // The new stream takes a moment (the server starts it at the keyframe before): the bar and the
+        // time jump there now, with the spinner, and the old picture stops instead of playing on.
+        setSeekingTo(tt);
+        setLoading(true);
+        player.pause();
+        void load(answer, tt).catch((err) => setProblem(errorMessage(err, t)));
+      }
       else {
         player.currentTime = tt;
         // Show the new position straight away instead of after the next time update.
         setTime(tt);
       }
     },
-    [answer, duration, load, player, client, castLoad, castFailed],
+    [answer, duration, load, player, client, castLoad, castFailed, t],
   );
 
   // ---------------------------------------------------------------- Cast Connect (on a TV)
@@ -915,7 +945,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
 
   /** Back or forward by the step; quick taps add up from where the previous one aimed. */
   const seekBy = (side: 'back' | 'forward') => {
-    const p = addSeek(seekRun.current, Date.now(), position, side === 'back' ? -seekStep : seekStep, duration);
+    const p = addSeek(seekRun.current, Date.now(), seekingTo ?? position, side === 'back' ? -seekStep : seekStep, duration);
     seekRun.current = p;
     seekTo(p.target);
     setSeekFlash({ side, total: p.total, at: p.at });
@@ -989,7 +1019,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
     // The audio menu always has a choice: the file's tracks, then the audio modes.
     buttons: tvButtons({ audioTracks: audioTracks.length + AUDIO_MODES.length, hasNext: Boolean(item.next) }),
     tabs: tvTabs({ audioTracks: audioTracks.length + AUDIO_MODES.length }),
-    items: { subtitles: subtitleOptions.length + 1, audio: audioTracks.length + AUDIO_MODES.length },
+    items: { subtitles: subtitleOptions.length + 1, style: STYLE_LINES.length, audio: audioTracks.length + AUDIO_MODES.length },
     selected: { subtitles: subtitle ? subtitleOptions.findIndex((o) => o.key === subtitle.key) + 1 : 0, audio: Math.max(0, audioTracks.findIndex((a) => a.index === audioIndex)) },
     skip: Boolean(askSkip && !showNext),
     upNext: showNext,
@@ -1012,7 +1042,10 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
       setNextDismissed(true);
       setCountdown(null);
     } else if (a?.type === 'pick' && a.tab === 'subtitles') chooseSubtitle(a.index === 0 ? null : subtitleOptions[a.index - 1] ?? null);
-    else if (a?.type === 'pick' && a.tab === 'audio') {
+    else if (a?.type === 'pick' && a.tab === 'style') {
+      const line = STYLE_LINES[a.index];
+      if (line) changeStyle(nextStyleValue(styleRef.current, line));
+    } else if (a?.type === 'pick' && a.tab === 'audio') {
       const pick = audioMenuPick(a.index, audioTracks.length);
       if (pick?.kind === 'track') chooseAudio(audioTracks[pick.index]!.index);
       else if (pick?.kind === 'mode') void chooseAudioMode(pick.mode);
@@ -1033,12 +1066,15 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   if (problem) return <Problem message={problem} />;
 
   // While casting the TV shows the subtitles.
-  const text = cueText;
+  // While the Style tab is open on the TV, a sample shows the change when no line is on screen.
+  const text = cueText || (TV && tv.open === 'menu' && tv.tab === 'style' ? t('subtitleStyle.previewText') : '');
   // On a TV the subtitles go above the bar while it shows (it is taller than the phone's controls).
   const tvBarShown = TV && (controls || !playing || tv.open !== 'none');
   const subtitleAt = TV ? tvSubtitleBottom(subStyle, screenHeight, tvBarShown) : subtitleBottom(subStyle, screenHeight, controls);
+  // On the TV the menu covers the right side: subtitles stay left of it, not over the lines.
+  const subtitleRight = TV && tv.open === 'menu' ? TV_MENU_WIDTH + 24 : 24;
   const subtitleView = text ? (
-    <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: 24, bottom: subtitleAt + insets.bottom, alignItems: 'center' }}>
+    <View pointerEvents="none" style={{ position: 'absolute', left: 24, right: subtitleRight, bottom: subtitleAt + insets.bottom, alignItems: 'center' }}>
       <Text style={subtitleTextStyle(subStyle, screenHeight)}>{text}</Text>
     </View>
   ) : subLoad && !casting ? (
@@ -1048,7 +1084,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
       </Text>
     </View>
   ) : null;
-  const shown = scrub ?? position;
+  const shown = scrub ?? seekingTo ?? position;
   return (
     <View style={{ flex: 1 }} onLayout={(e) => {
         screenWidth.current = e.nativeEvent.layout.width;
@@ -1082,7 +1118,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
           <TvPlayer
             title={item.title}
             subtitle={item.subtitle}
-            position={position}
+            position={seekingTo ?? position}
             duration={duration}
             playing={playing}
             loading={loading}
@@ -1094,6 +1130,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
             tabs={tvContext.tabs}
             lines={{
               subtitles: [t('player.off'), ...subtitleOptions.map(subtitleLabel)],
+              style: STYLE_LINES.map((line) => `${t(`subtitleStyle.${line}`)}: ${styleValueLabel(subStyle, line, t)}`),
               audio: [...audioTracks.map((a) => audioLabel(a, t)), ...AUDIO_MODES.map((m) => `${m === audioMode ? '✓ ' : ''}${t('player.voices')} · ${t(`player.voiceMode.${m}`)}`)],
             }}
             selected={tvContext.selected}
@@ -1125,7 +1162,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
               <IconButton name="rotate-cw" label={t('player.forwardSeconds', { n: seekStep })} onPress={() => seekBy('forward')} size={30} />
             </View>
             <View style={{ gap: 4 }}>
-              <SeekBar position={position} duration={duration} onScrub={setScrub} onSeek={seekTo} label={t('player.seek')} />
+              <SeekBar position={seekingTo ?? position} duration={duration} onScrub={setScrub} onSeek={seekTo} label={t('player.seek')} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ color: '#fff' }}>{formatClock(shown)}</Text>
                 <Text style={{ color: colors.muted }}>{formatClock(duration)}</Text>
@@ -1466,4 +1503,13 @@ function Stepper({ label, value, hint, onMinus, onPlus, onReset }: { label: stri
       </View>
     </View>
   );
+}
+
+/** The value of a line of the TV player's Style tab, as shown next to its name (OK moves it on). */
+function styleValueLabel(style: SubtitleStyle, line: (typeof STYLE_LINES)[number], t: ReturnType<typeof useSession>['t']): string {
+  if (line === 'size') return { small: 'S', medium: 'M', large: 'L', xlarge: 'XL' }[style.size];
+  if (line === 'color') return t(`subtitleStyle.${style.color}`);
+  if (line === 'background') return t(`subtitleStyle.${{ none: 'none', translucent: 'dimmed', solid: 'solid' }[style.background] as 'none' | 'dimmed' | 'solid'}`);
+  if (line === 'edge') return t(`subtitleStyle.${style.edge}`);
+  return style.position === 0 ? '0' : `+${style.position} %`;
 }

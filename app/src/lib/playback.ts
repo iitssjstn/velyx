@@ -87,6 +87,14 @@ export interface PlaybackAnswer {
     seek: 'range' | 'restart';
     audioIndex: number | null;
     durationSec: number | null;
+    /**
+     * The same stream in short pieces (HLS), offered once the server knows the file's keyframes (or
+     * when the video is converted): seeking stays in one stream instead of starting a new one.
+     */
+    hlsUrl?: string;
+    /** Set by the app: this answer plays the pieces (`streamUrl` is the list), the live stream is `remuxUrl`. */
+    hls?: boolean;
+    remuxUrl?: string;
   };
   analysis: { mode: 'direct' | 'remux' | 'transcode' | 'unsupported'; problems: string[]; summary: string[] };
   file: { id: number; durationSec: number | null; audioTracks: AudioTrackInfo[] };
@@ -106,6 +114,23 @@ export interface StreamStart {
   mediaToken?: string;
 }
 
+/**
+ * Plays the pieces when the server offers them for a stream that would otherwise restart on every
+ * seek: the player then seeks in the list itself (like a file), and the pieces made stay on the server.
+ */
+export function withHls(answer: PlaybackAnswer): PlaybackAnswer {
+  const d = answer.decision;
+  if (!d.hlsUrl || d.seek !== 'restart' || d.hls) return answer;
+  return { ...answer, decision: { ...d, streamUrl: d.hlsUrl, seek: 'range', hls: true, remuxUrl: d.streamUrl } };
+}
+
+/** Back to the live stream (the pieces did not play on this device). */
+export function withoutHls(answer: PlaybackAnswer): PlaybackAnswer {
+  const d = answer.decision;
+  if (!d.hls || !d.remuxUrl) return answer;
+  return { ...answer, decision: { ...d, streamUrl: d.remuxUrl, seek: 'restart', hls: false, hlsUrl: undefined, remuxUrl: undefined } };
+}
+
 function withParam(url: string, key: string, value: string): string {
   return `${url}${url.includes('?') ? '&' : '?'}${key}=${encodeURIComponent(value)}`;
 }
@@ -114,10 +139,13 @@ function withParam(url: string, key: string, value: string): string {
  * The stream for a position. Direct play reads the file (the player seeks itself); a remux stream
  * begins at the keyframe before `at`, which the server tells, so positions are offset by it.
  */
-export async function streamFrom(api: Api, answer: PlaybackAnswer, at: number, fetchImpl: typeof fetch = fetch): Promise<StreamStart> {
+export async function streamFrom(api: Api, answer: PlaybackAnswer, at: number, fetchImpl: typeof fetch = fetch, reached?: string): Promise<StreamStart> {
   let mediaBase: string | undefined;
   const mediaToken = answer.directPlayback?.token;
-  if (answer.directPlayback) {
+  // The address that answered for this playback before (a seek restarts the stream): not asked
+  // again, so a seek does not wait for an address that does not answer (up to 4 s each).
+  if (answer.directPlayback && reached && answer.directPlayback.endpoints.some((e) => new URL(e.url).origin === reached)) mediaBase = reached;
+  else if (answer.directPlayback) {
     if (!mediaToken || !answer.directPlayback.endpoints.length) throw new Error('No direct media endpoint is available.');
     for (const endpoint of answer.directPlayback.endpoints) {
       try {
