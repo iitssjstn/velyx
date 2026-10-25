@@ -93,7 +93,7 @@ export const player = {
   syncHint: '+ shows subtitles later',
   audioTrack: 'Audio track',
   track: 'Track {n}',
-  levelVolumeHint: 'Quieter explosions, louder dialogue',
+  voiceModesShort: { normal: 'Normal', voices: 'Voices', night: 'Night' },
   speed: 'Speed',
   cannotPlayHere: 'Cannot play here',
   openFull: 'Open full player',

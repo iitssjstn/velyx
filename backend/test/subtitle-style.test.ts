@@ -34,7 +34,7 @@ describe('account subtitle style', () => {
     expect(saved.statusCode).toBe(200);
     expect(saved.json()).toEqual({
       subtitleStyle: style, audioLanguage: 'nl', subtitleLanguage: 'en', subtitleFallback: 'nl',
-      subtitleMode: 'foreign', skipIntro: 'always', skipCredits: 'never', skipRecap: 'ask',
+      subtitleMode: 'foreign', skipIntro: 'always', skipCredits: 'never', skipRecap: 'ask', audioMode: 'normal',
     });
     const stored = env.ctx.db.$client.prepare('SELECT pref_subtitle_style AS style FROM users WHERE username = ?').get('admin') as { style: string };
     expect(JSON.parse(stored.style)).toEqual(style);

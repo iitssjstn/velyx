@@ -101,14 +101,13 @@ export const settings: Messages['settings'] = {
     warn: 'Waarschuwen voor bestanden die deze browser mogelijk niet afspeelt',
   },
   audio: {
-    description: 'Gebruikt als Vidalune audio omzet (Dolby/DTS in browsers, of als een optie hieronder aan staat). Bewaard in deze browser.',
+    description: 'Gebruikt als Vidalune audio omzet (Dolby/DTS in browsers, of als stemmen versterkt worden).',
     sound: 'Geluid',
     soundHint: 'Surround behoudt tot 5.1 kanalen; stereo mengt terug voor speakers en koptelefoons.',
     surround: 'Surround 5.1',
-    boostVoices: 'Stemmen versterken',
-    boostVoicesHint: 'Maakt dialogen duidelijker. Zet de audio altijd om.',
-    levelVolume: 'Volume gelijktrekken',
-    levelVolumeHint: 'Maakt harde en zachte scènes gelijkmatiger (nachtmodus). Zet de audio altijd om.',
+    voices: 'Stemmen',
+    voicesHint: 'Stemmen versterken maakt dialogen duidelijker; nachtstand maakt ook harde scènes zachter. Zet de audio om; bewaard bij je account (website, app en tv).',
+    voiceModes: { normal: 'Normaal', voices: 'Stemmen versterken', night: 'Nachtstand' },
   },
   subtitles: {
     title: 'Weergave van ondertitels',

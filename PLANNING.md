@@ -449,6 +449,21 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   ongewijzigd. Op de tv te bekijken.
 - Tests: cloud (`SubtitleLoad`, `ccLabel`, onderdelen op de pagina), app (`cuesFrom`). Cloud 209, app 242 tests; alle
   typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen. Op de tv te bekijken.
+- **Stemmen versterken** (eigenaar 25 okt, keuze "Stemmen versterken" uit de open wensen). Bleek op de server en de
+  website al te bestaan als twee losse schakelaars (Stemmen versterken, Volume gelijktrekken; FFmpeg `pan`/`equalizer`/
+  `dynaudnorm` in `audioFilters`, `remux.ts`), maar alleen per browser en niet in de app, de tv-app of bij casten. Nu één
+  keuze **Stemmen: Normaal / Stemmen versterken / Nachtstand** (nacht = versterken plus harde scènes zachter), bewaard bij
+  het account (`users.pref_audio_mode`, migratie `0029_audio_mode`, `audioMode` in `/api/account/preferences`, Zod). De
+  server gebruikt die stand zelf als een speler niets anders vraagt (`accountAudio` in `routes/media.ts`): afspelen in de
+  app en tv-app (ook via Cast Connect) en casten (`/api/cast/session`, ook wat de tv zelf start) krijgen zo het
+  versterkte geluid. Website: keuze in het audiomenu van de speler en onder Account, gesynchroniseerd met het account
+  (`audioModeOf`/`audioModePrefs` in `prefs.ts`). App: bij Audio in het menu van de speler; op de tv onderaan de
+  Audio-tab (`audioMenuPick` in `lib/audioMode.ts`, die tab staat er nu altijd). Wisselen herstart het geluid op dezelfde
+  plek; tijdens casten vanuit de app laadt de tv opnieuw. Niet: wisselen tijdens casten vanaf de website geldt pas bij
+  de volgende titel, en de webspeler op de Chromecast heeft de keuze niet in zijn eigen menu. Tests: backend
+  (`audio-mode.test.ts`: opslaan, elke titel, eigen keuze wint, ander account niet, casten), website (`prefs.test.ts`),
+  app (`audioMode.test.ts`). Backend 615, frontend 364, app 244 tests; typechecks en lint slagen. Op website, telefoon
+  en tv te testen (de app op de echte tv; Kotlin niet veranderd).
 - **Metadata altijd vers** (eigenaar 25 okt, na Lupin seizoen 4 zonder stills): een film of serie openen haalt de
   metadata nu elke keer opnieuw op (`FRESH_FOR_MS` 1 minuut in plaats van 1 uur, `fresh-metadata.ts`; die minuut vangt
   alleen gelijktijdig openen en het nog eens vragen van een wachtende pagina op). vidalune.com bewaart antwoorden van TMDB
@@ -644,6 +659,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   sterker comprimeren. Werkt zo gelijk op website, app, tv-app en Chromecast. Alleen het geluid wordt omgezet (video
   gekopieerd); een direct afspelend bestand wordt dan omgepakt. Wisselen herstart het geluid op dezelfde plek, zoals een
   ander audiospoor. Keuze bewaard per account. Gevraagd: in 0.19.95, en drie standen of alleen aan/uit.
+  Eigenaar (25 okt): bouwen in 0.19.95 (zie daar).
 
 - **Casten kan niet op een iPhone** (eigenaar 23 okt: "Op iPhone is het casten niet mogelijk omdat je via een manifest niet
   de cast icon ziet"). Oorzaak: Google's Cast-SDK voor websites (`cast_sender.js`, `frontend/src/lib/cast.ts`) werkt

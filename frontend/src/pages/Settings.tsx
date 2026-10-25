@@ -5,7 +5,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import type { LanguagePreferences, SkipMode, SubtitleMode } from '../lib/player';
 import { api, errorMessage } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
-import { SEEK_STEPS, setPrefs, usePrefs, type SeekStep } from '../lib/prefs';
+import { AUDIO_MODES, audioModeOf, audioModePrefs, SEEK_STEPS, setPrefs, usePrefs, type AudioMode, type SeekStep } from '../lib/prefs';
 import { subtitleLineStyle } from '../lib/subtitles';
 import { detectCapabilities } from '../lib/codecs';
 import type { DeviceFormat, DeviceReport, HistoryEntry, User } from '../lib/types';
@@ -376,8 +376,17 @@ function PlaybackSettings() {
               <option value="surround">{t('settings.audio.surround')}</option>
             </select>
           </div>
-          <Toggle label={t('settings.audio.boostVoices')} hint={t('settings.audio.boostVoicesHint')} checked={prefs.boostVoices} onChange={(v) => setPrefs({ boostVoices: v })} />
-          <Toggle label={t('settings.audio.levelVolume')} hint={t('settings.audio.levelVolumeHint')} checked={prefs.levelVolume} onChange={(v) => setPrefs({ levelVolume: v })} />
+          <div className="flex items-center justify-between gap-4">
+            <span>
+              {t('settings.audio.voices')}
+              <span className="block text-sm text-muted">{t('settings.audio.voicesHint')}</span>
+            </span>
+            <select className="input w-48" aria-label={t('settings.audio.voices')} value={audioModeOf(prefs)} onChange={(e) => setPrefs(audioModePrefs(e.target.value as AudioMode))}>
+              {AUDIO_MODES.map((m) => (
+                <option key={m} value={m}>{t(`settings.audio.voiceModes.${m}`)}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </Section>
       <Section title={t('settings.subtitles.title')} description={t('settings.subtitles.description')}>

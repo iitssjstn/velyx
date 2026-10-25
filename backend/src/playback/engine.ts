@@ -36,6 +36,13 @@ export interface PlaybackOptions {
   lang?: Language;
 }
 
+export type AudioMode = 'normal' | 'voices' | 'night';
+
+/** The processing an account's audio mode asks for. */
+export function audioModeOptions(mode: AudioMode): Pick<PlaybackOptions, 'boostVoices' | 'levelVolume'> {
+  return { boostVoices: mode !== 'normal', levelVolume: mode === 'night' };
+}
+
 /** True when the listener asked for audio processing that needs the audio to be converted. */
 export function wantsAudioProcessing(options: PlaybackOptions): boolean {
   return Boolean(options.boostVoices || options.levelVolume);

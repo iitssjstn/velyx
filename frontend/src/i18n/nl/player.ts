@@ -94,7 +94,7 @@ export const player: Messages['player'] = {
   syncHint: '+ toont ondertitels later',
   audioTrack: 'Audiospoor',
   track: 'Spoor {n}',
-  levelVolumeHint: 'Zachtere explosies, luidere dialogen',
+  voiceModesShort: { normal: 'Normaal', voices: 'Stemmen', night: 'Nacht' },
   speed: 'Snelheid',
   cannotPlayHere: 'Kan hier niet afspelen',
   openFull: 'Volledige speler openen',
