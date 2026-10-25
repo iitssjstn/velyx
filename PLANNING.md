@@ -623,6 +623,11 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   het verversen bij openen (`fresh-metadata.ts`, elk uur) krijgt tot een dag lang dat oude antwoord terug. "Chapter 1"
   komt wel van TMDB; "1 season" is het aantal seizoenen op de server. Voorstel (nog niet bouwen): een seizoen dat minder
   dan ~2 weken geleden begon, of met afleveringen zonder `still_path`/beschrijving, maar een uur bewaren.
+  Wens eigenaar (25 okt): "Als iemand de film/serie opent moet hij het toch refreshen, ook al is het binnen dat uur [...]
+  zodat iedereen altijd de juiste informatie heeft" (vervangt de drempel van 1 uur uit 0.19.7). Voorstel: bij elk openen
+  verversen (pagina opent meteen met wat er is, gelijktijdige verzoeken samen), vidalune.com bewaart antwoorden nog maar
+  ~10 minuten (gedeeld tussen servers, onder de TMDB-limiet), en handmatig vernieuwen door de beheerder slaat de cache
+  over. Wacht op "bouw het".
 
 - **Stemmen versterken** (wens eigenaar 24 okt: "In de app zit geen voice boost etc dat zou een fijne toevoeging wezen als
   iemand graag wat beter de stemmen wilt horen op tv of op mobiel"; nog niet bouwen tot hij het zegt). Voorstel: in het
