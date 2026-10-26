@@ -1,6 +1,6 @@
 {
   "name": "vidalune-app",
-  "version": "0.19.96",
+  "version": "0.19.97",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

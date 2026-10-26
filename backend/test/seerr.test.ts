@@ -70,6 +70,13 @@ const fakeSeerr = async (url: string, init?: RequestInit) => {
     return json({ id, status: 1, media: { status: 2 } }, 201);
   }
   const m = /^\/request\/(\d+)$/.exec(path);
+  const d = /^\/request\/(\d+)\/(approve|decline)$/.exec(path);
+  if (d && method === 'POST') {
+    const s = states.get(Number(d[1]));
+    if (!s) return json({ message: 'Not found' }, 404);
+    s[0] = d[2] === 'approve' ? 2 : 3;
+    return json({ id: Number(d[1]), status: s[0], media: { status: s[1] } });
+  }
   if (m && method === 'DELETE') {
     if (!states.delete(Number(m[1]))) return json({ message: 'Not found' }, 404);
     for (const v of media.values()) v.requests = v.requests.filter((r) => r.id !== Number(m[1]));
@@ -281,6 +288,33 @@ describe('Seerr', () => {
     expect((await env.app.inject({ url: '/api/admin/seerr/requests', headers: { cookie: admin } })).json()).toEqual([]);
     const audit = (await env.app.inject({ url: '/api/admin/audit?action=seerr.cancelled', headers: { cookie: admin } })).json();
     expect(JSON.stringify(audit)).toContain('The Matrix');
+  });
+
+  it('lets administrators approve or decline a request waiting in Seerr', async () => {
+    await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
+    const viewer = await createUser(env.app, admin, 'viewer');
+    const made = (await env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: viewer.cookie }, payload: { mediaType: 'movie', tmdbId: 603 } })).json();
+    const other = (await env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: viewer.cookie }, payload: { mediaType: 'tv', tmdbId: 1399 } })).json();
+    const decide = (id: number, action: string, cookie = admin) => env.app.inject({ method: 'POST', url: `/api/admin/seerr/requests/${id}/${action}`, headers: { cookie } });
+    // Only administrators, and only approve or decline.
+    expect((await decide(made.id, 'approve', viewer.cookie)).statusCode).toBe(403);
+    expect((await decide(made.id, 'delete')).statusCode).toBe(400);
+    expect((await decide(999, 'approve')).statusCode).toBe(404);
+    expect(calls.some((c) => c.path.endsWith('/approve') || c.path.endsWith('/delete'))).toBe(false);
+
+    const ok = await decide(made.id, 'approve');
+    expect(ok.json()).toMatchObject({ id: made.id, state: 'approved', title: 'The Matrix' });
+    expect(calls.find((c) => c.path === '/request/100/approve')?.method).toBe('POST');
+    expect((await decide(other.id, 'decline')).json()).toMatchObject({ state: 'declined' });
+    const all = (await env.app.inject({ url: '/api/admin/seerr/requests', headers: { cookie: admin } })).json();
+    expect(all.map((r: { title: string; state: string }) => [r.title, r.state])).toEqual([['A Show', 'declined'], ['The Matrix', 'approved']]);
+    const audit = JSON.stringify((await env.app.inject({ url: '/api/admin/audit?action=seerr.approved', headers: { cookie: admin } })).json());
+    expect(audit).toContain('The Matrix');
+
+    // Gone at Seerr: said so, and marked removed here.
+    states.clear();
+    expect((await decide(made.id, 'approve')).statusCode).toBe(404);
+    expect((await env.app.inject({ url: '/api/admin/seerr/requests', headers: { cookie: admin } })).json().find((r: { id: number }) => r.id === made.id).state).toBe('removed');
   });
 
   it('makes a cancelled title requestable again (not while someone else still wants it, never what is here)', async () => {

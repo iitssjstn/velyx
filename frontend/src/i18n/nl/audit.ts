@@ -43,6 +43,8 @@ export const audit: Messages['audit'] = {
     seerrSettings: 'Seerr-koppeling gewijzigd',
     seerrRequested: 'Aangevraagd via Seerr',
     seerrCancelled: 'Seerr-aanvraag geannuleerd',
+    seerrApproved: 'Seerr-aanvraag goedgekeurd',
+    seerrDeclined: 'Seerr-aanvraag afgewezen',
     seerrReset: 'Titel opnieuw aanvraagbaar gemaakt (Seerr)',
     directPortChanged: 'Publieke mediaspoort gewijzigd',
     inviteCreated: 'Uitnodiging gemaakt',

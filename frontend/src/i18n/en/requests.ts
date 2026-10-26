@@ -24,6 +24,12 @@ export const requests = {
   cancelText: '“{title}” (requested by {user}) is removed in Seerr and in Vidalune. If Seerr already added it, it stays in the library.',
   cancelled: 'Request cancelled: {title}.',
   cancelledHere: 'Seerr no longer had this request; removed here: {title}.',
+  approve: 'Approve',
+  approveOf: 'Approve the request for {title}',
+  decline: 'Decline',
+  declineOf: 'Decline the request for {title}',
+  approved: 'Request approved: {title}.',
+  declined: 'Request declined: {title}.',
   none: 'You have not requested anything yet.',
   play: 'Play',
   discover: {

@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { CastMiniBar } from '../../components/CastMiniBar';
 import { TV } from '../../components/screen';
 import { TV_TOP_BAR, TvTopBar } from '../../components/TvTopBar';
+import { showsAdminTab } from '../../lib/admin';
 import { useSession } from '../../lib/session';
 import { signedOutRoute } from '../../lib/start';
 import { colors } from '../../lib/theme';
@@ -16,7 +17,7 @@ const icon = (name: IconName) =>
   };
 
 export default function TabsLayout() {
-  const { signedIn, sessionEnded, t } = useSession();
+  const { signedIn, sessionEnded, t, user } = useSession();
   // The one place that leaves the tabs when nobody is signed in (also after Sign out).
   if (!signedIn) return <Redirect href={signedOutRoute(sessionEnded)} />;
   return (
@@ -43,6 +44,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="shows" options={{ title: t('tabs.shows'), headerShown: !TV, tabBarIcon: icon('tv') }} />
       <Tabs.Screen name="genres" options={{ title: t('tabs.genres'), headerShown: !TV, tabBarIcon: icon('grid') }} />
       <Tabs.Screen name="account" options={{ title: t('tabs.account'), headerShown: !TV, tabBarIcon: icon('user') }} />
+      {/* Administrators on a phone or tablet: the server at hand away from home (hidden for everyone else). */}
+      <Tabs.Screen name="admin" options={{ title: t('tabs.admin'), headerShown: true, tabBarIcon: icon('sliders'), href: showsAdminTab(user, TV) ? undefined : null }} />
     </Tabs>
   );
 }

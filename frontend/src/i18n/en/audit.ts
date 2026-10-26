@@ -42,6 +42,8 @@ export const audit = {
     seerrSettings: 'Changed the Seerr connection',
     seerrRequested: 'Requested through Seerr',
     seerrCancelled: 'Cancelled a Seerr request',
+    seerrApproved: 'Approved a Seerr request',
+    seerrDeclined: 'Declined a Seerr request',
     seerrReset: 'Made a title requestable again (Seerr)',
     directPortChanged: 'Changed the public media port',
     inviteCreated: 'Made an invitation',

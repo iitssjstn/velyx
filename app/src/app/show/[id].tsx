@@ -9,6 +9,7 @@ import { useFreshMetadata } from '../../components/useFreshMetadata';
 import { Artwork, useWide } from '../../components/media';
 import { Block, DetailSkeleton } from '../../components/Skeleton';
 import { TV } from '../../components/screen';
+import { CastRow } from '../../components/CastRow';
 import { TvAbout, TvDetail, TvEpisodeRow, TvSeasonTabs } from '../../components/TvDetail';
 import { factLine } from '../../lib/tvDetail';
 import { savedRequest, watchedRequest } from '../../lib/lists';
@@ -227,6 +228,8 @@ export default function Show() {
           </FocusPressable>
         ))}
       </View>
+      {/* The cast always at the bottom, under the episodes (the owner's choice, as on the TV). */}
+      <CastRow cast={s.cast ?? []} wide={wide} />
     </ScrollView>
   );
 }

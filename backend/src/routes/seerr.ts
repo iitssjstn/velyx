@@ -299,6 +299,21 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return { ok: true, inSeerr };
   });
 
+  /** Approves or declines a request that waits for approval in Seerr (from the website or the app). */
+  app.post<{ Params: { id: string; action: string } }>('/api/admin/seerr/requests/:id/:action', { preHandler: requireAdmin }, async (request) => {
+    const id = parseId(request.params.id);
+    const { action } = z.object({ action: z.enum(['approve', 'decline']) }).strict().parse({ action: request.params.action });
+    const row = db.select().from(seerrRequests).where(eq(seerrRequests.id, id)).get();
+    if (!row) throw new HttpError(404, 'Request not found.');
+    const state = await ctx.seerr.decide(row.seerrId, action === 'approve');
+    const now = Date.now();
+    db.update(seerrRequests).set({ state: state ?? 'removed', updatedAt: now }).where(eq(seerrRequests.id, id)).run();
+    forget(row.mediaType, row.tmdbId);
+    if (!state) throw new HttpError(404, 'Seerr no longer has this request.');
+    ctx.audit.record(action === 'approve' ? 'seerr.approved' : 'seerr.declined', { actor: request.user, ip: request.ip, target: row.title });
+    return view({ ...row, state, updatedAt: now });
+  });
+
   /**
    * Makes a title requestable again: every request for it is cancelled in Seerr (whoever made it,
    * also outside Vidalune) and Seerr forgets it. Not for what is (partly) available already.
