@@ -54,6 +54,8 @@ export type AuditAction =
   | 'seerr.settings'
   | 'seerr.requested'
   | 'seerr.cancelled'
+  | 'seerr.approved'
+  | 'seerr.declined'
   | 'seerr.reset'
   | 'direct.port_changed'
   | 'invite.created'

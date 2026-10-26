@@ -112,6 +112,24 @@ describe('requests through Seerr', () => {
     expect(calls.some((c) => c.call === 'GET /api/seerr/requests')).toBe(false);
   });
 
+  it('lets an administrator approve or decline a request that waits for approval', async () => {
+    role = 'admin';
+    const calls = setup(<RequestsPage />, (_method, url) => {
+      if (url === '/api/seerr') return { enabled: true };
+      if (url === '/api/admin/seerr/requests') return [
+        { id: 8, mediaType: 'tv', tmdbId: 1399, title: 'A Show', posterPath: null, state: 'requested', createdAt: 0, user: 'anna' },
+        { id: 7, mediaType: 'movie', tmdbId: 603, title: 'The Matrix', posterPath: null, state: 'approved', createdAt: 0, user: 'bram' },
+      ];
+      return {};
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve the request for A Show' }));
+    expect(calls.some((c) => c.call === 'POST /api/admin/seerr/requests/8/approve')).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Decline the request for A Show' }));
+    expect(calls.some((c) => c.call === 'POST /api/admin/seerr/requests/8/decline')).toBe(true);
+    // Only for what waits: an approved request can only be cancelled.
+    expect(screen.queryByRole('button', { name: 'Approve the request for The Matrix' })).toBeNull();
+  });
+
   it('shows no one else’s requests to others', async () => {
     const calls = setup(<RequestsPage />, (_method, url) => (url === '/api/seerr' ? { enabled: true } : []));
     expect(await screen.findByText('Your requests')).toBeTruthy();

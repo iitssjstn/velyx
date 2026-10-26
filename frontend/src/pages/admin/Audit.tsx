@@ -52,6 +52,8 @@ const AUDIT_ACTIONS: Record<string, MessageKey> = {
   'seerr.settings': 'audit.actions.seerrSettings',
   'seerr.requested': 'audit.actions.seerrRequested',
   'seerr.cancelled': 'audit.actions.seerrCancelled',
+  'seerr.approved': 'audit.actions.seerrApproved',
+  'seerr.declined': 'audit.actions.seerrDeclined',
   'seerr.reset': 'audit.actions.seerrReset',
   'direct.port_changed': 'audit.actions.directPortChanged',
   'invite.created': 'audit.actions.inviteCreated',

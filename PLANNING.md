@@ -520,6 +520,27 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   gecontroleerd: APK (Kotlin-build geslaagd), `.aab`, beide `.deb`'s, `vidalune-0.19.96-setup.exe` en de
   accountservice-image.
 
+## Versie 0.19.97 (Beheer in de app, cast als kaartjes op de telefoon)
+
+- **Beheer-tab in de app** (eigenaar 26 okt, keuze stap 1 en 2): alleen voor beheerders, alleen op telefoon en tablet
+  (niet op de tv; `showsAdminTab` in `lib/admin.ts`). Gebruikt de bestaande beheer-API van de server met het token van
+  de app, ook buitenshuis via vidalune.com. Tab Beheer (`app/(tabs)/admin.tsx`): servernaam, versie, update beschikbaar,
+  hoe lang hij draait, aantallen, processor en schijf, wie er nu kijkt (titel, wie, apparaat, direct/omgepakt/omgezet,
+  voortgang; elke 15 s ververst), en de scanner (pauzeren/hervatten, alles scannen). Daaronder schermen
+  (`app/admin/*.tsx`, onderdelen in `components/Admin.tsx`): Aanvragen (goedkeuren, afwijzen, annuleren; afwijzen en
+  annuleren met bevestiging), Bibliotheken (scannen), Optimalisatie (stoppen, opnieuw starten), Gebruikers (blokkeren
+  met bevestiging, weer toelaten, "Mag films en series aanvragen"; jezelf blokkeren kan niet), Meldingen (alles
+  gelezen) en Activiteit (laatste 50). Overige instellingen blijven op de website.
+- **Aanvragen goedkeuren of afwijzen** bestond nog niet: nieuw `POST /api/admin/seerr/requests/:id/approve|decline`
+  (alleen beheerder, Zod, auditlog `seerr.approved`/`seerr.declined`, `SeerrService.decide`). Kent Seerr de aanvraag niet
+  meer: 404 en hier "Niet meer in Seerr". Ook op de website (Aanvragen: knoppen Goedkeuren en Afwijzen bij een aanvraag
+  die wacht).
+- **Cast als kaartjes op de telefoon** (zie "Gemeld tijdens het testen").
+- Tests: backend `seerr.test.ts` (goedkeuren/afwijzen, alleen beheerder, alleen die twee acties, weg bij Seerr),
+  website `Requests.test.tsx`, app `admin.test.ts`. De schermen van de app hebben geen testomgeving; op de telefoon
+  testen. App 258 tests, typecheck en Android-bundel (Hermes-export) slagen.
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1997) en beide lockfiles bijgewerkt.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
@@ -1127,7 +1148,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   toegang geven of blokkeren; (3) de rest (instellingen) blijft op de website. Nu al mogelijk: app.vidalune.com in de
   browser van de telefoon. Nog niet bouwen tot de eigenaar het zegt.
   Eigenaar (26 okt): "het is naar mijn mening beter en sneller om alles in 1 plek te hebben" (dus wel in de app).
-  Gevraagd: welke stappen en wanneer bouwen.
+  Keuze eigenaar: stap 1 en 2 samen ("optie 1.b is toch wel meteen aardig volledig"). Gebouwd in 0.19.97 (zie daar).
 
 - **Vidalune-server voor Windows** (idee eigenaar 17 okt; gebouwd in 0.19.74, zie daar): een installer (`.exe`) die de server op een
   Windows-pc draait, net als Docker en `.deb`. Bevindingen: de server is Node met FFmpeg, SQLite (`better-sqlite3`) en

@@ -320,6 +320,18 @@ export class SeerrService {
     }
   }
 
+  /** Approves or declines a request waiting in Seerr; its state afterwards (null: Seerr no longer has it). */
+  async decide(id: number, approve: boolean): Promise<RequestState | null> {
+    try {
+      const r = await this.call<{ status?: number; media?: RawMedia }>('POST', `/request/${id}/${approve ? 'approve' : 'decline'}`);
+      this.forget();
+      return requestState(r.status, r.media?.status) ?? (approve ? 'approved' : 'declined');
+    } catch (err) {
+      if (err instanceof HttpError && err.statusCode === 404) return null;
+      throw err;
+    }
+  }
+
   /** Where a request stands now (null: Seerr no longer has it). */
   async requestStatus(id: number): Promise<RequestState | null> {
     try {

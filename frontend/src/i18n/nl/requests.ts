@@ -26,6 +26,12 @@ export const requests: Messages['requests'] = {
   cancelText: '“{title}” (aangevraagd door {user}) wordt verwijderd in Seerr en in Vidalune. Als Seerr het al heeft toegevoegd, blijft het in de bibliotheek.',
   cancelled: 'Aanvraag geannuleerd: {title}.',
   cancelledHere: 'Seerr had deze aanvraag niet meer; hier verwijderd: {title}.',
+  approve: 'Goedkeuren',
+  approveOf: 'Aanvraag voor {title} goedkeuren',
+  decline: 'Afwijzen',
+  declineOf: 'Aanvraag voor {title} afwijzen',
+  approved: 'Aanvraag goedgekeurd: {title}.',
+  declined: 'Aanvraag afgewezen: {title}.',
   none: 'Je hebt nog niets aangevraagd.',
   play: 'Afspelen',
   discover: {

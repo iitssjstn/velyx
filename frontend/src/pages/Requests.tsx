@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search as SearchIcon, X } from 'lucide-react';
+import { Check, Search as SearchIcon, X } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { ConfirmModal } from '../components/Modal';
 import { toast } from '../components/Toast';
@@ -15,7 +15,7 @@ export type { RequestState, SeerrResult } from '../components/Discover';
 
 type AdminRequest = MyRequest & { user: string | null };
 
-/** Administrators: everyone's requests (their own among them), and cancelling one (in Seerr and here). */
+/** Administrators: everyone's requests (their own among them), approving or declining one that waits, and cancelling one (in Seerr and here). */
 function AllRequests() {
   const { t } = useT();
   const qc = useQueryClient();
@@ -26,6 +26,14 @@ function AllRequests() {
     onSuccess: (res, r) => {
       toast.success(res.inSeerr ? t('requests.cancelled', { title: r.title }) : t('requests.cancelledHere', { title: r.title }));
       setCancelling(null);
+      void qc.invalidateQueries({ queryKey: ['seerr'] });
+    },
+    onError: (e) => toast.error(e),
+  });
+  const decide = useMutation({
+    mutationFn: ({ r, action }: { r: AdminRequest; action: 'approve' | 'decline' }) => api.post(`/api/admin/seerr/requests/${r.id}/${action}`),
+    onSuccess: (_res, { r, action }) => {
+      toast.success(t(action === 'approve' ? 'requests.approved' : 'requests.declined', { title: r.title }));
       void qc.invalidateQueries({ queryKey: ['seerr'] });
     },
     onError: (e) => toast.error(e),
@@ -56,6 +64,16 @@ function AllRequests() {
                 </p>
               </div>
               <StateBadge state={r.state} />
+              {r.state === 'requested' && (
+                <>
+                  <Button variant="secondary" icon={<Check className="size-4" />} loading={decide.isPending && decide.variables?.r.id === r.id && decide.variables.action === 'approve'} disabled={decide.isPending && decide.variables?.r.id === r.id} onClick={() => decide.mutate({ r, action: 'approve' })} aria-label={t('requests.approveOf', { title: r.title })}>
+                    <span className="hidden sm:inline">{t('requests.approve')}</span>
+                  </Button>
+                  <Button variant="ghost" loading={decide.isPending && decide.variables?.r.id === r.id && decide.variables.action === 'decline'} disabled={decide.isPending && decide.variables?.r.id === r.id} onClick={() => decide.mutate({ r, action: 'decline' })} aria-label={t('requests.declineOf', { title: r.title })}>
+                    {t('requests.decline')}
+                  </Button>
+                </>
+              )}
               <Button variant="ghost" icon={<X className="size-4" />} onClick={() => setCancelling(r)} aria-label={t('requests.cancelOf', { title: r.title })}>
                 <span className="hidden sm:inline">{t('requests.cancel')}</span>
               </Button>
