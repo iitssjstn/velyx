@@ -540,6 +540,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   website `Requests.test.tsx`, app `admin.test.ts`. De schermen van de app hebben geen testomgeving; op de telefoon
   testen. App 258 tests, typecheck en Android-bundel (Hermes-export) slagen.
 - Versie in alle `package.json`'s, `app/app.json` (versionCode 1997) en beide lockfiles bijgewerkt.
+- PR #184 aangemaakt 26 okt op verzoek van de eigenaar ("Maak de PR, mergen doe ik zelf wel"); automatische voettekst met
+  sessielink meteen weggehaald. De eigenaar merget zelf.
 
 ## Versie 0.19.11
 
