@@ -1118,6 +1118,15 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Ideeën (nog niet besloten)
 
+- **Beheer in de app** (vraag eigenaar 26 okt: "Hoe moeilijk is het om een beheerder tab te maken in de app voor iemand
+  die alleen beheerder is"). Nagelopen: de app kent de rol al (`role` in `lib/types.ts`), en de beheer-API's van de
+  server (`/api/admin/*`, alleen beheerder) werken met hetzelfde Bearer-token, ook buitenshuis via vidalune.com. Er is
+  dus geen serverwerk nodig; het werk zit in de schermen (de website heeft ~20 beheerpagina's). Voorstel in stappen:
+  (1) tab Beheer alleen voor beheerders, alleen bekijken: Dashboard (status, wie kijkt nu), Activiteit, Meldingen; (2)
+  veelgebruikte acties: bibliotheek scannen, optimalisatie stoppen/hervatten, aanvragen goedkeuren, gebruiker
+  toegang geven of blokkeren; (3) de rest (instellingen) blijft op de website. Nu al mogelijk: app.vidalune.com in de
+  browser van de telefoon. Nog niet bouwen tot de eigenaar het zegt.
+
 - **Vidalune-server voor Windows** (idee eigenaar 17 okt; gebouwd in 0.19.74, zie daar): een installer (`.exe`) die de server op een
   Windows-pc draait, net als Docker en `.deb`. Bevindingen: de server is Node met FFmpeg, SQLite (`better-sqlite3`) en
   argon2 (`@node-rs/argon2`); beide hebben kant-en-klare Windows-builds en de code kreeg in 0.19.44 al Windows-padfixes.
