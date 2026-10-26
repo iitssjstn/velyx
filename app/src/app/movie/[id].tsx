@@ -5,6 +5,7 @@ import { Toggle } from '../../components/actions';
 import { TrailerButton } from '../../components/TrailerButton';
 import { useFreshMetadata } from '../../components/useFreshMetadata';
 import { Artwork, useWide } from '../../components/media';
+import { CastRow } from '../../components/CastRow';
 import { DetailSkeleton } from '../../components/Skeleton';
 import { TV } from '../../components/screen';
 import { TvAbout, TvDetail } from '../../components/TvDetail';
@@ -79,11 +80,6 @@ export default function Movie() {
           {t('detail.director')}: <Text style={{ color: colors.ink }}>{m.director}</Text>
         </Text>
       ) : null}
-      {m.cast.length ? (
-        <Text style={styles.muted}>
-          {t('detail.cast')}: <Text style={{ color: colors.ink }}>{m.cast.slice(0, 8).map((p) => p.name).join(', ')}</Text>
-        </Text>
-      ) : null}
     </>
   );
 
@@ -137,6 +133,7 @@ export default function Movie() {
           {about}
         </View>
       )}
+      <CastRow cast={m.cast} wide={wide} />
     </ScrollView>
   );
 }

@@ -684,8 +684,11 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 - **Cast (acteurs) niet te zien in de telefoon-app** (eigenaar 26 okt: "In de app op mobiel zie je ook niet de cast
   staan", "Ik bedoel de cast van de film of serie"). Filmpagina (`app/src/app/movie/[id].tsx`): alleen een tekstregel
   met 8 namen; seriepagina (`show/[id].tsx`): niets, terwijl de server `cast` meegeeft. Tv en website tonen een rij met
-  foto, naam en rol (`TvAbout`, `CastRow`). Voorstel: dezelfde rij op film- en seriepagina van de telefoon. Nog niet
-  bouwen tot de eigenaar het zegt.
+  foto, naam en rol (`TvAbout`, `CastRow`). Eigenaar (26 okt): "Kan je het zoals de Chromecast app doen rechthoekige
+  hero, en dan dat je naar rechts kan scrollen". Gebouwd (nog geen versie gekozen): `CastRow`
+  (`app/src/components/CastRow.tsx`), staande kaartjes met foto (of initialen), naam en rol, naar rechts te vegen;
+  filmpagina onderaan (vervangt de tekstregel), seriepagina onder de afleveringen. Tv ongewijzigd. App 252 tests en
+  typecheck slagen; op de telefoon te bekijken.
 
 - **Castbalk onderaan tijdens casten** en **schuiven op de tv te snel** (eigenaar 23 okt): gebouwd in 0.19.94 (zie daar).
 
