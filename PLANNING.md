@@ -681,6 +681,12 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Cast (acteurs) niet te zien in de telefoon-app** (eigenaar 26 okt: "In de app op mobiel zie je ook niet de cast
+  staan", "Ik bedoel de cast van de film of serie"). Filmpagina (`app/src/app/movie/[id].tsx`): alleen een tekstregel
+  met 8 namen; seriepagina (`show/[id].tsx`): niets, terwijl de server `cast` meegeeft. Tv en website tonen een rij met
+  foto, naam en rol (`TvAbout`, `CastRow`). Voorstel: dezelfde rij op film- en seriepagina van de telefoon. Nog niet
+  bouwen tot de eigenaar het zegt.
+
 - **Castbalk onderaan tijdens casten** en **schuiven op de tv te snel** (eigenaar 23 okt): gebouwd in 0.19.94 (zie daar).
 
 - **Lupin seizoen 4 zonder stills en beschrijvingen** (eigenaar 25 okt, screenshot; de plaatjes staan wel op TMDB).
