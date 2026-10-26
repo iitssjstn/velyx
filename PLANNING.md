@@ -1126,6 +1126,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   veelgebruikte acties: bibliotheek scannen, optimalisatie stoppen/hervatten, aanvragen goedkeuren, gebruiker
   toegang geven of blokkeren; (3) de rest (instellingen) blijft op de website. Nu al mogelijk: app.vidalune.com in de
   browser van de telefoon. Nog niet bouwen tot de eigenaar het zegt.
+  Eigenaar (26 okt): "het is naar mijn mening beter en sneller om alles in 1 plek te hebben" (dus wel in de app).
+  Gevraagd: welke stappen en wanneer bouwen.
 
 - **Vidalune-server voor Windows** (idee eigenaar 17 okt; gebouwd in 0.19.74, zie daar): een installer (`.exe`) die de server op een
   Windows-pc draait, net als Docker en `.deb`. Bevindingen: de server is Node met FFmpeg, SQLite (`better-sqlite3`) en
