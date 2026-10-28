@@ -49,6 +49,10 @@ $rule = Get-NetFirewallRule -DisplayName 'Vidalune' -ErrorAction SilentlyContinu
 if (-not $rule) { Fail 'no firewall rule' }
 $program = ($rule | Get-NetFirewallApplicationFilter).Program
 if ($program -notlike '*\node\node.exe') { Fail "the firewall rule is for $program, not Vidalune's node.exe" }
+if ([string]$rule.Profile -match 'Public|Any') { Fail "the firewall rule is open on public networks ($($rule.Profile))" }
+# Other users of this PC cannot read the database or change vidalune.env.
+$users = (Get-Acl $data).Access | Where-Object { $_.IdentityReference.Value -match '\\Users$|^Everyone$|Authenticated Users' }
+if ($users) { Fail "the data folder is open to other users: $($users.IdentityReference -join ', ')" }
 & (Join-Path $dir 'ffmpeg\ffprobe.exe') -hide_banner -version | Select-Object -First 1
 
 Write-Host 'Start the tray program'

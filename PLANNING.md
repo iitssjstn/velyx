@@ -592,6 +592,40 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   gecontroleerd: APK (Kotlin-build geslaagd), `.aab`, beide `.deb`'s, `vidalune-0.19.99-setup.exe` en de
   accountservice-image.
 
+## Versie 0.19.100 (beveiliging: alle punten uit de audit van 28 okt)
+
+- Op verzoek van de eigenaar (28 okt: "Bouw het maar, neem de lage punten ook mee"). Elk punt met een test die op de
+  oude code faalt, waar dat kan.
+- Accountservice: sessiecookie `__Host-vl_session` (eenmalig opnieuw inloggen op vidalune.com); relay-antwoorden met
+  CSP `sandbox`, zonder `Domain=` in cookies, elke navigatie (ook `/api/…`) naar app.vidalune.com; `RateLimiter` wist
+  niets meer bij veel adressen (IPv6 per /64, alleen verlopen sleutels weg, vol = weigeren) en hooguit 30 inlogpogingen
+  per account per uur; hooguit 5 servers per account (`MAX_SERVERS_PER_ACCOUNT`, CEO onbeperkt), 3 nieuwe certificaten
+  per server per dag en 40 per week in totaal; account verwijderen wist ook IP/adressen van servers en het e-mailadres
+  in `ceo_events`; bug 8: rechten van `ADMIN_EMAILS`/`CEO_EMAILS` pas na bevestigen zodra mail ooit is ingesteld
+  (`mail-ever`).
+- Server: koppelen met code weg (`/api/auth/pair/*`, websitepagina `/link`); cast-token gekoppeld aan de sessie
+  waarmee gecast werd (uitloggen of wachtwoord wijzigen stopt het) en vanaf de tv hooguit 12 uur verlengd; per kijker
+  hooguit 3 zware leesrondes tegelijk (`HeavyWork`, 429); tokens uit het foutenlogboek (`redactUrl`); opgeslagen
+  sleutel van Seerr/Sonarr/Radarr alleen naar hetzelfde adres; Seerr toont geen titels/seizoenen uit bibliotheken waar
+  de kijker niet bij kan ("Dit kan niet aangevraagd worden"); inlogblokkade per account en adres (IPv6 per /64) plus 50
+  per account van alle adressen samen, dus geen buitensluiten van de eigenaar; FFmpeg/FFprobe met
+  `-protocol_whitelist file`.
+- Windows: datamap alleen voor SYSTEM, beheerders en de installerende gebruiker (ook bij bijwerken: oude rechten voor
+  Users weg); het icoon leest uit `vidalune.env` alleen Vidalune-instellingen (geen `FFMPEG_PATH`, `NODE_OPTIONS`); firewall
+  alleen op privé- en domeinnetwerken. CI-test controleert rechten en firewallprofiel.
+- Android: APK met de uploadsleutel ondertekend (zonder sleutel geen APK); is de APK van de vorige release nog met de
+  debugsleutel ondertekend, dan bouwt de release toch. **Eenmalig de app verwijderen en opnieuw installeren** (andere
+  handtekening). Play-versie ongewijzigd.
+- Workflows: geheimen alleen in de stappen die ze gebruiken (ook `DOCKERHUB_TOKEN`); alle acties op een commit vastgezet.
+- Pakketten: zod 4.6.7, nodemailer 10.2.1, fastify 5.12.7, fast-uri en node-forge bijgewerkt (`npm audit`: 0 in de
+  server/website/accountservice). App-lockfile bijgewerkt; over: zod 3 in Expo's eigen tooling en vitest 3 (alleen
+  ontwikkelen, vraagt een major upgrade).
+- Niet helemaal op te lossen: aanmelden verraadt of een e-mailadres al een account heeft; kan pas met aanmelden via een
+  mail-link, dus pas als mail is ingesteld.
+- Backend 623, frontend 366, cloud 215 en app 264 tests; typechecks, lint (0 fouten, 4 bekende waarschuwingen), builds
+  en Android-export slagen; tray en installer lokaal gecompileerd (Mono, NSIS).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 2000) en beide lockfiles bijgewerkt.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
@@ -757,7 +791,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 ## Gemeld tijdens het testen
 
 - **Beveiligingsaudit 28 okt** (op verzoek van de eigenaar: "alle gegevens van de gebruikers goed beveiligd en veilig";
-  5 zoekers per gebied, alleen lezen, elke vondst daarna in de code nagekeken; nog niets gebouwd, wacht op de eigenaar).
+  5 zoekers per gebied, alleen lezen, elke vondst daarna in de code nagekeken; alles gebouwd in 0.19.100, zie daar).
   Tests, typechecks, lint en builds slagen. Bevestigd:
   - Hoog: (1) cookie tossing via relay-adressen: een klant met relay laat een slachtoffer `<slug>.vidalune.com/api/…`
     openen (`isNavigation` stuurt `/api/` niet door naar app.vidalune.com, `cloud/src/relay.ts:369`; geen CSP-sandbox

@@ -90,10 +90,14 @@ Section "Vidalune" SecMain
   SetOutPath "$INSTDIR"
   File /r "${STAGE}\*.*"
 
-  ; The data folder: kept across updates, writable for the users who run Vidalune.
+  ; The data folder: kept across updates. Only for Windows itself, administrators and the account
+  ; that installs Vidalune (which runs it): other users of this PC cannot read the database or
+  ; change vidalune.env. Also takes away what older versions gave every user.
   CreateDirectory "$APPDATA\Vidalune"
   CreateDirectory "$APPDATA\Vidalune\logs"
-  nsExec::Exec 'icacls "$APPDATA\Vidalune" /grant *S-1-5-32-545:(OI)(CI)M /T /Q'
+  ReadEnvStr $1 USERDOMAIN
+  ReadEnvStr $2 USERNAME
+  nsExec::Exec 'icacls "$APPDATA\Vidalune" /inheritance:r /remove:g *S-1-5-32-545 /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F "$1\$2:(OI)(CI)M" /T /Q'
   Pop $0
   ${IfNot} ${FileExists} "$APPDATA\Vidalune\vidalune.env"
     CopyFiles /SILENT "$INSTDIR\vidalune.env" "$APPDATA\Vidalune\vidalune.env"
@@ -103,10 +107,11 @@ Section "Vidalune" SecMain
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "Vidalune" '"$INSTDIR\VidaluneTray.exe"'
   CreateShortcut "$SMPROGRAMS\Vidalune.lnk" "$INSTDIR\VidaluneTray.exe" "--open" "$INSTDIR\VidaluneTray.exe" 0
 
-  ; Other devices at home (and from outside, through the port set in Vidalune) reach the server.
+  ; Other devices at home (and from outside, through the port set in Vidalune) reach the server, on
+  ; networks Windows calls private (home, work); not on public ones (a café, a hotel).
   nsExec::Exec 'netsh advfirewall firewall delete rule name="Vidalune"'
   Pop $0
-  nsExec::Exec 'netsh advfirewall firewall add rule name="Vidalune" dir=in action=allow program="$INSTDIR\node\node.exe" enable=yes profile=any'
+  nsExec::Exec 'netsh advfirewall firewall add rule name="Vidalune" dir=in action=allow program="$INSTDIR\node\node.exe" enable=yes profile=private,domain'
   Pop $0
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
