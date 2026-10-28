@@ -707,6 +707,19 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **App crasht bij Beheer > Bibliotheken** (eigenaar 26 okt, op 0.19.97: "Als iemand de library opent in de app, crashed
+  de app"). Oorzaak: `GET /api/libraries` geeft `{ libraries, mediaRoots }`, het scherm (`app/admin/libraries.tsx`)
+  verwachtte een lijst en riep `.map` aan op een object. Opgelost op de branch (nog geen versie; voorstel herstelversie
+  0.19.98). De andere beheerschermen nagelopen: vorm klopt. Op de telefoon te bevestigen.
+
+- **Voortgang van het ophalen van een aanvraag** (wens eigenaar 28 okt: "dat iemand kan zien hoe ver de request is qua
+  ophalen, op de website en in de app"; nog niet bouwen tot hij het zegt). Seerr geeft bij een titel
+  `mediaInfo.downloadStatus` mee (van Sonarr/Radarr: grootte, wat nog rest, verwachte eindtijd, per aflevering bij een
+  serie), alleen als Sonarr/Radarr in Seerr gekoppeld zijn. Voorstel: de server leest dat mee (kort bewaard) en geeft per
+  aanvraag `progress` (procent, verwachte eindtijd); Aanvragen op de website en in de app (ook Beheer > Aanvragen) tonen
+  een balk "Ophalen 42 % · nog ~20 min", ververst elke ~15 s zolang er iets loopt. Geen voortgang bekend: alleen de
+  status zoals nu.
+
 - **Cast (acteurs) niet te zien in de telefoon-app** (eigenaar 26 okt: "In de app op mobiel zie je ook niet de cast
   staan", "Ik bedoel de cast van de film of serie"). Filmpagina (`app/src/app/movie/[id].tsx`): alleen een tekstregel
   met 8 namen; seriepagina (`show/[id].tsx`): niets, terwijl de server `cast` meegeeft. Tv en website tonen een rij met
