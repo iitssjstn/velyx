@@ -3,6 +3,7 @@ import { Alert, FlatList, ScrollView, Text, View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DiscoverCard, useOpenDiscover } from '../../../components/Discover';
+import { DownloadBar } from '../../../components/DownloadBar';
 import { Artwork } from '../../../components/media';
 import { SeasonPicker } from '../../../components/SeasonPicker';
 import { TrailerButton } from '../../../components/TrailerButton';
@@ -13,6 +14,7 @@ import { factLine } from '../../../lib/tvDetail';
 import { SIDE } from '../../../components/TvHome';
 import { Button, ErrorState, styles } from '../../../components/ui';
 import { errorMessage } from '../../../lib/connection';
+import { DOWNLOAD_POLL_MS } from '../../../lib/download';
 import { canRequestTitle, openSeasons, type SeerrDetails, type SeerrResult } from '../../../lib/discover';
 import { useSession } from '../../../lib/session';
 import { colors, radius } from '../../../lib/theme';
@@ -23,7 +25,11 @@ export default function RequestScreen() {
   const { api, t, serverUrl } = useSession();
   const qc = useQueryClient();
   const mediaType = type === 'tv' ? 'tv' : 'movie';
-  const q = useQuery({ queryKey: [serverUrl, 'seerr', mediaType, id], queryFn: () => api.get<SeerrDetails>(`/api/seerr/${mediaType}/${Number(id)}`) });
+  const q = useQuery({
+    queryKey: [serverUrl, 'seerr', mediaType, id],
+    queryFn: () => api.get<SeerrDetails>(`/api/seerr/${mediaType}/${Number(id)}`),
+    refetchInterval: (query) => (query.state.data?.download ? DOWNLOAD_POLL_MS : false),
+  });
   const similar = useQuery({ queryKey: [serverUrl, 'seerr', mediaType, id, 'similar'], queryFn: () => api.get<{ results?: SeerrResult[] }>(`/api/seerr/${mediaType}/${Number(id)}/recommendations`), enabled: q.isSuccess });
   const [picking, setPicking] = useState(false);
   const { open, busy } = useOpenDiscover();
@@ -78,7 +84,12 @@ export default function RequestScreen() {
           year={d.year}
           facts={factLine([d.mediaType === 'movie' ? t('request.movie') : t('request.show'), d.runtime ? t('request.minutes', { n: d.runtime }) : null, d.rating ? `★ ${d.rating.toFixed(1)}` : null, d.genres.join(', ')])}
           overview={d.overview}
-          above={d.inLibrary ? <Text style={{ color: colors.ok, fontSize: 15 }}>{t('discover.inLibrary')}</Text> : d.state ? <Text style={{ color: colors.accent, fontSize: 15 }}>{t(`request.state.${d.state}`)}</Text> : null}
+          above={
+            <View style={{ gap: 8 }}>
+              {d.inLibrary ? <Text style={{ color: colors.ok, fontSize: 15 }}>{t('discover.inLibrary')}</Text> : d.state ? <Text style={{ color: colors.accent, fontSize: 15 }}>{t(`request.state.${d.state}`)}</Text> : null}
+              {d.download ? <DownloadBar download={d.download} title={d.title} /> : null}
+            </View>
+          }
           below={
             // Titles like it first: the cast is always at the very bottom, under About.
             <View>
@@ -118,6 +129,7 @@ export default function RequestScreen() {
           ) : d.state ? (
             <Text style={{ color: colors.accent, fontSize: 14 }}>{t(`request.state.${d.state}`)}</Text>
           ) : null}
+          {d.download ? <DownloadBar download={d.download} title={d.title} /> : null}
         </View>
       </View>
       {d.overview ? <Text style={styles.body}>{d.overview}</Text> : null}

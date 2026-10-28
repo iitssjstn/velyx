@@ -1,16 +1,22 @@
 import { Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { AdminScreen, Card, confirmThen, Pill, SmallButton, useAdminAction } from '../../components/Admin';
+import { DownloadBar } from '../../components/DownloadBar';
 import { Artwork } from '../../components/media';
 import { ErrorState, Loading, styles } from '../../components/ui';
 import { requestActions, type AdminRequest, type RequestAction } from '../../lib/admin';
+import { DOWNLOAD_POLL_MS } from '../../lib/download';
 import { useSession } from '../../lib/session';
 import { radius } from '../../lib/theme';
 
 /** Admin → Requests: everyone's requests; approve or decline one waiting for it, or cancel one. */
 export default function Requests() {
   const { api, t, serverUrl } = useSession();
-  const q = useQuery({ queryKey: [serverUrl, 'admin', 'requests'], queryFn: () => api.get<AdminRequest[]>('/api/admin/seerr/requests') });
+  const q = useQuery({
+    queryKey: [serverUrl, 'admin', 'requests'],
+    queryFn: () => api.get<AdminRequest[]>('/api/admin/seerr/requests'),
+    refetchInterval: (query) => (query.state.data?.some((r) => r.download) ? DOWNLOAD_POLL_MS : false),
+  });
   const act = useAdminAction(
     ({ r, action }: { r: AdminRequest; action: RequestAction }) =>
       action === 'cancel' ? api.del(`/api/admin/seerr/requests/${r.id}`) : api.post(`/api/admin/seerr/requests/${r.id}/${action}`),
@@ -37,6 +43,7 @@ export default function Requests() {
                 {r.mediaType === 'movie' ? t('admin.movie') : t('admin.show')} · {r.user ?? '—'} · {new Date(r.createdAt).toLocaleDateString()}
               </Text>
               <Pill text={t(`admin.state.${r.state}`)} tone={r.state === 'requested' ? 'warn' : r.state === 'declined' || r.state === 'failed' ? 'danger' : r.state === 'available' ? 'ok' : 'muted'} />
+              {r.download ? <DownloadBar download={r.download} title={r.title} /> : null}
             </View>
           </View>
           {requestActions(r.state).length > 0 && (

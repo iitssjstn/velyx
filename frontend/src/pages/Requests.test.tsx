@@ -130,6 +130,41 @@ describe('requests through Seerr', () => {
     expect(screen.queryByRole('button', { name: 'Approve the request for The Matrix' })).toBeNull();
   });
 
+  it('shows how far fetching a request is, in your list and on its page', async () => {
+    const eta = Date.now() + 25 * 60_000 + 20_000;
+    setup(<RequestsPage />, (_method, url) => {
+      if (url === '/api/seerr') return { enabled: true };
+      if (url === '/api/seerr/requests') return [
+        { id: 7, mediaType: 'movie', tmdbId: 603, title: 'The Matrix', posterPath: null, state: 'processing', download: { fraction: 0.426, size: 1000, sizeLeft: 574, eta, status: 'downloading', items: 1 }, createdAt: 0 },
+        { id: 8, mediaType: 'tv', tmdbId: 1399, title: 'A Show', posterPath: null, state: 'approved', download: { fraction: 0, size: 0, sizeLeft: 0, eta: null, status: 'queued', items: 3 }, createdAt: 0 },
+        { id: 9, mediaType: 'movie', tmdbId: 550, title: 'Already Here', posterPath: null, state: 'available', download: null, createdAt: 0 },
+      ];
+      if (url === '/api/seerr/movie/603') return { ...matrix, state: 'processing', genres: [], runtime: null, seasons: [], backdropPath: null, tagline: null, rating: null, releaseDate: null, cast: [], download: { fraction: 0.5, size: 10, sizeLeft: 5, eta: null, status: 'paused', items: 1 } };
+      if (url.includes('/recommendations')) return { results: [] };
+      return {};
+    });
+    const bar = await screen.findByRole('progressbar', { name: 'Fetching The Matrix' });
+    expect(bar.getAttribute('aria-valuenow')).toBe('42');
+    expect(screen.getByText('Fetching 42% · ~25m left')).toBeTruthy();
+    expect(screen.getByText('Waiting to be fetched · 3 files')).toBeTruthy();
+    expect(screen.queryByRole('progressbar', { name: 'Fetching Already Here' })).toBeNull();
+
+    await userEvent.click(screen.getByRole('link', { name: 'The Matrix' }));
+    expect((await screen.findByRole('progressbar', { name: 'Fetching The Matrix' })).getAttribute('aria-valuenow')).toBe('50');
+    expect(screen.getByText('Fetching paused')).toBeTruthy();
+  });
+
+  it('shows an administrator how far fetching is in the list of everyone’s requests', async () => {
+    role = 'admin';
+    setup(<RequestsPage />, (_method, url) => {
+      if (url === '/api/seerr') return { enabled: true };
+      if (url === '/api/admin/seerr/requests') return [{ id: 7, mediaType: 'movie', tmdbId: 603, title: 'The Matrix', posterPath: null, state: 'processing', download: { fraction: 0.8, size: 10, sizeLeft: 2, eta: null, status: 'warning', items: 1 }, createdAt: 0, user: 'bram' }];
+      return {};
+    });
+    expect((await screen.findByRole('progressbar', { name: 'Fetching The Matrix' })).getAttribute('aria-valuenow')).toBe('80');
+    expect(screen.getByText('Problem while fetching (80%)')).toBeTruthy();
+  });
+
   it('shows no one else’s requests to others', async () => {
     const calls = setup(<RequestsPage />, (_method, url) => (url === '/api/seerr' ? { enabled: true } : []));
     expect(await screen.findByText('Your requests')).toBeTruthy();

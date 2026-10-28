@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTestEnv, createUser, setupAdmin, type TestEnv } from './helpers.js';
 import { episodes, libraries, mediaFiles, movies, seasons, shows } from '../src/db/schema.js';
-import { requestState } from '../src/services/seerr.js';
+import { downloadProgress, requestState } from '../src/services/seerr.js';
 
 // A stand-in for Seerr: its API, its key, and whether it answers at all.
 const KEY = 'seerr-api-key-123456';
@@ -10,8 +10,10 @@ let slow: boolean;
 let calls: Array<{ method: string; path: string; key: string | null; body: unknown }>;
 /** Request id → [request status, media status]. */
 let states: Map<number, [number, number]>;
+/** Request id → what Sonarr/Radarr are fetching for its title (Seerr's `downloadStatus`). */
+let queue: Map<number, Array<{ size: number; sizeLeft: number; status: string; estimatedCompletionTime?: string }>>;
 /** Seerr's own record per title ("movie/603"): its id, status, requests and seasons. */
-let media: Map<string, { id: number; status: number; requests: Array<{ id: number; status: number; is4k?: boolean; seasons?: Array<{ seasonNumber: number }> }>; seasons?: Array<{ seasonNumber: number; status: number }> }>;
+let media: Map<string, { id: number; status: number; requests: Array<{ id: number; status: number; is4k?: boolean; seasons?: Array<{ seasonNumber: number }> }>; seasons?: Array<{ seasonNumber: number; status: number }>; downloadStatus?: Array<{ size: number; sizeLeft: number; status: string }> }>;
 const fakeSeerr = async (url: string, init?: RequestInit) => {
   const u = new URL(url);
   if (u.host !== 'seerr.local:5055') throw new Error('network disabled in tests');
@@ -84,7 +86,7 @@ const fakeSeerr = async (url: string, init?: RequestInit) => {
   }
   if (m) {
     const s = states.get(Number(m[1]));
-    return s ? json({ id: Number(m[1]), status: s[0], media: { status: s[1] } }) : json({ message: 'Not found' }, 404);
+    return s ? json({ id: Number(m[1]), status: s[0], media: { status: s[1], downloadStatus: queue.get(Number(m[1])) ?? [] } }) : json({ message: 'Not found' }, 404);
   }
   return json({ message: 'Not found' }, 404);
 };
@@ -96,6 +98,7 @@ beforeEach(async () => {
   slow = false;
   calls = [];
   states = new Map();
+  queue = new Map();
   media = new Map();
   env = await createTestEnv({ fetchImpl: fakeSeerr });
   admin = await setupAdmin(env.app, 'justin');
@@ -114,6 +117,64 @@ describe('Seerr', () => {
     expect(requestState(2, 4)).toBe('partiallyAvailable');
     expect(requestState(5, 5)).toBe('available');
     expect(requestState(undefined, undefined)).toBeNull();
+  });
+
+  it('adds up what Sonarr or Radarr fetch for a title into one progress', () => {
+    expect(downloadProgress(undefined)).toBeNull();
+    expect(downloadProgress([])).toBeNull();
+    // A show: two episodes at once; done when the last one is.
+    expect(
+      downloadProgress([
+        { size: 1000, sizeLeft: 500, status: 'downloading', estimatedCompletionTime: '2026-10-28T12:00:00Z' },
+        { size: 3000, sizeLeft: 500, status: 'queued', estimatedCompletionTime: '2026-10-28T12:30:00Z' },
+      ]),
+    ).toEqual({ fraction: 0.75, size: 4000, sizeLeft: 1000, eta: Date.parse('2026-10-28T12:30:00Z'), status: 'downloading', items: 2 });
+    expect(downloadProgress([{ size: 0, sizeLeft: 0, status: 'Queued' }])).toMatchObject({ fraction: 0, eta: null, status: 'queued' });
+    expect(downloadProgress([{ size: 10, sizeLeft: 10, status: 'paused' }])?.status).toBe('paused');
+    expect(downloadProgress([{ size: 10, sizeLeft: 10, status: 'paused' }, { size: 10, sizeLeft: 10, status: 'warning' }])?.status).toBe('warning');
+    // Nonsense from the queue never gives more than all or less than nothing.
+    expect(downloadProgress([{ size: 100, sizeLeft: 400, status: 'downloading', estimatedCompletionTime: 'soon' }])).toMatchObject({ fraction: 0, sizeLeft: 100, eta: null });
+  });
+
+  it('shows how far fetching a request is, in the lists and on its page, and follows it while it runs', async () => {
+    await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
+    const viewer = await createUser(env.app, admin, 'viewer');
+    await env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: viewer.cookie }, payload: { mediaType: 'movie', tmdbId: 603 } });
+    const list = async (cookie: string, url = '/api/seerr/requests') => (await env.app.inject({ url, headers: { cookie } })).json();
+    // Waiting for approval: nothing is fetched, and Seerr is not asked yet.
+    expect((await list(viewer.cookie))[0]).toMatchObject({ state: 'requested', download: null });
+
+    states.set(100, [2, 3]);
+    queue.set(100, [{ size: 4000, sizeLeft: 3000, status: 'downloading', estimatedCompletionTime: '2026-10-28T12:30:00Z' }]);
+    const realNow = Date.now;
+    let at = realNow() + 10 * 60_000;
+    Date.now = () => at;
+    try {
+      expect((await list(viewer.cookie))[0]).toMatchObject({ state: 'processing', download: { fraction: 0.25, status: 'downloading', eta: Date.parse('2026-10-28T12:30:00Z') } });
+      // Administrators see it too, without Seerr being asked again so soon.
+      const asked = calls.filter((c) => c.path === '/request/100').length;
+      expect((await list(admin, '/api/admin/seerr/requests'))[0]).toMatchObject({ title: 'The Matrix', download: { fraction: 0.25 } });
+      expect(calls.filter((c) => c.path === '/request/100').length).toBe(asked);
+
+      // A few seconds later it is asked again, while it is being fetched.
+      queue.set(100, [{ size: 4000, sizeLeft: 1000, status: 'downloading' }]);
+      at += 20_000;
+      expect((await list(viewer.cookie))[0].download).toMatchObject({ fraction: 0.75, eta: null });
+
+      // Done: available, and no progress any more.
+      states.set(100, [2, 5]);
+      queue.delete(100);
+      at += 20_000;
+      expect((await list(viewer.cookie))[0]).toMatchObject({ state: 'available', download: null });
+    } finally {
+      Date.now = realNow;
+    }
+
+    // The title's page shows it as well.
+    media.set('movie/603', { id: 900, status: 3, requests: [{ id: 100, status: 2 }], downloadStatus: [{ size: 200, sizeLeft: 50, status: 'downloading' }] });
+    expect((await env.app.inject({ url: '/api/seerr/movie/603', headers: { cookie: viewer.cookie } })).json().download).toMatchObject({ fraction: 0.75, items: 1 });
+    media.delete('movie/603');
+    expect((await env.app.inject({ url: '/api/seerr/movie/603', headers: { cookie: viewer.cookie } })).json().download).toBeNull();
   });
 
   it('is off until an administrator sets it up, and contacts nothing before', async () => {

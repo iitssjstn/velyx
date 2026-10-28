@@ -7,8 +7,9 @@ import { ConfirmModal } from '../components/Modal';
 import { toast } from '../components/Toast';
 import { api } from '../lib/api';
 import { Button } from '../components/Button';
-import { DiscoverCard, Poster, StateBadge, seerrDetailsHref, type MyRequest, type SeerrResult } from '../components/Discover';
+import { DiscoverCard, DownloadBar, Poster, StateBadge, seerrDetailsHref, type MyRequest, type SeerrResult } from '../components/Discover';
 import { ErrorState, PageLoader } from '../components/States';
+import { DOWNLOAD_POLL_MS } from '../lib/download';
 import { useT } from '../i18n';
 
 export type { RequestState, SeerrResult } from '../components/Discover';
@@ -19,7 +20,11 @@ type AdminRequest = MyRequest & { user: string | null };
 function AllRequests() {
   const { t } = useT();
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['seerr', 'admin-requests'], queryFn: () => api.get<AdminRequest[]>('/api/admin/seerr/requests') });
+  const q = useQuery({
+    queryKey: ['seerr', 'admin-requests'],
+    queryFn: () => api.get<AdminRequest[]>('/api/admin/seerr/requests'),
+    refetchInterval: (query) => (query.state.data?.some((r) => r.download) ? DOWNLOAD_POLL_MS : false),
+  });
   const [cancelling, setCancelling] = useState<AdminRequest | null>(null);
   const cancel = useMutation({
     mutationFn: (r: AdminRequest) => api.del<{ ok: boolean; inSeerr: boolean }>(`/api/admin/seerr/requests/${r.id}`),
@@ -62,6 +67,7 @@ function AllRequests() {
                 <p className="text-xs text-muted">
                   {r.mediaType === 'movie' ? t('requests.movie') : t('requests.tv')} · {r.user ?? t('requests.unknownUser')} · {new Date(r.createdAt).toLocaleDateString()}
                 </p>
+                {r.download && <DownloadBar download={r.download} title={r.title} />}
               </div>
               <StateBadge state={r.state} />
               {r.state === 'requested' && (
@@ -112,7 +118,12 @@ export function RequestsPage() {
     queryFn: () => api.get<{ results: SeerrResult[] }>(`/api/seerr/search?q=${encodeURIComponent(query)}`),
     enabled: !!query && !!status.data?.enabled,
   });
-  const mine = useQuery({ queryKey: ['seerr', 'requests'], queryFn: () => api.get<MyRequest[]>('/api/seerr/requests'), enabled: !!status.data?.enabled && !admin });
+  const mine = useQuery({
+    queryKey: ['seerr', 'requests'],
+    queryFn: () => api.get<MyRequest[]>('/api/seerr/requests'),
+    enabled: !!status.data?.enabled && !admin,
+    refetchInterval: (query) => (query.state.data?.some((r) => r.download) ? DOWNLOAD_POLL_MS : false),
+  });
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setQuery(input.trim());
@@ -164,6 +175,7 @@ export function RequestsPage() {
                       {r.title}
                     </Link>
                     <p className="text-xs text-muted">{r.mediaType === 'movie' ? t('requests.movie') : t('requests.tv')} · {new Date(r.createdAt).toLocaleDateString()}</p>
+                    {r.download && <DownloadBar download={r.download} title={r.title} />}
                   </div>
                   <StateBadge state={r.state} />
                 </li>

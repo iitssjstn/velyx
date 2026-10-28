@@ -1,3 +1,4 @@
+import type { Download } from './download';
 import type { MessageKey } from './i18n';
 
 export type RequestState = 'requested' | 'approved' | 'processing' | 'partiallyAvailable' | 'available' | 'declined' | 'failed';
@@ -24,6 +25,8 @@ export interface SeerrDetails extends SeerrResult {
   tagline?: string | null;
   rating?: number | null;
   cast?: Array<{ id: number; name: string; character: string | null; profilePath: string | null }>;
+  /** How far fetching it is (null: nothing is being fetched; absent from an older server). */
+  download?: Download | null;
 }
 
 export interface DiscoverPage {

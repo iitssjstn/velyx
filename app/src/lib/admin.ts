@@ -3,6 +3,8 @@
  * API it uses (the same as the website's Admin) and what may be done with each item.
  */
 
+import type { Download } from './download';
+
 export interface AdminStream {
   id: string;
   username: string;
@@ -53,6 +55,8 @@ export interface AdminRequest {
   title: string;
   posterPath: string | null;
   state: RequestState;
+  /** How far fetching it is (null: nothing is being fetched; absent from an older server). */
+  download?: Download | null;
   createdAt: number;
   user: string | null;
 }

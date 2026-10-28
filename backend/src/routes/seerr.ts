@@ -5,7 +5,7 @@ import type { AppContext } from '../app.js';
 import { requireAdmin, requireUser } from '../app.js';
 import { episodes, mediaFiles, movies, seerrRequests, shows, users } from '../db/schema.js';
 import { HttpError, parseId } from '../http-error.js';
-import type { RequestState } from '../services/seerr.js';
+import type { Download, RequestState } from '../services/seerr.js';
 import { canSee } from '../services/access.js';
 import type { SessionUser } from '../auth/sessions.js';
 
@@ -17,6 +17,12 @@ const REQUESTS_PER_HOUR = 20;
 const SHOW_FRESH_MS = 5 * 60_000;
 /** Only asked again after this long (a list of requests does not ask Seerr for each one every time). */
 const STATE_FRESH_MS = 5 * 60_000;
+/** While a request is being fetched, how far it is is asked again after this long. */
+const DOWNLOAD_FRESH_MS = 15_000;
+/** Seerr is asked about this many requests at most per list. */
+const REFRESH_PER_LIST = 10;
+/** States in which Sonarr or Radarr may be fetching a request. */
+const FETCHING = new Set<string>(['approved', 'processing', 'partiallyAvailable']);
 
 /**
  * Seerr (optional): administrators set its address and API key; everyone signed in can search for
@@ -241,26 +247,47 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return view(row);
   });
 
-  const view = (r: typeof seerrRequests.$inferSelect) => ({ id: r.id, mediaType: r.mediaType, tmdbId: r.tmdbId, title: r.title, posterPath: r.posterPath, state: r.state as RequestState | 'removed', createdAt: r.createdAt, updatedAt: r.updatedAt });
+  /** How far fetching each request is (by Seerr's request id), as last asked; kept in memory only. */
+  const downloads = new Map<number, { at: number; download: Download | null }>();
+  const downloadOf = (r: typeof seerrRequests.$inferSelect) => (FETCHING.has(r.state) ? (downloads.get(r.seerrId)?.download ?? null) : null);
+  const view = (r: typeof seerrRequests.$inferSelect) => ({ id: r.id, mediaType: r.mediaType, tmdbId: r.tmdbId, title: r.title, posterPath: r.posterPath, state: r.state as RequestState | 'removed', download: downloadOf(r), createdAt: r.createdAt, updatedAt: r.updatedAt });
 
-  /** Your requests, with where they stand now (asked of Seerr at most every few minutes each). */
-  app.get('/api/seerr/requests', seerrUser, async (request) => {
-    const rows = db.select().from(seerrRequests).where(eq(seerrRequests.userId, request.user!.id)).orderBy(desc(seerrRequests.createdAt)).limit(50).all();
-    if (!ctx.seerr.configured()) return rows.map(view);
+  /**
+   * Asks Seerr where requests stand: every few minutes each, and every few seconds while one is being
+   * fetched (for its progress). A few per list at most; Seerr away: the last known state.
+   */
+  const follow = async (rows: Array<typeof seerrRequests.$inferSelect>) => {
+    if (!ctx.seerr.configured()) return;
     const now = Date.now();
-    const stale = rows.filter((r) => now - r.updatedAt > STATE_FRESH_MS && r.state !== 'available' && r.state !== 'removed').slice(0, 10);
+    const due = rows
+      .filter((r) => r.state !== 'available' && r.state !== 'removed')
+      .filter((r) => now - r.updatedAt > STATE_FRESH_MS || (FETCHING.has(r.state) && now - (downloads.get(r.seerrId)?.at ?? 0) > DOWNLOAD_FRESH_MS))
+      .slice(0, REFRESH_PER_LIST);
     await Promise.all(
-      stale.map(async (r) => {
+      due.map(async (r) => {
         try {
-          const state = (await ctx.seerr.requestStatus(r.seerrId)) ?? 'removed';
-          db.update(seerrRequests).set({ state, updatedAt: now }).where(eq(seerrRequests.id, r.id)).run();
-          r.state = state;
-          r.updatedAt = now;
+          const status = await ctx.seerr.requestStatus(r.seerrId);
+          const state = status?.state ?? 'removed';
+          const at = Date.now();
+          if (state !== r.state || at - r.updatedAt > STATE_FRESH_MS) {
+            db.update(seerrRequests).set({ state, updatedAt: at }).where(eq(seerrRequests.id, r.id)).run();
+            r.state = state;
+            r.updatedAt = at;
+          }
+          downloads.delete(r.seerrId);
+          downloads.set(r.seerrId, { at, download: status?.download ?? null });
+          if (downloads.size > 1000) downloads.delete(downloads.keys().next().value!);
         } catch {
           /* Seerr unreachable: the last known state */
         }
       }),
     );
+  };
+
+  /** Your requests, with where they stand now and how far fetching them is. */
+  app.get('/api/seerr/requests', seerrUser, async (request) => {
+    const rows = db.select().from(seerrRequests).where(eq(seerrRequests.userId, request.user!.id)).orderBy(desc(seerrRequests.createdAt)).limit(50).all();
+    await follow(rows);
     return rows.map(view);
   });
 
@@ -274,6 +301,7 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
       .orderBy(desc(seerrRequests.createdAt))
       .limit(200)
       .all();
+    await follow(rows.map((x) => x.r));
     return rows.map((x) => ({ ...view(x.r), user: x.displayName || x.username || null }));
   });
 

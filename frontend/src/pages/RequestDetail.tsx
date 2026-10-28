@@ -4,9 +4,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Play, RotateCcw, Send, Star } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { DOWNLOAD_POLL_MS } from '../lib/download';
 import { formatRuntime } from '../lib/format';
 import { DetailHero, MetaList } from '../components/DetailHero';
-import { DiscoverCard, seerrDetailsHref, StateBadge, useOpenLocal, type SeerrResult } from '../components/Discover';
+import { DiscoverCard, DownloadBar, seerrDetailsHref, StateBadge, useOpenLocal, type SeerrResult } from '../components/Discover';
 import { openState as open, RequestDialog, type SeerrDetails } from '../components/RequestDialog';
 import { CastRow } from '../components/People';
 import { ConfirmModal } from '../components/Modal';
@@ -34,7 +35,11 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { open: openLocal, busy } = useOpenLocal();
-  const q = useQuery({ queryKey: ['seerr', 'details', mediaType, tmdbId], queryFn: () => api.get<SeerrDetails>(`/api/seerr/${mediaType}/${tmdbId}`) });
+  const q = useQuery({
+    queryKey: ['seerr', 'details', mediaType, tmdbId],
+    queryFn: () => api.get<SeerrDetails>(`/api/seerr/${mediaType}/${tmdbId}`),
+    refetchInterval: (query) => (query.state.data?.download ? DOWNLOAD_POLL_MS : false),
+  });
   const similar = useQuery({ queryKey: ['seerr', 'similar', mediaType, tmdbId], queryFn: () => api.get<{ results: SeerrResult[] }>(`/api/seerr/${mediaType}/${tmdbId}/recommendations`), enabled: q.isSuccess });
   const [confirming, setConfirming] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -77,6 +82,7 @@ function RequestScreen({ mediaType, tmdbId }: { mediaType: 'movie' | 'tv'; tmdbI
             d.inLibrary ? <span className="rounded-full bg-ok/15 px-2.5 py-0.5 text-xs text-ok">{t('requests.inLibrary')}</span> : d.state ? <StateBadge state={d.state} /> : null,
           ]}
         />
+        {d.download && <DownloadBar download={d.download} title={d.title} />}
         {d.genres.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
             {d.genres.map((g) => (

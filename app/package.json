@@ -1,6 +1,6 @@
 {
   "name": "vidalune-app",
-  "version": "0.19.97",
+  "version": "0.19.98",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -38,7 +38,8 @@
     "android": "expo run:android",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "prebuild": "expo prebuild --platform android --clean"
+    "prebuild": "expo prebuild --platform android --clean",
+    "lint": "expo lint"
   },
   "private": true,
   "license": "UNLICENSED"

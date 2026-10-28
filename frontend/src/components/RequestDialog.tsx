@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { seasonsToRequest, tickSeason } from '../lib/request-seasons';
 import { ConfirmModal } from './Modal';
+import type { Download } from '../lib/download';
 import { StateBadge, type MyRequest, type RequestState, type SeerrResult } from './Discover';
 import { toast } from './Toast';
 import { useT } from '../i18n';
@@ -16,6 +17,8 @@ export interface SeerrDetails extends SeerrResult {
   rating: number | null;
   releaseDate: string | null;
   cast: Array<{ id: number; name: string; character: string | null; profilePath: string | null }>;
+  /** How far fetching it is (null: nothing is being fetched; absent from an older server). */
+  download?: Download | null;
 }
 
 /** A season (or the title) may still be requested: never asked for, or turned down before. */
