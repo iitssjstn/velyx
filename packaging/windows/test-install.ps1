@@ -11,6 +11,10 @@ $log = Join-Path $data 'logs\vidalune.log'
 
 function Fail([string]$why) {
   Write-Host "FAILED: $why"
+  $ErrorActionPreference = 'Continue'
+  Write-Host "--- who ($([Security.Principal.WindowsIdentity]::GetCurrent().Name)) ---"
+  whoami /groups | Select-String 'S-1-5-32-544|Mandatory Label'
+  if (Test-Path $data) { Write-Host '--- data folder rights ---'; icacls $data /T /C }
   if (Test-Path $log) { Write-Host '--- vidalune.log ---'; Get-Content $log -Tail 80 }
   $tmp = Join-Path ([IO.Path]::GetTempPath()) 'vidalune-tray.log'
   if (Test-Path $tmp) { Write-Host '--- vidalune-tray.log ---'; Get-Content $tmp -Tail 40 }
