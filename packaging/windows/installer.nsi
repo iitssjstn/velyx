@@ -97,7 +97,11 @@ Section "Vidalune" SecMain
   CreateDirectory "$APPDATA\Vidalune\logs"
   ReadEnvStr $1 USERDOMAIN
   ReadEnvStr $2 USERNAME
-  nsExec::Exec 'icacls "$APPDATA\Vidalune" /inheritance:r /remove:g *S-1-5-32-545 /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F "$1\$2:(OI)(CI)M" /T /Q'
+  ; The rights are set on the folder only; everything in it inherits them (/reset), also files
+  ; from an older version.
+  nsExec::Exec 'icacls "$APPDATA\Vidalune" /inheritance:r /remove:g *S-1-5-32-545 /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F "$1\$2:(OI)(CI)M" /Q'
+  Pop $0
+  nsExec::Exec 'icacls "$APPDATA\Vidalune\*" /reset /T /C /Q'
   Pop $0
   ${IfNot} ${FileExists} "$APPDATA\Vidalune\vidalune.env"
     CopyFiles /SILENT "$INSTDIR\vidalune.env" "$APPDATA\Vidalune\vidalune.env"
