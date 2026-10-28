@@ -4,7 +4,10 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
-import { buildCloudApp, SESSION_COOKIE } from '../src/app.js';
+import { buildCloudApp, sessionCookieName } from '../src/app.js';
+
+/** Over https the session cookie carries the __Host- prefix. */
+const SESSION_COOKIE = sessionCookieName(true);
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
 import { servers } from '../src/db/schema.js';
@@ -283,6 +286,14 @@ describe('automatic direct DNS', () => {
       expect((await request()).statusCode).toBe(502);
       expect((await request()).statusCode).toBe(502);
       expect(attempts).toBe(2);
+    });
+
+    it('issues at most three new certificates a day for one server', async () => {
+      let attempts = 0;
+      const { request } = await readyServer({ issue: async () => { attempts += 1; throw new Error('ACME failed'); } });
+      for (let i = 0; i < 3; i++) expect((await request()).statusCode).toBe(502);
+      expect((await request()).statusCode).toBe(429);
+      expect(attempts).toBe(3);
     });
 
     it('does not return a pending certificate job for a rotated server key', async () => {

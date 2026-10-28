@@ -21,7 +21,6 @@ import { home } from './home';
 import { install } from './install';
 import { libraries } from './libraries';
 import { library } from './library';
-import { link } from './link';
 import { lists } from './lists';
 import { logs } from './logs';
 import { media } from './media';
@@ -53,4 +52,4 @@ import { time } from './time';
 import { users } from './users';
 
 /** English: the source language. Every other language has exactly these keys. */
-export const en = { activity, admin, adminItem, arr, audit, auth, backup, browse, cleanup, cloud, collections, common, continueWatching, dashboard, detail, device, errors, fixMatch, greeting, health, home, install, libraries, library, link, lists, logs, media, mediaInfo, metadata, nav, notFound, notifications, onlineSubs, optimization, playback, player, quickSearch, requests, roles, schedule, search, searchPage, segments, series, server, sessions, settings, setup, smart, subtitleStyle, time, users };
+export const en = { activity, admin, adminItem, arr, audit, auth, backup, browse, cleanup, cloud, collections, common, continueWatching, dashboard, detail, device, errors, fixMatch, greeting, health, home, install, libraries, library, lists, logs, media, mediaInfo, metadata, nav, notFound, notifications, onlineSubs, optimization, playback, player, quickSearch, requests, roles, schedule, search, searchPage, segments, series, server, sessions, settings, setup, smart, subtitleStyle, time, users };

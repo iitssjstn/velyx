@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import type { AudioTrackInfo, SubtitleTrackInfo } from '../db/schema.js';
+import { LOCAL_ONLY } from '../playback/local-input.js';
 
 export interface ProbeResult {
   container: string | null;
@@ -136,7 +137,7 @@ export function createFfprobe(ffprobePath: string, timeoutMs = 60000): Prober {
     new Promise((resolve, reject) => {
       execFile(
         ffprobePath,
-        ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', '--', file],
+        ['-v', 'error', ...LOCAL_ONLY, '-print_format', 'json', '-show_format', '-show_streams', '--', file],
         { timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024, windowsHide: true },
         (err, stdout, stderr) => {
           if (err) {

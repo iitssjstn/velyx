@@ -25,7 +25,7 @@ import { analyzePlayback } from '../playback/compatibility.js';
 import { clientProfile, deviceSupport, effectiveCapabilities, profileName } from '../playback/client-profile.js';
 import { requestLanguage } from '../i18n/index.js';
 import { isHomeRequest, isSamePublicAddress } from '../services/remote-access.js';
-import { CHROMECAST_CAPS, playbackJwtExpiresAt, signPlaybackJwt } from '../services/cast.js';
+import { CHROMECAST_CAPS, MAX_CAST_CHAIN_MS, playbackJwtExpiresAt, signPlaybackJwt } from '../services/cast.js';
 import { createLogger } from '../logger.js';
 import type { ReadyOptimization } from '../services/optimization.js';
 
@@ -285,7 +285,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
       ...publicEndpoints,
     ].map((endpoint) => [endpoint.url, endpoint])).values()];
     const directPlayback = endpoints.length
-      ? { endpoints, token: await signPlaybackJwt(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt: playbackJwtExpiresAt(file.durationSec), artwork: false }) }
+      ? { endpoints, token: await signPlaybackJwt(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt: playbackJwtExpiresAt(file.durationSec), artwork: false, ...castChainOf(request) }) }
       : undefined;
     return { decision: { ...decision, hlsUrl, mode: analysis.mode }, analysis, file: fileInfo(file, external, sourceFile), subtitles: subtitleList(sourceFile, request.user!), onlineSubtitles: ctx.openSubtitles.configured, ...(directPlayback ? { directPlayback } : {}) };
   });
@@ -312,7 +312,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     let state = ctx.hls.preparing(key);
     // Not being read (the server restarted since the cast began): read now.
     if (state === null) {
-      void ctx.hls.prepare(key, abs).catch(() => undefined);
+      void ctx.heavy.track(request.user!.id, `keyframes:${key}`, () => ctx.hls.prepare(key, abs)).catch(() => undefined);
       state = ctx.hls.preparing(key) ?? 'reading';
     }
     return { state };
@@ -443,7 +443,17 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return audioModeOptions(mode);
   }
 
+  /** The sign-in a playback token belongs to and when its cast began: carried on by the TV, else this request's. */
+  function castChainOf(request: FastifyRequest): { sid: string; root: number } {
+    if (request.castChain) return request.castChain;
+    if (!request.sessionToken) throw new HttpError(401, 'Sign in first.');
+    return { sid: ctx.sessions.publicIdOf(request.sessionToken), root: Date.now() };
+  }
+
   async function castSession(request: FastifyRequest, body: { fileId: number; audioIndex?: number; optimizationId?: number }, wait = false) {
+    // A new token from the TV itself carries on the cast it belongs to, for so long; then cast again.
+    const chain = castChainOf(request);
+    if (Date.now() - chain.root > MAX_CAST_CHAIN_MS) throw new HttpError(403, 'Cast again from your phone or browser.');
     const source = loadFile(String(body.fileId), request.user!);
     let loaded = body.optimizationId === undefined ? source : loadFile(String(body.fileId), request.user!, body.optimizationId);
     let file = await ensureVideoDetails(loaded.file, loaded.abs);
@@ -476,13 +486,14 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     let preparing = castNeedsKeyframes(castDecision) && !ctx.hls.ready(keyframesKey(file));
     if (preparing && wait) {
       // The TV itself asks (the next episode, another audio track): it waits for the answer.
-      await ctx.hls.prepare(keyframesKey(file), loaded.abs).catch(() => {
+      await ctx.heavy.track(request.user!.id, `keyframes:${keyframesKey(file)}`, () => ctx.hls.prepare(keyframesKey(file), loaded.abs)).catch((err) => {
+        if (err instanceof HttpError && err.statusCode === 429) throw err;
         throw new HttpError(409, 'This file could not be read. Scan the library again, or replace the file.');
       });
       preparing = false;
-    } else if (preparing) void ctx.hls.prepare(keyframesKey(file), loaded.abs).catch(() => undefined);
+    } else if (preparing) void ctx.heavy.track(request.user!.id, `keyframes:${keyframesKey(file)}`, () => ctx.hls.prepare(keyframesKey(file), loaded.abs)).catch(() => undefined);
     const expiresAt = playbackJwtExpiresAt(file.durationSec);
-    const token = await signPlaybackJwt(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt, artwork: true });
+    const token = await signPlaybackJwt(ctx.config.sessionSecret, { userId: request.user!.id, fileId: file.id, expiresAt, artwork: true, ...chain });
     const directUrl = ctx.cloud.status().directAccess?.url ?? null;
     const publicDirectUrl = directUrl && !isAccountControlUrl(directUrl, ctx.config.cloudUrl) ? directUrl : null;
     const configuredServerUrl = ctx.settings.serverUrl();
@@ -602,7 +613,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (!Number.isFinite(t) || t < 0) throw new HttpError(400, 'Invalid time.');
     const target = file.durationSec ? Math.min(t, Math.max(0, file.durationSec - 1)) : t;
     const engine = ctx.playback.get('remux') as RemuxEngine;
-    return { start: await engine.seekLanding(abs, target), seek: target };
+    return { start: await ctx.heavy.track(request.user!.id, `seek:${file.id}:${target}`, () => engine.seekLanding(abs, target)), seek: target };
   });
 
   /** Whether the file can still be read, so the player can tell "file gone" apart from "cannot decode". */
@@ -645,7 +656,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (!track.textBased) throw new HttpError(415, 'Image-based subtitles (PGS/VobSub) cannot be shown in the browser without converting them, which Vidalune does not do. Use a text subtitle (SRT/ASS) instead.');
     // The file's other text subtitles come along in the same read of the file.
     const also = (file.subtitleTracks ?? []).filter((t) => t.textBased).map((t) => t.index);
-    const vtt = shiftVtt(await ctx.subtitleExtractor.extract(file.id, file.mtimeMs, abs, index, { also, sizeBytes: file.size }), offsetParam(request.query));
+    const vtt = shiftVtt(await ctx.heavy.track(request.user!.id, `subtitles:${file.id}`, () => ctx.subtitleExtractor.extract(file.id, file.mtimeMs, abs, index, { also, sizeBytes: file.size })), offsetParam(request.query));
     return reply.type('text/vtt; charset=utf-8').header('Cache-Control', 'private, max-age=3600').send(vtt);
   });
 

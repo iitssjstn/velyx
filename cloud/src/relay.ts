@@ -362,15 +362,32 @@ function unavailable(req: IncomingMessage, res: ServerResponse, problem: RelayPr
   res.end(JSON.stringify({ error: text, relay: problem }));
 }
 
-/** A browser opening a page (not the API, not a file the app or player asks for). */
+/**
+ * A browser opening a page (not the API, not a file the app or player asks for). A browser that says
+ * it navigates counts whatever the path: a server's answer is never shown as a page on its relay address.
+ */
 function isNavigation(req: IncomingMessage): boolean {
   if (req.method !== 'GET') return false;
-  const path = req.url ?? '/';
-  if (path.startsWith('/api/') || path.startsWith('/sso')) return false;
   const mode = req.headers['sec-fetch-mode'];
   if (mode) return mode === 'navigate';
+  const path = req.url ?? '/';
+  if (path.startsWith('/api/') || path.startsWith('/sso')) return false;
   return String(req.headers.accept ?? '').includes('text/html');
 }
+
+/**
+ * What a server answers on its relay address (<slug>.vidalune.com, the same site as vidalune.com): data
+ * for the app and the web interface, never a page that runs scripts there, and its cookies stay on that
+ * address (no Domain=, so it cannot set cookies for vidalune.com or the other relay addresses).
+ */
+export const relayResponse: Rewrite = {
+  response: (headers) => {
+    const set = headers['set-cookie'];
+    if (set) headers['set-cookie'] = (Array.isArray(set) ? set : [set]).map((c) => c.split(';').filter((part) => !/^\s*domain=/i.test(part)).join(';'));
+    headers['content-security-policy'] = "default-src 'none'; sandbox";
+    headers['x-content-type-options'] = 'nosniff';
+  },
+};
 
 /**
  * The address to tell a viewer's devices apart by (for counting clients only): Cloudflare's own
@@ -541,7 +558,7 @@ export class Relay {
       res.writeHead(302, { Location: `${this.opts.appUrl}/_vl/open?server=${encodeURIComponent(row!.id)}`, 'Cache-Control': 'no-store' }).end();
       return;
     }
-    tunnel.forward(req, res, clientIp(req, this.opts.trustProxy));
+    tunnel.forward(req, res, clientIp(req, this.opts.trustProxy), relayResponse);
   }
 
   /** A visitor of a server got an error before reaching it (relay off, server offline): counted per day. */

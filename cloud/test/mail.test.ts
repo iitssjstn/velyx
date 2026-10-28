@@ -3,10 +3,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { buildCloudApp, SESSION_COOKIE } from '../src/app.js';
+import { buildCloudApp, sessionCookieName } from '../src/app.js';
+
+/** Over https the session cookie carries the __Host- prefix. */
+const SESSION_COOKIE = sessionCookieName(true);
 import { loadConfig, parseMailHeaders, type MailConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
-import { accounts } from '../src/db/schema.js';
+import { accounts, serviceSettings } from '../src/db/schema.js';
 import { Mailer, mailTemplates, type MailTransport } from '../src/mail.js';
 
 const MAIL: MailConfig = { host: 'smtp.example.com', port: 587, secure: false, user: 'token', pass: 'token', from: 'Vidalune <no-reply@vidalune.com>', headers: { 'X-PM-Message-Stream': 'outbound' } };
@@ -129,6 +132,15 @@ describe('confirming the email address', () => {
     expect(all.customers.find((c: { email: string }) => c.email === 'boss@example.com').verified).toBe(true);
     expect(all.summary).toMatchObject({ total: 2, unverified: 1, new7: 2 });
     expect((await list('unverified')).customers.map((c: { email: string }) => c.email)).toEqual(['new@example.com']);
+  });
+
+  it('once mail was set up, turning it off again does not hand out the rights of an unconfirmed address', async () => {
+    await start({ mail: null, adminEmails: ['boss@example.com'] });
+    // As after mail was set up in the Control Center and later turned off.
+    db.insert(serviceSettings).values({ key: 'mail-ever', value: '1', updatedAt: clock, updatedBy: 'ceo@example.com' }).run();
+    const cookie = cookieOf(await signUp('boss@example.com'));
+    expect((await me(cookie)).json().admin).toBeUndefined();
+    expect((await cloud.inject({ url: '/api/ceo/dashboard', headers: { cookie } })).statusCode).toBe(403);
   });
 
   it('without mail set up, nothing is sent and the rights work as before', async () => {

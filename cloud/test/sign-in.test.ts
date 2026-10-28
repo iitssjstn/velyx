@@ -3,7 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { buildCloudApp, SESSION_COOKIE } from '../src/app.js';
+import { buildCloudApp, sessionCookieName } from '../src/app.js';
+
+/** Over https the session cookie carries the __Host- prefix. */
+const SESSION_COOKIE = sessionCookieName(true);
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
 import { memberships } from '../src/db/schema.js';

@@ -791,10 +791,6 @@ Vidalune has an API for apps (such as [the Vidalune app for Android](#the-vidalu
 
 - **Server check:** `GET /api/server/info` (no sign-in needed) returns the server name, version and `apiVersion` (currently `1`).
 - **With a password:** `POST /api/auth/app/login` with `username`, `password` and a `deviceName` (such as *Pixel 8*) returns a `token`. Wrong passwords are throttled exactly like on the sign-in page.
-- **With a code** (no typing a password on a phone or TV):
-  1. The app calls `POST /api/auth/pair/start` with its `deviceName` and shows the code it gets (such as `K7M-2QX`). Codes are valid for 10 minutes and work once.
-  2. Someone signed in to Vidalune opens **Account → Profile → Connect the Vidalune app** (or goes to `/link`), enters the code and confirms the device.
-  3. Meanwhile the app calls `POST /api/auth/pair/poll` with its `pollToken` every few seconds, and gets its `token` once the code was confirmed.
 - **Signing out:** `POST /api/auth/logout` with the token. Signed-in apps appear by device name under **Account → Profile → Devices**, where they can be signed out like any browser; disabling an account or resetting its password signs its apps out too.
 
 **Playback from an app.** An app identifies itself with a `User-Agent` starting with `VidaluneApp/` (for example `VidaluneApp/1.0 (Android 14; Pixel 8)`) and asks how to play a file with `POST /api/media/<file id>/playback`, reporting what the device decodes:

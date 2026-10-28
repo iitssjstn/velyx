@@ -4,10 +4,13 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
-import { buildCloudApp, ONLINE_WINDOW, SESSION_COOKIE } from '../src/app.js';
+import { buildCloudApp, ONLINE_WINDOW, sessionCookieName } from '../src/app.js';
+
+/** Over https the session cookie carries the __Host- prefix. */
+const SESSION_COOKIE = sessionCookieName(true);
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
-import { accountSessions, accounts, linkCodes, servers } from '../src/db/schema.js';
+import { accountSessions, accounts, ceoEvents, linkCodes, servers } from '../src/db/schema.js';
 import { newLinkCode, normalizeLinkCode } from '../src/crypto.js';
 
 let dir: string;
@@ -53,6 +56,8 @@ describe('link codes', () => {
 describe('accounts', () => {
   it('signs up, signs in and out; passwords and tokens are stored as hashes only', async () => {
     const cookie = await signUp('Justin@Example.com');
+    // Over https only vidalune.com itself can set this cookie (__Host-: Secure, Path=/, no Domain).
+    expect(cookie.startsWith('__Host-vl_session=')).toBe(true);
     expect((await app.inject({ url: '/api/account', headers: { cookie } })).json()).toEqual({ email: 'justin@example.com', emailVerified: false, mail: false, remote: { active: false, kind: null, until: null }, appUrl: null });
     const stored = db.select().from(accounts).get()!;
     expect(stored.passwordHash).toMatch(/^\$argon2id\$/);
@@ -115,15 +120,38 @@ describe('accounts', () => {
     const s = await register();
     const { code } = (await app.inject({ method: 'POST', url: '/api/server/code', headers: { authorization: s.auth } })).json();
     await app.inject({ method: 'POST', url: '/api/link', headers: { cookie }, payload: { code } });
+    db.update(servers).set({ publicIp: '203.0.113.7', localEndpoints: '[{"address":"192.168.1.5","port":32400}]' }).run();
+    db.insert(ceoEvents).values([
+      { at: 1, actor: 'boss@example.com', action: 'access.granted', target: 'justin@example.com', detail: JSON.stringify({ email: 'justin@example.com' }) },
+      { at: 2, actor: 'boss@example.com', action: 'note', target: 'Justin <justin@example.com>', detail: null },
+    ]).run();
     expect((await app.inject({ method: 'DELETE', url: '/api/account', headers: { cookie }, payload: { password: 'wrong-password' } })).statusCode).toBe(401);
     expect((await app.inject({ method: 'DELETE', url: '/api/account', headers: { cookie }, payload: { password: 'correct-horse' } })).statusCode).toBe(200);
     expect(db.select().from(accounts).all()).toEqual([]);
     expect(db.select().from(servers).get()!.accountId).toBeNull();
+    // Nothing personal left behind: no address in the CEO's log, no addresses of the servers.
+    expect(db.select().from(servers).get()).toMatchObject({ publicIp: null, localEndpoints: '[]' });
+    const events = db.select().from(ceoEvents).all();
+    expect(events.length).toBeGreaterThan(0);
+    for (const e of events) expect(`${e.target} ${e.detail}`).not.toContain('justin@example.com');
     expect((await app.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: s.auth }, payload: { name: 'Thuis', version: '0.10.1' } })).json()).toMatchObject({ linked: false, account: null });
   });
 });
 
 describe('linking a server', () => {
+  it('links a few servers per account, so one account cannot fill the shared DNS zone', async () => {
+    const cookie = await signUp();
+    const link = async () => {
+      const s = await register();
+      const { code } = (await app.inject({ method: 'POST', url: '/api/server/code', headers: { authorization: s.auth } })).json();
+      return app.inject({ method: 'POST', url: '/api/link', headers: { cookie }, payload: { code } });
+    };
+    for (let i = 0; i < 5; i++) expect((await link()).statusCode).toBe(200);
+    const sixth = await link();
+    expect(sixth.statusCode).toBe(409);
+    expect(sixth.json().error).toMatch(/at most 5 servers/);
+  });
+
   it('links with the code the server shows, once, within ten minutes', async () => {
     const cookie = await signUp();
     const s = await register();

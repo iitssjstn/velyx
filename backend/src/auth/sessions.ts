@@ -138,6 +138,21 @@ export class SessionService {
       }));
   }
 
+  /** Whether this sign-in of the user (by its public id) is still there: signed out, it is gone. */
+  alive(userId: number, publicId: string, now = Date.now()): boolean {
+    return this.db
+      .select({ id: sessions.id, expiresAt: sessions.expiresAt })
+      .from(sessions)
+      .where(eq(sessions.userId, userId))
+      .all()
+      .some((r) => r.expiresAt > now && publicSessionId(r.id) === publicId);
+  }
+
+  /** The public id of the sign-in a token belongs to. */
+  publicIdOf(token: string): string {
+    return publicSessionId(hashToken(token));
+  }
+
   /** Ends one session of a user by its public id. Returns false when there is no such session. */
   revoke(userId: number, publicId: string): boolean {
     const rows = this.db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, userId)).all();

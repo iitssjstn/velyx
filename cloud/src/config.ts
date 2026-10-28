@@ -40,6 +40,7 @@ export interface CloudConfig {
   ceoEmails: string[];
   /** What the relay may send in total, in Mbit/s (shared fairly between servers; 0: no limit). */
   relayMaxMbps: number;
+  maxServersPerAccount: number;
   /** What one server may send through the relay, in Mbit/s, unless set per server (0: no limit). */
   relayServerMbps: number;
   /** Outgoing mail (address confirmations, password resets) over SMTP; null: no mail is sent. */
@@ -124,6 +125,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     directAcmeDirectoryUrl: env.DIRECT_ACME_DIRECTORY_URL || 'https://acme-v02.api.letsencrypt.org/directory',
     directAcmeEmail: (env.DIRECT_ACME_EMAIL || env.ADMIN_EMAILS?.split(/[\s,;]+/)[0] || '').trim().toLowerCase(),
     relayMaxMbps: Math.max(0, int(env.RELAY_MAX_MBPS, 900)),
+    /** Servers one account may link (each takes a DNS address and certificates); the CEO has no limit. */
+    maxServersPerAccount: Math.max(1, int(env.MAX_SERVERS_PER_ACCOUNT, 5)),
     relayServerMbps: Math.max(0, int(env.RELAY_SERVER_MBPS, 0)),
     mail: loadMail(env),
     webDir: fs.existsSync(defaultWeb) ? defaultWeb : null,

@@ -226,3 +226,25 @@ describe.skipIf(!available)('real FFprobe: bit depth and HDR', () => {
     expect(row).toEqual({ d: 10, r: 'HDR10' });
   });
 });
+
+describe.skipIf(!available)('files that point elsewhere', () => {
+  it('never make FFprobe fetch from the network', async () => {
+    const http = await import('node:http');
+    let hits = 0;
+    const server = http.createServer((_req, res) => {
+      hits++;
+      res.end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as { port: number }).port;
+    const dir = fs.mkdtempSync(path.join((await import('node:os')).tmpdir(), 'vl-local-'));
+    // A playlist with a video name, as someone could drop into a library. Newer FFmpeg refuses this
+    // itself; FFmpeg 5.1 (Debian 12) relies on the protocol whitelist.
+    const file = path.join(dir, 'Movie (2020).mkv');
+    fs.writeFileSync(file, `#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\nhttp://127.0.0.1:${port}/a.ts\n#EXT-X-ENDLIST\n`);
+    await createFfprobe('ffprobe')(file).catch(() => undefined);
+    server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+    expect(hits).toBe(0);
+  });
+});

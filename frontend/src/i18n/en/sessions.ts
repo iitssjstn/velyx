@@ -12,5 +12,4 @@ export const sessions = {
   revokeAll: 'Revoke all sessions',
   signOutOthers: 'Sign out all other devices',
   app: 'Vidalune app',
-  connectApp: 'Connect the Vidalune app',
 };

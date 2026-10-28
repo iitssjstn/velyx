@@ -2,6 +2,7 @@ import os from 'node:os';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { FRAME_H, FRAME_W, frameStats, type FrameStats } from './visual.js';
 import { parseChapters, type Chapter } from './chapters.js';
+import { LOCAL_ONLY } from '../../playback/local-input.js';
 
 /**
  * Small frames from part of a video. `keyframes` decodes only the keyframes (a few percent of the
@@ -26,7 +27,7 @@ export function ffmpegFrameReader(ffmpegPath: string): FrameReader {
       const args = [
         '-nostdin', '-hide_banner', '-loglevel', 'info', '-threads', '2',
         ...(mode === 'keyframes' ? ['-skip_frame', 'nokey'] : []),
-        '-ss', Math.max(0, start).toFixed(3), '-t', duration.toFixed(3), '-i', file,
+        '-ss', Math.max(0, start).toFixed(3), '-t', duration.toFixed(3), ...LOCAL_ONLY, '-i', file,
         '-map', '0:v:0', '-an', '-sn', '-dn', '-vf', filters, '-fps_mode', 'passthrough', '-f', 'rawvideo', 'pipe:1',
       ];
       const child = spawn(ffmpegPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -71,7 +72,7 @@ export function ffmpegFrameReader(ffmpegPath: string): FrameReader {
 export function ffprobeChapterReader(ffprobePath: string): ChapterReader {
   return (file) =>
     new Promise((resolve) => {
-      const child = spawn(ffprobePath, ['-v', 'error', '-show_chapters', '-of', 'json', file], { stdio: ['ignore', 'pipe', 'ignore'] });
+      const child = spawn(ffprobePath, ['-v', 'error', ...LOCAL_ONLY, '-show_chapters', '-of', 'json', file], { stdio: ['ignore', 'pipe', 'ignore'] });
       let out = '';
       const timer = setTimeout(() => child.kill('SIGKILL'), 30_000);
       child.stdout.on('data', (c: Buffer) => {

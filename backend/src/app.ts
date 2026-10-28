@@ -26,6 +26,7 @@ import { ScanManager } from './services/scan-manager.js';
 import { LibraryWatcher } from './services/watcher.js';
 import { createFfprobe, type Prober } from './services/probe.js';
 import { limitProber, type LimitedProber } from './services/probe-queue.js';
+import { HeavyWork } from './services/heavy-work.js';
 import { EmbeddedSubtitleExtractor } from './services/subtitles.js';
 import { SubtitlePrefetcher } from './services/subtitle-prefetch.js';
 import { inMaintenanceWindow } from './services/maintenance-window.js';
@@ -70,6 +71,8 @@ declare module 'fastify' {
     appDevice: string | null;
     /** A Chromecast fetching with a cast token: the one file it may open. */
     castFile: number | null;
+    /** The sign-in and start of the cast a cast token belongs to (renewals from the TV keep both). */
+    castChain: { sid: string; root: number } | null;
   }
 }
 
@@ -90,6 +93,8 @@ export interface AppContext {
   watcher: LibraryWatcher;
   playback: PlaybackRegistry;
   subtitleExtractor: EmbeddedSubtitleExtractor;
+  /** Whole-file reads a viewer asked for: a few at once per viewer. */
+  heavy: HeavyWork;
   subtitlePrefetch: SubtitlePrefetcher;
   access: LibraryAccess;
   audit: AuditLog;
@@ -258,7 +263,7 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
   const openSubtitles = new OpenSubtitlesClient({ vidalune: cloud });
   const seerr = new SeerrService({ settings, fetchImpl: opts.fetchImpl });
   const arr = new ArrService({ settings, fetchImpl: opts.fetchImpl });
-  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, subtitlePrefetch, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, seerr, arr, transcoding, optimizations, hls, startedAt: Date.now() };
+  return { config, db, settings, sessions, tmdb, images, metadata, freshMetadata: new FreshMetadata(db, metadata), trailers: new TrailerLookup(tmdb, seerr), scanner, scans, watcher, playback, subtitleExtractor, heavy: new HeavyWork(), subtitlePrefetch, access: new LibraryAccess(db), audit, backups, storage, disk, streams, analyzer: new DetailAnalyzer(db, probe), updates: new UpdateChecker(config.updateUrl, () => settings.get().updateCheck, opts.fetchImpl), probe, segments, openSubtitles, notifications, cleanupScheduler, cloud, sharedDetection, seerr, arr, transcoding, optimizations, hls, startedAt: Date.now() };
 }
 
 export function requireUser(request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void): void {
@@ -364,6 +369,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   app.decorateRequest('sessionToken', undefined);
   app.decorateRequest('appDevice', null);
   app.decorateRequest('castFile', null);
+  app.decorateRequest('castChain', null);
 
   // Resolve the session for every API request.
   app.addHook('onRequest', async (request, reply) => {
@@ -388,6 +394,9 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
       if (!allowed) return;
       const u = ctx.db.select().from(users).where(eq(users.id, claims.userId)).get();
       if (!u || u.disabled) return;
+      // Signed out (or signed out everywhere, a new password): the TV's token stops working too.
+      if (!ctx.sessions.alive(u.id, claims.sid)) return;
+      request.castChain = { sid: claims.sid, root: claims.root };
       request.user = { id: u.id, username: u.username, displayName: u.displayName, role: u.role, avatarFile: u.avatarFile, language: isLanguage(u.language) ? u.language : DEFAULT_LANGUAGE };
       request.castFile = claims.fileId;
       request.appDevice = claims.artwork === false ? null : 'Chromecast';
@@ -473,7 +482,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: tr(lang, err.message, err.params) });
     const status = err.statusCode && err.statusCode >= 400 && err.statusCode < 500 ? err.statusCode : 500;
     if (status < 500) return reply.code(status).send({ error: err.message && lang === 'en' ? err.message : tr(lang, 'Invalid request.') });
-    log.error(`${request.method} ${request.url} failed`, err);
+    log.error(`${request.method} ${redactUrl(request.url)} failed`, err);
     const body: Record<string, unknown> = { error: tr(lang, 'Something went wrong.') };
     if (request.user?.role === 'admin') body.detail = { message: err.message, stack: err.stack };
     return reply.code(500).send(body);
@@ -522,4 +531,9 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   }
 
   return app;
+}
+
+/** A URL for the log, without the tokens that open media (cast links, tickets). */
+export function redactUrl(url: string): string {
+  return url.replace(/([?&](?:cast|ticket|token|access_token)=)[^&#]*/gi, '$1…');
 }

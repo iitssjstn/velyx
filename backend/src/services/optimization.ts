@@ -15,6 +15,7 @@ import { encodeArgs } from '../playback/transcode.js';
 import type { VideoEncode } from '../playback/remux.js';
 import { OptimizationCheckpoint } from './optimization-checkpoint.js';
 import { canWriteBeside, copyBeside, isOptimizedCopy } from './optimized-copy.js';
+import { LOCAL_ONLY } from '../playback/local-input.js';
 
 export type OptimizationProfile = 'compat-720p' | 'compat-1080p';
 
@@ -56,6 +57,7 @@ export function optimizationArgs(options: {
   return [
     ...options.video.input,
     ...(seek !== null ? ['-ss', seek] : []),
+    ...LOCAL_ONLY,
     '-i', options.input,
     '-map', '0:v:0',
     '-map', '0:a?',
@@ -526,7 +528,7 @@ export class OptimizationService {
       }
       assertRunning();
       if (!checkpoint.complete) throw new Error('FFmpeg did not finish all optimization segments.');
-      await this.runFfmpeg(id, ['-f', 'concat', '-safe', '1', '-i', path.basename(checkpoint.concatList()), '-map', '0', '-c', 'copy', '-movflags', '+faststart', '-f', 'mp4', tempPath], 0, 1, 0, undefined, checkpoint.directory);
+      await this.runFfmpeg(id, ['-f', 'concat', '-safe', '1', ...LOCAL_ONLY, '-i', path.basename(checkpoint.concatList()), '-map', '0', '-c', 'copy', '-movflags', '+faststart', '-f', 'mp4', tempPath], 0, 1, 0, undefined, checkpoint.directory);
       assertRunning();
       const probe = await this.deps.probe(tempPath);
       assertRunning();

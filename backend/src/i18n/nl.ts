@@ -61,6 +61,7 @@ export const nl: Record<string, string> = {
   // ---- accounts and sign-in
   'Incorrect username or password.': 'Gebruikersnaam of wachtwoord onjuist.',
   'Too many failed sign-in attempts. Try again in {wait}.': 'Te veel mislukte inlogpogingen. Probeer het over {wait} opnieuw.',
+  'Wait until what is being prepared for you is ready, then try again.': 'Wacht tot wat voor je wordt klaargezet klaar is en probeer het dan opnieuw.',
   'Too many codes requested. Try again in {wait}.': 'Te veel codes aangevraagd. Probeer het over {wait} opnieuw.',
   'This code has expired. Ask for a new one.': 'Deze code is verlopen. Vraag een nieuwe aan.',
   'Too many wrong codes. Try again in {wait}.': 'Te veel verkeerde codes. Probeer het over {wait} opnieuw.',
@@ -361,6 +362,7 @@ export const nl: Record<string, string> = {
   'Seerr refused the API key. Check it under Admin → Integrations.': 'Seerr weigert de API-sleutel. Controleer hem onder Beheer → Koppelingen.',
   'Seerr does not know this title.': 'Seerr kent deze titel niet.',
   'This has already been requested.': 'Dit is al aangevraagd.',
+  'This cannot be requested.': 'Dit kan niet aangevraagd worden.',
   'This is (partly) available already; it stays.': 'Dit is al (deels) beschikbaar; het blijft staan.',
   'Seerr could not handle the request. Try again later.': 'Seerr kon het verzoek niet verwerken. Probeer het later opnieuw.',
   'Enter the address Seerr is opened at, such as http://192.168.1.10:5055.': 'Vul het adres in waarop Seerr opent, bijvoorbeeld http://192.168.1.10:5055.',
@@ -398,4 +400,6 @@ export const nl: Record<string, string> = {
   'This file cannot be read: it is empty or damaged. Download or copy it again, then scan the library.': 'Dit bestand kan niet gelezen worden: het is leeg of beschadigd. Download of kopieer het opnieuw en scan daarna de bibliotheek.',
   'Video conversion is on, but the server found no working video encoder, or this device cannot play H.264. Admin → Playback shows which encoders work.': 'Video omzetten staat aan, maar de server vond geen werkende video-encoder, of dit apparaat speelt geen H.264. Beheer → Afspelen laat zien welke encoders werken.',
   'This file cannot be played on a Chromecast without converting the video. An administrator can turn on video conversion (Admin → Playback).': 'Dit bestand kan niet op een Chromecast spelen zonder de video om te zetten. Een beheerder kan video omzetten aanzetten (Beheer → Afspelen).',
+  'Cast again from your phone or browser.': 'Cast opnieuw vanaf je telefoon of browser.',
+  'Sign in first.': 'Log eerst in.',
 };

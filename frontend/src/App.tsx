@@ -8,7 +8,6 @@ import { SetupPage } from './pages/Setup';
 import { LoginPage } from './pages/Login';
 import { HomePage } from './pages/Home';
 import { BrowsePage } from './pages/Browse';
-import { LinkDevicePage } from './pages/LinkDevice';
 import { MoviePage } from './pages/MovieDetail';
 import { ShowPage } from './pages/ShowDetail';
 import { FavoritesPage, WatchlistPage } from './pages/Favorites';
@@ -97,7 +96,6 @@ export function App() {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/requests" element={<RequestsPage />} />
           <Route path="/request/:type/:id" element={<RequestPage />} />
-          <Route path="/link" element={<LinkDevicePage />} />
           <Route path="/account/*" element={<SettingsPage />} />
           <Route path="/settings/*" element={<OldSettingsRedirect />} />
           <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />

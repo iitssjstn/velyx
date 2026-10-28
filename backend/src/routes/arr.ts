@@ -25,7 +25,9 @@ export async function arrRoutes(app: FastifyInstance, ctx: AppContext): Promise<
       return { url: '', hasKey: false, version: null };
     }
     const previous = ctx.settings.get()[service];
-    const apiKey = body.apiKey || previous.apiKey;
+    // The saved key only goes to the address it was saved for: someone who can change the address
+    // must not be able to send it elsewhere.
+    const apiKey = body.apiKey || (sameOrigin(previous.url, url) ? previous.apiKey : '');
     if (!apiKey) throw new HttpError(400, `Enter the API key from ${service === 'sonarr' ? 'Sonarr' : 'Radarr'} settings.`);
     const { version } = await ctx.arr.test(service, url, apiKey);
     save(service, url, apiKey);
@@ -56,5 +58,14 @@ export async function arrRoutes(app: FastifyInstance, ctx: AppContext): Promise<
   function save(service: ArrServiceName, url: string, apiKey: string): void {
     if (service === 'sonarr') ctx.settings.update({ sonarr: { url, apiKey } });
     else ctx.settings.update({ radarr: { url, apiKey } });
+  }
+}
+
+/** Same scheme, host and port: the saved key may go along. */
+export function sameOrigin(a: string, b: string): boolean {
+  try {
+    return Boolean(a) && new URL(a).origin === new URL(b).origin;
+  } catch {
+    return false;
   }
 }
