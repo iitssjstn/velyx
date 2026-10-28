@@ -50,6 +50,52 @@ export interface SeerrDetails extends SeerrResult {
   rating: number | null;
   releaseDate: string | null;
   cast: Array<{ id: number; name: string; character: string | null; profilePath: string | null }>;
+  /** How far fetching it is now (null: nothing is being fetched, or Seerr cannot tell). */
+  download: Download | null;
+}
+
+/** How far fetching a title is, from what Sonarr or Radarr report to Seerr. */
+export interface Download {
+  /** 0 to 1 of everything being fetched now. */
+  fraction: number;
+  /** Bytes in all, and still to come. */
+  size: number;
+  sizeLeft: number;
+  /** When it should be done (ms), null when unknown. */
+  eta: number | null;
+  status: 'downloading' | 'queued' | 'paused' | 'warning';
+  /** How many files are being fetched (of a show: episodes or season packs). */
+  items: number;
+}
+
+/** One item of Seerr's `downloadStatus` (the download queue of Sonarr or Radarr for the title). */
+interface RawDownload {
+  size?: number;
+  sizeLeft?: number;
+  status?: string;
+  estimatedCompletionTime?: string;
+}
+
+/**
+ * Everything being fetched for a title as one progress: the bytes of all its downloads together,
+ * done when the last one should be. Downloading as soon as one is; a problem only when none is.
+ */
+export function downloadProgress(items: RawDownload[] | undefined): Download | null {
+  const list = Array.isArray(items) ? items : [];
+  if (list.length === 0) return null;
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+  const size = list.reduce((n, i) => n + num(i.size), 0);
+  const sizeLeft = Math.min(size, list.reduce((n, i) => n + num(i.sizeLeft), 0));
+  const etas = list.map((i) => Date.parse(i.estimatedCompletionTime ?? '')).filter((t) => Number.isFinite(t) && t > 0);
+  const states = list.map((i) => String(i.status ?? '').toLowerCase());
+  const status: Download['status'] = states.includes('downloading')
+    ? 'downloading'
+    : states.some((s) => s === 'warning' || s === 'failed' || s === 'downloadclientunavailable')
+      ? 'warning'
+      : states.every((s) => s === 'paused')
+        ? 'paused'
+        : 'queued';
+  return { fraction: size > 0 ? (size - sizeLeft) / size : 0, size, sizeLeft, eta: etas.length ? Math.max(...etas) : null, status, items: list.length };
 }
 
 interface RawMedia {
@@ -58,6 +104,8 @@ interface RawMedia {
   /** A show's request names its seasons; they are on the title's own seasons only once approved. */
   requests?: Array<{ id?: number; status?: number; is4k?: boolean; seasons?: Array<{ seasonNumber?: number }> }>;
   seasons?: Array<{ seasonNumber?: number; status?: number }>;
+  /** What Sonarr or Radarr are fetching for it now (not 4K). */
+  downloadStatus?: RawDownload[];
 }
 
 /** The requests Vidalune makes and shows (not 4K ones). */
@@ -226,6 +274,7 @@ export class SeerrService {
       rating: typeof x.voteAverage === 'number' && x.voteAverage > 0 && votes >= 10 ? Math.round(x.voteAverage * 10) / 10 : null,
       releaseDate: str(x.releaseDate) ?? str(x.firstAirDate),
       cast: credits.slice(0, 20).map((c) => ({ id: Number(c.id), name: String(c.name ?? ''), character: str(c.character), profilePath: str(c.profilePath) })).filter((c) => c.name),
+      download: downloadProgress(media?.downloadStatus),
     };
   }
 
@@ -332,11 +381,11 @@ export class SeerrService {
     }
   }
 
-  /** Where a request stands now (null: Seerr no longer has it). */
-  async requestStatus(id: number): Promise<RequestState | null> {
+  /** Where a request stands now and how far fetching it is (null: Seerr no longer has it). */
+  async requestStatus(id: number): Promise<{ state: RequestState | null; download: Download | null } | null> {
     try {
       const r = await this.call<{ status?: number; media?: RawMedia }>('GET', `/request/${id}`);
-      return requestState(r.status, r.media?.status);
+      return { state: requestState(r.status, r.media?.status), download: downloadProgress(r.media?.downloadStatus) };
     } catch (err) {
       if (err instanceof HttpError && err.statusCode === 404) return null;
       throw err;

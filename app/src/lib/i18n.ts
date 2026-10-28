@@ -370,6 +370,14 @@ const en = {
   'admin.noNotifications': 'No notifications.',
   'admin.markRead': 'Mark all as read',
   'admin.noActivity': 'Nothing watched yet.',
+  'download.label': 'Fetching {title}',
+  'download.downloading': 'Fetching {pct}%',
+  'download.queued': 'Waiting to be fetched',
+  'download.paused': 'Fetching paused',
+  'download.warning': 'Problem while fetching ({pct}%)',
+  'download.left': '~{time} left',
+  'download.almost': 'almost done',
+  'download.files': '{n} files',
   'common.ok': 'OK',
 } as const;
 
@@ -746,6 +754,14 @@ const nl: Record<MessageKey, string> = {
   'admin.noNotifications': 'Geen meldingen.',
   'admin.markRead': 'Alles als gelezen markeren',
   'admin.noActivity': 'Nog niets bekeken.',
+  'download.label': '{title} ophalen',
+  'download.downloading': 'Ophalen {pct}%',
+  'download.queued': 'Wacht op ophalen',
+  'download.paused': 'Ophalen gepauzeerd',
+  'download.warning': 'Probleem bij ophalen ({pct}%)',
+  'download.left': 'nog ~{time}',
+  'download.almost': 'bijna klaar',
+  'download.files': '{n} bestanden',
   'common.ok': 'OK',
 };
 

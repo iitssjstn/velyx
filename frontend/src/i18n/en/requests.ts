@@ -73,6 +73,16 @@ export const requests = {
     resetText: 'Every request for “{title}” is cancelled in Seerr (also ones made outside Vidalune) and Seerr forgets it, so it can be requested again. Nothing in the library is touched.',
     resetDone: '“{title}” can be requested again.',
   },
+  download: {
+    label: 'Fetching {title}',
+    downloading: 'Fetching {pct}%',
+    queued: 'Waiting to be fetched',
+    paused: 'Fetching paused',
+    warning: 'Problem while fetching ({pct}%)',
+    left: '~{time} left',
+    almost: 'almost done',
+    files: '{n} files',
+  },
   states: {
     requested: 'Requested',
     approved: 'Approved',

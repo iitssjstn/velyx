@@ -75,6 +75,16 @@ export const requests: Messages['requests'] = {
     resetText: 'Alle aanvragen voor “{title}” worden in Seerr geannuleerd (ook die buiten Vidalune om zijn gedaan) en Seerr vergeet de titel, zodat hij opnieuw kan worden aangevraagd. Er verandert niets in de bibliotheek.',
     resetDone: '“{title}” kan weer worden aangevraagd.',
   },
+  download: {
+    label: '{title} ophalen',
+    downloading: 'Ophalen {pct}%',
+    queued: 'Wacht op ophalen',
+    paused: 'Ophalen gepauzeerd',
+    warning: 'Probleem bij ophalen ({pct}%)',
+    left: 'nog ~{time}',
+    almost: 'bijna klaar',
+    files: '{n} bestanden',
+  },
   states: {
     requested: 'Aangevraagd',
     approved: 'Goedgekeurd',

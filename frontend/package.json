@@ -1,6 +1,6 @@
 {
   "name": "@vidalune/frontend",
-  "version": "0.19.97",
+  "version": "0.19.98",
   "private": true,
   "type": "module",
   "scripts": {

@@ -3,6 +3,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { api } from '../lib/api';
+import { downloadPercent, downloadTimeLeft, type Download } from '../lib/download';
 import { imageUrl } from '../lib/format';
 import { seriesContinue } from '../lib/series';
 import type { ShowDetail } from '../lib/types';
@@ -55,6 +56,8 @@ export interface MyRequest {
   title: string;
   posterPath: string | null;
   state: RequestState;
+  /** How far fetching it is (null: nothing is being fetched). */
+  download?: Download | null;
   createdAt: number;
 }
 
@@ -72,6 +75,33 @@ const TONE: Record<RequestState, string> = {
 export function StateBadge({ state }: { state: RequestState }) {
   const { t } = useT();
   return <span className={`rounded-full px-2.5 py-0.5 text-xs whitespace-nowrap ${TONE[state]}`}>{t(`requests.states.${state}`)}</span>;
+}
+
+/** How far fetching a request is: a bar, the percentage or what it waits for, and the time left. */
+export function DownloadBar({ download: d, title }: { download: Download; title: string }) {
+  const { t } = useT();
+  const pct = downloadPercent(d);
+  const left = downloadTimeLeft(d, Date.now());
+  const parts = [
+    d.status === 'downloading' ? t('requests.download.downloading', { pct }) : d.status === 'warning' ? t('requests.download.warning', { pct }) : t(`requests.download.${d.status}`),
+    left === null ? null : left === '' ? t('requests.download.almost') : t('requests.download.left', { time: left }),
+    d.items > 1 ? t('requests.download.files', { n: d.items }) : null,
+  ].filter(Boolean);
+  return (
+    <div className="mt-1.5 max-w-sm space-y-1">
+      <div
+        role="progressbar"
+        aria-label={t('requests.download.label', { title })}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+        className="h-1.5 overflow-hidden rounded-full bg-raised"
+      >
+        <div className={`h-full rounded-full transition-[width] duration-700 ${d.status === 'warning' ? 'bg-danger' : d.status === 'downloading' ? 'bg-accent' : 'bg-muted'}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className={`text-xs ${d.status === 'warning' ? 'text-danger' : 'text-muted'}`}>{parts.join(' · ')}</p>
+    </div>
+  );
 }
 
 export function Poster({ path, title }: { path: string | null; title: string }) {
