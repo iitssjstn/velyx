@@ -756,6 +756,41 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Beveiligingsaudit 28 okt** (op verzoek van de eigenaar: "alle gegevens van de gebruikers goed beveiligd en veilig";
+  5 zoekers per gebied, alleen lezen, elke vondst daarna in de code nagekeken; nog niets gebouwd, wacht op de eigenaar).
+  Tests, typechecks, lint en builds slagen. Bevestigd:
+  - Hoog: (1) cookie tossing via relay-adressen: een klant met relay laat een slachtoffer `<slug>.vidalune.com/api/…`
+    openen (`isNavigation` stuurt `/api/` niet door naar app.vidalune.com, `cloud/src/relay.ts:369`; geen CSP-sandbox
+    op relay-antwoorden), zet een `vl_session`-cookie met `Domain=vidalune.com; Path=/api/link` en koppelt zo de server
+    van het slachtoffer aan zijn eigen account (of neemt een uitnodiging over). Fix: `__Host-`-cookie, navigatie naar
+    elk pad omleiden, sandbox en `Domain=` weghalen op relay-antwoorden; later relay op een eigen domein.
+    (2) Windows: `icacls` geeft Users wijzigrechten op `C:\ProgramData\Vidalune` (`installer.nsi:96`) en de tray neemt
+    elke sleutel uit `vidalune.env` over (ook `NODE_OPTIONS`, `FFMPEG_PATH`): elke gebruiker van de pc kan code laten
+    draaien als wie daarna inlogt (ook een beheerder) en de database lezen. Fix: rechten alleen voor SYSTEM/Administrators
+    (+ installerende gebruiker), alleen bekende sleutels uit het env-bestand. (3) De APK (GitHub/vidalune.com) is
+    ondertekend met de openbare debugsleutel (`assembleRelease` zonder eigen sleutel, `android.yml:130`): een nep-update
+    met dezelfde sleutel leest het account-token. Fix: eigen releasesleutel als secret; eenmalig opnieuw installeren.
+  - Middel: (4) oude koppel-met-code-routes (`/api/auth/pair/*`, `/link?code=`, `backend/src/routes/auth.ts:298`)
+    hebben de phishing-bescherming van de tv-code niet; de app gebruikt ze sinds 0.19.90 niet meer: weghalen.
+    (5) Cast-token vernieuwt zichzelf eindeloos (`POST /api/cast/tv/session`, ook `next` door de hele serie) en blijft
+    geldig na uitloggen/wachtwoord wijzigen. Fix: harde einddatum vanaf de eerste cast, token koppelen aan sessies.
+    (6) Eén gratis account kan de DNS-zone (200 records) en het Let's Encrypt-quotum opmaken (geen limiet op servers per
+    account, certificaat per server onbeperkt opnieuw). (7) Elke kijker kan onbeperkt zware leesrondes starten
+    (`/api/cast/ready`, keyframe, ingebouwde ondertitels): NAS plat. Fix: gedeelde wachtrij en limiet per gebruiker.
+    (8) `RateLimiter` in de accountservice wist alles na 10.000 sleutels (`cloud/src/app.ts:146`): met veel
+    IPv6-adressen onbeperkt wachtwoorden raden. (9) Release-secrets (uploadsleutel, Play-serviceaccount) staan in de
+    env van de hele job (`android.yml:33`, ook `DOCKERHUB_TOKEN`). (10) Pakketten: zod (hoog), nodemailer, fast-uri,
+    fastify, node-forge.
+  - Laag: cast-token in het foutenlogboek (`backend/src/app.ts:476`); URL van Seerr/Sonarr/Radarr wijzigen stuurt de
+    opgeslagen sleutel naar het nieuwe adres; Seerr verraadt titels in bibliotheken waar een kijker niet bij kan; 5
+    foute wachtwoorden blokkeren het inloggen van een account voor iedereen; aanmelden verraadt of een e-mailadres een
+    account heeft; na account verwijderen blijven e-mail in `ceo_events` en IP/adressen bij servers staan; Windows-
+    firewall op alle netwerken (`profile=any`); acties niet op commit vastgezet; FFmpeg zonder `-protocol_whitelist`;
+    bug 8 (mail uit = onbevestigd beheeradres krijgt rechten).
+  - Veilig bevonden: rechten per bibliotheek op alle media-routes, paden/symlinks, FFmpeg-argumenten, direct-HTTPS-poort,
+    tokens in secure-store, Cast Connect-routes, XSS/CSP/clickjacking, wachtwoorden (argon2id), sessies, .deb en Docker.
+
+
 - **App crasht bij Beheer > Bibliotheken** (eigenaar 26 okt, op 0.19.97: "Als iemand de library opent in de app, crashed
   de app"). Oorzaak: `GET /api/libraries` geeft `{ libraries, mediaRoots }`, het scherm (`app/admin/libraries.tsx`)
   verwachtte een lijst en riep `.map` aan op een object. Opgelost in 0.19.98. De andere beheerschermen nagelopen: vorm
