@@ -58,12 +58,15 @@ jobs:
             previous=$(git describe --tags --match 'v*' --abbrev=0 "$SHA^" 2>/dev/null || true)
             if [ -n "$previous" ] && [ "$(.github/scripts/app-changed.sh "$previous" "$SHA")" = false ]; then needed=false; fi
           fi
-          # The previous release's APK still signed with the shared debug key (before 0.19.100): build anyway.
+          # The previous release has no APK, or one still signed with the shared debug key (before
+          # 0.19.100): build anyway.
           if [ "$needed" = false ]; then
             mkdir -p "$RUNNER_TEMP/previous"
-            gh release download "$previous" --pattern 'vidalune-*.apk' --dir "$RUNNER_TEMP/previous"
             apksigner=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)/apksigner
-            if "$apksigner" verify --print-certs "$RUNNER_TEMP"/previous/vidalune-*.apk | grep -q 'CN=Android Debug'; then
+            if ! gh release download "$previous" --pattern 'vidalune-*.apk' --dir "$RUNNER_TEMP/previous"; then
+              echo "The release $previous has no APK: building one."
+              needed=true
+            elif "$apksigner" verify --print-certs "$RUNNER_TEMP"/previous/vidalune-*.apk | grep -q 'CN=Android Debug'; then
               echo "The APK of $previous is signed with the debug key: building one with the release key."
               needed=true
             fi
@@ -154,7 +157,11 @@ jobs:
           rm -f "$keystore"
           apksigner=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)/apksigner
           signer=$("$apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk)
-          printf '%s\n' "$signer" | grep -E 'Signer #1 certificate (DN|SHA-256)'
+          printf '%s\n' "$signer"
+          if [ -z "$signer" ]; then
+            echo "apksigner printed no signer for the APK." >&2
+            exit 1
+          fi
           if printf '%s' "$signer" | grep -q 'CN=Android Debug'; then
             echo "The APK is signed with the debug key, not the release key." >&2
             exit 1
