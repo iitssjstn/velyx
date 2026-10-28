@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createLogger } from '../logger.js';
+import { LOCAL_ONLY } from '../playback/local-input.js';
 
 const log = createLogger('subtitles');
 
@@ -155,7 +156,7 @@ export class EmbeddedSubtitleExtractor {
     const keys = indexes.map((i) => this.key(fileId, mtimeMs, i));
     // Each output goes to a temporary file first, so a stopped read never leaves a partial subtitle.
     const tmps = keys.map((k) => `${this.target(k)}.${process.pid}.tmp`);
-    const args = ['-nostdin', '-v', 'error', '-i', mediaPath, ...indexes.flatMap((index, n) => ['-map', `0:${index}`, '-c:s', 'webvtt', '-f', 'webvtt', '-y', tmps[n]!])];
+    const args = ['-nostdin', '-v', 'error', ...LOCAL_ONLY, '-i', mediaPath, ...indexes.flatMap((index, n) => ['-map', `0:${index}`, '-c:s', 'webvtt', '-f', 'webvtt', '-y', tmps[n]!])];
     let stopped = false;
     let child: ChildProcess | null = null;
     const run: Run = {

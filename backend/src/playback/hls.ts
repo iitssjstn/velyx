@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createLogger } from '../logger.js';
 import { audioFilters, type RemuxPlan, type VideoEncode } from './remux.js';
+import { LOCAL_ONLY } from './local-input.js';
 
 const log = createLogger('hls');
 
@@ -88,8 +89,8 @@ export function readKeyframes(ffprobePath: string, file: string, options: { sign
       }
     });
   return Promise.all([
-    run(['-v', 'error', '-show_entries', 'format=start_time', '-of', 'csv=p=0', file]),
-    run(['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'packet=pts_time,flags', '-of', 'csv=p=0', file]),
+    run(['-v', 'error', ...LOCAL_ONLY, '-show_entries', 'format=start_time', '-of', 'csv=p=0', file]),
+    run(['-v', 'error', ...LOCAL_ONLY, '-select_streams', 'v:0', '-show_entries', 'packet=pts_time,flags', '-of', 'csv=p=0', file]),
   ]).then(([start, packets]) => {
     const offset = Number(start.trim()) || 0;
     const out: number[] = [];
@@ -118,7 +119,7 @@ export function hlsArgs(input: string, videoCodec: string | null, plan: RemuxPla
     }
   }
   // The file's own times (from 0): every piece has the same times, whichever run made it.
-  args.push('-copyts', '-start_at_zero', '-fflags', '+genpts', '-i', input, '-map', '0:v:0');
+  args.push('-copyts', '-start_at_zero', '-fflags', '+genpts', ...LOCAL_ONLY, '-i', input, '-map', '0:v:0');
   if (plan.audioIndex !== null) args.push('-map', `0:${plan.audioIndex}`);
   if (encode) {
     // Keyframes only on the grid (the encoder's own every-2-seconds ones are switched off), and a new

@@ -276,7 +276,7 @@ describe('installing Vidalune from vidalune.com', () => {
     expect(nl.body).toContain('Account maken');
     // Signed in: straight to your servers.
     const signUp = await app.inject({ method: 'POST', url: '/api/account', payload: { email: 'justin@example.com', password: 'correct-horse' } });
-    const cookie = `vl_session=${signUp.cookies.find((c) => c.name === 'vl_session')!.value}`;
+    const cookie = `__Host-vl_session=${signUp.cookies.find((c) => c.name === '__Host-vl_session')!.value}`;
     const signedIn = await app.inject({ url: '/', headers: { cookie } });
     expect(signedIn.body).toContain('My servers');
     expect(signedIn.body).not.toContain('Create account');

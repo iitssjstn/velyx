@@ -4,7 +4,6 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrationsFolder, openDatabase } from '../src/db/client.js';
-import { PairingService, normalizeCode } from '../src/services/pairing.js';
 import { addLibrary, createTestEnv, createUser, setupAdmin, touch, type TestEnv } from './helpers.js';
 
 let env: TestEnv;
@@ -98,63 +97,13 @@ describe('signing in from the Vidalune app', () => {
   });
 });
 
-describe('connecting the app with a code', () => {
-  const start = async (deviceName = 'Living room tablet') => (await call('POST', '/api/auth/pair/start', { payload: { deviceName } })).json();
-
-  it('signs the app in once someone signed in on the website confirms the code', async () => {
-    const pair = await start();
-    expect(pair.code).toMatch(/^[A-Z2-9]{3}-[A-Z2-9]{3}$/);
-    expect(pair.interval).toBe(3);
-    expect((await call('POST', '/api/auth/pair/poll', { payload: { pollToken: pair.pollToken } })).json()).toEqual({ status: 'pending' });
-
-    const lotte = await createUser(env.app, admin, 'lotte');
-    // Typed on the website, any case, with or without the dash.
-    const typed = pair.code.replace('-', '').toLowerCase();
-    expect((await call('GET', `/api/auth/pair/${typed}`, { cookie: lotte.cookie })).json()).toMatchObject({ code: pair.code, deviceName: 'Living room tablet' });
-    expect((await call('POST', `/api/auth/pair/${typed}/approve`, { cookie: lotte.cookie })).json()).toEqual({ ok: true, deviceName: 'Living room tablet' });
-
-    const done = (await call('POST', '/api/auth/pair/poll', { payload: { pollToken: pair.pollToken } })).json();
-    expect(done).toMatchObject({ status: 'approved', user: { username: 'lotte' } });
-    expect((await call('GET', '/api/auth/me', { token: done.token })).json().user.username).toBe('lotte');
-    // A code works once.
-    expect((await call('POST', '/api/auth/pair/poll', { payload: { pollToken: pair.pollToken } })).statusCode).toBe(410);
-    expect((await call('GET', `/api/auth/pair/${typed}`, { cookie: lotte.cookie })).statusCode).toBe(404);
-    const audit = (await call('GET', '/api/admin/audit', { cookie: admin })).json().items;
-    expect(audit.some((e: { action: string; target: string }) => e.action === 'device.linked' && e.target === 'Living room tablet')).toBe(true);
-  });
-
-  it('needs someone signed in to confirm, and slows down guessing', async () => {
-    const pair = await start();
-    expect((await call('POST', `/api/auth/pair/${pair.code}/approve`)).statusCode).toBe(401);
-    let last = 0;
-    for (let i = 0; i < 7; i++) last = (await call('GET', '/api/auth/pair/AAA-AAA', { cookie: admin })).statusCode;
-    expect(last).toBe(429);
-    // Even the right code waits now.
-    expect((await call('GET', `/api/auth/pair/${pair.code}`, { cookie: admin })).statusCode).toBe(429);
-  });
-
-  it('limits how many codes one address can ask for', async () => {
-    let last = 0;
-    for (let i = 0; i < 12; i++) last = (await call('POST', '/api/auth/pair/start', { payload: { deviceName: 'Phone' } })).statusCode;
-    expect(last).toBe(429);
-  });
-
-  it('refuses a poll token it did not hand out', async () => {
-    expect((await call('POST', '/api/auth/pair/poll', { payload: { pollToken: 'made-up' } })).statusCode).toBe(410);
-  });
-});
-
-describe('PairingService', () => {
-  it('expires codes after ten minutes and reads codes loosely', () => {
-    const p = new PairingService();
-    const t0 = 1_000_000;
-    const { code, pollToken } = p.start('Phone', t0);
-    expect(normalizeCode(code.toLowerCase().replace('-', ' '))).toBe(code.replace('-', ''));
-    expect(normalizeCode('O0I1L-')).toBeNull();
-    expect(p.find(code, t0 + 9 * 60_000)).not.toBeNull();
-    expect(p.find(code, t0 + 10 * 60_000)).toBeNull();
-    expect(p.approve(code, 1, t0 + 10 * 60_000)).toBeNull();
-    expect(p.poll(pollToken, t0 + 10 * 60_000)).toEqual({ status: 'expired' });
+describe('connecting an app with a code on the server itself', () => {
+  // Gone since apps sign in with the Vidalune account (the TV with its own code on vidalune.com): a code
+  // asked for by anyone and confirmed through a link was a way to get someone's session.
+  it('no longer exists', async () => {
+    expect((await call('POST', '/api/auth/pair/start', { payload: { deviceName: 'Phone' } })).statusCode).toBe(404);
+    expect((await call('POST', '/api/auth/pair/poll', { payload: { pollToken: 'x' } })).statusCode).toBe(404);
+    expect((await call('POST', '/api/auth/pair/ABC-DEF/approve', { cookie: admin })).statusCode).toBe(404);
   });
 });
 

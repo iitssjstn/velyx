@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { addLibrary, createTestEnv, createUser, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
 import { episodes, mediaFiles, onlineSubtitles, subtitles } from '../src/db/schema.js';
 import { saveManualSegments } from '../src/services/segments/store.js';
+import { HeavyWork } from '../src/services/heavy-work.js';
 import { castPath, playbackJwtExpiresAt, signPlaybackJwt, verifyPlaybackJwt } from '../src/services/cast.js';
 import { keyframesKey } from '../src/playback/hls.js';
 
@@ -35,6 +36,11 @@ function realVideo(file: string, seconds = 4) {
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', `testsrc2=size=160x90:rate=25`, '-t', String(seconds), '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '25', '-y', file]);
 }
 const session = (cookie: string, fileId: number) => env.app.inject({ method: 'POST', url: '/api/cast/session', headers: { cookie }, payload: { fileId } });
+/** The sign-in and start of the cast a real cast token belongs to (to sign test tokens with). */
+const chainOf = (token: string) => {
+  const { sid, root } = JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString()) as { sid: string; root: number };
+  return { sid, root: root * 1000 };
+};
 
 describe('casting to a Chromecast', () => {
   it('hands out what a Chromecast plays, with a token for just that file', async () => {
@@ -92,11 +98,11 @@ describe('casting to a Chromecast', () => {
   });
 
   it('opens a subtitle only when the table the address names has it for the cast file', async () => {
-    const { dune, arrival } = await setup();
+    const { admin, dune, arrival } = await setup();
     // The same id in both tables: an online subtitle of Dune, a local subtitle of Arrival.
     env.ctx.db.insert(onlineSubtitles).values({ id: 900, mediaFileId: dune.id, providerFileId: 1, language: 'en', fileName: 'dune-en.vtt' }).run();
     env.ctx.db.insert(subtitles).values({ id: 900, mediaFileId: arrival.id, path: '/media/arrival.srt', format: 'srt', label: 'English' }).run();
-    const token = await signPlaybackJwt(env.ctx.config.sessionSecret, { userId: 1, fileId: dune.id, expiresAt: Date.now() + 60_000 });
+    const token = await signPlaybackJwt(env.ctx.config.sessionSecret, { userId: 1, fileId: dune.id, expiresAt: Date.now() + 60_000, ...chainOf((await session(admin, dune.id)).json().token) });
     expect((await env.app.inject({ url: `/api/subtitles/900.vtt?cast=${token}` })).statusCode).toBe(401);
     expect((await env.app.inject({ url: `/api/online-subtitles/900.vtt?cast=${token}` })).statusCode).not.toBe(401);
   });
@@ -177,13 +183,29 @@ describe('casting to a Chromecast', () => {
     // direct-play token, not with a GET, not with bad numbers.
     expect((await save(null)).statusCode).toBe(403);
     expect((await env.app.inject({ method: 'POST', url: '/api/cast/progress', headers: { cookie: anna.cookie }, payload: { positionSec: 1, durationSec: 2 } })).statusCode).toBe(403);
-    const directPlay = await signPlaybackJwt(env.ctx.config.sessionSecret, { userId: anna.id, fileId: dune.id, expiresAt: Date.now() + 60_000, artwork: false });
+    const directPlay = await signPlaybackJwt(env.ctx.config.sessionSecret, { userId: anna.id, fileId: dune.id, expiresAt: Date.now() + 60_000, artwork: false, ...chainOf(token) });
     expect((await save(directPlay)).statusCode).toBe(403);
     expect((await env.app.inject({ method: 'POST', url: `/api/cast/progress?cast=${directPlay}`, payload: { positionSec: 1, durationSec: 2 } })).statusCode).toBe(401);
     expect((await env.app.inject({ url: `/api/cast/progress?cast=${token}` })).statusCode).toBe(404);
     expect((await save(token, { positionSec: -1, durationSec: 10 })).statusCode).toBe(400);
     // The token also opens nothing else with a POST.
     expect((await env.app.inject({ method: 'POST', url: `/api/progress?cast=${token}`, payload: { movieId: arrival.movieId, positionSec: 1, durationSec: 2 } })).statusCode).toBe(401);
+  });
+
+  it('stops working when the sign-in it came from is signed out, or the password changes', async () => {
+    const { admin, dune } = await setup();
+    const anna = await createUser(env.app, admin, 'anna');
+    const { token } = (await session(anna.cookie, dune.id)).json();
+    const stream = () => env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${token}` });
+    expect((await stream()).statusCode).toBe(200);
+    await env.app.inject({ method: 'POST', url: '/api/auth/logout', headers: { cookie: anna.cookie } });
+    expect((await stream()).statusCode).toBe(401);
+    // An administrator setting a new password signs all of anna's devices out, the TV too.
+    const lotte = await createUser(env.app, admin, 'lotte');
+    const second = (await session(lotte.cookie, dune.id)).json().token as string;
+    expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${second}` })).statusCode).toBe(200);
+    await env.app.inject({ method: 'PUT', url: `/api/users/${lotte.id}`, headers: { cookie: admin }, payload: { password: 'another-password-1' } });
+    expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${second}` })).statusCode).toBe(401);
   });
 
   it('stops working when the account is disabled or the token runs out', async () => {
@@ -194,7 +216,7 @@ describe('casting to a Chromecast', () => {
     await env.app.inject({ method: 'PUT', url: `/api/users/${anna.id}`, headers: { cookie: admin }, payload: { disabled: true } });
     expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${token}` })).statusCode).toBe(401);
     const secret = env.ctx.config.sessionSecret;
-    const old = await signPlaybackJwt(secret, { userId: 1, fileId: dune.id, expiresAt: Date.now() - 1000 });
+    const old = await signPlaybackJwt(secret, { userId: 1, fileId: dune.id, expiresAt: Date.now() - 1000, ...chainOf((await session(admin, dune.id)).json().token) }, Date.now() - 2000);
     expect((await env.app.inject({ url: `/api/media/${dune.id}/stream?cast=${old}` })).statusCode).toBe(401);
     // A file the user may not see: the stream refuses it like any other request.
     expect(env.ctx.db.select().from(mediaFiles).where(eq(mediaFiles.id, dune.id)).get()).toBeTruthy();
@@ -261,6 +283,24 @@ describe('casting a file whose keyframes are not known yet', () => {
     expect(await state(fileOf(e2!.id).id)).toBe('ready');
   });
 
+  it('lets one viewer read only a few whole files at once', async () => {
+    env = await createTestEnv({ prober: async () => fakeProbe({ container: 'mkv', videoCodec: 'h264', audioCodec: 'aac' }) });
+    const admin = await setupAdmin(env.app);
+    for (const f of ['S01E01.mkv', 'S01E02.mkv']) realVideo(path.join(env.mediaDir, 'tv', 'Reacher', f));
+    await addLibrary(env, admin, 'shows', 'tv');
+    const [e1, e2] = env.ctx.db.select().from(episodes).orderBy(episodes.episodeNumber).all();
+    const fileOf = (episodeId: number) => env.ctx.db.select().from(mediaFiles).where(eq(mediaFiles.episodeId, episodeId)).get()!;
+    // Reading takes long (as on a NAS); one at a time for this test.
+    env.ctx.heavy = new HeavyWork(1);
+    env.ctx.hls.preparing = () => null;
+    env.ctx.hls.prepare = () => new Promise<void>(() => undefined);
+    const ask = (fileId: number) => env.app.inject({ url: `/api/cast/ready?fileId=${fileId}`, headers: { cookie: admin } });
+    expect((await ask(fileOf(e1!.id).id)).statusCode).toBe(200);
+    expect((await ask(fileOf(e2!.id).id)).statusCode).toBe(429);
+    // Asking again for what is already being read for you is fine.
+    expect((await ask(fileOf(e1!.id).id)).statusCode).toBe(200);
+  });
+
   it('only for a signed-in viewer who may see the file', async () => {
     const { admin, arrival, ready } = await mkvSetup((file) => realVideo(file));
     expect((await env.app.inject({ url: `/api/cast/ready?fileId=${arrival.id}` })).statusCode).toBe(401);
@@ -299,13 +339,27 @@ describe('Vidalune\'s cast player operated with a remote', () => {
     expect(body.next).toMatchObject({ kind: 'episode', id: eps[1]!.id, fileId: fileOf(eps[1]!.id).id, subtitle: expect.stringMatching(/^S01E02/), resumeAt: 0 });
     // Only for a cast session's token: not signed in, not a browser's direct-play token.
     expect((await env.app.inject({ url: '/api/cast/tv', headers: { cookie: admin } })).statusCode).toBe(403);
-    const directPlay = await signPlaybackJwt(env.ctx.config.sessionSecret, { userId: 1, fileId: first.id, expiresAt: Date.now() + 60_000, artwork: false });
+    const directPlay = await signPlaybackJwt(env.ctx.config.sessionSecret, { userId: 1, fileId: first.id, expiresAt: Date.now() + 60_000, artwork: false, ...chainOf(token) });
     expect((await env.app.inject({ url: `/api/cast/tv?cast=${directPlay}` })).statusCode).toBe(401);
     // Info only with a GET (there is nothing to post there).
     expect((await env.app.inject({ method: 'POST', url: `/api/cast/tv?cast=${token}` })).statusCode).toBe(404);
     expect((await env.app.inject({ method: 'OPTIONS', url: '/api/cast/tv' })).statusCode).toBe(204);
     expect(castPath('/api/cast/tv')).toBe('tv');
     expect(castPath('/api/cast/tv/session')).toBe('tv-session');
+  });
+
+  it('lets a cast carry on from the TV for twelve hours at most, then someone casts again', async () => {
+    const { admin, eps, fileOf } = await showSetup();
+    const first = fileOf(eps[0]!.id);
+    const { token } = (await session(admin, first.id)).json();
+    const post = (cast: string) => env.app.inject({ method: 'POST', url: `/api/cast/tv/session?cast=${cast}`, payload: {} });
+    // A renewal keeps when the cast began: renewing again and again does not make it new.
+    const renewed = (await post(token)).json().token as string;
+    expect(chainOf(renewed)).toEqual(chainOf(token));
+    const { sid } = chainOf(token);
+    const late = await signPlaybackJwt(env.ctx.config.sessionSecret, { userId: 1, fileId: first.id, expiresAt: Date.now() + 60_000, sid, root: Date.now() - 13 * 3_600_000 });
+    expect((await post(late)).statusCode).toBe(403);
+    expect((await env.app.inject({ method: 'POST', url: `/api/cast/tv/session?cast=${late}`, payload: { next: true } })).statusCode).toBe(403);
   });
 
   it('lets the TV start the next episode, or the same one with another audio track, and nothing else', async () => {
@@ -360,15 +414,16 @@ describe('Vidalune\'s cast player operated with a remote', () => {
 
 describe('playback JWTs', () => {
   it('are standard HS256 JWTs, scoped to one file and expire exactly when claimed', async () => {
-    const t = await signPlaybackJwt('secret', { userId: 3, fileId: 9, expiresAt: 10_000 }, 1000);
+    const chain = { sid: 'a'.repeat(20), root: 1000 };
+    const t = await signPlaybackJwt('secret', { userId: 3, fileId: 9, expiresAt: 10_000, ...chain }, 1000);
     const [header, body, signature] = t.split('.');
     expect(JSON.parse(Buffer.from(header!, 'base64url').toString())).toEqual({ alg: 'HS256', typ: 'JWT' });
     expect(JSON.parse(Buffer.from(body!, 'base64url').toString())).toMatchObject({ iss: 'vidalune-media', aud: 'vidalune-media', sub: '3', fileId: 9, scope: 'media:read', artwork: true, iat: 1, exp: 10 });
     expect(signature).toBeTruthy();
-    expect(await verifyPlaybackJwt('secret', t, 1000)).toEqual({ userId: 3, fileId: 9, expiresAt: 10_000, artwork: true });
+    expect(await verifyPlaybackJwt('secret', t, 1000)).toEqual({ userId: 3, fileId: 9, expiresAt: 10_000, artwork: true, ...chain });
     expect(await verifyPlaybackJwt('secret', t, 10_000)).toBeNull();
     expect(await verifyPlaybackJwt('other', t, 1000)).toBeNull();
-    const mediaOnly = await signPlaybackJwt('secret', { userId: 3, fileId: 9, expiresAt: 10_000, artwork: false }, 1000);
+    const mediaOnly = await signPlaybackJwt('secret', { userId: 3, fileId: 9, expiresAt: 10_000, artwork: false, ...chain }, 1000);
     expect(await verifyPlaybackJwt('secret', mediaOnly, 1000)).toMatchObject({ artwork: false });
     const [, encoded, mac] = t.split('.');
     const forgedPayload = { ...JSON.parse(Buffer.from(encoded!, 'base64url').toString()), fileId: 10 };

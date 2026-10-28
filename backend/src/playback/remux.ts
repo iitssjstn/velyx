@@ -4,6 +4,7 @@ import { createLogger } from '../logger.js';
 import { COPYABLE_VIDEO, videoSupport } from './compatibility.js';
 import { requestLanguage, tr } from '../i18n/index.js';
 import { defaultAudioIndex, wantsAudioProcessing, type ClientCapabilities, type MediaFileRow, type PlaybackDecision, type PlaybackEngine, type PlaybackOptions } from './engine.js';
+import { LOCAL_ONLY } from './local-input.js';
 
 const log = createLogger('remux');
 
@@ -112,7 +113,7 @@ export function remuxArgs(input: string, videoCodec: string | null, plan: RemuxP
   // that same keyframe instead of exactly at `start`, so both streams begin together; the player learns
   // the real starting point from seekLanding().
   if (start > 0) args.push('-noaccurate_seek', '-ss', start.toFixed(3));
-  args.push('-fflags', '+genpts', '-i', input, '-map', '0:v:0');
+  args.push('-fflags', '+genpts', ...LOCAL_ONLY, '-i', input, '-map', '0:v:0');
   if (plan.audioIndex !== null) args.push('-map', `0:${plan.audioIndex}`);
   if (encode) args.push(...encode.output);
   else {
@@ -260,7 +261,7 @@ export class RemuxEngine implements PlaybackEngine {
    */
   seekLanding(absolutePath: string, target: number): Promise<number> {
     if (target <= 0) return Promise.resolve(0);
-    const args = ['-v', 'error', '-nostdin', '-noaccurate_seek', '-ss', target.toFixed(3), '-copyts', '-start_at_zero', '-i', absolutePath, '-map', '0:v:0', '-c', 'copy', '-frames:v', '1', '-f', 'framemd5', '-'];
+    const args = ['-v', 'error', '-nostdin', '-noaccurate_seek', '-ss', target.toFixed(3), '-copyts', '-start_at_zero', ...LOCAL_ONLY, '-i', absolutePath, '-map', '0:v:0', '-c', 'copy', '-frames:v', '1', '-f', 'framemd5', '-'];
     return new Promise((resolve) => {
       execFile(this.ffmpegPath, args, { timeout: 15000, maxBuffer: 1024 * 1024 }, (err, stdout) => {
         const landing = err ? null : parseFramemd5Start(String(stdout));

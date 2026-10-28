@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ProgressiveLimiter } from '../src/auth/rate-limit.js';
+import { addressKey, ProgressiveLimiter } from '../src/auth/rate-limit.js';
 import { describeUserAgent } from '../src/auth/sessions.js';
 import { parseTrustProxy } from '../src/config.js';
 import { cookieFrom, createTestEnv, createUser, setupAdmin, type TestEnv } from './helpers.js';
@@ -95,6 +95,27 @@ describe('sign-in throttling', () => {
     expect(blocked.statusCode).toBe(429);
     expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
     expect(blocked.json().error).toMatch(/Try again in \d+ seconds/);
+    // Someone guessing elsewhere does not keep bob out at home.
+    const home = await env.app.inject({ method: 'POST', url: '/api/auth/login', remoteAddress: '192.168.1.20', payload: { username: 'bob', password: 'bob-password-1' } });
+    expect(home.statusCode).toBe(200);
+  });
+
+  it('stops slow guessing of one account from many addresses', async () => {
+    await createUser(env.app, admin, 'bob', 'bob-password-1');
+    for (let i = 0; i < 50; i++) {
+      const res = await env.app.inject({ method: 'POST', url: '/api/auth/login', remoteAddress: `203.0.113.${i + 1}`, payload: { username: 'bob', password: 'wrong-password' } });
+      expect(res.statusCode).toBe(401);
+    }
+    const next = await env.app.inject({ method: 'POST', url: '/api/auth/login', remoteAddress: '198.51.100.7', payload: { username: 'bob', password: 'wrong-password' } });
+    expect(next.statusCode).toBe(429);
+  });
+
+  it('counts an IPv6 home as one address', () => {
+    expect(addressKey('2001:db8:1:2:aaaa::1')).toBe('2001:db8:1:2::/64');
+    expect(addressKey('2001:db8:1:2:bbbb:cccc:dddd:eeee')).toBe('2001:db8:1:2::/64');
+    expect(addressKey('2001:db8::1')).toBe('2001:db8:0:0::/64');
+    expect(addressKey('::ffff:192.0.2.1')).toBe('192.0.2.1');
+    expect(addressKey('192.0.2.1')).toBe('192.0.2.1');
   });
 
   it('parses TRUST_PROXY as boolean, hop count or address list', () => {

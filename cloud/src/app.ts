@@ -8,11 +8,11 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import fastifyCookie from '@fastify/cookie';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyStatic from '@fastify/static';
-import { and, desc, eq, gt, isNotNull, isNull, lt } from 'drizzle-orm';
+import { and, desc, eq, gt, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { z, ZodError } from 'zod';
 import { DEFAULT_DIRECT_PORT, type CloudConfig, type MailConfig } from './config.js';
 import type { DB } from './db/client.js';
-import { accountActivity, accountSessions, accounts, emailTokens, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
+import { accountActivity, accountSessions, accounts, ceoEvents, emailTokens, invites, linkCodes, memberCodes, memberships, servers, tickets } from './db/schema.js';
 import { dummyVerify, hashPassword, newLinkCode, newToken, normalizeLinkCode, sha256, verifyPassword } from './crypto.js';
 import { isMediaBytesPath, isRelayedMediaBytes, newSlug, rejectRelayedMedia, Relay, relayMessage, type Rewrite } from './relay.js';
 import { composeFile, installPage, debInstallScript, installScript } from './install.js';
@@ -64,6 +64,12 @@ function storedLocalEndpoints(value: string): LanEndpoint[] {
 const endpointUrl = (endpoint: LanEndpoint) => `https://${endpoint.address.includes(':') ? `[${endpoint.address}]` : endpoint.address}:${endpoint.port}`;
 
 export const SESSION_COOKIE = 'vl_session';
+/**
+ * Over https the session cookie is "__Host-": only vidalune.com itself can set it, never another
+ * address under it (a relay address, a server's page), so nobody can slip their own session into a
+ * visitor's browser. Over plain http (local tests) the browser does not allow that prefix.
+ */
+export const sessionCookieName = (secure: boolean) => (secure ? `__Host-${SESSION_COOKIE}` : SESSION_COOKIE);
 /** app.vidalune.com: the server this browser chose (its pages and API are passed through to it). */
 export const SERVER_COOKIE = 'vl_server';
 /** app.vidalune.com's own account pages live under this path; everything else is the chosen server. */
@@ -132,19 +138,46 @@ export class HttpError extends Error {
   }
 }
 
+const MAX_LIMITER_KEYS = 50_000;
+
+/**
+ * Who is asking, for counting attempts: an IPv4 address, or the /64 network of an IPv6 address (one
+ * connection usually has a whole /64, so counting single addresses would count nothing).
+ */
+export function clientKey(ip: string): string {
+  const v4 = ip.replace(/^::ffff:/i, '');
+  if (isIP(v4) === 4) return v4;
+  const groups = isIP(ip) === 6 ? expandIpv6(ip) : null;
+  return groups ? `${groups.slice(0, 4).join(':')}::/64` : ip;
+}
+
 /** A few attempts per minute per address, for sign-up, sign-in, registering and codes. */
-class RateLimiter {
+export class RateLimiter {
   private hits = new Map<string, number[]>();
+  private prunedAt = 0;
   constructor(
     private readonly limit: number,
     private readonly windowMs: number,
   ) {}
   check(key: string, now: number): void {
-    const recent = (this.hits.get(key) ?? []).filter((t) => t > now - this.windowMs);
+    const known = this.hits.get(key);
+    if (!known && this.hits.size >= MAX_LIMITER_KEYS) {
+      this.prune(now);
+      // Still full: someone is asking from very many addresses. New ones wait; what is counted stays.
+      if (this.hits.size >= MAX_LIMITER_KEYS) throw new HttpError(429, 'Too many attempts. Wait a minute and try again.');
+    }
+    const recent = (known ?? []).filter((t) => t > now - this.windowMs);
     if (recent.length >= this.limit) throw new HttpError(429, 'Too many attempts. Wait a minute and try again.');
     recent.push(now);
     this.hits.set(key, recent);
-    if (this.hits.size > 10_000) this.hits.clear();
+  }
+
+  /** Forgets only what is over: many addresses must never wipe the count for one account. */
+  private prune(now: number): void {
+    // At most once a second: going through every key on each request would itself be slow.
+    if (now - this.prunedAt < 1000) return;
+    this.prunedAt = now;
+    for (const [k, times] of this.hits) if (times.every((t) => t <= now - this.windowMs)) this.hits.delete(k);
   }
 }
 
@@ -246,9 +279,11 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   }, opts.mailDelays);
   /**
    * Rights that come with an address (ADMIN_EMAILS, CEO_EMAILS) only for whoever proved it is theirs:
-   * with mail set up, the address must be confirmed. Without mail nobody can confirm one.
+   * once mail has ever been set up, the address must be confirmed, also when mail is turned off
+   * again (else turning it off would hand the rights to whoever signed up with such an address).
+   * Before mail was ever set up nobody can confirm one.
    */
-  const confirmed = (a: { emailVerifiedAt?: number | null }) => !mailer.enabled || (a.emailVerifiedAt ?? null) !== null;
+  const confirmed = (a: { emailVerifiedAt?: number | null }) => (a.emailVerifiedAt ?? null) !== null || (!mailer.enabled && !mailSettings.everSetUp());
   const admins = new Set(config.adminEmails);
   const isAdmin = (a: { email: string; emailVerifiedAt?: number | null }) => admins.has(a.email) && confirmed(a);
   const ceos = new Set(config.ceoEmails);
@@ -406,7 +441,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     }
     const cookies = cookiesOf(req);
     const get = (name: string) => cookies.find(([n]) => n === name)?.[1];
-    const { me, server } = chosenServer(get(SESSION_COOKIE), get(SERVER_COOKIE));
+    const { me, server } = chosenServer(get(sessionCookie), get(SERVER_COOKIE));
     if (!server) {
       if ((req.url ?? '').startsWith('/sso')) {
         res.writeHead(302, { Location: `${APP_PREFIX}/servers${me ? '?choose' : ''}` }).end();
@@ -448,7 +483,13 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const limiter = new RateLimiter(10, 60_000);
   /** Mail to one address or account: a few messages per ten minutes, so nobody can flood someone's inbox. */
   const mailLimiter = new RateLimiter(3, 10 * 60_000);
+  /** Passwords for one account from many addresses: at most this many tries an hour, whoever asks. */
+  const loginHourly = new RateLimiter(30, 60 * 60_000);
+  /** New certificates: a few per server a day, and at most 40 a week for all servers together (Let's Encrypt allows 50). */
+  const certificatesPerServer = new RateLimiter(3, DAY);
+  const certificatesAll = new RateLimiter(40, 7 * DAY);
   const secureCookie = config.publicUrl.startsWith('https://');
+  const sessionCookie = sessionCookieName(secureCookie);
 
   await app.register(fastifyCookie);
   await app.register(fastifyHelmet, {
@@ -488,14 +529,14 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     db.insert(accountActivity).values({ accountId, day: new Date(t).toISOString().slice(0, 10) }).onConflictDoNothing().run();
     db.insert(accountSessions).values({ tokenHash: sha256(token), accountId, createdAt: t, expiresAt: t + days * DAY }).run();
     if (client === 'app') return token;
-    reply.setCookie(SESSION_COOKIE, token, { path: '/', httpOnly: true, sameSite: 'lax', secure: secureCookie, maxAge: days * 86_400 });
+    reply.setCookie(sessionCookie, token, { path: '/', httpOnly: true, sameSite: 'lax', secure: secureCookie, maxAge: days * 86_400 });
     return undefined;
   }
 
   /** The session token: the cookie of a browser, or "Authorization: Bearer …" from the app. */
   const sessionToken = (request: FastifyRequest) => {
     const bearer = /^Bearer ([\w-]{20,200})$/.exec(request.headers.authorization ?? '')?.[1];
-    return bearer ?? request.cookies[SESSION_COOKIE];
+    return bearer ?? request.cookies[sessionCookie];
   };
 
   /** Days an account was seen (at most one write per account and day): "active" for the CEO panel. */
@@ -548,7 +589,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const accountPage = `${config.publicUrl}/account`;
 
   app.post('/api/account', async (request, reply) => {
-    limiter.check(`signup:${request.ip}`, now());
+    limiter.check(`signup:${clientKey(request.ip)}`, now());
     const body = z.object({ email, password, client, lang }).parse(request.body);
     const existing = db.select().from(accounts).where(eq(accounts.email, body.email)).get();
     // Added by the CEO (no password yet): signing up with that address takes it over, with its access.
@@ -580,7 +621,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   /** A link from an email: the address is confirmed, or the account moves to the new address. Works on any device. */
   app.post('/api/email/confirm', async (request) => {
-    limiter.check(`confirm:${request.ip}`, now());
+    limiter.check(`confirm:${clientKey(request.ip)}`, now());
     const { row, account: a } = useLink(linkToken.parse(request.body).token, ['verify', 'email']);
     if (row.purpose === 'verify') {
       if (a.emailVerifiedAt === null) db.update(accounts).set({ emailVerifiedAt: now() }).where(eq(accounts.id, a.id)).run();
@@ -599,7 +640,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   app.post('/api/password/forgot', async (request) => {
     const body = z.object({ email, lang }).parse(request.body);
     needMail();
-    limiter.check(`forgot:${request.ip}`, now());
+    limiter.check(`forgot:${clientKey(request.ip)}`, now());
     limiter.check(`forgot:${body.email}`, now());
     mailLimiter.check(`to:${body.email}`, now());
     const a = db.select().from(accounts).where(eq(accounts.email, body.email)).get();
@@ -612,7 +653,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   /** Choosing a new password with the link: signed out everywhere, then signed in here. The address counts as confirmed. */
   app.post('/api/password/reset', async (request, reply) => {
-    limiter.check(`reset:${request.ip}`, now());
+    limiter.check(`reset:${clientKey(request.ip)}`, now());
     const body = z.object({ token: linkToken.shape.token, password, client }).parse(request.body);
     const { account: a } = useLink(body.token, ['reset']);
     db.update(accounts).set({ passwordHash: await hashPassword(body.password), emailVerifiedAt: a.emailVerifiedAt ?? now() }).where(eq(accounts.id, a.id)).run();
@@ -652,8 +693,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   app.post('/api/login', async (request, reply) => {
     const body = z.object({ email, password: z.string().max(256), client }).parse(request.body);
-    limiter.check(`login:${request.ip}`, now());
+    limiter.check(`login:${clientKey(request.ip)}`, now());
     limiter.check(`login:${body.email}`, now());
+    loginHourly.check(`login:${body.email}`, now());
     const row = db.select().from(accounts).where(eq(accounts.email, body.email)).get();
     const ok = row ? await verifyPassword(row.passwordHash, body.password) : await dummyVerify(body.password);
     if (!row || !ok) throw new HttpError(401, 'Wrong email address or password.');
@@ -665,7 +707,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   app.post('/api/logout', async (request, reply) => {
     const token = sessionToken(request);
     if (token) db.delete(accountSessions).where(eq(accountSessions.tokenHash, sha256(token))).run();
-    reply.clearCookie(SESSION_COOKIE, { path: '/' });
+    reply.clearCookie(sessionCookie, { path: '/', secure: secureCookie });
     return { ok: true };
   });
 
@@ -739,7 +781,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   /** A code entered on /tv that can still be confirmed, else an error that says it does not work. */
   const openTvCode = (request: FastifyRequest, accountId: number, input: string) => {
     limiter.check(`tv-confirm:${accountId}`, now());
-    limiter.check(`tv-confirm:${request.ip}`, now());
+    limiter.check(`tv-confirm:${clientKey(request.ip)}`, now());
     const code = normalizeLinkCode(input);
     const entry = code ? tvCodes.get(code) : undefined;
     if (!entry || entry.expiresAt < now() || entry.accountId !== null) throw new HttpError(400, 'This code does not work (any more). Check the code on the TV.');
@@ -748,7 +790,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const tvCodeInput = z.object({ code: z.string().max(32) });
 
   app.post('/api/tv/code', async (request) => {
-    limiter.check(`tv-code:${request.ip}`, now());
+    limiter.check(`tv-code:${clientKey(request.ip)}`, now());
     z.object({ lang }).parse(request.body ?? {});
     const t = now();
     for (const [k, v] of tvCodes) if (v.expiresAt < t) tvCodes.delete(k);
@@ -785,7 +827,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   /** The TV, every few seconds with its secret: still waiting, or signed in (once). */
   app.post('/api/tv/poll', async (request, reply) => {
-    tvPollLimiter.check(`tv-poll:${request.ip}`, now());
+    tvPollLimiter.check(`tv-poll:${clientKey(request.ip)}`, now());
     const { device } = z.object({ device: z.string().min(20).max(200) }).parse(request.body);
     const found = tvCodeFor(sha256(device));
     if (!found || found[1].expiresAt < now()) {
@@ -807,9 +849,16 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const body = z.object({ password: z.string().max(256) }).parse(request.body);
     if (!(await verifyPassword(me.passwordHash, body.password))) throw new HttpError(401, 'Wrong password.');
     for (const s of db.select({ id: servers.id }).from(servers).where(eq(servers.accountId, me.id)).all()) relay.drop(s.id);
-    db.update(servers).set({ relayEnabled: false }).where(eq(servers.accountId, me.id)).run();
+    // Nothing personal stays behind: the servers' addresses go (a server that still reports gives
+    // only its own again), and the CEO's activity log names the account by number instead of address.
+    db.update(servers).set({ relayEnabled: false, publicIp: null, localEndpoints: '[]' }).where(eq(servers.accountId, me.id)).run();
+    const gone = `deleted account #${me.id}`;
+    db.update(ceoEvents)
+      .set({ target: sql`replace(${ceoEvents.target}, ${me.email}, ${gone})`, detail: sql`replace(${ceoEvents.detail}, ${me.email}, ${gone})` })
+      .where(sql`instr(${ceoEvents.target}, ${me.email}) > 0 or instr(coalesce(${ceoEvents.detail}, ''), ${me.email}) > 0`)
+      .run();
     db.delete(accounts).where(eq(accounts.id, me.id)).run();
-    reply.clearCookie(SESSION_COOKIE, { path: '/' });
+    reply.clearCookie(sessionCookie, { path: '/', secure: secureCookie });
     return { ok: true };
   });
 
@@ -910,7 +959,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const inviteToken = z.object({ token: z.string().min(20).max(200) });
 
   app.post('/api/invite', async (request) => {
-    limiter.check(`invite:${request.ip}`, now());
+    limiter.check(`invite:${clientKey(request.ip)}`, now());
     const { server: s, row } = openInvite(inviteToken.parse(request.body).token);
     return { server: s.name, expiresAt: row.expiresAt };
   });
@@ -934,6 +983,9 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const normalized = normalizeLinkCode(code);
     const row = normalized ? db.select().from(linkCodes).where(and(eq(linkCodes.codeHash, sha256(normalized)), gt(linkCodes.expiresAt, now()))).get() : undefined;
     if (!row) throw new HttpError(400, 'This code is not valid (any more). Ask the server for a new one.');
+    // Each linked server takes an address in the shared DNS zone and certificates: a few per account.
+    const owned = db.select({ id: servers.id }).from(servers).where(eq(servers.accountId, me.id)).all().filter((s) => s.id !== row.serverId).length;
+    if (owned >= config.maxServersPerAccount && !isCeo(me)) throw new HttpError(409, `One account can link at most ${config.maxServersPerAccount} servers. Unlink one first.`);
     db.update(servers).set({ accountId: me.id }).where(eq(servers.id, row.serverId)).run();
     // The administrator who linked it signs in with this account from now on.
     if (row.userRef) db.insert(memberships).values({ serverId: row.serverId, userRef: row.userRef, accountId: me.id, createdAt: now() }).onConflictDoUpdate({ target: [memberships.serverId, memberships.userRef], set: { accountId: me.id } }).run();
@@ -1070,7 +1122,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   };
 
   app.post('/api/server/register', async (request) => {
-    limiter.check(`register:${request.ip}`, now());
+    limiter.check(`register:${clientKey(request.ip)}`, now());
     const body = z.object({ name: serverName, version, url: serverUrl, localEndpoints: z.array(localEndpointSchema).max(16).default([]), directPort: z.number().int().min(1).max(65535).default(DEFAULT_DIRECT_PORT) }).parse(request.body);
     const id = crypto.randomUUID();
     const secret = newToken();
@@ -1132,6 +1184,14 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     const { csr, keyId } = z.object({ csr: z.string().min(1).max(30_000), keyId: z.string().regex(/^[a-f0-9]{64}$/).optional() }).parse(request.body);
     limiter.check(`direct-certificate:${me.id}`, now());
     const hostname = directHostname(me.id);
+    // A new certificate costs from Let's Encrypt's weekly limit for the whole domain: one server may
+    // ask a few a day, and all servers together stay well under that limit. Asking again for the same
+    // key (waiting for its result) costs nothing.
+    const job0 = certificateJobs.get(me.id);
+    if (!(keyId && job0?.keyId === keyId)) {
+      certificatesPerServer.check(`certificate:${me.id}`, now());
+      certificatesAll.check('certificates', now());
+    }
     if (!keyId) {
       try {
         return { hostname, certificate: await directCertificates.issue(hostname, csr) };
@@ -1406,11 +1466,11 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   });
 
   app.get('/install', async (request, reply) =>
-    reply.type('text/html').header('Cache-Control', 'no-cache').send(installPage(pickLanguage(request.query, request.headers['accept-language']), config.publicUrl, releaseVersion, !!latestApk(), !!accountByToken(request.cookies[SESSION_COOKIE]), !!latestDeb('amd64'), !!community.discord(), !!latestWindows())),
+    reply.type('text/html').header('Cache-Control', 'no-cache').send(installPage(pickLanguage(request.query, request.headers['accept-language']), config.publicUrl, releaseVersion, !!latestApk(), !!accountByToken(request.cookies[sessionCookie]), !!latestDeb('amd64'), !!community.discord(), !!latestWindows())),
   );
   app.get('/privacy', async (request, reply) => {
     if (isAppHost(request.raw)) throw new HttpError(404, 'Not found.');
-    return reply.type('text/html').header('Cache-Control', 'no-cache').send(privacyPage(pickLanguage(request.query, request.headers['accept-language']), !!accountByToken(request.cookies[SESSION_COOKIE]), !!community.discord(), config.publicUrl, releaseVersion));
+    return reply.type('text/html').header('Cache-Control', 'no-cache').send(privacyPage(pickLanguage(request.query, request.headers['accept-language']), !!accountByToken(request.cookies[sessionCookie]), !!community.discord(), config.publicUrl, releaseVersion));
   });
   app.get('/install/docker-compose.yml', async (_request, reply) =>
     reply.type('text/yaml; charset=utf-8').header('Content-Disposition', 'attachment; filename="docker-compose.yml"').send(composeFile()),
@@ -1500,7 +1560,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     app.get('/', async (request, reply) => {
       if (isAppHost(request.raw)) return page(request, reply);
       const lang = pickLanguage(request.query, request.headers['accept-language']);
-      return reply.type('text/html').header('Cache-Control', 'no-cache').send(homePage(lang, !!accountByToken(request.cookies[SESSION_COOKIE]), !!community.discord(), config.publicUrl, releaseVersion));
+      return reply.type('text/html').header('Cache-Control', 'no-cache').send(homePage(lang, !!accountByToken(request.cookies[sessionCookie]), !!community.discord(), config.publicUrl, releaseVersion));
     });
     app.get('/account', page);
     app.get('/link', page);
@@ -1537,7 +1597,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
   const appPage = (request: FastifyRequest, reply: FastifyReply) => {
     const cookies = cookiesOf(request.raw);
     const get = (name: string) => cookies.find(([cookieName]) => cookieName === name)?.[1];
-    const { server } = chosenServer(get(SESSION_COOKIE), get(SERVER_COOKIE));
+    const { server } = chosenServer(get(sessionCookie), get(SERVER_COOKIE));
     if (!server) return reply.redirect(`${APP_PREFIX}/servers`);
     return reply.type('text/html').header('Cache-Control', 'no-cache').header('Content-Security-Policy', appCsp(config.directDomain, server.url)).send(fs.readFileSync(path.join(frontendDir!, 'index.html')));
   };

@@ -11,6 +11,10 @@ $log = Join-Path $data 'logs\vidalune.log'
 
 function Fail([string]$why) {
   Write-Host "FAILED: $why"
+  $ErrorActionPreference = 'Continue'
+  Write-Host "--- who ($([Security.Principal.WindowsIdentity]::GetCurrent().Name)) ---"
+  whoami /groups | Select-String 'S-1-5-32-544|Mandatory Label'
+  if (Test-Path $data) { Write-Host '--- data folder rights ---'; icacls $data /T /C }
   if (Test-Path $log) { Write-Host '--- vidalune.log ---'; Get-Content $log -Tail 80 }
   $tmp = Join-Path ([IO.Path]::GetTempPath()) 'vidalune-tray.log'
   if (Test-Path $tmp) { Write-Host '--- vidalune-tray.log ---'; Get-Content $tmp -Tail 40 }
@@ -49,6 +53,12 @@ $rule = Get-NetFirewallRule -DisplayName 'Vidalune' -ErrorAction SilentlyContinu
 if (-not $rule) { Fail 'no firewall rule' }
 $program = ($rule | Get-NetFirewallApplicationFilter).Program
 if ($program -notlike '*\node\node.exe') { Fail "the firewall rule is for $program, not Vidalune's node.exe" }
+if ([string]$rule.Profile -match 'Public|Any') { Fail "the firewall rule is open on public networks ($($rule.Profile))" }
+# Other users of this PC cannot read the database or change vidalune.env.
+$users = (Get-Acl $data).Access | Where-Object { $_.IdentityReference.Value -match '\\Users$|^Everyone$|Authenticated Users' }
+if ($users) { Fail "the data folder is open to other users: $($users.IdentityReference -join ', ')" }
+# What is in it inherits the folder's rights (vidalune.env here; later the database and the log).
+if (-not ((Get-Acl (Join-Path $data 'vidalune.env')).Access | Where-Object { $_.IsInherited })) { Fail 'vidalune.env does not inherit the data folder rights' }
 & (Join-Path $dir 'ffmpeg\ffprobe.exe') -hide_banner -version | Select-Object -First 1
 
 Write-Host 'Start the tray program'
@@ -73,6 +83,7 @@ $tray = Start-Tray
 Install
 if (@(Server-Processes).Count -gt 0) { Fail 'the installer left the old server running' }
 if (-not (Test-Path (Join-Path $data 'velyx.db'))) { Fail 'the update removed the data' }
+if (-not ((Get-Acl (Join-Path $data 'velyx.db')).Access | Where-Object { $_.IsInherited })) { Fail 'after the update the database does not inherit the data folder rights' }
 $tray = Start-Tray
 Stop-Process -Id $tray.Id -Force
 Start-Sleep 3

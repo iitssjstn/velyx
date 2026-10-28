@@ -82,7 +82,26 @@ export class MailSettings {
     return `Mail: ${where}: sent as ${current.config.from} through ${current.config.host}:${current.config.port}`;
   }
 
+  /**
+   * Whether mail was ever set up here (in the Control Center or the environment). From then on an
+   * address only brings rights once it is confirmed, also if mail is turned off again later.
+   */
+  everSetUp(): boolean {
+    if (this.ever) return true;
+    if (this.current()) this.remember();
+    this.ever = !!this.db.select().from(serviceSettings).where(eq(serviceSettings.key, 'mail-ever')).get();
+    return this.ever;
+  }
+
+  private ever = false;
+
+  private remember(): void {
+    this.ever = true;
+    this.db.insert(serviceSettings).values({ key: 'mail-ever', value: '1', updatedAt: this.now(), updatedBy: 'system' }).onConflictDoNothing().run();
+  }
+
   save(config: MailConfig | null, by: string): void {
+    if (config) this.remember();
     if (config) {
       const value = JSON.stringify(config);
       this.db.insert(serviceSettings).values({ key: 'mail', value, updatedAt: this.now(), updatedBy: by }).onConflictDoUpdate({ target: serviceSettings.key, set: { value, updatedAt: this.now(), updatedBy: by } }).run();

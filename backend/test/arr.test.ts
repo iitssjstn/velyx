@@ -54,6 +54,12 @@ describe('Sonarr and Radarr integration', () => {
     expect(shown.json().sonarr).toEqual({ url: 'http://arr.local:8989/sonarr', hasKey: true });
     expect(shown.body).not.toContain(SONARR_KEY);
     expect(calls[0]).toMatchObject({ method: 'GET', path: '/sonarr/api/v3/system/status', key: RADARR_KEY });
+    // Without a key, the saved one only goes to the same address.
+    const count = calls.length;
+    const elsewhere = await env.app.inject({ method: 'PUT', url: '/api/admin/arr/sonarr', headers: { cookie: admin }, payload: { url: 'http://attacker.example:8989' } });
+    expect(elsewhere.statusCode).toBe(400);
+    expect(calls.length).toBe(count);
+    expect((await env.app.inject({ method: 'PUT', url: '/api/admin/arr/sonarr', headers: { cookie: admin }, payload: { url: 'http://arr.local:8989/sonarr' } })).statusCode).toBe(200);
   });
 
   it('lists sanitized series and movies and keeps their distinct API endpoints', async () => {

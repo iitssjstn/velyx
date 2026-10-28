@@ -12,6 +12,7 @@ import { chapterSegments, type ChapterSegments } from './chapters.js';
 import { findCredits, refineStart, type VisualCredits } from './visual.js';
 import type { ChapterReader, FrameReader } from './readers.js';
 import { sharedFor, sharedReferences, type SharedProfile } from './shared.js';
+import { LOCAL_ONLY } from '../../playback/local-input.js';
 
 const log = createLogger('segments');
 
@@ -22,7 +23,7 @@ export type AudioReader = (file: string, start: number, duration: number) => Pro
 export function ffmpegAudioReader(ffmpegPath: string): AudioReader {
   return (file, start, duration) =>
     new Promise((resolve, reject) => {
-      const args = ['-nostdin', '-v', 'error', '-ss', start.toFixed(3), '-t', duration.toFixed(3), '-i', file, '-map', '0:a:0', '-vn', '-sn', '-dn', '-ac', '1', '-ar', String(SAMPLE_RATE), '-f', 's16le', 'pipe:1'];
+      const args = ['-nostdin', '-v', 'error', '-ss', start.toFixed(3), '-t', duration.toFixed(3), ...LOCAL_ONLY, '-i', file, '-map', '0:a:0', '-vn', '-sn', '-dn', '-ac', '1', '-ar', String(SAMPLE_RATE), '-f', 's16le', 'pipe:1'];
       const child = spawn(ffmpegPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
       try {
         if (child.pid) os.setPriority(child.pid, 19);

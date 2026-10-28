@@ -7,8 +7,7 @@ import type { AppContext } from '../app.js';
 import { requireUser } from '../app.js';
 import { users } from '../db/schema.js';
 import { SESSION_COOKIE, describeUserAgent, sessionCookieOptions } from '../auth/sessions.js';
-import { ProgressiveLimiter } from '../auth/rate-limit.js';
-import { PAIRING_POLL_SECONDS, PairingService } from '../services/pairing.js';
+import { addressKey, ProgressiveLimiter } from '../auth/rate-limit.js';
 
 /** Version of the API the Vidalune app talks to. */
 export const API_VERSION = 1;
@@ -129,6 +128,10 @@ const AVATAR_TYPES: Record<string, { ext: string; magic: (b: Buffer) => boolean 
 
 export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   const limiter = new ProgressiveLimiter();
+  // Per account from every address together: much higher, so someone guessing elsewhere does not
+  // keep the owner out, while slow guessing from many addresses still stops. Real accounts only, so
+  // a spray of made-up names cannot push them out.
+  const accountLimiter = new ProgressiveLimiter({ freeAttempts: 50, baseDelayMs: 60_000, maxDelayMs: 60 * 60_000, forgetAfterMs: 24 * 60 * 60_000 });
 
   app.get('/health', async (_req, reply) => {
     try {
@@ -188,9 +191,13 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
   /** Checks a sign-in (throttled per address and per account); returns the account or throws. */
   async function checkSignIn(request: FastifyRequest, body: z.infer<typeof loginBody>, reply: FastifyReply) {
     const ip = request.ip;
-    // Throttled per client address and per account, so neither many addresses nor many accounts help.
-    const keys = [`ip:${ip}`, `user:${body.username.toLowerCase()}`];
-    const wait = limiter.retryAfter(keys);
+    // Throttled per client address and per account from that address: guessing from one place stops
+    // quickly, without the owner being kept out from theirs. All addresses together: `accountLimiter`.
+    const where = addressKey(ip);
+    const name = body.username.toLowerCase();
+    const keys = [`ip:${where}`, `user:${name}|${where}`];
+    const account = [`user:${name}`];
+    const wait = Math.max(limiter.retryAfter(keys), accountLimiter.retryAfter(account));
     if (wait > 0) {
       ctx.audit.record('login.blocked', { actorName: body.username, ip });
       reply.header('Retry-After', String(Math.ceil(wait / 1000)));
@@ -200,6 +207,7 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     const ok = user ? await verifyPassword(user.passwordHash, body.password) : await dummyVerify(body.password);
     if (!user || !ok) {
       limiter.fail(keys);
+      if (user) accountLimiter.fail(account);
       log.warn(`Failed sign-in for "${body.username}" from ${ip}`);
       ctx.audit.record('login.failed', { actorName: body.username, ip, detail: user ? 'wrong password' : 'unknown user' });
       throw new HttpError(401, 'Incorrect username or password.');
@@ -209,6 +217,7 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
       throw new HttpError(403, 'This account is disabled. Ask an administrator to enable it.');
     }
     limiter.reset(keys);
+    accountLimiter.reset(account);
     ctx.db.update(users).set({ lastLoginAt: Date.now() }).where(eq(users.id, user.id)).run();
     return user;
   }
@@ -223,9 +232,6 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
   });
 
   // ---- the Vidalune app: a token instead of a cookie, by password or by a code confirmed on the website
-  const pairing = new PairingService();
-  const pairStarts = new ProgressiveLimiter({ freeAttempts: 10, baseDelayMs: 60_000 });
-  const codeGuesses = new ProgressiveLimiter({ freeAttempts: 5, baseDelayMs: 30_000 });
   const appSignIn = (user: { id: number; username: string }, deviceName: string, request: FastifyRequest, how: string) => {
     const { token, expiresAt } = ctx.sessions.create(user.id, request.headers['user-agent'], request.ip, { deviceName });
     ctx.audit.record('login.success', { actor: user, ip: request.ip, detail: `Vidalune app (${how}): ${deviceName}` });
@@ -293,58 +299,6 @@ export async function authRoutes(app: FastifyInstance, ctx: AppContext): Promise
     const body = loginBody.extend({ deviceName: deviceNameSchema }).parse(request.body);
     const user = await checkSignIn(request, body, reply);
     return { ...appSignIn(user, body.deviceName, request, 'password'), user: publicUser(user) };
-  });
-
-  app.post('/api/auth/pair/start', async (request, reply) => {
-    const { deviceName } = z.object({ deviceName: deviceNameSchema }).parse(request.body);
-    const keys = [`pair-ip:${request.ip}`];
-    const wait = pairStarts.retryAfter(keys);
-    if (wait > 0) {
-      reply.header('Retry-After', String(Math.ceil(wait / 1000)));
-      throw new HttpError(429, 'Too many codes requested. Try again in {wait}.', { wait: (lang) => waitMessage(wait, lang) });
-    }
-    // Every code counts towards the limit; a normal app asks for one now and then.
-    pairStarts.fail(keys);
-    return { ...pairing.start(deviceName), interval: PAIRING_POLL_SECONDS };
-  });
-
-  app.post('/api/auth/pair/poll', async (request) => {
-    const { pollToken } = z.object({ pollToken: z.string().min(1).max(100) }).parse(request.body);
-    const result = pairing.poll(pollToken);
-    if (result.status === 'expired') throw new HttpError(410, 'This code has expired. Ask for a new one.');
-    if (result.status === 'pending') return { status: 'pending' };
-    const user = ctx.db.select().from(users).where(eq(users.id, result.userId)).get();
-    if (!user || user.disabled) throw new HttpError(410, 'This code has expired. Ask for a new one.');
-    return { status: 'approved', ...appSignIn(user, result.deviceName, request, 'code'), user: publicUser(user) };
-  });
-
-  /** A code someone signed in on the website entered: which device is waiting behind it. */
-  const pendingDevice = (request: FastifyRequest, reply: FastifyReply, input: string) => {
-    const keys = [`code:${request.user!.id}`];
-    const wait = codeGuesses.retryAfter(keys);
-    if (wait > 0) {
-      reply.header('Retry-After', String(Math.ceil(wait / 1000)));
-      throw new HttpError(429, 'Too many wrong codes. Try again in {wait}.', { wait: (lang) => waitMessage(wait, lang) });
-    }
-    const found = pairing.find(input);
-    if (!found) {
-      codeGuesses.fail(keys);
-      throw new HttpError(404, 'This code is not valid (any more). Check it, or ask the app for a new one.');
-    }
-    return found;
-  };
-
-  app.get<{ Params: { code: string } }>('/api/auth/pair/:code', { preHandler: requireUser }, async (request, reply) => {
-    const found = pendingDevice(request, reply, request.params.code.slice(0, 20));
-    return { code: found.code, deviceName: found.deviceName, expiresAt: found.expiresAt };
-  });
-
-  app.post<{ Params: { code: string } }>('/api/auth/pair/:code/approve', { preHandler: requireUser }, async (request, reply) => {
-    const found = pendingDevice(request, reply, request.params.code.slice(0, 20));
-    pairing.approve(found.code, request.user!.id);
-    codeGuesses.reset([`code:${request.user!.id}`]);
-    ctx.audit.record('device.linked', { actor: request.user, ip: request.ip, target: found.deviceName });
-    return { ok: true, deviceName: found.deviceName };
   });
 
   app.post('/api/auth/logout', async (request, reply) => {

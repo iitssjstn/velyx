@@ -11,7 +11,7 @@ import { buildCloudApp, SERVER_COOKIE, SESSION_COOKIE } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDatabase, type DB } from '../src/db/client.js';
 import { accounts, servers } from '../src/db/schema.js';
-import { clientIp, RESERVED } from '../src/relay.js';
+import { clientIp, relayResponse, RESERVED } from '../src/relay.js';
 import { DEFAULT_DISCORD_URL as DISCORD_URL } from '../src/community.js';
 import * as cloudProtocol from '../src/tunnel-protocol.js';
 // The other end: a real Vidalune server with its relay client.
@@ -196,6 +196,13 @@ describe('the relay', () => {
     expect((await cloud.inject({ url: '/api/servers', headers: { cookie: s.cookie } })).json()[0]).toMatchObject({ relayUrl: null, relayConnected: false, online: true });
   });
 
+  it('keeps a server\'s cookies on its own relay address (no Domain= for vidalune.com)', () => {
+    const headers: Record<string, string | string[]> = { 'set-cookie': ['vl_session=evil; Domain=relay.test; Path=/api/link; Secure', 'own=1; Path=/;domain=.relay.test'] };
+    relayResponse.response!(headers);
+    expect(headers['set-cookie']).toEqual(['vl_session=evil; Path=/api/link; Secure', 'own=1; Path=/']);
+    expect(headers['content-security-policy']).toBe("default-src 'none'; sandbox");
+  });
+
   it('knows relay addresses, and never gives out reserved names', async () => {
     expect(cloud.relay.slugOf({ headers: { host: 'abcd2345.relay.test' } } as http.IncomingMessage)).toBe('abcd2345');
     expect(cloud.relay.slugOf({ headers: { host: 'app.relay.test' } } as http.IncomingMessage)).toBeNull();
@@ -244,7 +251,13 @@ describe('the relay', () => {
     const page = await get(s.host, '/', { accept: 'text/html', 'sec-fetch-mode': 'navigate' });
     expect(page.status).toBe(302);
     expect(page.headers.location).toBe(`http://app.relay.test/_vl/open?server=${s.id}`);
-    expect((await get(s.host, '/api/server/info', { accept: 'text/html', 'sec-fetch-mode': 'navigate' })).status).toBe(200);
+    // Also a path under /api: a server's answer is never shown as a page on its relay address.
+    const apiPage = await get(s.host, '/api/server/info', { accept: 'text/html', 'sec-fetch-mode': 'navigate' });
+    expect(apiPage.status).toBe(302);
+    expect(apiPage.headers.location).toBe(`http://app.relay.test/_vl/open?server=${s.id}`);
+    // What the app and the web interface ask passes through, as data that cannot run scripts there.
+    expect(info.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
+    expect(info.headers['x-content-type-options']).toBe('nosniff');
     const file = await get(s.host, '/big.bin');
     expect(file.status).toBe(200);
     expect(file.body.equals(big)).toBe(true);

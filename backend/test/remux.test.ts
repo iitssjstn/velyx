@@ -106,7 +106,7 @@ describe('remux helpers', () => {
   it('builds FFmpeg arguments that copy video and convert audio', () => {
     const args = remuxArgs('/media/a.mkv', 'hevc', { audioIndex: 1, copyAudio: false }, 12.5);
     const s = args.join(' ');
-    expect(s).toContain('-noaccurate_seek -ss 12.500 -fflags +genpts -i /media/a.mkv -map 0:v:0 -map 0:1 -c:v copy -tag:v hvc1');
+    expect(s).toContain('-noaccurate_seek -ss 12.500 -fflags +genpts -protocol_whitelist file -i /media/a.mkv -map 0:v:0 -map 0:1 -c:v copy -tag:v hvc1');
     expect(s).toContain('-af aresample=async=1 -c:a aac -ac 2');
     expect(s).toContain('-movflags frag_keyframe+empty_moov+default_base_moof pipe:1');
     expect(remuxArgs('/a.mkv', 'h264', { audioIndex: null, copyAudio: false }, 0)).not.toContain('-ss');

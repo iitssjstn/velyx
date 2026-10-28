@@ -59,6 +59,14 @@ namespace Vidalune
         public int Port = 3000;
         public Dictionary<string, string> Env = new Dictionary<string, string>();
 
+        /// <summary>The settings vidalune.env may change.</summary>
+        static readonly string[] Allowed =
+        {
+            "PORT", "HOST", "MEDIA_ROOTS", "TZ", "LOG_LEVEL", "SERVER_URL", "TRUST_PROXY", "COOKIE_SECURE",
+            "SESSION_SECRET", "SESSION_TTL_DAYS", "DIRECT_TLS_PORT", "SCAN_CONCURRENCY", "SCAN_INTERVAL_MINUTES",
+            "LOW_DISK_GB", "CRITICAL_DISK_GB", "TMDB_API_KEY", "TMDB_LANGUAGE",
+        };
+
         public static Settings Load()
         {
             var s = new Settings();
@@ -75,7 +83,15 @@ namespace Vidalune
                     if (line.Length == 0 || line.StartsWith("#")) continue;
                     int eq = line.IndexOf('=');
                     if (eq <= 0) continue;
-                    s.Env[line.Substring(0, eq).Trim()] = line.Substring(eq + 1).Trim().Trim('"');
+                    string key = line.Substring(0, eq).Trim();
+                    // Only the server's own settings: never what decides which programs run (FFmpeg,
+                    // Node options) or where the server reports to.
+                    if (Array.IndexOf(Allowed, key) < 0)
+                    {
+                        Note("vidalune.env: " + key + " is not a Vidalune setting and is left out");
+                        continue;
+                    }
+                    s.Env[key] = line.Substring(eq + 1).Trim().Trim('"');
                 }
             }
             int port;

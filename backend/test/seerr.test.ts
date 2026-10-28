@@ -201,6 +201,12 @@ describe('Seerr', () => {
     const shown = await env.app.inject({ url: '/api/admin/seerr', headers: { cookie: admin } });
     expect(shown.json()).toEqual({ url: 'http://seerr.local:5055', hasKey: true });
     expect(shown.body).not.toContain(KEY);
+    // The saved key stays with its address: another host needs the key again.
+    expect((await setUp({ url: 'http://seerr.local:5055' })).statusCode).toBe(200);
+    const before = calls.length;
+    const elsewhere = await setUp({ url: 'http://attacker.example:5055' });
+    expect(elsewhere.statusCode).toBe(400);
+    expect(calls.length).toBe(before);
     // Off again.
     expect((await setUp({ url: '' })).json()).toMatchObject({ hasKey: false });
   });
@@ -312,6 +318,9 @@ describe('Seerr', () => {
     const viewer = await createUser(env.app, admin, 'viewer');
     env.ctx.access.setGrants(viewer.id, [lib.id]);
     expect((await row('row=movies&genre=28&page=2', viewer.cookie)).json().results[0]).toMatchObject({ inLibrary: false, local: null });
+    // Nor is it fetched twice, but without saying it is in a library.
+    const matrix = await env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: viewer.cookie }, payload: { mediaType: 'movie', tmdbId: 603 } });
+    expect(matrix.json().error).toBe('This cannot be requested.');
 
     expect((await row('row=everything')).statusCode).toBe(400);
     expect((await row('row=trending&genre=28')).statusCode).toBe(400);
@@ -469,6 +478,16 @@ describe('Seerr', () => {
     const again = await ask([2]);
     expect(again.statusCode).toBe(409);
     expect(again.json().error).toBe('This has already been requested.');
+
+    // Someone who may not see that library is not told what is in it.
+    const other = await createUser(env.app, admin, 'other');
+    env.ctx.access.setGrants(other.id, [lib.id + 1000]);
+    const theirs = (await env.app.inject({ url: '/api/seerr/tv/1399', headers: { cookie: other.cookie } })).json();
+    expect(theirs.inLibrary).toBe(false);
+    expect(theirs.seasons[0].state).not.toBe('available');
+    const hidden = await env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: other.cookie }, payload: { mediaType: 'tv', tmdbId: 1399, seasons: [1] } });
+    expect(hidden.statusCode).toBe(409);
+    expect(hidden.json().error).toBe('This cannot be requested.');
   });
 
   it('tells a show\'s page whether seasons are left to request (for its button), without asking Seerr on every visit', async () => {

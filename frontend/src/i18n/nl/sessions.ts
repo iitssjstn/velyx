@@ -13,5 +13,4 @@ export const sessions: Messages['sessions'] = {
   revokeAll: 'Alle sessies intrekken',
   signOutOthers: 'Alle andere apparaten uitloggen',
   app: 'Vidalune-app',
-  connectApp: 'Vidalune-app koppelen',
 };

@@ -13,11 +13,21 @@ export const MAX_PLAYBACK_JWT_MS = 8 * 3_600_000;
 const PLAYBACK_JWT_GRACE_MS = 15 * 60_000;
 const MIN_PLAYBACK_JWT_MS = 30 * 60_000;
 
+/**
+ * How long one cast may keep going from the TV itself (the next episode, another audio track) before
+ * someone casts again from a phone or browser: a token that leaked cannot renew itself for ever.
+ */
+export const MAX_CAST_CHAIN_MS = 12 * 3_600_000;
+
 export interface PlaybackJwtClaims {
   userId: number;
   fileId: number;
   expiresAt: number;
   artwork?: boolean;
+  /** The public id of the sign-in it came from: signing that out (or out everywhere) ends the token too. */
+  sid: string;
+  /** When the cast this token belongs to was started from a phone or browser (ms). */
+  root: number;
 }
 
 function playbackKey(secret: string): Uint8Array {
@@ -30,7 +40,7 @@ export function playbackJwtExpiresAt(durationSec: number | null, now = Date.now(
 }
 
 export async function signPlaybackJwt(secret: string, claims: PlaybackJwtClaims, now = Date.now()): Promise<string> {
-  return new SignJWT({ fileId: claims.fileId, scope: 'media:read', artwork: claims.artwork ?? true })
+  return new SignJWT({ fileId: claims.fileId, scope: 'media:read', artwork: claims.artwork ?? true, sid: claims.sid, root: Math.floor(claims.root / 1000) })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuer('vidalune-media')
     .setAudience('vidalune-media')
@@ -58,7 +68,9 @@ export async function verifyPlaybackJwt(secret: string, token: string | undefine
     if (protectedHeader.typ !== 'JWT' || !Number.isSafeInteger(userId) || userId <= 0 || !Number.isSafeInteger(fileId) || Number(fileId) <= 0) return null;
     if (payload.scope !== 'media:read' || typeof payload.artwork !== 'boolean') return null;
     if (!Number.isSafeInteger(issuedAt) || !Number.isSafeInteger(expiresAt) || expiresAt! <= issuedAt! || expiresAt! - issuedAt! > MAX_PLAYBACK_JWT_MS / 1000) return null;
-    return { userId, fileId: Number(fileId), expiresAt: Number(expiresAt) * 1000, artwork: payload.artwork };
+    const { sid, root } = payload;
+    if (typeof sid !== 'string' || !/^[a-f0-9]{20}$/.test(sid) || !Number.isSafeInteger(root) || Number(root) > issuedAt!) return null;
+    return { userId, fileId: Number(fileId), expiresAt: Number(expiresAt) * 1000, artwork: payload.artwork, sid, root: Number(root) * 1000 };
   } catch {
     return null;
   }

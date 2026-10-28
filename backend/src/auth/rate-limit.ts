@@ -64,3 +64,14 @@ export class ProgressiveLimiter {
     for (const k of keys) this.entries.delete(k);
   }
 }
+
+/** A client address for throttling: IPv4 as it is, IPv6 by its /64 (one home or phone has a whole /64). */
+export function addressKey(ip: string): string {
+  const plain = ip.startsWith('::ffff:') && ip.includes('.') ? ip.slice(7) : ip;
+  if (!plain.includes(':')) return plain;
+  const [head = '', tail = ''] = plain.toLowerCase().split('::');
+  const left = head ? head.split(':') : [];
+  const right = tail ? tail.split(':') : [];
+  const groups = plain.includes('::') ? [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill('0'), ...right] : left;
+  return `${groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, '')).join(':')}::/64`;
+}
