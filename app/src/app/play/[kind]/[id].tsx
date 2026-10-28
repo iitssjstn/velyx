@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, BackHandler, Easing, Modal, Pressable, ScrollView, Text, View, type GestureResponderEvent } from 'react-native';
+import { ActivityIndicator, Animated, BackHandler, Easing, Modal, Pressable, ScrollView, Text, View, type GestureResponderEvent } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +36,7 @@ import { tvFocus } from '../../../lib/tvFocus';
 import { AUDIO_MODES, audioMenuPick, isAudioMode, type AudioMode } from '../../../lib/audioMode';
 import { TV_CONTROLS_MS, initialTvState, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, type RemoteKey, type TvContext } from '../../../lib/tvRemote';
 import { SUBTITLE_ERROR_FOR_MS, SUBTITLE_LOADING_AFTER_MS, cueTextAt, cuesFrom, type Cue } from '../../../lib/vtt';
+import { dialog } from '../../../lib/dialog';
 
 interface NextEpisode {
   id: number;
@@ -342,7 +343,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   const castFailed = useCallback(
     (err: unknown, stop = true) => {
       if (!mounted.current) return;
-      Alert.alert(t('player.castFailed'), castLoadFailed(err) ? t('player.castTvFailed') : errorMessage(err, t));
+      dialog.alert(t('player.castFailed'), castLoadFailed(err) ? t('player.castTvFailed') : errorMessage(err, t));
       if (stop) void CastContext.getSessionManager().endCurrentSession(true).catch(() => undefined);
     },
     [t],

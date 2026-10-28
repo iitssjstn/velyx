@@ -1,10 +1,11 @@
-import { Alert, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { AdminScreen, Card, Pill, SmallButton, useAdminAction } from '../../components/Admin';
 import { ErrorState, Loading, styles } from '../../components/ui';
 import type { AdminLibrary } from '../../lib/admin';
 import { ago } from '../../lib/format';
 import { useSession } from '../../lib/session';
+import { dialog } from '../../lib/dialog';
 
 /** Admin → Libraries: each library with how much is in it, and a scan for new files. */
 export default function Libraries() {
@@ -16,7 +17,7 @@ export default function Libraries() {
   });
   const scan = useAdminAction(async (l: AdminLibrary) => {
     await api.post(`/api/libraries/${l.id}/scan`, {});
-    Alert.alert('Vidalune', t('admin.scanStarted', { name: l.name }));
+    dialog.alert('Vidalune', t('admin.scanStarted', { name: l.name }));
   }, [[serverUrl, 'admin']]);
   if (q.isLoading) return <Loading />;
   if (!q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;

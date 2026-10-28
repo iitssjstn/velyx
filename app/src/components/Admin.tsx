@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { errorMessage } from '../lib/connection';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 import { buttonLook, OUTLINE_INK, styles } from './ui';
+import { dialog } from '../lib/dialog';
 
 /** A screen of the Admin tab: scrolls, pulls to refresh, and keeps a readable width on a tablet. */
 export function AdminScreen({ title, refreshing, onRefresh, children }: { title?: string; refreshing: boolean; onRefresh: () => void; children: ReactNode }) {
@@ -69,7 +70,7 @@ export function Pill({ text, tone = 'muted' }: { text: string; tone?: 'muted' | 
 
 /** Asks first ("Block Anna?"), then runs `action`. */
 export function confirmThen(message: string, okLabel: string, cancelLabel: string, action: () => void): void {
-  Alert.alert('Vidalune', message, [
+  dialog.alert('Vidalune', message, [
     { text: cancelLabel, style: 'cancel' },
     { text: okLabel, style: 'destructive', onPress: action },
   ]);
@@ -87,6 +88,6 @@ export function useAdminAction<V>(run: (vars: V) => Promise<unknown>, keys: unkn
     onSuccess: () => {
       for (const key of keys) void qc.invalidateQueries({ queryKey: key });
     },
-    onError: (err) => Alert.alert(t('common.error'), errorMessage(err, t)),
+    onError: (err) => dialog.alert(t('common.error'), errorMessage(err, t)),
   });
 }

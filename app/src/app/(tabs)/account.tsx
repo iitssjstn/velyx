@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, Text, View } from 'react-native';
+import { Platform, ScrollView, Text, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import type { Language } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
 import { colors, radius } from '../../lib/theme';
 import type { User } from '../../lib/types';
+import { dialog } from '../../lib/dialog';
 
 export default function Account() {
   const { t, api, user, serverName, serverVersion, appVersion, deviceName, signOut, forgetServer, updateUser } = useSession();
@@ -27,7 +28,7 @@ export default function Account() {
     }
   };
   const confirm = (message: string, action: () => void) =>
-    Alert.alert('Vidalune', message, [
+    dialog.alert('Vidalune', message, [
       { text: t('common.cancel'), style: 'cancel' },
       { text: t('common.ok'), style: 'destructive', onPress: action },
     ]);
@@ -49,7 +50,7 @@ export default function Account() {
                   await updateUser(r.user);
                   void qc.invalidateQueries();
                 } catch (err) {
-                  Alert.alert(t('common.error'), (err as Error).message);
+                  dialog.alert(t('common.error'), (err as Error).message);
                 }
               }}
             />

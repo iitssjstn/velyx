@@ -1,4 +1,4 @@
-import { Alert, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { Button, ErrorState, styles } from '../../components/ui';
 import { ago } from '../../lib/format';
 import { useSession } from '../../lib/session';
 import { colors, radius } from '../../lib/theme';
+import { dialog } from '../../lib/dialog';
 
 interface SessionInfo {
   id: string;
@@ -26,7 +27,7 @@ export default function Sessions() {
   const now = Date.now();
 
   const signOutAll = () =>
-    Alert.alert('Vidalune', t('account.signOutOthersConfirm'), [
+    dialog.alert('Vidalune', t('account.signOutOthersConfirm'), [
       { text: t('common.cancel'), style: 'cancel' },
       {
         text: t('common.ok'),
@@ -34,9 +35,9 @@ export default function Sessions() {
         onPress: async () => {
           try {
             const r = await api.post<{ revoked: number }>('/api/account/sessions/revoke-others');
-            Alert.alert('Vidalune', t('account.signOutOthersDone', { n: r.revoked }));
+            dialog.alert('Vidalune', t('account.signOutOthersDone', { n: r.revoked }));
           } catch (err) {
-            Alert.alert(t('common.error'), (err as Error).message);
+            dialog.alert(t('common.error'), (err as Error).message);
           } finally {
             void q.refetch();
           }

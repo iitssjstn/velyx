@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Alert, Modal, Platform, ScrollView, Text, View } from 'react-native';
+import { Modal, Platform, ScrollView, Text, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, FocusPressable, styles } from './ui';
 import { errorMessage } from '../lib/connection';
 import { openSeasons, seasonsToRequest, toggleSeason, type SeerrDetails } from '../lib/discover';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
+import { dialog } from '../lib/dialog';
 
 /**
  * The question "Request …?" for the seasons of a show: nothing ticked beforehand, and what is here
@@ -31,7 +32,7 @@ export function SeasonPicker({ details: d, visible, onClose, onRequested }: { de
       void qc.invalidateQueries({ queryKey: [serverUrl, 'seerr'] });
       onRequested(r.title);
     },
-    onError: (err) => Alert.alert(t('common.error'), errorMessage(err, t)),
+    onError: (err) => dialog.alert(t('common.error'), errorMessage(err, t)),
   });
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>

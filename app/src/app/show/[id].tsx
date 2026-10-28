@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Toggle } from '../../components/actions';
@@ -20,6 +20,7 @@ import { episodeCode, formatRuntime, progressFraction } from '../../lib/format';
 import { useSession } from '../../lib/session';
 import { colors, radius } from '../../lib/theme';
 import type { SeasonDetail, ShowDetail } from '../../lib/types';
+import { dialog } from '../../lib/dialog';
 
 export default function Show() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -41,7 +42,7 @@ export default function Show() {
     try {
       setAsking(await qc.fetchQuery({ queryKey: [serverUrl, 'seerr', 'tv', String(tmdbId)], queryFn: () => api.get<SeerrDetails>(`/api/seerr/tv/${tmdbId}`), staleTime: 0 }));
     } catch (err) {
-      Alert.alert(t('common.error'), errorMessage(err, t));
+      dialog.alert(t('common.error'), errorMessage(err, t));
     } finally {
       setLoadingSeasons(false);
     }
@@ -90,7 +91,7 @@ export default function Show() {
       />
     </View>
   );
-  const picker = asking && <SeasonPicker details={asking} visible onClose={() => setAsking(null)} onRequested={(title) => Alert.alert('Vidalune', t('request.requested', { title }))} />;
+  const picker = asking && <SeasonPicker details={asking} visible onClose={() => setAsking(null)} onRequested={(title) => dialog.alert('Vidalune', t('request.requested', { title }))} />;
   if (TV)
     return (
       <>
