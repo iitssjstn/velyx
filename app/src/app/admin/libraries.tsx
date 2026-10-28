@@ -11,7 +11,7 @@ export default function Libraries() {
   const { api, t, serverUrl } = useSession();
   const q = useQuery({
     queryKey: [serverUrl, 'admin', 'libraries'],
-    queryFn: () => api.get<AdminLibrary[]>('/api/libraries'),
+    queryFn: async () => (await api.get<{ libraries: AdminLibrary[] }>('/api/libraries')).libraries,
     refetchInterval: (query) => (query.state.data?.some((l) => l.scanning || l.queued) ? 3000 : false),
   });
   const scan = useAdminAction(async (l: AdminLibrary) => {
