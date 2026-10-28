@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-
 import { CastConnectListener } from '../components/CastConnect';
 import { CastStatusBar } from '../components/CastStatus';
 import { ConnectionBanner } from '../components/ConnectionBanner';
+import { DialogHost } from '../components/Dialog';
 import { LaunchSplash } from '../components/LaunchSplash';
 import { appOrientation } from '../components/screen';
 import { SessionProvider } from '../lib/session';
@@ -74,6 +75,7 @@ export default function RootLayout() {
           <CastStatusBar />
           <CastConnectListener />
           <LaunchSplash />
+          <DialogHost />
         </ThemeProvider>
       </SessionProvider>
     </QueryClientProvider>

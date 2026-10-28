@@ -1,4 +1,4 @@
-import { ActivityIndicator, Alert, Pressable } from 'react-native';
+import { ActivityIndicator, Pressable } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { CastButton, CastContext, useCastDevice } from 'react-native-google-cast';
 import { openCastDialog } from '../lib/cast';
@@ -7,6 +7,7 @@ import { useSession } from '../lib/session';
 import { colors } from '../lib/theme';
 import { useCastStatus } from './CastStatus';
 import { TV } from './screen';
+import { dialog } from '../lib/dialog';
 
 /**
  * Always there: opens the Chromecast list, which searches the network itself (and "stop casting"
@@ -30,7 +31,7 @@ function CastButtonIcon({ size = 24, color = '#fff' }: { size?: number; color?: 
         accessibilityRole="button"
         accessibilityLabel={t('player.cast')}
         accessibilityState={{ selected: device !== null, busy: status === 'connecting' }}
-        onPress={() => void openCastDialog(() => CastContext.showCastDialog(), (e) => Alert.alert(t('player.castListFailed'), typeof e === 'string' ? t(e) : errorMessage(e, t)))}
+        onPress={() => void openCastDialog(() => CastContext.showCastDialog(), (e) => dialog.alert(t('player.castListFailed'), typeof e === 'string' ? t(e) : errorMessage(e, t)))}
         hitSlop={12}
         style={({ pressed }) => ({ padding: 6, opacity: pressed ? 0.6 : 1 })}
       >

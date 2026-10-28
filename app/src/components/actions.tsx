@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Text } from 'react-native';
+import { ActivityIndicator, Platform, Text } from 'react-native';
 import { FocusPressable, OUTLINE_INK, buttonLook } from './ui';
 import { Feather } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -7,6 +7,7 @@ import { errorMessage } from '../lib/connection';
 import type { ApiRequest } from '../lib/lists';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
+import { dialog } from '../lib/dialog';
 
 /** Sends a list or watched change, then loads everything from the server again (its answer counts). */
 export function useServerAction() {
@@ -18,7 +19,7 @@ export function useServerAction() {
       else await api.del(req.path);
       return true;
     } catch (err) {
-      Alert.alert(t('common.error'), errorMessage(err, t));
+      dialog.alert(t('common.error'), errorMessage(err, t));
       return false;
     } finally {
       void qc.invalidateQueries({ queryKey: [serverUrl] });

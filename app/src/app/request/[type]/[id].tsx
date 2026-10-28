@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, FlatList, ScrollView, Text, View } from 'react-native';
+import { FlatList, ScrollView, Text, View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DiscoverCard, useOpenDiscover } from '../../../components/Discover';
@@ -18,6 +18,7 @@ import { DOWNLOAD_POLL_MS } from '../../../lib/download';
 import { canRequestTitle, openSeasons, type SeerrDetails, type SeerrResult } from '../../../lib/discover';
 import { useSession } from '../../../lib/session';
 import { colors, radius } from '../../../lib/theme';
+import { dialog } from '../../../lib/dialog';
 
 /** A movie or show from the catalog on a page of its own: what it is, who is in it, requesting it (or playing it), and titles like it. */
 export default function RequestScreen() {
@@ -33,7 +34,7 @@ export default function RequestScreen() {
   const similar = useQuery({ queryKey: [serverUrl, 'seerr', mediaType, id, 'similar'], queryFn: () => api.get<{ results?: SeerrResult[] }>(`/api/seerr/${mediaType}/${Number(id)}/recommendations`), enabled: q.isSuccess });
   const [picking, setPicking] = useState(false);
   const { open, busy } = useOpenDiscover();
-  const requested = (title: string) => Alert.alert('Vidalune', t('request.requested', { title }), [{ text: t('common.ok'), onPress: () => router.back() }]);
+  const requested = (title: string) => dialog.alert('Vidalune', t('request.requested', { title }), [{ text: t('common.ok'), onPress: () => router.back() }]);
   // A movie as a whole; a show's seasons are asked for in the season picker.
   const request = useMutation({
     mutationFn: () => api.post<{ title: string }>('/api/seerr/requests', { mediaType, tmdbId: Number(id), seasons: null }),
@@ -42,7 +43,7 @@ export default function RequestScreen() {
       void qc.invalidateQueries({ queryKey: [serverUrl, 'seerr'] });
       requested(r.title);
     },
-    onError: (err) => Alert.alert(t('common.error'), errorMessage(err, t)),
+    onError: (err) => dialog.alert(t('common.error'), errorMessage(err, t)),
   });
   if (q.isLoading) return <DetailSkeleton wide={false} />;
   if (!q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
@@ -58,7 +59,7 @@ export default function RequestScreen() {
       setPicking(true);
       return;
     }
-    Alert.alert(t('request.confirmTitle', { title: d.title }), t('request.confirmMovie'), [
+    dialog.alert(t('request.confirmTitle', { title: d.title }), t('request.confirmMovie'), [
       { text: t('common.cancel'), style: 'cancel' },
       { text: t('request.request'), onPress: () => request.mutate() },
     ]);

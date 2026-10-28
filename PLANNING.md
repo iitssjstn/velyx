@@ -571,6 +571,23 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   gecontroleerd: APK (Kotlin-build geslaagd), `.aab`, beide `.deb`'s, `vidalune-0.19.98-setup.exe` en de
   accountservice-image.
 
+## Versie 0.19.99 (meldingen in de app in Vidalune-stijl)
+
+- Eigenaar (28 okt, twee foto's van de tv bij het aanvragen van een film: "Dit bericht is nog het standaard Android
+  bericht, dit mag ook wel veranderd worden in de vidalune style"; daarna "Bouw het maar"). De vragen en meldingen waren
+  Android's eigen `Alert.alert` (17 plekken in 10 bestanden), waarvan de app kleuren, knoppen en focus niet kan zetten.
+- Nu een eigen venster: `dialog.alert(titel, tekst, knoppen)` (`lib/dialog.ts`, zelfde aanroep als `Alert.alert`; een
+  wachtrij zodat een tweede melding wacht tot de eerste dicht is, en de actie van een knop pas draait als het venster
+  dicht is, zodat die meteen een nieuwe vraag kan stellen) en `DialogHost` (`components/Dialog.tsx`, één keer in de
+  root-layout): donker vlak met rand en afgeronde hoeken, de hoofdknop (laatste die geen Annuleren is) gevuld grijspaars
+  met gloed, Annuleren omlijnd, verwijderen/afwijzen rood. Op de tv heeft de hoofdknop de focus (witte focusrand);
+  Terug drukt Annuleren, of de enige knop die er is. Alle 17 aanroepen één op één omgezet; telefoon en tv.
+- Leervraag aan de eigenaar gesteld: waarom de wachtrij los van het venster staat (testbaar zonder React Native).
+- Tests: `dialog.test.ts` (één tegelijk, standaard OK, knopactie na sluiten, dubbel tikken, nieuwe vraag vanuit een
+  actie, Terug en hoofdknop). App 264 tests, typecheck, lint (0 fouten, 4 bekende waarschuwingen) en de Android-bundel
+  (Hermes-export) slagen. Het venster zelf op telefoon en tv te bekijken (geen testomgeving voor schermen).
+- Versie in alle `package.json`'s, `app/app.json` (versionCode 1999) en beide lockfiles bijgewerkt.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
