@@ -870,6 +870,16 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **"Subtitle could not be loaded" meteen bij het starten** (eigenaar 29 okt, op 0.20.1: "Als ik een film/serie afspeel dan
+  staat er direct subtitle could not be loaded, terwijl hij bezig is met laden"; nog niet bouwen tot hij het zegt).
+  Oorzaak (code nagelopen, app `play/[kind]/[id].tsx`): zodra het antwoord van `/playback` er is, kiest de speler de
+  ondertitel en haalt hem meteen op. Het directe adres van de server (`mediaEndpoint`) is dan nog niet bekend: `streamFrom`
+  probeert de adressen nog. `mediaEndpoint` is `null`, dus de ondertitel gaat via de gewone API, en die loopt via
+  vidalune.com, dat ondertitels (net als video) bewust weigert (409). Dus meteen "could not be loaded". Iets later is het
+  directe adres er, haalt de speler de ondertitel opnieuw op en komt hij alsnog. `null` betekent nu zowel "nog niet bekend"
+  als "geen direct adres". Voorstel: de ondertitel pas ophalen als de stream gekozen is (nog niet bekend = wachten), met een
+  test. Leervraag gesteld (de twee betekenissen van `null`).
+
 - **Terug naar het tv-startscherm schuift eerst vanaf boven naar de titel** (eigenaar 29 okt, op 0.20.1: "als ik terug ga
   hij helemaal vanaf boven af komt tot hij bij de plek is waar de desbetreffende film/serie is, dat gaat heel snel maar
   ziet er wel knullig uit"; nog niet bouwen tot hij het zegt). Vermoedelijke oorzaak (code nagelopen, niet op de tv
