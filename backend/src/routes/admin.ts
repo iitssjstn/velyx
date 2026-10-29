@@ -161,6 +161,8 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext): Promis
       cpu: sampleCpu(),
       streams: ctx.streams.active(),
       disk: ctx.storage.dataDisk(),
+      // Where the films and series are: one entry per disk, with the libraries on it.
+      mediaDisks: ctx.storage.mediaDisks(libs),
       backups: { latest: ctx.backups.list()[0] ?? null, nextDue: ctx.backups.nextDue() },
       probeQueue: { active: ctx.probe.active, waiting: ctx.probe.waiting },
       update: ctx.updates.info(),

@@ -39,11 +39,24 @@ function Meter({ label, value, detail, warnAt = 90 }: { label: string; value: nu
   );
 }
 
-/** Banner when the data volume runs low; exported for tests. */
-export function StorageWarning({ disk }: { disk: DiskInfo | null }) {
+/**
+ * Banner when Vidalune's storage runs low, or with `names` the disk of those libraries; exported
+ * for tests.
+ */
+export function StorageWarning({ disk, names }: { disk: DiskInfo | null; names?: string }) {
   const { t } = useT();
   if (!disk || disk.level === 'ok') return null;
   const critical = disk.level === 'critical';
+  if (names !== undefined)
+    return (
+      <div role="alert" className={`flex items-start gap-3 rounded-xl border px-5 py-4 ${critical ? 'border-danger/40 bg-danger/10' : 'border-amber/40 bg-amber/10'}`}>
+        <TriangleAlert className={`mt-0.5 size-5 shrink-0 ${critical ? 'text-danger' : 'text-amber'}`} />
+        <div className="text-sm">
+          <p className="font-semibold">{t(critical ? 'dashboard.libraryStorageCritical' : 'dashboard.libraryStorageLow', { names, free: formatBytes(disk.free) })}</p>
+          <p className="mt-0.5 text-ink/80">{t('dashboard.libraryStorageText')}</p>
+        </div>
+      </div>
+    );
   return (
     <div role="alert" className={`flex items-start gap-3 rounded-xl border px-5 py-4 ${critical ? 'border-danger/40 bg-danger/10' : 'border-amber/40 bg-amber/10'}`}>
       <TriangleAlert className={`mt-0.5 size-5 shrink-0 ${critical ? 'text-danger' : 'text-amber'}`} />
@@ -129,7 +142,8 @@ function ScannerCard({ scan, probe, libraryName }: { scan: ScanState; probe: Das
   );
 }
 
-function StorageCard({ dashboard }: { dashboard: Dashboard }) {
+/** The storage panel: Vidalune's own storage, then the disks of the libraries; exported for tests. */
+export function StorageCard({ dashboard }: { dashboard: Dashboard }) {
   const qc = useQueryClient();
   const { t } = useT();
   const report = useQuery({ queryKey: ['admin', 'storage'], queryFn: () => api.get<StorageReport>('/api/admin/storage'), staleTime: 5 * 60_000 });
@@ -197,15 +211,22 @@ function StorageCard({ dashboard }: { dashboard: Dashboard }) {
         </div>
       )}
       <div className="mt-5 space-y-3">
-        {dashboard.storage.libraries.map((l) =>
-          l.disk ? (
-            <Meter key={l.id} label={l.name} value={((l.disk.total - l.disk.free) / l.disk.total) * 100} detail={t('dashboard.freeOf', { free: formatBytes(l.disk.free), total: formatBytes(l.disk.total) })} />
-          ) : (
+        {/* One bar per disk the libraries are on, with their names (several can share a disk). */}
+        {(dashboard.mediaDisks ?? []).map((m) => (
+          <Meter
+            key={m.libraries[0]?.id ?? 0}
+            label={t('dashboard.libraryStorage', { names: m.libraries.map((l) => l.name).join(', ') })}
+            value={(m.used / m.total) * 100}
+            detail={t('dashboard.freeOf', { free: formatBytes(m.free), total: formatBytes(m.total) })}
+          />
+        ))}
+        {dashboard.storage.libraries
+          .filter((l) => !l.disk)
+          .map((l) => (
             <p key={l.id} className="flex items-center gap-2 text-sm text-danger">
               <HardDrive className="size-4" /> {t('dashboard.folderUnavailable', { name: l.name })}
             </p>
-          ),
-        )}
+          ))}
       </div>
     </section>
   );
@@ -230,6 +251,9 @@ export function DashboardPage() {
   return (
     <div className="space-y-8">
       <StorageWarning disk={d.disk} />
+      {(d.mediaDisks ?? []).map((m) => (
+        <StorageWarning key={m.libraries[0]?.id ?? 0} disk={m} names={m.libraries.map((l) => l.name).join(', ')} />
+      ))}
       {d.update.available && d.update.url && (
         <a href={d.update.url} target="_blank" rel="noreferrer" className="flex flex-wrap items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-5 py-3 text-sm hover:bg-accent/15">
           <strong>{t('dashboard.updateAvailable', { version: d.update.latest ?? '' })}</strong>

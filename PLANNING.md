@@ -679,6 +679,28 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Eigenaar (29 okt): "Oke alles geupdated" (server, accountservice en app op 0.20.0). Daarna bevestigd: "Het werkt op de
   mobiel, tv en website".
 
+## Versie 0.20.1 (tv: omlaag in één beweging; opslag van de bibliotheek; overal dezelfde tekens)
+
+- Op verzoek van de eigenaar ("Bouw het maar", 29 okt); de drie punten staan onder "Gemeld tijdens het testen".
+- **Tv-startscherm** (`TvHome`): geen `ScrollView` meer; de rijen staan in één vlak (`Animated.View`, `translateY`) dat
+  met de native driver in 420 ms (`Easing.bezier(0.25, 0.1, 0.25, 1)`) naar `rowScroll` schuift. Android schuift niets
+  vooraf, dus één beweging per druk; een nieuwe druk gaat verder vanaf waar het vlak is. Pagina ziet er hetzelfde uit.
+  `glideTo` weg uit `modules/vidalune-tv` (TypeScript en Kotlin). Op de Chromecast te bevestigen.
+- **Opslag**: server `mediaDisks` in `/api/admin/dashboard` (`StorageService.mediaDisks`: één per schijf via
+  `stat().dev`, met de bibliotheken erop; onleesbare map weggelaten; zelfde drempels als de datamap). App (Beheer-tab):
+  kaart Opslag met "Vidalune-opslag" en "Bibliotheek: Films, Series" (`storageMeters` in `lib/admin.ts`); website
+  (Dashboard > Opslag): zelfde namen, één balk per schijf in plaats van per bibliotheek, en een waarschuwing per
+  bijna volle bibliotheekschijf (`StorageWarning` met `names`). Geen "HDD"/"SSD" (eigenaar).
+- **Tekens op posters** (website, app en tv gelijk): groen rondje met vinkje rechtsboven als het op de server staat
+  (`HereMark`, op de tv 32 pt), statuslabel onderaan in de kleur van de website (`StatePill`, `requestTone`) met een
+  donkere ondergrond (ook op de website), niets als het aan te vragen is. Scheidingslijn "Catalogus ontdekken" boven de
+  catalogusrijen op Home (`CatalogBoundary`, telefoon en tv). `TvTile.badge` vervangen door `here`/`state`.
+- Tests: backend (één schijf met beide bibliotheken, weggevallen map weg), website (waarschuwing met namen; Opslag met
+  één balk per schijf, faalt op de oude code), app (`storageMeters`, `requestTone`, `discoverTile`). Backend 625,
+  frontend 371, cloud 215, app 267 tests; typechecks, lint (0 fouten, 4 bekende waarschuwingen), website-build en de
+  Android-bundel (Hermes-export) slagen.
+- Versie 0.20.1 in alle `package.json`'s, `app/app.json` (versionCode 20001) en beide lockfiles.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
@@ -843,7 +865,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
-- **0.20.1 in voorbereiding** (eigenaar 29 okt, nog niet bouwen tot hij het zegt; hij heeft nog meer punten):
+- **0.20.1** (eigenaar 29 okt; "Bouw het maar"; gebouwd, zie Versie 0.20.1):
   1. **Omlaag op het tv-startscherm voelt als twee stappen** ("hij valt tussen de 2 alinea's en gaat dan verder"). Oorzaak
      (code nagelopen): Android's `ScrollView` schuift zelf eerst net genoeg om de nieuwe rij in beeld te krijgen
      (`executeKeyEvent`/`arrowScroll` bij pijltje omlaag, en `ScrollView.requestChildFocus` → eigen `scrollToChild`, ook

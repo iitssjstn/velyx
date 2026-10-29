@@ -2,8 +2,11 @@ import type { Messages } from '../index';
 export const dashboard: Messages['dashboard'] = {
   storageCritical: 'Opslag bijna vol · nog {free} vrij',
   storageLow: 'Opslag raakt vol · nog {free} vrij',
-  storageCriticalText: 'Bibliotheekscans en geplande back-ups zijn gepauzeerd tot er meer ruimte vrij is op het datavolume. Je media worden nooit verwijderd.',
-  storageLowText: 'Maak ruimte vrij op het datavolume, of wis hieronder ongebruikte cache.',
+  storageCriticalText: 'Bibliotheekscans en geplande back-ups zijn gepauzeerd tot er meer ruimte vrij is in de Vidalune-opslag. Je media worden nooit verwijderd.',
+  storageLowText: 'Maak ruimte vrij in de Vidalune-opslag, of wis hieronder ongebruikte cache.',
+  libraryStorageCritical: 'Opslag van de bibliotheek bijna vol ({names}) · nog {free} vrij',
+  libraryStorageLow: 'Opslag van de bibliotheek raakt vol ({names}) · nog {free} vrij',
+  libraryStorageText: 'Nieuwe films en series passen niet meer als deze schijf vol is. Maak er ruimte op vrij.',
   scanner: 'Scanner',
   scanStatus: {
     scanning: 'Bezig',
@@ -47,7 +50,8 @@ export const dashboard: Messages['dashboard'] = {
   storage: 'Opslag',
   recalculateStorage: 'Opslag opnieuw berekenen',
   recalculate: 'Opnieuw berekenen',
-  dataVolume: 'Datavolume',
+  dataVolume: 'Vidalune-opslag',
+  libraryStorage: 'Bibliotheek: {names}',
   usedFreeOf: '{used} gebruikt · {free} vrij van {total}',
   mediaIndexed: 'Geïndexeerde media',
   bytesInFiles: {

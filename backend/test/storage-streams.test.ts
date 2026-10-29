@@ -132,6 +132,20 @@ describe('active streams', () => {
     expect(d.cpu).toHaveProperty('system');
     expect(d.disk.level).toMatch(/ok|low|critical/);
   });
+
+  it('shows the disk the libraries are on, once per disk with the libraries on it', async () => {
+    await addLibrary(env, admin, 'movies', 'movies');
+    await addLibrary(env, admin, 'shows', 'shows');
+    const gone = await addLibrary(env, admin, 'movies', 'gone');
+    fs.rmSync(gone.path, { recursive: true });
+    const d = (await env.app.inject({ url: '/api/admin/dashboard', headers: { cookie: admin } })).json();
+    // Both folders are on the same disk: one entry, with both libraries; a folder that is gone is left out.
+    expect(d.mediaDisks).toHaveLength(1);
+    expect(d.mediaDisks[0].libraries.map((l: { name: string }) => l.name)).toEqual(['movies', 'shows']);
+    expect(d.mediaDisks[0]).toMatchObject({ level: expect.stringMatching(/ok|low|critical/) });
+    expect(d.mediaDisks[0].total).toBeGreaterThan(0);
+    expect(d.mediaDisks[0].free).toBeLessThanOrEqual(d.mediaDisks[0].total);
+  });
 });
 
 describe('stream availability', () => {

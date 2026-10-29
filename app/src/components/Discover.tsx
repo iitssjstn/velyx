@@ -1,9 +1,9 @@
-import { ActivityIndicator, FlatList, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Artwork, useWide } from './media';
 import { FocusPressable, FocusRing, Lift, shelfPadding, Heading } from './ui';
-import { catalogOnly, DISCOVER_ROWS, discoverPath, discoverTarget, mergePages, type DiscoverPage, type DiscoverRow, type SeerrResult } from '../lib/discover';
+import { catalogOnly, DISCOVER_ROWS, discoverPath, discoverTarget, mergePages, requestTone, type DiscoverPage, type DiscoverRow, type RequestState, type SeerrResult } from '../lib/discover';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 
@@ -30,6 +30,43 @@ export function useOpenDiscover() {
   return { open, busy: false };
 }
 
+/** On this server: a green check at the top right of a poster, as on the website (bigger on a TV). */
+export function HereMark({ size = 24 }: { size?: number }) {
+  return (
+    <View
+      style={{ position: 'absolute', top: 6, right: 6, width: size, height: size, borderRadius: size / 2, backgroundColor: colors.ok, alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0, 0, 0, 0.6)' }}
+    >
+      <Text style={{ color: colors.bg, fontWeight: '800', fontSize: Math.round(size * 0.58) }}>✓</Text>
+    </View>
+  );
+}
+
+/** Where a request stands, as a label at the bottom of a poster, in the colour the website uses. */
+export function StatePill({ state, size = 11 }: { state: RequestState; size?: number }) {
+  const { t } = useSession();
+  return (
+    <View style={{ position: 'absolute', left: 6, right: 6, bottom: 6, alignItems: 'center' }}>
+      <Text
+        numberOfLines={1}
+        style={{ backgroundColor: 'rgba(20,18,28,0.88)', color: colors[requestTone(state)], fontSize: size, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, overflow: 'hidden' }}
+      >
+        {t(`request.state.${state}`)}
+      </Text>
+    </View>
+  );
+}
+
+/** The line above the catalog rows: what is below may not be on this server (as on the website). */
+export function CatalogBoundary({ side = 16 }: { side?: number }) {
+  const { t } = useSession();
+  return (
+    <View style={{ marginHorizontal: side, marginTop: 28, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.line }}>
+      <Text style={{ color: colors.ink, fontSize: Platform.isTV ? 18 : 15, fontWeight: '700' }}>{t('discover.catalogLabel')}</Text>
+      <Text style={{ color: colors.faint, fontSize: Platform.isTV ? 15 : 13, marginTop: 2 }}>{t('discover.catalogHint')}</Text>
+    </View>
+  );
+}
+
 export function DiscoverCard({ item, onPress, width }: { item: SeerrResult; onPress: () => void; width: number }) {
   const { t } = useSession();
   return (
@@ -38,17 +75,7 @@ export function DiscoverCard({ item, onPress, width }: { item: SeerrResult; onPr
         <>
           <Lift focused={focused}>
             <Artwork path={item.posterPath} size="w342" label={item.title} style={{ width, height: width * 1.5, borderRadius: radius.md }} />
-            {item.inLibrary ? (
-              <View style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.ok, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: colors.bg, fontWeight: '800', fontSize: 13 }}>✓</Text>
-              </View>
-            ) : item.state ? (
-              <View style={{ position: 'absolute', left: 6, right: 6, bottom: 6, alignItems: 'center' }}>
-                <Text numberOfLines={1} style={{ backgroundColor: 'rgba(20,18,28,0.85)', color: colors.accent, fontSize: 11, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, overflow: 'hidden' }}>
-                  {t(`request.state.${item.state}`)}
-                </Text>
-              </View>
-            ) : null}
+            {item.inLibrary ? <HereMark /> : item.state ? <StatePill state={item.state} /> : null}
             <FocusRing focused={focused} />
           </Lift>
           <Text numberOfLines={1} style={{ color: colors.ink, fontSize: 13, marginTop: 6 }}>{item.title}</Text>
@@ -113,6 +140,7 @@ export function DiscoverShelves({ rows }: { rows: number }) {
   if (!status.data?.enabled) return null;
   return (
     <>
+      <CatalogBoundary />
       {DISCOVER_ROWS.slice(0, rows).map((spec) => (
         <DiscoverShelf key={`${spec.row}-${spec.genre ?? ''}`} spec={spec} onOpen={(item) => void open(item)} />
       ))}

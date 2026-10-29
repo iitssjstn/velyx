@@ -20,8 +20,8 @@ describe('tv home', () => {
     expect(cardTile(movie, t)).toMatchObject({ key: 'movie-1', sub: '2024', rating: 7.25, genres: 'Drama • Actie', progress: 0.1 });
     expect(cardTile({ ...movie, progress: { positionSec: 6000, durationSec: 6000, completed: true } }, t).progress).toBe(0);
     expect(cardTile({ ...show, genres: undefined }, t).genres).toBe('');
-    expect(discoverTile({ mediaType: 'tv', tmdbId: 5, title: 'X', year: 2020, overview: 'o', posterPath: null, state: 'requested', inLibrary: false, local: null }, t)).toMatchObject({ key: 'tv-5', sub: 'Serie · 2020', badge: t('request.state.requested') });
-    expect(discoverTile({ mediaType: 'movie', tmdbId: 6, title: 'Y', year: null, overview: '', posterPath: null, state: null, inLibrary: true, local: null }, t).badge).toBe(t('discover.inLibrary'));
+    expect(discoverTile({ mediaType: 'tv', tmdbId: 5, title: 'X', year: 2020, overview: 'o', posterPath: null, state: 'requested', inLibrary: false, local: null }, t)).toMatchObject({ key: 'tv-5', sub: 'Serie · 2020', here: false, state: 'requested' });
+    expect(discoverTile({ mediaType: 'movie', tmdbId: 6, title: 'Y', year: null, overview: '', posterPath: null, state: 'available', inLibrary: true, local: null }, t)).toMatchObject({ here: true, state: null });
   });
 
   it('picks where the viewer left off for the hero, else the newest title with artwork', () => {

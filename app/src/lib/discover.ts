@@ -3,6 +3,14 @@ import type { MessageKey } from './i18n';
 
 export type RequestState = 'requested' | 'approved' | 'processing' | 'partiallyAvailable' | 'available' | 'declined' | 'failed';
 
+/** The colour of a request's label on a poster, the same as on the website. */
+export function requestTone(state: RequestState): 'muted' | 'accent' | 'ok' | 'danger' {
+  if (state === 'approved' || state === 'processing') return 'accent';
+  if (state === 'partiallyAvailable' || state === 'available') return 'ok';
+  if (state === 'declined' || state === 'failed') return 'danger';
+  return 'muted';
+}
+
 /** A movie or show from Seerr, and whether (and where) it is on this server already. */
 export interface SeerrResult {
   mediaType: 'movie' | 'tv';

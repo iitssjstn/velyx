@@ -19,6 +19,11 @@ export interface DiskInfo {
   level: DiskLevel;
 }
 
+/** A disk that libraries are on, with the libraries on it (several libraries can share one disk). */
+export interface MediaDisk extends DiskInfo {
+  libraries: Array<{ id: number; name: string }>;
+}
+
 export interface CacheInfo {
   bytes: number;
   files: number;
@@ -101,6 +106,30 @@ export class StorageService {
   /** Current state of the data volume (cheap: one statfs call). */
   dataDisk(): DiskInfo | null {
     return statDisk(this.config.dataDir, this.lowBytes, this.criticalBytes);
+  }
+
+  /**
+   * The disks these libraries are on, one per disk (by device; folders on the same disk share one),
+   * in the order of the libraries. A folder that cannot be read is left out.
+   */
+  mediaDisks(libs: Array<{ id: number; name: string; path: string }>): MediaDisk[] {
+    const byDevice = new Map<number, MediaDisk>();
+    for (const l of libs) {
+      let device: number;
+      try {
+        device = fs.statSync(l.path).dev;
+      } catch {
+        continue;
+      }
+      const known = byDevice.get(device);
+      if (known) {
+        known.libraries.push({ id: l.id, name: l.name });
+        continue;
+      }
+      const disk = statDisk(l.path, this.lowBytes, this.criticalBytes);
+      if (disk) byDevice.set(device, { ...disk, libraries: [{ id: l.id, name: l.name }] });
+    }
+    return [...byDevice.values()];
   }
 
   async get(force = false): Promise<StorageReport> {

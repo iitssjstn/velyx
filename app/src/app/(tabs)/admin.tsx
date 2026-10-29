@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { AdminScreen, Card, Pill, SmallButton, useAdminAction } from '../../components/Admin';
 import { ErrorState, FocusPressable, Loading, ProgressLine, styles } from '../../components/ui';
-import { diskUsed, formatBytes, uptime, type AdminDashboard } from '../../lib/admin';
+import { formatBytes, storageMeters, uptime, type AdminDashboard } from '../../lib/admin';
 import { formatClock } from '../../lib/format';
 import { useSession } from '../../lib/session';
 import { colors } from '../../lib/theme';
@@ -30,7 +30,7 @@ export default function Admin() {
   if (q.isLoading) return <Loading />;
   if (!q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const d = q.data;
-  const used = diskUsed(d.disk);
+  const storage = storageMeters(d, t);
   const paused = d.scan.status === 'paused';
   const refresh = () => {
     void q.refetch();
@@ -44,8 +44,15 @@ export default function Admin() {
         {d.update.available && d.update.latest ? <Pill text={t('admin.update', { v: d.update.latest })} tone="accent" /> : null}
         <Text style={styles.muted}>{t('admin.counts', { movies: d.counts.movies, shows: d.counts.shows, users: d.counts.users })}</Text>
         {d.cpu.system !== null && <Meter label={t('admin.cpu')} fraction={d.cpu.system / 100} detail={`${Math.round(d.cpu.system)}%`} />}
-        {d.disk && used !== null && <Meter label={t('admin.disk')} fraction={used} detail={t('admin.diskFree', { free: formatBytes(d.disk.free) })} warn={d.disk.level !== 'ok'} />}
       </Card>
+
+      {storage.length > 0 && (
+        <Card title={t('admin.storage')}>
+          {storage.map((m) => (
+            <Meter key={m.key} label={m.label} fraction={m.fraction} detail={t('admin.diskFree', { free: formatBytes(m.free) })} warn={m.warn} />
+          ))}
+        </Card>
+      )}
 
       <Card title={t('admin.watching')}>
         {d.streams.length === 0 ? (

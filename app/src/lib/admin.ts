@@ -4,6 +4,7 @@
  */
 
 import type { Download } from './download';
+import type { Translate } from './i18n';
 
 export interface AdminStream {
   id: string;
@@ -22,13 +23,23 @@ export interface ScanState {
   paused: { reason: 'manual' | 'low-disk'; since: number } | null;
 }
 
+export interface Disk {
+  total: number;
+  free: number;
+  used: number;
+  level: 'ok' | 'low' | 'critical';
+}
+
 export interface AdminDashboard {
   version: string;
   serverName: string;
   uptimeSec: number;
   cpu: { system: number | null; velyx: number | null };
   streams: AdminStream[];
-  disk: { total: number; free: number; used: number; level: 'ok' | 'low' | 'critical' } | null;
+  /** Where Vidalune keeps its own data. */
+  disk: Disk | null;
+  /** Where the films and series are: one per disk, with the libraries on it (missing on older servers). */
+  mediaDisks?: Array<Disk & { libraries: Array<{ id: number; name: string }> }>;
   update: { current: string; latest: string | null; available: boolean };
   counts: { movies: number; shows: number; episodes: number; users: number; needsReview: number };
   scan: ScanState;
@@ -151,9 +162,34 @@ export function formatBytes(bytes: number): string {
 }
 
 /** How full the disk is, 0 to 1. */
-export function diskUsed(disk: AdminDashboard['disk']): number | null {
+export function diskUsed(disk: Disk | null): number | null {
   if (!disk || disk.total <= 0) return null;
   return Math.min(1, Math.max(0, disk.used / disk.total));
+}
+
+export interface StorageMeter {
+  key: string;
+  label: string;
+  /** 0 to 1. */
+  fraction: number;
+  free: number;
+  /** Getting full (low or critical). */
+  warn: boolean;
+}
+
+/**
+ * The storage bars of the Admin tab: Vidalune's own storage, then one per disk the libraries are on
+ * ("Library: Movies, Shows"). A disk whose size is unknown is left out.
+ */
+export function storageMeters(d: Pick<AdminDashboard, 'disk' | 'mediaDisks'>, t: Translate): StorageMeter[] {
+  const meter = (key: string, label: string, disk: Disk | null): StorageMeter[] => {
+    const fraction = diskUsed(disk);
+    return disk && fraction !== null ? [{ key, label, fraction, free: disk.free, warn: disk.level !== 'ok' }] : [];
+  };
+  return [
+    ...meter('vidalune', t('admin.vidaluneStorage'), d.disk),
+    ...(d.mediaDisks ?? []).flatMap((m) => meter(`library-${m.libraries[0]?.id ?? 0}`, t('admin.libraryStorage', { names: m.libraries.map((l) => l.name).join(', ') }), m)),
+  ];
 }
 
 /** "2 d 4 h", "3 h 12 min", "8 min". */

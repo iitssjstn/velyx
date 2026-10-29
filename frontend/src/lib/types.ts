@@ -669,7 +669,10 @@ export interface Dashboard {
   activeStreams: number;
   cpu: { system: number | null; velyx: number | null };
   streams: ActiveStream[];
+  /** Where Vidalune keeps its own data. */
   disk: DiskInfo | null;
+  /** Where the films and series are: one per disk, with the libraries on it. */
+  mediaDisks: Array<DiskInfo & { libraries: { id: number; name: string }[] }>;
   backups: { latest: BackupFile | null; nextDue: number | null };
   probeQueue: { active: number; waiting: number };
   update: { current: string; latest: string | null; available: boolean; url: string | null; checkedAt: number | null };
