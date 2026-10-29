@@ -378,6 +378,8 @@ const en = {
   'download.left': '~{time} left',
   'download.almost': 'almost done',
   'download.files': '{n} files',
+  'download.season': 'Season {list}',
+  'download.seasons': 'Seasons {list}',
   'common.ok': 'OK',
 } as const;
 
@@ -762,6 +764,8 @@ const nl: Record<MessageKey, string> = {
   'download.left': 'nog ~{time}',
   'download.almost': 'bijna klaar',
   'download.files': '{n} bestanden',
+  'download.season': 'Seizoen {list}',
+  'download.seasons': 'Seizoenen {list}',
   'common.ok': 'OK',
 };
 

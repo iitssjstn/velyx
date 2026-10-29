@@ -82,6 +82,8 @@ export const requests = {
     left: '~{time} left',
     almost: 'almost done',
     files: '{n} files',
+    season: 'Season {list}',
+    seasons: 'Seasons {list}',
   },
   states: {
     requested: 'Requested',

@@ -13,7 +13,7 @@ let states: Map<number, [number, number]>;
 /** Request id → what Sonarr/Radarr are fetching for its title (Seerr's `downloadStatus`). */
 let queue: Map<number, Array<{ size: number; sizeLeft: number; status: string; estimatedCompletionTime?: string }>>;
 /** Seerr's own record per title ("movie/603"): its id, status, requests and seasons. */
-let media: Map<string, { id: number; status: number; requests: Array<{ id: number; status: number; is4k?: boolean; seasons?: Array<{ seasonNumber: number }> }>; seasons?: Array<{ seasonNumber: number; status: number }>; downloadStatus?: Array<{ size: number; sizeLeft: number; status: string }> }>;
+let media: Map<string, { id: number; status: number; requests: Array<{ id: number; status: number; is4k?: boolean; seasons?: Array<{ seasonNumber: number }> }>; seasons?: Array<{ seasonNumber: number; status: number }>; downloadStatus?: Array<{ size: number; sizeLeft: number; status: string; episode?: { seasonNumber: number } }> }>;
 const fakeSeerr = async (url: string, init?: RequestInit) => {
   const u = new URL(url);
   if (u.host !== 'seerr.local:5055') throw new Error('network disabled in tests');
@@ -128,10 +128,19 @@ describe('Seerr', () => {
         { size: 1000, sizeLeft: 500, status: 'downloading', estimatedCompletionTime: '2026-10-28T12:00:00Z' },
         { size: 3000, sizeLeft: 500, status: 'queued', estimatedCompletionTime: '2026-10-28T12:30:00Z' },
       ]),
-    ).toEqual({ fraction: 0.75, size: 4000, sizeLeft: 1000, eta: Date.parse('2026-10-28T12:30:00Z'), status: 'downloading', items: 2 });
+    ).toEqual({ fraction: 0.75, size: 4000, sizeLeft: 1000, eta: Date.parse('2026-10-28T12:30:00Z'), status: 'downloading', items: 2, seasons: [] });
     expect(downloadProgress([{ size: 0, sizeLeft: 0, status: 'Queued' }])).toMatchObject({ fraction: 0, eta: null, status: 'queued' });
     expect(downloadProgress([{ size: 10, sizeLeft: 10, status: 'paused' }])?.status).toBe('paused');
     expect(downloadProgress([{ size: 10, sizeLeft: 10, status: 'paused' }, { size: 10, sizeLeft: 10, status: 'warning' }])?.status).toBe('warning');
+    // Of a show: which seasons (Sonarr names the episode; a season pack its first one).
+    expect(
+      downloadProgress([
+        { size: 10, sizeLeft: 5, status: 'downloading', episode: { seasonNumber: 3 } },
+        { size: 10, sizeLeft: 5, status: 'queued', episode: { seasonNumber: 2 } },
+        { size: 10, sizeLeft: 5, status: 'queued', episode: { seasonNumber: 2 } },
+        { size: 10, sizeLeft: 5, status: 'queued' },
+      ])?.seasons,
+    ).toEqual([2, 3]);
     // Nonsense from the queue never gives more than all or less than nothing.
     expect(downloadProgress([{ size: 100, sizeLeft: 400, status: 'downloading', estimatedCompletionTime: 'soon' }])).toMatchObject({ fraction: 0, sizeLeft: 100, eta: null });
   });
@@ -175,6 +184,43 @@ describe('Seerr', () => {
     expect((await env.app.inject({ url: '/api/seerr/movie/603', headers: { cookie: viewer.cookie } })).json().download).toMatchObject({ fraction: 0.75, items: 1 });
     media.delete('movie/603');
     expect((await env.app.inject({ url: '/api/seerr/movie/603', headers: { cookie: viewer.cookie } })).json().download).toBeNull();
+  });
+
+  it('shows how far fetching a title in the library is on its page, asking Seerr once per title every few seconds', async () => {
+    await setUp({ url: 'http://seerr.local:5055', apiKey: KEY });
+    const viewer = await createUser(env.app, admin, 'viewer');
+    const progress = async (url = '/api/seerr/tv/1399/download') => (await env.app.inject({ url, headers: { cookie: viewer.cookie } })).json();
+    // Nothing being fetched.
+    expect(await progress()).toEqual({ download: null });
+
+    // A new season of a show that is here: which season, and how far.
+    media.set('tv/1399', { id: 901, status: 4, requests: [{ id: 101, status: 2, seasons: [{ seasonNumber: 2 }] }], downloadStatus: [{ size: 400, sizeLeft: 100, status: 'downloading', episode: { seasonNumber: 2 } }] });
+    const realNow = Date.now;
+    let at = realNow() + 60_000;
+    Date.now = () => at;
+    try {
+      expect(await progress()).toMatchObject({ download: { fraction: 0.75, status: 'downloading', seasons: [2] } });
+      // Everyone on the page shares the answer for a few seconds: Seerr is not asked again yet.
+      const asked = calls.filter((c) => c.path.startsWith('/tv/1399')).length;
+      const admins = (await env.app.inject({ url: '/api/seerr/tv/1399/download', headers: { cookie: admin } })).json();
+      expect(admins.download.fraction).toBe(0.75);
+      expect(calls.filter((c) => c.path.startsWith('/tv/1399')).length).toBe(asked);
+
+      // Later: asked again, and done.
+      media.get('tv/1399')!.downloadStatus = [];
+      at += 20_000;
+      expect(await progress()).toEqual({ download: null });
+
+      // Seerr away: nothing to show, no error on the page.
+      reachable = false;
+      at += 20_000;
+      expect(await progress()).toEqual({ download: null });
+    } finally {
+      Date.now = realNow;
+    }
+    // Only movies and shows, with a real TMDB id.
+    expect((await env.app.inject({ url: '/api/seerr/music/1/download', headers: { cookie: viewer.cookie } })).statusCode).toBe(400);
+    expect((await env.app.inject({ url: '/api/seerr/movie/abc/download', headers: { cookie: viewer.cookie } })).statusCode).toBe(400);
   });
 
   it('is off until an administrator sets it up, and contacts nothing before', async () => {
@@ -259,7 +305,7 @@ describe('Seerr', () => {
     expect(off.json().seerrAccess).toBe(false);
     expect(await status(viewer.cookie)).toEqual({ enabled: false });
     const before = calls.length;
-    for (const url of ['/api/seerr/search?q=matrix', '/api/seerr/discover?row=trending&page=1', '/api/seerr/movie/603', '/api/seerr/movie/603/trailer', '/api/seerr/movie/603/recommendations', '/api/seerr/requests'])
+    for (const url of ['/api/seerr/search?q=matrix', '/api/seerr/discover?row=trending&page=1', '/api/seerr/movie/603', '/api/seerr/movie/603/trailer', '/api/seerr/movie/603/recommendations', '/api/seerr/movie/603/download', '/api/seerr/requests'])
       expect((await env.app.inject({ url, headers: { cookie: viewer.cookie } })).statusCode, url).toBe(403);
     expect((await env.app.inject({ method: 'POST', url: '/api/seerr/requests', headers: { cookie: viewer.cookie }, payload: { mediaType: 'movie', tmdbId: 603 } })).statusCode).toBe(403);
     // Nothing reached Seerr for them.

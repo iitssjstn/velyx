@@ -84,6 +84,8 @@ export const requests: Messages['requests'] = {
     left: 'nog ~{time}',
     almost: 'bijna klaar',
     files: '{n} bestanden',
+    season: 'Seizoen {list}',
+    seasons: 'Seizoenen {list}',
   },
   states: {
     requested: 'Aangevraagd',

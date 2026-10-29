@@ -198,6 +198,25 @@ export async function seerrRoutes(app: FastifyInstance, ctx: AppContext): Promis
     return withLibrary([d], request.user!)[0];
   });
 
+  /**
+   * How far fetching a title is, for its page in the library (a new season of a show that is here,
+   * or a movie fetched again). Everyone on the page shares one answer for a few seconds, so Seerr is
+   * asked at most every so often per title. Seerr away: nothing is being fetched, as far as we know.
+   */
+  const titleDownloads = new Map<string, { at: number; download: Promise<Download | null> }>();
+  app.get('/api/seerr/:type/:id/download', seerrUser, async (request) => {
+    const p = z.object({ type: mediaType, id: tmdbId }).parse(request.params);
+    const key = `${p.type}/${p.id}`;
+    let hit = titleDownloads.get(key);
+    if (!hit || Date.now() - hit.at > DOWNLOAD_FRESH_MS) {
+      hit = { at: Date.now(), download: ctx.seerr.details(p.type, p.id, 'en').then((d) => d.download, () => null) };
+      titleDownloads.delete(key);
+      titleDownloads.set(key, hit);
+      if (titleDownloads.size > 500) titleDownloads.delete(titleDownloads.keys().next().value!);
+    }
+    return { download: await hit.download };
+  });
+
   /** The trailer of a title that is not in the library: at TMDB, or through Seerr without a TMDB key. */
   app.get('/api/seerr/:type/:id/trailer', seerrUser, async (request) => {
     const p = z.object({ type: mediaType, id: tmdbId }).parse(request.params);

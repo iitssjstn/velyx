@@ -4,6 +4,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Toggle } from '../../components/actions';
 import { SeasonPicker } from '../../components/SeasonPicker';
+import { DownloadBar, useTitleDownload } from '../../components/DownloadBar';
 import { TrailerButton } from '../../components/TrailerButton';
 import { useFreshMetadata } from '../../components/useFreshMetadata';
 import { Artwork, useWide } from '../../components/media';
@@ -34,6 +35,7 @@ export default function Show() {
   const seerr = useQuery({ queryKey: [serverUrl, 'seerr'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
   // The button only while seasons are left to request (all here or requested: none).
   const tmdbId = q.data?.tmdbId ?? null;
+  const fetching = useTitleDownload('tv', tmdbId);
   const openSeasons = useQuery({ queryKey: [serverUrl, 'seerr', 'open', tmdbId], queryFn: () => api.get<{ open: boolean }>(`/api/seerr/tv/${tmdbId}/open`), enabled: !!seerr.data?.enabled && tmdbId !== null });
   const [asking, setAsking] = useState<SeerrDetails | null>(null);
   const [loadingSeasons, setLoadingSeasons] = useState(false);
@@ -77,6 +79,7 @@ export default function Show() {
       {seerr.data?.enabled && s.tmdbId && openSeasons.data?.open ? <Button label={t('show.requestSeasons')} variant="ghost" busy={loadingSeasons} onPress={() => void askSeasons(s.tmdbId!)} /> : null}
     </View>
   );
+  const download = fetching && <DownloadBar download={fetching} title={s.title} />;
   const toggles = (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       <Toggle active={s.watchlist} icon="bookmark" text={t('actions.watchlist')} label={t('actions.addWatchlist')} activeLabel={t('actions.removeWatchlist')} request={(on) => savedRequest('watchlist', 'show', s.id, on)} />
@@ -103,6 +106,7 @@ export default function Show() {
           year={s.year}
           facts={factLine([s.network, regular === 1 ? t('show.season') : t('show.seasons', { n: regular }), t('show.episodes', { n: s.episodeCount })])}
           overview={s.overview}
+          above={download}
           below={
             <View style={{ gap: 4 }}>
               <TvSeasonTabs seasons={seasons} current={current} onPick={setPicked} />
@@ -137,6 +141,7 @@ export default function Show() {
           <Artwork path={s.posterPath} size="w500" label={s.title} style={{ width: 200, height: 300, borderRadius: radius.lg, marginTop: -96 }} />
           <View style={{ flex: 1, gap: 16, maxWidth: 760 }}>
             {heading}
+            {download}
             {continueButton}
             {toggles}
             {s.overview ? <Text style={styles.body}>{s.overview}</Text> : null}
@@ -148,6 +153,7 @@ export default function Show() {
             <Artwork path={s.posterPath} size="w342" label={s.title} style={{ width: 96, height: 144, borderRadius: radius.md, marginTop: -64 }} />
             <View style={{ flex: 1 }}>{heading}</View>
           </View>
+          {download}
           {continueButton}
           {toggles}
           {s.overview ? <Text style={styles.body}>{s.overview}</Text> : null}

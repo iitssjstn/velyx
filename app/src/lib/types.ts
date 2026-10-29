@@ -95,6 +95,8 @@ export interface MovieDetail {
   id: number;
   type: 'movie';
   title: string;
+  /** TMDB id (null when not recognised); asks Seerr whether it is being fetched again. */
+  tmdbId?: number | null;
   year: number | null;
   overview: string | null;
   tagline: string | null;

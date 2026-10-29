@@ -22,4 +22,11 @@ describe('the progress of a request being fetched', () => {
     expect(downloadLine(d({ status: 'paused', eta: now + 60 * 60_000 }), now, en)).toBe('Fetching paused');
     expect(downloadLine(d({ status: 'warning', fraction: 0.8 }), now, en)).toBe('Problem while fetching (80%)');
   });
+
+  it('names the seasons of a show being fetched', () => {
+    expect(downloadLine(d({ seasons: [2] }), now, translator('nl'))).toBe('Seizoen 2 · Ophalen 50%');
+    expect(downloadLine(d({ seasons: [2, 3], items: 4 }), now, translator('en'))).toBe('Seasons 2, 3 · Fetching 50% · 4 files');
+    // A movie, or an older server that does not say.
+    expect(downloadLine(d({ seasons: [] }), now, translator('en'))).toBe('Fetching 50%');
+  });
 });
