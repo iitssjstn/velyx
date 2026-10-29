@@ -676,8 +676,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - PR #189 aangemaakt 29 okt op verzoek van de eigenaar ("Maak de PR en als alles groen is merge het maar"); automatische
   voettekst met sessielink meteen weggehaald. Gemerged 29 okt (alle checks groen). Release `v0.20.0` gecontroleerd: APK
   (uploadsleutel, versionCode 20000), `.aab`, beide `.deb`'s, `vidalune-0.20.0-setup.exe` en de accountservice-image.
-- Eigenaar (29 okt): "Oke alles geupdated" (server, accountservice en app op 0.20.0). Nog te bevestigen met een echte
-  download: de balk op de film- of seriepagina.
+- Eigenaar (29 okt): "Oke alles geupdated" (server, accountservice en app op 0.20.0). Daarna bevestigd: "Het werkt op de
+  mobiel, tv en website".
 
 ## Versie 0.19.11
 
