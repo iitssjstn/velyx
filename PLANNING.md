@@ -857,6 +857,13 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
      `storage.libraries[].disk` en de website toont die per bibliotheek. Voorstel: app toont onder Opslag de datamap en
      per schijf met media een balk; bibliotheken op dezelfde schijf samen (server geeft het apparaat mee, `stat().dev`),
      ook op de website; waarschuwing bij een bijna volle mediaschijf.
+  3. **In app en op tv slecht te zien wat al op de server staat** (website wel). Nu: tv een paars tekstlabel "In
+     bibliotheek" dat lijkt op "Aangevraagd" (`discoverTile`/`Poster` in `TvHome`); telefoon een klein vinkje van 22 pt
+     zonder schaduw (`DiscoverCard`); geen scheidingslijn boven de catalogusrijen op Home. Eigenaar: "probeer alles gelijk
+     te houden, website app en tv". Voorstel: zoals de website: groen rondje met vinkje rechtsboven (met schaduw, op de tv
+     groter), statuslabel in de kleur van de status onderaan, niets als het aan te vragen is, scheidingslijn met uitleg
+     boven de eerste catalogusrij; overal waar catalogustitels staan (Home, Zoeken, Genres, Vergelijkbaar, Films/Series
+     met bron Seerr).
 
 - **Beveiligingsaudit 28 okt** (op verzoek van de eigenaar: "alle gegevens van de gebruikers goed beveiligd en veilig";
   5 zoekers per gebied, alleen lezen, elke vondst daarna in de code nagekeken; alles gebouwd in 0.19.100, zie daar).
