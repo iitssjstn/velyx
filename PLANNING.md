@@ -870,6 +870,16 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Terug naar het tv-startscherm schuift eerst vanaf boven naar de titel** (eigenaar 29 okt, op 0.20.1: "als ik terug ga
+  hij helemaal vanaf boven af komt tot hij bij de plek is waar de desbetreffende film/serie is, dat gaat heel snel maar
+  ziet er wel knullig uit"; nog niet bouwen tot hij het zegt). Vermoedelijke oorzaak (code nagelopen, niet op de tv
+  bevestigd): bij openen van de detailpagina haalt het native stack-scherm het startscherm uit het venster; bij Terug
+  geeft Android de focus eerst aan het eerste kiesbare onderdeel (Afspelen in de hero), `focusRow('hero')` schuift naar
+  boven (0), en daarna krijgt de poster de focus terug en schuift het weer omlaag. `TvHome` blijft gemount, dus de positie
+  zelf was nog goed. Voorstel: zolang het startscherm niet in beeld is (blur) en tot ~0,8 s na terugkomen (focus) geen
+  schuifbeweging bij focuswissels; daarna één keer zonder animatie naar de rij met de focus (die meestal al op zijn
+  plek staat, dus niets te zien). Leervraag gesteld: waarom schuift het naar boven terwijl `TvHome` niet opnieuw start.
+
 - **0.20.1** (eigenaar 29 okt; "Bouw het maar"; gebouwd, zie Versie 0.20.1):
   1. **Omlaag op het tv-startscherm voelt als twee stappen** ("hij valt tussen de 2 alinea's en gaat dan verder"). Oorzaak
      (code nagelopen): Android's `ScrollView` schuift zelf eerst net genoeg om de nieuwe rij in beeld te krijgen
