@@ -173,7 +173,10 @@ export function DiscoverCard({ item, onSelect, className = '' }: { item: SeerrRe
           </span>
         ) : item.state ? (
           <span className="absolute inset-x-2 bottom-2 flex justify-center">
-            <StateBadge state={item.state} />
+            {/* A dark base, so the label reads on any poster (as in the app and on the TV). */}
+            <span className="rounded-full bg-bg/90">
+              <StateBadge state={item.state} />
+            </span>
           </span>
         ) : null}
       </div>

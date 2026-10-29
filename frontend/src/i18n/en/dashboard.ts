@@ -1,8 +1,11 @@
 export const dashboard = {
   storageCritical: 'Storage critically low · {free} remaining',
   storageLow: 'Storage running low · {free} remaining',
-  storageCriticalText: 'Library scans and scheduled backups are paused until there is more free space on the data volume. Your media is never deleted.',
-  storageLowText: 'Free up space on the data volume, or clear unused cache below.',
+  storageCriticalText: 'Library scans and scheduled backups are paused until there is more free space in Vidalune storage. Your media is never deleted.',
+  storageLowText: 'Free up space in Vidalune storage, or clear unused cache below.',
+  libraryStorageCritical: 'Library storage almost full ({names}) · {free} remaining',
+  libraryStorageLow: 'Library storage running low ({names}) · {free} remaining',
+  libraryStorageText: 'New films and series no longer fit once this disk is full. Free up space on it.',
   scanner: 'Scanner',
   scanStatus: {
     scanning: 'Scanning',
@@ -46,7 +49,8 @@ export const dashboard = {
   storage: 'Storage',
   recalculateStorage: 'Recalculate storage',
   recalculate: 'Recalculate',
-  dataVolume: 'Data volume',
+  dataVolume: 'Vidalune storage',
+  libraryStorage: 'Library: {names}',
   usedFreeOf: '{used} used · {free} free of {total}',
   mediaIndexed: 'Media indexed',
   bytesInFiles: {

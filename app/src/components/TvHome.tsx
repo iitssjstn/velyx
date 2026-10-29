@@ -1,16 +1,15 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { FlatList, Image as RNImage, Pressable, ScrollView, Text, View, useWindowDimensions, type PressableProps } from 'react-native';
+import { Animated, Easing, FlatList, Image as RNImage, Pressable, Text, View, useWindowDimensions, type PressableProps } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Artwork, openCard } from './media';
-import { useOpenDiscover } from './Discover';
+import { CatalogBoundary, HereMark, StatePill, useOpenDiscover } from './Discover';
 import { useTvFocus } from './useTvFocus';
 import { DISCOVER_ROWS, discoverPath, mergePages, type DiscoverPage, type DiscoverRow, type SeerrResult } from '../lib/discover';
 import { cardTile, discoverTile, heroPick, overHero, rowScroll, tvPosterWidth, type TvTile } from '../lib/tvHome';
 import { useSession } from '../lib/session';
 import { continueLine } from '../lib/continue';
-import { glideTo } from '../../modules/vidalune-tv';
 import { Lift, OUTLINE_INK, buttonLook } from './ui';
 import { TV_TOP_BAR } from './TvTopBar';
 import { colors, radius } from '../lib/theme';
@@ -20,6 +19,10 @@ export const SIDE = 48;
 const GAP = 20;
 /** The chosen poster or card grows a little, so it is easy to see where you are. */
 const FOCUS_SCALE = 1.1;
+/** How long moving to the next row takes (the owner: 250 ms was a little too quick). */
+const GLIDE_MS = 420;
+/** Soft start, long soft landing, like a swipe that comes to rest. */
+const GLIDE = Easing.bezier(0.25, 0.1, 0.25, 1);
 /** The corners inside a card's 3-point edge. */
 const CARD_INNER = radius.md - 3;
 
@@ -142,9 +145,8 @@ function Poster({ tile, width, onPress, onFocus }: { tile: TvTile; width: number
                 </View>
               </>
             )}
-            {tile.badge && (
-              <Text numberOfLines={1} style={{ position: 'absolute', top: 6, right: 6, maxWidth: width - 12, backgroundColor: 'rgba(20,18,28,0.85)', color: colors.accent, fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, overflow: 'hidden' }}>{tile.badge}</Text>
-            )}
+            {/* As on the website and the phone, bigger to see from the couch; hidden under the details. */}
+            {tile.here ? <HereMark size={32} /> : tile.state && !focused ? <StatePill state={tile.state} size={13} /> : null}
             {tile.progress > 0 && (
               <View style={{ position: 'absolute', left: 8, right: 8, bottom: 6, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' }}>
                 <View style={{ height: 3, width: `${Math.round(tile.progress * 100)}%`, backgroundColor: colors.accent }} />
@@ -249,7 +251,7 @@ export function TvHome({ data }: { data: HomeData }) {
   const { api, t, serverUrl } = useSession();
   const { height } = useWindowDimensions();
   const width = tvPosterWidth(height);
-  const scroll = useRef<ScrollView>(null);
+  const shift = useRef(new Animated.Value(0)).current;
   const tops = useRef(new Map<string, { y: number; height: number }>());
   const active = useRef('hero');
   const [rows, setRows] = useState(3);
@@ -264,8 +266,9 @@ export function TvHome({ data }: { data: HomeData }) {
     // Under the hero, the hero goes fully out of view and the top bar gets its background.
     const y = onHero ? 0 : rowScroll(at.y, at.height, view.current, hero ? hero.y + hero.height - TV_TOP_BAR : 0);
     overHero.set(onHero);
-    // Quick at the start and easing out, like a swipe (Android's own smooth scroll).
-    glideTo(scroll.current, y);
+    // One move, like a swipe: a soft start and a long soft landing. A new press goes on from where
+    // the rows are, so holding ↓ never waits.
+    Animated.timing(shift, { toValue: -y, duration: GLIDE_MS, easing: GLIDE, useNativeDriver: true }).start();
   };
   const focusRow = (key: string, discoverIndex?: number) => () => {
     if (discoverIndex !== undefined && discoverIndex >= rows - 2) setRows((n) => Math.max(n, discoverIndex + 3));
@@ -289,21 +292,24 @@ export function TvHome({ data }: { data: HomeData }) {
 
   const d = data;
   return (
-    // Only the move to the middle (toActive): Android's own scroll to the chosen poster came first, so
-    // going down took two steps.
-    <ScrollView ref={scroll} scrollsChildToFocus={false} onLayout={(e) => (view.current = e.nativeEvent.layout.height)} contentContainerStyle={{ paddingBottom: height / 2 }}>
-      {section('hero', <Hero data={d} onFocus={focusRow('hero')} />)}
-      {section('continue', <Row title={t('home.continue')} items={d.continueWatching} keyOf={(c) => `${c.type}-${c.id}`} render={(c) => <ContinueCard item={c} onFocus={focusRow('continue')} />} />)}
-      {cards('watchlist', t('home.watchlist'), d.watchlist ?? [])}
-      {cards('recent', t('home.recentlyAdded'), d.recentlyAdded)}
-      {cards('movies', t('home.movies'), d.movies)}
-      {cards('shows', t('home.shows'), d.shows)}
-      {cards('favorites', t('home.favorites'), d.favorites ?? [])}
-      {seerr.data?.enabled &&
-        DISCOVER_ROWS.slice(0, rows).map((spec, i) => {
-          const key = `discover-${spec.row}-${spec.genre ?? ''}`;
-          return section(key, <DiscoverTvRow spec={spec} width={width} onFocus={focusRow(key, i)} onOpen={(item) => void open(item)} />);
-        })}
-    </ScrollView>
+    // The rows are moved, not scrolled: a scroll view moves on its own first to bring the chosen poster
+    // into view (even with scrollsChildToFocus off), so going down took two steps.
+    <View style={{ flex: 1, overflow: 'hidden' }} onLayout={(e) => (view.current = e.nativeEvent.layout.height)}>
+      <Animated.View style={{ paddingBottom: height / 2, transform: [{ translateY: shift }] }}>
+        {section('hero', <Hero data={d} onFocus={focusRow('hero')} />)}
+        {section('continue', <Row title={t('home.continue')} items={d.continueWatching} keyOf={(c) => `${c.type}-${c.id}`} render={(c) => <ContinueCard item={c} onFocus={focusRow('continue')} />} />)}
+        {cards('watchlist', t('home.watchlist'), d.watchlist ?? [])}
+        {cards('recent', t('home.recentlyAdded'), d.recentlyAdded)}
+        {cards('movies', t('home.movies'), d.movies)}
+        {cards('shows', t('home.shows'), d.shows)}
+        {cards('favorites', t('home.favorites'), d.favorites ?? [])}
+        {seerr.data?.enabled && <CatalogBoundary side={SIDE} />}
+        {seerr.data?.enabled &&
+          DISCOVER_ROWS.slice(0, rows).map((spec, i) => {
+            const key = `discover-${spec.row}-${spec.genre ?? ''}`;
+            return section(key, <DiscoverTvRow spec={spec} width={width} onFocus={focusRow(key, i)} onOpen={(item) => void open(item)} />);
+          })}
+      </Animated.View>
+    </View>
   );
 }

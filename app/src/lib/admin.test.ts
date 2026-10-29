@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { canBlock, diskUsed, formatBytes, optimizationAction, optimizationTitle, requestActions, showsAdminTab, uptime } from './admin';
+import { canBlock, diskUsed, formatBytes, optimizationAction, optimizationTitle, requestActions, showsAdminTab, storageMeters, uptime } from './admin';
+import { translator } from './i18n';
 
 describe('the Admin tab', () => {
   it('is only there for administrators, and not on a TV', () => {
@@ -48,5 +49,17 @@ describe('the Admin tab', () => {
     expect(uptime(8 * 60)).toBe('8 min');
     expect(uptime(3 * 3600 + 12 * 60)).toBe('3 h 12 min');
     expect(uptime(52 * 3600)).toBe('2 d 4 h');
+  });
+
+  it("shows Vidalune's own storage and the disk of the libraries, one bar per disk", () => {
+    const disk = (used: number, level: 'ok' | 'low' = 'ok') => ({ total: 1000, free: 1000 - used, used, level });
+    const nl = translator('nl');
+    expect(storageMeters({ disk: disk(200), mediaDisks: [{ ...disk(900, 'low'), libraries: [{ id: 1, name: 'Films' }, { id: 2, name: 'Series' }] }] }, nl)).toEqual([
+      { key: 'vidalune', label: 'Vidalune-opslag', fraction: 0.2, free: 800, warn: false },
+      { key: 'library-1', label: 'Bibliotheek: Films, Series', fraction: 0.9, free: 100, warn: true },
+    ]);
+    // An older server sends no library disks; an unknown size is left out.
+    expect(storageMeters({ disk: disk(200) }, translator('en')).map((m) => m.label)).toEqual(['Vidalune storage']);
+    expect(storageMeters({ disk: null, mediaDisks: [{ total: 0, free: 0, used: 0, level: 'ok', libraries: [{ id: 3, name: 'X' }] }] }, nl)).toEqual([]);
   });
 });

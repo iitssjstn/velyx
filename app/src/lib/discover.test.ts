@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canRequest, canRequestTitle, catalogOnly, seasonsToRequest, DISCOVER_ROWS, openSeasons, discoverPath, discoverTarget, mergePages, toggleSeason, type SeerrResult } from './discover';
+import { canRequest, canRequestTitle, catalogOnly, seasonsToRequest, DISCOVER_ROWS, openSeasons, discoverPath, discoverTarget, mergePages, requestTone, toggleSeason, type SeerrResult } from './discover';
 
 const r = (over: Partial<SeerrResult>): SeerrResult => ({ mediaType: 'movie', tmdbId: 1, title: 'X', year: null, overview: '', posterPath: null, state: null, inLibrary: false, local: null, ...over });
 
@@ -65,5 +65,16 @@ describe('discover', () => {
     expect(canRequestTitle({ ...show, seasons: [show.seasons[0]] })).toBe(false);
     // A movie that is here stays here.
     expect(canRequestTitle({ mediaType: 'movie', inLibrary: true, state: null, seasons: [] })).toBe(false);
+  });
+});
+
+describe('the colour of a request on a poster', () => {
+  it('is the same as on the website', () => {
+    expect(requestTone('requested')).toBe('muted');
+    expect(requestTone('approved')).toBe('accent');
+    expect(requestTone('processing')).toBe('accent');
+    expect(requestTone('partiallyAvailable')).toBe('ok');
+    expect(requestTone('declined')).toBe('danger');
+    expect(requestTone('failed')).toBe('danger');
   });
 });

@@ -1,5 +1,5 @@
 import { formatRuntime } from './format';
-import type { SeerrResult } from './discover';
+import type { RequestState, SeerrResult } from './discover';
 import type { Translate } from './i18n';
 import type { Card, ContinueItem, HomeData } from './types';
 
@@ -17,8 +17,10 @@ export interface TvTile {
   genres: string;
   /** 0–1, a line on the poster. */
   progress: number;
-  /** A small label on the poster ("Requested", "In the library"). */
-  badge: string | null;
+  /** On this server: a green check on the poster (catalog titles; the library's own need none). */
+  here: boolean;
+  /** Where its request stands, as a label on the poster (catalog titles not here). */
+  state: RequestState | null;
 }
 
 /** "2008 • 2h 32m" for a movie, "2008 • 5 seasons" for a show (the website's card details). */
@@ -38,7 +40,8 @@ export function cardTile(card: Card, t: Translate): TvTile {
     rating: card.rating,
     genres: (card.genres ?? []).join(' • '),
     progress,
-    badge: null,
+    here: false,
+    state: null,
   };
 }
 
@@ -53,7 +56,8 @@ export function discoverTile(item: SeerrResult, t: Translate): TvTile {
     rating: null,
     genres: '',
     progress: 0,
-    badge: item.inLibrary ? t('discover.inLibrary') : item.state ? t(`request.state.${item.state}`) : null,
+    here: item.inLibrary,
+    state: item.inLibrary ? null : item.state,
   };
 }
 
