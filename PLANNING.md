@@ -704,6 +704,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   voettekst met sessielink meteen weggehaald. Gemerged 29 okt (alle checks groen). Release `v0.20.1` gecontroleerd: APK,
   `.aab`, beide `.deb`'s, `vidalune-0.20.1-setup.exe` en de accountservice-image. Op de Chromecast te bevestigen: omlaag
   op het startscherm in één beweging.
+- Eigenaar (29 okt): "Alles staat nu goed" (server, accountservice en app op 0.20.1).
 
 ## Versie 0.19.11
 
