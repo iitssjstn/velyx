@@ -843,6 +843,21 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **0.20.1 in voorbereiding** (eigenaar 29 okt, nog niet bouwen tot hij het zegt; hij heeft nog meer punten):
+  1. **Omlaag op het tv-startscherm voelt als twee stappen** ("hij valt tussen de 2 alinea's en gaat dan verder"). Oorzaak
+     (code nagelopen): Android's `ScrollView` schuift zelf eerst net genoeg om de nieuwe rij in beeld te krijgen
+     (`executeKeyEvent`/`arrowScroll` bij pijltje omlaag, en `ScrollView.requestChildFocus` → eigen `scrollToChild`, ook
+     met `scrollsChildToFocus={false}`, want `ReactScrollView.requestChildFocusWithoutScroll` roept de super aan); daarna
+     schuift `glideTo` (`TvHome`) naar het midden. Voorstel: op het tv-startscherm geen scrollende lijst meer, maar één
+     vlak met de rijen dat met `Animated` (native driver, 420 ms, zelfde bezier) naar `rowScroll` verschuift; Android
+     schuift dan niets vooraf. Pagina ziet er hetzelfde uit (eigenaar vroeg dat). `glideTo` (Kotlin) kan dan weg.
+     Leervraag gesteld: waarom verschuiven i.p.v. scrollen helpt.
+  2. **Schijf van de films/series niet te zien in de app** (eigenaar: Vidalune staat op de SSD, films en series op een
+     gekoppelde HDD). De app (Beheer-tab) toont alleen `disk` (datamap = SSD); de server geeft al
+     `storage.libraries[].disk` en de website toont die per bibliotheek. Voorstel: app toont onder Opslag de datamap en
+     per schijf met media een balk; bibliotheken op dezelfde schijf samen (server geeft het apparaat mee, `stat().dev`),
+     ook op de website; waarschuwing bij een bijna volle mediaschijf.
+
 - **Beveiligingsaudit 28 okt** (op verzoek van de eigenaar: "alle gegevens van de gebruikers goed beveiligd en veilig";
   5 zoekers per gebied, alleen lezen, elke vondst daarna in de code nagekeken; alles gebouwd in 0.19.100, zie daar).
   Tests, typechecks, lint en builds slagen. Bevestigd:
