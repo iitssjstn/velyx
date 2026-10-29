@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApi } from './api';
-import { NO_RETRIES, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleUrl, withHls, withoutHls, type PlaybackAnswer, type SubtitleOption, preferredAudio } from './playback';
+import { NO_RETRIES, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleRequest, subtitleUrl, withHls, withoutHls, type PlaybackAnswer, type SubtitleOption, preferredAudio } from './playback';
 import { cueTextAt, parseVtt } from './vtt';
 
 const api = (respond: (url: string) => unknown = () => ({})) =>
@@ -93,6 +93,14 @@ describe('where a stream starts', () => {
     expect(subtitleUrl(api(), sub, 0)).toBe('http://vidalune.local/api/subtitles/3.vtt');
     expect(subtitleUrl(api(), sub, 598.5)).toBe('http://vidalune.local/api/subtitles/3.vtt?offset=598.500');
     expect(subtitleUrl(api(), sub, 598.5, { baseUrl: 'https://server.media.vidalune.com', token: 'scoped-token' })).toBe('https://server.media.vidalune.com/api/subtitles/3.vtt?offset=598.500&cast=scoped-token');
+  });
+
+  it('fetches a subtitle only once it is known where the stream comes from', () => {
+    const sub = { url: '/api/subtitles/3.vtt' } as SubtitleOption;
+    // Still finding the stream's address: through the API it would go via vidalune.com, which refuses it.
+    expect(subtitleRequest(api(), sub, undefined)).toBeNull();
+    expect(subtitleRequest(api(), sub, null)).toEqual({ url: 'http://vidalune.local/api/subtitles/3.vtt', headers: expect.objectContaining({ Authorization: 'Bearer t' }) });
+    expect(subtitleRequest(api(), sub, { baseUrl: 'https://server.media.vidalune.com', token: 'scoped-token' })).toEqual({ url: 'https://server.media.vidalune.com/api/subtitles/3.vtt?cast=scoped-token', headers: {} });
   });
 });
 

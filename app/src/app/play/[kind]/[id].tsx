@@ -21,7 +21,7 @@ import { Button, styles } from '../../../components/ui';
 import { castSettled, castStartAt, castStatus } from '../../../lib/castStatus';
 import { applyCastTextTrackStyle, castLoadFailed, castLoadRequest, castTrackIds, followTv, loadCastWithCurrentSubtitle, sessionUsable, tvChanged, tvFilePosition, tvMedia, tvSubtitleKey, waitForCastReady, type CastSession, type TvSeen } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
-import { NO_RETRIES, endOfStream, fallbackCaps, withHls, withoutHls, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleUrl, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { NO_RETRIES, endOfStream, fallbackCaps, withHls, withoutHls, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleRequest, type MediaEndpoint, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
 import { rememberAudio, rememberSubtitle, rememberedAudio, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
 import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, nextStyleValue, stepDelay, subtitleBottom, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT, type SubtitleStyle } from '../../../lib/subtitleStyle';
@@ -147,7 +147,8 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   });
 
   const [answer, setAnswer] = useState<PlaybackAnswer | null>(null);
-  const [mediaEndpoint, setMediaEndpoint] = useState<{ baseUrl: string; token: string } | null>(null);
+  /** The stream's direct address: `null` when it has none, `undefined` while it is still being found. */
+  const [mediaEndpoint, setMediaEndpoint] = useState<MediaEndpoint | null | undefined>(undefined);
   const [problem, setProblem] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [time, setTime] = useState(0);
@@ -521,7 +522,13 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
     let alive = true;
     const slow = setTimeout(() => alive && setSubLoad('loading'), SUBTITLE_LOADING_AFTER_MS);
     let gone: ReturnType<typeof setTimeout> | undefined;
-    fetch(subtitleUrl(api, subtitle, 0, mediaEndpoint ?? undefined), { headers: mediaEndpoint ? {} : api.headers() })
+    // Only once the stream's address is known (this effect runs again then); until then "loading" if it takes a moment.
+    const request = subtitleRequest(api, subtitle, mediaEndpoint);
+    if (!request) return () => {
+      alive = false;
+      clearTimeout(slow);
+    };
+    fetch(request.url, { headers: request.headers })
       .then(cuesFrom)
       .then((list) => {
         if (!alive) return;

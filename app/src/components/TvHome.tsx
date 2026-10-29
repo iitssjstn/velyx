@@ -1,13 +1,13 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { Animated, Easing, FlatList, Image as RNImage, Pressable, Text, View, useWindowDimensions, type PressableProps } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Artwork, openCard } from './media';
 import { CatalogBoundary, HereMark, StatePill, useOpenDiscover } from './Discover';
 import { useTvFocus } from './useTvFocus';
 import { DISCOVER_ROWS, discoverPath, mergePages, type DiscoverPage, type DiscoverRow, type SeerrResult } from '../lib/discover';
-import { cardTile, discoverTile, heroPick, overHero, rowScroll, tvPosterWidth, type TvTile } from '../lib/tvHome';
+import { cardTile, discoverTile, heroPick, overHero, returnGate, rowScroll, tvPosterWidth, type TvTile } from '../lib/tvHome';
 import { useSession } from '../lib/session';
 import { continueLine } from '../lib/continue';
 import { Lift, OUTLINE_INK, buttonLook } from './ui';
@@ -259,7 +259,9 @@ export function TvHome({ data }: { data: HomeData }) {
   const { open } = useOpenDiscover();
 
   const view = useRef(0);
-  const toActive = () => {
+  const gate = useRef(returnGate()).current;
+  const toActive = (glide = true) => {
+    if (!gate.follows()) return;
     const at = tops.current.get(active.current);
     const hero = tops.current.get('hero');
     const onHero = active.current === 'hero' || !at;
@@ -268,8 +270,22 @@ export function TvHome({ data }: { data: HomeData }) {
     overHero.set(onHero);
     // One move, like a swipe: a soft start and a long soft landing. A new press goes on from where
     // the rows are, so holding ↓ never waits.
-    Animated.timing(shift, { toValue: -y, duration: GLIDE_MS, easing: GLIDE, useNativeDriver: true }).start();
+    if (glide) Animated.timing(shift, { toValue: -y, duration: GLIDE_MS, easing: GLIDE, useNativeDriver: true }).start();
+    else {
+      shift.stopAnimation();
+      shift.setValue(-y);
+    }
   };
+  const toActiveNow = useRef(toActive);
+  toActiveNow.current = toActive;
+  // Back from a title or the player: Home stays put while the focus finds its way back, then goes to
+  // its row without a glide (it slid from the top down to the poster).
+  useFocusEffect(
+    useCallback(() => {
+      gate.back(() => toActiveNow.current(false));
+      return () => gate.away();
+    }, [gate]),
+  );
   const focusRow = (key: string, discoverIndex?: number) => () => {
     if (discoverIndex !== undefined && discoverIndex >= rows - 2) setRows((n) => Math.max(n, discoverIndex + 3));
     if (active.current === key) return;

@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { translator } from './i18n';
-import { cardFacts, cardTile, discoverTile, heroPick, overHeroStore, rowScroll, tvPosterWidth } from './tvHome';
+import { cardFacts, cardTile, discoverTile, heroPick, overHeroStore, returnGate, RETURN_SETTLE_MS, rowScroll, tvPosterWidth } from './tvHome';
 import type { ContinueItem, HomeData, MovieCard, ShowCard } from './types';
 
 const t = translator('nl');
@@ -67,4 +67,35 @@ describe('tv home', () => {
     expect(store.get()).toBe(false);
     expect(calls).toBe(1);
   });
+
+  it('does not follow the focus while another screen is on top, nor just after coming back', () => {
+    vi.useFakeTimers();
+    try {
+      const gate = returnGate();
+      const settle = vi.fn();
+      // Shown for the first time: follows at once.
+      gate.back(settle);
+      expect(gate.follows()).toBe(true);
+      // A title opened: Home stays where it is.
+      gate.away();
+      expect(gate.follows()).toBe(false);
+      // Back: Android hands the focus to the hero first, then to the poster; neither moves Home.
+      gate.back(settle);
+      expect(gate.follows()).toBe(false);
+      vi.advanceTimersByTime(RETURN_SETTLE_MS - 1);
+      expect(settle).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(settle).toHaveBeenCalledTimes(1);
+      expect(gate.follows()).toBe(true);
+      // Leaving again before it settled: no late jump.
+      gate.away();
+      gate.back(settle);
+      gate.away();
+      vi.advanceTimersByTime(RETURN_SETTLE_MS);
+      expect(settle).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
+

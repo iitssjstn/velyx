@@ -706,6 +706,21 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   op het startscherm in één beweging.
 - Eigenaar (29 okt): "Alles staat nu goed" (server, accountservice en app op 0.20.1).
 
+## Versie 0.20.2 (ondertitel niet meer meteen "kon niet geladen worden"; terug naar het tv-startscherm zonder schuiven)
+
+- Op verzoek van de eigenaar ("Bouw het maar", 29 okt); de twee punten staan onder "Gemeld tijdens het testen".
+- **Ondertitel bij het starten** (app, telefoon en tv): `subtitleRequest` (`lib/playback.ts`) haalt de ondertitel pas op als
+  bekend is waar de stream vandaan komt (`mediaEndpoint`: `undefined` = nog niet bekend, `null` = geen direct adres, via
+  de API). Tot dan wacht de speler; duurt het langer dan 0,6 s, dan "Ondertitel laden…". Een nieuwe titel opent een nieuwe
+  speler (`key`), dus het adres van de vorige titel wordt nooit gebruikt.
+- **Terug naar het tv-startscherm** (`TvHome`): `returnGate` (`lib/tvHome.ts`): zolang een ander scherm erboven ligt en
+  0,8 s na terugkomen (`useFocusEffect`) volgt het startscherm de focus niet; daarna één keer zonder animatie naar de rij
+  met de focus. Op de Chromecast te bevestigen.
+- Tests: `subtitleRequest` (nog niet bekend: niets; geen direct adres: via de API met token; direct: met cast-token),
+  `returnGate` (weg, terug, wachttijd, opnieuw weg vóór het einde). App 269 tests; typechecks, lint (0 fouten, 4 bekende
+  waarschuwingen), versietests en de Android-bundel (Hermes-export) slagen.
+- Versie 0.20.2 in alle `package.json`'s, `app/app.json` (versionCode 20002) en beide lockfiles.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
@@ -878,7 +893,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   vidalune.com, dat ondertitels (net als video) bewust weigert (409). Dus meteen "could not be loaded". Iets later is het
   directe adres er, haalt de speler de ondertitel opnieuw op en komt hij alsnog. `null` betekent nu zowel "nog niet bekend"
   als "geen direct adres". Voorstel: de ondertitel pas ophalen als de stream gekozen is (nog niet bekend = wachten), met een
-  test. Leervraag gesteld (de twee betekenissen van `null`).
+  test. Leervraag gesteld (de twee betekenissen van `null`). Eigenaar: "Bouw het maar"; gebouwd in 0.20.2.
 
 - **Terug naar het tv-startscherm schuift eerst vanaf boven naar de titel** (eigenaar 29 okt, op 0.20.1: "als ik terug ga
   hij helemaal vanaf boven af komt tot hij bij de plek is waar de desbetreffende film/serie is, dat gaat heel snel maar
@@ -889,6 +904,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   zelf was nog goed. Voorstel: zolang het startscherm niet in beeld is (blur) en tot ~0,8 s na terugkomen (focus) geen
   schuifbeweging bij focuswissels; daarna één keer zonder animatie naar de rij met de focus (die meestal al op zijn
   plek staat, dus niets te zien). Leervraag gesteld: waarom schuift het naar boven terwijl `TvHome` niet opnieuw start.
+  Eigenaar: "Bouw het maar"; gebouwd in 0.20.2.
 
 - **0.20.1** (eigenaar 29 okt; "Bouw het maar"; gebouwd, zie Versie 0.20.1):
   1. **Omlaag op het tv-startscherm voelt als twee stappen** ("hij valt tussen de 2 alinea's en gaat dan verder"). Oorzaak
