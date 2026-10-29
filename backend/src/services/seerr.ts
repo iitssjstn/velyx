@@ -66,6 +66,8 @@ export interface Download {
   status: 'downloading' | 'queued' | 'paused' | 'warning';
   /** How many files are being fetched (of a show: episodes or season packs). */
   items: number;
+  /** Of a show, the seasons being fetched (when Sonarr says); empty for a movie or when unknown. */
+  seasons: number[];
 }
 
 /** One item of Seerr's `downloadStatus` (the download queue of Sonarr or Radarr for the title). */
@@ -74,6 +76,8 @@ interface RawDownload {
   sizeLeft?: number;
   status?: string;
   estimatedCompletionTime?: string;
+  /** Of a show: the episode it is for (a season pack names its first episode). */
+  episode?: { seasonNumber?: number };
 }
 
 /**
@@ -95,7 +99,8 @@ export function downloadProgress(items: RawDownload[] | undefined): Download | n
       : states.every((s) => s === 'paused')
         ? 'paused'
         : 'queued';
-  return { fraction: size > 0 ? (size - sizeLeft) / size : 0, size, sizeLeft, eta: etas.length ? Math.max(...etas) : null, status, items: list.length };
+  const seasons = [...new Set(list.map((i) => i.episode?.seasonNumber).filter((n): n is number => Number.isInteger(n) && n! > 0))].sort((a, b) => a - b);
+  return { fraction: size > 0 ? (size - sizeLeft) / size : 0, size, sizeLeft, eta: etas.length ? Math.max(...etas) : null, status, items: list.length, seasons };
 }
 
 interface RawMedia {

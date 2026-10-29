@@ -7,6 +7,7 @@ import { useFreshMetadata } from '../../components/useFreshMetadata';
 import { Artwork, useWide } from '../../components/media';
 import { CastRow } from '../../components/CastRow';
 import { DetailSkeleton } from '../../components/Skeleton';
+import { DownloadBar, useTitleDownload } from '../../components/DownloadBar';
 import { TV } from '../../components/screen';
 import { TvAbout, TvDetail } from '../../components/TvDetail';
 import { factLine } from '../../lib/tvDetail';
@@ -25,6 +26,7 @@ export default function Movie() {
   const { width } = useWindowDimensions();
   const q = useQuery({ queryKey: [serverUrl, 'movie', id], queryFn: () => api.get<MovieDetail>(`/api/movies/${id}`) });
   useFreshMetadata('movie', id, (newId) => router.replace(`/movie/${newId}`));
+  const fetching = useTitleDownload('movie', q.data?.tmdbId);
   if (q.isLoading) return <DetailSkeleton wide={wide} />;
   if (!q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const m = q.data;
@@ -63,12 +65,17 @@ export default function Movie() {
       {m.genres.length ? <Text style={styles.muted}>{m.genres.map((g) => g.name).join(', ')}</Text> : null}
     </View>
   );
-  const progress = resume && (
-    <View style={{ gap: 6, maxWidth: 480 }}>
-      <ProgressLine fraction={progressFraction(resume)} />
-      <Text style={styles.muted}>
-        {formatClock(resume.positionSec)} / {formatClock(resume.durationSec)}
-      </Text>
+  const progress = (resume || fetching) && (
+    <View style={{ gap: 12, maxWidth: 480 }}>
+      {resume && (
+        <View style={{ gap: 6 }}>
+          <ProgressLine fraction={progressFraction(resume)} />
+          <Text style={styles.muted}>
+            {formatClock(resume.positionSec)} / {formatClock(resume.durationSec)}
+          </Text>
+        </View>
+      )}
+      {fetching && <DownloadBar download={fetching} title={m.title} />}
     </View>
   );
   const about = (

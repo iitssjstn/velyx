@@ -3,7 +3,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { api } from '../lib/api';
-import { downloadPercent, downloadTimeLeft, type Download } from '../lib/download';
+import { DOWNLOAD_POLL_MS, downloadPercent, downloadTimeLeft, type Download } from '../lib/download';
 import { imageUrl } from '../lib/format';
 import { seriesContinue } from '../lib/series';
 import type { ShowDetail } from '../lib/types';
@@ -82,7 +82,9 @@ export function DownloadBar({ download: d, title }: { download: Download; title:
   const { t } = useT();
   const pct = downloadPercent(d);
   const left = downloadTimeLeft(d, Date.now());
+  const seasons = d.seasons ?? [];
   const parts = [
+    seasons.length > 0 ? t(seasons.length === 1 ? 'requests.download.season' : 'requests.download.seasons', { list: seasons.join(', ') }) : null,
     d.status === 'downloading' ? t('requests.download.downloading', { pct }) : d.status === 'warning' ? t('requests.download.warning', { pct }) : t(`requests.download.${d.status}`),
     left === null ? null : left === '' ? t('requests.download.almost') : t('requests.download.left', { time: left }),
     d.items > 1 ? t('requests.download.files', { n: d.items }) : null,
@@ -102,6 +104,27 @@ export function DownloadBar({ download: d, title }: { download: Download; title:
       <p className={`text-xs ${d.status === 'warning' ? 'text-danger' : 'text-muted'}`}>{parts.join(' · ')}</p>
     </div>
   );
+}
+
+/** While nothing is fetched for a title, how often its page asks again. */
+const IDLE_POLL_MS = 60_000;
+
+/**
+ * How far fetching a title in the library is, on its page: a new season of a show that is here, or
+ * a movie fetched again. Nothing while nothing is fetched, without Seerr or without access to it.
+ */
+export function TitleDownload({ type, tmdbId, title }: { type: 'movie' | 'tv'; tmdbId: number | null; title: string }) {
+  const status = useQuery({ queryKey: ['seerr', 'status'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
+  const q = useQuery({
+    queryKey: ['seerr', 'download', type, tmdbId],
+    queryFn: () => api.get<{ download: Download | null }>(`/api/seerr/${type}/${tmdbId}/download`),
+    enabled: !!status.data?.enabled && tmdbId !== null,
+    // Every few seconds while something is fetched; now and then otherwise, so a season that starts
+    // while the page is open shows up.
+    refetchInterval: (query) => (query.state.data?.download ? DOWNLOAD_POLL_MS : IDLE_POLL_MS),
+  });
+  const d = q.data?.download;
+  return d ? <DownloadBar download={d} title={title} /> : null;
 }
 
 export function Poster({ path, title }: { path: string | null; title: string }) {

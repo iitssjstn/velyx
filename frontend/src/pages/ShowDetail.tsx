@@ -20,6 +20,7 @@ import { Artwork } from '../components/Artwork';
 import { ProgressBar } from '../components/ProgressBar';
 import { DetailSkeleton, ErrorState, Spinner } from '../components/States';
 import { toast } from '../components/Toast';
+import { TitleDownload } from '../components/Discover';
 import { useT } from '../i18n';
 
 function EpisodeRow({ ep, onToggleWatched }: { ep: EpisodeSummary; onToggleWatched: (ep: EpisodeSummary) => void }) {
@@ -211,6 +212,9 @@ function ShowScreen({ id }: { id: number }) {
           )}
           <WatchedMenu watchedCount={s.watchedCount} total={s.episodeCount} onMark={(value) => watched.mutate({ showId: s.id, watched: value })} />
           {user?.role === 'admin' && <AdminItemMenu type="show" id={s.id} collections={s.collections} query={s.match.parsedTitle} year={s.match.parsedYear} />}
+        </div>
+        <div className="mt-3 empty:hidden">
+          <TitleDownload type="tv" tmdbId={s.tmdbId} title={s.title} />
         </div>
       </DetailHero>
 

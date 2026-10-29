@@ -10,6 +10,8 @@ export interface Download {
   eta: number | null;
   status: 'downloading' | 'queued' | 'paused' | 'warning';
   items: number;
+  /** Of a show, the seasons being fetched (empty or missing: a movie, or not known). */
+  seasons?: number[];
 }
 
 /** While something is being fetched, how often its list or page asks again. */

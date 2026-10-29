@@ -20,6 +20,7 @@ import { DevicePlayback } from '../components/DevicePlayback';
 import { ProgressBar } from '../components/ProgressBar';
 import { DetailSkeleton, ErrorState } from '../components/States';
 import { toast } from '../components/Toast';
+import { TitleDownload } from '../components/Discover';
 import { useT } from '../i18n';
 
 /** Keyed by id, so going straight from one movie to another starts with fresh state. */
@@ -127,6 +128,9 @@ function MovieScreen({ id }: { id: number }) {
           )}
         </div>
         {resume && <ProgressBar value={progressFraction(resume)} className="mt-4 max-w-sm" />}
+        <div className="mt-3 empty:hidden">
+          <TitleDownload type="movie" tmdbId={m.tmdbId} title={m.title} />
+        </div>
       </DetailHero>
 
       <div className="mt-10 px-4 sm:px-8">

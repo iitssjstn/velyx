@@ -34,13 +34,14 @@ const seerrShow = {
   ],
 };
 
-function setup(opts: { tmdbId?: number; seerr?: boolean; seasonOverview?: string; open?: boolean } = {}) {
+function setup(opts: { tmdbId?: number; seerr?: boolean; seasonOverview?: string; open?: boolean; download?: object | null } = {}) {
   const calls: { method: string; url: string; body: unknown }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ method: init?.method ?? 'GET', url, body: init?.body ? JSON.parse(String(init.body)) : null });
     if (url === '/api/shows/7') return new Response(JSON.stringify({ ...show, tmdbId: opts.tmdbId ?? null }), { status: 200 });
     if (url === '/api/seerr') return new Response(JSON.stringify({ enabled: opts.seerr ?? false }), { status: 200 });
     if (url === '/api/seerr/tv/1399/open') return new Response(JSON.stringify({ open: opts.open ?? true }), { status: 200 });
+    if (url === '/api/seerr/tv/1399/download') return new Response(JSON.stringify({ download: opts.download ?? null }), { status: 200 });
     if (url === '/api/seerr/tv/1399') return new Response(JSON.stringify(seerrShow), { status: 200 });
     if (url === '/api/seerr/requests') return new Response(JSON.stringify({ id: 3, title: 'Reacher', state: 'requested' }), { status: 200 });
     if (url === '/api/shows/7/seasons/2') return new Response(JSON.stringify({ ...season2, overview: opts.seasonOverview ?? null }), { status: 200 });
@@ -80,6 +81,25 @@ describe('series page', () => {
     await vi.waitFor(() => expect(calls.some((c) => c.url === '/api/seerr/tv/1399/open')).toBe(true));
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByRole('button', { name: 'Request seasons' })).toBeNull();
+  });
+
+  it('shows how far fetching a new season is on the show page', async () => {
+    setup({ tmdbId: 1399, seerr: true, download: { fraction: 0.426, size: 1000, sizeLeft: 574, eta: null, status: 'downloading', items: 3, seasons: [3] } });
+    const bar = await screen.findByRole('progressbar', { name: 'Fetching Reacher' });
+    expect(bar.getAttribute('aria-valuenow')).toBe('42');
+    expect(screen.getByText('Season 3 · Fetching 42% · 3 files')).toBeTruthy();
+  });
+
+  it('shows no progress while nothing is fetched, or without Seerr', async () => {
+    const calls = setup({ tmdbId: 1399, seerr: true });
+    await vi.waitFor(() => expect(calls.some((c) => c.url === '/api/seerr/tv/1399/download')).toBe(true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole('progressbar', { name: 'Fetching Reacher' })).toBeNull();
+    cleanup();
+    const without = setup({ tmdbId: 1399, seerr: false });
+    expect(await screen.findByRole('heading', { name: 'Reacher' })).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(without.some((c) => c.url.endsWith('/download'))).toBe(false);
   });
 
   it('offers no requests without Seerr', async () => {

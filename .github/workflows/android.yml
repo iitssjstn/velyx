@@ -111,7 +111,9 @@ jobs:
           config=$(node -p "require('./app.json').expo.version")
           server=$(node -p "require('../package.json').version")
           code=$(node -p "require('./app.json').expo.android.versionCode")
-          expected=$(node -p "const [a,b,c]='$app'.split('.').map(Number); a*10000+b*100+c")
+          # Room for up to 999 patch versions per minor version. Before 0.20 it was a*10000+b*100+c
+          # (0.19.101 = 2001); 0.20.0 is 20000, above every earlier one.
+          expected=$(node -p "const [a,b,c]='$app'.split('.').map(Number); a*1000000+b*1000+c")
           echo "app $app, app.json $config, server $server, versionCode $code"
           test "$app" = "$config" && test "$app" = "$server" && test "$code" = "$expected"
 
