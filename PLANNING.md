@@ -857,6 +857,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
      `storage.libraries[].disk` en de website toont die per bibliotheek. Voorstel: app toont onder Opslag de datamap en
      per schijf met media een balk; bibliotheken op dezelfde schijf samen (server geeft het apparaat mee, `stat().dev`),
      ook op de website; waarschuwing bij een bijna volle mediaschijf.
+     Eigenaar: geen "HDD"/"SSD" in de namen; de ene balk is de opslag van Vidalune, de andere de bibliotheek (met de
+     naam/namen van de bibliotheken op die schijf).
   3. **In app en op tv slecht te zien wat al op de server staat** (website wel). Nu: tv een paars tekstlabel "In
      bibliotheek" dat lijkt op "Aangevraagd" (`discoverTile`/`Poster` in `TvHome`); telefoon een klein vinkje van 22 pt
      zonder schaduw (`DiscoverCard`); geen scheidingslijn boven de catalogusrijen op Home. Eigenaar: "probeer alles gelijk
