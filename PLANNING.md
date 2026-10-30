@@ -741,6 +741,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Tests: `tvRemote.test.ts` (↑ naar Terug en ↓ terug naar dezelfde knop, faalt op de oude code; ↓ verbergt). App 270
   tests, typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen. Op de tv te bevestigen.
 - Versie 0.20.3 in alle `package.json`'s, `app/app.json` (versionCode 20003) en beide lockfiles.
+- Eigenaar (30 okt): "wacht met pushen zodat we meerdere dingen kunnen toevoegen als ik die tegenkom". Nieuwe punten
+  komen in 0.20.3 en blijven lokaal tot hij zegt dat het klaar is; daarna pas pushen en de PR.
 
 ## Versie 0.19.11
 
