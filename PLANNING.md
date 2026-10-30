@@ -741,6 +741,15 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Tests: `tvRemote.test.ts` (↑ naar Terug en ↓ terug naar dezelfde knop, faalt op de oude code; ↓ verbergt). App 270
   tests, typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen. Op de tv te bevestigen.
 - Versie 0.20.3 in alle `package.json`'s, `app/app.json` (versionCode 20003) en beide lockfiles.
+- **Ondertitelgrootte op de tv apart** (eigenaar 30 okt: "als ik de ondertiteling grootte aanpas op de TV dan verandert
+  hij ook op de PC dat is iets wel apart moet blijven want een tv is groter"). Oorzaak: één stijl per account
+  (`pref_subtitle_style`) voor website, telefoon en tv-app. Nu heeft de tv-app een eigen stijl bij het account
+  (`pref_subtitle_style_tv`, migratie `0030_subtitle_style_tv`, `subtitleStyleTv` in `/api/account/preferences`, Zod
+  zoals de gewone stijl); de app kiest het veld met `accountStyleField(TV)`. Website en telefoon blijven de gewone stijl
+  gebruiken, casten ook (de telefoon of website stuurt zijn stijl mee, met de stand Tv-standaard). Zonder eigen tv-stijl
+  houdt de tv wat hij op het toestel had. Let op: de grote maat die de tv eerder in de gedeelde stijl zette, staat nog
+  op de pc; daar één keer terugzetten. Tests: backend (los van elkaar opslaan, wissen, ongeldig), app
+  (`accountStyleField`). Backend 626, app 271 tests; typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen.
 - Eigenaar (30 okt): "wacht met pushen zodat we meerdere dingen kunnen toevoegen als ik die tegenkom". Nieuwe punten
   komen in 0.20.3 en blijven lokaal tot hij zegt dat het klaar is; daarna pas pushen en de PR.
 

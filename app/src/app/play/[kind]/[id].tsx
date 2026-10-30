@@ -24,7 +24,7 @@ import { episodeCode, formatClock, imagePath } from '../../../lib/format';
 import { NO_RETRIES, endOfStream, fallbackCaps, withHls, withoutHls, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleRequest, type MediaEndpoint, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
 import { rememberAudio, rememberSubtitle, rememberedAudio, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
-import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, nextStyleValue, stepDelay, subtitleBottom, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT, type SubtitleStyle } from '../../../lib/subtitleStyle';
+import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, accountStyleField, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, nextStyleValue, stepDelay, subtitleBottom, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { createSubtitleStyleSync, subtitlePreferencesReady, subtitleStyleAccountScope } from '../../../lib/subtitleStyleSync';
 import { castConnectData, castGiven, castPlayerState, castSubtitleFor, castSubtitleKeys, castTrackIdsFor } from '../../../lib/castConnect';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
@@ -63,6 +63,7 @@ interface Prefs extends SubtitlePrefs {
   audioLanguage?: string | null;
   audioMode?: AudioMode;
   subtitleStyle?: SubtitleStyle | null;
+  subtitleStyleTv?: SubtitleStyle | null;
   skipIntro?: SkipMode;
   skipCredits?: SkipMode;
   skipRecap?: SkipMode;
@@ -165,7 +166,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   const [fetchedSubs, setFetchedSubs] = useState<SubtitleOption[]>([]);
   const subtitleOptions = [...(answer?.subtitles ?? []), ...fetchedSubs.filter((f) => !answer?.subtitles.some((s) => s.key === f.key))];
   const [cues, setCues] = useState<Cue[]>([]);
-  /** How subtitles look (kept on this device) and their timing for this playback (+ is later). */
+  /** How subtitles look (kept on this device and the account; the TV app has its own) and their timing for this playback (+ is later). */
   const [subStyle, setSubStyle] = useState<SubtitleStyle>(DEFAULT_SUBTITLE_STYLE);
   const styleRef = useRef(subStyle);
   styleRef.current = subStyle;
@@ -177,13 +178,14 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   const styleConnection = useRef({ api, serverUrl, cloudServerId, userId: user?.id ?? null });
   styleConnection.current = { api, serverUrl, cloudServerId, userId: user?.id ?? null };
   const styleSync = useRef<ReturnType<typeof createSubtitleStyleSync> | null>(null);
+  const styleField = accountStyleField(TV);
   if (!styleSync.current) {
     const scope = subtitleStyleAccountScope(styleConnection.current);
     styleSync.current = createSubtitleStyleSync({
       scope,
       readDevice: storedSubtitleStyle,
       writeDevice: storeSubtitleStyle,
-      writeAccount: (style) => styleConnection.current.api.put('/api/account/preferences', { subtitleStyle: style }),
+      writeAccount: (style) => styleConnection.current.api.put('/api/account/preferences', { [styleField]: style }),
       change: (style) => {
         styleRef.current = style;
         setSubStyle(style);
@@ -191,7 +193,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
       },
       saved: (style) => {
         setStyleSaveFailed(false);
-        qc.setQueryData<Prefs>([styleConnection.current.serverUrl, 'account-prefs'], (current) => current ? { ...current, subtitleStyle: style } : current);
+        qc.setQueryData<Prefs>([styleConnection.current.serverUrl, 'account-prefs'], (current) => current ? { ...current, [styleField]: style } : current);
       },
       failed: () => setStyleSaveFailed(true),
       active: () => styleAlive.current && subtitleStyleAccountScope(styleConnection.current) === scope,
@@ -199,7 +201,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   }
   useEffect(() => {
     styleAlive.current = true;
-    void styleSync.current!.load(prefs?.subtitleStyle ?? null).catch(() => undefined);
+    void styleSync.current!.load(prefs?.[styleField] ?? null).catch(() => undefined);
     return () => {
       styleAlive.current = false;
     };

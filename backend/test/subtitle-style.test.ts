@@ -34,7 +34,7 @@ describe('account subtitle style', () => {
     expect(saved.statusCode).toBe(200);
     expect(saved.json()).toEqual({
       subtitleStyle: style, audioLanguage: 'nl', subtitleLanguage: 'en', subtitleFallback: 'nl',
-      subtitleMode: 'foreign', skipIntro: 'always', skipCredits: 'never', skipRecap: 'ask', audioMode: 'normal',
+      subtitleMode: 'foreign', skipIntro: 'always', skipCredits: 'never', skipRecap: 'ask', audioMode: 'normal', subtitleStyleTv: null,
     });
     const stored = env.ctx.db.$client.prepare('SELECT pref_subtitle_style AS style FROM users WHERE username = ?').get('admin') as { style: string };
     expect(JSON.parse(stored.style)).toEqual(style);
@@ -55,6 +55,21 @@ describe('account subtitle style', () => {
     });
     expect(cleared.json()).toMatchObject({ subtitleStyle: null, audioLanguage: 'nl', skipRecap: 'always' });
     expect((await env.app.inject({ url: '/api/account/preferences', headers: secondHeaders })).json().subtitleStyle).toBeNull();
+  });
+
+  it('keeps the TV style apart: changing one leaves the other', async () => {
+    const cookie = await setupAdmin(env.app);
+    const headers = { cookie };
+    const tv = { ...style, size: 'xlarge', color: 'white' };
+    await env.app.inject({ method: 'PUT', url: '/api/account/preferences', headers, payload: { subtitleStyle: style } });
+    const saved = await env.app.inject({ method: 'PUT', url: '/api/account/preferences', headers, payload: { subtitleStyleTv: tv } });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toMatchObject({ subtitleStyle: style, subtitleStyleTv: tv });
+    const changed = await env.app.inject({ method: 'PUT', url: '/api/account/preferences', headers, payload: { subtitleStyle: { ...style, size: 'small' } } });
+    expect(changed.json()).toMatchObject({ subtitleStyle: { ...style, size: 'small' }, subtitleStyleTv: tv });
+    expect((await env.app.inject({ method: 'PUT', url: '/api/account/preferences', headers, payload: { subtitleStyleTv: { ...tv, size: 'huge' } } })).statusCode).toBe(400);
+    const cleared = await env.app.inject({ method: 'PUT', url: '/api/account/preferences', headers, payload: { subtitleStyleTv: null } });
+    expect(cleared.json()).toMatchObject({ subtitleStyle: { ...style, size: 'small' }, subtitleStyleTv: null });
   });
 
   it('defaults castDefaults to false for an imported custom style', async () => {

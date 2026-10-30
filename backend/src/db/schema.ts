@@ -32,6 +32,8 @@ export const users = sqliteTable('users', {
   prefSubtitleMode: text('pref_subtitle_mode', { enum: ['remember', 'always', 'foreign', 'forced', 'off'] }).notNull().default('remember'),
   /** JSON account style; null preserves each device's local subtitle settings. */
   prefSubtitleStyle: text('pref_subtitle_style'),
+  /** The TV app's own style: a TV is watched from further away, so it keeps its own size. */
+  prefSubtitleStyleTv: text('pref_subtitle_style_tv'),
   /** Skipping detected intros / credits: never offer, offer a button (ask), or skip automatically. */
   prefSkipIntro: text('pref_skip_intro', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
   prefSkipCredits: text('pref_skip_credits', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
