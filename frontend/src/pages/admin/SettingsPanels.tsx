@@ -132,10 +132,10 @@ export function MetadataSettings() {
   );
 }
 
-/** Intros & credits: whether and how they are detected (results are shared and corrected centrally). */
+/** Intros & credits: whether and how they are detected, and whether results are shared with vidalune.com. */
 export function DetectionSettings() {
   const { t } = useT();
-  const { query, save, form, setForm } = usePanel((s) => ({ segmentDetection: s.segmentDetection, segmentVideo: s.segmentVideo }));
+  const { query, save, form, setForm } = usePanel((s) => ({ segmentDetection: s.segmentDetection, segmentVideo: s.segmentVideo, shareDetection: s.shareDetection }));
   if (!query.data || !form) return <PanelState query={query} />;
   return (
     <form
@@ -150,7 +150,7 @@ export function DetectionSettings() {
       <h2 id="detection-settings-title" className="font-display text-lg font-semibold">{t('server.detectionTitle')}</h2>
       <Check checked={form.segmentDetection} onChange={(v) => setForm({ ...form, segmentDetection: v })} label={t('server.segments')} hint={t('server.segmentsHint')} />
       <Check indent checked={form.segmentVideo} disabled={!form.segmentDetection} onChange={(v) => setForm({ ...form, segmentVideo: v })} label={t('server.segmentVideo')} hint={t('server.segmentVideoHint')} />
-      <p className="text-xs text-faint">{t('server.sharedDetectionText')}</p>
+      <Check indent checked={form.shareDetection} disabled={!form.segmentDetection} onChange={(v) => setForm({ ...form, shareDetection: v })} label={t('server.shareDetection')} hint={t('server.shareDetectionHint')} />
       <Button type="submit" loading={save.isPending}>{t('common.save')}</Button>
     </form>
   );

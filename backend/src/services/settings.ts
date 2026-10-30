@@ -132,6 +132,11 @@ export interface ServerSettings {
   segmentDetection: boolean;
   /** Also recognise end credits in the picture (keyframes of the last minutes, low resolution). */
   segmentVideo: boolean;
+  /**
+   * Send this server's intro/credits results to vidalune.com (on by default; a linked server only).
+   * Off: nothing is sent, but corrections and what other servers agree on are still received.
+   */
+  shareDetection: boolean;
   cleanupRules: CleanupRules;
   /** Library clean-up may delete files (off by default; the library must also be mounted writable). */
   cleanupDeletion: boolean;
@@ -183,6 +188,7 @@ const DEFAULTS: ServerSettings = {
   maintenanceEnd: '06:00',
   maintenanceOutside: true,
   segmentVideo: true,
+  shareDetection: true,
   cleanupRules: DEFAULT_CLEANUP_RULES,
   cleanupDeletion: false,
   cleanupCustomRules: [],

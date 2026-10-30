@@ -1,13 +1,13 @@
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { addLibrary, createTestEnv, fakeProbe, rescan, setupAdmin, touch, type TestEnv } from './helpers.js';
+import { addLibrary, createTestEnv, createUser, fakeProbe, rescan, setupAdmin, touch, type TestEnv } from './helpers.js';
 import { episode, melody, shotFrame } from './segments-helpers.js';
 import { SAMPLE_RATE } from '../src/services/segments/fingerprint.js';
 import type { AudioReader } from '../src/services/segments/detector.js';
 import type { FrameReader } from '../src/services/segments/readers.js';
 import { episodes, episodeSegments, mediaFiles } from '../src/db/schema.js';
-import { playbackSegments, saveManualSegments } from '../src/services/segments/store.js';
+import { playbackSegments } from '../src/services/segments/store.js';
 
 const INTRO_S1 = melody(30, 101);
 const INTRO_S2 = melody(25, 202);
@@ -173,6 +173,8 @@ describe('intro and credits detection service', () => {
     const h = await setup(['S01E01.mkv', 'S01E02.mkv'], { enabled: false });
     expect(h.reads).toHaveLength(0);
     expect(h.env.ctx.segments.status()).toMatchObject({ state: 'disabled', counts: { pending: 2 } });
+    const res = await h.env.app.inject({ method: 'POST', url: '/api/admin/segments/analyze', headers: { cookie: h.admin }, payload: { scope: 'all' } });
+    expect(res.statusCode).toBe(409);
   });
 
   it('records unreadable files as errors without retrying them on every scan', async () => {
@@ -191,24 +193,45 @@ describe('intro and credits detection service', () => {
     for (const f of ['S01E01.mkv', 'S01E02.mkv', 'S01E03.mkv']) touch(path.join(env.mediaDir, 'tv', 'The Show', 'Season 01', `The.Show.${f}`));
     await addLibrary(env, admin, 'shows', 'tv');
     await env.ctx.segments.whenIdle();
-    expect(env.ctx.segments.status().counts).toMatchObject({ episodes: 3, analyzed: 2, errors: 1, intros: 2 });
-    const failed = env.ctx.db.select().from(episodeSegments).where(eq(episodeSegments.status, 'error')).all();
-    expect(failed).toHaveLength(1);
-    expect(failed[0]).toMatchObject({ episodeId: episodeId(env, 1, 3), error: 'Invalid data found when processing input' });
+    const res = (await env.app.inject({ method: 'GET', url: '/api/admin/segments', headers: { cookie: admin } })).json();
+    expect(res.status.counts).toMatchObject({ analyzed: 2, errors: 1 });
+    expect(res.errors[0]).toMatchObject({ episodeNumber: 3, error: 'Invalid data found when processing input' });
+    // The two readable episodes still found their intro by comparing with each other.
+    expect(res.shows[0]).toMatchObject({ episodes: 3, intros: 2, errors: 1 });
     const n = reads.length;
     expect(env.ctx.segments.enqueuePending()).toBe(0);
     await env.ctx.segments.whenIdle();
     expect(reads.length).toBe(n);
   }, 60_000);
 
-  it('keeps a correction by hand made earlier over automatic results when analysing again', async () => {
+  it('keeps manual corrections over automatic results, and analyses again when they are removed', async () => {
     const h = await setup(['S01E01.mkv', 'S01E02.mkv', 'S01E03.mkv']);
     const id = episodeId(h.env, 1, 1);
-    const file = h.env.ctx.db.select().from(mediaFiles).where(eq(mediaFiles.episodeId, id)).get()!;
-    saveManualSegments(h.env.ctx.db, id, file, { intro: { start: 12, end: 44 }, credits: null, postCredits: { start: 230, end: 240 } });
-    expect(h.env.ctx.segments.reanalyze({ showId: h.env.ctx.db.select().from(episodes).get()!.showId })).toBe(2);
+    const put = (payload: Record<string, unknown>) => h.env.app.inject({ method: 'PUT', url: `/api/admin/segments/episodes/${id}`, headers: { cookie: h.admin }, payload });
+    expect((await put({ intro: { start: 50, end: 40 }, credits: null, postCredits: null })).statusCode).toBe(400);
+    expect((await put({ intro: { start: 10, end: 5000 }, credits: null, postCredits: null })).statusCode).toBe(400);
+    expect((await put({ intro: { start: 200, end: 220 }, credits: { start: 100, end: 150 }, postCredits: null })).statusCode).toBe(400);
+    const ok = await put({ intro: { start: 12, end: 44 }, credits: null, postCredits: { start: 230, end: 240 } });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toMatchObject({ manual: true, method: 'manual', intro: { start: 12, end: 44 } });
+
+    // Re-analysing the whole show leaves the correction alone.
+    const analyze = await h.env.app.inject({ method: 'POST', url: '/api/admin/segments/analyze', headers: { cookie: h.admin }, payload: { scope: 'show', showId: h.env.ctx.db.select().from(episodes).get()!.showId } });
+    expect(analyze.json()).toEqual({ queued: 2 });
     await h.env.ctx.segments.whenIdle();
     expect(playbackSegments(h.env.ctx.db, id)).toMatchObject({ manual: true, intro: { start: 12, end: 44 }, credits: null, postCredits: { start: 230, end: 240 } });
+
+    // Removing it brings back the automatic result.
+    const del = await h.env.app.inject({ method: 'DELETE', url: `/api/admin/segments/episodes/${id}`, headers: { cookie: h.admin } });
+    expect(del.json()).toEqual({ ok: true, removed: true });
+    await h.env.ctx.segments.whenIdle();
+    const auto = playbackSegments(h.env.ctx.db, id)!;
+    expect(auto.manual).toBe(false);
+    expect(Math.abs(auto.intro!.start - 20)).toBeLessThan(1.5);
+
+    const audit = (await h.env.app.inject({ method: 'GET', url: '/api/admin/audit', headers: { cookie: h.admin } })).json();
+    const actions = JSON.stringify(audit);
+    for (const a of ['segments.edited', 'segments.analyze', 'segments.reset']) expect(actions).toContain(a);
   }, 60_000);
 
   it('never gives the player low-confidence results', async () => {
@@ -236,14 +259,24 @@ describe('intro and credits detection service', () => {
     expect(Math.abs(playbackSegments(h.env.ctx.db, id)!.intro!.start - 20)).toBeLessThan(1.5);
   }, 60_000);
 
-  it('has no admin pages for intros and credits any more (they are in the Control Center), and leaves short episodes out', async () => {
+  it('is for administrators only and validates input', async () => {
     const h = await setup(['S01E01.mkv'], { enabled: false });
+    const user = await createUser(h.env.app, h.admin, 'viewer');
     for (const [method, url] of [['GET', '/api/admin/segments'], ['GET', '/api/admin/segments/shows/1'], ['PUT', '/api/admin/segments/episodes/1'], ['DELETE', '/api/admin/segments/episodes/1'], ['POST', '/api/admin/segments/analyze']] as const) {
-      expect((await h.env.app.inject({ method, url, headers: { cookie: h.admin }, payload: method === 'GET' || method === 'DELETE' ? undefined : {} })).statusCode).toBe(404);
+      expect((await h.env.app.inject({ method, url, headers: { cookie: user.cookie }, payload: method === 'GET' || method === 'DELETE' ? undefined : {} })).statusCode).toBe(403);
     }
+    h.env.ctx.settings.update({ segmentDetection: true });
+    const bad = await h.env.app.inject({ method: 'POST', url: '/api/admin/segments/analyze', headers: { cookie: h.admin }, payload: { scope: 'everything' } });
+    expect(bad.statusCode).toBe(400);
+    const missing = await h.env.app.inject({ method: 'POST', url: '/api/admin/segments/analyze', headers: { cookie: h.admin }, payload: { scope: 'episode', episodeId: 9999 } });
+    expect(missing.statusCode).toBe(404);
+    const show = await h.env.app.inject({ method: 'GET', url: `/api/admin/segments/shows/${h.env.ctx.db.select().from(episodes).get()!.showId}`, headers: { cookie: h.admin } });
+    expect(show.json().seasons[0].episodes[0]).toMatchObject({ episodeNumber: 1, eligible: true, segments: null });
     // Episodes too short to analyse are left out of the counts instead of waiting forever.
     h.env.ctx.db.update(mediaFiles).set({ durationSec: 30 }).run();
-    expect(h.env.ctx.segments.status().counts).toMatchObject({ episodes: 0, pending: 0 });
+    const overview = (await h.env.app.inject({ method: 'GET', url: '/api/admin/segments', headers: { cookie: h.admin } })).json();
+    expect(overview.shows).toEqual([]);
+    expect(overview.status.counts).toMatchObject({ episodes: 0, pending: 0 });
   });
 
   it('stores skip preferences per user', async () => {

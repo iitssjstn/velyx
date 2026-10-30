@@ -37,6 +37,7 @@ import { player } from './player';
 import { quickSearch } from './quickSearch';
 import { requests } from './requests';
 import { roles } from './roles';
+import { segments } from './segments';
 import { schedule } from './schedule';
 import { search } from './search';
 import { searchPage } from './searchPage';
@@ -51,4 +52,4 @@ import { time } from './time';
 import { users } from './users';
 
 /** English: the source language. Every other language has exactly these keys. */
-export const en = { activity, admin, adminItem, arr, audit, auth, backup, browse, cleanup, cloud, collections, common, continueWatching, dashboard, detail, device, errors, fixMatch, greeting, health, home, install, libraries, library, lists, logs, media, mediaInfo, metadata, nav, notFound, notifications, onlineSubs, optimization, playback, player, quickSearch, requests, roles, schedule, search, searchPage, series, server, sessions, settings, setup, smart, subtitleStyle, time, users };
+export const en = { activity, admin, adminItem, arr, audit, auth, backup, browse, cleanup, cloud, collections, common, continueWatching, dashboard, detail, device, errors, fixMatch, greeting, health, home, install, libraries, library, lists, logs, media, mediaInfo, metadata, nav, notFound, notifications, onlineSubs, optimization, playback, player, quickSearch, requests, roles, schedule, search, searchPage, segments, series, server, sessions, settings, setup, smart, subtitleStyle, time, users };

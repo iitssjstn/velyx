@@ -124,10 +124,15 @@ export class SharedDetection {
   constructor(
     private readonly db: DB,
     private readonly cloud: CloudCalls,
+    /** Whether this server sends its own results (on by default). Off: it only receives. */
+    private readonly share: () => boolean = () => true,
     private readonly now: () => number = Date.now,
   ) {}
 
-  /** Always on for a server known to vidalune.com; a server that is not stays local (it is never registered for this). */
+  /**
+   * On for a server known to vidalune.com; a server that is not stays local (it is never
+   * registered for this). Sending can be switched off; receiving goes on.
+   */
   private on(): boolean {
     return this.cloud.registered();
   }
@@ -183,10 +188,23 @@ export class SharedDetection {
     const tmdb = this.tmdbOf(showId);
     if (!tmdb) return;
     const rows = this.season(showId, season);
+    if (!this.share()) {
+      // Not sharing: nothing is sent, but the season's profile (corrections and what others agree
+      // on) is still asked for and used.
+      let received: SharedProfile;
+      try {
+        received = this.keep(await this.cloud.detectionProfile<SharedProfile>(tmdb, season));
+      } catch (err) {
+        log.debug(`Shared detection not available: ${(err as Error).message}`);
+        return;
+      }
+      this.apply(rows, received);
+      return;
+    }
     const own = (r: Row) => {
       const parts: Array<{ kind: SharedKind; start: number; end: number; source: 'audio' | 'chapters' | 'video' | 'manual' }> = [];
       const add = (kind: SharedKind, start: number | null, end: number | null, confidence: Row['introConfidence'], source: Row['introSource']) => {
-        if (start === null || end === null || end <= start || source === 'shared') return;
+        if (start === null || end === null || end <= start || source === 'shared' || source === 'central') return;
         if (!r.manual && confidence !== 'high' && confidence !== 'medium') return;
         parts.push({ kind, start, end, source: r.manual || source === 'manual' ? 'manual' : source === 'chapters' || source === 'video' ? source : 'audio' });
       };
@@ -223,9 +241,10 @@ export class SharedDetection {
    * A correction from the Control Center replaces that part, also a correction by hand here; the
    * other parts of a corrected episode stay as they are (an episode corrected by hand here stays
    * `manual`, so the rest of its correction still holds and is not analysed over). The part gets the
-   * source `shared`, so it is never reported back as found here. A part taken from others (source
-   * `shared`) that nothing backs any more — the correction was removed, or the servers no longer
-   * agree — is emptied and its episode analysed again by the usual rules.
+   * source `central`, so the admin page shows it was set on vidalune.com and it is never reported
+   * back as found here. A part taken from vidalune.com (source `shared` or `central`) that nothing
+   * backs any more — the correction was removed, or the servers no longer agree — is emptied and its
+   * episode analysed again by the usual rules.
    */
   private apply(rows: Array<{ number: number; duration: number; seg: Row }>, profile: SharedProfile): void {
     for (const { number, duration, seg } of rows) {
@@ -237,16 +256,17 @@ export class SharedDetection {
         const o = forced[kind];
         const source = seg[`${kind}Source`];
         if (o) {
-          Object.assign(set, { [`${kind}Start`]: o.start, [`${kind}End`]: o.end, [`${kind}Confidence`]: 'high', [`${kind}Source`]: 'shared' });
+          Object.assign(set, { [`${kind}Start`]: o.start, [`${kind}End`]: o.end, [`${kind}Confidence`]: 'high', [`${kind}Source`]: 'central' });
           continue;
         }
         const start = seg[`${kind}Start`];
         const weak = start === null || seg[`${kind}Confidence`] === 'low' || seg[`${kind}Confidence`] === null;
         const t = seg.manual ? undefined : theirs[kind];
+        const borrowed = source === 'shared' || source === 'central';
         // Also updates an earlier shared part when more servers agree now.
-        if (t && (weak || source === 'shared')) {
+        if (t && (weak || borrowed)) {
           Object.assign(set, { [`${kind}Start`]: t.start, [`${kind}End`]: t.end, [`${kind}Confidence`]: t.confidence, [`${kind}Source`]: 'shared' });
-        } else if (source === 'shared' && start !== null) {
+        } else if (borrowed && start !== null) {
           Object.assign(set, { [`${kind}Start`]: null, [`${kind}End`]: null, [`${kind}Confidence`]: null, [`${kind}Source`]: null });
           stale = true;
         }

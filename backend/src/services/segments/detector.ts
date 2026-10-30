@@ -102,6 +102,8 @@ export interface DetectorStatus {
     lowConfidence: number;
     /** Shared detection: episodes with a part taken from other servers, and results others agree with. */
     fromShared: number;
+    /** Episodes with a part set by a correction on vidalune.com. */
+    central: number;
     confirmed: number;
   };
   version: number;
@@ -312,6 +314,7 @@ export class SegmentDetector {
         manual: current.filter((r) => r.manual).length,
         lowConfidence: current.filter((r) => !r.manual && (r.introConfidence === 'low' || r.creditsConfidence === 'low')).length,
         fromShared: current.filter((r) => r.recapSource === 'shared' || r.introSource === 'shared' || r.creditsSource === 'shared').length,
+        central: current.filter((r) => r.recapSource === 'central' || r.introSource === 'central' || r.creditsSource === 'central').length,
         confirmed: current.filter((r) => r.shareState === 'shared' || r.shareState === 'verified').length,
       },
       version: DETECTION_VERSION,
@@ -466,7 +469,7 @@ export class SegmentDetector {
         for (const kind of ['recap', 'intro', 'credits'] as const) {
           const o = forced[kind];
           if (o) {
-            base[kind] = { start: o.start, end: o.end, confidence: 'high', source: 'shared' };
+            base[kind] = { start: o.start, end: o.end, confidence: 'high', source: 'central' };
             used = true;
             continue;
           }
@@ -566,7 +569,7 @@ export class SegmentDetector {
     for (const f of files) {
       const d = results.get(f.episodeId);
       const intro = d ? d.intro : known.get(f.episodeId)?.intro;
-      if (intro && intro.confidence !== 'low' && intro.source !== 'chapters' && intro.source !== 'shared') edges.set(f.episodeId, { start: intro.start, end: intro.end });
+      if (intro && intro.confidence !== 'low' && intro.source !== 'chapters' && intro.source !== 'shared' && intro.source !== 'central') edges.set(f.episodeId, { start: intro.start, end: intro.end });
     }
     const frames = new Map<string, FrameStats[] | null>();
     const around = async (f: EpisodeFile, t: number) => {

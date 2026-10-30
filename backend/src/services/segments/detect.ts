@@ -35,8 +35,11 @@ export interface EpisodeAudio {
   full?: Fingerprint | null;
 }
 
-/** Where a result came from: chapter markers, the picture, or recurring audio. */
-export type SegmentSource = 'chapters' | 'video' | 'audio' | 'shared';
+/**
+ * Where a result came from: chapter markers, the picture, recurring audio, what other servers agree
+ * on (`shared`), or a correction made centrally on vidalune.com (`central`).
+ */
+export type SegmentSource = 'chapters' | 'video' | 'audio' | 'shared' | 'central';
 
 export interface Span {
   start: number;
@@ -45,7 +48,7 @@ export interface Span {
 
 export interface Detection {
   /** A recap ("previously on") before the intro. */
-  recap: (Span & { confidence: Confidence; source: 'chapters' | 'audio' | 'shared' }) | null;
+  recap: (Span & { confidence: Confidence; source: 'chapters' | 'audio' | 'shared' | 'central' }) | null;
   intro: (Span & { confidence: Confidence; source: SegmentSource }) | null;
   credits: (Span & { confidence: Confidence; source: SegmentSource }) | null;
   /** Content after the credits (a post-credits scene): never skipped automatically. */

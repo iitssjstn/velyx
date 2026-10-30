@@ -182,11 +182,13 @@ describe('corrections by the CEO', () => {
 });
 
 describe('the privacy policy', () => {
-  it('says linked servers always share intros and credits, and what is never sent', async () => {
+  it('says linked servers share intros and credits by default, that sharing can be turned off, and what is never sent', async () => {
     const en = (await app.inject({ url: '/privacy' })).body;
-    expect(en).toContain('Every linked server shares where it found the recap, intro and credits');
+    expect(en).toContain('A linked server shares where it found the recap, intro and credits');
+    expect(en).toContain('an administrator can turn sharing off in Admin → Maintenance');
     expect(en).toContain('Never titles, file names, paths, users or what anyone watches.');
     const nl = (await app.inject({ url: '/privacy', headers: { 'accept-language': 'nl-NL,nl;q=0.9' } })).body;
-    expect(nl).toContain('Elke gekoppelde server deelt waar hij de recap, intro en aftiteling');
+    expect(nl).toContain('Een gekoppelde server deelt waar hij de recap, intro en aftiteling');
+    expect(nl).toContain('een beheerder kan het delen uitzetten onder Beheer → Onderhoud');
   });
 });

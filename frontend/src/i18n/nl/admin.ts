@@ -19,6 +19,7 @@ export const admin: Messages['admin'] = {
     users: 'Gebruikers',
     metadata: 'Metadata',
     health: 'Bibliotheekgezondheid',
+    intros: 'Intro\'s en aftiteling',
     optimization: 'Optimalisatie',
     cleanup: 'Opschonen',
     server: 'Server',

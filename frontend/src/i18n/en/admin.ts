@@ -18,6 +18,7 @@ export const admin = {
     users: 'Users',
     metadata: 'Metadata',
     health: 'Library health',
+    intros: 'Intros & credits',
     optimization: 'Optimization',
     cleanup: 'Clean-up',
     server: 'Server',

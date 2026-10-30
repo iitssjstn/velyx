@@ -167,7 +167,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Zod-validatie en autorisatie op elk endpoint, Drizzle-migraties, tests voor alles (nooit tests weghalen).
 - README beschrijft alleen wat bestaat. Geen andere mediaservers of streamingdiensten noemen in
   projectteksten (Seerr mag). Geen AI-functies. Externe diensten zijn opt-in (uitzondering, besluit eigenaar 30 okt:
-  gekoppelde servers delen intro- en aftitelingtijden altijd met vidalune.com).
+  gekoppelde servers delen intro- en aftitelingtijden standaard met vidalune.com; de beheerder kan het uitzetten).
 - OpenSubtitles-gegevens alleen via het Control Center, nooit in compose. De apt-ondertekeningssleutel
   nooit in de chat.
 
@@ -797,6 +797,20 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
     overrides en doorsturen. Backend 643, frontend 369, cloud 221, app 271 tests; typechecks, build en lint (0 fouten,
     4 bekende waarschuwingen) slagen. Na de release: accountservice bijwerken (anders geen correcties in het Control
     Center).
+- **Tussenvorm voor intro-correcties** (eigenaar 30 okt vroeg "Is dit trouwens een slim idee? dit weghalen van de
+  beheerder?"; nadelen besproken: beheerders konden niets meer melden, alles via de CEO, niet-gekoppelde servers geen
+  uitweg, wachten, delen zonder keuze; daarna "Ja doe jouw advies maar, heb je een midden weg"). Gebouwd met twee
+  agents (server, website), accountservice/README zelf:
+  - Beheer > Intro's en aftiteling is terug: een handcorrectie geldt meteen voor de eigen server en gaat (bij delen)
+    als voorstel naar vidalune.com; een CEO-correctie gaat altijd voor en heeft nu een eigen bron `central` (pagina:
+    "Vidalune", met uitleg). Routes `/api/admin/segments*` terug; status telt `central`.
+  - Delen standaard aan, uit te zetten: nieuwe instelling `shareDetection` (standaard aan; nieuwe sleutel omdat oude
+    installaties `sharedDetection=false` hadden) op Beheer > Onderhoud. Uit: de server stuurt niets, maar haalt wel
+    correcties en wat anderen eens zijn op. Privacybeleid en README aangepast; werkafspraak opt-in daarmee weer
+    gerespecteerd (opt-out met uitleg).
+  - Niet gebouwd (eventueel later): knop "Intro klopt niet" voor kijkers.
+  - Backend 646, frontend 376, cloud 221, app 271 tests; typechecks, build en lint (0 fouten, 4 bekende
+    waarschuwingen) slagen.
 - Eigenaar (30 okt): "wacht met pushen zodat we meerdere dingen kunnen toevoegen als ik die tegenkom". Nieuwe punten
   komen in 0.20.3 en blijven lokaal tot hij zegt dat het klaar is; daarna pas pushen en de PR.
 

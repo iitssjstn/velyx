@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { addLibrary, createTestEnv, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
 import { episode, melody } from './segments-helpers.js';
 import { SAMPLE_RATE } from '../src/services/segments/fingerprint.js';
@@ -72,5 +73,11 @@ describe('recaps in the background detection', () => {
     expect(reads.slice(before).filter((r) => r.startsWith('The.Show.S01E03'))).toEqual([]);
     expect((await seg(3)).recap.confidence).toBe('high');
 
+    // An administrator's correction of the recap is kept.
+    const put = await env.app.inject({ method: 'PUT', url: `/api/admin/segments/episodes/${id(2)}`, headers: { cookie: admin }, payload: { recap: { start: 0, end: 30 }, intro: { start: 48, end: 78 }, credits: null, postCredits: null } });
+    expect(put.json().recap).toMatchObject({ start: 0, end: 30, source: 'manual' });
+    const bad = await env.app.inject({ method: 'PUT', url: `/api/admin/segments/episodes/${id(2)}`, headers: { cookie: admin }, payload: { recap: { start: 0, end: 60 }, intro: { start: 48, end: 78 }, credits: null, postCredits: null } });
+    expect(bad.statusCode).toBe(400);
+    expect(env.ctx.db.select().from(episodes).where(eq(episodes.id, id(2))).get()).toBeTruthy();
   }, 120_000);
 });

@@ -12,6 +12,7 @@ import { episodes, episodeSegments, sharedDetectionCache, shows } from '../src/d
 import { playbackSegments } from '../src/services/segments/store.js';
 import { overridesFor, PROFILE_FRESH_MS, SHARED_SYNC_MS, SharedDetection, sharedFor, sharedReferences, shareState, weakest, type SharedProfile } from '../src/services/segments/shared.js';
 import { mediaFiles } from '../src/db/schema.js';
+import { SettingsService } from '../src/services/settings.js';
 
 /**
  * The real account service (vidalune.com), in this process. Loaded at run time: it is another
@@ -165,6 +166,62 @@ describe('shared detection between servers', () => {
     expect(sent.length).toBe(before);
   });
 
+  it('shares by default; switched off it sends nothing but still takes corrections and what others agree on', async () => {
+    const a = await server(Object.keys(LAYOUT));
+    expect(a.env.ctx.settings.get().shareDetection).toBe(true);
+    const length = a.env.ctx.db.select().from(mediaFiles).where(eq(mediaFiles.episodeId, seg(a.env, 2).id)).get()!.durationSec!;
+    const off = await a.env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: a.admin }, payload: { shareDetection: false } });
+    expect(off.statusCode).toBe(200);
+    expect(off.json().shareDetection).toBe(false);
+    expect((await a.env.app.inject({ method: 'PUT', url: '/api/admin/settings', headers: { cookie: a.admin }, payload: { shareDetection: 'no' } })).statusCode).toBe(400);
+    const posts: unknown[] = [];
+    const asked: number[] = [];
+    const shared = new SharedDetection(
+      a.env.ctx.db,
+      {
+        registered: () => true,
+        detectionProfile: async <T,>(tmdb: number) => {
+          asked.push(tmdb);
+          return profile({ tmdbShow: TMDB, overrides: [{ episode: 2, kind: 'intro', duration: length, start: 37, end: 67 }] }) as T;
+        },
+        reportDetection: async <T,>(body: unknown) => {
+          posts.push(body);
+          return profile() as T;
+        },
+      },
+      () => a.env.ctx.settings.get().shareDetection,
+    );
+    await shared.report(a.showId, 1);
+    await shared.syncAll(0);
+    expect(posts).toEqual([]);
+    expect(asked.length).toBeGreaterThanOrEqual(2);
+    expect(seg(a.env, 2).row).toMatchObject({ introStart: 37, introEnd: 67, introSource: 'central' });
+    // On again: it reports.
+    a.env.ctx.settings.update({ shareDetection: true });
+    await shared.report(a.showId, 1);
+    expect(posts).toHaveLength(1);
+  }, 120_000);
+
+  it('is not held back by the old opt-in switch that older versions stored as off', async () => {
+    const env = await createTestEnv();
+    envs.push(env);
+    env.ctx.db.$client.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('sharedDetection', 'false')").run();
+    // Read fresh from the database, as after an upgrade.
+    expect(new SettingsService(env.ctx.db, env.ctx.config).get().shareDetection).toBe(true);
+  });
+
+  it('sends a correction by hand from the admin page as a proposal', async () => {
+    const a = await server(Object.keys(LAYOUT));
+    const before = sent.length;
+    const id = seg(a.env, 1).id;
+    const put = await a.env.app.inject({ method: 'PUT', url: `/api/admin/segments/episodes/${id}`, headers: { cookie: a.admin }, payload: { intro: { start: 19, end: 49 }, credits: null, postCredits: null } });
+    expect(put.statusCode).toBe(200);
+    expect(put.json()).toMatchObject({ manual: true, intro: { start: 19, end: 49, source: 'manual' } });
+    await new Promise((r) => setTimeout(r, 50));
+    const report = sent.slice(before).filter((x) => x.path === '/api/detection/reports').at(-1)?.body as { episodes: Array<{ episode: number; parts: Array<{ kind: string; source: string; start: number }> }> } | undefined;
+    expect(report?.episodes.find((e) => e.episode === 1)?.parts).toEqual([expect.objectContaining({ kind: 'intro', source: 'manual', start: 19 })]);
+  }, 120_000);
+
   it('puts in the Control Center\'s corrections over anything found here, also a correction by hand, and lets go of them when removed', async () => {
     const a = await server(Object.keys(LAYOUT));
     const length = (n: number) => a.env.ctx.db.select().from(mediaFiles).where(eq(mediaFiles.episodeId, seg(a.env, n).id)).get()!.durationSec!;
@@ -187,10 +244,15 @@ describe('shared detection between servers', () => {
       },
     });
     await shared.report(a.showId, 1);
-    expect(seg(a.env, 2).row).toMatchObject({ introStart: 36, introEnd: 66, introConfidence: 'high', introSource: 'shared' });
+    // Shown on the admin page as set on vidalune.com.
+    expect(seg(a.env, 2).row).toMatchObject({ introStart: 36, introEnd: 66, introConfidence: 'high', introSource: 'central' });
     expect(playbackSegments(a.env.ctx.db, seg(a.env, 2).id)?.intro).toMatchObject({ start: 36, end: 66 });
     // Over the correction by hand; the rest of that correction still holds.
-    expect(seg(a.env, 1).row).toMatchObject({ manual: true, introStart: 21, introEnd: 51, introSource: 'shared', creditsStart: 200, creditsEnd: 240 });
+    expect(seg(a.env, 1).row).toMatchObject({ manual: true, introStart: 21, introEnd: 51, introSource: 'central', creditsStart: 200, creditsEnd: 240 });
+    // The admin page shows which parts were set on vidalune.com.
+    const page = (await a.env.app.inject({ method: 'GET', url: `/api/admin/segments/shows/${a.showId}`, headers: { cookie: a.admin } })).json();
+    const ep1 = page.seasons[0].episodes.find((e: { episodeNumber: number }) => e.episodeNumber === 1);
+    expect(ep1.segments).toMatchObject({ manual: true, intro: { start: 21, end: 51, source: 'central' }, credits: { start: 200, end: 240, source: 'manual' } });
     expect(seg(a.env, 3).row).toMatchObject({ introStart: e3.introStart, introSource: 'audio' });
 
     // Reported: the correction by hand as a proposal, never the Control Center's own timing.
@@ -286,6 +348,7 @@ describe('shared detection: using what others agree on', () => {
         },
         reportDetection: async <T,>() => profile() as T,
       },
+      () => true,
       () => clock,
     );
     expect((await shared.profile(showId, 1))?.parts).toHaveLength(1);

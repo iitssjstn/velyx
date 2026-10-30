@@ -10,6 +10,7 @@ vi.mock('./Logs', () => ({ LogsPage: () => <p>logs page</p> }));
 vi.mock('./Backup', () => ({ BackupPage: () => <p>backup page</p> }));
 vi.mock('./Integrations', () => ({ IntegrationsPage: () => <p>integrations page</p> }));
 vi.mock('./SettingsPanels', () => ({ MaintenancePage: () => <p>maintenance page</p> }));
+vi.mock('./Segments', () => ({ SegmentsPage: () => <p>intros page</p> }));
 
 import AdminLayout from './AdminLayout';
 
@@ -37,7 +38,7 @@ describe('admin side navigation', () => {
     }
     const links = within(nav).getAllByRole('link');
     expect(links.map((l) => l.getAttribute('href')).sort()).toEqual(
-      ['dashboard', 'activity', 'logs', 'audit', 'notifications', 'libraries', 'metadata', 'health', 'playback', 'optimization', 'cleanup', 'integrations', 'cloud', 'maintenance', 'server', 'backup', 'users']
+      ['dashboard', 'activity', 'logs', 'audit', 'notifications', 'libraries', 'metadata', 'health', 'intros', 'playback', 'optimization', 'cleanup', 'integrations', 'cloud', 'maintenance', 'server', 'backup', 'users']
         .map((s) => `/admin/${s}`)
         .sort(),
     );
@@ -57,11 +58,11 @@ describe('admin side navigation', () => {
     expect(screen.getByRole('button', { name: 'Backup' }).getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('sends the old Intros & credits address to Maintenance (corrections are made centrally now)', async () => {
+  it('has the Intros & credits page again (corrections here apply to this server and go to vidalune.com)', async () => {
     setup('/admin/intros');
-    expect(await screen.findByText('maintenance page')).toBeTruthy();
+    expect(await screen.findByText('intros page')).toBeTruthy();
     const nav = screen.getByRole('navigation', { name: 'Admin sections' });
-    expect(within(nav).queryByRole('link', { name: /Intros/ })).toBeNull();
+    expect(within(nav).getByRole('link', { name: /Intros & credits/ }).getAttribute('href')).toBe('/admin/intros');
   });
 
   it('sends the old Sonarr & Radarr address to Integrations', async () => {

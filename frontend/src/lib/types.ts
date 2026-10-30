@@ -710,6 +710,8 @@ export interface ServerSettings {
   deferScansWhilePlaying: boolean;
   segmentDetection: boolean;
   segmentVideo: boolean;
+  /** Share found intros and credits with vidalune.com (on by default). */
+  shareDetection: boolean;
   /** Shared detection with other Vidalune servers (through vidalune.com). */
   /** Extract embedded text subtitles ahead of time while the server is quiet. */
   subtitlePrefetch: boolean;
