@@ -78,7 +78,7 @@ export const segments = {
   removeCorrection: 'Remove correction (detect automatically)',
   analyseEpisode: 'Analyse episode {n} again',
   analyseAgain: 'Analyse again',
-  intro_text: 'Vidalune finds intros by comparing the sound of episodes in the same season, and end credits by recognising text on a dark background in the picture (or recurring credits music). Chapters named Intro or Credits are used when a file has them. Everything runs on this server, one episode at a time, and never while someone is watching or a scan runs. Only high and medium confidence results get a skip button.',
+  intro_text: 'Vidalune finds intros by comparing the sound of episodes in the same season (and the seasons around a short one), places their edges by the picture, and finds end credits by recognising lines of text in the picture (or recurring credits music). Chapters named Intro or Credits are used when a file has them. Everything runs on this server, one episode at a time, and never while someone is watching or a scan runs. Only high and medium confidence results get a skip button.',
   analyseEverything: 'Analyse everything again',
   stats: {
     analysed: 'Analysed',

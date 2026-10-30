@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fingerprint, FRAME_SEC } from '../src/services/segments/fingerprint.js';
-import { detectSeason, headWindow, tailWindow, type EpisodeAudio } from '../src/services/segments/detect.js';
+import { detectSeason, headWindow, OUTSIDE_WHEN_FEWER, tailWindow, type EpisodeAudio } from '../src/services/segments/detect.js';
 import { episode, melody, silence } from './segments-helpers.js';
 import { SAMPLE_RATE } from '../src/services/segments/fingerprint.js';
 
@@ -93,6 +93,57 @@ describe('intro and credits detection', () => {
     expect(d.intro!.start).toBeLessThan(51.5);
     expect(d.intro!.end - d.intro!.start).toBeGreaterThan(26);
     expect(d.intro!.end - d.intro!.start).toBeLessThan(30);
+  });
+
+  it('finds the intro and credits of a lone episode by comparing with the neighbouring season', () => {
+    const lone = [makeEpisode(21, { coldOpen: 55, intro: INTRO_S1, story: 400, credits: CREDITS })];
+    const neighbours = [
+      makeEpisode(1, { coldOpen: 30, intro: INTRO_S1, story: 380, credits: CREDITS }),
+      makeEpisode(2, { coldOpen: 80, intro: INTRO_S1, story: 420, credits: CREDITS }),
+    ];
+    // Nothing in its own season to compare with.
+    expect(detectSeason(lone, empty).get(21)!.intro).toBeNull();
+    const d = detectSeason(lone, empty, undefined, new Map(), neighbours).get(21)!;
+    expect(d.intro?.confidence).toBe('high');
+    expect(d.intro!.start).toBeGreaterThan(55 - 1.5);
+    expect(d.intro!.start).toBeLessThan(55 + 1.5);
+    expect(d.intro!.end - d.intro!.start).toBeGreaterThan(33);
+    expect(d.intro!.end - d.intro!.start).toBeLessThan(37);
+    expect(d.credits?.confidence).toBe('high');
+    expect(d.credits!.start).toBeCloseTo(lone[0].duration - 45, -0.5);
+  });
+
+  it('keeps a season’s own intro when the neighbouring season has another one', () => {
+    const s2 = [
+      makeEpisode(11, { coldOpen: 50, intro: INTRO_S2, story: 400, credits: CREDITS }),
+      makeEpisode(12, { coldOpen: 70, intro: INTRO_S2, story: 400, credits: CREDITS }),
+    ];
+    const s1 = [
+      makeEpisode(1, { coldOpen: 50, intro: INTRO_S1, story: 400, credits: CREDITS }),
+      makeEpisode(2, { coldOpen: 20, intro: INTRO_S1, story: 400, credits: CREDITS }),
+    ];
+    const d = detectSeason(s2, empty, undefined, new Map(), s1).get(11)!;
+    expect(d.intro!.start).toBeGreaterThan(48.5);
+    expect(d.intro!.start).toBeLessThan(51.5);
+    expect(d.intro!.end - d.intro!.start).toBeGreaterThan(26);
+    expect(d.intro!.end - d.intro!.start).toBeLessThan(30);
+    // The credits are the same in both seasons: the neighbours add their votes.
+    expect(d.credits?.confidence).toBe('high');
+  });
+
+  it('leaves the neighbouring seasons out when the season has enough episodes of its own', () => {
+    const own = [
+      makeEpisode(1, { coldOpen: 60, intro: INTRO_S1, story: 400, credits: CREDITS }),
+      makeEpisode(2, { coldOpen: 95, intro: INTRO_S1, story: 420, credits: CREDITS }),
+      makeEpisode(3, { coldOpen: 30, intro: INTRO_S1, story: 380, credits: CREDITS }),
+      makeEpisode(4, { coldOpen: 45, intro: INTRO_S1, story: 390, credits: CREDITS }),
+    ];
+    expect(own.length - 1).toBeGreaterThanOrEqual(OUTSIDE_WHEN_FEWER);
+    const outside = [
+      makeEpisode(31, { coldOpen: 40, intro: INTRO_S2, story: 400, credits: CREDITS }),
+      makeEpisode(32, { coldOpen: 90, intro: INTRO_S1, story: 400, credits: null }),
+    ];
+    expect(detectSeason(own, empty, undefined, new Map(), outside)).toEqual(detectSeason(own, empty));
   });
 
   it('reports nothing for episodes without an intro or credits', () => {

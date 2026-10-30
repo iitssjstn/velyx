@@ -750,6 +750,29 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   houdt de tv wat hij op het toestel had. Let op: de grote maat die de tv eerder in de gedeelde stijl zette, staat nog
   op de pc; daar één keer terugzetten. Tests: backend (los van elkaar opslaan, wissen, ongeldig), app
   (`accountStyleField`). Backend 626, app 271 tests; typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen.
+- **Intro- en aftitelingherkenning beter** (eigenaar 30 okt: "We moeten de intro en outro detectie echt verbeteren";
+  daarna "Maak eerst de punten die jij benoemt hebt, dan hebben we de meeste getackeld en daarna kijk ik of er verbeter
+  punten zijn"). Drie van de vier genoemde zwakke plekken gebouwd (`DETECTION_VERSION` 5, alles wordt opnieuw bekeken;
+  handmatige correcties blijven):
+  1. **Randen van de intro met het beeld**: na de geluidsherkenning leest de server 6 s beeld rond elke rand (2 beeldjes
+     per seconde) en vergelijkt dat met de 2 dichtstbijzijnde afleveringen met een intro (`pictureEdge` in `visual.ts`,
+     `refineIntros` in `detector.ts`; grof 8×8-raster per beeldje, `frameDiff`). Waar het gedeelde beeld begint/stopt,
+     ligt de rand. Nooit meer dan 3 s langer overslaan dan het geluid zei; zonder duidelijk beeld blijft de rand van het
+     geluid. Alleen met beeldanalyse aan.
+  2. **Aftiteling in beeld**: niet meer alleen tekst op donker, ook op een effen achtergrond van elke kleur (en donkere
+     letters op wit); zonder zo'n achtergrond ook regels tekst over het beeld zelf (`overlay`: minstens 30 s, 70 % van de
+     beeldjes, altijd `medium`, en nooit boven een zekere (`high`) aftiteling uit terugkerende muziek). Opgeslagen
+     beeldresultaten worden opnieuw berekend zonder het geluid opnieuw te lezen (`EXTRAS_VERSION`).
+  3. **Weinig afleveringen**: een seizoen met minder dan 4 afleveringen vergelijkt ook met de laatste afleveringen van
+     het vorige en de eerste van het volgende seizoen (hun opgeslagen afdrukken; `neighbours`, `OUTSIDE_WHEN_FEWER`).
+     Een eigen intro van een seizoen past niet op een ander, dus geen valse match. Wordt het naburige seizoen later
+     geanalyseerd, dan krijgt het korte seizoen nog een keer een kans (`revisitNeighbours`).
+  4. Niet gebouwd: een intro die elke aflevering anders klinkt is niet aan het geluid te herkennen; hoofdstukken, een
+     correctie met de hand of gedeelde herkenning helpen dan nog (uitgelegd aan de eigenaar).
+  Tests: beeldranden (te vroeg, te laat, begrensd, ander beeld: niets), kaarten op kleur/wit, tekst over beeld (ook met
+  echte FFmpeg-video), overlay tegen zekere muziek, naburig seizoen (los en via de dienst), rand met het beeld via de
+  dienst; de nieuwe falen op de oude code. Backend 640, frontend 371 tests; typechecks en lint (0 fouten, 4 bekende
+  waarschuwingen) slagen. Op echte afleveringen te bevestigen; de eigenaar kijkt daarna naar verbeterpunten.
 - Eigenaar (30 okt): "wacht met pushen zodat we meerdere dingen kunnen toevoegen als ik die tegenkom". Nieuwe punten
   komen in 0.20.3 en blijven lokaal tot hij zegt dat het klaar is; daarna pas pushen en de PR.
 

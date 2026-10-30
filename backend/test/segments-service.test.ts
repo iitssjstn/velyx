@@ -2,9 +2,10 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { addLibrary, createTestEnv, createUser, fakeProbe, rescan, setupAdmin, touch, type TestEnv } from './helpers.js';
-import { episode, melody } from './segments-helpers.js';
+import { episode, melody, shotFrame } from './segments-helpers.js';
 import { SAMPLE_RATE } from '../src/services/segments/fingerprint.js';
 import type { AudioReader } from '../src/services/segments/detector.js';
+import type { FrameReader } from '../src/services/segments/readers.js';
 import { episodes, episodeSegments, mediaFiles } from '../src/db/schema.js';
 import { playbackSegments } from '../src/services/segments/store.js';
 
@@ -20,6 +21,8 @@ const LAYOUT: Record<string, { cold: number; intro: Float32Array; seed: number }
   'S02E01.mkv': { cold: 15, intro: INTRO_S2, seed: 4 },
   'S02E02.mkv': { cold: 40, intro: INTRO_S2, seed: 5 },
   'S02E03.mkv': { cold: 25, intro: INTRO_S2, seed: 6 },
+  // A season of one episode, with the intro of season 1.
+  'S03E01.mkv': { cold: 30, intro: INTRO_S1, seed: 7 },
 };
 
 const name = (file: string) => path.basename(file).replace('The.Show.', '');
@@ -48,7 +51,7 @@ afterEach(async () => {
   env = null;
 });
 
-async function setup(files = Object.keys(LAYOUT), opts: { enabled?: boolean; machineBusy?: boolean } = {}): Promise<Harness> {
+async function setup(files = Object.keys(LAYOUT).filter((f) => !f.startsWith('S03')), opts: { enabled?: boolean; machineBusy?: boolean; frameReader?: FrameReader } = {}): Promise<Harness> {
   const reads: string[] = [];
   const broken = new Set<string>();
   const reader: AudioReader = async (file, start, duration) => {
@@ -62,6 +65,7 @@ async function setup(files = Object.keys(LAYOUT), opts: { enabled?: boolean; mac
     segmentRetryMs: 20,
     machineBusy: () => !!opts.machineBusy,
     prober: async (file) => fakeProbe({ durationSec: audioOf(file).length / SAMPLE_RATE }),
+    frameReader: opts.frameReader,
   });
   if (opts.enabled === false) env.ctx.settings.update({ segmentDetection: false });
   const admin = await setupAdmin(env.app);
@@ -91,6 +95,35 @@ describe('intro and credits detection service', () => {
       expect(seg.postCredits).toBeNull();
       expect(seg.fileId).toBe(res.json().files[0].id);
     }
+  }, 60_000);
+
+  it('places the intro by the picture when the music starts under the last line of the scene before', async () => {
+    // The intro music starts at `cold`; the intro's picture only 2 s later (and ends with the music).
+    const reader: FrameReader = async (file, start, duration, mode) => {
+      if (mode === 'keyframes') return [];
+      const l = LAYOUT[name(file)];
+      const out = [];
+      for (let t = start + (l.seed % 2) * 0.2; t < start + duration; t += 0.5) {
+        const seed = t < l.cold + 2 ? 100 + l.seed * 1000 + Math.floor(t) : t < l.cold + 30 ? 500 + Math.floor(t - l.cold) : 300 + l.seed * 1000 + Math.floor(t);
+        out.push(shotFrame(seed, t));
+      }
+      return out;
+    };
+    const h = await setup(['S01E01.mkv', 'S01E02.mkv', 'S01E03.mkv'], { frameReader: reader });
+    for (const [n, cold] of [[1, 20], [2, 35], [3, 10]] as const) {
+      const seg = (await h.env.app.inject({ method: 'GET', url: `/api/episodes/${episodeId(h.env, 1, n)}`, headers: { cookie: h.admin } })).json().segments;
+      // Within a frame or two (2 per second); from the audio alone it would be 2 s early.
+      expect(Math.abs(seg.intro.start - (cold + 2))).toBeLessThanOrEqual(1);
+      expect(Math.abs(seg.intro.end - (cold + 30))).toBeLessThan(1.5);
+    }
+  }, 60_000);
+
+  it('finds the intro of a season with a single episode by comparing with the season before', async () => {
+    const h = await setup(['S01E01.mkv', 'S01E02.mkv', 'S01E03.mkv', 'S03E01.mkv']);
+    const seg = (await h.env.app.inject({ method: 'GET', url: `/api/episodes/${episodeId(h.env, 3, 1)}`, headers: { cookie: h.admin } })).json().segments;
+    expect(Math.abs(seg.intro.start - 30)).toBeLessThan(1.5);
+    expect(Math.abs(seg.intro.end - 60)).toBeLessThan(1.5);
+    expect(seg.credits.end - seg.credits.start).toBeGreaterThan(38);
   }, 60_000);
 
   it('never analyses the same episode twice, but does when its file changes', async () => {
