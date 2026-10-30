@@ -827,6 +827,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
     `dialog.alert`.
   - Backend 651, frontend 387, cloud 225, app 275 tests; typechecks, build en lint (0 fouten, 4 bekende
     waarschuwingen) slagen. Op website, telefoon en tv te bekijken.
+- PR #192 aangemaakt 30 okt op verzoek van de eigenaar ("Bouw het maar en push het naar de PR"); automatische voettekst
+  met sessielink meteen weggehaald. De eigenaar merget zelf.
 - Eigenaar (30 okt): "wacht met pushen zodat we meerdere dingen kunnen toevoegen als ik die tegenkom". Nieuwe punten
   komen in 0.20.3 en blijven lokaal tot hij zegt dat het klaar is; daarna pas pushen en de PR.
 
