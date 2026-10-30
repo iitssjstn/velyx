@@ -730,6 +730,18 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   `.deb`'s, `vidalune-0.20.2-setup.exe` en de accountservice-image. Op de tv te bevestigen: ondertitel bij het starten,
   terug naar het startscherm, Terug-knop in de speler.
 
+## Versie 0.20.3 (tv-speler: ↑ naar de Terug-knop)
+
+- Eigenaar (30 okt, twee foto's van de tv-speler op 0.20.2: "als ik naar boven ga staat die er boven [...] en dan gaat ie
+  weer naar beneden als ik naar boven wil gaan niet naar de terug knop linksboven"; daarna "Bouw het"). Oorzaak: ↑ vanaf
+  de knoppenrij verborg de bediening (wens van 22 okt); bij pauze bleef de balk staan zonder iets gekozen, en de
+  Terug-knop was alleen te bereiken met ← vanaf de eerste knop. Nu (`pressKey` in `lib/tvRemote.ts`): ↑ vanaf elke knop
+  gaat naar de Terug-knop linksboven; daar verbergt ↑ (of Terug) de bediening, ↓ of → gaat terug naar dezelfde knop.
+  ↓ vanaf de rij verbergt de bediening; ← vanaf de eerste knop gaat ook nog naar Terug.
+- Tests: `tvRemote.test.ts` (↑ naar Terug en ↓ terug naar dezelfde knop, faalt op de oude code; ↓ verbergt). App 270
+  tests, typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen. Op de tv te bevestigen.
+- Versie 0.20.3 in alle `package.json`'s, `app/app.json` (versionCode 20003) en beide lockfiles.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
