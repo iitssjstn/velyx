@@ -14,6 +14,7 @@ export const notifications: Messages['notifications'] = {
     newDevice: 'Iemand meldt zich aan (browser of app)',
     storageLow: 'De schijfruimte raakt op',
     inviteAccepted: 'Iemand neemt een uitnodiging aan',
+    segmentReport: 'Een kijker meldt dat een intro, recap of aftiteling niet klopt',
   },
   saved: 'Meldingsinstellingen opgeslagen.',
   discordTitle: 'Discord (optioneel)',

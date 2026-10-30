@@ -24,10 +24,11 @@
         health: 'Relay-status', mainRelay: 'hoofdrelay', nearQuota: '{name}: {used} van {quota} GB deze maand; daarna {mbps} Mbit/s.', dnsRecords: 'DNS-records', dnsRecordsSub: 'van {limit} toegestaan', dnsNear: 'DNS-records bijna vol: {used} van {limit} in gebruik. Ruim op of neem een groter Cloudflare-plan.', recent: 'Recente activiteit', when: 'Tijdstip', action: 'Actie', target: 'Waarop', actor: 'Door', system: 'systeem',
         det: {
           intro: 'Wat gekoppelde servers vinden aan recaps, intro\'s en aftitelingen, per serie en seizoen (TMDB). Een correctie van jou geldt voor elke server met dezelfde versie van de aflevering (lengte binnen 2 seconden) en gaat boven wat die server zelf vond; servers halen correcties binnen 6 uur op. Correcties die beheerders op hun server deden, staan hier als voorstel.',
-          search: 'Zoeken op titel of TMDB-id…', seasons: 'Seizoenen', season: 'Seizoen {n}', show: 'Serie', servers: 'Servers', episodes: 'Afleveringen', corrections: 'Correcties', proposals: 'Voorstellen', updated: 'Laatst gewijzigd',
+          search: 'Zoeken op titel of TMDB-id…', seasons: 'Seizoenen', season: 'Seizoen {n}', show: 'Serie', servers: 'Servers', episodes: 'Afleveringen', corrections: 'Correcties', proposals: 'Voorstellen', complaints: 'Meldingen', updated: 'Laatst gewijzigd',
           none: 'Nog niets gemeld door servers.', tmdb: 'TMDB {id}', episode: 'Aflevering {n}', cut: 'versie van {len}',
           kinds: { recap: 'Recap', intro: 'Intro', credits: 'Aftiteling' },
           found: 'Servers vinden', foundBy: '{n} van {m} servers', nothing: 'Niets gevonden', byHand: 'met de hand',
+          viewers: 'Kijkers melden', problems: { 'starts-early': 'begint te vroeg', 'starts-late': 'begint te laat', 'ends-early': 'stopt te vroeg', 'ends-late': 'stopt te laat', 'not-there': 'is er niet', missing: 'wordt niet gevonden' }, times: '{n}× {problem}',
           proposal: 'Voorstel {server}', take: 'Overnemen', yours: 'Jouw correctie', start: 'Begin', end: 'Einde', timeHint: 'm:ss of seconden',
           save: 'Opslaan', remove: 'Verwijderen', saved: 'Correctie opgeslagen', removed: 'Correctie verwijderd', badTime: 'Vul begin en einde in als m:ss of seconden.',
           open: 'Openen', openProposals: '{n} open',
@@ -91,10 +92,11 @@
         health: 'Relay health', mainRelay: 'main relay', nearQuota: '{name}: {used} of {quota} GB this month; then {mbps} Mbit/s.', dnsRecords: 'DNS records', dnsRecordsSub: 'of {limit} allowed', dnsNear: 'DNS records almost full: {used} of {limit} in use. Clean up or get a larger Cloudflare plan.', recent: 'Recent activity', when: 'Time', action: 'Action', target: 'Target', actor: 'Actor', system: 'system',
         det: {
           intro: 'What linked servers find for recaps, intros and credits, per show and season (TMDB). A correction of yours applies to every server with the same version of the episode (length within 2 seconds) and goes before what that server found itself; servers fetch corrections within 6 hours. Corrections administrators made on their own server are listed here as proposals.',
-          search: 'Search by title or TMDB id…', seasons: 'Seasons', season: 'Season {n}', show: 'Show', servers: 'Servers', episodes: 'Episodes', corrections: 'Corrections', proposals: 'Proposals', updated: 'Last changed',
+          search: 'Search by title or TMDB id…', seasons: 'Seasons', season: 'Season {n}', show: 'Show', servers: 'Servers', episodes: 'Episodes', corrections: 'Corrections', proposals: 'Proposals', complaints: 'Reports', updated: 'Last changed',
           none: 'Nothing reported by servers yet.', tmdb: 'TMDB {id}', episode: 'Episode {n}', cut: 'version of {len}',
           kinds: { recap: 'Recap', intro: 'Intro', credits: 'Credits' },
           found: 'Servers find', foundBy: '{n} of {m} servers', nothing: 'Nothing found', byHand: 'by hand',
+          viewers: 'Viewers report', problems: { 'starts-early': 'starts too early', 'starts-late': 'starts too late', 'ends-early': 'ends too early', 'ends-late': 'ends too late', 'not-there': 'is not there', missing: 'is not found' }, times: '{n}× {problem}',
           proposal: 'Proposal {server}', take: 'Use', yours: 'Your correction', start: 'Start', end: 'End', timeHint: 'm:ss or seconds',
           save: 'Save', remove: 'Remove', saved: 'Correction saved', removed: 'Correction removed', badTime: 'Fill in start and end as m:ss or seconds.',
           open: 'Open', openProposals: '{n} open',
@@ -1215,6 +1217,7 @@
         num(x.episodes),
         x.overrides ? num(x.overrides) : el('span', { class: 'muted' }, '—'),
         x.proposals ? chip(t('det.openProposals', { n: num(x.proposals) }), 'warn') : el('span', { class: 'muted' }, '—'),
+        x.complaints ? chip(num(x.complaints), 'hot') : el('span', { class: 'muted' }, '—'),
         el('span', { title: dateTime(x.updatedAt) }, ago(x.updatedAt)),
       ],
     }));
@@ -1223,7 +1226,7 @@
       el('p', { class: 'cc-sub' }, t('det.intro')),
       toolbar,
       d.items.length
-        ? el('div', { class: 'cc-card flush' }, table([t('det.show'), t('det.seasons'), t('det.servers'), t('det.episodes'), t('det.corrections'), t('det.proposals'), t('det.updated')], rows, (x) => (location.hash = `#/intros/${x.tmdbShow}-${x.season}`)))
+        ? el('div', { class: 'cc-card flush' }, table([t('det.show'), t('det.seasons'), t('det.servers'), t('det.episodes'), t('det.corrections'), t('det.proposals'), t('det.complaints'), t('det.updated')], rows, (x) => (location.hash = `#/intros/${x.tmdbShow}-${x.season}`)))
         : el('div', { class: 'cc-card' }, empty(t('det.none'))),
       pages > 1
         ? el('div', { class: 'cc-pager' },
@@ -1250,7 +1253,7 @@
       g.kinds[e.kind] = e;
     }
     const kindRow = (g, kind) => {
-      const e = g.kinds[kind] ?? { consensus: null, proposals: [], override: null };
+      const e = g.kinds[kind] ?? { consensus: null, proposals: [], override: null, complaints: [] };
       const start = el('input', { name: 'start', inputmode: 'decimal', autocomplete: 'off', size: 7, 'aria-label': `${t(`det.kinds.${kind}`)} · ${t('det.start')}`, placeholder: t('det.start'), value: e.override ? clock(e.override.start) : '' });
       const end = el('input', { name: 'end', inputmode: 'decimal', autocomplete: 'off', size: 7, 'aria-label': `${t(`det.kinds.${kind}`)} · ${t('det.end')}`, placeholder: t('det.end'), value: e.override ? clock(e.override.end) : '' });
       const error = el('p', { class: 'error', role: 'alert' });
@@ -1284,6 +1287,11 @@
               el('span', {}, `${clock(p.start)} – ${clock(p.end)}`),
               el('button', { type: 'button', class: 'ghost', onclick: () => { start.value = clock(p.start); end.value = clock(p.end); start.focus(); } }, t('det.take')))),
         ),
+        (e.complaints ?? []).length
+          ? el('div', { class: 'cc-det-complaints', role: 'note' },
+              el('span', { class: 'small muted' }, t('det.viewers')),
+              e.complaints.map((x) => chip(t('det.times', { n: num(x.count), problem: t(`det.problems.${x.problem}`) }), 'hot')))
+          : null,
         el('form', { class: 'cc-det-edit', onsubmit: (ev) => { ev.preventDefault(); void save(); } },
           el('span', { class: 'small muted' }, e.override ? t('det.yours') : `${t('det.yours')} (${t('det.timeHint')})`),
           el('div', { class: 'cc-det-inputs' }, start, el('span', { 'aria-hidden': 'true' }, '–'), end,

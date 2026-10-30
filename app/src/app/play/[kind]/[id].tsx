@@ -37,6 +37,7 @@ import { AUDIO_MODES, audioMenuPick, isAudioMode, type AudioMode } from '../../.
 import { TV_CONTROLS_MS, initialTvState, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, type RemoteKey, type TvContext } from '../../../lib/tvRemote';
 import { SUBTITLE_ERROR_FOR_MS, SUBTITLE_LOADING_AFTER_MS, cueTextAt, cuesFrom, type Cue } from '../../../lib/vtt';
 import { dialog } from '../../../lib/dialog';
+import { problemsFor, REPORT_KINDS, reportBody, reportLine, reportOutcome, reportPath, type ReportKind, type ReportProblem } from '../../../lib/segmentReport';
 
 interface NextEpisode {
   id: number;
@@ -208,6 +209,33 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
     // Account/device priority is decided once; edits win over delayed reads during playback.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // "Intro or credits not right?": which part, then what is wrong; sent with where the viewer is now.
+  const episode = item.kind === 'episode';
+  const sendReport = async (kind: ReportKind, problem: ReportProblem, at: number) => {
+    let err: unknown = null;
+    try {
+      await api.post(reportPath(item.id), reportBody(kind, problem, at));
+    } catch (e) {
+      err = e;
+    }
+    const outcome = reportOutcome(err);
+    dialog.alert(outcome === 'sent' ? t('report.thanks') : t('report.title'), outcome === 'sent' ? t('report.thanksText') : outcome === 'tooMany' ? t('report.tooMany') : t('report.failed'));
+  };
+  const reportProblem = () => {
+    const at = position;
+    const cancel = { text: t('common.cancel'), style: 'cancel' as const };
+    dialog.alert(t('report.title'), t('report.which'), [
+      cancel,
+      ...REPORT_KINDS.map((kind) => ({
+        text: t(`report.kind.${kind}`),
+        onPress: () =>
+          dialog.alert(t(`report.kind.${kind}`), t('report.what'), [
+            cancel,
+            ...problemsFor(Boolean(item.segments?.[kind])).map((problem) => ({ text: t(`report.problem.${problem}`), onPress: () => void sendReport(kind, problem, at) })),
+          ]),
+      })),
+    ]);
+  };
   const changeStyle = (patch: Partial<SubtitleStyle>) => {
     const next = editSubtitleStyle(styleRef.current, patch);
     void styleSync.current!.save(next).catch(() => {
@@ -1029,7 +1057,8 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
     // The audio menu always has a choice: the file's tracks, then the audio modes.
     buttons: tvButtons({ audioTracks: audioTracks.length + AUDIO_MODES.length, hasNext: Boolean(item.next) }),
     tabs: tvTabs({ audioTracks: audioTracks.length + AUDIO_MODES.length }),
-    items: { subtitles: subtitleOptions.length + 1, style: STYLE_LINES.length, audio: audioTracks.length + AUDIO_MODES.length },
+    // After the tracks and audio modes, an episode has one more line: reporting an intro or credits that is not right.
+    items: { subtitles: subtitleOptions.length + 1, style: STYLE_LINES.length, audio: audioTracks.length + AUDIO_MODES.length + (episode ? 1 : 0) },
     selected: { subtitles: subtitle ? subtitleOptions.findIndex((o) => o.key === subtitle.key) + 1 : 0, audio: Math.max(0, audioTracks.findIndex((a) => a.index === audioIndex)) },
     skip: Boolean(askSkip && !showNext),
     upNext: showNext,
@@ -1055,6 +1084,8 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
     else if (a?.type === 'pick' && a.tab === 'style') {
       const line = STYLE_LINES[a.index];
       if (line) changeStyle(nextStyleValue(styleRef.current, line));
+    } else if (a?.type === 'pick' && a.tab === 'audio' && a.index === reportLine(audioTracks.length, episode)) {
+      reportProblem();
     } else if (a?.type === 'pick' && a.tab === 'audio') {
       const pick = audioMenuPick(a.index, audioTracks.length);
       if (pick?.kind === 'track') chooseAudio(audioTracks[pick.index]!.index);
@@ -1141,7 +1172,7 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
             lines={{
               subtitles: [t('player.off'), ...subtitleOptions.map(subtitleLabel)],
               style: STYLE_LINES.map((line) => `${t(`subtitleStyle.${line}`)}: ${styleValueLabel(subStyle, line, t)}`),
-              audio: [...audioTracks.map((a) => audioLabel(a, t)), ...AUDIO_MODES.map((m) => `${m === audioMode ? '✓ ' : ''}${t('player.voices')} · ${t(`player.voiceMode.${m}`)}`)],
+              audio: [...audioTracks.map((a) => audioLabel(a, t)), ...AUDIO_MODES.map((m) => `${m === audioMode ? '✓ ' : ''}${t('player.voices')} · ${t(`player.voiceMode.${m}`)}`), ...(episode ? [t('report.title')] : [])],
             }}
             selected={tvContext.selected}
             marks={segmentMarks(item.segments, item.fileId, duration)}
@@ -1321,6 +1352,19 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
                 onPlus={() => setSubDelay((d) => stepDelay(d, 1))}
                 onReset={subDelay !== 0 ? () => setSubDelay(0) : undefined}
               />}
+              {episode && (
+                <>
+                  <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('report.kind.intro')} · {t('report.kind.credits')}</Text>
+                  <Choice
+                    label={t('report.title')}
+                    selected={false}
+                    onPress={() => {
+                      setMenu(false);
+                      reportProblem();
+                    }}
+                  />
+                </>
+              )}
             </ScrollView>
           </Pressable>
         </Pressable>

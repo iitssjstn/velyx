@@ -811,6 +811,22 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   - Niet gebouwd (eventueel later): knop "Intro klopt niet" voor kijkers.
   - Backend 646, frontend 376, cloud 221, app 271 tests; typechecks, build en lint (0 fouten, 4 bekende
     waarschuwingen) slagen.
+- **Knop "Intro klopt niet" voor kijkers** (eigenaar 30 okt: "Bouw het maar en push het naar de PR", na het aanbod).
+  Gebouwd met vier agents (server, accountservice, website, app) op één vast contract:
+  - Server: `POST /api/episodes/:id/segment-report` (`kind`, `problem`: starts-early/starts-late/ends-early/ends-late/
+    not-there/missing, `position`; Zod strikt, bibliotheektoegang, 10 per uur, één open per gebruiker+aflevering+soort),
+    tabel `segment_reports` (migratie `0031_segment_reports`), meldingstype `segmentReport` voor beheerders, open
+    meldingen per aflevering in de beheer-API, `POST /api/admin/segments/reports/:id/resolve` (auditlog); een correctie
+    of opnieuw analyseren sluit ze. Met delen aan gaan de aantallen per aflevering/versie/soort/probleem (zonder wie)
+    als `complaints` mee naar vidalune.com.
+  - Accountservice: `detection_complaints` (migratie `0019_detection_complaints`); Control Center: kolom Meldingen en
+    per rij "Kijkers melden: 3× begint te vroeg".
+  - Website: in het menu van de speler (alleen afleveringen) een venster met soort en probleem; beheerpagina toont en
+    handelt meldingen af; meldingsinstelling en auditlabel.
+  - App: telefoon via het menu van de speler, tv als laatste regel van de tab Audio (`lib/segmentReport.ts`), met
+    `dialog.alert`.
+  - Backend 651, frontend 387, cloud 225, app 275 tests; typechecks, build en lint (0 fouten, 4 bekende
+    waarschuwingen) slagen. Op website, telefoon en tv te bekijken.
 - Eigenaar (30 okt): "wacht met pushen zodat we meerdere dingen kunnen toevoegen als ik die tegenkom". Nieuwe punten
   komen in 0.20.3 en blijven lokaal tot hij zegt dat het klaar is; daarna pas pushen en de PR.
 

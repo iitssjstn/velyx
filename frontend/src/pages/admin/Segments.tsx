@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, Pencil, RotateCcw, SkipForward, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, Flag, Pencil, RotateCcw, SkipForward, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { episodeCode, formatClock, formatRelative, parseClock } from '../../lib/format';
 import { Button } from '../../components/Button';
@@ -18,7 +18,7 @@ export interface SegmentStatus {
   waitingFor: 'playback' | 'scan' | null;
   running: { showId: number; showTitle: string; seasonNumber: number; done: number; total: number } | null;
   queuedSeasons: number;
-  counts: { episodes: number; analyzed: number; recaps?: number; intros: number; credits: number; pending: number; errors: number; manual: number; lowConfidence: number; fromShared?: number; confirmed?: number };
+  counts: { episodes: number; analyzed: number; recaps?: number; intros: number; credits: number; pending: number; errors: number; manual: number; lowConfidence: number; fromShared?: number; confirmed?: number; reports?: number };
 }
 
 export interface SegmentOverview {
@@ -51,10 +51,30 @@ interface EpisodeSegmentsView {
   shareState?: 'pending' | 'shared' | 'verified' | null;
 }
 
+/** A viewer's report that a part is wrong, open until handled (saving a correction handles them too). */
+export interface SegmentReportView {
+  id: number;
+  kind: 'recap' | 'intro' | 'credits';
+  problem: 'starts-early' | 'starts-late' | 'ends-early' | 'ends-late' | 'not-there' | 'missing';
+  position: number | null;
+  createdAt: number;
+  user: string;
+}
+
 interface ShowSegments {
   show: { id: number; title: string };
-  seasons: { seasonNumber: number; episodes: { id: number; episodeNumber: number; title: string | null; duration: number | null; eligible: boolean; segments: EpisodeSegmentsView | null }[] }[];
+  seasons: { seasonNumber: number; episodes: { id: number; episodeNumber: number; title: string | null; duration: number | null; eligible: boolean; segments: EpisodeSegmentsView | null; reports?: SegmentReportView[] }[] }[];
 }
+
+const REPORT_KIND: Record<SegmentReportView['kind'], MessageKey> = { recap: 'segments.recap', intro: 'segments.intro', credits: 'segments.credits' };
+const REPORT_PROBLEM: Record<SegmentReportView['problem'], MessageKey> = {
+  'starts-early': 'segments.reports.startsEarly',
+  'starts-late': 'segments.reports.startsLate',
+  'ends-early': 'segments.reports.endsEarly',
+  'ends-late': 'segments.reports.endsLate',
+  'not-there': 'segments.reports.notThere',
+  missing: 'segments.reports.missing',
+};
 
 /** Shared detection labels: only here so far, another server agrees, three or more agree. */
 const SHARE_TONE = { pending: 'bg-raised text-muted', shared: 'bg-accent/15 text-accent', verified: 'bg-ok/15 text-ok' } as const;
@@ -176,6 +196,14 @@ function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) 
     },
     onError: (err) => toast.error(err),
   });
+  const resolve = useMutation({
+    mutationFn: (id: number) => api.post(`/api/admin/segments/reports/${id}/resolve`, {}),
+    onSuccess: () => {
+      toast.success(t('segments.reports.resolved'));
+      done();
+    },
+    onError: (err) => toast.error(err),
+  });
   const reset = useMutation({
     mutationFn: (id: number) => api.del(`/api/admin/segments/episodes/${id}`),
     onSuccess: () => {
@@ -220,8 +248,10 @@ function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) 
               <tbody className="divide-y divide-line/50">
                 {season.episodes.map((e) => {
                   const s = e.segments;
+                  const reports = e.reports ?? [];
                   return (
-                    <tr key={e.id}>
+                    <Fragment key={e.id}>
+                    <tr>
                       <td className="py-2 pr-3">
                         <span className="tabular-nums text-muted">E{String(e.episodeNumber).padStart(2, '0')}</span> <span className="ml-1">{e.title ?? ''}</span>
                         {s?.manual && <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-xs text-accent">{t('segments.manual')}</span>}
@@ -254,6 +284,27 @@ function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) 
                         )}
                       </td>
                     </tr>
+                    {reports.length > 0 && (
+                      <tr>
+                        <td colSpan={6} className="pb-3">
+                          <ul className="space-y-1 rounded-lg border border-amber/30 bg-amber/5 px-3 py-2" aria-label={t('segments.reports.ofEpisode', { n: e.episodeNumber })}>
+                            {reports.map((r) => (
+                              <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                                <Flag className="size-3.5 shrink-0 text-amber" />
+                                <span className="font-medium">{t(REPORT_KIND[r.kind])}: {t(REPORT_PROBLEM[r.problem])}</span>
+                                {r.position !== null && <span className="tabular-nums text-muted">{t('segments.reports.at', { time: formatClock(r.position) })}</span>}
+                                <span className="text-muted">{r.user}</span>
+                                <span className="text-xs text-faint">{formatRelative(r.createdAt)}</span>
+                                <button type="button" className="ml-auto inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-muted hover:bg-raised hover:text-ink" onClick={() => resolve.mutate(r.id)}>
+                                  <Check className="size-3.5" /> {t('segments.reports.resolve')}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -300,6 +351,7 @@ export function SegmentsPage() {
         <div className="max-w-2xl space-y-2 text-sm text-muted">
           <p>{t('segments.intro_text')}</p>
           <p>{t('segments.correctionsText')}</p>
+          <p>{t('segments.reports.text')}</p>
         </div>
         <Button variant="secondary" size="sm" icon={<RotateCcw className="size-4" />} disabled={!status.enabled} onClick={() => setConfirmAll(true)}>{t('segments.analyseEverything')}</Button>
       </div>
@@ -320,6 +372,7 @@ export function SegmentsPage() {
         <Stat label={t('segments.stats.errors')} value={c.errors} tone="amber" />
         <Stat label={t('segments.stats.lowConfidence')} value={c.lowConfidence} />
         <Stat label={t('segments.stats.manual')} value={c.manual} />
+        <Stat label={t('segments.stats.reports')} value={c.reports ?? 0} tone="amber" />
         {(c.fromShared ?? 0) + (c.confirmed ?? 0) > 0 && <Stat label={t('segments.stats.fromShared')} value={c.fromShared ?? 0} />}
         {(c.fromShared ?? 0) + (c.confirmed ?? 0) > 0 && <Stat label={t('segments.stats.confirmed')} value={c.confirmed ?? 0} />}
       </div>

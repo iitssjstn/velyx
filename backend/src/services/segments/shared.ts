@@ -4,6 +4,7 @@ import { episodes, episodeSegments, mediaFiles, segmentReferences, sharedDetecti
 import { createLogger } from '../../logger.js';
 import { DETECTION_VERSION, type Confidence, type References } from './detect.js';
 import type { Fingerprint } from './fingerprint.js';
+import { seasonComplaints } from './reports.js';
 
 const log = createLogger('segments');
 
@@ -224,6 +225,9 @@ export class SharedDetection {
       episodes: rows.filter((r) => r.seg.status === 'analyzed').map((r) => ({ episode: r.number, duration: Math.round(r.duration * 10) / 10, parts: own(r.seg) })),
       prints: refs.slice(0, 6).map((r) => ({ kind: r.kind, words: r.words.toString('base64') })),
     };
+    // Viewers saying a part is wrong (per episode, length, part and problem; no users), when there are any.
+    const complaints = seasonComplaints(this.db, showId, season);
+    if (complaints.length) Object.assign(body, { complaints });
     let profile: SharedProfile;
     try {
       profile = this.keep(await this.cloud.reportDetection<SharedProfile>(body));

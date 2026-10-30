@@ -173,8 +173,8 @@ describe('corrections by the CEO', () => {
     const season = (await call(cookie, 'GET', '/api/ceo/detection/1399/2')).json();
     expect(season).toMatchObject({ tmdbShow: 1399, season: 2, title: 'Game of Thrones', servers: 2 });
     expect(season.entries).toEqual([
-      { episode: 1, kind: 'intro', duration: 3000, consensus: { start: 61, end: 91, confirmations: 2, reports: 2, manual: true }, proposals: [], override: { start: 61, end: 91, updatedAt: expect.any(Number) } },
-      { episode: 2, kind: 'intro', duration: 3000, consensus: { start: 30, end: 60, confirmations: 1, reports: 1, manual: true }, proposals: [{ server: serverLabel(a.id), start: 30, end: 60 }], override: null },
+      { episode: 1, kind: 'intro', duration: 3000, consensus: { start: 61, end: 91, confirmations: 2, reports: 2, manual: true }, proposals: [], override: { start: 61, end: 91, updatedAt: expect.any(Number) }, complaints: [] },
+      { episode: 2, kind: 'intro', duration: 3000, consensus: { start: 30, end: 60, confirmations: 1, reports: 1, manual: true }, proposals: [{ server: serverLabel(a.id), start: 30, end: 60 }], override: null, complaints: [] },
     ]);
     expect(JSON.stringify(season)).not.toContain(a.id);
     expect(serverLabel(a.id)).toMatch(/^[0-9a-f]{6}$/);

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { DB } from './db/client.js';
-import { detectionOverrides, detectionPrints, detectionReports, detectionTitles } from './db/schema.js';
+import { detectionComplaints, detectionOverrides, detectionPrints, detectionReports, detectionTitles } from './db/schema.js';
 
 /**
  * Shared intro/recap/credits detection. Servers that turned it on report where they found each
@@ -113,6 +113,15 @@ const seconds = z.number().min(0).max(36_000);
 const part = z
   .object({ kind: z.enum(['recap', 'intro', 'credits']), start: seconds, end: seconds, source: z.enum(['audio', 'chapters', 'video', 'manual']) })
   .refine((p) => p.end > p.start, 'A part ends after it starts.');
+export const PROBLEMS = ['starts-early', 'starts-late', 'ends-early', 'ends-late', 'not-there', 'missing'] as const;
+export type Problem = (typeof PROBLEMS)[number];
+const complaint = z.object({
+  episode: z.number().int().min(0).max(10_000),
+  duration: z.number().min(60).max(36_000),
+  kind: z.enum(['recap', 'intro', 'credits']),
+  problem: z.enum(PROBLEMS),
+  count: z.number().int().min(1).max(1000),
+});
 const reportBody = z.object({
   tmdbShow,
   season,
@@ -129,6 +138,8 @@ const reportBody = z.object({
     .array(z.object({ kind: z.enum(['intro', 'credits']), words: z.string().max(Math.ceil((MAX_WORDS * 4) / 3) + 4).base64() }))
     .max(PRINTS_PER_SERVER * 2)
     .optional(),
+  /** What viewers said was wrong (counts only). Missing: left as it was; empty: cleared. */
+  complaints: z.array(complaint).max(400).optional(),
 });
 
 export function detectionRoutes(
@@ -205,6 +216,18 @@ export function detectionRoutes(
             tx.insert(detectionPrints).values({ serverId: me.id, tmdbShow: body.tmdbShow, season: body.season, kind, slot, words, updatedAt: t }).run();
           });
         }
+      }
+      if (body.complaints) {
+        tx.delete(detectionComplaints).where(and(eq(detectionComplaints.serverId, me.id), eq(detectionComplaints.tmdbShow, body.tmdbShow), eq(detectionComplaints.season, body.season))).run();
+        // The same episode, cut, part and problem twice in one report: added up.
+        const merged = new Map<string, z.infer<typeof complaint>>();
+        for (const c of body.complaints) {
+          const key = `${c.episode}:${c.duration}:${c.kind}:${c.problem}`;
+          const have = merged.get(key);
+          merged.set(key, have ? { ...have, count: Math.min(1000, have.count + c.count) } : c);
+        }
+        const rows = [...merged.values()].map((c) => ({ serverId: me.id, tmdbShow: body.tmdbShow, season: body.season, episode: c.episode, duration: c.duration, kind: c.kind, problem: c.problem, count: c.count, updatedAt: t }));
+        for (let i = 0; i < rows.length; i += 200) tx.insert(detectionComplaints).values(rows.slice(i, i + 200)).run();
       }
     });
     return profile(me.id, body.tmdbShow, body.season);
@@ -283,6 +306,16 @@ export function detectionCeoRoutes(app: FastifyInstance, deps: DetectionCeoDeps)
       .groupBy(detectionReports.tmdbShow, detectionReports.season)
       .all())
       seasons.set(`${r.tmdbShow}:${r.season}`, r);
+    for (const c of db
+      .select({ tmdbShow: detectionComplaints.tmdbShow, season: detectionComplaints.season, updatedAt: sql<number>`max(${detectionComplaints.updatedAt})` })
+      .from(detectionComplaints)
+      .groupBy(detectionComplaints.tmdbShow, detectionComplaints.season)
+      .all()) {
+      const key = `${c.tmdbShow}:${c.season}`;
+      const have = seasons.get(key);
+      if (have) have.updatedAt = Math.max(have.updatedAt, c.updatedAt);
+      else seasons.set(key, { tmdbShow: c.tmdbShow, season: c.season, servers: 0, episodes: 0, updatedAt: c.updatedAt });
+    }
     for (const o of db
       .select({ tmdbShow: detectionOverrides.tmdbShow, season: detectionOverrides.season, updatedAt: sql<number>`max(${detectionOverrides.updatedAt})` })
       .from(detectionOverrides)
@@ -307,7 +340,8 @@ export function detectionCeoRoutes(app: FastifyInstance, deps: DetectionCeoDeps)
     const items = page.map((x) => {
       const reports = db.select().from(detectionReports).where(and(eq(detectionReports.tmdbShow, x.tmdbShow), eq(detectionReports.season, x.season))).all();
       const overrides = db.select().from(detectionOverrides).where(and(eq(detectionOverrides.tmdbShow, x.tmdbShow), eq(detectionOverrides.season, x.season))).all();
-      return { ...x, title: names.get(x.tmdbShow) ?? null, overrides: overrides.length, proposals: openProposals(reports, overrides).length };
+      const complaints = db.select({ n: sql<number>`coalesce(sum(${detectionComplaints.count}), 0)` }).from(detectionComplaints).where(and(eq(detectionComplaints.tmdbShow, x.tmdbShow), eq(detectionComplaints.season, x.season))).get()?.n ?? 0;
+      return { ...x, title: names.get(x.tmdbShow) ?? null, overrides: overrides.length, proposals: openProposals(reports, overrides).length, complaints };
     });
     return { items, total, page: q.page, pageSize: PAGE_SIZE };
   });
@@ -324,12 +358,14 @@ export function detectionCeoRoutes(app: FastifyInstance, deps: DetectionCeoDeps)
       consensus: { start: number; end: number; confirmations: number; reports: number; manual: boolean } | null;
       proposals: Array<{ server: string; start: number; end: number }>;
       override: { start: number; end: number; updatedAt: number } | null;
+      /** What viewers said was wrong, added up over all servers. */
+      complaints: Array<{ problem: Problem; count: number }>;
     };
     const entries: Entry[] = [];
     const entryFor = (episode: number, k: Kind, duration: number) => {
       let e = entries.find((x) => x.episode === episode && x.kind === k && sameCut(x.duration, duration));
       if (!e) {
-        e = { episode, kind: k, duration, consensus: null, proposals: [], override: null };
+        e = { episode, kind: k, duration, consensus: null, proposals: [], override: null, complaints: [] };
         entries.push(e);
       }
       return e;
@@ -337,6 +373,13 @@ export function detectionCeoRoutes(app: FastifyInstance, deps: DetectionCeoDeps)
     for (const a of consensus(reports)) entryFor(a.episode, a.kind, a.duration).consensus = { start: a.start, end: a.end, confirmations: a.confirmations, reports: a.reports, manual: a.manual };
     for (const o of overrides) entryFor(o.episode, o.kind, o.duration).override = { start: o.start, end: o.end, updatedAt: o.updatedAt };
     for (const r of openProposals(reports, overrides)) entryFor(r.episode, r.kind, r.duration).proposals.push({ server: serverLabel(r.serverId), start: r.start, end: r.end });
+    for (const c of db.select().from(detectionComplaints).where(and(eq(detectionComplaints.tmdbShow, p.tmdbShow), eq(detectionComplaints.season, p.season))).all()) {
+      const list = entryFor(c.episode, c.kind, c.duration).complaints;
+      const have = list.find((x) => x.problem === c.problem);
+      if (have) have.count += c.count;
+      else list.push({ problem: c.problem, count: c.count });
+    }
+    for (const e of entries) e.complaints.sort((a, b) => b.count - a.count || PROBLEMS.indexOf(a.problem) - PROBLEMS.indexOf(b.problem));
     const order: Kind[] = ['recap', 'intro', 'credits'];
     entries.sort((a, b) => a.episode - b.episode || a.duration - b.duration || order.indexOf(a.kind) - order.indexOf(b.kind));
     const names = await titles([p.tmdbShow]);

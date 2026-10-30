@@ -208,9 +208,9 @@ describe('intros and credits in the Control Center', () => {
       const method = init?.method ?? 'GET';
       if (method !== 'GET') sent.push({ method, url, body: init?.body ? JSON.parse(String(init.body)) : null });
       if (url === '/api/account') return json({ ceo: true, email: 'ceo@example.com', version: '0.20.3' });
-      if (url.startsWith('/api/ceo/detection?')) return json({ total: 1, page: 1, pageSize: 25, items: [{ tmdbShow: 1399, season: 2, title: 'Game of Thrones', servers: 3, episodes: 10, overrides: 1, proposals: 2, updatedAt: Date.now() }] });
+      if (url.startsWith('/api/ceo/detection?')) return json({ total: 1, page: 1, pageSize: 25, items: [{ tmdbShow: 1399, season: 2, title: 'Game of Thrones', servers: 3, episodes: 10, overrides: 1, proposals: 2, complaints: 4, updatedAt: Date.now() }] });
       if (url === '/api/ceo/detection/1399/2') return json({ tmdbShow: 1399, season: 2, title: 'Game of Thrones', servers: 3, entries: [
-        { episode: 1, kind: 'intro', duration: 3000, consensus: { start: 62, end: 92.5, confirmations: 2, reports: 3, manual: false }, proposals: [{ server: 'ab12cd', start: 60, end: 95 }], override: null },
+        { episode: 1, kind: 'intro', duration: 3000, consensus: { start: 62, end: 92.5, confirmations: 2, reports: 3, manual: false }, proposals: [{ server: 'ab12cd', start: 60, end: 95 }], override: null, complaints: [{ problem: 'starts-early', count: 3 }, { problem: 'ends-late', count: 1 }] },
         { episode: 1, kind: 'credits', duration: 3000, consensus: null, proposals: [], override: { start: 2900, end: 3000, updatedAt: 1 } },
       ] });
       return json({ ok: true });
@@ -219,6 +219,8 @@ describe('intros and credits in the Control Center', () => {
     openPanel();
     await vi.waitFor(() => expect(text()).toContain('Game of Thrones'));
     expect(text()).toContain('2 open');
+    // Viewers' reports get their own column.
+    expect(Array.from(document.querySelectorAll('#view th')).map((h) => h.textContent)).toContain('Reports');
     expect(document.querySelector('#nav a[href="#/intros"]')?.textContent).toBe('Intros & credits');
 
     location.hash = '#/intros/1399-2';
@@ -226,6 +228,12 @@ describe('intros and credits in the Control Center', () => {
     await vi.waitFor(() => expect(text()).toContain('Episode 1'));
     expect(text()).toContain('1:02 – 1:32.5 · 2 of 3 servers');
     expect(text()).toContain('Proposal ab12cd');
+    // What viewers said is wrong, right with the intro's correction.
+    const reports = document.querySelector('#view .cc-det-complaints');
+    expect(reports?.textContent).toContain('Viewers report');
+    expect(reports?.textContent).toContain('3× starts too early');
+    expect(reports?.textContent).toContain('1× ends too late');
+    expect(reports?.closest('.cc-det-row')?.querySelector('.cc-det-kind')?.textContent).toBe('Intro');
     // The CEO's correction of the credits is filled in, with a way to remove it.
     const forms = Array.from(document.querySelectorAll<HTMLFormElement>('#view .cc-det-edit'));
     expect(forms).toHaveLength(3); // recap, intro, credits

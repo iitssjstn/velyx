@@ -50,7 +50,7 @@ export interface CustomCleanupRule {
   graceDays: number;
 }
 
-export const NOTIFICATION_EVENTS = ['cleanupPlanned', 'cleanupDeleted', 'newMedia', 'scanFailed', 'backupFailed', 'newDevice', 'storageLow', 'inviteAccepted'] as const;
+export const NOTIFICATION_EVENTS = ['cleanupPlanned', 'cleanupDeleted', 'newMedia', 'scanFailed', 'backupFailed', 'newDevice', 'storageLow', 'inviteAccepted', 'segmentReport'] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
 /** Messages for administrators: which events, and optionally a Discord channel (a webhook URL). */
@@ -63,7 +63,7 @@ export interface NotificationSettings {
 }
 
 export const DEFAULT_NOTIFICATIONS: NotificationSettings = {
-  events: { cleanupPlanned: true, cleanupDeleted: true, newMedia: false, scanFailed: true, backupFailed: true, newDevice: false, storageLow: true, inviteAccepted: true },
+  events: { cleanupPlanned: true, cleanupDeleted: true, newMedia: false, scanFailed: true, backupFailed: true, newDevice: false, storageLow: true, inviteAccepted: true, segmentReport: true },
   discordWebhook: '',
   discordLanguage: 'en',
 };

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { addLibrary, createTestEnv, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
@@ -200,6 +200,25 @@ describe('shared detection between servers', () => {
     a.env.ctx.settings.update({ shareDetection: true });
     await shared.report(a.showId, 1);
     expect(posts).toHaveLength(1);
+  }, 120_000);
+
+  it('sends viewers\' reports about a part along, grouped and without users, and not when sharing is off', async () => {
+    const a = await server(Object.keys(LAYOUT));
+    const ep = seg(a.env, 2).id;
+    const before = sent.length;
+    const res = await a.env.app.inject({ method: 'POST', url: `/api/episodes/${ep}/segment-report`, headers: { cookie: a.admin }, payload: { kind: 'intro', problem: 'ends-late', position: 60 } });
+    expect(res.statusCode).toBe(200);
+    // Reported in the background; wait for it.
+    await vi.waitFor(() => expect(sent.slice(before).some((s) => s.path === '/api/detection/reports')).toBe(true));
+    const body = sent.slice(before).filter((s) => s.path === '/api/detection/reports').at(-1)!.body as { complaints?: unknown[] };
+    expect(body.complaints).toEqual([{ episode: 2, duration: expect.any(Number), kind: 'intro', problem: 'ends-late', count: 1 }]);
+    expect(JSON.stringify(body.complaints)).not.toMatch(/admin|60/);
+
+    a.env.ctx.settings.update({ shareDetection: false });
+    const later = sent.length;
+    await a.env.app.inject({ method: 'POST', url: `/api/episodes/${ep}/segment-report`, headers: { cookie: a.admin }, payload: { kind: 'credits', problem: 'missing' } });
+    await a.env.ctx.sharedDetection.report(a.showId, 1);
+    expect(sent.slice(later).some((s) => s.path === '/api/detection/reports')).toBe(false);
   }, 120_000);
 
   it('is not held back by the old opt-in switch that older versions stored as off', async () => {

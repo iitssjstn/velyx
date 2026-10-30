@@ -238,6 +238,28 @@ export const detectionPrints = sqliteTable(
 );
 
 /**
+ * Viewers who said a recap, intro or credits was wrong ("Intro klopt niet"), counted per server,
+ * episode, cut and problem. Only the counts — never who reported it. Removed with the server.
+ */
+export const detectionComplaints = sqliteTable(
+  'detection_complaints',
+  {
+    serverId: text('server_id')
+      .notNull()
+      .references(() => servers.id, { onDelete: 'cascade' }),
+    tmdbShow: integer('tmdb_show').notNull(),
+    season: integer('season').notNull(),
+    episode: integer('episode').notNull(),
+    duration: real('duration').notNull(),
+    kind: text('kind', { enum: ['recap', 'intro', 'credits'] }).notNull(),
+    problem: text('problem', { enum: ['starts-early', 'starts-late', 'ends-early', 'ends-late', 'not-there', 'missing'] }).notNull(),
+    count: integer('count').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [index('detection_complaints_season').on(t.tmdbShow, t.season), index('detection_complaints_server').on(t.serverId, t.tmdbShow, t.season)],
+);
+
+/**
  * A correction by the CEO in the Control Center: where a recap, intro or credits really are in one
  * cut of an episode (a length; files within two seconds of it are the same cut). Every server
  * with that cut takes it over its own result.

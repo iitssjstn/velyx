@@ -63,6 +63,7 @@ const AUDIT_ACTIONS: Record<string, MessageKey> = {
   'segments.analyze': 'audit.actions.segmentsAnalyze',
   'segments.edited': 'audit.actions.segmentsEdited',
   'segments.reset': 'audit.actions.segmentsReset',
+  'segments.reportResolved': 'audit.actions.segmentsReportResolved',
   'subtitles.settings': 'audit.actions.subtitlesSettings',
   'subtitles.downloaded': 'audit.actions.subtitlesDownloaded',
   'subtitles.removed': 'audit.actions.subtitlesRemoved',

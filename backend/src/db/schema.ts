@@ -720,6 +720,31 @@ export const segmentReferences = sqliteTable(
 );
 
 /**
+ * A viewer saying a recap, intro or credits is wrong ("Intro is not right"). One open report per
+ * user, episode and part; resolved when an administrator corrects the episode, analyses it again or
+ * marks the report done.
+ */
+export const segmentReports = sqliteTable(
+  'segment_reports',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    episodeId: integer('episode_id')
+      .notNull()
+      .references(() => episodes.id, { onDelete: 'cascade' }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: ['recap', 'intro', 'credits'] }).notNull(),
+    problem: text('problem', { enum: ['starts-early', 'starts-late', 'ends-early', 'ends-late', 'not-there', 'missing'] }).notNull(),
+    /** Where the viewer was in the episode, in seconds. */
+    position: real('position'),
+    createdAt: integer('created_at').notNull().default(now),
+    resolvedAt: integer('resolved_at'),
+  },
+  (t) => [index('segment_reports_episode_idx').on(t.episodeId), index('segment_reports_user_idx').on(t.userId, t.createdAt)],
+);
+
+/**
  * One row per viewing (a stream from start to stop): the activity log and statistics. Titles and
  * file details are copied in, so history stays readable after media or users are removed.
  */
