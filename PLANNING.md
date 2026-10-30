@@ -166,7 +166,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   niet bij alleen `*.md`-wijzigingen; de cloud-image één keer per release (na de APK).
 - Zod-validatie en autorisatie op elk endpoint, Drizzle-migraties, tests voor alles (nooit tests weghalen).
 - README beschrijft alleen wat bestaat. Geen andere mediaservers of streamingdiensten noemen in
-  projectteksten (Seerr mag). Geen AI-functies. Externe diensten zijn opt-in.
+  projectteksten (Seerr mag). Geen AI-functies. Externe diensten zijn opt-in (uitzondering, besluit eigenaar 30 okt:
+  gekoppelde servers delen intro- en aftitelingtijden altijd met vidalune.com).
 - OpenSubtitles-gegevens alleen via het Control Center, nooit in compose. De apt-ondertekeningssleutel
   nooit in de chat.
 
@@ -773,6 +774,29 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   echte FFmpeg-video), overlay tegen zekere muziek, naburig seizoen (los en via de dienst), rand met het beeld via de
   dienst; de nieuwe falen op de oude code. Backend 640, frontend 371 tests; typechecks en lint (0 fouten, 4 bekende
   waarschuwingen) slagen. Op echte afleveringen te bevestigen; de eigenaar kijkt daarna naar verbeterpunten.
+- **Intro-correcties naar het CEO Control Center** (eigenaar 30 okt: "pagina waar je de intro etc kan aanpassen dat wil
+  ik niet meer beschikbaar hebben voor de beheerder dat moet verhuist worden naar de CEO control center [...] het moet
+  ergens opgeslagen worden en verzonden naar de control center zodat andere mensen er ook gebruik van kunnen maken").
+  Keuzes eigenaar: delen altijd aan voor gekoppelde servers (afwijking van "externe diensten opt-in", privacybeleid
+  bijgewerkt); CEO-correcties gaan altijd voor; oude handmatige correcties gaan mee als voorstel en blijven op die
+  server gelden tot de CEO iets anders zet; detectie aan/uit en beeldanalyse blijven bij de beheerder (Beheer >
+  Onderhoud). Gebouwd met drie agents (accountservice, server, website):
+  - Accountservice: `detection_overrides` (één correctie per aflevering, soort en versie = lengte ±2 s) en
+    `detection_titles` (serienamen via TMDB), migratie `0018_detection_overrides`; het seizoensprofiel geeft
+    `overrides` mee; CEO-API `/api/ceo/detection` (lijst, seizoen, PUT/DELETE per aflevering; Zod, alleen CEO,
+    ceo_events). Control Center: "Intro's en aftiteling" onder Algemeen met zoeken, open voorstellen van beheerders
+    ("Overnemen") en eigen correctie (m:ss of seconden). Privacybeleid: sectie Intro's en aftiteling.
+  - Server: delen zodra de server gekoppeld is (geen instelling `sharedDetection` meer; registreert zich er niet voor);
+    `overridesFor` zet een correctie met `high` boven alles, ook boven een lokale handcorrectie (alleen dat deel; de
+    rest van die handcorrectie blijft); weggehaalde correctie: het deel wordt losgelaten en opnieuw geanalyseerd.
+    Profielen en `syncAll` elke 6 uur (was 12/24). Beheer-routes `/api/admin/segments*` weg (`routes/segments.ts`); de
+    CLI `vidalune intros` blijft.
+  - Website: pagina Beheer > Intro's en aftiteling weg (`/admin/intros` stuurt door naar Onderhoud); de twee
+    schakelaars op Onderhoud met uitleg over het delen.
+  - Tests: van de weggehaalde pagina en routes weg (testten alleen die code), nieuwe voor CEO-API/pagina, delen,
+    overrides en doorsturen. Backend 643, frontend 369, cloud 221, app 271 tests; typechecks, build en lint (0 fouten,
+    4 bekende waarschuwingen) slagen. Na de release: accountservice bijwerken (anders geen correcties in het Control
+    Center).
 - Eigenaar (30 okt): "wacht met pushen zodat we meerdere dingen kunnen toevoegen als ik die tegenkom". Nieuwe punten
   komen in 0.20.3 en blijven lokaal tot hij zegt dat het klaar is; daarna pas pushen en de PR.
 

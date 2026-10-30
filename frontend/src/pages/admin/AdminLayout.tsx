@@ -8,7 +8,6 @@ import { LogsPage } from './Logs';
 import { BackupPage } from './Backup';
 import { AuditPage } from './Audit';
 import { HealthPage } from './Health';
-import { SegmentsPage } from './Segments';
 import { ActivityPage } from './Activity';
 import { CleanupPage } from './Cleanup';
 import { NotificationsPage, useUnreadNotifications } from './Notifications';
@@ -20,7 +19,7 @@ import { OptimizationPage } from './Optimization';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  Activity, Bell, ChevronDown, Clapperboard, Cloud, DatabaseBackup, Eraser, Gauge, HeartPulse, LayoutDashboard,
+  Activity, Bell, ChevronDown, Cloud, DatabaseBackup, Eraser, Gauge, HeartPulse, LayoutDashboard,
   Library, MonitorPlay, Plug, ScrollText, Server, ShieldCheck, Tags, Users, Wrench, type LucideIcon,
 } from 'lucide-react';
 import { useT, type MessageKey } from '../../i18n';
@@ -45,7 +44,6 @@ const GROUPS: Array<{ label: MessageKey; items: Section[] }> = [
       { to: 'libraries', label: 'admin.tabs.libraries', icon: Library },
       { to: 'metadata', label: 'admin.tabs.metadata', icon: Tags },
       { to: 'health', label: 'admin.tabs.health', icon: HeartPulse },
-      { to: 'intros', label: 'admin.tabs.intros', icon: Clapperboard },
       { to: 'playback', label: 'admin.tabs.playback', icon: MonitorPlay },
       { to: 'optimization', label: 'admin.tabs.optimization', icon: Gauge },
       { to: 'cleanup', label: 'admin.tabs.cleanup', icon: Eraser },
@@ -141,7 +139,8 @@ export default function AdminLayout() {
         <Route path="users" element={<UsersPage />} />
         <Route path="metadata" element={<MetadataPage />} />
         <Route path="health" element={<HealthPage />} />
-        <Route path="intros" element={<SegmentsPage />} />
+        {/* Intros & credits are corrected centrally since 0.20.3; the detection settings are under Maintenance. */}
+        <Route path="intros" element={<Navigate to="/admin/maintenance" replace />} />
         <Route path="optimization" element={<OptimizationPage />} />
         <Route path="cleanup" element={<CleanupPage />} />
         <Route path="notifications" element={<NotificationsPage />} />

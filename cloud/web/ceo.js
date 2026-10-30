@@ -6,7 +6,7 @@
   document.documentElement.lang = nl ? 'nl' : 'en';
   const T = nl
     ? {
-        nav: { general: 'Algemeen', infrastructure: 'Infrastructuur', overview: 'Overzicht', customers: 'Klanten', access: 'Toegang', relays: 'Relays', subtitles: 'Ondertitels', tmdb: 'TMDB', mail: 'Mail', community: 'Community', statistics: 'Statistieken', activity: 'Activiteit', account: 'Account', signOut: 'Uitloggen' },
+        nav: { general: 'Algemeen', infrastructure: 'Infrastructuur', overview: 'Overzicht', customers: 'Klanten', access: 'Toegang', relays: 'Relays', subtitles: 'Ondertitels', tmdb: 'TMDB', mail: 'Mail', community: 'Community', intros: "Intro's en aftiteling", statistics: 'Statistieken', activity: 'Activiteit', account: 'Account', signOut: 'Uitloggen' },
         community: { intro: 'De Discord-link op vidalune.com: in het menu en onderaan elke pagina, via vidalune.com/discord en discord.vidalune.com. Laat het veld leeg om de links te verbergen.', discord: 'Discord-uitnodiging', placeholder: 'https://discord.gg/…', save: 'Opslaan', saved: 'Discord-link opgeslagen', off: 'Discord-links verborgen', open: 'Openen' },
         mail: { intro: 'De mail van vidalune.com: e-mailadressen bevestigen, wachtwoord vergeten en een gewijzigd adres. Vul hier de SMTP-gegevens in, bijvoorbeeld van Postmark. Ze worden gecontroleerd bij de SMTP-dienst voordat ze worden opgeslagen; het wachtwoord of token wordt daarna nooit meer getoond.', status: 'Status', on: 'Aan: verstuurd als {from} via {host}', onEnv: 'Aan via de omgeving (SMTP_HOST): {from} via {host}. Wat je hier opslaat gaat voor.', off: 'Uit: er wordt geen mail verstuurd. Bevestigen en wachtwoord vergeten werken dan niet.', host: 'SMTP-server', port: 'Poort', secure: 'TLS vanaf het begin (poort 465). Uit: STARTTLS, verplicht vóór het inloggen (poort 587).', user: 'Gebruikersnaam', pass: 'Wachtwoord of token', passKept: 'Laat leeg om het opgeslagen wachtwoord te houden ({hint})', userKept: 'Laat leeg om de opgeslagen gebruikersnaam te houden ({hint})', from: 'Afzender', fromHint: 'Bijvoorbeeld Vidalune <no-reply@vidalune.com>. Het domein moet bij de SMTP-dienst bevestigd zijn.', headers: 'Extra headers (optioneel)', headersHint: 'Naam: waarde, gescheiden door ;. Postmark: X-PM-Message-Stream: outbound', postmark: 'Postmark invullen', postmarkText: 'Vult de server, poort en header voor Postmark in. Gebruikersnaam en wachtwoord zijn bij Postmark allebei je servertoken. Beide worden na opslaan nooit meer getoond.', save: 'Controleren en opslaan', saved: 'Mail opgeslagen', test: 'Testmail sturen', tested: 'Testmail verstuurd naar {to}', turnOff: 'Uitzetten', turnOffText: 'Er wordt dan geen mail meer verstuurd (behalve als SMTP_HOST in de omgeving staat). Bevestigen en wachtwoord vergeten werken dan niet meer.', turnedOff: 'Mail staat uit', rights: 'Met mail aan gelden de rechten van ADMIN_EMAILS en CEO_EMAILS alleen voor een bevestigd e-mailadres. Jouw eigen adres telt als bevestigd zodra je hier opslaat.' },
         tmdb: { intro: 'Gekoppelde Vidalune-servers zonder eigen TMDB-sleutel halen hun metadata (titels, beschrijvingen, posters, cast) via vidalune.com met deze sleutel. Alleen de vragen die Vidalune stelt worden doorgegeven; elk antwoord wordt een dag bewaard en gedeeld door alle servers. Afbeeldingen halen servers zelf bij TMDB. De sleutel wordt gecontroleerd voordat hij wordt opgeslagen en daarna nooit meer getoond.', status: 'Status', on: 'Aan, sleutel {hint}', off: 'Uit: servers zonder eigen sleutel krijgen geen metadata', apiKey: 'TMDB API-sleutel of API Read Access Token', newKey: 'Nieuwe sleutel (leeg laten om de huidige te houden)', save: 'Controleren en opslaan', saved: 'TMDB opgeslagen', turnOff: 'Uitzetten', turnOffText: 'Servers zonder eigen sleutel krijgen dan geen nieuwe metadata meer via vidalune.com. Wat ze al hebben blijft staan.', turnedOff: 'Metadata via vidalune.com staat uit', kept: 'Bewaarde antwoorden', perServer: 'Per server: 6000 vragen per uur (een eerste scan van een grote bibliotheek). Gratis TMDB-sleutel: alleen voor niet-commercieel gebruik.' },
@@ -22,7 +22,18 @@
         invited: 'Wacht op aanmelding',
         infra: 'Relay-infrastructuur', activeRelays: 'Actieve relays', onlineRelays: 'Online relays', ofRelays: 'van {n}', clients: 'Verbonden clients', clientsSub: 'apparaten, laatste 5 min.', connectedServers: 'Verbonden servers', capacity: 'Capaciteit', current: 'Huidige bandbreedte', version: 'Vidalune {v}', load: 'Belasting', available: 'Beschikbaar', peak: 'Piek', uptime: 'Uptime', lastSeen: 'Laatst gezien {when}', lastHeartbeat: 'Laatste controle', neverChecked: 'nog niet gecontroleerd',
         health: 'Relay-status', mainRelay: 'hoofdrelay', nearQuota: '{name}: {used} van {quota} GB deze maand; daarna {mbps} Mbit/s.', dnsRecords: 'DNS-records', dnsRecordsSub: 'van {limit} toegestaan', dnsNear: 'DNS-records bijna vol: {used} van {limit} in gebruik. Ruim op of neem een groter Cloudflare-plan.', recent: 'Recente activiteit', when: 'Tijdstip', action: 'Actie', target: 'Waarop', actor: 'Door', system: 'systeem',
+        det: {
+          intro: 'Wat gekoppelde servers vinden aan recaps, intro\'s en aftitelingen, per serie en seizoen (TMDB). Een correctie van jou geldt voor elke server met dezelfde versie van de aflevering (lengte binnen 2 seconden) en gaat boven wat die server zelf vond; servers halen correcties binnen 6 uur op. Correcties die beheerders op hun server deden, staan hier als voorstel.',
+          search: 'Zoeken op titel of TMDB-id…', seasons: 'Seizoenen', season: 'Seizoen {n}', show: 'Serie', servers: 'Servers', episodes: 'Afleveringen', corrections: 'Correcties', proposals: 'Voorstellen', updated: 'Laatst gewijzigd',
+          none: 'Nog niets gemeld door servers.', tmdb: 'TMDB {id}', episode: 'Aflevering {n}', cut: 'versie van {len}',
+          kinds: { recap: 'Recap', intro: 'Intro', credits: 'Aftiteling' },
+          found: 'Servers vinden', foundBy: '{n} van {m} servers', nothing: 'Niets gevonden', byHand: 'met de hand',
+          proposal: 'Voorstel {server}', take: 'Overnemen', yours: 'Jouw correctie', start: 'Begin', end: 'Einde', timeHint: 'm:ss of seconden',
+          save: 'Opslaan', remove: 'Verwijderen', saved: 'Correctie opgeslagen', removed: 'Correctie verwijderd', badTime: 'Vul begin en einde in als m:ss of seconden.',
+          open: 'Openen', openProposals: '{n} open',
+        },
         actions: {
+          'detection.corrected': 'Intro/aftiteling gecorrigeerd', 'detection.correctionRemoved': 'Correctie intro/aftiteling verwijderd',
           'customer.created': 'Klant toegevoegd', 'customer.updated': 'Klant gewijzigd', 'customer.suspended': 'Klant geblokkeerd', 'customer.unsuspended': 'Blokkade opgeheven',
           'access.granted': 'Toegang gegeven', 'access.changed': 'Toegang gewijzigd', 'access.extended': 'Toegang verlengd', 'access.revoked': 'Toegang ingetrokken',
           'relay.created': 'Relay toegevoegd', 'relay.updated': 'Relay gewijzigd', 'relay.enabled': 'Relay aangezet', 'relay.disabled': 'Relay uitgezet', 'relay.removed': 'Relay verwijderd',
@@ -62,7 +73,7 @@
         table: 'Als tabel', day: 'Dag', value: 'Waarde', ago: { now: 'zojuist', m: '{n} min. geleden', h: '{n} uur geleden', d: '{n} dagen geleden' },
       }
     : {
-        nav: { general: 'General', infrastructure: 'Infrastructure', overview: 'Overview', customers: 'Customers', access: 'Access', relays: 'Relays', subtitles: 'Subtitles', tmdb: 'TMDB', mail: 'Mail', community: 'Community', statistics: 'Statistics', activity: 'Activity', account: 'Account', signOut: 'Sign out' },
+        nav: { general: 'General', infrastructure: 'Infrastructure', overview: 'Overview', customers: 'Customers', access: 'Access', relays: 'Relays', subtitles: 'Subtitles', tmdb: 'TMDB', mail: 'Mail', community: 'Community', intros: 'Intros & credits', statistics: 'Statistics', activity: 'Activity', account: 'Account', signOut: 'Sign out' },
         community: { intro: 'The Discord link on vidalune.com: in the menu and at the bottom of every page, through vidalune.com/discord and discord.vidalune.com. Leave the field empty to hide the links.', discord: 'Discord invite', placeholder: 'https://discord.gg/…', save: 'Save', saved: 'Discord link saved', off: 'Discord links hidden', open: 'Open' },
         mail: { intro: 'The mail of vidalune.com: confirming email addresses, forgot password and a changed address. Enter the SMTP details here, for example from Postmark. They are checked at the SMTP service before they are saved; the password or token is never shown again.', status: 'Status', on: 'On: sent as {from} through {host}', onEnv: 'On through the environment (SMTP_HOST): {from} through {host}. What you save here comes first.', off: 'Off: no mail is sent. Confirming addresses and forgot password do not work.', host: 'SMTP server', port: 'Port', secure: 'TLS from the start (port 465). Off: STARTTLS, required before signing in (port 587).', user: 'Username', pass: 'Password or token', passKept: 'Leave empty to keep the saved password ({hint})', userKept: 'Leave empty to keep the saved username ({hint})', from: 'Sender', fromHint: 'For example Vidalune <no-reply@vidalune.com>. The domain must be confirmed at the SMTP service.', headers: 'Extra headers (optional)', headersHint: 'Name: value, separated by ;. Postmark: X-PM-Message-Stream: outbound', postmark: 'Fill in Postmark', postmarkText: 'Fills in the server, port and header for Postmark. At Postmark the username and password are both your server token.', save: 'Check and save', saved: 'Mail saved', test: 'Send a test email', tested: 'Test email sent to {to}', turnOff: 'Turn off', turnOffText: 'No more mail is sent then (unless SMTP_HOST is in the environment). Confirming addresses and forgot password stop working.', turnedOff: 'Mail is off', rights: 'With mail on, the rights of ADMIN_EMAILS and CEO_EMAILS only count for a confirmed email address. Your own address counts as confirmed once you save here.' },
         tmdb: { intro: 'Linked Vidalune servers without a TMDB key of their own get their metadata (titles, descriptions, posters, cast) through vidalune.com with this key. Only the questions Vidalune asks are passed on; each answer is kept for a day and shared by every server. Servers fetch images from TMDB themselves. The key is checked before it is saved and is never shown again.', status: 'Status', on: 'On, key {hint}', off: 'Off: servers without a key of their own get no metadata', apiKey: 'TMDB API key or API Read Access Token', newKey: 'New key (leave empty to keep the current one)', save: 'Check and save', saved: 'TMDB saved', turnOff: 'Turn off', turnOffText: 'Servers without a key of their own then get no new metadata through vidalune.com. What they have stays.', turnedOff: 'Metadata through vidalune.com is off', kept: 'Kept answers', perServer: 'Per server: 6000 questions an hour (a first scan of a large library). A free TMDB key is for non-commercial use only.' },
@@ -78,7 +89,18 @@
         invited: 'Awaiting sign-up',
         infra: 'Relay infrastructure', activeRelays: 'Active relays', onlineRelays: 'Online relays', ofRelays: 'of {n}', clients: 'Connected clients', clientsSub: 'devices, last 5 min', connectedServers: 'Connected servers', capacity: 'Capacity', current: 'Current bandwidth', version: 'Vidalune {v}', load: 'Relay load', available: 'Available', peak: 'Peak', uptime: 'Uptime', lastSeen: 'Last seen {when}', lastHeartbeat: 'Last heartbeat', neverChecked: 'not checked yet',
         health: 'Relay health', mainRelay: 'main relay', nearQuota: '{name}: {used} of {quota} GB this month; then {mbps} Mbit/s.', dnsRecords: 'DNS records', dnsRecordsSub: 'of {limit} allowed', dnsNear: 'DNS records almost full: {used} of {limit} in use. Clean up or get a larger Cloudflare plan.', recent: 'Recent activity', when: 'Time', action: 'Action', target: 'Target', actor: 'Actor', system: 'system',
+        det: {
+          intro: 'What linked servers find for recaps, intros and credits, per show and season (TMDB). A correction of yours applies to every server with the same version of the episode (length within 2 seconds) and goes before what that server found itself; servers fetch corrections within 6 hours. Corrections administrators made on their own server are listed here as proposals.',
+          search: 'Search by title or TMDB id…', seasons: 'Seasons', season: 'Season {n}', show: 'Show', servers: 'Servers', episodes: 'Episodes', corrections: 'Corrections', proposals: 'Proposals', updated: 'Last changed',
+          none: 'Nothing reported by servers yet.', tmdb: 'TMDB {id}', episode: 'Episode {n}', cut: 'version of {len}',
+          kinds: { recap: 'Recap', intro: 'Intro', credits: 'Credits' },
+          found: 'Servers find', foundBy: '{n} of {m} servers', nothing: 'Nothing found', byHand: 'by hand',
+          proposal: 'Proposal {server}', take: 'Use', yours: 'Your correction', start: 'Start', end: 'End', timeHint: 'm:ss or seconds',
+          save: 'Save', remove: 'Remove', saved: 'Correction saved', removed: 'Correction removed', badTime: 'Fill in start and end as m:ss or seconds.',
+          open: 'Open', openProposals: '{n} open',
+        },
         actions: {
+          'detection.corrected': 'Intro/credits corrected', 'detection.correctionRemoved': 'Intro/credits correction removed',
           'customer.created': 'Customer added', 'customer.updated': 'Customer changed', 'customer.suspended': 'Customer suspended', 'customer.unsuspended': 'Suspension lifted',
           'access.granted': 'Access granted', 'access.changed': 'Access changed', 'access.extended': 'Access extended', 'access.revoked': 'Access revoked',
           'relay.created': 'Relay added', 'relay.updated': 'Relay changed', 'relay.enabled': 'Relay enabled', 'relay.disabled': 'Relay disabled', 'relay.removed': 'Relay removed',
@@ -143,6 +165,7 @@
   };
   // Icons in one consistent line style (24×24, 2px stroke).
   const ICONS = {
+    intros: ['M4 11h16v9H4z', 'M4 11 3 6l16-3 1 5', 'M8 5.4l2.5 4.1', 'M13.5 4.4 16 8.5'],
     community: ['M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', 'M8 10h.01', 'M12 10h.01', 'M16 10h.01'],
     subtitles: ['M3 5h18v14H3z', 'M7 15h4', 'M13 15h4', 'M7 11h10'],
     mail: ['M3 5h18v14H3z', 'M3 7l9 6 9-6'],
@@ -407,13 +430,13 @@
 
   // ---- navigation (the sidebar is the only navigation)
   const NAV = [
-    ['general', [['overview', 'overview'], ['customers', 'customers'], ['access', 'access'], ['community', 'community']]],
+    ['general', [['overview', 'overview'], ['customers', 'customers'], ['access', 'access'], ['intros', 'intros'], ['community', 'community']]],
     ['infrastructure', [['relays', 'relays'], ['subtitles', 'subtitles'], ['tmdb', 'tmdb'], ['mail', 'mail'], ['statistics', 'statistics']]],
   ];
   const route = () => {
     const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
     const [page, arg] = path.split('/');
-    return { page: ['overview', 'customers', 'access', 'community', 'relays', 'subtitles', 'tmdb', 'mail', 'statistics', 'activity'].includes(page) ? page : 'overview', arg: arg ? decodeURIComponent(arg) : null, params: new URLSearchParams(query) };
+    return { page: ['overview', 'customers', 'access', 'intros', 'community', 'relays', 'subtitles', 'tmdb', 'mail', 'statistics', 'activity'].includes(page) ? page : 'overview', arg: arg ? decodeURIComponent(arg) : null, params: new URLSearchParams(query) };
   };
   function renderNav() {
     const { page } = route();
@@ -1144,6 +1167,143 @@
   /** The first card on a service page: on or off, and what that means. */
   const serviceCard = (on, text) => stat({ label: t('serviceStatus'), value: on ? t('on') : t('off'), valueTone: on ? 'ok' : 'warn', tone: on ? 'teal' : 'red', side: chip(on ? t('chips.on') : t('chips.off'), on ? 'ok' : 'hot'), sub: text });
 
+
+  // ---- intros & credits: what servers found, proposals from administrators, and corrections
+  /** Seconds as m:ss (with a tenth when there is one). */
+  const clock = (sec) => {
+    const s = Math.max(0, Number(sec));
+    const m = Math.floor(s / 60);
+    const rest = s - m * 60;
+    const whole = Math.floor(rest);
+    const tenth = Math.round((rest - whole) * 10);
+    return `${m}:${String(whole).padStart(2, '0')}${tenth ? `.${tenth}` : ''}`;
+  };
+  /** "1:23", "1:23.5", "83" or "83.5" to seconds (null: not a time). */
+  const parseClock = (v) => {
+    const text = String(v ?? '').trim().replace(',', '.');
+    let m = /^(\d{1,3}):([0-5]?\d(?:\.\d+)?)$/.exec(text);
+    if (m) return Number(m[1]) * 60 + Number(m[2]);
+    m = /^\d{1,5}(?:\.\d+)?$/.exec(text);
+    return m ? Number(text) : null;
+  };
+  let detectionQuery = { q: '', page: 1 };
+  async function intros(arg, params) {
+    if (arg) return introSeason(arg);
+    crumbs(t('nav.intros'));
+    if (params.has('q')) {
+      detectionQuery = { q: params.get('q') ?? '', page: 1 };
+      history.replaceState(null, '', '#/intros');
+    }
+    const top = header(t('nav.intros'), null);
+    show(top, skeleton(2));
+    const d = await api('GET', `/api/ceo/detection?${new URLSearchParams({ q: detectionQuery.q, page: String(detectionQuery.page) })}`);
+    const pages = Math.max(1, Math.ceil(d.total / d.pageSize));
+    const set = (patch) => {
+      detectionQuery = { ...detectionQuery, page: 1, ...patch };
+      void go();
+    };
+    const toolbar = el('div', { class: 'cc-toolbar cc-filters' },
+      el('form', { class: 'cc-search', role: 'search', onsubmit: (e) => { e.preventDefault(); set({ q: new FormData(e.target).get('q') }); } },
+        icon('search'),
+        el('input', { name: 'q', type: 'search', placeholder: t('det.search'), 'aria-label': t('det.search'), value: detectionQuery.q })));
+    const rows = d.items.map((x) => ({
+      item: x,
+      cells: [
+        el('div', { class: 'cc-who' }, el('strong', {}, x.title ?? t('det.tmdb', { id: x.tmdbShow })), x.title ? el('span', { class: 'small' }, t('det.tmdb', { id: x.tmdbShow })) : null),
+        t('det.season', { n: x.season }),
+        num(x.servers),
+        num(x.episodes),
+        x.overrides ? num(x.overrides) : el('span', { class: 'muted' }, '—'),
+        x.proposals ? chip(t('det.openProposals', { n: num(x.proposals) }), 'warn') : el('span', { class: 'muted' }, '—'),
+        el('span', { title: dateTime(x.updatedAt) }, ago(x.updatedAt)),
+      ],
+    }));
+    show(
+      top,
+      el('p', { class: 'cc-sub' }, t('det.intro')),
+      toolbar,
+      d.items.length
+        ? el('div', { class: 'cc-card flush' }, table([t('det.show'), t('det.seasons'), t('det.servers'), t('det.episodes'), t('det.corrections'), t('det.proposals'), t('det.updated')], rows, (x) => (location.hash = `#/intros/${x.tmdbShow}-${x.season}`)))
+        : el('div', { class: 'cc-card' }, empty(t('det.none'))),
+      pages > 1
+        ? el('div', { class: 'cc-pager' },
+            el('button', { class: 'ghost', disabled: detectionQuery.page <= 1, onclick: () => set({ page: detectionQuery.page - 1 }) }, '‹'),
+            el('span', { class: 'small' }, t('page', { page: d.page, pages })),
+            el('button', { class: 'ghost', disabled: detectionQuery.page >= pages, onclick: () => set({ page: detectionQuery.page + 1 }) }, '›'))
+        : null,
+    );
+  }
+
+  async function introSeason(arg) {
+    const [show_, season] = String(arg).split('-').map(Number);
+    const back = el('a', { href: '#/intros' }, t('nav.intros'));
+    crumbs(back, '…');
+    show(header('…'), skeleton(2));
+    const d = await api('GET', `/api/ceo/detection/${show_}/${season}`);
+    const name = d.title ?? t('det.tmdb', { id: d.tmdbShow });
+    crumbs(back, `${name} · ${t('det.season', { n: d.season })}`);
+    // Per episode and version (length): one row for each kind, also when nothing was found.
+    const groups = [];
+    for (const e of d.entries) {
+      let g = groups.find((x) => x.episode === e.episode && Math.abs(x.duration - e.duration) <= 2);
+      if (!g) groups.push((g = { episode: e.episode, duration: e.duration, kinds: {} }));
+      g.kinds[e.kind] = e;
+    }
+    const kindRow = (g, kind) => {
+      const e = g.kinds[kind] ?? { consensus: null, proposals: [], override: null };
+      const start = el('input', { name: 'start', inputmode: 'decimal', autocomplete: 'off', size: 7, 'aria-label': `${t(`det.kinds.${kind}`)} · ${t('det.start')}`, placeholder: t('det.start'), value: e.override ? clock(e.override.start) : '' });
+      const end = el('input', { name: 'end', inputmode: 'decimal', autocomplete: 'off', size: 7, 'aria-label': `${t(`det.kinds.${kind}`)} · ${t('det.end')}`, placeholder: t('det.end'), value: e.override ? clock(e.override.end) : '' });
+      const error = el('p', { class: 'error', role: 'alert' });
+      const url = `/api/ceo/detection/${d.tmdbShow}/${d.season}/${g.episode}`;
+      const run = async (fn) => {
+        error.textContent = '';
+        try {
+          toast(await fn());
+          await go();
+        } catch (err) {
+          error.textContent = err.message;
+        }
+      };
+      const save = () =>
+        run(async () => {
+          const a = parseClock(start.value);
+          const b = parseClock(end.value);
+          if (a === null || b === null) throw new Error(t('det.badTime'));
+          await api('PUT', url, { kind, duration: g.duration, start: a, end: b });
+          return t('det.saved');
+        });
+      const c = e.consensus;
+      return el('div', { class: 'cc-det-row' },
+        el('strong', { class: 'cc-det-kind' }, t(`det.kinds.${kind}`)),
+        el('div', { class: 'cc-det-found' },
+          el('span', { class: 'small muted' }, t('det.found')),
+          c ? el('span', {}, `${clock(c.start)} – ${clock(c.end)} · ${t('det.foundBy', { n: num(c.confirmations), m: num(c.reports) })}${c.manual ? ` · ${t('det.byHand')}` : ''}`) : el('span', { class: 'muted' }, t('det.nothing')),
+          e.proposals.map((p) =>
+            el('div', { class: 'cc-det-proposal' },
+              chip(t('det.proposal', { server: p.server }), 'warn'),
+              el('span', {}, `${clock(p.start)} – ${clock(p.end)}`),
+              el('button', { type: 'button', class: 'ghost', onclick: () => { start.value = clock(p.start); end.value = clock(p.end); start.focus(); } }, t('det.take')))),
+        ),
+        el('form', { class: 'cc-det-edit', onsubmit: (ev) => { ev.preventDefault(); void save(); } },
+          el('span', { class: 'small muted' }, e.override ? t('det.yours') : `${t('det.yours')} (${t('det.timeHint')})`),
+          el('div', { class: 'cc-det-inputs' }, start, el('span', { 'aria-hidden': 'true' }, '–'), end,
+            el('button', { type: 'submit' }, t('det.save')),
+            e.override ? el('button', { type: 'button', class: 'ghost danger', onclick: () => void run(async () => { await api('DELETE', `${url}?${new URLSearchParams({ kind, duration: String(g.duration) })}`); return t('det.removed'); }) }, t('det.remove')) : null),
+          error),
+      );
+    };
+    show(
+      header(`${name} · ${t('det.season', { n: d.season })}`, `${t('det.tmdb', { id: d.tmdbShow })} · ${num(d.servers)} ${t('det.servers').toLowerCase()}`),
+      el('p', { class: 'cc-sub' }, t('det.intro')),
+      groups.length
+        ? groups.map((g) =>
+            el('section', { class: 'cc-card cc-panel cc-det-episode' },
+              el('h2', {}, t('det.episode', { n: g.episode }), el('span', { class: 'small muted' }, ` · ${t('det.cut', { len: clock(g.duration) })}`)),
+              ['recap', 'intro', 'credits'].map((k) => kindRow(g, k))))
+        : el('div', { class: 'cc-card' }, empty(t('det.none'))),
+    );
+  }
+
   // ---- community: the Discord link on the website
   async function community() {
     crumbs(t('nav.community'));
@@ -1370,7 +1530,7 @@
         loadedMe = true;
         renderNav();
       }
-      await { overview, customers, access, community, relays, subtitles, tmdb, mail, statistics, activity }[page](arg, params);
+      await { overview, customers, access, intros, community, relays, subtitles, tmdb, mail, statistics, activity }[page](arg, params);
       view.focus({ preventScroll: true });
     } catch (err) {
       if (err.status === 401 || err.status === 403) {

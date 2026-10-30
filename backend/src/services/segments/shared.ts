@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import type { DB } from '../../db/client.js';
 import { episodes, episodeSegments, mediaFiles, segmentReferences, sharedDetectionCache, shows } from '../../db/schema.js';
 import { createLogger } from '../../logger.js';
@@ -8,12 +8,14 @@ import type { Fingerprint } from './fingerprint.js';
 const log = createLogger('segments');
 
 /**
- * Shared detection (optional, Admin → Intros & credits): servers report where they found recaps, intros and
- * credits (by TMDB show, season and episode, with the episode's length, and a few fingerprints of
- * a season's intro and credits) to vidalune.com, which keeps what they agree on. Every server then
- * uses that where its own detection found nothing (or nothing sure), and the fingerprints as extra
- * references. Nothing about files, users or viewing is sent. When vidalune.com cannot be reached,
- * the last profile kept here is used, or only local detection.
+ * Shared detection (always, for a server known to vidalune.com): servers report where they found
+ * recaps, intros and credits (by TMDB show, season and episode, with the episode's length, and a few
+ * fingerprints of a season's intro and credits) to vidalune.com, which keeps what they agree on.
+ * Every server then uses that where its own detection found nothing (or nothing sure), and the
+ * fingerprints as extra references. Corrections made in the Control Center on vidalune.com
+ * (`overrides`) go before everything: what was found here and a correction by hand here. Nothing
+ * about files, users or viewing is sent. When vidalune.com cannot be reached, the last profile
+ * kept here is used, or only local detection.
  */
 
 export type SharedKind = 'recap' | 'intro' | 'credits';
@@ -37,13 +39,17 @@ export interface SharedProfile {
   parts: SharedAgreement[];
   mine: Array<{ episode: number; kind: SharedKind; duration: number; start: number; end: number }>;
   prints: Array<{ kind: 'intro' | 'credits'; words: string }>;
+  /** Corrections made in the Control Center: they go before anything found anywhere (missing from an older vidalune.com). */
+  overrides?: Array<{ episode: number; kind: SharedKind; duration: number; start: number; end: number }>;
 }
 
 /** Lengths within this many seconds are the same cut; timings within this many agree. */
 const DURATION_TOLERANCE = 2;
 const TIMING_TOLERANCE = 2;
 /** How long a profile is used before vidalune.com is asked again. */
-export const PROFILE_FRESH_MS = 12 * 3_600_000;
+export const PROFILE_FRESH_MS = 6 * 3_600_000;
+/** How often every season is reported and its profile fetched again (a correction reaches every server within this time). */
+export const SHARED_SYNC_MS = 6 * 3_600_000;
 /** Shared fingerprints used per kind (each is compared with every episode). */
 const SHARED_PRINTS = 3;
 
@@ -60,6 +66,20 @@ export function sharedFor(profile: SharedProfile, episode: number, duration: num
     const best = out[a.kind];
     if (best && best.confirmations >= a.confirmations) continue;
     out[a.kind] = { start: a.start, end: a.end, confidence: a.confirmations >= 3 || a.manual ? 'high' : 'medium', confirmations: a.confirmations };
+  }
+  return out;
+}
+
+/** The Control Center's corrections for this cut of an episode (for two of nearly the same length, the closest). */
+export function overridesFor(profile: SharedProfile, episode: number, duration: number): Partial<Record<SharedKind, { start: number; end: number }>> {
+  const out: Partial<Record<SharedKind, { start: number; end: number }>> = {};
+  const off: Partial<Record<SharedKind, number>> = {};
+  for (const o of profile.overrides ?? []) {
+    if (o.episode !== episode || !sameCut(o, duration) || o.end <= o.start) continue;
+    const d = Math.abs(o.duration - duration);
+    if ((off[o.kind] ?? Infinity) <= d) continue;
+    off[o.kind] = d;
+    out[o.kind] = { start: o.start, end: o.end };
   }
   return out;
 }
@@ -104,12 +124,12 @@ export class SharedDetection {
   constructor(
     private readonly db: DB,
     private readonly cloud: CloudCalls,
-    private readonly enabled: () => boolean,
     private readonly now: () => number = Date.now,
   ) {}
 
+  /** Always on for a server known to vidalune.com; a server that is not stays local (it is never registered for this). */
   private on(): boolean {
-    return this.enabled() && this.cloud.registered();
+    return this.cloud.registered();
   }
 
   private tmdbOf(showId: number): number | null {
@@ -196,24 +216,44 @@ export class SharedDetection {
     this.apply(rows, profile);
   }
 
-  /** Labels every result of the season, and fills what was not found here with what others agree on. */
+  /**
+   * Labels every result of the season, puts in the Control Center's corrections, and fills what was
+   * not found here with what others agree on.
+   *
+   * A correction from the Control Center replaces that part, also a correction by hand here; the
+   * other parts of a corrected episode stay as they are (an episode corrected by hand here stays
+   * `manual`, so the rest of its correction still holds and is not analysed over). The part gets the
+   * source `shared`, so it is never reported back as found here. A part taken from others (source
+   * `shared`) that nothing backs any more — the correction was removed, or the servers no longer
+   * agree — is emptied and its episode analysed again by the usual rules.
+   */
   private apply(rows: Array<{ number: number; duration: number; seg: Row }>, profile: SharedProfile): void {
     for (const { number, duration, seg } of rows) {
       const set: Partial<Row> = {};
-      if (!seg.manual) {
-        const theirs = sharedFor(profile, number, duration);
-        const weak = (c: Row['introConfidence'], start: number | null) => start === null || c === 'low' || c === null;
-        const fill = (kind: SharedKind, confidence: Row['introConfidence'], start: number | null, source: Row['introSource']) => {
-          const t = theirs[kind];
-          // Also updates an earlier shared part when more servers agree now.
-          if (!t || !(weak(confidence, start) || source === 'shared')) return;
+      const forced = overridesFor(profile, number, duration);
+      const theirs = sharedFor(profile, number, duration);
+      let stale = false;
+      for (const kind of ['recap', 'intro', 'credits'] as const) {
+        const o = forced[kind];
+        const source = seg[`${kind}Source`];
+        if (o) {
+          Object.assign(set, { [`${kind}Start`]: o.start, [`${kind}End`]: o.end, [`${kind}Confidence`]: 'high', [`${kind}Source`]: 'shared' });
+          continue;
+        }
+        const start = seg[`${kind}Start`];
+        const weak = start === null || seg[`${kind}Confidence`] === 'low' || seg[`${kind}Confidence`] === null;
+        const t = seg.manual ? undefined : theirs[kind];
+        // Also updates an earlier shared part when more servers agree now.
+        if (t && (weak || source === 'shared')) {
           Object.assign(set, { [`${kind}Start`]: t.start, [`${kind}End`]: t.end, [`${kind}Confidence`]: t.confidence, [`${kind}Source`]: 'shared' });
-        };
-        fill('recap', seg.recapConfidence, seg.recapStart, seg.recapSource);
-        fill('intro', seg.introConfidence, seg.introStart, seg.introSource);
-        fill('credits', seg.creditsConfidence, seg.creditsStart, seg.creditsSource);
-        if (seg.status === 'error' && Object.keys(set).length) Object.assign(set, { status: 'analyzed', error: null });
+        } else if (source === 'shared' && start !== null) {
+          Object.assign(set, { [`${kind}Start`]: null, [`${kind}End`]: null, [`${kind}Confidence`]: null, [`${kind}Source`]: null });
+          stale = true;
+        }
       }
+      // Analysed again (by the detector, after a scan or at start-up) for what was emptied.
+      if (stale && !seg.manual) set.version = 0;
+      if (seg.status === 'error' && Object.keys(set).some((k) => k.endsWith('Start') && set[k as keyof Row] !== null)) Object.assign(set, { status: 'analyzed', error: null });
       const now = { ...seg, ...set } as Row;
       const states: ShareState[] = [];
       for (const kind of ['recap', 'intro', 'credits'] as const) {
@@ -246,10 +286,5 @@ export class SharedDetection {
       if (pause) await new Promise((r) => setTimeout(r, pause).unref?.());
     }
     return n;
-  }
-
-  /** Sharing turned off: results stay, labels go. */
-  clearLabels(): void {
-    this.db.update(episodeSegments).set({ shareState: null }).where(inArray(episodeSegments.shareState, ['pending', 'shared', 'verified'])).run();
   }
 }

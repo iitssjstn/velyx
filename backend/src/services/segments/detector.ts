@@ -11,7 +11,7 @@ import { diagnoseSeason, type SeasonDiagnosis } from './diagnose.js';
 import { chapterSegments, type ChapterSegments } from './chapters.js';
 import { findCredits, pictureEdge, refineStart, type FrameStats, type VisualCredits } from './visual.js';
 import type { ChapterReader, FrameReader } from './readers.js';
-import { sharedFor, sharedReferences, type SharedProfile } from './shared.js';
+import { overridesFor, sharedFor, sharedReferences, type SharedProfile } from './shared.js';
 import { LOCAL_ONLY } from '../../playback/local-input.js';
 
 const log = createLogger('segments');
@@ -135,8 +135,8 @@ const toBlob = (fp: Fingerprint) => Buffer.from(fp.words.buffer, fp.words.byteOf
  * Finds intros and credits in the background, one season at a time. It only reads audio (a few
  * minutes at the start and end of each episode), never while a scan runs or while people watch on a busy machine,
  * and remembers the result so an episode is analysed once — again only when its file changes, the
- * algorithm improves, a low-confidence result can be improved by newly added episodes, or an
- * administrator asks. Manual corrections are never overwritten.
+ * algorithm improves, or a low-confidence result can be improved by newly added episodes. Manual
+ * corrections are never overwritten here (only a correction made on vidalune.com goes before them).
  */
 export class SegmentDetector {
   private queue: SeasonJob[] = [];
@@ -459,9 +459,17 @@ export class SegmentDetector {
       // looked at the same cut of the episode — also for a file whose audio could not be read.
       if (shared) {
         const theirs = sharedFor(shared, f.episodeNumber, f.duration);
+        // Corrections made in the Control Center go before anything found, here or elsewhere.
+        const forced = overridesFor(shared, f.episodeNumber, f.duration);
         const base: Detection = d ?? { recap: null, intro: null, credits: null, postCredits: null, introFrames: null, creditsFrames: null };
         let used = false;
         for (const kind of ['recap', 'intro', 'credits'] as const) {
+          const o = forced[kind];
+          if (o) {
+            base[kind] = { start: o.start, end: o.end, confidence: 'high', source: 'shared' };
+            used = true;
+            continue;
+          }
           const t = theirs[kind];
           const mine = base[kind];
           if (!t || (mine && mine.confidence !== 'low')) continue;

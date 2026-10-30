@@ -202,7 +202,8 @@ export function createContext(config: AppConfig, db: DB, opts: BuildOptions = {}
     log.info('Metadata through vidalune.com available — fetching metadata for existing libraries');
     scans.enqueueAll(false);
   };
-  const sharedDetection = new SharedDetection(db, cloud, () => settings.get().sharedDetection);
+  // Shared detection: always, for a server known to vidalune.com (linked or registered); never registers by itself.
+  const sharedDetection = new SharedDetection(db, cloud);
   const segments: SegmentDetector = new SegmentDetector(db, opts.audioReader ?? ffmpegAudioReader(config.ffmpegPath), {
     enabled: () => settings.get().segmentDetection,
     // Watching does not stop detection: it goes slower, and waits only when the machine is busy.

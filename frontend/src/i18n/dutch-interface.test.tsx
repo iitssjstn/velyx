@@ -13,7 +13,7 @@ import { InterfaceLanguage, SkipSettings, LanguageSettings } from '../pages/Sett
 import { CleanupPage, type CleanupList } from '../pages/admin/Cleanup';
 import { HealthPage, type HealthSummary } from '../pages/admin/Health';
 import { ActivityPage } from '../pages/admin/Activity';
-import { SegmentsPage, type SegmentOverview } from '../pages/admin/Segments';
+import { DetectionSettings } from '../pages/admin/SettingsPanels';
 import type { ActivityStats } from '../lib/types';
 
 const setUser = vi.fn();
@@ -162,16 +162,11 @@ describe('Dutch interface', () => {
     expectNoEnglish(container);
   });
 
-  it('intros and credits', async () => {
-    const overview: SegmentOverview = {
-      status: { enabled: true, state: 'waiting', waitingFor: 'playback', running: null, queuedSeasons: 0, counts: { episodes: 20, analyzed: 17, intros: 15, credits: 16, pending: 2, errors: 1, manual: 1, lowConfidence: 2 } },
-      shows: [{ id: 3, title: 'Severance', episodes: 20, analyzed: 17, intros: 15, credits: 16, errors: 1, manual: 1, low: 2 }],
-      errors: [{ episodeId: 44, error: 'The file has no readable audio', detectedAt: Date.now() - 60_000, showId: 3, showTitle: 'Severance', seasonNumber: 2, episodeNumber: 4 }],
-    };
-    stubFetch(() => overview);
-    const { container } = mount(<SegmentsPage />, '/admin/intros');
-    expect(await screen.findByText(/Wacht: er kijkt iemand/)).toBeTruthy();
-    expect(screen.getByText('Het bestand heeft geen leesbare audio')).toBeTruthy();
+  it('intros and credits detection settings', async () => {
+    stubFetch(() => ({ segmentDetection: true, segmentVideo: true }));
+    const { container } = mount(<DetectionSettings />, '/admin/maintenance');
+    expect(await screen.findByRole('heading', { name: 'Intro\'s en aftiteling' })).toBeTruthy();
+    expect(screen.getByText(/Correcties worden centraal gedaan/)).toBeTruthy();
     expectNoEnglish(container);
   });
 });

@@ -238,6 +238,37 @@ export const detectionPrints = sqliteTable(
 );
 
 /**
+ * A correction by the CEO in the Control Center: where a recap, intro or credits really are in one
+ * cut of an episode (a length; files within two seconds of it are the same cut). Every server
+ * with that cut takes it over its own result.
+ */
+export const detectionOverrides = sqliteTable(
+  'detection_overrides',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    tmdbShow: integer('tmdb_show').notNull(),
+    season: integer('season').notNull(),
+    episode: integer('episode').notNull(),
+    kind: text('kind', { enum: ['recap', 'intro', 'credits'] }).notNull(),
+    duration: real('duration').notNull(),
+    start: real('start').notNull(),
+    end: real('end').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    /** The account that set it. */
+    updatedBy: integer('updated_by').notNull(),
+  },
+  (t) => [index('detection_overrides_season').on(t.tmdbShow, t.season)],
+);
+
+/** Names of shows with detection results, for the Control Center (looked up at TMDB once). */
+export const detectionTitles = sqliteTable('detection_titles', {
+  tmdbShow: integer('tmdb_show').primaryKey(),
+  /** Null: TMDB did not know it (asked again later). */
+  title: text('title'),
+  fetchedAt: integer('fetched_at').notNull(),
+});
+
+/**
  * Relays: the main one is vidalune.com itself (id 1). Others can be registered with their capacity
  * and servers assigned to them, so customers can be spread out as more relays are added.
  */

@@ -711,7 +711,6 @@ export interface ServerSettings {
   segmentDetection: boolean;
   segmentVideo: boolean;
   /** Shared detection with other Vidalune servers (through vidalune.com). */
-  sharedDetection: boolean;
   /** Extract embedded text subtitles ahead of time while the server is quiet. */
   subtitlePrefetch: boolean;
   subtitlePrefetchStatus: { enabled: boolean; pending: number; running: boolean; waitingFor: 'off' | 'playback' | 'scan' | 'window' | 'quiet' | null };

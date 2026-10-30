@@ -83,8 +83,3 @@ export function saveManualSegments(db: DB, episodeId: number, file: { id: number
   };
   db.insert(episodeSegments).values(values).onConflictDoUpdate({ target: episodeSegments.episodeId, set: values }).run();
 }
-
-/** Drops the stored result (manual or automatic), so the episode is analysed again. */
-export function clearSegments(db: DB, episodeId: number): boolean {
-  return db.delete(episodeSegments).where(eq(episodeSegments.episodeId, episodeId)).run().changes > 0;
-}

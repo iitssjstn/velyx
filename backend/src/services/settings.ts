@@ -132,11 +132,6 @@ export interface ServerSettings {
   segmentDetection: boolean;
   /** Also recognise end credits in the picture (keyframes of the last minutes, low resolution). */
   segmentVideo: boolean;
-  /**
-   * Shared detection with other Vidalune servers through vidalune.com (off by default): timings
-   * and fingerprints of recaps, intros and credits, by TMDB show, season and episode.
-   */
-  sharedDetection: boolean;
   cleanupRules: CleanupRules;
   /** Library clean-up may delete files (off by default; the library must also be mounted writable). */
   cleanupDeletion: boolean;
@@ -188,7 +183,6 @@ const DEFAULTS: ServerSettings = {
   maintenanceEnd: '06:00',
   maintenanceOutside: true,
   segmentVideo: true,
-  sharedDetection: false,
   cleanupRules: DEFAULT_CLEANUP_RULES,
   cleanupDeletion: false,
   cleanupCustomRules: [],
