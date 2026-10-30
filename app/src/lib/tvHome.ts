@@ -106,3 +106,40 @@ export function overHeroStore() {
 }
 
 export const overHero = overHeroStore();
+
+/** How long after coming back to Home it does not follow the focus (see `returnGate`). */
+export const RETURN_SETTLE_MS = 800;
+
+/**
+ * Whether Home on a TV follows the focus. While another screen is on top, and a moment after coming
+ * back, it does not: Android first gives the focus to the first thing on the screen (Play in the hero)
+ * and then back to the poster that opened the other screen, and following both slid Home from the
+ * top down to that poster. After that moment it goes to the row with the focus at once, without a
+ * glide; mostly that row is where it already was.
+ */
+export function returnGate(schedule: (fn: () => void, ms: number) => unknown = setTimeout, cancel: (timer: unknown) => void = (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>)) {
+  let away = false;
+  let settling = false;
+  let timer: unknown;
+  return {
+    follows: () => !away && !settling,
+    /** Another screen came on top. */
+    away() {
+      away = true;
+      settling = false;
+      if (timer !== undefined) cancel(timer);
+      timer = undefined;
+    },
+    /** Home is back (or shown for the first time, which changes nothing). */
+    back(settle: () => void) {
+      if (!away) return;
+      away = false;
+      settling = true;
+      timer = schedule(() => {
+        settling = false;
+        timer = undefined;
+        settle();
+      }, RETURN_SETTLE_MS);
+    },
+  };
+}

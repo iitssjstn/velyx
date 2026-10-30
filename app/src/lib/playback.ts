@@ -188,6 +188,23 @@ export function subtitleUrl(api: Api, option: SubtitleOption, offset: number, me
   return url.toString();
 }
 
+/** The server's direct address for a stream, with the token that opens it there. */
+export interface MediaEndpoint {
+  baseUrl: string;
+  token: string;
+}
+
+/**
+ * How a subtitle is fetched: from the direct address when the stream has one (`null`: it has none, so
+ * through the API). While the stream's address is still being found (`undefined`) nothing yet: through
+ * the API it would go via vidalune.com, which refuses subtitles just like video, and the player said
+ * the subtitle could not be loaded while it was only starting.
+ */
+export function subtitleRequest(api: Api, option: SubtitleOption, endpoint: MediaEndpoint | null | undefined): { url: string; headers: Record<string, string> } | null {
+  if (endpoint === undefined) return null;
+  return { url: subtitleUrl(api, option, 0, endpoint ?? undefined), headers: endpoint ? {} : api.headers() };
+}
+
 /**
  * Which of the player's audio tracks is the file's audio track `index` (ffprobe numbering). The
  * player lists a file's audio tracks in the same order, so the position among them matches.
