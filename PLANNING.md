@@ -706,7 +706,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   op het startscherm in één beweging.
 - Eigenaar (29 okt): "Alles staat nu goed" (server, accountservice en app op 0.20.1).
 
-## Versie 0.20.2 (ondertitel niet meer meteen "kon niet geladen worden"; terug naar het tv-startscherm zonder schuiven)
+## Versie 0.20.2 (ondertitel niet meer meteen "kon niet geladen worden"; terug naar het tv-startscherm zonder schuiven; Terug-knop in de tv-speler)
 
 - Op verzoek van de eigenaar ("Bouw het maar", 29 okt); de twee punten staan onder "Gemeld tijdens het testen".
 - **Ondertitel bij het starten** (app, telefoon en tv): `subtitleRequest` (`lib/playback.ts`) haalt de ondertitel pas op als
@@ -716,6 +716,11 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - **Terug naar het tv-startscherm** (`TvHome`): `returnGate` (`lib/tvHome.ts`): zolang een ander scherm erboven ligt en
   0,8 s na terugkomen (`useFocusEffect`) volgt het startscherm de focus niet; daarna één keer zonder animatie naar de rij
   met de focus. Op de Chromecast te bevestigen.
+- **Terug-knop in de tv-speler niet te zien als gekozen** (eigenaar 30 okt: "er is totaal geen indicatie of je op de terug
+  button staat"; het pijltje linksboven naast de titel; "Bouw het maar"). In de code werd hij wit en 10 % groter, maar
+  de eigenaar zag geen verschil. Nu met de focus ook een witte ring eromheen en het woord "Terug" ernaast (`TvPlayer`).
+  Zonder testomgeving voor schermen; op de tv te bevestigen. Ziet hij nog niets, dan een foto vragen (dan zit het ergens
+  anders).
 - Tests: `subtitleRequest` (nog niet bekend: niets; geen direct adres: via de API met token; direct: met cast-token),
   `returnGate` (weg, terug, wachttijd, opnieuw weg vóór het einde). App 269 tests; typechecks, lint (0 fouten, 4 bekende
   waarschuwingen), versietests en de Android-bundel (Hermes-export) slagen.

@@ -90,8 +90,12 @@ export function TvPlayer(p: TvPlayerProps) {
             <Fade from="top" />
             <View style={{ position: 'absolute', left: 40, right: 40, top: 28, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               {/* Back to where the player was opened from; ← from the first button of the row reaches it. */}
-              <View accessibilityRole="button" accessibilityLabel={t('player.back')} accessibilityState={{ selected: backFocused }} style={{ width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: backFocused ? '#fff' : 'rgba(255,255,255,0.12)', transform: [{ scale: backFocused ? 1.1 : 1 }] }}>
-                <Feather name="arrow-left" size={24} color={backFocused ? colors.bg : '#fff'} />
+              {/* With the focus it can't be missed: filled white with a white ring, bigger, and its name beside it. */}
+              <View style={{ padding: 3, borderRadius: 999, borderWidth: 2, borderColor: backFocused ? '#fff' : 'transparent', transform: [{ scale: backFocused ? 1.1 : 1 }] }}>
+                <View accessibilityRole="button" accessibilityLabel={t('player.back')} accessibilityState={{ selected: backFocused }} style={{ height: 46, minWidth: 46, borderRadius: 23, paddingHorizontal: backFocused ? 18 : 0, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: backFocused ? '#fff' : 'rgba(255,255,255,0.12)' }}>
+                  <Feather name="arrow-left" size={24} color={backFocused ? colors.bg : '#fff'} />
+                  {backFocused && <Text style={{ color: colors.bg, fontSize: 18, fontWeight: '700' }}>{t('player.back')}</Text>}
+                </View>
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={{ color: '#fff', fontSize: 22, fontWeight: '700' }} numberOfLines={1}>{p.title}</Text>
