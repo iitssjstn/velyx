@@ -725,6 +725,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   `returnGate` (weg, terug, wachttijd, opnieuw weg vóór het einde). App 269 tests; typechecks, lint (0 fouten, 4 bekende
   waarschuwingen), versietests en de Android-bundel (Hermes-export) slagen.
 - Versie 0.20.2 in alle `package.json`'s, `app/app.json` (versionCode 20002) en beide lockfiles.
+- PR #191 aangemaakt 30 okt op verzoek van de eigenaar ("Doe maar"); automatische voettekst met sessielink meteen
+  weggehaald. Nog niet mergen zonder toestemming.
 
 ## Versie 0.19.11
 
