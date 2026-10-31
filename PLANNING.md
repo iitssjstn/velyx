@@ -829,6 +829,10 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
     waarschuwingen) slagen. Op website, telefoon en tv te bekijken.
 - PR #192 aangemaakt 30 okt op verzoek van de eigenaar ("Bouw het maar en push het naar de PR"); automatische voettekst
   met sessielink meteen weggehaald. De eigenaar merget zelf.
+- PR #192 gemerged 31 okt door de eigenaar. CI op `main` faalde daarna op één test die niets met 0.20.3 te maken heeft
+  (`hls.test.ts`, rusten op Windows; op de PR groen): de test keek na 0,4 s zonder nieuw stukje al of FFmpeg gestopt
+  was, op een trage runner te vroeg. Nu pas na 2 s zonder nieuw stukje; lokaal ook onder volle processorbelasting groen.
+  Alleen de test veranderd, dus geen nieuwe versie nodig. De releaseketen (Docker, Debian, app, Windows) hangt niet aan CI.
 - Eigenaar (30 okt): "wacht met pushen zodat we meerdere dingen kunnen toevoegen als ik die tegenkom". Nieuwe punten
   komen in 0.20.3 en blijven lokaal tot hij zegt dat het klaar is; daarna pas pushen en de PR.
 

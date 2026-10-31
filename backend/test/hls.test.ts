@@ -185,10 +185,13 @@ describe('HLS pieces', () => {
       const init = await sessions.init(src);
       expect(Math.abs(startOf([init, await sessions.segment(src, 0)]))).toBeLessThan(0.1);
       // FFmpeg stops once it is 12 s ahead: the pieces stop coming, long before the end of the film.
-      let count = -1;
-      for (let i = 0; i < 100 && made().length !== count; i++) {
-        count = made().length;
+      // Settled = no new piece for 2 s; a slow runner can take longer than one check between pieces.
+      let count = made().length;
+      for (let i = 0, still = 0; i < 150 && still < 5; i++) {
         await new Promise((r) => setTimeout(r, 400));
+        const now = made().length;
+        still = now === count ? still + 1 : 0;
+        count = now;
       }
       expect(count).toBeGreaterThan(1);
       expect(count).toBeLessThan(layout.starts.length - 5);
