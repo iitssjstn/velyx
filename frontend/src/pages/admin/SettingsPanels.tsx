@@ -132,10 +132,10 @@ export function MetadataSettings() {
   );
 }
 
-/** Intros & credits: whether and how they are detected. */
+/** Intros & credits: whether and how they are detected, and whether results are shared with vidalune.com. */
 export function DetectionSettings() {
   const { t } = useT();
-  const { query, save, form, setForm } = usePanel((s) => ({ segmentDetection: s.segmentDetection, segmentVideo: s.segmentVideo, sharedDetection: s.sharedDetection }));
+  const { query, save, form, setForm } = usePanel((s) => ({ segmentDetection: s.segmentDetection, segmentVideo: s.segmentVideo, shareDetection: s.shareDetection }));
   if (!query.data || !form) return <PanelState query={query} />;
   return (
     <form
@@ -147,10 +147,10 @@ export function DetectionSettings() {
       className="panel space-y-4 p-5 sm:p-6"
       aria-labelledby="detection-settings-title"
     >
-      <h2 id="detection-settings-title" className="font-display text-lg font-semibold">{t('segments.settingsTitle')}</h2>
+      <h2 id="detection-settings-title" className="font-display text-lg font-semibold">{t('server.detectionTitle')}</h2>
       <Check checked={form.segmentDetection} onChange={(v) => setForm({ ...form, segmentDetection: v })} label={t('server.segments')} hint={t('server.segmentsHint')} />
       <Check indent checked={form.segmentVideo} disabled={!form.segmentDetection} onChange={(v) => setForm({ ...form, segmentVideo: v })} label={t('server.segmentVideo')} hint={t('server.segmentVideoHint')} />
-      <Check indent checked={form.sharedDetection} disabled={!form.segmentDetection} onChange={(v) => setForm({ ...form, sharedDetection: v })} label={t('server.sharedDetection')} hint={t('server.sharedDetectionHint')} />
+      <Check indent checked={form.shareDetection} disabled={!form.segmentDetection} onChange={(v) => setForm({ ...form, shareDetection: v })} label={t('server.shareDetection')} hint={t('server.shareDetectionHint')} />
       <Button type="submit" loading={save.isPending}>{t('common.save')}</Button>
     </form>
   );
@@ -182,46 +182,49 @@ export function AheadSettings() {
   );
 }
 
-/** Maintenance: when background work may run, and what it prepares ahead of time. */
+/** Maintenance: when background work may run, what it prepares ahead of time, and intro & credits detection. */
 export function MaintenancePage() {
   const { t } = useT();
   const { query, save, form, setForm } = usePanel((s) => ({ maintenanceStart: s.maintenanceStart, maintenanceEnd: s.maintenanceEnd, maintenanceOutside: s.maintenanceOutside, subtitlePrefetch: s.subtitlePrefetch }));
   if (!query.data || !form) return <PanelState query={query} />;
   const s = query.data;
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        save.mutate(form);
-      }}
-      className="panel space-y-4 p-5 sm:p-6"
-      aria-labelledby="maintenance-title"
-    >
-      <h2 id="maintenance-title" className="font-display text-lg font-semibold">{t('server.maintenance')}</h2>
-      <p className="text-sm text-muted">{t('server.maintenanceText')}</p>
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <label className="label" htmlFor="mstart">{t('server.maintenanceStart')}</label>
-          <input id="mstart" type="time" className="input" required value={form.maintenanceStart} onChange={(e) => setForm({ ...form, maintenanceStart: e.target.value })} />
+    <div className="space-y-6">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate(form);
+        }}
+        className="panel space-y-4 p-5 sm:p-6"
+        aria-labelledby="maintenance-title"
+      >
+        <h2 id="maintenance-title" className="font-display text-lg font-semibold">{t('server.maintenance')}</h2>
+        <p className="text-sm text-muted">{t('server.maintenanceText')}</p>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="mstart">{t('server.maintenanceStart')}</label>
+            <input id="mstart" type="time" className="input" required value={form.maintenanceStart} onChange={(e) => setForm({ ...form, maintenanceStart: e.target.value })} />
+          </div>
+          <div>
+            <label className="label" htmlFor="mend">{t('server.maintenanceEnd')}</label>
+            <input id="mend" type="time" className="input" required value={form.maintenanceEnd} onChange={(e) => setForm({ ...form, maintenanceEnd: e.target.value })} />
+          </div>
         </div>
-        <div>
-          <label className="label" htmlFor="mend">{t('server.maintenanceEnd')}</label>
-          <input id="mend" type="time" className="input" required value={form.maintenanceEnd} onChange={(e) => setForm({ ...form, maintenanceEnd: e.target.value })} />
-        </div>
-      </div>
-      <p className="text-xs text-faint">{t('server.maintenanceServerTime', { time: s.serverTime, zone: s.serverTimeZone })}</p>
-      <Check checked={form.maintenanceOutside} onChange={(v) => setForm({ ...form, maintenanceOutside: v })} label={t('server.maintenanceOutside')} hint={t('server.maintenanceOutsideHint')} />
-      <Check checked={form.subtitlePrefetch} onChange={(v) => setForm({ ...form, subtitlePrefetch: v })} label={t('server.subtitlePrefetch')} hint={t('server.subtitlePrefetchHint')}>
-        {s.subtitlePrefetch && (
-          <span className="block text-xs text-muted">
-            {s.subtitlePrefetchStatus.pending > 0 ? t('server.subtitlePrefetchPending', { count: s.subtitlePrefetchStatus.pending }) : t('server.subtitlePrefetchDone')}
-          </span>
-        )}
-        {s.subtitlePrefetch && s.subtitlePrefetchStatus.pending > 0 && s.subtitlePrefetchStatus.waitingFor === 'window' && (
-          <span className="block text-xs text-muted">{t('server.subtitlePrefetchWaitsForWindow')}</span>
-        )}
-      </Check>
-      <Button type="submit" loading={save.isPending}>{t('common.save')}</Button>
-    </form>
+        <p className="text-xs text-faint">{t('server.maintenanceServerTime', { time: s.serverTime, zone: s.serverTimeZone })}</p>
+        <Check checked={form.maintenanceOutside} onChange={(v) => setForm({ ...form, maintenanceOutside: v })} label={t('server.maintenanceOutside')} hint={t('server.maintenanceOutsideHint')} />
+        <Check checked={form.subtitlePrefetch} onChange={(v) => setForm({ ...form, subtitlePrefetch: v })} label={t('server.subtitlePrefetch')} hint={t('server.subtitlePrefetchHint')}>
+          {s.subtitlePrefetch && (
+            <span className="block text-xs text-muted">
+              {s.subtitlePrefetchStatus.pending > 0 ? t('server.subtitlePrefetchPending', { count: s.subtitlePrefetchStatus.pending }) : t('server.subtitlePrefetchDone')}
+            </span>
+          )}
+          {s.subtitlePrefetch && s.subtitlePrefetchStatus.pending > 0 && s.subtitlePrefetchStatus.waitingFor === 'window' && (
+            <span className="block text-xs text-muted">{t('server.subtitlePrefetchWaitsForWindow')}</span>
+          )}
+        </Check>
+        <Button type="submit" loading={save.isPending}>{t('common.save')}</Button>
+      </form>
+      <DetectionSettings />
+    </div>
   );
 }

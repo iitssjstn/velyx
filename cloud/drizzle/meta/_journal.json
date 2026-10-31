@@ -127,6 +127,20 @@
       "when": 1791987166427,
       "tag": "0017_tmdb_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1793373029042,
+      "tag": "0018_detection_overrides",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1793384275420,
+      "tag": "0019_detection_complaints",
+      "breakpoints": true
     }
   ]
 }

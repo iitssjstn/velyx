@@ -14,6 +14,7 @@ import { CleanupPage, type CleanupList } from '../pages/admin/Cleanup';
 import { HealthPage, type HealthSummary } from '../pages/admin/Health';
 import { ActivityPage } from '../pages/admin/Activity';
 import { SegmentsPage, type SegmentOverview } from '../pages/admin/Segments';
+import { DetectionSettings } from '../pages/admin/SettingsPanels';
 import type { ActivityStats } from '../lib/types';
 
 const setUser = vi.fn();
@@ -172,6 +173,15 @@ describe('Dutch interface', () => {
     const { container } = mount(<SegmentsPage />, '/admin/intros');
     expect(await screen.findByText(/Wacht: er kijkt iemand/)).toBeTruthy();
     expect(screen.getByText('Het bestand heeft geen leesbare audio')).toBeTruthy();
+    expect(screen.getByText(/gaat als voorstel naar vidalune.com/)).toBeTruthy();
+    expectNoEnglish(container);
+  });
+
+  it('intros and credits detection settings', async () => {
+    stubFetch(() => ({ segmentDetection: true, segmentVideo: true, shareDetection: true }));
+    const { container } = mount(<DetectionSettings />, '/admin/maintenance');
+    expect(await screen.findByRole('heading', { name: 'Intro\'s en aftiteling' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: /delen met vidalune.com/ })).toBeTruthy();
     expectNoEnglish(container);
   });
 });

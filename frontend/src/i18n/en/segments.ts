@@ -1,11 +1,14 @@
 export const segments = {
   settingsTitle: 'Detection settings',
+  correctionsText: 'A correction made here applies to this server straight away and is sent to vidalune.com as a suggestion. A correction made by Vidalune itself always goes first.',
+  centralHint: 'Set by Vidalune; it goes before your correction.',
   sources: {
     chapters: 'chapters',
     video: 'picture',
     audio: 'audio',
     manual: 'by hand',
     shared: 'other servers',
+    central: 'Vidalune',
   },
   share: {
     pending: 'Pending',
@@ -78,7 +81,7 @@ export const segments = {
   removeCorrection: 'Remove correction (detect automatically)',
   analyseEpisode: 'Analyse episode {n} again',
   analyseAgain: 'Analyse again',
-  intro_text: 'Vidalune finds intros by comparing the sound of episodes in the same season, and end credits by recognising text on a dark background in the picture (or recurring credits music). Chapters named Intro or Credits are used when a file has them. Everything runs on this server, one episode at a time, and never while someone is watching or a scan runs. Only high and medium confidence results get a skip button.',
+  intro_text: 'Vidalune finds intros by comparing the sound of episodes in the same season (and the seasons around a short one), places their edges by the picture, and finds end credits by recognising lines of text in the picture (or recurring credits music). Chapters named Intro or Credits are used when a file has them. Everything runs on this server, one episode at a time, and never while someone is watching or a scan runs. Only high and medium confidence results get a skip button.',
   analyseEverything: 'Analyse everything again',
   stats: {
     analysed: 'Analysed',
@@ -91,6 +94,7 @@ export const segments = {
     manual: 'Corrected by hand',
     fromShared: 'From other servers',
     confirmed: 'Confirmed by others',
+    reports: 'Viewer reports',
   },
   noShowsText: 'Intros and credits are detected for episodes in TV libraries.',
   intros: 'Intros',
@@ -100,4 +104,17 @@ export const segments = {
   },
   allTitle: 'Analyse every episode again?',
   allText: 'All automatic results are redone in the background, one season at a time. Manual corrections are kept. This can take a while on large libraries.',
+  reports: {
+    text: 'Viewers can report in the player that a recap, intro or credits is wrong. Their reports are shown at the episode; saving a correction for it handles them.',
+    ofEpisode: 'Reports for episode {n}',
+    at: 'at {time}',
+    startsEarly: 'starts too early',
+    startsLate: 'starts too late',
+    endsEarly: 'ends too early',
+    endsLate: 'ends too late',
+    notThere: 'there is none',
+    missing: 'not recognised',
+    resolve: 'Handled',
+    resolved: 'Report handled',
+  },
 };

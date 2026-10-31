@@ -14,7 +14,7 @@ import { detectRecap, type RecapSource } from './recap.js';
  */
 
 /** Bumped whenever the algorithm changes, so older automatic results are redone. */
-export const DETECTION_VERSION = 4;
+export const DETECTION_VERSION = 5;
 
 export type Confidence = 'high' | 'medium' | 'low';
 
@@ -27,7 +27,7 @@ export interface EpisodeAudio {
   /** Fingerprint of the closing part, starting at `tailStart` seconds. */
   tail: Fingerprint;
   tailStart: number;
-  /** Credits recognised in the picture (text on a dark background), when the video was analysed. */
+  /** Credits recognised in the picture (lines of text on an even background, or over the picture), when the video was analysed. */
   visual?: VisualCredits | null;
   /** Intro/credits chapters named as such in the file. */
   chapters?: ChapterSegments | null;
@@ -35,8 +35,11 @@ export interface EpisodeAudio {
   full?: Fingerprint | null;
 }
 
-/** Where a result came from: chapter markers, the picture, or recurring audio. */
-export type SegmentSource = 'chapters' | 'video' | 'audio' | 'shared';
+/**
+ * Where a result came from: chapter markers, the picture, recurring audio, what other servers agree
+ * on (`shared`), or a correction made centrally on vidalune.com (`central`).
+ */
+export type SegmentSource = 'chapters' | 'video' | 'audio' | 'shared' | 'central';
 
 export interface Span {
   start: number;
@@ -45,7 +48,7 @@ export interface Span {
 
 export interface Detection {
   /** A recap ("previously on") before the intro. */
-  recap: (Span & { confidence: Confidence; source: 'chapters' | 'audio' | 'shared' }) | null;
+  recap: (Span & { confidence: Confidence; source: 'chapters' | 'audio' | 'shared' | 'central' }) | null;
   intro: (Span & { confidence: Confidence; source: SegmentSource }) | null;
   credits: (Span & { confidence: Confidence; source: SegmentSource }) | null;
   /** Content after the credits (a post-credits scene): never skipped automatically. */
@@ -132,7 +135,12 @@ function peersOf(episodes: EpisodeAudio[], index: number): EpisodeAudio[] {
     .map((x) => x.e);
 }
 
-export function detectEpisode(ep: EpisodeAudio, peers: EpisodeAudio[], refs: References): Detection {
+/**
+ * `outside`: episodes of the neighbouring seasons, compared too when this season has few episodes
+ * (an intro or credits often stay the same across seasons; a season's own intro does not match them).
+ */
+export function detectEpisode(ep: EpisodeAudio, peers: EpisodeAudio[], refs: References, outside: EpisodeAudio[] = []): Detection {
+  peers = [...peers, ...outside];
   // ---- intro: recurring audio in the opening part
   const introCands: Candidate[] = [];
   const introOpts = { minFrames: frames(INTRO_MIN), maxFrames: frames(INTRO_MAX) };
@@ -178,7 +186,8 @@ export function detectEpisode(ep: EpisodeAudio, peers: EpisodeAudio[], refs: Ref
     const end = c.postCredits ? c.postCredits.start : ep.duration;
     return { recap: null, intro, credits: { start: round(c.credits!.start), end: round(Math.max(c.credits!.end, end)), confidence: 'high', source: 'chapters' }, postCredits: c.postCredits ? { start: round(c.postCredits.start), end: round(c.postCredits.end) } : null, introFrames, creditsFrames };
   }
-  if (ep.visual) {
+  // Text over the picture is less certain than credits music that recurs in other episodes.
+  if (ep.visual && !(ep.visual.kind === 'overlay' && credits?.confidence === 'high')) {
     const v = ep.visual;
     return { recap: null, intro, credits: { start: v.start, end: v.end, confidence: v.confidence, source: 'video' }, postCredits: v.postCredits, introFrames, creditsFrames };
   }
@@ -198,6 +207,9 @@ export function detectEpisode(ep: EpisodeAudio, peers: EpisodeAudio[], refs: Ref
   return { recap: null, intro, credits, postCredits, introFrames, creditsFrames };
 }
 
+/** With fewer peers than this in the season, episodes of the neighbouring seasons are compared too. */
+export const OUTSIDE_WHEN_FEWER = 3;
+
 /** Earlier episodes a recap may quote: the few before it (recaps also go back further than one episode). */
 export const RECAP_SOURCES = 4;
 
@@ -205,11 +217,13 @@ export const RECAP_SOURCES = 4;
  * Detects every episode of one season (episodes in broadcast order). `known` holds results stored
  * earlier for episodes not analysed now, so their intro and credits are left out of recap clips.
  */
-export function detectSeason(episodes: EpisodeAudio[], refs: References, only?: Set<number>, known: Map<number, Pick<Detection, 'intro' | 'credits' | 'recap'>> = new Map()): Map<number, Detection> {
+export function detectSeason(episodes: EpisodeAudio[], refs: References, only?: Set<number>, known: Map<number, Pick<Detection, 'intro' | 'credits' | 'recap'>> = new Map(), outside: EpisodeAudio[] = []): Map<number, Detection> {
   const out = new Map<number, Detection>();
   episodes.forEach((ep, i) => {
     if (only && !only.has(ep.id)) return;
-    out.set(ep.id, detectEpisode(ep, peersOf(episodes, i), refs));
+    const peers = peersOf(episodes, i);
+    // Too few episodes in this season to compare with: the neighbouring seasons fill in.
+    out.set(ep.id, detectEpisode(ep, peers, refs, outside.slice(0, Math.max(0, OUTSIDE_WHEN_FEWER - peers.length))));
   });
   // Recaps last: they need to know where the earlier episodes' intros and credits are.
   episodes.forEach((ep, i) => {

@@ -53,6 +53,7 @@ export const audit = {
     segmentsAnalyze: 'Started intro and credits detection for',
     segmentsEdited: 'Edited intro and credits of',
     segmentsReset: 'Reset intro and credits of',
+    segmentsReportResolved: 'Handled a viewer report about',
     subtitlesSettings: 'OpenSubtitles settings changed',
     subtitlesDownloaded: 'Subtitle fetched online',
     subtitlesRemoved: 'Fetched subtitle removed',

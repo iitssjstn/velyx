@@ -3,15 +3,13 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-// The settings panel on this page has its own test (SettingsPanels.test.tsx).
-vi.mock('./SettingsPanels', () => ({ DetectionSettings: () => null }));
 
 import { SegmentsPage, type SegmentOverview } from './Segments';
 
 afterEach(() => vi.unstubAllGlobals());
 
 const overview: SegmentOverview = {
-  status: { enabled: true, state: 'waiting', waitingFor: 'playback', running: null, queuedSeasons: 1, counts: { episodes: 20, analyzed: 17, intros: 15, credits: 16, pending: 2, errors: 1, manual: 1, lowConfidence: 2 } },
+  status: { enabled: true, state: 'waiting', waitingFor: 'playback', running: null, queuedSeasons: 1, counts: { episodes: 20, analyzed: 17, intros: 15, credits: 16, pending: 2, errors: 1, manual: 1, lowConfidence: 2, reports: 1 } },
   shows: [{ id: 3, title: 'Severance', episodes: 20, analyzed: 17, intros: 15, credits: 16, errors: 1, manual: 1, low: 2 }],
   errors: [{ episodeId: 44, error: 'Invalid data found when processing input', detectedAt: Date.now() - 60_000, showId: 3, showTitle: 'Severance', seasonNumber: 2, episodeNumber: 4 }],
 };
@@ -22,11 +20,12 @@ const show = {
     {
       seasonNumber: 1,
       episodes: [
-        { id: 10, episodeNumber: 1, title: 'Good News About Hell', duration: 3420, eligible: true, segments: { status: 'analyzed', error: null, intro: { start: 212, end: 272, confidence: 'high' }, credits: { start: 3300, end: 3420, confidence: 'medium' }, postCredits: null, manual: false, detectedAt: 1 } },
+        { id: 10, episodeNumber: 1, title: 'Good News About Hell', duration: 3420, eligible: true, segments: { status: 'analyzed', error: null, intro: { start: 212, end: 272, confidence: 'high' }, credits: { start: 3300, end: 3420, confidence: 'medium' }, postCredits: null, manual: false, detectedAt: 1 }, reports: [{ id: 77, kind: 'intro', problem: 'ends-late', position: 275, createdAt: Date.now() - 120_000, user: 'Sam' }] },
         { id: 11, episodeNumber: 2, title: 'Half Loop', duration: 3300, eligible: true, segments: { status: 'analyzed', error: null, intro: { start: 30, end: 90, confidence: null }, credits: null, postCredits: { start: 3250, end: 3300, confidence: null }, manual: true, detectedAt: 1 } },
         { id: 12, episodeNumber: 3, title: 'In Perpetuity', duration: 3000, eligible: true, segments: null },
         { id: 13, episodeNumber: 4, title: 'The You You Are', duration: 3100, eligible: true, segments: { status: 'analyzed', error: null, intro: { start: 40, end: 100, confidence: 'high', source: 'shared' }, credits: { start: 3000, end: 3100, confidence: 'high', source: 'audio' }, postCredits: null, manual: false, detectedAt: 1, shareState: 'verified' } },
         { id: 14, episodeNumber: 5, title: 'The Grim Barbarity', duration: 3100, eligible: true, segments: { status: 'analyzed', error: null, intro: { start: 40, end: 100, confidence: 'high', source: 'audio' }, credits: null, postCredits: null, manual: false, detectedAt: 1, shareState: 'pending' } },
+        { id: 15, episodeNumber: 6, title: 'Hide and Seek', duration: 3100, eligible: true, segments: { status: 'analyzed', error: null, intro: { start: 45, end: 105, confidence: 'high', source: 'central' }, credits: null, postCredits: null, manual: false, detectedAt: 1 } },
       ],
     },
   ],
@@ -98,6 +97,18 @@ describe('Intros & credits admin page', () => {
     expect(calls.find((c) => c.method === 'PUT')).toMatchObject({ url: '/api/admin/segments/episodes/10', body: { intro: { start: 212, end: 280 }, credits: null, postCredits: null } });
   });
 
+  it('explains that corrections here apply to this server and go to vidalune.com as a suggestion', async () => {
+    setup();
+    expect(await screen.findByText(/applies to this server straight away and is sent to vidalune.com as a suggestion/)).toBeTruthy();
+    expect(screen.getByText(/A correction made by Vidalune itself always goes first/)).toBeTruthy();
+  });
+
+  it('shows a part set by Vidalune, which goes before a correction made here', async () => {
+    setup('/admin/intros?show=3');
+    expect(await screen.findByText('Hide and Seek')).toBeTruthy();
+    expect(screen.getByText('Vidalune').getAttribute('title')).toBe('Set by Vidalune; it goes before your correction.');
+  });
+
   it('shows what came from other servers and how many agree (shared detection)', async () => {
     setup('/admin/intros?show=3');
     expect(await screen.findByText('The You You Are')).toBeTruthy();
@@ -106,5 +117,21 @@ describe('Intros & credits admin page', () => {
     expect(screen.getByText('Pending')).toBeTruthy();
     // Without shared detection, no labels.
     expect(screen.getAllByText(/^(Verified|Shared|Pending)$/)).toHaveLength(2);
+  });
+
+  it('shows viewer reports at the episode and handles them', async () => {
+    const calls = setup('/admin/intros?show=3');
+    const list = await screen.findByRole('list', { name: 'Reports for episode 1' });
+    expect(within(list).getByText('Intro: ends too late')).toBeTruthy();
+    expect(within(list).getByText('at 4:35')).toBeTruthy();
+    expect(within(list).getByText('Sam')).toBeTruthy();
+    await userEvent.click(within(list).getByRole('button', { name: /Handled/ }));
+    expect(calls.some((c) => c.method === 'POST' && c.url === '/api/admin/segments/reports/77/resolve')).toBe(true);
+  });
+
+  it('counts open reports and explains them', async () => {
+    setup();
+    expect(await screen.findByText('Viewer reports')).toBeTruthy();
+    expect(screen.getByText(/Viewers can report in the player/)).toBeTruthy();
   });
 });

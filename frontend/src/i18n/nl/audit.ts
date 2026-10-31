@@ -54,6 +54,7 @@ export const audit: Messages['audit'] = {
     segmentsAnalyze: 'Herkenning van intro en aftiteling gestart voor',
     segmentsEdited: 'Intro en aftiteling bewerkt van',
     segmentsReset: 'Intro en aftiteling hersteld van',
+    segmentsReportResolved: 'Melding van een kijker afgehandeld over',
     subtitlesSettings: 'OpenSubtitles-instellingen gewijzigd',
     subtitlesDownloaded: 'Ondertiteling online opgehaald',
     subtitlesRemoved: 'Opgehaalde ondertiteling verwijderd',

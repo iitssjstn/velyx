@@ -29,7 +29,7 @@ const settings = {
   deferScansWhilePlaying: true,
   segmentDetection: true,
   segmentVideo: true,
-  sharedDetection: false,
+  shareDetection: true,
   subtitlePrefetch: true,
   subtitlePrefetchStatus: { enabled: true, pending: 12, running: false, waitingFor: 'quiet' },
   maintenanceStart: '02:00',
@@ -144,12 +144,25 @@ describe('each panel saves only its own settings', () => {
     expect(saved[0]).toEqual({ tmdbLanguage: 'nl-NL', includeAdult: false });
   });
 
-  it('detection (on Intros & credits)', async () => {
+  it('detection (on Maintenance): detection, the picture and sharing, the last two only with detection on', async () => {
     const saved = setup(<DetectionSettings />);
-    await userEvent.click(await screen.findByRole('checkbox', { name: /Detect intros/ }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: /Share found intros and credits with vidalune.com/ }));
+    expect(screen.getByText(/this server sends nothing, but still gets corrections/)).toBeTruthy();
+    await userEvent.click(screen.getByRole('checkbox', { name: /Detect intros/ }));
     expect((screen.getByRole('checkbox', { name: /Recognise end credits in the picture/ }) as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole('checkbox', { name: /Share found intros/ }) as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await vi.waitFor(() => expect(saved).toHaveLength(1));
-    expect(saved[0]).toEqual({ segmentDetection: false, segmentVideo: true, sharedDetection: false });
+    expect(saved[0]).toEqual({ segmentDetection: false, segmentVideo: true, shareDetection: false });
+  });
+
+  it('the Maintenance page also holds the detection settings, each form saving its own', async () => {
+    const saved = setup();
+    expect(await screen.findByRole('heading', { name: 'Intros & credits' })).toBeTruthy();
+    await userEvent.click(screen.getByRole('checkbox', { name: /Recognise end credits in the picture/ }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[1]!);
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]).toEqual({ segmentDetection: true, segmentVideo: false, shareDetection: true });
   });
 });

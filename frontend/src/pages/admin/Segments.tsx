@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, Pencil, RotateCcw, SkipForward, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, Flag, Pencil, RotateCcw, SkipForward, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { episodeCode, formatClock, formatRelative, parseClock } from '../../lib/format';
 import { Button } from '../../components/Button';
@@ -9,7 +9,6 @@ import { ConfirmModal, Modal } from '../../components/Modal';
 import { EmptyState, ErrorState, PageLoader } from '../../components/States';
 import { toast } from '../../components/Toast';
 import { intlLocale, t, useT, type MessageKey } from '../../i18n';
-import { DetectionSettings } from './SettingsPanels';
 
 type Confidence = 'high' | 'medium' | 'low';
 
@@ -19,7 +18,7 @@ export interface SegmentStatus {
   waitingFor: 'playback' | 'scan' | null;
   running: { showId: number; showTitle: string; seasonNumber: number; done: number; total: number } | null;
   queuedSeasons: number;
-  counts: { episodes: number; analyzed: number; recaps?: number; intros: number; credits: number; pending: number; errors: number; manual: number; lowConfidence: number; fromShared?: number; confirmed?: number };
+  counts: { episodes: number; analyzed: number; recaps?: number; intros: number; credits: number; pending: number; errors: number; manual: number; lowConfidence: number; fromShared?: number; confirmed?: number; reports?: number };
 }
 
 export interface SegmentOverview {
@@ -33,10 +32,11 @@ interface Part {
   end: number;
   confidence: Confidence | null;
   /** Where it was found: chapter markers, the picture, recurring audio or by hand. */
-  source?: 'chapters' | 'video' | 'audio' | 'manual' | 'shared' | null;
+  /** `central`: set on vidalune.com; it goes before a correction made here. */
+  source?: 'chapters' | 'video' | 'audio' | 'manual' | 'shared' | 'central' | null;
 }
 
-const SOURCE_LABEL: Record<NonNullable<Part['source']>, MessageKey> = { chapters: 'segments.sources.chapters', video: 'segments.sources.video', audio: 'segments.sources.audio', manual: 'segments.sources.manual', shared: 'segments.sources.shared' };
+const SOURCE_LABEL: Record<NonNullable<Part['source']>, MessageKey> = { chapters: 'segments.sources.chapters', video: 'segments.sources.video', audio: 'segments.sources.audio', manual: 'segments.sources.manual', shared: 'segments.sources.shared', central: 'segments.sources.central' };
 
 interface EpisodeSegmentsView {
   status: 'analyzed' | 'error';
@@ -51,10 +51,30 @@ interface EpisodeSegmentsView {
   shareState?: 'pending' | 'shared' | 'verified' | null;
 }
 
+/** A viewer's report that a part is wrong, open until handled (saving a correction handles them too). */
+export interface SegmentReportView {
+  id: number;
+  kind: 'recap' | 'intro' | 'credits';
+  problem: 'starts-early' | 'starts-late' | 'ends-early' | 'ends-late' | 'not-there' | 'missing';
+  position: number | null;
+  createdAt: number;
+  user: string;
+}
+
 interface ShowSegments {
   show: { id: number; title: string };
-  seasons: { seasonNumber: number; episodes: { id: number; episodeNumber: number; title: string | null; duration: number | null; eligible: boolean; segments: EpisodeSegmentsView | null }[] }[];
+  seasons: { seasonNumber: number; episodes: { id: number; episodeNumber: number; title: string | null; duration: number | null; eligible: boolean; segments: EpisodeSegmentsView | null; reports?: SegmentReportView[] }[] }[];
 }
+
+const REPORT_KIND: Record<SegmentReportView['kind'], MessageKey> = { recap: 'segments.recap', intro: 'segments.intro', credits: 'segments.credits' };
+const REPORT_PROBLEM: Record<SegmentReportView['problem'], MessageKey> = {
+  'starts-early': 'segments.reports.startsEarly',
+  'starts-late': 'segments.reports.startsLate',
+  'ends-early': 'segments.reports.endsEarly',
+  'ends-late': 'segments.reports.endsLate',
+  'not-there': 'segments.reports.notThere',
+  missing: 'segments.reports.missing',
+};
 
 /** Shared detection labels: only here so far, another server agrees, three or more agree. */
 const SHARE_TONE = { pending: 'bg-raised text-muted', shared: 'bg-accent/15 text-accent', verified: 'bg-ok/15 text-ok' } as const;
@@ -95,7 +115,9 @@ function PartLabel({ part, empty = '—' }: { part: Part | null; empty?: string 
     <span className={part.confidence === 'low' ? 'text-faint line-through decoration-faint/60' : ''} title={part.confidence ? t('segments.confidenceTitle', { level: t(CONFIDENCE_LABEL[part.confidence]) }) : undefined}>
       <span className="tabular-nums">{formatClock(part.start)}–{formatClock(part.end)}</span>
       {part.confidence && part.confidence !== 'high' && <span className={`ml-1.5 text-xs ${part.confidence === 'low' ? 'text-amber no-underline' : 'text-muted'}`}>{t(`segments.confidence.${part.confidence}`)}</span>}
-      {part.source && part.source !== 'manual' && <span className="ml-1.5 text-xs text-faint">{t(SOURCE_LABEL[part.source])}</span>}
+      {part.source && part.source !== 'manual' && (
+        <span className={`ml-1.5 text-xs ${part.source === 'central' ? 'text-accent' : 'text-faint'}`} title={part.source === 'central' ? t('segments.centralHint') : undefined}>{t(SOURCE_LABEL[part.source])}</span>
+      )}
     </span>
   );
 }
@@ -174,6 +196,14 @@ function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) 
     },
     onError: (err) => toast.error(err),
   });
+  const resolve = useMutation({
+    mutationFn: (id: number) => api.post(`/api/admin/segments/reports/${id}/resolve`, {}),
+    onSuccess: () => {
+      toast.success(t('segments.reports.resolved'));
+      done();
+    },
+    onError: (err) => toast.error(err),
+  });
   const reset = useMutation({
     mutationFn: (id: number) => api.del(`/api/admin/segments/episodes/${id}`),
     onSuccess: () => {
@@ -218,8 +248,10 @@ function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) 
               <tbody className="divide-y divide-line/50">
                 {season.episodes.map((e) => {
                   const s = e.segments;
+                  const reports = e.reports ?? [];
                   return (
-                    <tr key={e.id}>
+                    <Fragment key={e.id}>
+                    <tr>
                       <td className="py-2 pr-3">
                         <span className="tabular-nums text-muted">E{String(e.episodeNumber).padStart(2, '0')}</span> <span className="ml-1">{e.title ?? ''}</span>
                         {s?.manual && <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-xs text-accent">{t('segments.manual')}</span>}
@@ -252,6 +284,27 @@ function ShowDetail({ showId, onBack }: { showId: number; onBack: () => void }) 
                         )}
                       </td>
                     </tr>
+                    {reports.length > 0 && (
+                      <tr>
+                        <td colSpan={6} className="pb-3">
+                          <ul className="space-y-1 rounded-lg border border-amber/30 bg-amber/5 px-3 py-2" aria-label={t('segments.reports.ofEpisode', { n: e.episodeNumber })}>
+                            {reports.map((r) => (
+                              <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                                <Flag className="size-3.5 shrink-0 text-amber" />
+                                <span className="font-medium">{t(REPORT_KIND[r.kind])}: {t(REPORT_PROBLEM[r.problem])}</span>
+                                {r.position !== null && <span className="tabular-nums text-muted">{t('segments.reports.at', { time: formatClock(r.position) })}</span>}
+                                <span className="text-muted">{r.user}</span>
+                                <span className="text-xs text-faint">{formatRelative(r.createdAt)}</span>
+                                <button type="button" className="ml-auto inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-muted hover:bg-raised hover:text-ink" onClick={() => resolve.mutate(r.id)}>
+                                  <Check className="size-3.5" /> {t('segments.reports.resolve')}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -295,16 +348,18 @@ export function SegmentsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <p className="max-w-2xl text-sm text-muted">
-          {t('segments.intro_text')}
-        </p>
+        <div className="max-w-2xl space-y-2 text-sm text-muted">
+          <p>{t('segments.intro_text')}</p>
+          <p>{t('segments.correctionsText')}</p>
+          <p>{t('segments.reports.text')}</p>
+        </div>
         <Button variant="secondary" size="sm" icon={<RotateCcw className="size-4" />} disabled={!status.enabled} onClick={() => setConfirmAll(true)}>{t('segments.analyseEverything')}</Button>
       </div>
 
       <div className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-sm ${status.state === 'disabled' ? 'border-amber/30 bg-amber/5' : 'border-line bg-raised/50'}`} role="status">
         <SkipForward className="size-4 shrink-0 text-muted" />
         <p className="flex-1">{statusLine(status)}</p>
-        {status.state === 'disabled' && <a href="#detection-settings" className="text-accent underline-offset-4 hover:underline">{t('segments.settingsTitle')}</a>}
+        {status.state === 'disabled' && <Link to="/admin/maintenance" className="text-accent underline-offset-4 hover:underline">{t('segments.settingsTitle')}</Link>}
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -317,6 +372,7 @@ export function SegmentsPage() {
         <Stat label={t('segments.stats.errors')} value={c.errors} tone="amber" />
         <Stat label={t('segments.stats.lowConfidence')} value={c.lowConfidence} />
         <Stat label={t('segments.stats.manual')} value={c.manual} />
+        <Stat label={t('segments.stats.reports')} value={c.reports ?? 0} tone="amber" />
         {(c.fromShared ?? 0) + (c.confirmed ?? 0) > 0 && <Stat label={t('segments.stats.fromShared')} value={c.fromShared ?? 0} />}
         {(c.fromShared ?? 0) + (c.confirmed ?? 0) > 0 && <Stat label={t('segments.stats.confirmed')} value={c.confirmed ?? 0} />}
       </div>
@@ -373,7 +429,6 @@ export function SegmentsPage() {
         </section>
       )}
 
-      <DetectionSettings />
       <ConfirmModal
         open={confirmAll}
         title={t('segments.allTitle')}

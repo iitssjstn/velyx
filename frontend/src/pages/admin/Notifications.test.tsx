@@ -53,6 +53,12 @@ describe('Notifications page', () => {
     expect(calls.filter((c) => c.method === 'PUT').at(-1)?.body).toEqual({ discordWebhook: WEBHOOK });
   });
 
+  it('offers viewer reports about intros and credits, on by default', async () => {
+    setup([]);
+    const box = await screen.findByRole('checkbox', { name: /A viewer reports that an intro, recap or credits are wrong/ });
+    expect((box as HTMLInputElement).checked).toBe(true);
+  });
+
   it('tests a configured Discord channel', async () => {
     const calls = setup([], true);
     await userEvent.click(await screen.findByRole('button', { name: /Send a test/ }));

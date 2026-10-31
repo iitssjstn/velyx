@@ -65,10 +65,23 @@ describe('pressKey', () => {
     expect(back).toMatchObject({ handled: true, state: { open: 'none' } });
   });
 
-  it('hides the controls with ↑ while they show', () => {
+  it('hides the controls with ↓ while they show', () => {
     const r = pressKey(initialTvState(), 'down', ctx());
     expect(r.state.open).toBe('bar');
-    expect(pressKey(r.state, 'up', ctx())).toMatchObject({ handled: true, state: { open: 'none' } });
+    expect(pressKey(r.state, 'down', ctx())).toMatchObject({ handled: true, state: { open: 'none' } });
+  });
+
+  it('reaches the Back button with ↑ from any button and comes back to the same button with ↓', () => {
+    let r = pressKey(initialTvState(), 'down', ctx());
+    r = pressKey(r.state, 'right', ctx());
+    r = pressKey(r.state, 'right', ctx());
+    expect(r.state).toMatchObject({ open: 'bar', top: false, focus: 3 });
+    r = pressKey(r.state, 'up', ctx());
+    expect(r).toMatchObject({ handled: true, action: { type: 'show' }, state: { open: 'bar', top: true } });
+    expect(pressKey(r.state, 'ok', ctx()).action).toEqual({ type: 'exit' });
+    expect(pressKey(r.state, 'down', ctx()).state).toMatchObject({ open: 'bar', top: false, focus: 3 });
+    // ↑ again hides the controls.
+    expect(pressKey(r.state, 'up', ctx()).state).toMatchObject({ open: 'none', top: false });
   });
 
   it('reaches the Back button at the top left with ← from the first button and leaves the player with OK', () => {

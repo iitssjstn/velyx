@@ -39,6 +39,7 @@ export type AuditAction =
   | 'segments.edited'
   | 'segments.reset'
   | 'segments.analyze'
+  | 'segments.reportResolved'
   | 'cleanup.settings'
   | 'cleanup.kept'
   | 'cleanup.deleted'

@@ -29,6 +29,11 @@ const EDGES: SubtitleEdge[] = ['shadow', 'outline', 'none'];
 
 const pick = <T extends string>(list: T[], value: unknown, fallback: T): T => (list.includes(value as T) ? (value as T) : fallback);
 
+/** The account field for this device: the TV app keeps its own style (watched from further away, so often bigger). */
+export function accountStyleField(tv: boolean): 'subtitleStyle' | 'subtitleStyleTv' {
+  return tv ? 'subtitleStyleTv' : 'subtitleStyle';
+}
+
 /** A stored style read back safely: unknown or missing values fall back to the defaults. */
 export function readSubtitleStyle(raw: unknown): SubtitleStyle {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};

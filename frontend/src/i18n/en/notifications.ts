@@ -13,6 +13,7 @@ export const notifications = {
     newDevice: 'Someone signs in (browser or app)',
     storageLow: 'Disk space runs low',
     inviteAccepted: 'Someone accepts an invitation',
+    segmentReport: 'A viewer reports that an intro, recap or credits are wrong',
   },
   saved: 'Notification settings saved.',
   discordTitle: 'Discord (optional)',

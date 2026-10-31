@@ -27,6 +27,7 @@ export const MESSAGES: Record<NotificationEvent, { title: string; body: string }
   newDevice: { title: 'New sign-in: {user} on {device}', body: 'If this was not expected, sign the device out under Users.' },
   storageLow: { title: 'Disk space is running low', body: '{disk}: {free} free.' },
   inviteAccepted: { title: '{user} accepted your invitation', body: 'Signed in with {email} as user {username}. You can change their libraries under Users.' },
+  segmentReport: { title: '{part} of {show} {episode}: a viewer says it is not right', body: '{user}: the {part} {problem}. Check it under Intros & credits.' },
 };
 
 export interface NotificationView {
@@ -47,9 +48,14 @@ export function effectiveNotifications(stored: Partial<NotificationSettings> | u
   };
 }
 
+/** Parameters that are words of the server's own (a part, a problem), translated with the message. */
+const WORD_PARAMS = ['part', 'problem'];
+
 export function renderNotification(event: NotificationEvent, params: NotificationParams, lang: Language): { title: string; body: string } {
   const m = MESSAGES[event];
-  return { title: tr(lang, m.title, params), body: tr(lang, m.body, params) };
+  const p = { ...params };
+  for (const k of WORD_PARAMS) if (typeof p[k] === 'string') p[k] = tr(lang, p[k] as string);
+  return { title: tr(lang, m.title, p), body: tr(lang, m.body, p) };
 }
 
 /** "A, B, C and 4 more": titles for a message, never paths. */

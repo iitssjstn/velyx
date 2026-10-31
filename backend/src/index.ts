@@ -12,6 +12,7 @@ import { APP_VERSION } from './version.js';
 import type { RemuxEngine } from './playback/remux.js';
 import { DirectHttpsService } from './services/direct-https.js';
 import { startTrayBridge } from './services/tray.js';
+import { SHARED_SYNC_MS } from './services/segments/shared.js';
 
 const log = createLogger('vidalune');
 
@@ -83,9 +84,10 @@ async function main(): Promise<void> {
     void pruneOnlineSubtitleFiles(db, ctx.config.onlineSubtitleDir);
   }, 6 * 60 * 60 * 1000);
   purgeTimer.unref();
-  // Shared detection (when on): what other servers found since, now and then (never at start-up itself).
+  // Shared detection: what other servers found since and corrections made on vidalune.com, every
+  // few hours (never at start-up itself), so a correction reaches every server within that time.
   setTimeout(() => void ctx.sharedDetection.syncAll(), 10 * 60 * 1000).unref();
-  setInterval(() => void ctx.sharedDetection.syncAll(), 24 * 60 * 60 * 1000).unref();
+  setInterval(() => void ctx.sharedDetection.syncAll(), SHARED_SYNC_MS).unref();
 
   let shuttingDown = false;
   let stopTray = () => {};

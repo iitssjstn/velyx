@@ -1,12 +1,15 @@
 import type { Messages } from '../index';
 export const segments: Messages['segments'] = {
   settingsTitle: 'Detectie-instellingen',
+  correctionsText: 'Een correctie hier geldt meteen voor deze server en gaat als voorstel naar vidalune.com. Een correctie van Vidalune zelf gaat altijd voor.',
+  centralHint: 'Vastgezet door Vidalune; gaat voor jouw correctie.',
   sources: {
     chapters: 'hoofdstukken',
     video: 'beeld',
     audio: 'geluid',
     shared: 'andere servers',
     manual: 'handmatig',
+    central: 'Vidalune',
   },
   share: {
     pending: 'In afwachting',
@@ -79,7 +82,7 @@ export const segments: Messages['segments'] = {
   removeCorrection: 'Correctie verwijderen (automatisch herkennen)',
   analyseEpisode: 'Aflevering {n} opnieuw analyseren',
   analyseAgain: 'Opnieuw analyseren',
-  intro_text: 'Vidalune vindt intro\'s door het geluid van afleveringen uit hetzelfde seizoen te vergelijken, en aftitelingen door tekst op een donkere achtergrond in beeld te herkennen (of terugkerende muziek bij de aftiteling). Hoofdstukken met de naam Intro of Credits worden gebruikt als een bestand ze heeft. Alles draait op deze server, één aflevering tegelijk, en nooit als iemand kijkt of er een scan loopt. Alleen resultaten met hoge of gemiddelde zekerheid krijgen een knop om over te slaan.',
+  intro_text: 'Vidalune vindt intro\'s door het geluid van afleveringen uit hetzelfde seizoen te vergelijken (en bij een kort seizoen de seizoenen eromheen), zet de randen vast met het beeld, en vindt aftitelingen door regels tekst in beeld te herkennen (of terugkerende muziek bij de aftiteling). Hoofdstukken met de naam Intro of Credits worden gebruikt als een bestand ze heeft. Alles draait op deze server, één aflevering tegelijk, en nooit als iemand kijkt of er een scan loopt. Alleen resultaten met hoge of gemiddelde zekerheid krijgen een knop om over te slaan.',
   analyseEverything: 'Alles opnieuw analyseren',
   stats: {
     analysed: 'Geanalyseerd',
@@ -92,6 +95,7 @@ export const segments: Messages['segments'] = {
     manual: 'Handmatig gecorrigeerd',
     fromShared: 'Van andere servers',
     confirmed: 'Bevestigd door anderen',
+    reports: 'Meldingen van kijkers',
   },
   noShowsText: 'Intro\'s en aftitelingen worden herkend voor afleveringen in seriebibliotheken.',
   intros: 'Intro\'s',
@@ -101,4 +105,17 @@ export const segments: Messages['segments'] = {
   },
   allTitle: 'Elke aflevering opnieuw analyseren?',
   allText: 'Alle automatische resultaten worden op de achtergrond opnieuw bepaald, één seizoen tegelijk. Handmatige correcties blijven staan. Bij grote bibliotheken kan dit even duren.',
+  reports: {
+    text: 'Kijkers kunnen in de speler melden dat een terugblik, intro of aftiteling niet klopt. Hun meldingen staan bij de aflevering; een correctie opslaan handelt ze af.',
+    ofEpisode: 'Meldingen voor aflevering {n}',
+    at: 'rond {time}',
+    startsEarly: 'begint te vroeg',
+    startsLate: 'begint te laat',
+    endsEarly: 'stopt te vroeg',
+    endsLate: 'stopt te laat',
+    notThere: 'is er niet',
+    missing: 'wordt niet herkend',
+    resolve: 'Afgehandeld',
+    resolved: 'Melding afgehandeld',
+  },
 };

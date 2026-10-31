@@ -32,6 +32,8 @@ export const users = sqliteTable('users', {
   prefSubtitleMode: text('pref_subtitle_mode', { enum: ['remember', 'always', 'foreign', 'forced', 'off'] }).notNull().default('remember'),
   /** JSON account style; null preserves each device's local subtitle settings. */
   prefSubtitleStyle: text('pref_subtitle_style'),
+  /** The TV app's own style: a TV is watched from further away, so it keeps its own size. */
+  prefSubtitleStyleTv: text('pref_subtitle_style_tv'),
   /** Skipping detected intros / credits: never offer, offer a button (ask), or skip automatically. */
   prefSkipIntro: text('pref_skip_intro', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
   prefSkipCredits: text('pref_skip_credits', { enum: ['never', 'ask', 'always'] }).notNull().default('ask'),
@@ -635,7 +637,7 @@ export const episodeSegments = sqliteTable('episode_segments', {
   recapStart: real('recap_start'),
   recapEnd: real('recap_end'),
   recapConfidence: text('recap_confidence', { enum: ['high', 'medium', 'low'] }),
-  recapSource: text('recap_source', { enum: ['chapters', 'audio', 'manual', 'shared'] }),
+  recapSource: text('recap_source', { enum: ['chapters', 'audio', 'manual', 'shared', 'central'] }),
   introStart: real('intro_start'),
   introEnd: real('intro_end'),
   introConfidence: text('intro_confidence', { enum: ['high', 'medium', 'low'] }),
@@ -643,8 +645,8 @@ export const episodeSegments = sqliteTable('episode_segments', {
   creditsEnd: real('credits_end'),
   creditsConfidence: text('credits_confidence', { enum: ['high', 'medium', 'low'] }),
   /** Where each part was found: chapter markers, the picture, recurring audio or by hand. */
-  introSource: text('intro_source', { enum: ['chapters', 'video', 'audio', 'manual', 'shared'] }),
-  creditsSource: text('credits_source', { enum: ['chapters', 'video', 'audio', 'manual', 'shared'] }),
+  introSource: text('intro_source', { enum: ['chapters', 'video', 'audio', 'manual', 'shared', 'central'] }),
+  creditsSource: text('credits_source', { enum: ['chapters', 'video', 'audio', 'manual', 'shared', 'central'] }),
   postCreditsStart: real('post_credits_start'),
   postCreditsEnd: real('post_credits_end'),
   status: text('status', { enum: ['analyzed', 'error'] }).notNull(),
@@ -715,6 +717,31 @@ export const segmentReferences = sqliteTable(
     createdAt: integer('created_at').notNull().default(now),
   },
   (t) => [index('segment_refs_season_idx').on(t.showId, t.seasonNumber, t.kind)],
+);
+
+/**
+ * A viewer saying a recap, intro or credits is wrong ("Intro is not right"). One open report per
+ * user, episode and part; resolved when an administrator corrects the episode, analyses it again or
+ * marks the report done.
+ */
+export const segmentReports = sqliteTable(
+  'segment_reports',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    episodeId: integer('episode_id')
+      .notNull()
+      .references(() => episodes.id, { onDelete: 'cascade' }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: ['recap', 'intro', 'credits'] }).notNull(),
+    problem: text('problem', { enum: ['starts-early', 'starts-late', 'ends-early', 'ends-late', 'not-there', 'missing'] }).notNull(),
+    /** Where the viewer was in the episode, in seconds. */
+    position: real('position'),
+    createdAt: integer('created_at').notNull().default(now),
+    resolvedAt: integer('resolved_at'),
+  },
+  (t) => [index('segment_reports_episode_idx').on(t.episodeId), index('segment_reports_user_idx').on(t.userId, t.createdAt)],
 );
 
 /**

@@ -140,11 +140,11 @@ export function pressKey(state: TvState, key: RemoteKey, ctx: TvContext): { stat
 
   if (s.open === 'bar') {
     s.focus = clamp(s.focus, 0, buttons.length - 1);
-    // ← past the first button reaches the Back button at the top left; ↑ and ↓ hide the controls.
-    if (key === 'left' && s.focus === 0) s.top = true;
+    // ↑, or ← past the first button, reaches the Back button at the top left; ↓ hides the controls.
+    if (key === 'up' || (key === 'left' && s.focus === 0)) s.top = true;
     else if (key === 'left') s.focus = clamp(s.focus - 1, 0, buttons.length - 1);
     else if (key === 'right') s.focus = clamp(s.focus + 1, 0, buttons.length - 1);
-    else if (key === 'up' || key === 'down' || key === 'back') {
+    else if (key === 'down' || key === 'back') {
       s.open = 'none';
       return done();
     } else if (key === 'ok') {

@@ -18,9 +18,9 @@ import { isMediaBytesPath, isRelayedMediaBytes, newSlug, rejectRelayedMedia, Rel
 import { composeFile, installPage, debInstallScript, installScript } from './install.js';
 import { homePage, pickLanguage, privacyPage } from './site.js';
 import { Community, communityRoutes } from './community.js';
-import { detectionRoutes } from './detection.js';
+import { DetectionError, detectionCeoRoutes, detectionRoutes } from './detection.js';
 import { SubtitleError, SubtitleProxy, subtitleRoutes } from './subtitles.js';
-import { TmdbProxy, TmdbProxyError, tmdbRoutes } from './tmdb.js';
+import { TmdbProxy, TmdbProxyError, questionKey, tmdbRoutes } from './tmdb.js';
 import { CeoError, ceoRoutes } from './ceo.js';
 import { CloudflareDns, publicAddress } from './cloudflare-dns.js';
 import { DirectCertificateIssuer } from './direct-certificate.js';
@@ -511,7 +511,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) return reply.code(400).send({ error: error.issues[0]?.message ?? 'Invalid input.' });
-    if (error instanceof HttpError || error instanceof CeoError || error instanceof SubtitleError || error instanceof TmdbProxyError || error instanceof MailSettingsError) return reply.code(error.statusCode).send({ error: error.message });
+    if (error instanceof HttpError || error instanceof CeoError || error instanceof SubtitleError || error instanceof TmdbProxyError || error instanceof MailSettingsError || error instanceof DetectionError) return reply.code(error.statusCode).send({ error: error.message });
     const status = (error as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) return reply.code(status).send({ error: 'Invalid request.' });
     app.log.error(error);
@@ -1397,6 +1397,24 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     mailEnabled: () => mailer.enabled,
   });
   app.decorate('ceoMonitor', ceo.monitor);
+  // Intros and credits: what servers found, and the CEO's corrections every server takes over.
+  detectionCeoRoutes(app, {
+    db,
+    now,
+    ceo: (request) => {
+      const me = account(request);
+      if (!isCeo(me)) throw new CeoError(403, 'Only for the CEO of Vidalune.');
+      return me;
+    },
+    record: (actor, action, target, detail) => void db.insert(ceoEvents).values({ at: now(), actor, action, target, detail: detail ? JSON.stringify(detail) : null }).run(),
+    showTitle: async (tmdbShow) => {
+      if (!tmdbProxy.available) return undefined;
+      const answer = await tmdbProxy.answer(questionKey({ path: `/tv/${tmdbShow}`, params: {} }));
+      if (answer.status !== 200) return null;
+      const name = (JSON.parse(answer.body) as { name?: unknown }).name;
+      return typeof name === 'string' && name ? name.slice(0, 300) : null;
+    },
+  });
 
   // ---- installing Vidalune: the page, a compose file, the installer, the app and the latest version
 

@@ -28,7 +28,7 @@ const settings = {
   deferScansWhilePlaying: true,
   segmentDetection: true,
   segmentVideo: true,
-  sharedDetection: false,
+  shareDetection: true,
   subtitlePrefetch: true,
   subtitlePrefetchStatus: { enabled: true, pending: 12, running: false, waitingFor: 'quiet' },
   maintenanceStart: '02:00',

@@ -8,6 +8,7 @@ import {
   Cast,
   ChevronDown,
   Check,
+  Flag,
   Keyboard,
   Maximize,
   Maximize2,
@@ -41,6 +42,7 @@ import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { CastSubtitleSettings } from '../components/CastSubtitleSettings';
 import { PlaybackBadge, PlaybackUnavailable } from '../components/PlaybackDetails';
 import { UpNext } from '../components/UpNext';
+import { SegmentReport, reportFound } from '../components/SegmentReport';
 import { useCast } from '../lib/cast';
 import { currentLanguage, intlLocale, languageLabel, t, useT, type MessageKey } from '../i18n';
 
@@ -248,6 +250,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // The viewer closed the "Up next" card for this episode.
   const [upNextDismissed, setUpNextDismissed] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  /** The viewer's report that a recap, intro or credits is wrong (episodes only). */
+  const [reportOpen, setReportOpen] = useState(false);
   // Parts skipped automatically in this playback (each only once, so seeking back replays them),
   // and the short "Skipped" notice with a way back.
   const autoSkipped = useRef(new Set<string>());
@@ -1072,6 +1076,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     // While minimized the keyboard belongs to the page the user is browsing.
     if (mini) return;
     const onKey = (e: KeyboardEvent) => {
+      // The report window handles its own keys (Escape closes it, not the player).
+      if (reportOpen) return;
       if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
       const v = videoRef.current;
       poke();
@@ -1142,7 +1148,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [mini, poke, togglePlay, seekBy, seekStep, seekTo, applyVolume, toggleFullscreen, minimize, chooseSubtitle, goNext, exit, subs, subKey, next, menu, showHelp, volume, muted, totalDuration, skip, doSkip]);
+  }, [mini, poke, togglePlay, seekBy, seekStep, seekTo, applyVolume, toggleFullscreen, minimize, chooseSubtitle, goNext, exit, subs, subKey, next, menu, showHelp, reportOpen, volume, muted, totalDuration, skip, doSkip]);
 
 
   // ---------------------------------------------------------------- render
@@ -1451,6 +1457,16 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         </div>
       )}
 
+      {!mini && item.data?.kind === 'episode' && (
+        <SegmentReport
+          episodeId={item.data.id}
+          position={time}
+          found={reportFound(item.data.segments, file?.id)}
+          open={reportOpen}
+          onClose={() => setReportOpen(false)}
+        />
+      )}
+
       {!mini && showHelp && (
         <div className="absolute inset-0 z-30 grid place-items-center bg-black/60 px-6" role="dialog" aria-label={t('player.keyboardShortcuts')} onClick={() => setShowHelp(false)}>
           <div className="w-full max-w-sm rounded-2xl border border-line bg-surface/95 p-5 shadow-2xl backdrop-blur" onClick={(e) => e.stopPropagation()}>
@@ -1728,6 +1744,18 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
                       <Keyboard className="size-4 shrink-0" /> {t('player.keyboardShortcuts')}
                       <kbd className="ml-auto rounded bg-raised px-1.5 font-mono text-xs text-muted">?</kbd>
                     </button>
+                    {item.data?.kind === 'episode' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenu(null);
+                          setReportOpen(true);
+                        }}
+                        className="flex w-full items-center gap-3 px-4 pt-2 pb-1 text-left text-sm hover:text-accent"
+                      >
+                        <Flag className="size-4 shrink-0" /> {t('player.reportMenu')}
+                      </button>
+                    )}
                   </>
                 )}
               </div>

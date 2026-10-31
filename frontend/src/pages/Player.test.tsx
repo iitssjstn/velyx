@@ -421,3 +421,41 @@ describe('the loading spinner of the player', () => {
     }
   });
 });
+
+describe('reporting a wrong intro or credits', () => {
+  const EPISODE = { id: 7, showId: 2, showTitle: 'Test Show', seasonNumber: 1, episodeNumber: 2, title: 'Two', stillPath: null, showBackdropPath: null, showPosterPath: null, files: MOVIE.files, progress: null, next: null, previous: null, segments: { fileId: 3, recap: null, intro: { start: 10, end: 40 }, credits: null, postCredits: null, manual: false } };
+
+  function renderEpisode() {
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const json = (d: unknown) => new Response(JSON.stringify(d), { status: 200 });
+      if (url === '/api/episodes/7') return json(EPISODE);
+      if (url === '/api/media/3/playback') return json(PLAYBACK);
+      if (url === '/api/account/preferences') return json({ audioLanguage: '', subtitleLanguage: '', subtitleFallback: '', subtitleMode: 'remember' });
+      return json({});
+    });
+    return render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <Player kind="episode" id={7} search="?t=0" mini={false} onMinimize={() => undefined} onRestore={() => undefined} onClose={() => undefined} onPlayItem={() => undefined} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('is offered in the settings of an episode and opens the report window', async () => {
+    renderEpisode();
+    fireEvent.click(await screen.findByRole('button', { name: 'Playback settings' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Intro or credits wrong?' }));
+    expect(await screen.findByRole('dialog', { name: 'Intro or credits wrong?' })).toBeTruthy();
+    // The intro was found for this file, so its times can be reported.
+    expect(screen.getByRole('radio', { name: 'Starts too late' })).toBeTruthy();
+  });
+
+  it('is not offered for a film', async () => {
+    renderPlayer();
+    fireEvent.click(await screen.findByRole('button', { name: 'Playback settings' }));
+    await screen.findByText('Keyboard shortcuts');
+    expect(screen.queryByRole('button', { name: 'Intro or credits wrong?' })).toBeNull();
+  });
+});

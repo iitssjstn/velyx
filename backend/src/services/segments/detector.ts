@@ -6,12 +6,12 @@ import { episodes, episodeSegments, libraries, mediaFiles, segmentFingerprints, 
 import { createLogger } from '../../logger.js';
 import { longestCommonSegment, SAMPLE_RATE, type Fingerprint } from './fingerprint.js';
 import { inlineFingerprintRunner, inlineSeasonRunner, type FingerprintRunner, type SeasonRunner } from './season-runner.js';
-import { DETECTION_VERSION, RECAP_SOURCES, headWindow, tailWindow, type Detection, type EpisodeAudio } from './detect.js';
+import { DETECTION_VERSION, OUTSIDE_WHEN_FEWER, RECAP_SOURCES, headWindow, tailWindow, type Detection, type EpisodeAudio } from './detect.js';
 import { diagnoseSeason, type SeasonDiagnosis } from './diagnose.js';
 import { chapterSegments, type ChapterSegments } from './chapters.js';
-import { findCredits, refineStart, type VisualCredits } from './visual.js';
+import { findCredits, pictureEdge, refineStart, type FrameStats, type VisualCredits } from './visual.js';
 import type { ChapterReader, FrameReader } from './readers.js';
-import { sharedFor, sharedReferences, type SharedProfile } from './shared.js';
+import { overridesFor, sharedFor, sharedReferences, type SharedProfile } from './shared.js';
 import { LOCAL_ONLY } from '../../playback/local-input.js';
 
 const log = createLogger('segments');
@@ -102,6 +102,8 @@ export interface DetectorStatus {
     lowConfidence: number;
     /** Shared detection: episodes with a part taken from other servers, and results others agree with. */
     fromShared: number;
+    /** Episodes with a part set by a correction on vidalune.com. */
+    central: number;
     confirmed: number;
   };
   version: number;
@@ -121,6 +123,12 @@ interface EpisodeFile {
 const MAX_REFERENCES = 3;
 /** Format of the stored fingerprints (bump when the fingerprint itself changes). */
 const FINGERPRINT_VERSION = 1;
+/** How credits are found in the picture (bump to look again without reading the audio again). */
+const EXTRAS_VERSION = 2;
+/** Seconds of picture read on either side of an intro edge to place it by the picture. */
+const EDGE_WINDOW_SEC = 6;
+/** Other episodes whose picture an intro edge is compared with. */
+const EDGE_PEERS = 2;
 
 const toWords = (buf: Buffer): Fingerprint => ({ words: new Uint32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)) });
 const toBlob = (fp: Fingerprint) => Buffer.from(fp.words.buffer, fp.words.byteOffset, fp.words.byteLength);
@@ -129,8 +137,8 @@ const toBlob = (fp: Fingerprint) => Buffer.from(fp.words.buffer, fp.words.byteOf
  * Finds intros and credits in the background, one season at a time. It only reads audio (a few
  * minutes at the start and end of each episode), never while a scan runs or while people watch on a busy machine,
  * and remembers the result so an episode is analysed once — again only when its file changes, the
- * algorithm improves, a low-confidence result can be improved by newly added episodes, or an
- * administrator asks. Manual corrections are never overwritten.
+ * algorithm improves, or a low-confidence result can be improved by newly added episodes. Manual
+ * corrections are never overwritten here (only a correction made on vidalune.com goes before them).
  */
 export class SegmentDetector {
   private queue: SeasonJob[] = [];
@@ -140,6 +148,8 @@ export class SegmentDetector {
   private stopped = false;
   private idleWaiters: Array<() => void> = [];
   private wake: (() => void) | null = null;
+  /** Episodes of short seasons looked at again after a neighbouring season was analysed. */
+  private revisited = new Set<number>();
 
   constructor(
     private readonly db: DB,
@@ -304,6 +314,7 @@ export class SegmentDetector {
         manual: current.filter((r) => r.manual).length,
         lowConfidence: current.filter((r) => !r.manual && (r.introConfidence === 'low' || r.creditsConfidence === 'low')).length,
         fromShared: current.filter((r) => r.recapSource === 'shared' || r.introSource === 'shared' || r.creditsSource === 'shared').length,
+        central: current.filter((r) => r.recapSource === 'central' || r.introSource === 'central' || r.creditsSource === 'central').length,
         confirmed: current.filter((r) => r.shareState === 'shared' || r.shareState === 'verified').length,
       },
       version: DETECTION_VERSION,
@@ -435,7 +446,11 @@ export class SegmentDetector {
           },
         ]),
     );
-    const results = await (this.hooks.runSeason ?? inlineSeasonRunner)(audio, refs, pendingIds, known);
+    // A season with few episodes of its own is compared with the neighbouring seasons too.
+    const outside = files.length <= OUTSIDE_WHEN_FEWER ? this.neighbours(job.showId, job.seasonNumber) : [];
+    const results = await (this.hooks.runSeason ?? inlineSeasonRunner)(audio, refs, pendingIds, known, outside);
+    if (this.stopped) return;
+    await this.refineIntros(files, pendingIds, results, known);
     if (this.stopped) return;
     const byId = new Map(files.map((f) => [f.episodeId, f]));
     const now = Date.now();
@@ -447,9 +462,17 @@ export class SegmentDetector {
       // looked at the same cut of the episode — also for a file whose audio could not be read.
       if (shared) {
         const theirs = sharedFor(shared, f.episodeNumber, f.duration);
+        // Corrections made in the Control Center go before anything found, here or elsewhere.
+        const forced = overridesFor(shared, f.episodeNumber, f.duration);
         const base: Detection = d ?? { recap: null, intro: null, credits: null, postCredits: null, introFrames: null, creditsFrames: null };
         let used = false;
         for (const kind of ['recap', 'intro', 'credits'] as const) {
+          const o = forced[kind];
+          if (o) {
+            base[kind] = { start: o.start, end: o.end, confidence: 'high', source: 'central' };
+            used = true;
+            continue;
+          }
           const t = theirs[kind];
           const mine = base[kind];
           if (!t || (mine && mine.confidence !== 'low')) continue;
@@ -471,8 +494,119 @@ export class SegmentDetector {
       .set({ full: null })
       .where(and(inArray(segmentFingerprints.episodeId, files.map((f) => f.episodeId)), sql`${segmentFingerprints.episodeId} <> ${last}`))
       .run();
+    this.revisitNeighbours(job);
     const found = [...results.values()];
     log.info(`${title} season ${job.seasonNumber}: ${found.filter((d) => d.recap && d.recap.confidence !== 'low').length} recap(s), ${found.filter((d) => d.intro && d.intro.confidence !== 'low').length} intro(s), ${found.filter((d) => d.credits && d.credits.confidence !== 'low').length} credits found`);
+  }
+
+  /** Seasons of a show that have episode files, in order (specials, season 0, stand apart). */
+  private seasonsOf(showId: number): number[] {
+    return [...new Set(this.episodeFiles({ showId }).map((f) => f.seasonNumber))].filter((n) => n > 0).sort((a, b) => a - b);
+  }
+
+  /**
+   * The closest episodes of the previous and the next season, from their stored fingerprints (they
+   * are not read again here): the last ones of the season before, the first ones of the one after.
+   */
+  private neighbours(showId: number, seasonNumber: number): EpisodeAudio[] {
+    if (seasonNumber <= 0) return [];
+    const seasons = this.seasonsOf(showId);
+    const before = seasons.filter((n) => n < seasonNumber).pop();
+    const after = seasons.find((n) => n > seasonNumber);
+    const prev = before === undefined ? [] : this.episodeFiles({ showId, seasonNumber: before }).slice(-OUTSIDE_WHEN_FEWER).reverse();
+    const next = after === undefined ? [] : this.episodeFiles({ showId, seasonNumber: after }).slice(0, OUTSIDE_WHEN_FEWER);
+    const order: EpisodeFile[] = [];
+    for (let i = 0; i < OUTSIDE_WHEN_FEWER; i++) {
+      if (prev[i]) order.push(prev[i]);
+      if (next[i]) order.push(next[i]);
+    }
+    if (!order.length) return [];
+    const rows = new Map(this.db.select().from(segmentFingerprints).where(inArray(segmentFingerprints.episodeId, order.map((f) => f.episodeId))).all().map((r) => [r.episodeId, r]));
+    const out: EpisodeAudio[] = [];
+    for (const f of order) {
+      const r = rows.get(f.episodeId);
+      if (!r || r.mediaFileId !== f.fileId || r.fileSize !== f.size || r.version !== FINGERPRINT_VERSION) continue;
+      out.push({ id: f.episodeId, duration: f.duration, head: toWords(r.head), tail: toWords(r.tail), tailStart: r.tailStart });
+    }
+    return out;
+  }
+
+  /**
+   * After a season is analysed, a short neighbouring season with weak results gets another look:
+   * it can now be compared with this one.
+   */
+  private revisitNeighbours(job: SeasonJob): void {
+    const seasons = this.seasonsOf(job.showId);
+    const at = seasons.indexOf(job.seasonNumber);
+    for (const n of [seasons[at - 1], seasons[at + 1]]) {
+      if (n === undefined || at < 0) continue;
+      const files = this.episodeFiles({ showId: job.showId, seasonNumber: n });
+      if (!files.length || files.length > OUTSIDE_WHEN_FEWER) continue;
+      const weak = this.db
+        .select()
+        .from(episodeSegments)
+        .where(inArray(episodeSegments.episodeId, files.map((f) => f.episodeId)))
+        .all()
+        .filter((r) => !r.manual && r.version === DETECTION_VERSION && r.status === 'analyzed' && (r.introConfidence !== 'high' || r.creditsConfidence !== 'high') && !this.revisited.has(r.episodeId));
+      if (!weak.length) continue;
+      // Once per episode per run of the server, so two short seasons do not keep waking each other.
+      weak.forEach((r) => this.revisited.add(r.episodeId));
+      this.add({ showId: job.showId, seasonNumber: n, force: new Set(weak.map((r) => r.episodeId)) });
+    }
+  }
+
+  /**
+   * Places the intro's start and end by the picture: the intro looks the same in every episode, the
+   * scenes around it do not (the audio alone can be off when the music starts under the last line of
+   * a scene or fades before the last title shot). Compared with the nearest episodes that have an
+   * intro; the middle of what they say is taken. Without video analysis, or when the picture does not
+   * settle it, the edge from the audio stays.
+   */
+  private async refineIntros(files: EpisodeFile[], pendingIds: Set<number>, results: Map<number, Detection>, known: Map<number, Pick<Detection, 'intro'>>): Promise<void> {
+    if (!this.readers.frames || !(this.hooks.video?.() ?? true)) return;
+    // The edges the audio gave, before any are moved (episodes are lined up by them).
+    const edges = new Map<number, { start: number; end: number }>();
+    for (const f of files) {
+      const d = results.get(f.episodeId);
+      const intro = d ? d.intro : known.get(f.episodeId)?.intro;
+      if (intro && intro.confidence !== 'low' && intro.source !== 'chapters' && intro.source !== 'shared' && intro.source !== 'central') edges.set(f.episodeId, { start: intro.start, end: intro.end });
+    }
+    const frames = new Map<string, FrameStats[] | null>();
+    const around = async (f: EpisodeFile, t: number) => {
+      const key = `${f.episodeId}:${t}`;
+      if (!frames.has(key)) {
+        if (!(await this.gate())) return null;
+        frames.set(key, await this.readers.frames!(f.path, Math.max(0, t - EDGE_WINDOW_SEC), EDGE_WINDOW_SEC * 2, 'dense').catch(() => null));
+      }
+      return frames.get(key) ?? null;
+    };
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const d = results.get(f.episodeId);
+      const own = edges.get(f.episodeId);
+      if (!pendingIds.has(f.episodeId) || !d?.intro || d.intro.source !== 'audio' || !own) continue;
+      const peers = files
+        .map((p, j) => ({ p, dist: Math.abs(i - j) }))
+        .filter((x) => x.dist > 0 && edges.has(x.p.episodeId))
+        .sort((a, b) => a.dist - b.dist)
+        .slice(0, EDGE_PEERS)
+        .map((x) => x.p);
+      if (!peers.length) continue;
+      const moved = { start: own.start, end: own.end };
+      for (const side of ['start', 'end'] as const) {
+        const mine = await around(f, own[side]);
+        if (!mine) continue;
+        const found: number[] = [];
+        for (const p of peers) {
+          const theirs = await around(p, edges.get(p.episodeId)![side]);
+          const at = theirs ? pictureEdge(mine, own[side], theirs, edges.get(p.episodeId)![side], side) : null;
+          if (at !== null) found.push(at);
+        }
+        if (found.length) moved[side] = Math.round(median(found) * 10) / 10;
+      }
+      if (this.stopped) return;
+      if (moved.end - moved.start >= 10) d.intro = { ...d.intro, start: moved.start, end: moved.end };
+    }
   }
 
   /**
@@ -520,7 +654,12 @@ export class SegmentDetector {
     const tail = tailWindow(f.duration);
     const cached = this.db.select().from(segmentFingerprints).where(eq(segmentFingerprints.episodeId, f.episodeId)).get();
     if (cached && cached.mediaFileId === f.fileId && cached.fileSize === f.size && cached.version === FINGERPRINT_VERSION && (!whole || cached.full)) {
-      const extras = cached.extras ? (JSON.parse(cached.extras) as { chapters: ChapterSegments | null; visual: VisualCredits | null }) : { chapters: null, visual: null };
+      let extras = cached.extras ? (JSON.parse(cached.extras) as { v?: number; chapters: ChapterSegments | null; visual: VisualCredits | null }) : { chapters: null, visual: null };
+      if ((extras.v ?? 1) < EXTRAS_VERSION) {
+        // The picture is looked at again (a better way to find credits); the audio stays.
+        extras = await this.readExtras(f, tail.start);
+        this.db.update(segmentFingerprints).set({ extras: JSON.stringify(extras) }).where(eq(segmentFingerprints.episodeId, f.episodeId)).run();
+      }
       return { id: f.episodeId, duration: f.duration, head: toWords(cached.head), tail: toWords(cached.tail), tailStart: cached.tailStart, chapters: extras.chapters, visual: extras.visual, full: cached.full ? toWords(cached.full) : null };
     }
     let headPcm: Int16Array;
@@ -540,13 +679,19 @@ export class SegmentDetector {
     }
     await this.rest();
     if (headPcm.length < SAMPLE_RATE * 5 || tailPcm.length < SAMPLE_RATE * 5) throw new Error('The file has no readable audio');
-    const chapters = this.readers.chapters ? chapterSegments(await this.readers.chapters(f.path).catch(() => []), f.duration) : null;
-    const visual = await this.readVisualCredits(f, tail.start);
+    const { chapters, visual } = await this.readExtras(f, tail.start);
     const [headPrint, tailPrint] = await (this.hooks.fingerprint ?? inlineFingerprintRunner)([headPcm, tailPcm]);
     const out: EpisodeAudio = { id: f.episodeId, duration: f.duration, head: headPrint!, tail: tailPrint!, tailStart: tail.start, chapters, visual, full };
-    const row = { episodeId: f.episodeId, mediaFileId: f.fileId, fileSize: f.size, version: FINGERPRINT_VERSION, head: toBlob(out.head), tail: toBlob(out.tail), tailStart: tail.start, full: full ? toBlob(full) : null, extras: JSON.stringify({ chapters, visual }), createdAt: Date.now() };
+    const row = { episodeId: f.episodeId, mediaFileId: f.fileId, fileSize: f.size, version: FINGERPRINT_VERSION, head: toBlob(out.head), tail: toBlob(out.tail), tailStart: tail.start, full: full ? toBlob(full) : null, extras: JSON.stringify({ v: EXTRAS_VERSION, chapters, visual }), createdAt: Date.now() };
     this.db.insert(segmentFingerprints).values(row).onConflictDoUpdate({ target: segmentFingerprints.episodeId, set: row }).run();
     return out;
+  }
+
+  /** Chapters and credits in the picture: what the file shows besides its audio. */
+  private async readExtras(f: EpisodeFile, tailStart: number) {
+    const chapters = this.readers.chapters ? chapterSegments(await this.readers.chapters(f.path).catch(() => []), f.duration) : null;
+    const visual = await this.readVisualCredits(f, tailStart);
+    return { v: EXTRAS_VERSION, chapters, visual };
   }
 
   /** A short pause between reads while someone watches, so their stream always comes first. */
@@ -569,7 +714,7 @@ export class SegmentDetector {
       if (!found) return null;
       if (!(await this.gate())) return found;
       const around = await this.readers.frames(f.path, Math.max(0, found.start - 20), 25, 'dense');
-      return { ...found, start: refineStart(around, found.start) };
+      return { ...found, start: refineStart(around, found.start, found.kind) };
     } catch (err) {
       log.debug(`Could not analyse the picture of ${f.path}: ${(err as Error).message}`);
       return null;
@@ -643,3 +788,8 @@ export class SegmentDetector {
   }
 }
 
+function median(values: number[]): number {
+  const s = [...values].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}

@@ -50,7 +50,7 @@ export interface CustomCleanupRule {
   graceDays: number;
 }
 
-export const NOTIFICATION_EVENTS = ['cleanupPlanned', 'cleanupDeleted', 'newMedia', 'scanFailed', 'backupFailed', 'newDevice', 'storageLow', 'inviteAccepted'] as const;
+export const NOTIFICATION_EVENTS = ['cleanupPlanned', 'cleanupDeleted', 'newMedia', 'scanFailed', 'backupFailed', 'newDevice', 'storageLow', 'inviteAccepted', 'segmentReport'] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
 /** Messages for administrators: which events, and optionally a Discord channel (a webhook URL). */
@@ -63,7 +63,7 @@ export interface NotificationSettings {
 }
 
 export const DEFAULT_NOTIFICATIONS: NotificationSettings = {
-  events: { cleanupPlanned: true, cleanupDeleted: true, newMedia: false, scanFailed: true, backupFailed: true, newDevice: false, storageLow: true, inviteAccepted: true },
+  events: { cleanupPlanned: true, cleanupDeleted: true, newMedia: false, scanFailed: true, backupFailed: true, newDevice: false, storageLow: true, inviteAccepted: true, segmentReport: true },
   discordWebhook: '',
   discordLanguage: 'en',
 };
@@ -133,10 +133,10 @@ export interface ServerSettings {
   /** Also recognise end credits in the picture (keyframes of the last minutes, low resolution). */
   segmentVideo: boolean;
   /**
-   * Shared detection with other Vidalune servers through vidalune.com (off by default): timings
-   * and fingerprints of recaps, intros and credits, by TMDB show, season and episode.
+   * Send this server's intro/credits results to vidalune.com (on by default; a linked server only).
+   * Off: nothing is sent, but corrections and what other servers agree on are still received.
    */
-  sharedDetection: boolean;
+  shareDetection: boolean;
   cleanupRules: CleanupRules;
   /** Library clean-up may delete files (off by default; the library must also be mounted writable). */
   cleanupDeletion: boolean;
@@ -188,7 +188,7 @@ const DEFAULTS: ServerSettings = {
   maintenanceEnd: '06:00',
   maintenanceOutside: true,
   segmentVideo: true,
-  sharedDetection: false,
+  shareDetection: true,
   cleanupRules: DEFAULT_CLEANUP_RULES,
   cleanupDeletion: false,
   cleanupCustomRules: [],

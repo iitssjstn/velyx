@@ -1,17 +1,22 @@
 import type { FastifyInstance } from 'fastify';
-import { count, desc, eq, inArray } from 'drizzle-orm';
+import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
-import { requireAdmin } from '../app.js';
+import { requireAdmin, requireUser } from '../app.js';
 import { episodes, episodeSegments, libraries, mediaFiles, shows } from '../db/schema.js';
 import { HttpError, parseId } from '../http-error.js';
 import { clearSegments, saveManualSegments } from '../services/segments/store.js';
+import { assertEpisode } from '../services/access.js';
+import { addReport, KIND_TEXT, openReportCount, openReports, PROBLEM_TEXT, recentReports, REPORT_KINDS, REPORT_PROBLEMS, REPORTS_PER_HOUR, resolveEpisodeReports, resolveReport } from '../services/segments/reports.js';
 
 const span = z
   .object({ start: z.number().min(0).max(86_400), end: z.number().min(0).max(86_400) })
   .refine((s) => s.end > s.start, 'The end must be after the start')
   .nullable();
 const manualBody = z.object({ recap: span.optional().default(null), intro: span, credits: span, postCredits: span });
+const reportBody = z
+  .object({ kind: z.enum(REPORT_KINDS), problem: z.enum(REPORT_PROBLEMS), position: z.number().min(0).max(86_400).optional() })
+  .strict();
 const analyzeBody = z.discriminatedUnion('scope', [
   z.object({ scope: z.literal('episode'), episodeId: z.number().int().positive() }),
   z.object({ scope: z.literal('season'), showId: z.number().int().positive(), seasonNumber: z.number().int().min(0).max(10_000) }),
@@ -45,8 +50,37 @@ function segmentView(row: Row | undefined) {
 export async function segmentRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   const { db } = ctx;
 
+  /**
+   * A viewer says a recap, intro or credits is wrong ("Intro is not right"). Any signed-in viewer of
+   * the episode's library; an open report of the same part by the same viewer is replaced.
+   */
+  app.post<{ Params: { id: string } }>('/api/episodes/:id/segment-report', { preHandler: requireUser }, async (request) => {
+    const id = parseId(request.params.id);
+    const user = request.user!;
+    const row = assertEpisode(db, ctx.access.scope(user), id);
+    const body = reportBody.parse(request.body);
+    if (recentReports(db, user.id) >= REPORTS_PER_HOUR) throw new HttpError(429, 'You have sent many reports. Try again later.');
+    addReport(db, { episodeId: id, userId: user.id, kind: body.kind, problem: body.problem, position: body.position ?? null });
+    const episode = `S${String(row.e.seasonNumber).padStart(2, '0')}E${String(row.e.episodeNumber).padStart(2, '0')}`;
+    ctx.notifications.notify('segmentReport', { part: KIND_TEXT[body.kind], show: row.s.title, episode, problem: PROBLEM_TEXT[body.problem], user: user.username });
+    // When sharing, vidalune.com hears about it too (in the background).
+    void ctx.sharedDetection.report(row.s.id, row.e.seasonNumber).catch(() => undefined);
+    return { ok: true };
+  });
+
+  /** A report looked at: it leaves the list (the episode itself is not changed). */
+  app.post<{ Params: { id: string } }>('/api/admin/segments/reports/:id/resolve', { preHandler: requireAdmin }, async (request) => {
+    const id = parseId(request.params.id);
+    const done = resolveReport(db, id);
+    if (!done) throw new HttpError(404, 'Report not found.');
+    ctx.audit.record('segments.reportResolved', { actor: request.user, ip: request.ip, target: `episode ${done.episodeId}`, detail: `report ${id}` });
+    return { ok: true };
+  });
+
   app.get('/api/admin/segments', { preHandler: requireAdmin }, async () => {
-    const status = ctx.segments.status();
+    const base = ctx.segments.status();
+    // Open reports of viewers ("Intro is not right") count along.
+    const status = { ...base, counts: { ...base.counts, reports: openReportCount(db) } };
     // Only episodes that can be analysed count (very short files and episodes without a file are left out).
     const eligible = ctx.segments.eligible();
     // Per show: episodes, analysed, found and failed, so admins can see where to look.
@@ -100,10 +134,15 @@ export async function segmentRoutes(app: FastifyInstance, ctx: AppContext): Prom
     const firstFile = new Map<number, (typeof files)[number]>();
     for (const f of files) if (f.episodeId !== null && !firstFile.has(f.episodeId)) firstFile.set(f.episodeId, f);
     const eligible = ctx.segments.eligible(showId);
+    const reports = new Map<number, ReturnType<typeof openReports>>();
+    for (const r of openReports(db, ids)) {
+      if (!reports.has(r.episodeId)) reports.set(r.episodeId, []);
+      reports.get(r.episodeId)!.push(r);
+    }
     const seasons = new Map<number, Array<Record<string, unknown>>>();
     for (const e of eps) {
       if (!seasons.has(e.seasonNumber)) seasons.set(e.seasonNumber, []);
-      seasons.get(e.seasonNumber)!.push({ id: e.id, episodeNumber: e.episodeNumber, title: e.title, duration: firstFile.get(e.id)?.duration ?? null, eligible: eligible.has(e.id), segments: segmentView(segs.get(e.id)) });
+      seasons.get(e.seasonNumber)!.push({ id: e.id, episodeNumber: e.episodeNumber, title: e.title, duration: firstFile.get(e.id)?.duration ?? null, eligible: eligible.has(e.id), segments: segmentView(segs.get(e.id)), reports: (reports.get(e.id) ?? []).map(({ episodeId: _, ...r }) => r) });
     }
     return { show, seasons: [...seasons.entries()].map(([seasonNumber, list]) => ({ seasonNumber, episodes: list })) };
   });
@@ -122,6 +161,8 @@ export async function segmentRoutes(app: FastifyInstance, ctx: AppContext): Prom
     if (body.intro && body.credits && body.intro.end > body.credits.start) throw new HttpError(400, 'The intro must end before the credits start.');
     if (body.credits && body.postCredits && body.postCredits.start < body.credits.end) throw new HttpError(400, 'The post-credits scene must start after the credits.');
     saveManualSegments(db, id, file ? { id: file.id, size: file.size } : null, body);
+    // Corrected: the viewers' reports about this episode are done.
+    resolveEpisodeReports(db, [id]);
     // Shared detection (when on): a correction by hand helps other servers too.
     void ctx.sharedDetection.report(ep.showId, ep.seasonNumber);
     const parts = [body.recap ? 'recap' : null, body.intro ? 'intro' : null, body.credits ? 'credits' : null, body.postCredits ? 'post-credits' : null].filter(Boolean);
@@ -137,6 +178,7 @@ export async function segmentRoutes(app: FastifyInstance, ctx: AppContext): Prom
     const removed = clearSegments(db, id);
     if (removed) {
       ctx.audit.record('segments.reset', { actor: request.user, ip: request.ip, target: `episode ${id}` });
+      resolveEpisodeReports(db, [id]);
       ctx.segments.reanalyze({ episodeId: id });
     }
     return { ok: true, removed };
@@ -150,6 +192,14 @@ export async function segmentRoutes(app: FastifyInstance, ctx: AppContext): Prom
     const queued = ctx.segments.reanalyze(
       body.scope === 'all' ? 'all' : body.scope === 'episode' ? { episodeId: body.episodeId } : body.scope === 'season' ? { showId: body.showId, seasonNumber: body.seasonNumber } : { showId: body.showId },
     );
+    // Analysed again: the viewers' reports about these episodes are done.
+    const analysed =
+      body.scope === 'all'
+        ? db.select({ id: episodes.id }).from(episodes).all()
+        : body.scope === 'episode'
+          ? [{ id: body.episodeId }]
+          : db.select({ id: episodes.id }).from(episodes).where(body.scope === 'season' ? and(eq(episodes.showId, body.showId), eq(episodes.seasonNumber, body.seasonNumber)) : eq(episodes.showId, body.showId)).all();
+    resolveEpisodeReports(db, analysed.map((e) => e.id));
     const target = body.scope === 'all' ? 'all shows' : body.scope === 'episode' ? `episode ${body.episodeId}` : body.scope === 'season' ? `show ${body.showId} season ${body.seasonNumber}` : `show ${body.showId}`;
     ctx.audit.record('segments.analyze', { actor: request.user, ip: request.ip, target, detail: `${queued} episode(s) queued` });
     return { queued };

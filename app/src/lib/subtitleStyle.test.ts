@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, nextStyleValue, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, readSubtitleStyle, stepDelay, subtitleBottom, subtitleFontSize, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT } from './subtitleStyle';
+import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, accountStyleField, nextStyleValue, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, readSubtitleStyle, stepDelay, subtitleBottom, subtitleFontSize, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT } from './subtitleStyle';
+
+describe('where the account keeps the style', () => {
+  it('keeps the TV app apart from the phone and the website', () => {
+    expect(accountStyleField(true)).toBe('subtitleStyleTv');
+    expect(accountStyleField(false)).toBe('subtitleStyle');
+  });
+});
 
 describe('reading a stored subtitle style', () => {
   it('falls back to the defaults for nothing or garbage', () => {
