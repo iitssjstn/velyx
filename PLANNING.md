@@ -833,8 +833,39 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   (`hls.test.ts`, rusten op Windows; op de PR groen): de test keek na 0,4 s zonder nieuw stukje al of FFmpeg gestopt
   was, op een trage runner te vroeg. Nu pas na 2 s zonder nieuw stukje; lokaal ook onder volle processorbelasting groen.
   Alleen de test veranderd, dus geen nieuwe versie nodig. De releaseketen (Docker, Debian, app, Windows) hangt niet aan CI.
+- Release `v0.20.3` (31 okt): eerst alleen de `.deb`'s. De Android-build van de merge van #192 werd halverwege de
+  APK-build afgebroken (geannuleerd, niet door een fout); daardoor ontbraken APK, `.aab` en `setup.exe`, en ging de app
+  niet naar Play. De build van #193 kon niets aanhangen (`v0.20.3` wijst naar de commit van #192). De afgebroken build
+  opnieuw gestart.
 - Eigenaar (30 okt): "wacht met pushen zodat we meerdere dingen kunnen toevoegen als ik die tegenkom". Nieuwe punten
   komen in 0.20.3 en blijven lokaal tot hij zegt dat het klaar is; daarna pas pushen en de PR.
+
+## Versie 0.20.4 (recapherkenning beter)
+
+- Op verzoek van de eigenaar (31 okt: "Bouw het maar, alle punten"); de vijf punten staan onder "Gemeld tijdens het
+  testen". `DETECTION_VERSION` 6: alles wordt opnieuw bekeken (handmatige correcties blijven).
+  1. **Vorig seizoen**: de eerste afleveringen van een seizoen zoeken ook in de laatste 2 afleveringen van het seizoen
+     ervoor (`PREVIOUS_SEASON_SOURCES`, `previousSeasonEnd` in `detector.ts`, `previous` in `detectSeason`); die worden
+     zo nodig één keer helemaal gelezen. Van elk seizoen blijven de hele afdrukken van de laatste 2 afleveringen
+     bewaard (was 1).
+  2. **Verder terug**: 6 vorige afleveringen in plaats van 4 (`RECAP_SOURCES`).
+  3. **Muziek of verteller over een fragment**: rond de gevonden fragmenten (±30 s) een tweede, ruimere ronde
+     (`LOOSE_MAX_BITS` 11,5 in plaats van 10,5), maar een stuk telt alleen als ongeveer 4 s ervan het eens is over waar
+     het vandaan komt (`LOOSE_WINDOWS` 8). Met proeven afgesteld: kortere stukken op deze grens kwamen ook voor tussen
+     muziek die niets met elkaar te maken heeft. Niet gebouwd: fragmenten met het beeld vergelijken; daarvoor moet de
+     server het beeld van 6 hele afleveringen per aflevering lezen, uren werk op de Athlon (aan de eigenaar uitgelegd).
+  4. **Randen met het beeld** (alleen met beeldanalyse aan): begin en einde naar de dichtstbijzijnde beeldwissel binnen
+     3 s (`cutNear` in `visual.ts`, `refineRecaps` in `detector.ts`); volgt de intro binnen 3 s, dan eindigt de recap
+     op het begin van de intro.
+  5. **"Previously on"-kaart**: zwart, een titelkaart of tekst over het beeld tot 45 s vóór het eerste fragment hoort
+     bij de recap; die begint dan op 0:00 (`isTitleLeadIn`).
+- Tests: muziek over de fragmenten, 5 afleveringen terug, première met de finale van het vorige seizoen (los en via de
+  dienst, met titelkaart en beeldwissel), `cutNear`, `isTitleLeadIn`; de nieuwe falen op de oude code. De bestaande
+  test "alleen de laatste aflevering houdt zijn hele afdruk" aangepast naar de laatste twee. Backend 657, frontend 387,
+  cloud 225, app 275 tests; typechecks, build en lint (0 fouten, 4 bekende waarschuwingen) slagen. Op echte
+  afleveringen te bevestigen.
+- Versie 0.20.4 in alle `package.json`'s, `app/app.json` (versionCode 20004) en beide lockfiles. De app verandert niet
+  (alleen het versienummer), dus de release neemt de APK en het `.aab` van 0.20.3 mee.
 
 ## Versie 0.19.11
 
@@ -1011,7 +1042,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   bij als hij na 10 s komt. Voorstel: vorige seizoen meenemen (laatste afleveringen, opgeslagen afdrukken), verder terug
   zoeken, randen met het beeld vastzetten zoals bij de intro, stukjes met beeld vergelijken als het geluid niet past
   (duurder; alleen met beeldanalyse aan), en gaten tussen stukjes ruimer opvullen als er aan beide kanten zekere stukjes
-  zijn. Navragen welke punten eerst.
+  zijn. Navragen welke punten eerst. Eigenaar (31 okt): "Bouw het maar, alle punten"; gebouwd in 0.20.4 (zie daar).
 
 - **"Subtitle could not be loaded" meteen bij het starten** (eigenaar 29 okt, op 0.20.1: "Als ik een film/serie afspeel dan
   staat er direct subtitle could not be loaded, terwijl hij bezig is met laden"; nog niet bouwen tot hij het zegt).

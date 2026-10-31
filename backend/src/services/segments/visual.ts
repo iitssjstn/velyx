@@ -339,3 +339,29 @@ function peerIndexer(peer: FrameStats[], shift: number) {
     return Math.abs(best.t - want) <= 0.3 ? best : null;
   };
 }
+
+/** Frames this different from the one before show another shot: a cut. */
+const CUT = 28;
+
+/**
+ * The cut nearest to `t` (within `within` seconds), as the moment between its two frames. Null when
+ * the picture does not change shot there.
+ */
+export function cutNear(frames: FrameStats[], t: number, within: number): number | null {
+  let best: number | null = null;
+  for (let i = 1; i < frames.length; i++) {
+    if (frameDiff(frames[i - 1], frames[i]) < CUT) continue;
+    const at = (frames[i - 1].t + frames[i].t) / 2;
+    if (Math.abs(at - t) <= within && (best === null || Math.abs(at - t) < Math.abs(best - t))) best = at;
+  }
+  return best === null ? null : round(best);
+}
+
+/**
+ * Whether everything before `until` is a title card, text over the picture or black: the
+ * "Previously on…" before the first clip of a recap.
+ */
+export function isTitleLeadIn(frames: FrameStats[], until: number): boolean {
+  const before = frames.filter((f) => f.t < until - 0.5);
+  return before.length >= 2 && before.every((f) => classify(f) !== 'scene');
+}

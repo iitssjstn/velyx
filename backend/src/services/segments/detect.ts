@@ -14,7 +14,7 @@ import { detectRecap, type RecapSource } from './recap.js';
  */
 
 /** Bumped whenever the algorithm changes, so older automatic results are redone. */
-export const DETECTION_VERSION = 5;
+export const DETECTION_VERSION = 6;
 
 export type Confidence = 'high' | 'medium' | 'low';
 
@@ -211,13 +211,20 @@ export function detectEpisode(ep: EpisodeAudio, peers: EpisodeAudio[], refs: Ref
 export const OUTSIDE_WHEN_FEWER = 3;
 
 /** Earlier episodes a recap may quote: the few before it (recaps also go back further than one episode). */
-export const RECAP_SOURCES = 4;
+export const RECAP_SOURCES = 6;
+/**
+ * The last episodes of the season before, for the first episodes of a season: a season premiere
+ * often opens with what happened in the previous season's finale.
+ */
+export const PREVIOUS_SEASON_SOURCES = 2;
 
 /**
  * Detects every episode of one season (episodes in broadcast order). `known` holds results stored
  * earlier for episodes not analysed now, so their intro and credits are left out of recap clips.
+ * `previous` are the last episodes of the season before (with their whole fingerprint, the last one
+ * first): where an episode has fewer earlier episodes of its own season, they are searched too.
  */
-export function detectSeason(episodes: EpisodeAudio[], refs: References, only?: Set<number>, known: Map<number, Pick<Detection, 'intro' | 'credits' | 'recap'>> = new Map(), outside: EpisodeAudio[] = []): Map<number, Detection> {
+export function detectSeason(episodes: EpisodeAudio[], refs: References, only?: Set<number>, known: Map<number, Pick<Detection, 'intro' | 'credits' | 'recap'>> = new Map(), outside: EpisodeAudio[] = [], previous: EpisodeAudio[] = []): Map<number, Detection> {
   const out = new Map<number, Detection>();
   episodes.forEach((ep, i) => {
     if (only && !only.has(ep.id)) return;
@@ -234,8 +241,9 @@ export function detectSeason(episodes: EpisodeAudio[], refs: References, only?: 
       return;
     }
     const sources: RecapSource[] = [];
-    for (let k = i - 1; k >= 0 && sources.length < RECAP_SOURCES; k--) {
-      const prev = episodes[k];
+    const earlier = [...episodes.slice(0, i).reverse(), ...previous.slice(0, PREVIOUS_SEASON_SOURCES)];
+    for (const prev of earlier) {
+      if (sources.length >= RECAP_SOURCES) break;
       if (!prev.full) continue;
       const p = out.get(prev.id) ?? known.get(prev.id);
       const exclude: Span[] = [];

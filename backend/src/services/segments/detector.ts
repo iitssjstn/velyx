@@ -6,10 +6,10 @@ import { episodes, episodeSegments, libraries, mediaFiles, segmentFingerprints, 
 import { createLogger } from '../../logger.js';
 import { longestCommonSegment, SAMPLE_RATE, type Fingerprint } from './fingerprint.js';
 import { inlineFingerprintRunner, inlineSeasonRunner, type FingerprintRunner, type SeasonRunner } from './season-runner.js';
-import { DETECTION_VERSION, OUTSIDE_WHEN_FEWER, RECAP_SOURCES, headWindow, tailWindow, type Detection, type EpisodeAudio } from './detect.js';
+import { DETECTION_VERSION, OUTSIDE_WHEN_FEWER, PREVIOUS_SEASON_SOURCES, RECAP_SOURCES, headWindow, tailWindow, type Detection, type EpisodeAudio } from './detect.js';
 import { diagnoseSeason, type SeasonDiagnosis } from './diagnose.js';
 import { chapterSegments, type ChapterSegments } from './chapters.js';
-import { findCredits, pictureEdge, refineStart, type FrameStats, type VisualCredits } from './visual.js';
+import { cutNear, findCredits, isTitleLeadIn, pictureEdge, refineStart, type FrameStats, type VisualCredits } from './visual.js';
 import type { ChapterReader, FrameReader } from './readers.js';
 import { overridesFor, sharedFor, sharedReferences, type SharedProfile } from './shared.js';
 import { LOCAL_ONLY } from '../../playback/local-input.js';
@@ -129,6 +129,10 @@ const EXTRAS_VERSION = 2;
 const EDGE_WINDOW_SEC = 6;
 /** Other episodes whose picture an intro edge is compared with. */
 const EDGE_PEERS = 2;
+/** A recap's edge moves to a cut at most this far from where the audio put it. */
+const RECAP_EDGE_SEC = 3;
+/** A title card or black before the first recap clip, up to this long, belongs to the recap. */
+const TITLE_LEAD_IN_SEC = 45;
 
 const toWords = (buf: Buffer): Fingerprint => ({ words: new Uint32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)) });
 const toBlob = (fp: Fingerprint) => Buffer.from(fp.words.buffer, fp.words.byteOffset, fp.words.byteLength);
@@ -409,7 +413,10 @@ export class SegmentDetector {
     }
     // Neighbours further away stand in when a close one is unreadable.
     const order = [...needed].sort((a, b) => a - b);
-    this.running = { showId: job.showId, showTitle: title, seasonNumber: job.seasonNumber, done: 0, total: order.length };
+    // The first episodes of a season may open with the previous season's finale.
+    const earlyPending = [...pendingIds].some((id) => indexOf.get(id)! < RECAP_SOURCES);
+    const previousFiles = earlyPending ? this.previousSeasonEnd(job.showId, job.seasonNumber) : [];
+    this.running = { showId: job.showId, showTitle: title, seasonNumber: job.seasonNumber, done: 0, total: order.length + previousFiles.length };
     log.info(`Looking for intros and credits: ${title} season ${job.seasonNumber} (${pendingIds.size} episode${pendingIds.size === 1 ? '' : 's'})`);
 
     const audio: EpisodeAudio[] = [];
@@ -424,6 +431,14 @@ export class SegmentDetector {
       }
       this.running.done++;
     }
+    const previous: EpisodeAudio[] = [];
+    for (const f of previousFiles) {
+      if (!(await this.gate())) return;
+      // Read whole once; kept afterwards (the last episodes of a season keep theirs).
+      const a = await this.readEpisode(f, true).catch(() => null);
+      if (a?.full) previous.push(a);
+      this.running.done++;
+    }
     if (this.stopped) return;
 
     // Other servers' fingerprints of this season's intro and credits count as references too.
@@ -435,7 +450,7 @@ export class SegmentDetector {
       this.db
         .select()
         .from(episodeSegments)
-        .where(inArray(episodeSegments.episodeId, files.map((f) => f.episodeId)))
+        .where(inArray(episodeSegments.episodeId, [...files, ...previousFiles].map((f) => f.episodeId)))
         .all()
         .map((r) => [
           r.episodeId,
@@ -448,9 +463,11 @@ export class SegmentDetector {
     );
     // A season with few episodes of its own is compared with the neighbouring seasons too.
     const outside = files.length <= OUTSIDE_WHEN_FEWER ? this.neighbours(job.showId, job.seasonNumber) : [];
-    const results = await (this.hooks.runSeason ?? inlineSeasonRunner)(audio, refs, pendingIds, known, outside);
+    const results = await (this.hooks.runSeason ?? inlineSeasonRunner)(audio, refs, pendingIds, known, outside, previous);
     if (this.stopped) return;
     await this.refineIntros(files, pendingIds, results, known);
+    if (this.stopped) return;
+    await this.refineRecaps(files, pendingIds, results);
     if (this.stopped) return;
     const byId = new Map(files.map((f) => [f.episodeId, f]));
     const now = Date.now();
@@ -487,12 +504,13 @@ export class SegmentDetector {
     this.learnReferences(job, audio, results);
     // Shared detection: report what was found here (in the background; never holds detection up).
     void this.hooks.shared?.report(job.showId, job.seasonNumber).catch(() => undefined);
-    // The whole-episode fingerprints are kept only for the season's last episode (its successor may come later).
-    const last = files[files.length - 1]?.episodeId ?? -1;
+    // The whole-episode fingerprints are kept only for the season's last episodes: a successor may
+    // come later, and the next season's first episodes may quote them.
+    const keep = files.slice(-PREVIOUS_SEASON_SOURCES).map((f) => f.episodeId);
     this.db
       .update(segmentFingerprints)
       .set({ full: null })
-      .where(and(inArray(segmentFingerprints.episodeId, files.map((f) => f.episodeId)), sql`${segmentFingerprints.episodeId} <> ${last}`))
+      .where(and(inArray(segmentFingerprints.episodeId, files.map((f) => f.episodeId)), sql`${segmentFingerprints.episodeId} NOT IN (${sql.join(keep.length ? keep : [-1], sql`, `)})`))
       .run();
     this.revisitNeighbours(job);
     const found = [...results.values()];
@@ -502,6 +520,14 @@ export class SegmentDetector {
   /** Seasons of a show that have episode files, in order (specials, season 0, stand apart). */
   private seasonsOf(showId: number): number[] {
     return [...new Set(this.episodeFiles({ showId }).map((f) => f.seasonNumber))].filter((n) => n > 0).sort((a, b) => a - b);
+  }
+
+  /** The last episodes of the season before this one, the last one first. */
+  private previousSeasonEnd(showId: number, seasonNumber: number): EpisodeFile[] {
+    if (seasonNumber <= 0) return [];
+    const before = this.seasonsOf(showId).filter((n) => n < seasonNumber).pop();
+    if (before === undefined) return [];
+    return this.episodeFiles({ showId, seasonNumber: before }).slice(-PREVIOUS_SEASON_SOURCES).reverse();
   }
 
   /**
@@ -606,6 +632,38 @@ export class SegmentDetector {
       }
       if (this.stopped) return;
       if (moved.end - moved.start >= 10) d.intro = { ...d.intro, start: moved.start, end: moved.end };
+    }
+  }
+
+  /**
+   * Places a recap's edges by the picture: a recap is cut from other episodes, so it starts and ends
+   * on a cut, and right before the intro when that follows. A title card or black before the first
+   * clip ("Previously on…") belongs to it.
+   */
+  private async refineRecaps(files: EpisodeFile[], pendingIds: Set<number>, results: Map<number, Detection>): Promise<void> {
+    if (!this.readers.frames || !(this.hooks.video?.() ?? true)) return;
+    const read = async (f: EpisodeFile, start: number, length: number) => ((await this.gate()) ? await this.readers.frames!(f.path, Math.max(0, start), length, 'dense').catch(() => null) : null);
+    for (const f of files) {
+      const d = results.get(f.episodeId);
+      const recap = d?.recap;
+      if (!pendingIds.has(f.episodeId) || !recap || recap.source !== 'audio' || recap.confidence === 'low') continue;
+      let { start, end } = recap;
+      if (start > 0 && start <= TITLE_LEAD_IN_SEC) {
+        const opening = await read(f, 0, start + 1);
+        if (opening && isTitleLeadIn(opening, start)) start = 0;
+      }
+      if (start > 0) {
+        const around = await read(f, start - EDGE_WINDOW_SEC, EDGE_WINDOW_SEC * 2);
+        start = (around && cutNear(around, start, RECAP_EDGE_SEC)) ?? start;
+      }
+      const intro = d.intro && d.intro.confidence !== 'low' ? d.intro : null;
+      if (intro && Math.abs(intro.start - end) <= RECAP_EDGE_SEC) end = intro.start;
+      else {
+        const around = await read(f, end - EDGE_WINDOW_SEC, EDGE_WINDOW_SEC * 2);
+        end = (around && cutNear(around, end, RECAP_EDGE_SEC)) ?? end;
+      }
+      if (this.stopped) return;
+      if (end - start >= 10) d.recap = { ...recap, start, end };
     }
   }
 
