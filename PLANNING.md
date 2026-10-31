@@ -1000,6 +1000,19 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Recapherkenning moet beter** (eigenaar 31 okt: "Oke recap moet ook verbeterd worden"; nog niet bouwen tot hij het zegt).
+  Nu (`segments/recap.ts`, `detectSeason` in `detect.ts`): alleen geluid; het begin van de aflevering (tot de intro, of
+  hooguit 180 s) wordt vergeleken met de hele audio van de 4 vorige afleveringen van hetzelfde seizoen (`RECAP_SOURCES`);
+  losse stukjes van minstens 5 vensters, samengevoegd als ze hooguit 12 s uit elkaar liggen, 12-240 s lang, begin binnen
+  120 s. Zwakke plekken (code nagelopen): (1) de eerste aflevering van een seizoen heeft geen bronnen, terwijl die vaak
+  het vorige seizoen samenvat; (2) alleen 4 afleveringen terug; (3) bij een stuk met muziek of een verteller eroverheen
+  ("Previously on…") past het geluid niet en valt het stuk weg, of de recap breekt in tweeën; (4) begin en einde liggen
+  op het laatste herkende stukje, niet op de echte beeldwissel; (5) de titelkaart/stem "Previously on" zelf hoort er niet
+  bij als hij na 10 s komt. Voorstel: vorige seizoen meenemen (laatste afleveringen, opgeslagen afdrukken), verder terug
+  zoeken, randen met het beeld vastzetten zoals bij de intro, stukjes met beeld vergelijken als het geluid niet past
+  (duurder; alleen met beeldanalyse aan), en gaten tussen stukjes ruimer opvullen als er aan beide kanten zekere stukjes
+  zijn. Navragen welke punten eerst.
+
 - **"Subtitle could not be loaded" meteen bij het starten** (eigenaar 29 okt, op 0.20.1: "Als ik een film/serie afspeel dan
   staat er direct subtitle could not be loaded, terwijl hij bezig is met laden"; nog niet bouwen tot hij het zegt).
   Oorzaak (code nagelopen, app `play/[kind]/[id].tsx`): zodra het antwoord van `/playback` er is, kiest de speler de
