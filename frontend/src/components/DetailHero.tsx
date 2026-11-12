@@ -5,6 +5,8 @@ import type { CollectionRef } from '../lib/types';
 import { imageUrl } from '../lib/format';
 import { Artwork } from './Artwork';
 import { useT } from '../i18n';
+import { previewOf, type PreviewKind } from '../lib/preview';
+import { DetailSkeleton } from './States';
 
 /**
  * Signature layout for detail pages: a wide backdrop that fades into the page with the poster
@@ -62,5 +64,28 @@ export function CollectionLinks({ collections }: { collections: CollectionRef[] 
         </span>
       ))}
     </p>
+  );
+}
+
+/**
+ * A movie's or show's page while it loads: what the card it was opened from already showed (title,
+ * poster, backdrop) stands there at once; without that, the grey shape of the page.
+ */
+export function DetailLoading({ kind, id }: { kind: PreviewKind; id: number }) {
+  const { t } = useT();
+  const preview = previewOf(kind, id);
+  if (!preview) return <DetailSkeleton />;
+  return (
+    <div role="status" aria-label={t('common.loading')} aria-busy="true">
+      <DetailHero backdropPath={preview.backdropPath} posterPath={preview.posterPath} title={preview.title}>
+        <h1 className="font-display text-4xl leading-[1.05] font-semibold tracking-tight sm:text-5xl">{preview.title}</h1>
+        <div className="mt-4 h-4 w-1/2 max-w-xs animate-pulse rounded-lg bg-raised/70" />
+        <div className="mt-6 flex gap-3">
+          <div className="h-12 w-40 animate-pulse rounded-full bg-raised/70" />
+          <div className="size-12 animate-pulse rounded-full bg-raised/70" />
+          <div className="size-12 animate-pulse rounded-full bg-raised/70" />
+        </div>
+      </DetailHero>
+    </div>
   );
 }

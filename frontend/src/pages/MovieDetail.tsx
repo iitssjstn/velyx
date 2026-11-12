@@ -9,7 +9,7 @@ import { useAuth } from '../lib/auth';
 import { formatClock, formatDate, formatRuntime, progressFraction } from '../lib/format';
 import { qualityLabel } from '../lib/media-details';
 import type { MovieDetail } from '../lib/types';
-import { CollectionLinks, DetailHero, MetaList } from '../components/DetailHero';
+import { CollectionLinks, DetailHero, DetailLoading, MetaList } from '../components/DetailHero';
 import { TrailerButton } from '../components/TrailerButton';
 import { FavoriteButton, WatchlistButton } from '../components/FavoriteButton';
 import { AdminItemMenu } from '../components/AdminItemMenu';
@@ -18,7 +18,7 @@ import { MoreLikeThis } from '../components/MoreLikeThis';
 import { MediaInfo, TechnicalInfo } from '../components/MediaInfo';
 import { DevicePlayback } from '../components/DevicePlayback';
 import { ProgressBar } from '../components/ProgressBar';
-import { DetailSkeleton, ErrorState } from '../components/States';
+import { ErrorState } from '../components/States';
 import { toast } from '../components/Toast';
 import { TitleDownload } from '../components/Discover';
 import { useT } from '../i18n';
@@ -50,7 +50,7 @@ function MovieScreen({ id }: { id: number }) {
     onError: (err) => toast.error(err),
   });
 
-  if (q.isLoading) return <DetailSkeleton />;
+  if (q.isLoading) return <DetailLoading kind="movie" id={id} />;
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const m = q.data;
   const file = m.files[fileIdx] ?? m.files[0];

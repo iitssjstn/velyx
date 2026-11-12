@@ -46,6 +46,11 @@ import { SegmentReport, reportFound } from '../components/SegmentReport';
 import { useCast } from '../lib/cast';
 import { currentLanguage, intlLocale, languageLabel, t, useT, type MessageKey } from '../i18n';
 
+// The streaming library is large and only needed for some streams. It comes in its own file, asked
+// for as soon as the player opens, so it is there by the time a stream needs it.
+const loadHls = () => import('hls.js');
+if (import.meta.env.MODE !== 'test') void loadHls().catch(() => undefined);
+
 const SAVE_INTERVAL_MS = 10_000;
 const HIDE_CONTROLS_MS = 3000;
 const STALL_HINT_MS = 20_000;
@@ -341,7 +346,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       resumeAtRef.current = at && at > 0 ? at : null;
       setHlsBrokenFor(fileId ?? null);
     };
-    void import('hls.js').then(({ default: Hls }) => {
+    void loadHls().then(({ default: Hls }) => {
       if (destroyed) return;
       const h = new Hls({ startPosition: pendingSeekRef.current ?? -1, maxBufferLength: 60, maxMaxBufferLength: 120, backBufferLength: 60, xhrSetup: (xhr, url) => {
         xhr.withCredentials = new URL(url, window.location.href).origin === window.location.origin;

@@ -10,7 +10,7 @@ import { createApi, type Api } from './api';
 import { createStoredSession } from './storedSession';
 import { appUserAgent } from './auth';
 import { connectionState, type Connection } from './connection';
-import { RECONNECT_EVERY_MS, findReachable, reconnectOrder } from './reconnect';
+import { FASTER_TIMEOUT_MS, RECONNECT_EVERY_MS, fasterAddresses, findReachable, reconnectOrder } from './reconnect';
 import { pickLanguage, translator, type Language, type Translate } from './i18n';
 import type { ServerInfo } from './server';
 import { keepsSession, withServerInfo } from './start';
@@ -180,6 +180,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       stop = true;
     };
   }, [active, signedIn, serverUrl]);
+  // The address in use answers, but a faster one may too: the app came home on the relay or the
+  // public address. Checked when the app comes to the front and when the phone is online again;
+  // the session carries on at the faster address. Nothing is shown while it looks.
+  const addresses = stored?.addresses;
+  useEffect(() => {
+    if (!active || !signedIn || !serverUrl || !serverReachable || deviceOnline === false) return;
+    const faster = fasterAddresses(serverUrl, addresses);
+    if (!faster.length) return;
+    let stop = false;
+    void findReachable(faster, fetch, FASTER_TIMEOUT_MS).then((found) => {
+      if (!stop && found) void store.change((s) => (s && s.serverUrl === serverUrl ? { ...s, serverUrl: found } : s));
+    });
+    return () => {
+      stop = true;
+    };
+    // The list itself only changes together with the server.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, signedIn, serverUrl, serverReachable, deviceOnline, store]);
   useEffect(() => {
     if (!signedIn || !stored || serverReachable || !active || deviceOnline === false) return;
     let stop = false;

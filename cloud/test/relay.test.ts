@@ -270,6 +270,17 @@ describe('the relay', () => {
     expect(all[2].body.equals(big)).toBe(true);
   });
 
+  it('lets requests wait their turn when more arrive at once than the tunnel carries', async () => {
+    const s = await linkedServerWithRelay();
+    client.start(s.auth);
+    await until(() => client.status().connected && cloud.relay.connected(s.id));
+    // A page full of posters: far more requests at once than the tunnel carries side by side.
+    // Large answers, so they are still under way when the later ones arrive.
+    const all = await Promise.all(Array.from({ length: 90 }, () => get(s.host, '/big.bin')));
+    expect(all.filter((r) => r.status !== 200).map((r) => r.status)).toEqual([]);
+    expect(all.every((r) => r.body.length === big.length)).toBe(true);
+  });
+
   it('fails only the request when a server sends a broken response head, never the account service', async () => {
     const s = await linkedServerWithRelay();
     client.start(s.auth);

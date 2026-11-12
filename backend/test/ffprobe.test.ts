@@ -191,7 +191,11 @@ describe.skipIf(!available)('real FFprobe: bit depth and HDR', () => {
     execFileSync('ffmpeg', [
       '-v', 'error',
       '-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=25:duration=1',
-      '-c:v', 'libx265', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p10le', '-x265-params', 'log-level=error',
+      // The colour tags are set on the frames and in the encoder itself: newer FFmpeg versions take
+      // them from the frames and ignore the output options alone, which left the file untagged (SDR).
+      '-vf', 'setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc',
+      '-c:v', 'libx265', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p10le',
+      '-x265-params', 'log-level=error:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc',
       '-color_primaries', 'bt2020', '-color_trc', 'smpte2084', '-colorspace', 'bt2020nc',
       path.join(dir, 'Hdr Film (2021).mkv'),
     ]);
