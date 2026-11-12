@@ -899,7 +899,12 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   naar een sneller adres op telefoon en tv te bevestigen (buitenshuis openen, thuis terugkomen).
 - Versie 0.20.5 in alle `package.json`'s, `app/app.json` (versionCode 20005) en beide lockfiles. De app verandert, dus
   de release bouwt de APK en het `.aab`. Na de release ook de accountservice bijwerken (wachtrij in de relay).
-- Nog geen PR: de eigenaar vroeg alleen om te bouwen.
+- PR #195 aangemaakt 12 nov op verzoek van de eigenaar ("Maak de PR en als alles groen is merge het maar"); automatische
+  voettekst met sessielink meteen weggehaald. De check `test` faalde eerst op `ffprobe.test.ts` (HDR10 als SDR gelezen),
+  niet door deze versie (server niet veranderd; lokaal met FFmpeg 6.1 groen): de runner heeft een nieuwere FFmpeg, die
+  de kleurgegevens van de beeldjes neemt en de losse uitvoeropties negeert, dus het testbestand was niet als HDR
+  gemerkt. Het testbestand zet de kleurgegevens nu ook op de beeldjes (`setparams`) en in x265 zelf. Alleen de test
+  veranderd; echte HDR-bestanden zijn al goed gemerkt.
 
 ## Versie 0.19.11
 
