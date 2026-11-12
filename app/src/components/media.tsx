@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import { FlatList, Platform, Text, View, useWindowDimensions, type ListRenderItem } from 'react-native';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import { imagePath, progressFraction, type ImageSize } from '../lib/format';
 import { gridLayout, isWide } from '../lib/layout';
+import { ARTWORK_RETRY_MS, rememberPreview } from '../lib/preview';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 import type { Card, ContinueItem } from '../lib/types';
@@ -13,10 +15,20 @@ import { FocusPressable, FocusRing, Lift, shelfPadding, Heading, ProgressLine, s
 export function Artwork({ path, size, style, label }: { path: string | null | undefined; size: ImageSize; style: object; label?: string }) {
   const { api } = useSession();
   const p = imagePath(path, size);
+  const uri = p ? api.url(p) : null;
+  // A poster that did not come (the server was busy, the connection dropped) is asked once more.
+  // 0: first try, 1: waiting, 2: second try, 3: given up. Another picture starts afresh.
+  const [tries, setTries] = useState(0);
+  useEffect(() => setTries(0), [uri]);
+  useEffect(() => {
+    if (tries !== 1) return;
+    const timer = setTimeout(() => setTries((n) => (n === 1 ? 2 : n)), ARTWORK_RETRY_MS);
+    return () => clearTimeout(timer);
+  }, [tries]);
   return (
     <View style={[{ backgroundColor: colors.raised, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }, style]}>
-      {p ? (
-        <Image source={{ uri: api.url(p), headers: api.headers() }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
+      {uri && tries !== 1 && tries < 3 ? (
+        <Image key={tries} source={{ uri, headers: api.headers() }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={150} accessibilityIgnoresInvertColors onError={() => setTries((n) => (n === 0 ? 1 : 3))} />
       ) : (
         label && <Text style={{ color: colors.muted, padding: 8, textAlign: 'center' }} numberOfLines={3}>{label}</Text>
       )}
@@ -24,7 +36,9 @@ export function Artwork({ path, size, style, label }: { path: string | null | un
   );
 }
 
-export function openCard(card: Pick<Card, 'type' | 'id'>) {
+/** Opens a title; what the card shows of it is kept, for its screen to show while the rest loads. */
+export function openCard(card: Pick<Card, 'type' | 'id'> & Partial<Pick<Card, 'title' | 'posterPath' | 'backdropPath'>>) {
+  if (card.title) rememberPreview(card.type, card.id, { title: card.title, posterPath: card.posterPath ?? null, backdropPath: card.backdropPath ?? null });
   router.push(card.type === 'movie' ? `/movie/${card.id}` : `/show/${card.id}`);
 }
 

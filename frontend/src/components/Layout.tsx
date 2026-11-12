@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
@@ -7,6 +7,7 @@ import { api } from '../lib/api';
 import { displayName, useAuth } from '../lib/auth';
 import { Logo } from './Logo';
 import { Avatar } from './Avatar';
+import { PageLoader } from './States';
 import { useT, type MessageKey } from '../i18n';
 import { QuickSearch } from './QuickSearch';
 import { AppBackButton, InstallApp } from './InstallApp';
@@ -342,7 +343,10 @@ export function Layout() {
       {searching && <QuickSearch onClose={() => setSearching(false)} />}
 
       <main id="main" className="pb-16">
-        <Outlet />
+        {/* A page that comes in its own file: the bars stay, only the page waits. */}
+        <Suspense fallback={<PageLoader />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

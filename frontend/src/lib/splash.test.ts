@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { hideSplash, resetSplash, splashDelay, SPLASH_MIN_MS } from './splash';
+import { hideSplash, reloadSplash as hidden, resetSplash, splashDelay, SPLASH_MIN_MS } from './splash';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -26,5 +26,16 @@ describe('the opening screen', () => {
     expect(document.getElementById('splash')).toBeNull();
     // A second call (e.g. the safety timeout) does nothing.
     expect(() => hideSplash(() => 5000)).not.toThrow();
+  });
+
+  it('does not keep the logo up again after a refresh in the same tab', () => {
+    hideSplash(() => 100);
+    vi.advanceTimersByTime(2000);
+    // The page is loaded again: ready after 100 ms, and the opening screen goes at once.
+    hidden();
+    document.body.innerHTML = '<div id="splash"></div>';
+    hideSplash(() => 100);
+    vi.advanceTimersByTime(1);
+    expect(document.getElementById('splash')!.classList.contains('done')).toBe(true);
   });
 });

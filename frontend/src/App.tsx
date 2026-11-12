@@ -4,21 +4,14 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import { Layout } from './components/Layout';
 import { FullscreenLoader, ErrorState } from './components/States';
-import { SetupPage } from './pages/Setup';
-import { LoginPage } from './pages/Login';
 import { HomePage } from './pages/Home';
 import { BrowsePage } from './pages/Browse';
 import { MoviePage } from './pages/MovieDetail';
 import { ShowPage } from './pages/ShowDetail';
 import { FavoritesPage, WatchlistPage } from './pages/Favorites';
 import { SearchPage } from './pages/Search';
-import { RequestsPage } from './pages/Requests';
-import { RequestPage } from './pages/RequestDetail';
-import { OldSettingsRedirect, SettingsPage } from './pages/Settings';
 import { NotFoundPage } from './pages/NotFound';
 import { CollectionPage, CollectionsPage } from './pages/Collections';
-import { GenresPage } from './pages/Genres';
-import { DiscoverRowPage } from './pages/DiscoverRow';
 
 import { PlayerHost, PlayRoute } from './components/PlayerHost';
 import { useT } from './i18n';
@@ -27,6 +20,27 @@ import { hideSplash } from './lib/splash';
 
 // The admin area is loaded on demand to keep the initial bundle small (the player too, see PlayerHost).
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
+// Pages that are not the first thing someone sees come in their own files: the first script stays
+// small. They are fetched ahead once the first screen stands (see below), so opening one does not wait.
+const pages = {
+  setup: () => import('./pages/Setup'),
+  login: () => import('./pages/Login'),
+  requests: () => import('./pages/Requests'),
+  request: () => import('./pages/RequestDetail'),
+  settings: () => import('./pages/Settings'),
+  genres: () => import('./pages/Genres'),
+  discoverRow: () => import('./pages/DiscoverRow'),
+};
+const SetupPage = lazy(() => pages.setup().then((m) => ({ default: m.SetupPage })));
+const LoginPage = lazy(() => pages.login().then((m) => ({ default: m.LoginPage })));
+const RequestsPage = lazy(() => pages.requests().then((m) => ({ default: m.RequestsPage })));
+const RequestPage = lazy(() => pages.request().then((m) => ({ default: m.RequestPage })));
+const SettingsPage = lazy(() => pages.settings().then((m) => ({ default: m.SettingsPage })));
+const OldSettingsRedirect = lazy(() => pages.settings().then((m) => ({ default: m.OldSettingsRedirect })));
+const GenresPage = lazy(() => pages.genres().then((m) => ({ default: m.GenresPage })));
+const DiscoverRowPage = lazy(() => pages.discoverRow().then((m) => ({ default: m.DiscoverRowPage })));
+/** What a signed-in user can open from the first screen. */
+const AHEAD = [pages.requests, pages.request, pages.settings, pages.genres, pages.discoverRow];
 
 /** After signing in, continue to the page the user originally asked for (same-origin paths only). */
 function AfterLogin() {
@@ -52,6 +66,19 @@ export function App() {
     return queryClient.getQueryCache().subscribe(check);
   }, [loading, queryClient]);
 
+  // Signed in and the first screen stands: the other pages are fetched in a quiet moment.
+  const signedIn = Boolean(user);
+  useEffect(() => {
+    if (loading || !signedIn) return;
+    const fetchAhead = () => AHEAD.forEach((load) => void load().catch(() => undefined));
+    if (typeof requestIdleCallback === 'function') {
+      const id = requestIdleCallback(fetchAhead, { timeout: 5000 });
+      return () => cancelIdleCallback(id);
+    }
+    const timer = setTimeout(fetchAhead, 2000);
+    return () => clearTimeout(timer);
+  }, [loading, signedIn]);
+
   useEffect(() => {
     document.title = server?.name && server.name !== 'Vidalune' ? `${server.name} · Vidalune` : 'Vidalune';
   }, [server?.name]);
@@ -60,19 +87,23 @@ export function App() {
   if (!server) return <ErrorState title={t('errors.notReachable')} error={error} fullscreen />;
   if (server.setupRequired) {
     return (
-      <Routes>
-        <Route path="/setup" element={<SetupPage />} />
-        <Route path="*" element={<Navigate to="/setup" replace />} />
-      </Routes>
+      <Suspense fallback={<FullscreenLoader />}>
+        <Routes>
+          <Route path="/setup" element={<SetupPage />} />
+          <Route path="*" element={<Navigate to="/setup" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
   if (!user) {
     const next = location.pathname !== '/' && location.pathname !== '/login' ? `?next=${encodeURIComponent(location.pathname + location.search)}` : '';
     return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="*" element={<Navigate to={`/login${next}`} replace />} />
-      </Routes>
+      <Suspense fallback={<FullscreenLoader />}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="*" element={<Navigate to={`/login${next}`} replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 

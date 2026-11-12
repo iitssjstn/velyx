@@ -8,7 +8,7 @@ import { useFreshMetadata } from '../lib/fresh-metadata';
 import { useAuth } from '../lib/auth';
 import { formatDate, formatRuntime, resolutionLabel } from '../lib/format';
 import type { EpisodeSummary, SeasonDetail, ShowDetail } from '../lib/types';
-import { CollectionLinks, DetailHero, MetaList } from '../components/DetailHero';
+import { CollectionLinks, DetailHero, DetailLoading, MetaList } from '../components/DetailHero';
 import { TrailerButton } from '../components/TrailerButton';
 import { FavoriteButton, WatchlistButton } from '../components/FavoriteButton';
 import { WatchedMenu } from '../components/WatchedMenu';
@@ -18,7 +18,7 @@ import { MoreLikeThis } from '../components/MoreLikeThis';
 import { RequestDialog, type SeerrDetails } from '../components/RequestDialog';
 import { Artwork } from '../components/Artwork';
 import { ProgressBar } from '../components/ProgressBar';
-import { DetailSkeleton, ErrorState, Spinner } from '../components/States';
+import { ErrorState, Spinner } from '../components/States';
 import { toast } from '../components/Toast';
 import { TitleDownload } from '../components/Discover';
 import { useT } from '../i18n';
@@ -139,7 +139,7 @@ function ShowScreen({ id }: { id: number }) {
     onError: (err) => toast.error(err),
   });
 
-  if (q.isLoading) return <DetailSkeleton />;
+  if (q.isLoading) return <DetailLoading kind="show" id={id} />;
   if (q.error || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const s = q.data;
   const currentSeason = seasons.find((x) => x.seasonNumber === current);

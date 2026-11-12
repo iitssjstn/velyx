@@ -61,7 +61,7 @@ export default function Show() {
     queryFn: () => api.get<SeasonDetail>(`/api/shows/${id}/seasons/${current}`),
   });
   const currentSeason = seasons.find((x) => x.seasonNumber === current) ?? null;
-  if (q.isLoading) return <DetailSkeleton wide={wide} />;
+  if (q.isLoading) return <DetailSkeleton wide={wide} kind="show" id={id} />;
   if (!s) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const regular = s.seasons.filter((x) => x.seasonNumber > 0).length || s.seasons.length;
   const facts = [s.year, s.network, regular === 1 ? t('show.season') : t('show.seasons', { n: regular }), t('show.episodes', { n: s.episodeCount })].filter(Boolean).join(' · ');

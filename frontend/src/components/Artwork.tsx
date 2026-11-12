@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { imageUrl } from '../lib/format';
 
 type Size = Parameters<typeof imageUrl>[1];
+
+/** How long after a failed poster it is asked again. */
+export const RETRY_MS = 1500;
 
 /**
  * Lazy-loaded artwork with a typographic fallback, so items without TMDB artwork (or while offline)
@@ -22,8 +25,18 @@ export function Artwork({
   aspect?: 'poster' | 'wide';
   eager?: boolean;
 }) {
-  const [failed, setFailed] = useState(false);
   const src = imageUrl(path, size);
+  // A poster that did not come (the server was busy, the connection dropped) is asked once more
+  // before the title stands in for it. A new picture starts afresh.
+  const [tries, setTries] = useState(0);
+  // 0: first try, 1: waiting, 2: second try, 3: given up.
+  const failed = tries > 2;
+  useEffect(() => setTries(0), [src]);
+  useEffect(() => {
+    if (tries !== 1) return;
+    const timer = setTimeout(() => setTries((n) => (n === 1 ? 2 : n)), RETRY_MS);
+    return () => clearTimeout(timer);
+  }, [tries]);
   const ratio = aspect === 'poster' ? 'aspect-[2/3]' : 'aspect-video';
   if (!src || failed) {
     const hue = [...title].reduce((h, c) => (h * 33 + c.charCodeAt(0)) % 360, 11);
@@ -38,13 +51,16 @@ export function Artwork({
       </div>
     );
   }
+  // Waiting to ask again: the empty frame, not the broken picture.
+  if (tries === 1) return <div className={`${ratio} w-full bg-raised ${className}`} aria-label={title} role="img" />;
   return (
     <img
+      key={tries}
       src={src}
       alt={title}
       loading={eager ? 'eager' : 'lazy'}
       decoding="async"
-      onError={() => setFailed(true)}
+      onError={() => setTries((n) => (n === 0 ? 1 : 3))}
       className={`${ratio} w-full bg-raised object-cover ${className}`}
     />
   );

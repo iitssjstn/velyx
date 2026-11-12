@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { Animated, View, type DimensionValue } from 'react-native';
+import { Animated, Text, View, type DimensionValue } from 'react-native';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
-import { useGrid } from './media';
+import { previewOf, type PreviewKind } from '../lib/preview';
+import { Artwork, useGrid } from './media';
 
 /** One pulsing placeholder block (shown where content is loading). */
 export function Block({ width, height, round = radius.md }: { width: DimensionValue; height: DimensionValue; round?: number }) {
@@ -53,16 +54,22 @@ export function ShelvesSkeleton({ poster }: { poster: number }) {
   );
 }
 
-/** Placeholder for a movie or show page. */
-export function DetailSkeleton({ wide }: { wide: boolean }) {
+/**
+ * Placeholder for a movie or show page. Opened from a card: what the card showed (title, poster,
+ * backdrop) stands there at once, the rest pulses until it has loaded.
+ */
+export function DetailSkeleton({ wide, kind, id }: { wide: boolean; kind?: PreviewKind; id?: string | number }) {
   const { t } = useSession();
+  const preview = kind && id !== undefined ? previewOf(kind, id) : null;
+  const backdrop = { width: '100%' as const, height: wide ? 320 : 210 };
+  const poster = { width: wide ? 180 : 96, height: wide ? 270 : 144 };
   return (
     <View accessibilityLabel={t('common.loading')} style={{ flex: 1, backgroundColor: colors.bg }}>
-      <Block width="100%" height={wide ? 320 : 210} round={0} />
+      {preview?.backdropPath ? <Artwork path={preview.backdropPath} size="w1280" style={backdrop} /> : <Block width="100%" height={backdrop.height} round={0} />}
       <View style={{ padding: 16, gap: 12, flexDirection: 'row' }}>
-        <Block width={wide ? 180 : 96} height={wide ? 270 : 144} />
+        {preview?.posterPath ? <Artwork path={preview.posterPath} size="w342" style={{ ...poster, borderRadius: radius.md }} /> : <Block width={poster.width} height={poster.height} />}
         <View style={{ flex: 1, gap: 10 }}>
-          <Block width="70%" height={26} round={6} />
+          {preview ? <Text style={{ color: colors.ink, fontSize: 24, fontWeight: '700' }} numberOfLines={3}>{preview.title}</Text> : <Block width="70%" height={26} round={6} />}
           <Block width="40%" height={14} round={4} />
           <Block width="55%" height={14} round={4} />
           <Block width={160} height={44} round={radius.pill} />

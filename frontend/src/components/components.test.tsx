@@ -1,9 +1,9 @@
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { cardFacts, ContinueCard, PosterCard } from './Cards';
-import { Artwork } from './Artwork';
+import { Artwork, RETRY_MS } from './Artwork';
 import type { MovieCard, ShowCard } from '../lib/types';
 
 const movie: MovieCard = {
@@ -82,6 +82,105 @@ describe('Artwork', () => {
   it('renders a typographic fallback without artwork', () => {
     render(<Artwork path={null} title="No Poster Film" />);
     expect(screen.getByRole('img', { name: 'No Poster Film' }).textContent).toBe('No Poster Film');
+  });
+});
+
+describe('a poster that did not come', () => {
+  it('is asked once more before the title stands in for it', () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = render(<Artwork path="/p.jpg" title="Interstellar" />);
+      const first = container.querySelector('img')!;
+      fireEvent.error(first);
+      // Not given up yet: no picture for a moment, and no title in its place.
+      expect(container.querySelector('img')).toBeNull();
+      expect(container.textContent).toBe('');
+      act(() => void vi.advanceTimersByTime(RETRY_MS));
+      const second = container.querySelector('img')!;
+      expect(second).not.toBe(first);
+      expect(second.getAttribute('src')).toBe('/api/images/w342/p.jpg');
+      // Failed again: the title.
+      fireEvent.error(second);
+      expect(container.querySelector('img')).toBeNull();
+      expect(screen.getByRole('img', { name: 'Interstellar' }).textContent).toBe('Interstellar');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('starts afresh for another picture', () => {
+    const { container, rerender } = render(<Artwork path={null} title="Interstellar" />);
+    expect(container.querySelector('img')).toBeNull();
+    rerender(<Artwork path="/q.jpg" title="Interstellar" />);
+    expect(container.querySelector('img')!.getAttribute('src')).toBe('/api/images/w342/q.jpg');
+  });
+});
+
+describe('opening a title from its card', () => {
+  it('fetches the page ahead when the card is pressed, and shows what the card showed while it loads', async () => {
+    const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+    const { DetailLoading } = await import('./DetailHero');
+    const { forgetPreviews } = await import('../lib/preview');
+    forgetPreviews();
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: 7 }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const qc = new QueryClient();
+      // Nothing known of the title yet: the grey shape.
+      const before = render(<MemoryRouter><DetailLoading kind="movie" id={7} /></MemoryRouter>);
+      expect(before.container.querySelector('h1')).toBeNull();
+      before.unmount();
+
+      const card = render(
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <PosterCard item={movie} />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      fireEvent.pointerDown(card.getByRole('link'));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe('/api/movies/7');
+      // The same query as the page asks: it finds the answer there.
+      await vi.waitFor(() => expect(qc.getQueryData(['movie', 7])).toEqual({ id: 7 }));
+      card.unmount();
+
+      const page = render(<MemoryRouter><DetailLoading kind="movie" id={7} /></MemoryRouter>);
+      expect(page.getByRole('heading', { level: 1 }).textContent).toBe('Interstellar');
+      expect(page.container.querySelector('img[src="/api/images/w342/p.jpg"]')).not.toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('does not fetch for a pointer that only passes over the card', async () => {
+    const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+    const { HOVER_MS } = await import('../lib/prefetch');
+    const fetchMock = vi.fn(async () => new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.useFakeTimers();
+    try {
+      const card = render(
+        <QueryClientProvider client={new QueryClient()}>
+          <MemoryRouter>
+            <PosterCard item={movie} />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      const link = card.getByRole('link');
+      fireEvent.pointerEnter(link);
+      vi.advanceTimersByTime(HOVER_MS - 50);
+      fireEvent.pointerLeave(link);
+      vi.advanceTimersByTime(HOVER_MS * 2);
+      expect(fetchMock).not.toHaveBeenCalled();
+      // Resting on it: fetched.
+      fireEvent.pointerEnter(link);
+      vi.advanceTimersByTime(HOVER_MS);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 });
 

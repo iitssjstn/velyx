@@ -27,7 +27,7 @@ export default function Movie() {
   const q = useQuery({ queryKey: [serverUrl, 'movie', id], queryFn: () => api.get<MovieDetail>(`/api/movies/${id}`) });
   useFreshMetadata('movie', id, (newId) => router.replace(`/movie/${newId}`));
   const fetching = useTitleDownload('movie', q.data?.tmdbId);
-  if (q.isLoading) return <DetailSkeleton wide={wide} />;
+  if (q.isLoading) return <DetailSkeleton wide={wide} kind="movie" id={id} />;
   if (!q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const m = q.data;
   const facts = [m.year, formatRuntime(m.runtime), m.rating ? `★ ${m.rating.toFixed(1)}` : null].filter(Boolean).join(' · ');

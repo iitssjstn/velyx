@@ -9,6 +9,7 @@ import { Artwork } from './Artwork';
 import { ProgressBar } from './ProgressBar';
 import { t, useT } from '../i18n';
 import { useKeepOnScreen } from '../lib/hooks';
+import { useTitlePrefetch } from '../lib/prefetch';
 
 export function PosterCard({ item, className = '' }: { item: Card; className?: string }) {
   const { t } = useT();
@@ -16,8 +17,9 @@ export function PosterCard({ item, className = '' }: { item: Card; className?: s
   const watched = item.type === 'movie' ? item.progress?.completed : item.episodeCount > 0 && item.watchedCount >= item.episodeCount;
   const fraction = item.type === 'movie' ? (item.progress && !item.progress.completed ? progressFraction(item.progress) : 0) : 0;
   const unwatchedEpisodes = item.type === 'show' ? item.episodeCount - item.watchedCount : 0;
+  const ahead = useTitlePrefetch(item.type, item.id, item);
   return (
-    <Link to={href} className={`group block focus-visible:outline-none ${className}`}>
+    <Link to={href} {...ahead} className={`group block focus-visible:outline-none ${className}`}>
       <div className="relative overflow-hidden rounded-[var(--radius-card)] ring-1 ring-white/5 transition duration-300 group-hover:-translate-y-1 group-hover:shadow-lift group-hover:ring-accent/60 group-focus-visible:shadow-lift group-focus-visible:ring-2 group-focus-visible:ring-accent">
         <Artwork path={item.posterPath} title={item.title} />
         {watched && (

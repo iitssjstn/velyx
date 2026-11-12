@@ -873,6 +873,34 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   was. Release `v0.20.4` gecontroleerd: beide `.deb`'s, APK en `.aab` van 0.20.3 (app niet veranderd),
   `vidalune-0.20.4-setup.exe` en de accountservice-image.
 
+## Versie 0.20.5 (sneller aanvoelen: app, relay, website)
+
+- Op verzoek van de eigenaar (12 nov: "Maak punt 1 tot 5"); de punten staan onder "Gemeld tijdens het testen".
+  1. **App stapt over naar een sneller adres**: komt de app naar voren of is de telefoon weer online, dan probeert hij
+     de adressen die vóór het huidige in de lijst staan (thuisnetwerk, direct; `fasterAddresses`, 2,5 s) en gaat daar
+     verder (`session.tsx`). `findReachable` vraagt alle adressen tegelijk; het vroegste in de lijst wint, en een adres
+     dat hangt houdt de rest hooguit 1,5 s op (was tot 6 s per adres na elkaar). Na de overstap laden lijsten en
+     posters één keer opnieuw (ze zijn per adres bewaard).
+  2. **Relay zet verzoeken in de rij** in plaats van 503 boven 64 tegelijk (`waiting` in `cloud/src/relay.ts`: hooguit
+     512, 10 s). De test bevestigt de fout op de oude code (90 grote antwoorden tegelijk: 503's). Website en app vragen
+     een mislukte poster na 1,5 s één keer opnieuw voor het tekstvlak komt (`Artwork`).
+  3. **Openingsscherm** blijft alleen de eerste keer in een tabblad minstens 0,9 s; bij verversen gaat het weg zodra de
+     pagina klaar is (`sessionStorage`, `splash.ts`).
+  4. **Titel meteen**: website haalt de pagina van een film/serie vooraf op als de muis 0,2 s op het kaartje rust en
+     meteen bij indrukken of toetsenbordfocus (`useTitlePrefetch`), en toont tijdens het laden titel, poster en
+     achtergrond uit het kaartje (`DetailLoading`, `lib/preview.ts`). App: `openCard` bewaart wat het kaartje toont en
+     `DetailSkeleton` laat het zien (telefoon en tv). Alleen `PosterCard`; Verder kijken en catalogustitels nog niet.
+  5. **Eerste script** 610 → 395 kB (182 → 115 kB gzip): Inloggen, Setup, Aanvragen, aanvraagpagina, Account, Genres en
+     de rijpagina in eigen bestanden, opgehaald in een rustig moment na het eerste scherm; hls.js wordt gevraagd zodra
+     de speler opent. Collecties blijft in het eerste script (`CollectionPicker` gebruikt het formulier).
+- Tests: app (`reconnect.test.ts`, `preview.test.ts`), accountservice (wachtrij; faalt op de oude code), website (poster
+  opnieuw, vooraf ophalen, laadscherm, openingsscherm na verversen). Backend 657, frontend 394, cloud 226, app 280
+  tests; typechecks, build en lint (0 fouten, 4 bekende waarschuwingen) slagen. De schermen van de app en de overstap
+  naar een sneller adres op telefoon en tv te bevestigen (buitenshuis openen, thuis terugkomen).
+- Versie 0.20.5 in alle `package.json`'s, `app/app.json` (versionCode 20005) en beide lockfiles. De app verandert, dus
+  de release bouwt de APK en het `.aab`. Na de release ook de accountservice bijwerken (wachtrij in de relay).
+- Nog geen PR: de eigenaar vroeg alleen om te bouwen.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
@@ -1058,6 +1086,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
      Voorstel: per pagina laden; hls.js (574 kB) al ophalen zodra de spelerpagina opent.
   6. Posters via de relay structureel sneller: rechtstreeks van het directe adres van de server halen (zoals video), met
      een kort geldig token. Groter werk; eerst 1-5.
+  Eigenaar (12 nov): "Maak punt 1 tot 5"; gebouwd in 0.20.5 (zie daar). Punt 6 nog niet.
 
 - **Recapherkenning moet beter** (eigenaar 31 okt: "Oke recap moet ook verbeterd worden"; nog niet bouwen tot hij het zegt).
   Nu (`segments/recap.ts`, `detectSeason` in `detect.ts`): alleen geluid; het begin van de aflevering (tot de intro, of

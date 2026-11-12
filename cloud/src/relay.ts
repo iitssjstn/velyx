@@ -16,6 +16,9 @@ export const newSlug = () => Array.from({ length: 8 }, () => SLUG_ALPHABET[crypt
 
 /** Requests a server may have open through the relay at once. */
 const MAX_STREAMS = 64;
+/** Requests that wait for a free place (a page of posters asks for more than that at once), and how long. */
+const MAX_WAITING = 512;
+const MAX_WAIT_MS = 10_000;
 /** Largest request body passed on (servers take JSON and small uploads). */
 const MAX_REQUEST_BODY = 8 * 1024 * 1024;
 const PING_MS = 25_000;
@@ -63,6 +66,7 @@ interface Stream {
 
 class Tunnel {
   readonly streams = new Map<number, Stream>();
+  private readonly waiting: { go: () => void; fail: (problem: RelayProblem) => void }[] = [];
   private next = 1;
   private alive = true;
   private readonly ping: NodeJS.Timeout;
@@ -109,10 +113,46 @@ class Tunnel {
 
   /** Passes one visitor's request to the server and its answer back. */
   forward(req: IncomingMessage, res: ServerResponse, ip: string, rewrite: Rewrite = {}): void {
-    if (this.streams.size >= MAX_STREAMS) {
+    if (this.streams.size < MAX_STREAMS) return this.start(req, res, ip, rewrite);
+    // Full: the request waits its turn instead of failing (a poster that failed stays missing).
+    if (this.waiting.length >= MAX_WAITING) {
       this.errors++;
       return unavailable(req, res, 'busy');
     }
+    const entry = {
+      go: () => {
+        clearTimeout(timer);
+        res.off('close', leave);
+        this.start(req, res, ip, rewrite);
+      },
+      fail: (problem: RelayProblem) => {
+        clearTimeout(timer);
+        res.off('close', leave);
+        this.errors++;
+        unavailable(req, res, problem);
+      },
+    };
+    const leave = () => {
+      clearTimeout(timer);
+      const at = this.waiting.indexOf(entry);
+      if (at !== -1) this.waiting.splice(at, 1);
+    };
+    const timer = setTimeout(() => {
+      leave();
+      entry.fail('busy');
+    }, MAX_WAIT_MS);
+    timer.unref();
+    // The visitor left while waiting.
+    res.on('close', leave);
+    this.waiting.push(entry);
+  }
+
+  /** A place came free: the request that waited longest takes it. */
+  private freed() {
+    while (this.streams.size < MAX_STREAMS && this.waiting.length) this.waiting.shift()!.go();
+  }
+
+  private start(req: IncomingMessage, res: ServerResponse, ip: string, rewrite: Rewrite): void {
     this.requests++;
     const id = this.next;
     this.next = this.next >= 0xfffffff0 ? 1 : this.next + 1;
@@ -140,6 +180,7 @@ class Tunnel {
     // The visitor left (closed the tab, skipped ahead in a video): stop the server sending.
     res.on('close', () => {
       if (this.streams.delete(id) && !res.writableFinished) this.send(FRAME.reset, id);
+      this.freed();
     });
   }
 
@@ -179,6 +220,7 @@ class Tunnel {
   private reset(id: number) {
     this.streams.delete(id);
     this.send(FRAME.reset, id);
+    this.freed();
   }
 
   private onFrame(data: Buffer) {
@@ -238,6 +280,7 @@ class Tunnel {
       case FRAME.responseEnd:
         this.streams.delete(frame.stream);
         res.end();
+        this.freed();
         break;
       case FRAME.reset:
         this.streams.delete(frame.stream);
@@ -246,6 +289,7 @@ class Tunnel {
           unavailable(stream.req, res, 'failed');
         }
         else res.destroy();
+        this.freed();
         break;
     }
   }
@@ -258,6 +302,7 @@ class Tunnel {
       else unavailable(req, res, 'offline');
     }
     this.streams.clear();
+    for (const entry of this.waiting.splice(0)) entry.fail('offline');
     this.onClose();
   }
 
