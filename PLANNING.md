@@ -1037,6 +1037,28 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Snelheid en fouten nagelopen** (eigenaar 12 nov: "Kan je de repo checken voor bugs, errors en oplossingen om de site en
+  app sneller aan te laten voelen?"; alleen gelezen, nog niet bouwen tot hij het zegt). Server (batches, indexen, WAL,
+  gzip, vaste cache op assets en posters) en Seerr-rijen (pas laden als ze in beeld komen, 10 min bewaard) zijn in orde.
+  Gevonden:
+  1. App blijft op een traag adres hangen: `reconnectOrder` (`app/src/lib/reconnect.ts`) zet het huidige adres voorop en
+     de app zoekt alleen opnieuw als dat adres niet meer antwoordt (`session.tsx`). Wie buitenshuis op het publieke of
+     relay-adres uitkwam, blijft daar thuis op zitten (alles via vidalune.com) tot de app opnieuw koppelt. Voorstel: bij
+     terugkomen in de app en bij netwerkwissel op de achtergrond de snellere adressen (LAN, direct) proberen en
+     overstappen; adressen tegelijk proberen in plaats van na elkaar (nu tot 6 s per adres).
+  2. Website via app.vidalune.com: elke poster gaat door de tunnel; de relay weigert boven 64 verzoeken tegelijk per
+     server met 503 (`MAX_STREAMS`, `cloud/src/relay.ts`), en `Artwork` (`frontend`) toont na één fout voor altijd het
+     tekstvlak. Een koude Home (100+ posters, HTTP/2) of twee kijkers tegelijk kan daar overheen. Niet nagebootst.
+     Voorstel: in de rij zetten in plaats van weigeren, en een poster één keer opnieuw proberen.
+  3. Openingsscherm staat minstens 0,9 s (+0,45 s vervagen), ook als alles er al is (`SPLASH_MIN_MS`). Voorstel: alleen
+     bij de eerste keer openen, niet bij verversen of terugkomen.
+  4. Titel openen wacht op het antwoord voor er iets staat. Voorstel: meteen titel, poster en achtergrond uit het
+     kaartje tonen (`placeholderData`), en de gegevens al ophalen bij aanwijzen/focus (website) of indrukken (app).
+  5. Eerste script 610 kB (182 kB gzip): Instellingen, Aanvragen, Collecties, Genres, Setup en Inloggen zitten erin.
+     Voorstel: per pagina laden; hls.js (574 kB) al ophalen zodra de spelerpagina opent.
+  6. Posters via de relay structureel sneller: rechtstreeks van het directe adres van de server halen (zoals video), met
+     een kort geldig token. Groter werk; eerst 1-5.
+
 - **Recapherkenning moet beter** (eigenaar 31 okt: "Oke recap moet ook verbeterd worden"; nog niet bouwen tot hij het zegt).
   Nu (`segments/recap.ts`, `detectSeason` in `detect.ts`): alleen geluid; het begin van de aflevering (tot de intro, of
   hooguit 180 s) wordt vergeleken met de hele audio van de 4 vorige afleveringen van hetzelfde seizoen (`RECAP_SOURCES`);
