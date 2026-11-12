@@ -149,6 +149,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   Bied hints als dat helpt; bij spoed of een expliciet verzoek om directe implementatie los je het eerst op
   en bespreek je daarna kort wat ervan te leren valt en waarom de oplossing werkt.
 - De eigenaar merget zelf als alles groen is; geen updates sturen tenzij gevraagd.
+- **Geen geplande controles** (eigenaar 12 nov: "doordat jij een scheduled check in had staan was mijn usage op"): geen
+  `send_later`/geplande taken en geen PR-abonnement om checks of een release af te wachten; elke keer wakker worden
+  kost tegoed. Na een push of merge één keer zeggen wat er loopt en stoppen; pas kijken als de eigenaar erom vraagt.
 - **Nooit links naar de chat/sessie** in pull requests, PR-teksten of commitberichten.
 - Na een merge: controleren dat release `v<versie>` de APK en beide `.deb`-bestanden (amd64 en arm64) heeft.
 - Bij een nieuwe versie: `app/app.json` (version + versionCode), alle `package.json`'s, de versies in
