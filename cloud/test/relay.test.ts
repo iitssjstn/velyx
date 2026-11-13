@@ -405,6 +405,7 @@ describe('the relay', () => {
     expect(page.status).toBe(200);
     expect(page.body.toString()).toContain('src="account.js"');
     expect((await get(app, '/_vl/account.js')).status).toBe(200);
+    expect((await get(app, '/_vl/open.js')).status).toBe(200);
     expect((await get(app, '/api/server/info')).status).toBe(401);
     expect((await get(app, '/sso?ticket=x')).headers.location).toBe('/_vl/servers');
     // The files of the web interface come from the account service itself.
