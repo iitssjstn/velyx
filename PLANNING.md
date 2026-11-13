@@ -1075,6 +1075,19 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Openen vanaf vidalune.com eindigt soms op het directe adres met 401** (eigenaar 13 nov, screenshot:
+  `<id>.media.vidalune.com:32400/sso?ticket=…`, "This page isn't working, HTTP ERROR 401"; nog niet bouwen tot hij het
+  zegt). Oorzaak (code nagelopen): `openServer` in `cloud/web/account.js` gaat via de relay als die verbonden is; is de
+  tunnel op dat moment even weg (server herstart of bijgewerkt, netwerk hapert), dan valt hij terug op een ticket en
+  probeert de adressen uit `/api/servers/:id/open`: eerst de LAN-adressen en het directe adres, dan `url`, dan de relay.
+  `reachable()` doet `fetch(..., { mode: 'no-cors' })` en telt elk antwoord als bereikbaar, ook de 401 van de directe
+  poort. Die poort is alleen voor media met een token (`direct-https.ts` weigert alles zonder `cast`), dus `/sso` daar
+  geeft altijd 401. De app heeft dit niet: `findServer` eist een geldig antwoord van `/api/server/info`.
+  Voorstel: (1) de website stuurt nooit naar de LAN-/directe adressen (alleen media), alleen naar `url` of de relay;
+  (2) is de relay even niet verbonden, dan een melding "Server is even niet bereikbaar, opnieuw proberen" op
+  vidalune.com en een paar seconden opnieuw proberen in plaats van een kale foutpagina; (3) test die faalt op de oude
+  code. Leervraag gesteld: waarom telt `no-cors` een 401 als bereikbaar.
+
 - **Snelheid en fouten nagelopen** (eigenaar 12 nov: "Kan je de repo checken voor bugs, errors en oplossingen om de site en
   app sneller aan te laten voelen?"; alleen gelezen, nog niet bouwen tot hij het zegt). Server (batches, indexen, WAL,
   gzip, vaste cache op assets en posters) en Seerr-rijen (pas laden als ze in beeld komen, 10 min bewaard) zijn in orde.
