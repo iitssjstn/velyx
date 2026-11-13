@@ -911,6 +911,23 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   Daarna alle checks groen; gemerged 12 nov. Release `v0.20.5` gecontroleerd: APK en `.aab` van 0.20.5 (Android-build
   geslaagd), beide `.deb`'s en `vidalune-0.20.5-setup.exe`; CI op `main` groen.
 
+## Versie 0.20.6 (server openen vanaf vidalune.com: nooit meer het directe adres)
+
+- Op verzoek van de eigenaar (13 nov: "Bouw het maar"); de oorzaak staat onder "Gemeld tijdens het testen".
+- `cloud/web/open.js` (nieuw, ES-module, `open.d.ts` voor de tests): `pageAddresses` laat alleen adressen over waar de
+  webinterface kan openen: nooit het directe adres en de thuisnetwerk-adressen (alleen media met token, `/sso` daar
+  geeft altijd 401), en de relay alleen als die verbonden is. `waitForRelay` vraagt de server tot 5 keer opnieuw op
+  (elke 2 s) als de relay net weg is (server herstart of bijgewerkt), en opent dan alsnog via de relay.
+- `account.js` (nu `type="module"` in `index.html`): `openServer` wacht eerst op de relay, kiest daarna alleen uit
+  `pageAddresses`, en antwoordt niets dan geldt "… is nu niet bereikbaar. Staat hij aan?" in plaats van een kale
+  foutpagina. Het automatisch openen op app.vidalune.com toont bij een fout de lijst met die melding. De app is niet
+  veranderd (`findServer` eist al een geldig antwoord).
+- Tests: `cloud/test/open-server.test.ts` (adressen, wachten op de relay, opgeven na 5 keer, pagina als module) en
+  `/_vl/open.js` in `relay.test.ts`. Backend 657, frontend 394, cloud 230, app 280 tests; typechecks en lint (0 fouten,
+  4 bekende waarschuwingen) slagen. In de browser te bevestigen: Vidalune openen vlak na een herstart van de server.
+- Versie 0.20.6 in alle `package.json`'s, `app/app.json` (versionCode 20006) en beide lockfiles. De app verandert niet,
+  dus de release neemt de APK en het `.aab` van 0.20.5 mee. Na de release de accountservice bijwerken.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
@@ -1087,6 +1104,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   (2) is de relay even niet verbonden, dan een melding "Server is even niet bereikbaar, opnieuw proberen" op
   vidalune.com en een paar seconden opnieuw proberen in plaats van een kale foutpagina; (3) test die faalt op de oude
   code. Leervraag gesteld: waarom telt `no-cors` een 401 als bereikbaar.
+  Eigenaar (13 nov): "En na een restart doet hij het weer" (past erbij: de relay is dan weer verbonden); daarna
+  "Bouw het maar"; gebouwd in 0.20.6 (zie daar).
 
 - **Snelheid en fouten nagelopen** (eigenaar 12 nov: "Kan je de repo checken voor bugs, errors en oplossingen om de site en
   app sneller aan te laten voelen?"; alleen gelezen, nog niet bouwen tot hij het zegt). Server (batches, indexen, WAL,

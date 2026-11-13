@@ -1,4 +1,6 @@
 // The Vidalune account pages: sign up or in, link a server with its code, see and unlink servers.
+import { pageAddresses, waitForRelay } from './open.js';
+
 (() => {
   const nl = (navigator.language || '').toLowerCase().startsWith('nl');
   document.documentElement.lang = nl ? 'nl' : 'en';
@@ -132,6 +134,10 @@
    * browser reaches it, else at its relay address.
    */
   async function openServer(s, me) {
+    // A relay that is reconnecting (the server restarted, the network hiccuped): a few seconds more.
+    if (s.relayUrl && !s.relayConnected) {
+      s = await waitForRelay(s, async () => (await api('GET', '/api/servers')).find((x) => x.id === s.id) ?? null);
+    }
     if (s.relayUrl && s.relayConnected) {
       remember(s.id);
       if (BASE) return location.assign(`${BASE}/open?server=${encodeURIComponent(s.id)}`);
@@ -139,9 +145,12 @@
       if (me && me.appUrl) return location.assign((await api('POST', '/api/handoff', { server: s.id })).url);
     }
     const { ticket, addresses } = await api('POST', `/api/servers/${encodeURIComponent(s.id)}/open`);
-    if (!addresses.length) throw new Error(t('noAddress'));
-    let target = addresses[addresses.length - 1];
-    for (const a of addresses.slice(0, -1)) if (await reachable(a)) { target = a; break; }
+    // Only where the web interface can open: never the direct or home-network addresses (media only).
+    const pages = pageAddresses(addresses, s);
+    if (!pages.length) throw new Error(addresses.length ? t('unreachable', { name: s.name }) : t('noAddress'));
+    let target = null;
+    for (const a of pages) if (await reachable(a)) { target = a; break; }
+    if (!target) throw new Error(t('unreachable', { name: s.name }));
     remember(s.id);
     location.assign(`${target}/sso?ticket=${encodeURIComponent(ticket)}`);
   }
@@ -289,8 +298,9 @@
     if (!message && !warning && !offline && !joining && !pendingCode() && !params.has('choose') && location.hostname.startsWith('app.') && last) {
       try {
         return await openServer(last, me);
-      } catch {
-        /* show the list instead */
+      } catch (err) {
+        // The list instead, saying why.
+        return home('', err.message || t('unreachable', { name: last.name }));
       }
     }
     const joinCard = el('div', { class: 'card' },
