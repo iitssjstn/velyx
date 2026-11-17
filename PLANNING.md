@@ -950,6 +950,11 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   hapert nu. Vermoedelijk de intro-/recapherkenning (zie "Gemeld tijdens het testen"): die wacht alleen tussen twee
   leesrondes op kijkers, en sinds 0.20.4 leest één ronde soms een hele aflevering van het vorige seizoen (minuten).
   Voorstel aan de eigenaar om in 0.20.7 mee te nemen; nog niet gebouwd.
+  `docker top` (17 nov) liet iets anders zien: één FFmpeg op 183 %, de HLS-omzetting voor het afspelen zelf (The
+  Mentalist S01E16, 1080p x265 → libx264 veryfast, vanaf 27:08, 4 minuten oud), geen achtergrondwerk. Een 1080p-HEVC
+  omzetten op de processor van de Athlon (2 cores) haalt vermoedelijk geen echte tijd, dus de speler buffert; de
+  omzetting stopt 3 minuten na het laatste verzoek (`IDLE_MS`). Gevraagd: op welk apparaat vanochtend en nu (de tv-app en
+  Chromecast spelen HEVC direct, de browser niet), en of de server een grafische kaart heeft (`/dev/dri`).
 
 ## Versie 0.19.11
 
