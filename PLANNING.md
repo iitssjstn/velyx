@@ -958,7 +958,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   toegevoegd; de browser vroeg hem via vidalune.com op en de relay weigert ondertitels (409). Nu krijgt hij hetzelfde
   adres als de stream (`onPlaybackEndpoint` in `lib/player.ts`, `addSubtitle` in `Player.tsx`). Ook: verwijderen las het
   id uit de URL en brak bij een URL met token. Test `onPlaybackEndpoint`; frontend 397 tests, typecheck en lint slagen.
-  Nog open: waarom hij na opnieuw afspelen langzaam laadt (gevraagd hoe lang en of "Ondertitel laden…" staat).
+  Langzaam na opnieuw afspelen: eigenaar (17 nov) denkt dat het kwam doordat de hele serie nog geladen werd; geen
+  aparte fout.
 - PR #197 aangemaakt 17 nov op verzoek van de eigenaar ("Maak de pr"); automatische voettekst met sessielink meteen
   weggehaald. De eigenaar merget zelf (geen toestemming om te mergen gegeven).
 - Eigenaar (17 nov) meldt ook: FFmpeg draait veel terwijl er niets speelt, en dezelfde serie ging 's ochtends goed en
@@ -1147,6 +1148,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   OpenSubtitles; het bestand komt daarna via het directe adres (`/api/online-subtitles/:id.vtt`, staat in `castPath`).
   Gevraagd: wat hij precies ziet (melding/screenshot), `docker logs velyx 2>&1 | grep -i subtit | tail -20`, en de status
   in Control Center > Ondertitels. Eerst meten, dan pas een oorzaak noemen.
+  Oorzaak gevonden en opgelost in 0.20.7 (zie daar).
 
 - **Vidalune gebruikt opeens veel processor** (eigenaar 17 nov, `docker stats`: velyx 162 % op de Athlon met 2 cores,
   "terwijl ik nooit problemen heb gehad er mee"; nog niet bouwen tot hij het zegt). Niet op zijn machine gezien.
