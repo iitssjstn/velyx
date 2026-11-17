@@ -963,6 +963,12 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   omzetten op de processor van de Athlon (2 cores) haalt vermoedelijk geen echte tijd, dus de speler buffert; de
   omzetting stopt 3 minuten na het laatste verzoek (`IDLE_MS`). Gevraagd: op welk apparaat vanochtend en nu (de tv-app en
   Chromecast spelen HEVC direct, de browser niet), en of de server een grafische kaart heeft (`/dev/dri`).
+  **Oorzaak gevonden door de eigenaar (17 nov):** een gecrashte game liet Brave in de war; na een herstart van Brave
+  was het haperen weg. Vermoedelijk viel de hardware-videodecodering van de browser weg, meldde Brave geen HEVC meer
+  en moest de server elke aflevering omzetten (te zwaar voor de Athlon). Geen fout in Vidalune. De server heeft nooit
+  een grafische encoder gehad (alleen een oude Radeon, `/dev/dri`, geen H.264-encoder). Eigenaar zette `cpupower`
+  op performance (crontab `@reboot`) en `cpu_shares` 2048 voor velyx (in compose zetten om een update te overleven).
+  0.20.7 (`superfast`, encodertest) blijft nuttig; PR #197 staat open.
 
 ## Versie 0.19.11
 
