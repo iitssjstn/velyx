@@ -931,6 +931,26 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   voettekst met sessielink meteen weggehaald. Gemerged 13 nov (alle checks groen). Release `v0.20.6` niet automatisch
   gevolgd (afspraak 12 nov); controleren als de eigenaar erom vraagt.
 
+## Versie 0.20.7 (geen grafische encoder die de stream niet in stukjes kan knippen)
+
+- Op verzoek van de eigenaar (17 nov: encoder stond op Automatisch, "je mag bouwen"); oorzaak onder "Gemeld tijdens
+  het testen" (bufferen met de grafische encoder).
+- `detectEncoders` (`backend/src/playback/transcode.ts`) test elke encoder nu zoals HLS hem gebruikt: 3 s testbeeld,
+  `-g 100000` (`HLS_KEYFRAME_FREE`, gedeeld met `hlsArgs`), keyframes afgedwongen op 1 en 2 s, een stukje per keyframe.
+  Komen er geen 3 stukjes, dan geldt de encoder als niet bruikbaar (`noKeyframes` in de status, waarschuwing in het
+  logboek) en kiest Automatisch de volgende (uiteindelijk de processor). NVENC krijgt `-forced-idr 1` (een afgedwongen
+  keyframe is anders geen IDR en knipt geen stukje). Beheer > Afspelen toont "werkt, maar kan de stream niet in
+  stukjes knippen". README bijgewerkt.
+- Tests: encoder die één stukje maakt wordt niet gebruikt (faalt op de oude code), NVENC met `-forced-idr`, echte
+  FFmpeg met libx264 maakt de stukjes; website toont de reden. Backend 660, frontend 395, cloud 230, app 280 tests;
+  typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen. Op de server van de eigenaar te bevestigen: na de
+  update "Hardware opnieuw controleren" en kijken wat er bij de grafische encoder staat.
+- Versie 0.20.7 in alle `package.json`'s, `app/app.json` (versionCode 20007) en beide lockfiles. De app verandert niet.
+- Eigenaar (17 nov) meldt ook: FFmpeg draait veel terwijl er niets speelt, en dezelfde serie ging 's ochtends goed en
+  hapert nu. Vermoedelijk de intro-/recapherkenning (zie "Gemeld tijdens het testen"): die wacht alleen tussen twee
+  leesrondes op kijkers, en sinds 0.20.4 leest één ronde soms een hele aflevering van het vorige seizoen (minuten).
+  Voorstel aan de eigenaar om in 0.20.7 mee te nemen; nog niet gebouwd.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)

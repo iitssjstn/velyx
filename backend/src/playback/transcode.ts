@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { tr } from '../i18n/index.js';
 import { createLogger } from '../logger.js';
 import { planAudio, planQuery, type VideoEncode } from './remux.js';
@@ -27,6 +29,8 @@ export interface EncoderSupport {
   software: boolean;
   vaapi: string | null;
   nvenc: boolean;
+  /** Encoders that run but ignore keyframes asked for at a given time, so HLS cannot cut its pieces: not used. */
+  noKeyframes?: Encoder[];
   checkedAt: number;
 }
 
@@ -38,7 +42,7 @@ export function encodeArgs(encoder: Encoder, vaapiDevice: string | null = null):
   const gop = ['-g', '48', '-keyint_min', '48'];
   switch (encoder) {
     case 'nvenc':
-      return { input: [], output: ['-c:v', 'h264_nvenc', '-preset', 'p4', '-rc', 'vbr', '-cq', '21', '-b:v', '0', '-maxrate', '40M', '-bufsize', '80M', '-pix_fmt', 'yuv420p', '-profile:v', 'high', ...gop] };
+      return { input: [], output: ['-c:v', 'h264_nvenc', '-preset', 'p4', '-forced-idr', '1', '-rc', 'vbr', '-cq', '21', '-b:v', '0', '-maxrate', '40M', '-bufsize', '80M', '-pix_fmt', 'yuv420p', '-profile:v', 'high', ...gop] };
     case 'vaapi':
       return {
         input: ['-vaapi_device', vaapiDevice ?? '/dev/dri/renderD128'],
@@ -58,20 +62,48 @@ export function pickEncoder(choice: TranscodingSettings['encoder'], support: Enc
 
 type Runner = (args: string[]) => Promise<boolean>;
 
-/** Tries each encoder on a second of test picture: listed is not enough (no driver, no GPU in the container). */
+/** Where a forced keyframe must start a new piece in the encoder test (seconds of a 3-second picture). */
+const TEST_KEYFRAMES = [1, 2];
+
+/**
+ * Tries each encoder on a few seconds of test picture, the way HLS uses it: no keyframes of its own, only
+ * the ones asked for at each piece's start, and a new piece at every one. Listed is not enough (no driver,
+ * no GPU in the container), and an encoder that runs but ignores the asked keyframes would make one endless
+ * piece the player waits on for ever, so that one is not used either.
+ */
 export async function detectEncoders(ffmpegPath: string, run: Runner = ffmpegRunner(ffmpegPath), devices: string[] = renderDevices()): Promise<EncoderSupport> {
-  const test = (encode: VideoEncode) => [...encode.input, '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=25', '-t', '1', ...encode.output, '-f', 'null', '-'];
-  const software = await run(test(encodeArgs('software')));
-  const nvenc = await run(test(encodeArgs('nvenc')));
+  const noKeyframes: Encoder[] = [];
+  const tryEncoder = async (encoder: Encoder, device: string | null = null): Promise<boolean> => {
+    const encode = encodeArgs(encoder, device);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-encoder-'));
+    try {
+      const ran = await run([
+        ...encode.input, '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=25', '-t', '3',
+        ...encode.output, '-g', String(HLS_KEYFRAME_FREE), '-force_key_frames', TEST_KEYFRAMES.join(','),
+        '-f', 'hls', '-hls_time', '0.01', '-hls_segment_type', 'fmp4', '-hls_list_size', '0',
+        '-hls_segment_filename', path.join(dir, 'seg%d.m4s'), path.join(dir, 'index.m3u8'),
+      ]);
+      if (!ran) return false;
+      const pieces = fs.readdirSync(dir).filter((f) => f.endsWith('.m4s')).length;
+      if (pieces > TEST_KEYFRAMES.length) return true;
+      if (!noKeyframes.includes(encoder)) noKeyframes.push(encoder);
+      log.warn(`${encoder}${device ? ` (${device})` : ''} runs, but ignores the keyframes Vidalune asks for: not used for converting video`);
+      return false;
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const software = await tryEncoder('software');
+  const nvenc = await tryEncoder('nvenc');
   let vaapi: string | null = null;
   for (const device of devices) {
-    if (await run(test(encodeArgs('vaapi', device)))) {
+    if (await tryEncoder('vaapi', device)) {
       vaapi = device;
       break;
     }
   }
   log.info(`Video encoders: ${[software && 'software', vaapi && `VAAPI (${vaapi})`, nvenc && 'NVENC'].filter(Boolean).join(', ') || 'none'}`);
-  return { software, vaapi, nvenc, checkedAt: Date.now() };
+  return { software, vaapi, nvenc, noKeyframes: noKeyframes.filter((e) => e !== 'vaapi' || !vaapi), checkedAt: Date.now() };
 }
 
 function ffmpegRunner(ffmpegPath: string): Runner {
@@ -90,6 +122,9 @@ function renderDevices(): string[] {
     return [];
   }
 }
+
+/** No keyframes of the encoder's own in HLS (see hlsArgs); the test above uses the same. */
+export const HLS_KEYFRAME_FREE = 100_000;
 
 const ENCODER_NAMES: Record<Encoder, string> = { software: 'processor', vaapi: 'Intel/AMD graphics', nvenc: 'NVIDIA graphics' };
 

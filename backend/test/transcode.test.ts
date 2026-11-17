@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { addLibrary, createTestEnv, fakeProbe, setupAdmin, touch, type TestEnv } from './helpers.js';
@@ -6,6 +8,14 @@ import { detectEncoders, encodeArgs, pickEncoder } from '../src/playback/transco
 import { remuxArgs } from '../src/playback/remux.js';
 
 let env: TestEnv;
+const hasFfmpeg = (() => {
+  try {
+    execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
 afterEach(async () => env?.cleanup());
 
 describe('video encoders', () => {
@@ -29,18 +39,51 @@ describe('video encoders', () => {
     expect(pickEncoder('auto', { software: false, vaapi: null, nvenc: false, checkedAt: 0 })).toBeNull();
   });
 
+  /** A stand-in FFmpeg that writes `pieces` HLS pieces where the arguments ask, or fails. */
+  const writes = (args: string[], pieces: number) => {
+    const at = args.indexOf('-hls_segment_filename');
+    for (let i = 0; i < pieces; i++) fs.writeFileSync(args[at + 1]!.replace('%d', String(i)), '');
+    return true;
+  };
+
   it('tries each encoder instead of trusting that it is listed', async () => {
     const tried: string[] = [];
     const support = await detectEncoders(
       'ffmpeg',
       async (args) => {
         tried.push(args.join(' '));
-        return args.includes('libx264') || args.includes('/dev/dri/renderD129');
+        return args.includes('libx264') || args.includes('/dev/dri/renderD129') ? writes(args, 3) : false;
       },
       ['/dev/dri/renderD128', '/dev/dri/renderD129'],
     );
-    expect(support).toMatchObject({ software: true, nvenc: false, vaapi: '/dev/dri/renderD129' });
+    expect(support).toMatchObject({ software: true, nvenc: false, vaapi: '/dev/dri/renderD129', noKeyframes: [] });
     expect(tried.some((t) => t.includes('h264_nvenc'))).toBe(true);
+  });
+
+  it('does not use an encoder that ignores the keyframes HLS asks for (one endless piece)', async () => {
+    const support = await detectEncoders(
+      'ffmpeg',
+      async (args) => {
+        // As HLS uses it: no keyframes of its own, only the asked ones, a new piece at each.
+        expect(args.join(' ')).toMatch(/-g 100000 -force_key_frames 1,2 .*-hls_time 0\.01/);
+        if (args.includes('libx264')) return writes(args, 3);
+        if (args.includes('h264_vaapi')) return writes(args, 1);
+        return false;
+      },
+      ['/dev/dri/renderD128'],
+    );
+    expect(support).toMatchObject({ software: true, vaapi: null, nvenc: false, noKeyframes: ['vaapi'] });
+    expect(pickEncoder('auto', support)).toBe('software');
+  });
+
+  it('asks NVIDIA for real keyframes (IDR) where Vidalune forces them', () => {
+    expect(encodeArgs('nvenc').output.join(' ')).toContain('-forced-idr 1');
+  });
+
+  it.skipIf(!hasFfmpeg)('cuts the processor test picture into a piece at each asked keyframe', async () => {
+    const support = await detectEncoders('ffmpeg', undefined, []);
+    expect(support.software).toBe(true);
+    expect(support.noKeyframes).toEqual(expect.not.arrayContaining(['software']));
   });
 
   it('re-encodes the video in the same stream a remux would be, seeking the same way', () => {

@@ -62,6 +62,7 @@ export const server = {
     encoders: { software: 'Processor (software)', vaapi: 'Intel/AMD graphics (VAAPI)', nvenc: 'NVIDIA graphics (NVENC)' },
     works: 'works',
     notFound: 'not found',
+    noKeyframes: 'runs, but cannot cut the stream into pieces',
     encoderHint: 'Graphics hardware must be passed to Docker (see the README: "Video conversion").',
     limit: 'At most at once',
     noLimit: 'No limit',

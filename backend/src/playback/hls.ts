@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createLogger } from '../logger.js';
 import { audioFilters, type RemuxPlan, type VideoEncode } from './remux.js';
 import { LOCAL_ONLY } from './local-input.js';
+import { HLS_KEYFRAME_FREE } from './transcode.js';
 
 const log = createLogger('hls');
 
@@ -24,7 +25,6 @@ const log = createLogger('hls');
 /** Length of a piece when the video is converted. */
 export const GRID_SECONDS = 4;
 /** A GOP so long that the encoder makes no keyframes of its own between the forced ones (frames). */
-const KEYFRAME_FREE = 100_000;
 /** How far ahead of the player pieces are made before FFmpeg rests (seconds of video), unless set otherwise. */
 export const AHEAD_SECONDS = 120;
 /** Reading a file's keyframes reads the whole file (minutes for a film on a NAS): at most this long. */
@@ -129,7 +129,7 @@ export function hlsArgs(input: string, videoCodec: string | null, plan: RemuxPla
     // The run's first frame is a keyframe anyway; forcing one on its own grid point as well would make a
     // one-frame piece when that frame lies a hair before the point.
     const forced = layout.starts.slice(from + 1).map((s) => s.toFixed(3)).join(',');
-    args.push(...encode.output, '-g', String(KEYFRAME_FREE), ...(forced ? ['-force_key_frames', forced] : []));
+    args.push(...encode.output, '-g', String(HLS_KEYFRAME_FREE), ...(forced ? ['-force_key_frames', forced] : []));
     if (encode.output.includes('libx264')) args.push('-sc_threshold', '0');
   } else {
     args.push('-c:v', 'copy');

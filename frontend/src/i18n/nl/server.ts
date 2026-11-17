@@ -63,6 +63,7 @@ export const server: Messages['server'] = {
     encoders: { software: 'Processor (zonder videokaart)', vaapi: 'Intel/AMD-graphics (VAAPI)', nvenc: 'NVIDIA-graphics (NVENC)' },
     works: 'werkt',
     notFound: 'niet gevonden',
+    noKeyframes: 'werkt, maar kan de stream niet in stukjes knippen',
     encoderHint: 'Grafische hardware moet aan Docker worden doorgegeven (zie de README: "Video conversion").',
     limit: 'Maximaal tegelijk',
     noLimit: 'Geen limiet',
