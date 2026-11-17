@@ -952,6 +952,13 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   FFmpeg (eigenaar: stopt na het sluiten). Eigenaar raakte gefrustreerd door de vele verkeerde vermoedens; voortaan
   eerst meten (`docker top`) en dan pas een oorzaak noemen. Test: preset is `superfast`.
 - Versie 0.20.7 in alle `package.json`'s, `app/app.json` (versionCode 20007) en beide lockfiles. De app verandert niet.
+- **Ondertitel van OpenSubtitles verschijnt niet meteen** (eigenaar 17 nov: "wilt nooit inladen"; na opnieuw afspelen wel;
+  "Bouw het maar"). Oorzaak: via app.vidalune.com krijgen video en ondertitels bij het starten het directe adres met token
+  (`selectDirectPlayback`), maar een net opgehaalde ondertitel werd met zijn kale pad (`/api/online-subtitles/<id>.vtt`)
+  toegevoegd; de browser vroeg hem via vidalune.com op en de relay weigert ondertitels (409). Nu krijgt hij hetzelfde
+  adres als de stream (`onPlaybackEndpoint` in `lib/player.ts`, `addSubtitle` in `Player.tsx`). Ook: verwijderen las het
+  id uit de URL en brak bij een URL met token. Test `onPlaybackEndpoint`; frontend 397 tests, typecheck en lint slagen.
+  Nog open: waarom hij na opnieuw afspelen langzaam laadt (gevraagd hoe lang en of "Ondertitel laden…" staat).
 - PR #197 aangemaakt 17 nov op verzoek van de eigenaar ("Maak de pr"); automatische voettekst met sessielink meteen
   weggehaald. De eigenaar merget zelf (geen toestemming om te mergen gegeven).
 - Eigenaar (17 nov) meldt ook: FFmpeg draait veel terwijl er niets speelt, en dezelfde serie ging 's ochtends goed en

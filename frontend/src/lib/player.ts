@@ -71,6 +71,25 @@ export function withParam(url: string, key: string, value: string | number): str
   return `${url}${url.includes('?') ? '&' : '?'}${key}=${encodeURIComponent(String(value))}`;
 }
 
+/**
+ * A path on the same server address as the playing stream: a subtitle added during playback (fetched
+ * online) must go where the others went, the direct address with its token. Through vidalune.com the
+ * relay refuses subtitle bytes. A stream on this page's own server: the path as it is.
+ */
+export function onPlaybackEndpoint(info: PlaybackInfo, path: string): string {
+  let stream: URL;
+  try {
+    stream = new URL(info.decision.streamUrl);
+  } catch {
+    return path;
+  }
+  const token = stream.searchParams.get('cast');
+  if (!token) return path;
+  const url = new URL(path, `${stream.origin}/`);
+  url.searchParams.set('cast', token);
+  return url.toString();
+}
+
 export async function selectDirectPlayback(info: PlaybackInfo, pageOrigin: string, fetchImpl: typeof fetch = fetch): Promise<PlaybackInfo> {
   const page = new URL(pageOrigin);
   const hostedApp = page.hostname.toLowerCase() === 'app.vidalune.com';

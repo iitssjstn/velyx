@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { pickSubtitle, playHref, preferredAudioIndex, resumePoint, selectDirectPlayback, startPosition, subtitleName, withParam } from './player';
+import { onPlaybackEndpoint, pickSubtitle, playHref, preferredAudioIndex, resumePoint, selectDirectPlayback, startPosition, subtitleName, withParam } from './player';
 import type { PlaybackInfo } from './types';
 import { setLanguage } from '../i18n';
 import { detectCapabilities } from './codecs';
@@ -216,5 +216,20 @@ describe('subtitleName', () => {
     } finally {
       await setLanguage('en');
     }
+  });
+});
+
+describe('onPlaybackEndpoint', () => {
+  const base = { file: { id: 7 }, decision: { streamUrl: '/api/media/7/stream' }, subtitles: [] } as unknown as PlaybackInfo;
+
+  it('puts a subtitle fetched during playback on the direct address with the token, like the others', async () => {
+    const info = { ...base, subtitles: [{ key: 's', url: '/api/subtitles/9.vtt' }], directPlayback: { endpoints: [{ type: 'public', url: 'https://server-1.media.vidalune.com:32400/' }], token: 'signed-token' } } as unknown as PlaybackInfo;
+    const playing = await selectDirectPlayback(info, 'https://app.vidalune.com', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+    expect(onPlaybackEndpoint(playing, '/api/online-subtitles/12.vtt')).toBe('https://server-1.media.vidalune.com:32400/api/online-subtitles/12.vtt?cast=signed-token');
+    expect(onPlaybackEndpoint(playing, '/api/subtitles/9.vtt')).toBe(playing.subtitles[0]?.url);
+  });
+
+  it('leaves the path as it is when the stream plays from this page’s own server', () => {
+    expect(onPlaybackEndpoint(base, '/api/online-subtitles/12.vtt')).toBe('/api/online-subtitles/12.vtt');
   });
 });

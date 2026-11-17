@@ -32,7 +32,7 @@ import { api, ApiError, errorMessage, request } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
 import { AUDIO_MODES, audioModeOf, audioModePrefs, getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
-import { addSeek, creditsPlaying, initialSubtitle, isTyping, preferredAudioIndex, SEEK_COMBINE_MS, selectDirectPlayback, skipAt, startPosition, subtitleName, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type PendingSeek, type SkipAction } from '../lib/player';
+import { addSeek, creditsPlaying, initialSubtitle, isTyping, onPlaybackEndpoint, preferredAudioIndex, SEEK_COMBINE_MS, selectDirectPlayback, skipAt, startPosition, subtitleName, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type PendingSeek, type SkipAction } from '../lib/player';
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo, SubtitleOption } from '../lib/types';
 import { defaultOnlineLanguage } from '../lib/online-subtitles';
 import { OnlineSubtitles } from '../components/OnlineSubtitles';
@@ -660,7 +660,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const pendingSubtitle = useRef<string | null>(null);
   const addSubtitle = useCallback(
     (option: SubtitleOption) => {
-      qc.setQueryData<PlaybackInfo>(playbackKey, (old) => (old && !old.subtitles.some((s) => s.key === option.key) ? { ...old, subtitles: [...old.subtitles, option] } : old));
+      qc.setQueryData<PlaybackInfo>(playbackKey, (old) => (old && !old.subtitles.some((s) => s.key === option.key) ? { ...old, subtitles: [...old.subtitles, { ...option, url: onPlaybackEndpoint(old, option.url) }] } : old));
       pendingSubtitle.current = option.key;
       if (subs.some((s) => s.key === option.key)) {
         pendingSubtitle.current = null;
@@ -678,7 +678,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     }
   }, [subs, chooseSubtitle]);
   const removeSubtitle = useMutation({
-    mutationFn: (option: SubtitleOption) => api.del(`/api/online-subtitles/${option.url.match(/(\d+)\.vtt$/)?.[1]}`),
+    mutationFn: (option: SubtitleOption) => api.del(`/api/online-subtitles/${option.url.match(/(\d+)\.vtt(?:\?|$)/)?.[1]}`),
     onSuccess: (_r, option) => {
       if (subKeyRef.current === option.key) chooseSubtitle(null);
       qc.setQueryData<PlaybackInfo>(playbackKey, (old) => (old ? { ...old, subtitles: old.subtitles.filter((s) => s.key !== option.key) } : old));
