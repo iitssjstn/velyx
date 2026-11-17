@@ -945,6 +945,12 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   FFmpeg met libx264 maakt de stukjes; website toont de reden. Backend 660, frontend 395, cloud 230, app 280 tests;
   typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen. Op de server van de eigenaar te bevestigen: na de
   update "Hardware opnieuw controleren" en kijken wat er bij de grafische encoder staat.
+- Live omzetten op de processor met `superfast` in plaats van `veryfast` (`encodeArgs('software')`), zoals de optimizer
+  al deed: ruim minder rekenwerk, zodat een kleine server vooruit kan werken. Aanleiding (17 nov): de server van de
+  eigenaar heeft nooit een grafische encoder gehad (logboek: altijd "software"; `/dev/dri` bestaat maar kan geen H.264
+  maken). Een 1080p-HEVC-omzetting gebruikte de hele processor (~170 %) en haalde geen echte tijd. Geen achtergebleven
+  FFmpeg (eigenaar: stopt na het sluiten). Eigenaar raakte gefrustreerd door de vele verkeerde vermoedens; voortaan
+  eerst meten (`docker top`) en dan pas een oorzaak noemen. Test: preset is `superfast`.
 - Versie 0.20.7 in alle `package.json`'s, `app/app.json` (versionCode 20007) en beide lockfiles. De app verandert niet.
 - Eigenaar (17 nov) meldt ook: FFmpeg draait veel terwijl er niets speelt, en dezelfde serie ging 's ochtends goed en
   hapert nu. Vermoedelijk de intro-/recapherkenning (zie "Gemeld tijdens het testen"): die wacht alleen tussen twee

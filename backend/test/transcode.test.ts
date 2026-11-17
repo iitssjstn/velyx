@@ -76,6 +76,11 @@ describe('video encoders', () => {
     expect(pickEncoder('auto', support)).toBe('software');
   });
 
+  it('converts on the processor with a light preset, so a small server keeps up while someone watches', () => {
+    const out = encodeArgs('software').output;
+    expect(out[out.indexOf('-preset') + 1]).toBe('superfast');
+  });
+
   it('asks NVIDIA for real keyframes (IDR) where Vidalune forces them', () => {
     expect(encodeArgs('nvenc').output.join(' ')).toContain('-forced-idr 1');
   });

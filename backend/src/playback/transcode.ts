@@ -49,7 +49,7 @@ export function encodeArgs(encoder: Encoder, vaapiDevice: string | null = null):
         output: ['-vf', 'format=nv12,hwupload', '-c:v', 'h264_vaapi', '-rc_mode', 'QVBR', '-global_quality', '21', '-b:v', '20M', '-maxrate', '40M', '-profile:v', 'high', ...gop],
       };
     default:
-      return { input: [], output: ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-maxrate', '40M', '-bufsize', '80M', '-pix_fmt', 'yuv420p', '-profile:v', 'high', ...gop] };
+      return { input: [], output: ['-c:v', 'libx264', '-preset', 'superfast', '-crf', '21', '-maxrate', '40M', '-bufsize', '80M', '-pix_fmt', 'yuv420p', '-profile:v', 'high', ...gop] };
   }
 }
 
