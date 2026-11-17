@@ -1107,6 +1107,17 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   stil kwartier, zoals het vooraf klaarzetten), FFmpeg met `nice 19` en 1 thread. Nu al te doen: herkenning tijdelijk
   uit in Beheer > Onderhoud.
 
+- **Bufferen met de grafische encoder, niet met CPU** (eigenaar 17 nov: "Ik zie nergens dat de encoder is aangepast,
+  maar zodra ik de encoder op CPU zette had ik geen last van buffers meer"). Niets in de code zet de keuze terug (staat in
+  de database, alleen opslaan op Beheer > Afspelen verandert hem, met een regel in het auditlogboek). Vermoedelijke
+  oorzaak (code nagelopen, niet op hardware bevestigd): sinds 0.19.77 zet HLS met omzetten `-g 100000` en vertrouwt op
+  `-force_key_frames` op de grens (`hlsArgs` in `playback/hls.ts`). Destijds al genoteerd als niet getest met NVENC/VAAPI.
+  Negeert de hardware-encoder (na `hwupload`) de afgedwongen keyframes, dan komt er na het eerste beeld geen keyframe
+  meer, knipt de muxer geen stukjes en wacht de speler. Met CPU (libx264) werkt het wel, maar dat verklaart ook het
+  hoge processorgebruik (omzetten op 2 cores). Gevraagd: welke encoder stond er en welke grafische kaart. Voorstel:
+  bij NVENC/VAAPI een vaste GOP gelijk aan een stuk (4 s × fps) naast de afgedwongen keyframes, met een test die de
+  stukgrenzen controleert (op hardware te bevestigen).
+
 - **Openen vanaf vidalune.com eindigt soms op het directe adres met 401** (eigenaar 13 nov, screenshot:
   `<id>.media.vidalune.com:32400/sso?ticket=…`, "This page isn't working, HTTP ERROR 401"; nog niet bouwen tot hij het
   zegt). Oorzaak (code nagelopen): `openServer` in `cloud/web/account.js` gaat via de relay als die verbonden is; is de
