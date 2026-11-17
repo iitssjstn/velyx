@@ -1095,6 +1095,18 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Vidalune gebruikt opeens veel processor** (eigenaar 17 nov, `docker stats`: velyx 162 % op de Athlon met 2 cores,
+  "terwijl ik nooit problemen heb gehad er mee"; nog niet bouwen tot hij het zegt). Niet op zijn machine gezien.
+  Grootste kandidaat (code nagelopen): de intro-/recapherkenning. `DETECTION_VERSION` ging in 0.20.3 naar 5 en in 0.20.4
+  naar 6, dus alle afleveringen worden opnieuw bekeken, en sinds 0.20.4 leest hij ook de laatste afleveringen van het
+  vorige seizoen helemaal. Die taak houdt zich niet aan het onderhoudsvenster (alleen stoppen bij een scan, of bij
+  kijken op een drukke server), FFmpeg draait met `-threads 2` en zonder `nice`, plus de vergelijking in een worker.
+  Andere kandidaten: bestanden vooraf klaarzetten (buiten het venster na 15 min stilte), de optimizer, of een FFmpeg die
+  blijft hangen. Gevraagd: `docker exec velyx ps -eo pid,pcpu,etime,args --sort=-pcpu | head` en Beheer > Intro's en
+  aftiteling (hoeveel nog te doen). Voorstel: herkenning alleen in het onderhoudsvenster (of buiten het venster na een
+  stil kwartier, zoals het vooraf klaarzetten), FFmpeg met `nice 19` en 1 thread. Nu al te doen: herkenning tijdelijk
+  uit in Beheer > Onderhoud.
+
 - **Openen vanaf vidalune.com eindigt soms op het directe adres met 401** (eigenaar 13 nov, screenshot:
   `<id>.media.vidalune.com:32400/sso?ticket=…`, "This page isn't working, HTTP ERROR 401"; nog niet bouwen tot hij het
   zegt). Oorzaak (code nagelopen): `openServer` in `cloud/web/account.js` gaat via de relay als die verbonden is; is de
