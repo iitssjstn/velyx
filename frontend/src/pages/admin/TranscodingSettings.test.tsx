@@ -34,4 +34,16 @@ describe('video conversion settings', () => {
     expect(sent).toEqual([{ enabled: true, encoder: 'auto', maxStreams: null }]);
     expect(await screen.findByText('On, with Intel/AMD graphics (VAAPI)')).toBeTruthy();
   });
+
+  it('says when a graphics encoder runs but cannot cut the stream into pieces', async () => {
+    const state = { settings: { enabled: true, encoder: 'auto', maxStreams: null }, support: { software: true, vaapi: null, nvenc: false, noKeyframes: ['vaapi'], checkedAt: 1 }, inUse: 'software', active: 0 };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(state), { status: 200 })));
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <TranscodingSettings />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole('option', { name: 'Intel/AMD graphics (VAAPI) — runs, but cannot cut the stream into pieces' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'NVIDIA graphics (NVENC) — not found' })).toBeTruthy();
+  });
 });

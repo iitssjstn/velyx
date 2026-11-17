@@ -8,7 +8,7 @@ import { useT } from '../../i18n';
 type Encoder = 'software' | 'vaapi' | 'nvenc';
 interface TranscodingState {
   settings: { enabled: boolean; encoder: 'auto' | Encoder; maxStreams: number | null };
-  support: { software: boolean; vaapi: string | null; nvenc: boolean; checkedAt: number } | null;
+  support: { software: boolean; vaapi: string | null; nvenc: boolean; noKeyframes?: Encoder[]; checkedAt: number } | null;
   /** The encoder in use (null: off, or none works). */
   inUse: Encoder | null;
   active: number;
@@ -75,7 +75,7 @@ export function TranscodingSettings() {
             {(['nvenc', 'vaapi', 'software'] as const).map((e) => (
               <option key={e} value={e}>
                 {t(`server.transcoding.encoders.${e}`)}
-                {d.support ? ` — ${works(e) ? t('server.transcoding.works') : t('server.transcoding.notFound')}` : ''}
+                {d.support ? ` — ${works(e) ? t('server.transcoding.works') : d.support.noKeyframes?.includes(e) ? t('server.transcoding.noKeyframes') : t('server.transcoding.notFound')}` : ''}
               </option>
             ))}
           </select>
