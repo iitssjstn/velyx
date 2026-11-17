@@ -1134,6 +1134,13 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Ondertitels van OpenSubtitles laden nooit** (eigenaar 17 nov; nog niet bouwen tot hij het zegt). Nog onduidelijk welke
+  stap: zoeken (lijst komt niet), ophalen (knop na kiezen), of tonen in de speler ("Ondertitel laden…"). Keten: speler →
+  server `/api/media/:id/subtitles/online` → vidalune.com (OpenSubtitles-account in Control Center > Ondertitels) →
+  OpenSubtitles; het bestand komt daarna via het directe adres (`/api/online-subtitles/:id.vtt`, staat in `castPath`).
+  Gevraagd: wat hij precies ziet (melding/screenshot), `docker logs velyx 2>&1 | grep -i subtit | tail -20`, en de status
+  in Control Center > Ondertitels. Eerst meten, dan pas een oorzaak noemen.
+
 - **Vidalune gebruikt opeens veel processor** (eigenaar 17 nov, `docker stats`: velyx 162 % op de Athlon met 2 cores,
   "terwijl ik nooit problemen heb gehad er mee"; nog niet bouwen tot hij het zegt). Niet op zijn machine gezien.
   Grootste kandidaat (code nagelopen): de intro-/recapherkenning. `DETECTION_VERSION` ging in 0.20.3 naar 5 en in 0.20.4
