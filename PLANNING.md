@@ -952,6 +952,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   FFmpeg (eigenaar: stopt na het sluiten). Eigenaar raakte gefrustreerd door de vele verkeerde vermoedens; voortaan
   eerst meten (`docker top`) en dan pas een oorzaak noemen. Test: preset is `superfast`.
 - Versie 0.20.7 in alle `package.json`'s, `app/app.json` (versionCode 20007) en beide lockfiles. De app verandert niet.
+- PR #197 aangemaakt 17 nov op verzoek van de eigenaar ("Maak de pr"); automatische voettekst met sessielink meteen
+  weggehaald. De eigenaar merget zelf (geen toestemming om te mergen gegeven).
 - Eigenaar (17 nov) meldt ook: FFmpeg draait veel terwijl er niets speelt, en dezelfde serie ging 's ochtends goed en
   hapert nu. Vermoedelijk de intro-/recapherkenning (zie "Gemeld tijdens het testen"): die wacht alleen tussen twee
   leesrondes op kijkers, en sinds 0.20.4 leest één ronde soms een hele aflevering van het vorige seizoen (minuten).
