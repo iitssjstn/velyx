@@ -1004,6 +1004,26 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - PR #198 aangemaakt 19 nov op verzoek van de eigenaar ("Maak de PR en als alles groen is merge het maar"); automatische
   voettekst met sessielink meteen weggehaald. Gemerged 19 nov (alle checks groen). Release niet gevolgd.
 
+## Versie 0.20.9 (ondertitel gelijk na spoelen, ook als de server traag antwoordt)
+
+- Eigenaar (19 nov): "Als ik vooruit of achteruit spoel dan gaat de ondertiteling niet mee met de tijd"; website, een
+  ondertitel van OpenSubtitles, correctie de ene keer naar voren en de andere keer naar achteren (tot -3,5 s); daarna
+  "Bouw het". Nagemeten met echte FFmpeg: een omgepakte stream begint na spoelen op het keyframe vóór het doel, en
+  `seekLanding` vindt dat tot op 0,08 s. Maar de website wachtte hooguit 4 s op dat antwoord (`LOCATE_TIMEOUT_MS`) en
+  nam daarna aan dat de stream op het doel begon; op de Athlon met de NAS duurt het vaak langer, dus liep de ondertitel
+  per sprong 0 tot een paar seconden verkeerd (de lengte tot het vorige keyframe). Niet op de server van de eigenaar
+  gemeten.
+- Nu: `locateStart` start de stream nog steeds na 4 s op het doel, maar wacht op de achtergrond (tot 60 s) op het echte
+  begin (`late`). Komt dat, dan worden klok, balk, opgeslagen positie en ondertitel goedgezet (`beginStream` in
+  `Player.tsx`; de ondertitel blijft geschoven voor de gok, `cues`, en het verschil gaat via de vertraging van de
+  overlay, dus geen nieuw ondertitelbestand en geen nieuwe stream). De server bewaart gevonden beginpunten (per
+  bestand, grootte/tijd en doel, hooguit 500; `seekLanding` in `remux.ts`), zodat dezelfde vraag meteen antwoordt.
+- Tests: website (antwoord te laat → ondertitel daarna gelijk, zelfde ondertitelbestand en stream; faalt op de oude
+  code; `locateStart` met laat antwoord), backend (beginpunt uit het geheugen, opnieuw na een ander bestand). Backend
+  664, frontend 400, cloud 230, app 280 tests; typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen.
+- Versie 0.20.9 in alle `package.json`'s, `app/app.json` (versionCode 20009) en beide lockfiles. De app verandert niet.
+  Na de release: server en accountservice bijwerken (app.vidalune.com levert de website mee).
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
