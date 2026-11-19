@@ -1024,7 +1024,6 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   664, frontend 400, cloud 230, app 280 tests; typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen.
 - Versie 0.20.9 in alle `package.json`'s, `app/app.json` (versionCode 20009) en beide lockfiles. De app verandert niet.
   Na de release: server en accountservice bijwerken (app.vidalune.com levert de website mee).
-- PR #199 aangemaakt en gemerged 19 nov op verzoek van de eigenaar ("merge het"; alle checks groen). Release niet gevolgd.
 
 ## Versie 0.19.11
 
