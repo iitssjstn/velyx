@@ -27,6 +27,11 @@ const SEARCHES_PER_MINUTE = 20;
 
 const searchQuery = z.object({ language: z.string().trim().toLowerCase().refine(isOnlineSubtitleLanguage, 'Choose a language from the list.') });
 const downloadBody = z.object({ fileId: z.number().int().positive().max(2 ** 31) });
+/** Largest correction a viewer can save, in seconds either way. */
+const MAX_DELAY_SEC = 600;
+const delayValue = z.number().finite().min(-MAX_DELAY_SEC).max(MAX_DELAY_SEC).transform((d) => Math.round(d * 10) / 10);
+const delayBody = z.object({ delay: delayValue }).strict();
+const vttQuery = z.object({ offset: z.coerce.number().finite().min(0).max(1e6).optional(), delay: z.coerce.number().pipe(delayValue).optional() });
 
 async function requireRemotePlayback(request: import('fastify').FastifyRequest, ctx: AppContext): Promise<void> {
   if (isHomeRequest(request, ctx.settings.get().homeNetworks)) return;
@@ -51,6 +56,8 @@ export function onlineSubtitleOption(row: OnlineRow, user: { id: number; role: '
     forced: row.forced,
     isDefault: false,
     url: `/api/online-subtitles/${row.id}.vtt`,
+    /** The saved correction (seconds later), already applied to the file unless the player asks `delay=`. */
+    delay: row.delaySec,
     // The person who fetched it (or an administrator) may take it away again.
     removable: user.role === 'admin' || row.createdBy === user.id,
   };
@@ -233,10 +240,29 @@ export async function onlineSubtitleRoutes(app: FastifyInstance, ctx: AppContext
     } catch {
       throw notFound('Subtitle');
     }
-    const raw = (request.query as { offset?: string }).offset;
-    const offset = raw === undefined ? 0 : Number(raw);
-    if (!Number.isFinite(offset) || offset < 0 || offset > 1e6) throw new HttpError(400, 'Invalid subtitle offset.');
-    return reply.type('text/vtt; charset=utf-8').header('Cache-Control', 'private, max-age=3600').send(shiftVtt(vtt, offset));
+    const query = vttQuery.safeParse(request.query);
+    if (!query.success) throw new HttpError(400, 'Invalid subtitle offset.');
+    const offset = query.data.offset ?? 0;
+    // A player with its own correction asks `delay=` (the website: 0, and shifts it itself); anyone else (the app, the
+    // TV) gets the saved correction applied. That one can change, so the file is not kept in the cache then.
+    const delay = query.data.delay ?? row.s.delaySec;
+    const cache = query.data.delay === undefined ? 'private, no-cache' : 'private, max-age=3600';
+    return reply.type('text/vtt; charset=utf-8').header('Cache-Control', cache).send(shiftVtt(vtt, offset - delay));
+  });
+
+  // The correction that makes this subtitle match the file: saved with the subtitle, so it holds for everyone who
+  // watches this file with it, on every device.
+  app.put<{ Params: { id: string } }>('/api/online-subtitles/:id/delay', { preHandler: requireUser }, async (request) => {
+    const { delay } = delayBody.parse(request.body);
+    const row = db
+      .select({ s: onlineSubtitles, libraryId: mediaFiles.libraryId })
+      .from(onlineSubtitles)
+      .innerJoin(mediaFiles, eq(mediaFiles.id, onlineSubtitles.mediaFileId))
+      .where(eq(onlineSubtitles.id, parseId(request.params.id)))
+      .get();
+    if (!row || !canSee(ctx.access.scope(request.user!), row.libraryId)) throw notFound('Subtitle');
+    db.update(onlineSubtitles).set({ delaySec: delay }).where(eq(onlineSubtitles.id, row.s.id)).run();
+    return { delay };
   });
 
   app.delete<{ Params: { id: string } }>('/api/online-subtitles/:id', { preHandler: requireUser }, async (request) => {

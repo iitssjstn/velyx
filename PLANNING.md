@@ -980,6 +980,28 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   op performance (crontab `@reboot`) en `cpu_shares` 2048 voor velyx (in compose zetten om een update te overleven).
   0.20.7 (`superfast`, encodertest) blijft nuttig; PR #197 staat open.
 
+## Versie 0.20.8 (correctie van een opgehaalde ondertitel onthouden)
+
+- Eigenaar (18 nov): "De ondertitelingen die je ophaalt lijkt niet gelijk te lopen ik moet die zelf de hele tijd
+  aanpassen"; daarna "Bouw het maar". In de code geen verschuivingsfout gevonden (offset en vingerafdruk van het
+  bestand kloppen); een ondertitel zonder "Gemaakt voor dit bestand" hoort bij een andere versie. Wat wel misging: de
+  correctie (`subDelay`, Synchronisatie in het ondertitelmenu) stond alleen in de speler en begon elke keer op 0.
+- Nu bewaart de server de correctie bij de opgehaalde ondertitel (`online_subtitles.delay_sec`, migratie
+  `0032_subtitle_delay`; `PUT /api/online-subtitles/:id/delay`, Zod strikt, -600 tot 600 s op 0,1 s, ingelogd en met
+  toegang tot de bibliotheek). Hij geldt voor iedereen die dat bestand met die ondertitel kijkt. De lijst geeft `delay`
+  mee. Het bestand (`/api/online-subtitles/:id.vtt`) krijgt de correctie erin voor wie hem niet zelf toepast (app,
+  tv-app, casten; dan `no-cache`); de website vraagt `delay=0` en schuift zelf. Website: een opgehaalde ondertitel
+  start op de bewaarde correctie, een stap wordt 0,8 s na de laatste opgeslagen (ook bij sluiten van de speler); een
+  andere ondertitel start op 0.
+- Nog niet: opslaan vanuit de app en de tv-app (die gebruiken de bewaarde correctie wel, maar een stap daar wordt niet
+  bewaard), en een correctie voor een andere beeldsnelheid (als de verschuiving steeds verder uitloopt).
+- Tests: backend (opslaan, afgerond, in de lijst, in het bestand met en zonder offset, `delay=0`, eerder, controles:
+  niet ingelogd, te groot, tekst, extra veld, onbekend), website (start op de bewaarde correctie, `delay=0` in het
+  adres, stap opgeslagen; faalt op de oude code). Backend 663, frontend 398 tests; typechecks en lint (0 fouten)
+  slagen. Op de server van de eigenaar te bevestigen.
+- Versie 0.20.8 in alle `package.json`'s, `app/app.json` (versionCode 20008) en beide lockfiles. De app verandert niet.
+  Na de release: server en accountservice bijwerken (app.vidalune.com levert de website mee).
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)

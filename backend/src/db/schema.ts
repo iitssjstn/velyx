@@ -359,6 +359,8 @@ export const onlineSubtitles = sqliteTable(
     forced: integer('forced', { mode: 'boolean' }).notNull().default(false),
     /** File name inside the online subtitles folder. */
     fileName: text('file_name').notNull(),
+    /** Seconds the subtitle shows later (positive) or earlier (negative) to match this file. */
+    delaySec: real('delay_sec').notNull().default(0),
     createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: integer('created_at').notNull().default(now),
   },

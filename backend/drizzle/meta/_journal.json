@@ -225,6 +225,13 @@
       "when": 1793384286877,
       "tag": "0031_segment_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1795052442330,
+      "tag": "0032_subtitle_delay",
+      "breakpoints": true
     }
   ]
 }

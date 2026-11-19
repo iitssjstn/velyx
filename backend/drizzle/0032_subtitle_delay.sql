@@ -1,0 +1,1 @@
+ALTER TABLE `online_subtitles` ADD `delay_sec` real DEFAULT 0 NOT NULL;

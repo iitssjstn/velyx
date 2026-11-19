@@ -688,6 +688,46 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     onError: (err) => toast.error(err),
   });
 
+  // A fetched subtitle keeps its sync correction: chosen, it starts at the saved one; changed, the new one is saved a
+  // moment after the last step, for everyone who watches this file with it, on every device. Another subtitle starts
+  // in sync: a correction belongs to one subtitle file.
+  const delayFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!subKey || subKey === delayFor.current) return;
+    delayFor.current = subKey;
+    const opt = subs.find((o) => o.key === subKey);
+    setSubDelay(opt?.kind === 'online' ? (opt.delay ?? 0) : 0);
+  }, [subKey, subs]);
+  const pendingDelay = useRef<{ timer: ReturnType<typeof setTimeout>; save: () => void } | null>(null);
+  const changeDelay = useCallback(
+    (next: number) => {
+      setSubDelay(next);
+      const opt = subs.find((o) => o.key === subKeyRef.current);
+      const id = opt?.kind === 'online' ? opt.url.match(/\/online-subtitles\/(\d+)\.vtt/)?.[1] : undefined;
+      if (!opt || !id) return;
+      if (pendingDelay.current) clearTimeout(pendingDelay.current.timer);
+      const save = () => {
+        pendingDelay.current = null;
+        api
+          .put(`/api/online-subtitles/${id}/delay`, { delay: next })
+          .then(() => qc.setQueriesData<PlaybackInfo>({ queryKey: ['playback', file?.id] }, (old) => (old ? { ...old, subtitles: old.subtitles.map((s) => (s.key === opt.key ? { ...s, delay: next } : s)) } : old)))
+          .catch((err) => toast.error(err));
+      };
+      pendingDelay.current = { timer: setTimeout(save, 800), save };
+    },
+    [subs, qc, file?.id],
+  );
+  // Closing the player right after a step still saves it.
+  useEffect(
+    () => () => {
+      const pending = pendingDelay.current;
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      pending.save();
+    },
+    [],
+  );
+
   /** Changes an audio setting and reloads the stream at the current position when needed. */
   const changeAudioPrefs = useCallback(
     (patch: Partial<Pick<PlaybackPrefs, 'audioOutput' | 'boostVoices' | 'levelVolume'>>) => {
@@ -758,6 +798,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     setAudioChoice(null);
     setStream(null);
     setSubDelay(0);
+    delayFor.current = null;
     setActiveTrack(null);
     setFrozen(false);
     setEnded(false);
@@ -1287,7 +1328,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
               key={s.key}
               data-subtitle-key={s.key}
               kind="subtitles"
-              src={offset > 0 ? withParam(s.url, 'offset', offset.toFixed(3)) : s.url}
+              // A fetched subtitle comes as it is (`delay=0`): the overlay shifts it by the correction, which can change while watching.
+              src={((url) => (offset > 0 ? withParam(url, 'offset', offset.toFixed(3)) : url))(s.kind === 'online' ? withParam(s.url, 'delay', '0') : s.url)}
               label={s.label}
               srcLang={s.language ?? undefined}
               onLoadCapture={(e) => {
@@ -1692,9 +1734,9 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
                         label={t('player.sync')}
                         value={subDelay === 0 ? t('player.inSync') : `${subDelay > 0 ? '+' : ''}${subDelay.toLocaleString(intlLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`}
                         hint={t('player.syncHint')}
-                        onMinus={() => setSubDelay((d) => Math.round((d - 0.5) * 10) / 10)}
-                        onPlus={() => setSubDelay((d) => Math.round((d + 0.5) * 10) / 10)}
-                        onReset={subDelay !== 0 ? () => setSubDelay(0) : undefined}
+                        onMinus={() => changeDelay(Math.round((subDelay - 0.5) * 10) / 10)}
+                        onPlus={() => changeDelay(Math.round((subDelay + 0.5) * 10) / 10)}
+                        onReset={subDelay !== 0 ? () => changeDelay(0) : undefined}
                       />
                       </>}
                     </div>

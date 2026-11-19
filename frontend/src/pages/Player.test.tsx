@@ -265,6 +265,43 @@ describe('subtitles after seeking', () => {
     expect(screen.queryByText('Loading subtitle…')).toBeNull();
   });
 
+  it('starts a fetched subtitle at its saved sync correction and saves a new one', async () => {
+    const saved: unknown[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      let body: unknown = {};
+      if (url === '/api/movies/3') body = MOVIE;
+      if (url === '/api/media/3/playback') body = { ...PLAYBACK, subtitles: [{ key: 'onl-7', kind: 'online', label: 'Release.21', language: 'eng', forced: false, isDefault: false, url: '/api/online-subtitles/7.vtt', delay: 1.5 }] };
+      if (url === '/api/account/preferences') body = { audioLanguage: '', subtitleLanguage: 'eng', subtitleFallback: '', subtitleMode: 'always' };
+      if (url === '/api/online-subtitles/7/delay') {
+        saved.push({ method: init?.method, body: JSON.parse(String(init?.body)) });
+        body = JSON.parse(String(init?.body));
+      }
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    renderPlayer();
+    const video = await vi.waitFor(() => {
+      const element = document.querySelector('video');
+      if (!element?.querySelector('track')) throw new Error('subtitle track not mounted');
+      return element;
+    });
+    fakeVideo(video);
+    const element = video.querySelector('track')!;
+    // The player shifts it itself, so it asks for the file without the saved correction in it.
+    expect(element.getAttribute('src')).toBe('/api/online-subtitles/7.vtt?delay=0');
+    const tracks = { length: 1, 0: { mode: 'disabled', cues: [] } };
+    Object.defineProperty(video, 'textTracks', { configurable: true, value: tracks });
+    Object.defineProperty(element, 'track', { configurable: true, value: tracks[0] });
+    fireEvent.loadedMetadata(video);
+    await vi.waitFor(() => expect(tracks[0].mode).toBe('hidden'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Subtitles' }));
+    expect(await screen.findByText('+1.5 s')).toBeTruthy();
+    // One step later: saved with the subtitle a moment after the last step.
+    fireEvent.click(screen.getByRole('button', { name: 'Sync up' }));
+    expect(screen.getByText('+2.0 s')).toBeTruthy();
+    await vi.waitFor(() => expect(saved).toEqual([{ method: 'PUT', body: { delay: 2 } }]), { timeout: 2000 });
+  });
+
   it('reattaches the chosen subtitle when its text track becomes available after video metadata', async () => {
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);

@@ -347,6 +347,40 @@ describe('fetching a subtitle', () => {
     expect((await env.app.inject({ url: option.url, headers: { cookie: admin } })).statusCode).toBe(404);
   });
 
+  it('keeps a sync correction with the subtitle, applied for every player that does not shift it itself', async () => {
+    const option = (await fetchSub(21)).json();
+    const id = option.url.match(/(\d+)\.vtt$/)[1];
+    expect(option.delay).toBe(0);
+    // Anyone who can watch the file may correct it; it holds for everyone watching it with this subtitle.
+    const anna = await createUser(env.app, admin, 'anna');
+    const saved = await req('PUT', `/api/online-subtitles/${id}/delay`, { delay: 1.54 }, anna.cookie);
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toEqual({ delay: 1.5 });
+    expect((await get(`/api/media/${fileId}/subtitles`)).find((o: { key: string }) => o.key === option.key).delay).toBe(1.5);
+    // The app and the TV get the file with the correction in it, and not from a cache of an older one.
+    const shifted = await env.app.inject({ url: option.url, headers: { cookie: admin } });
+    expect(shifted.body).toContain('00:00:02.500 --> 00:00:05.000');
+    expect(shifted.headers['cache-control']).toBe('private, no-cache');
+    // Together with the start of a live stream.
+    expect((await env.app.inject({ url: `${option.url}?offset=2`, headers: { cookie: admin } })).body).toContain('00:00:04.500 --> 00:00:05.500');
+    // The website shifts it itself, so it asks for the file as it is.
+    expect((await env.app.inject({ url: `${option.url}?delay=0`, headers: { cookie: admin } })).body).toContain('00:00:01.000 --> 00:00:03.500');
+    // Earlier works too: cues that would start before the beginning start at it.
+    await req('PUT', `/api/online-subtitles/${id}/delay`, { delay: -2 });
+    expect((await env.app.inject({ url: option.url, headers: { cookie: admin } })).body).toContain('00:00:00.000 --> 00:00:01.500');
+  });
+
+  it('checks a sync correction', async () => {
+    const option = (await fetchSub(21)).json();
+    const id = option.url.match(/(\d+)\.vtt$/)[1];
+    expect((await env.app.inject({ method: 'PUT', url: `/api/online-subtitles/${id}/delay`, payload: { delay: 1 } })).statusCode).toBe(401);
+    expect((await req('PUT', `/api/online-subtitles/${id}/delay`, { delay: 601 })).statusCode).toBe(400);
+    expect((await req('PUT', `/api/online-subtitles/${id}/delay`, { delay: '1' })).statusCode).toBe(400);
+    expect((await req('PUT', `/api/online-subtitles/${id}/delay`, { delay: 1, other: true })).statusCode).toBe(400);
+    expect((await req('PUT', '/api/online-subtitles/9999/delay', { delay: 1 })).statusCode).toBe(404);
+    expect((await env.app.inject({ url: `${option.url}?delay=abc`, headers: { cookie: admin } })).statusCode).toBe(400);
+  });
+
   it('goes away with its media file', async () => {
     await fetchSub(21);
     env.ctx.db.$client.prepare('DELETE FROM media_files WHERE id = ?').run(fileId);
