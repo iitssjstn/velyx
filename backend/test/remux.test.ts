@@ -159,4 +159,27 @@ describe('seek landing', () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('answers again for the same time from memory, and reads the file again once it changed', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-landing-'));
+    try {
+      const mkv = path.join(dir, 'Movie.mkv');
+      const make = (gop: number) => execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=25', '-t', '20', '-c:v', 'libx264', '-preset', 'ultrafast', '-g', String(gop), '-keyint_min', String(gop), '-sc_threshold', '0', '-y', mkv]);
+      make(100);
+      const engine = new RemuxEngine('ffmpeg');
+      expect(await engine.seekLanding(mkv, 9)).toBeCloseTo(8, 1);
+      // FFmpeg is not asked again (a missing program would give the asked time back).
+      const offline = engine as unknown as { ffmpegPath: string };
+      offline.ffmpegPath = path.join(dir, 'no-ffmpeg');
+      expect(await engine.seekLanding(mkv, 9)).toBeCloseTo(8, 1);
+      // Another file at the same place: read again.
+      offline.ffmpegPath = 'ffmpeg';
+      make(25);
+      fs.utimesSync(mkv, new Date(), new Date(Date.now() + 5000));
+      expect(await engine.seekLanding(mkv, 9.5)).toBeCloseTo(9, 1);
+      expect(await engine.seekLanding(mkv, 9)).toBeCloseTo(9, 1);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

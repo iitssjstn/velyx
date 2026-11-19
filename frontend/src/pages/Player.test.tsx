@@ -148,6 +148,57 @@ describe('subtitles after seeking', () => {
     expect(await screen.findByText('Subtitle after remux seek')).toBeTruthy();
   });
 
+  it('lines the subtitles up again when the server tells where the stream began only after it started', async () => {
+    let answer: (() => void) | null = null;
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      let body: unknown = {};
+      if (url === '/api/movies/3') body = MOVIE;
+      if (url === '/api/media/3/playback') body = { ...PLAYBACK, decision: { ...PLAYBACK.decision, engine: 'remux', seek: 'restart', streamUrl: '/api/media/3/remux?audio=1' }, subtitles: [{ key: 'ext-1', kind: 'external', label: 'English', language: 'eng', forced: false, isDefault: true, url: '/api/subtitles/1.vtt' }] };
+      if (url === '/api/account/preferences') body = { audioLanguage: '', subtitleLanguage: 'eng', subtitleFallback: '', subtitleMode: 'always' };
+      // A slow server: the keyframe (117 s, before the asked 120 s) comes after the player gave up waiting.
+      if (url.startsWith('/api/media/3/keyframe')) return new Promise<Response>((resolve) => (answer = () => resolve(Response.json({ start: 117, seek: 120 }))));
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    renderPlayer();
+    const oldVideo = await vi.waitFor(() => {
+      const video = document.querySelector('video');
+      if (!video?.querySelector('track')) throw new Error('no video track');
+      return video;
+    });
+    fakeVideo(oldVideo);
+    fireEvent.loadedMetadata(oldVideo);
+    fireEvent.keyDown(window, { key: '5' });
+    const newVideo = await vi.waitFor(
+      () => {
+        const video = document.querySelector('video');
+        if (!video || video === oldVideo) throw new Error('stream has not restarted');
+        return video;
+      },
+      { timeout: 6000 },
+    );
+    // Started at the asked time; its subtitles are shifted for that.
+    expect(newVideo.getAttribute('src')).toBe('/api/media/3/remux?audio=1&start=120.004');
+    expect(newVideo.querySelector('track')?.getAttribute('src')).toBe('/api/subtitles/1.vtt?offset=120.004');
+    const state = fakeVideo(newVideo);
+    // A line at 121–124 s in the file (1–4 s in the shifted file).
+    const track = { mode: 'disabled', cues: [{ startTime: 1, endTime: 4, text: 'Line at two minutes one' }] };
+    Object.defineProperty(newVideo, 'textTracks', { configurable: true, value: { length: 1, 0: track } });
+    Object.defineProperty(newVideo.querySelector('track'), 'track', { configurable: true, value: track });
+    fireEvent.loadedMetadata(newVideo);
+    fireEvent.load(newVideo.querySelector('track')!);
+    // 2 s into the stream is really 119 s in the file: before the server answered this showed too early.
+    state.currentTime = 2;
+    expect(await screen.findByText('Line at two minutes one')).toBeTruthy();
+    await act(async () => answer!());
+    await vi.waitFor(() => expect(screen.queryByText('Line at two minutes one')).toBeNull());
+    // At 122 s in the file (5 s into the stream) it shows, and the subtitle file was not loaded again.
+    state.currentTime = 5;
+    expect(await screen.findByText('Line at two minutes one')).toBeTruthy();
+    expect(newVideo.querySelector('track')?.getAttribute('src')).toBe('/api/subtitles/1.vtt?offset=120.004');
+    expect(document.querySelector('video')).toBe(newVideo);
+  }, 15000);
+
   it('keeps the last picture on screen while a remux stream restarts, instead of the artwork', async () => {
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);

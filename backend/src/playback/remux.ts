@@ -1,4 +1,5 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import fs from 'node:fs';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createLogger } from '../logger.js';
 import { COPYABLE_VIDEO, videoSupport } from './compatibility.js';
@@ -208,11 +209,16 @@ export function parseFramemd5Start(output: string): number | null {
  * (almost no CPU); only the selected audio track is converted to AAC stereo when needed. Output is
  * fragmented MP4 streamed live, so seeking restarts FFmpeg at the nearest keyframe.
  */
+/** How many landings are kept (oldest go first). */
+const MAX_LANDINGS = 500;
+
 export class RemuxEngine implements PlaybackEngine {
   readonly id = 'remux';
   private readonly processes = new Set<ChildProcess>();
   /** Streams whose video is transcoded, by viewer and file (a new one for the same replaces the old). */
   private readonly transcodes = new Map<ChildProcess, string>();
+  /** Landings found before (by file, its version and the time): asking again for the same is instant. */
+  private readonly landings = new Map<string, number>();
 
   constructor(
     private readonly ffmpegPath: string,
@@ -261,6 +267,16 @@ export class RemuxEngine implements PlaybackEngine {
    */
   seekLanding(absolutePath: string, target: number): Promise<number> {
     if (target <= 0) return Promise.resolve(0);
+    let version = '';
+    try {
+      const st = fs.statSync(absolutePath);
+      version = `${st.size}:${st.mtimeMs}`;
+    } catch {
+      // Unreadable: FFmpeg reports it below.
+    }
+    const key = `${absolutePath}\0${version}\0${target.toFixed(3)}`;
+    const known = version ? this.landings.get(key) : undefined;
+    if (known !== undefined) return Promise.resolve(known);
     const args = ['-v', 'error', '-nostdin', '-noaccurate_seek', '-ss', target.toFixed(3), '-copyts', '-start_at_zero', ...LOCAL_ONLY, '-i', absolutePath, '-map', '0:v:0', '-c', 'copy', '-frames:v', '1', '-f', 'framemd5', '-'];
     return new Promise((resolve) => {
       execFile(this.ffmpegPath, args, { timeout: 15000, maxBuffer: 1024 * 1024 }, (err, stdout) => {
@@ -271,7 +287,12 @@ export class RemuxEngine implements PlaybackEngine {
           return;
         }
         // Far past the target is not a landing but a misread: keep the target then.
-        resolve(landing > target + MAX_LANDING_AFTER_TARGET_SEC ? target : Math.max(0, landing));
+        const found = landing > target + MAX_LANDING_AFTER_TARGET_SEC ? target : Math.max(0, landing);
+        if (version) {
+          if (this.landings.size >= MAX_LANDINGS) this.landings.delete(this.landings.keys().next().value!);
+          this.landings.set(key, found);
+        }
+        resolve(found);
       });
     });
   }

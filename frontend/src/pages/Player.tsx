@@ -129,14 +129,35 @@ const HLS_SUPPORT: 'mse' | 'native' | null = (() => {
 
 /** How long to wait for the keyframe before starting the stream at the asked time itself. */
 export const LOCATE_TIMEOUT_MS = 4000;
+/** How long a late answer is still awaited (the clock and subtitles are corrected when it comes). */
+export const LOCATE_LATE_MS = 60000;
 
-export async function locateStart(fileId: number, target: number, optimizationId?: number): Promise<{ offset: number; seek: number }> {
+export interface StreamStart {
+  /** Where the stream really begins in the file (its time 0). */
+  offset: number;
+  /** What the stream is requested with (&start=). */
+  seek: number;
+  /** The server took too long: `offset` is a guess (the asked time); this gives the real start once known. */
+  late?: Promise<number>;
+}
+
+export async function locateStart(fileId: number, target: number, optimizationId?: number): Promise<StreamStart> {
+  // A busy server must not keep the player waiting: the stream can start at the time itself. The
+  // answer is still awaited then, because the stream really begins at the keyframe before the time
+  // (up to a few seconds earlier), and the subtitles would run that far ahead.
+  const answer = request<{ start: number; seek: number }>('GET', `/api/media/${fileId}/keyframe?t=${target.toFixed(3)}${optimizationId ? `&optimized=${optimizationId}` : ''}`, undefined, { signal: AbortSignal.timeout(LOCATE_LATE_MS) });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const tooLong = new Promise<'late'>((resolve) => {
+    timer = setTimeout(() => resolve('late'), LOCATE_TIMEOUT_MS);
+  });
   try {
-    // A busy server must not keep the player waiting: the stream can start at the time itself.
-    const r = await request<{ start: number; seek: number }>('GET', `/api/media/${fileId}/keyframe?t=${target.toFixed(3)}${optimizationId ? `&optimized=${optimizationId}` : ''}`, undefined, { signal: AbortSignal.timeout(LOCATE_TIMEOUT_MS) });
-    return { offset: r.start, seek: r.seek };
+    const r = await Promise.race([answer, tooLong]);
+    if (r !== 'late') return { offset: r.start, seek: r.seek };
+    return { offset: target, seek: target, late: answer.then((a) => a.start) };
   } catch {
     return { offset: target, seek: target };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -265,7 +286,10 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const [seekHover, setSeekHover] = useState<{ x: number; w: number; t: number } | null>(null);
   // The stream to load: `base` is the decision's URL. Live (restart) streams are requested with
   // &start=`seek` and really begin at `offset` seconds into the file (the keyframe FFmpeg lands on).
-  const [stream, setStream] = useState<{ base: string; offset: number; seek: number } | null>(null);
+  // `cues` is the start the subtitle files were shifted for: when the real start only became known
+  // after the stream began (a slow server), `offset` is corrected and the difference is made up while
+  // showing them, without loading the subtitles again.
+  const [stream, setStream] = useState<{ base: string; offset: number; seek: number; cues: number } | null>(null);
   const streamRef = useRef(stream);
   streamRef.current = stream;
   const startedRef = useRef(false);
@@ -305,6 +329,14 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   }, []);
 
   const info = playback.data;
+  /** Loads a live stream; a start that was only guessed is corrected once the server knows it. */
+  const beginStream = useCallback((base: string, r: StreamStart) => {
+    const begun = { base, offset: r.offset, seek: r.seek, cues: r.offset };
+    setStream(begun);
+    r.late
+      ?.then((real) => setStream((cur) => (cur === begun && Number.isFinite(real) ? { ...begun, offset: real } : cur)))
+      .catch(() => undefined);
+  }, []);
   // Files the browser cannot open as they are come in short pieces (HLS) where the browser plays
   // those: seeking, skipping and resuming load another piece, never a new stream. Otherwise the
   // live stream, restarted at the new position.
@@ -318,6 +350,9 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // Only use a stream that belongs to the current decision (avoids loading a stale URL after an audio switch).
   const current = stream && info && stream.base === streamBase ? stream : null;
   const offset = live && current ? current.offset : 0;
+  // What the subtitle files were shifted for, and what is still to be made up when showing them.
+  const cueOffset = live && current ? current.cues : 0;
+  const cueShift = cueOffset - offset;
   const subs = useMemo(() => info?.subtitles ?? [], [info]);
   const next = item.data?.next ?? null;
   // Where to start: ?t= when the viewer already chose (Resume / From start buttons), otherwise the
@@ -402,12 +437,12 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       return;
     }
     if (!live || target <= 0) {
-      setStream({ base, offset: 0, seek: 0 });
+      setStream({ base, offset: 0, seek: 0, cues: 0 });
       return;
     }
     let cancelled = false;
     setStream(null);
-    locateStart(info.file.id, target, info.decision.optimized?.id).then((r) => !cancelled && setStream({ base, ...r }));
+    locateStart(info.file.id, target, info.decision.optimized?.id).then((r) => !cancelled && beginStream(base, r));
     return () => {
       cancelled = true;
     };
@@ -431,7 +466,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         const cur = streamRef.current;
         // The same stream as now (a seek near where it started): the address does not change, so
         // nothing would load and the spinner would stay. Seek in what is there instead.
-        if (v && cur && cur.base === streamBase && cur.offset === r.offset && cur.seek === r.seek) {
+        if (v && cur && cur.base === streamBase && cur.seek === r.seek) {
           v.currentTime = Math.max(0, target - cur.offset);
           setBuffering(false);
           if (playAfterLoadRef.current && v.paused) void v.play().catch(() => setPlaying(false));
@@ -439,10 +474,10 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         }
         pendingSeekRef.current = target;
         freezeFrame();
-        setStream({ base: streamBase!, ...r });
+        beginStream(streamBase!, r);
       }, 250);
     },
-    [info, streamBase, freezeFrame],
+    [info, streamBase, freezeFrame, beginStream],
   );
   useEffect(() => () => clearTimeout(restartTimer.current), []);
 
@@ -1329,7 +1364,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
               data-subtitle-key={s.key}
               kind="subtitles"
               // A fetched subtitle comes as it is (`delay=0`): the overlay shifts it by the correction, which can change while watching.
-              src={((url) => (offset > 0 ? withParam(url, 'offset', offset.toFixed(3)) : url))(s.kind === 'online' ? withParam(s.url, 'delay', '0') : s.url)}
+              src={((url) => (cueOffset > 0 ? withParam(url, 'offset', cueOffset.toFixed(3)) : url))(s.kind === 'online' ? withParam(s.url, 'delay', '0') : s.url)}
               label={s.label}
               srcLang={s.language ?? undefined}
               onLoadCapture={(e) => {
@@ -1355,7 +1390,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       )}
 
       {/* The chosen subtitle stays selected while minimized; it is only not drawn on the small video. */}
-      {!mini && !postPlay && <SubtitleOverlay video={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.video : null} track={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.track : null} delay={subDelay} prefs={prefs} controlsVisible={showUi} />}
+      {!mini && !postPlay && <SubtitleOverlay video={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.video : null} track={activeTrack?.stream === streamSrc && activeTrack?.load === reloadKey ? activeTrack.track : null} delay={subDelay + cueShift} prefs={prefs} controlsVisible={showUi} />}
 
       {/* While casting, phone and computer get the same big remote. On a computer a dark layer used to lie over the
           normal controls, which then looked switched off although they still worked. */}

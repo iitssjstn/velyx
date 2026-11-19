@@ -12,14 +12,20 @@ describe('finding where a converted stream starts', () => {
     expect(await locateStart(7, 120)).toEqual({ offset: 118.4, seek: 118.4 });
   });
 
-  it('starts at the asked time itself when the server takes too long (so the spinner does not hang)', async () => {
+  it('starts at the asked time itself when the server takes too long, and still gives the real start once it comes', async () => {
     vi.useFakeTimers();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((_url: string, init: RequestInit) => new Promise((_resolve, reject) => init.signal!.addEventListener('abort', () => reject(init.signal!.reason)))),
-    );
+    let answer!: (r: Response) => void;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))));
     const found = locateStart(7, 120);
     await vi.advanceTimersByTimeAsync(LOCATE_TIMEOUT_MS + 10);
-    expect(await found).toEqual({ offset: 120, seek: 120 });
+    const r = await found;
+    expect({ offset: r.offset, seek: r.seek }).toEqual({ offset: 120, seek: 120 });
+    answer(Response.json({ start: 117.2, seek: 120 }));
+    expect(await r.late).toBe(117.2);
+  });
+
+  it('gives the asked time when the server cannot tell', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 500 })));
+    expect(await locateStart(7, 120)).toEqual({ offset: 120, seek: 120 });
   });
 });
