@@ -27,6 +27,8 @@ describe('buttons and tabs', () => {
     expect(tvButtons({ audioTracks: 2, hasNext: true })).toEqual(['back', 'play', 'forward', 'subtitles', 'audio', 'next']);
     expect(tvTabs()).toEqual(['subtitles', 'style']);
     expect(tvTabs({ audioTracks: 3 })).toEqual(['subtitles', 'style', 'audio']);
+    // Searching online sits right after the style, when the server can search.
+    expect(tvTabs({ audioTracks: 3, online: true })).toEqual(['subtitles', 'style', 'online', 'audio']);
   });
 });
 
@@ -175,5 +177,40 @@ describe('the Style tab', () => {
     // A subtitle chosen still closes the menu.
     const back = pressKey({ ...r.state, tab: 'subtitles', item: 0 }, 'ok', c);
     expect(back.state.open).toBe('none');
+  });
+});
+
+describe('searching online on the TV', () => {
+  const c = ctx({ tabs: tvTabs({ audioTracks: 2, online: true }), items: { subtitles: 3, online: 4, audio: 2 }, stays: (tab, index) => tab === 'online' && index === 0 });
+  it('keeps the menu open on the language line, and closes it when a subtitle is picked', () => {
+    const open: TvState = { ...initialTvState(), open: 'menu', tab: 'online', item: 0 };
+    const language = pressKey(open, 'ok', c);
+    expect(language.action).toEqual({ type: 'pick', tab: 'online', index: 0 });
+    expect(language.state.open).toBe('menu');
+    const pick = pressKey({ ...open, item: 2 }, 'ok', c);
+    expect(pick.action).toEqual({ type: 'pick', tab: 'online', index: 2 });
+    expect(pick.state.open).toBe('none');
+  });
+  it('reaches the tab from the style with →', () => {
+    const r = pressKey({ ...initialTvState(), open: 'menu', tab: 'style', item: 0 }, 'right', c);
+    expect(r.state.tab).toBe('online');
+  });
+});
+
+describe('the question at the start', () => {
+  const c = ctx({ resumeAsk: true });
+  it('resumes with OK, or starts over after →', () => {
+    expect(pressKey(initialTvState(), 'ok', c).action).toEqual({ type: 'resume', fromStart: false });
+    const r = pressKey(initialTvState(), 'right', c);
+    expect(r.state.resumeFocus).toBe(1);
+    expect(pressKey(r.state, 'ok', c).action).toEqual({ type: 'resume', fromStart: true });
+    expect(pressKey(r.state, 'left', c).state.resumeFocus).toBe(0);
+  });
+  it('leaves Back to the app (it closes the player), and play resumes', () => {
+    expect(pressKey(initialTvState(), 'back', c).handled).toBe(false);
+    expect(pressKey(initialTvState(), 'playpause', c).action).toEqual({ type: 'resume', fromStart: false });
+  });
+  it('does not open the bar while it is up', () => {
+    expect(pressKey(initialTvState(), 'down', c).state.open).toBe('none');
   });
 });

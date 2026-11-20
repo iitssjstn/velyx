@@ -13,15 +13,18 @@ import { FocusPressable, styles } from './ui';
  * "Search online" in the player's menu: subtitles at OpenSubtitles for this file in the chosen
  * language (through the server, which may search through vidalune.com), added with a tap.
  */
-export function OnlineSubtitles({ fileId, defaultLanguage, activeKey, onChosen }: { fileId: number; defaultLanguage: string; activeKey: string | null; onChosen: (option: SubtitleOption) => void }) {
-  const { api, t, serverUrl, language: appLanguage } = useSession();
-  const [language, setLanguage] = useState(defaultLanguage);
-  const [picking, setPicking] = useState(false);
+/**
+ * Searching OpenSubtitles for a file in one language, and fetching a result (it is then among the
+ * file's subtitles). Shared by the phone's menu and the TV's "Online" tab.
+ */
+export function useOnlineSubtitles(fileId: number, language: string, enabled: boolean, onChosen: (option: SubtitleOption) => void) {
+  const { api, serverUrl } = useSession();
   const q = useQuery({
     queryKey: [serverUrl, 'online-subtitles', fileId, language],
     queryFn: () => api.get<{ language: string; results: OnlineSubtitleResult[] }>(`/api/media/${fileId}/subtitles/online?language=${encodeURIComponent(language)}`),
     staleTime: 10 * 60_000,
     retry: false,
+    enabled,
   });
   const fetch = useMutation({
     mutationFn: (r: OnlineSubtitleResult) => api.post<SubtitleOption>(`/api/media/${fileId}/subtitles/online`, { fileId: r.fileId }),
@@ -30,6 +33,16 @@ export function OnlineSubtitles({ fileId, defaultLanguage, activeKey, onChosen }
       void q.refetch();
     },
   });
+  /** A result fetched before is chosen at once; another one is fetched first. */
+  const choose = (r: OnlineSubtitleResult) => (r.fetched ? onChosen(r.fetched) : fetch.mutate(r));
+  return { q, fetch, choose };
+}
+
+export function OnlineSubtitles({ fileId, defaultLanguage, activeKey, onChosen }: { fileId: number; defaultLanguage: string; activeKey: string | null; onChosen: (option: SubtitleOption) => void }) {
+  const { t, language: appLanguage } = useSession();
+  const [language, setLanguage] = useState(defaultLanguage);
+  const [picking, setPicking] = useState(false);
+  const { q, fetch, choose } = useOnlineSubtitles(fileId, language, true, onChosen);
   const names = ONLINE_SUBTITLE_LANGUAGES.map((code) => ({ code, name: languageName(code, appLanguage) })).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
@@ -82,7 +95,7 @@ export function OnlineSubtitles({ fileId, defaultLanguage, activeKey, onChosen }
             accessibilityRole="radio"
             accessibilityState={{ selected: active, busy }}
             disabled={fetch.isPending}
-            onPress={() => (r.fetched ? onChosen(r.fetched) : fetch.mutate(r))}
+            onPress={() => choose(r)}
             style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, paddingHorizontal: 8, borderRadius: radius.sm, backgroundColor: active ? colors.raised : 'transparent' }}
           >
             {busy ? <ActivityIndicator color={colors.accent} size="small" /> : <Feather name={r.fetched ? 'check' : 'download'} size={16} color={active ? colors.accent : colors.muted} />}

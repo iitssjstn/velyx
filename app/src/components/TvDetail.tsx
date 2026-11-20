@@ -9,6 +9,7 @@ import { useSession } from '../lib/session';
 import { progressFraction } from '../lib/format';
 import { colors, radius } from '../lib/theme';
 import type { EpisodeSummary, Person } from '../lib/types';
+import { resumeHref } from '../lib/resume';
 
 const STILL = 300;
 const TEXT_SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 };
@@ -92,7 +93,7 @@ export function TvEpisodeRow({ episodes, upNextId, label }: { episodes: EpisodeS
             accessibilityRole="button"
             accessibilityLabel={label(e)}
             // A watched episode starts over; one in progress resumes.
-            onPress={() => router.push(`/play/episode/${e.id}${e.progress?.completed ? '?t=0' : ''}`)}
+            onPress={() => router.push(e.progress?.completed ? `/play/episode/${e.id}?t=0` : resumeHref('episode', e.id))}
             onFocus={() => setChosen(e)}
             style={{ width: STILL }}
           >

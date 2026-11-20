@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApi } from './api';
-import { NO_RETRIES, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleRequest, subtitleUrl, withHls, withoutHls, type PlaybackAnswer, type SubtitleOption, preferredAudio } from './playback';
+import { NO_RETRIES, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleRequest, subtitleUrl, savedDelay, delayPath, withHls, withoutHls, type PlaybackAnswer, type SubtitleOption, preferredAudio } from './playback';
 import { cueTextAt, parseVtt } from './vtt';
 
 const api = (respond: (url: string) => unknown = () => ({})) =>
@@ -269,5 +269,18 @@ describe('pieces (HLS) instead of a stream that restarts on every seek', () => {
     expect(withHls(back)).toBe(back);
     const direct = answer('range', '/api/media/7/stream');
     expect(withoutHls(direct)).toBe(direct);
+  });
+
+  it('gets a fetched subtitle as it is and starts it at its saved correction', () => {
+    const online = { kind: 'online', url: '/api/online-subtitles/12.vtt', delay: -1.5 } as SubtitleOption;
+    expect(subtitleUrl(api(), online, 0)).toBe('http://vidalune.local/api/online-subtitles/12.vtt?delay=0');
+    expect(subtitleUrl(api(), online, 0, { baseUrl: 'https://server.media.vidalune.com', token: 'tok' })).toBe('https://server.media.vidalune.com/api/online-subtitles/12.vtt?delay=0&cast=tok');
+    expect(savedDelay(online)).toBe(-1.5);
+    expect(delayPath(online)).toBe('/api/online-subtitles/12/delay');
+    // Another subtitle has no saved correction and nowhere to save one.
+    const own = { kind: 'external', url: '/api/subtitles/3.vtt', delay: 2 } as SubtitleOption;
+    expect(savedDelay(own)).toBe(0);
+    expect(delayPath(own)).toBeNull();
+    expect(savedDelay(null)).toBe(0);
   });
 });

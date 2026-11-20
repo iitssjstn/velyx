@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, accountStyleField, nextStyleValue, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, readSubtitleStyle, stepDelay, subtitleBottom, subtitleFontSize, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT } from './subtitleStyle';
+import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, accountStyleField, nextStyleValue, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, readSubtitleStyle, stepDelay, SYNC_LINES, syncPick, subtitleBottom, subtitleFontSize, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT } from './subtitleStyle';
 
 describe('where the account keeps the style', () => {
   it('keeps the TV app apart from the phone and the website', () => {
@@ -101,5 +101,15 @@ describe('the Style tab on the TV', () => {
     expect(nextStyleValue(s, 'position')).toEqual({ position: 5 });
     expect(nextStyleValue({ ...s, position: 20 }, 'position')).toEqual({ position: 0 });
     expect(STYLE_LINES).toHaveLength(5);
+  });
+});
+
+describe('the subtitle timing on the TV', () => {
+  it('has earlier, later and back to none after the style lines', () => {
+    expect(SYNC_LINES).toEqual(['earlier', 'later', 'reset']);
+    expect(syncPick(0, 'earlier')).toBe(-0.5);
+    expect(syncPick(-0.5, 'later')).toBe(0);
+    expect(syncPick(1.5, 'later')).toBe(2);
+    expect(syncPick(2.5, 'reset')).toBe(0);
   });
 });

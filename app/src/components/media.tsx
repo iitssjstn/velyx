@@ -10,6 +10,7 @@ import { colors, radius } from '../lib/theme';
 import type { Card, ContinueItem } from '../lib/types';
 import { continueLine } from '../lib/continue';
 import { FocusPressable, FocusRing, Lift, shelfPadding, Heading, ProgressLine, styles } from './ui';
+import { resumeHref } from '../lib/resume';
 
 /** Artwork from the server's image cache (the request carries the app's token). */
 export function Artwork({ path, size, style, label }: { path: string | null | undefined; size: ImageSize; style: object; label?: string }) {
@@ -95,7 +96,7 @@ export function Shelf({ title, cards, more }: { title: string; cards: Card[]; mo
 
 /** Continue Watching plays straight away, from where the viewer stopped. */
 function openContinue(item: ContinueItem) {
-  router.push(`/play/${item.type}/${item.id}`);
+  router.push(resumeHref(item.type, item.id));
 }
 
 export function ContinueShelf({ title, items }: { title: string; items: ContinueItem[] }) {

@@ -12,7 +12,7 @@ import { deviceDecoders } from '../../../../modules/vidalune-codecs';
 import { Artwork } from '../../../components/media';
 import { CastIcon } from '../../../components/CastIcon';
 import { useCastStatus } from '../../../components/CastStatus';
-import { OnlineSubtitles } from '../../../components/OnlineSubtitles';
+import { OnlineSubtitles, useOnlineSubtitles } from '../../../components/OnlineSubtitles';
 import { SeekBar } from '../../../components/SeekBar';
 import { TV_MENU_WIDTH, TvPlayer } from '../../../components/TvPlayer';
 import { CastReceiver, RemoteKeys, type CastCommand } from '../../../../modules/vidalune-tv';
@@ -21,10 +21,12 @@ import { Button, styles } from '../../../components/ui';
 import { castSettled, castStartAt, castStatus } from '../../../lib/castStatus';
 import { applyCastTextTrackStyle, castLoadFailed, castLoadRequest, castTrackIds, followTv, loadCastWithCurrentSubtitle, sessionUsable, tvChanged, tvFilePosition, tvMedia, tvSubtitleKey, waitForCastReady, type CastSession, type TvSeen } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
-import { NO_RETRIES, endOfStream, fallbackCaps, withHls, withoutHls, retryAt, playbackCaps, playerAudioPosition, preferredAudio, resumePoint, stillLoading, streamFrom, subtitleRequest, type MediaEndpoint, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
-import { defaultOnlineLanguage } from '../../../lib/onlineSubtitles';
+import { NO_RETRIES, endOfStream, fallbackCaps, withHls, withoutHls, retryAt, playbackCaps, playerAudioPosition, preferredAudio, stillLoading, streamFrom, subtitleRequest, delayPath, savedDelay, type MediaEndpoint, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { defaultOnlineLanguage, languageCycle, languageName, nextLanguage, onlineLines } from '../../../lib/onlineSubtitles';
+import { startChoice } from '../../../lib/resume';
+import { SPEEDS, nextSpeed, speedLabel } from '../../../lib/speed';
 import { rememberAudio, rememberSubtitle, rememberedAudio, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
-import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, accountStyleField, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, nextStyleValue, stepDelay, subtitleBottom, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT, type SubtitleStyle } from '../../../lib/subtitleStyle';
+import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, syncPick, accountStyleField, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, nextStyleValue, stepDelay, SYNC_LINES, subtitleBottom, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { createSubtitleStyleSync, subtitlePreferencesReady, subtitleStyleAccountScope } from '../../../lib/subtitleStyleSync';
 import { castConnectData, castGiven, castPlayerState, castSubtitleFor, castSubtitleKeys, castTrackIdsFor } from '../../../lib/castConnect';
 import { choiceFor, initialSubtitle, type SubtitlePrefs } from '../../../lib/subtitles';
@@ -37,7 +39,7 @@ import { AUDIO_MODES, audioMenuPick, isAudioMode, type AudioMode } from '../../.
 import { TV_CONTROLS_MS, initialTvState, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, type RemoteKey, type TvContext } from '../../../lib/tvRemote';
 import { SUBTITLE_ERROR_FOR_MS, SUBTITLE_LOADING_AFTER_MS, cueTextAt, cuesFrom, type Cue } from '../../../lib/vtt';
 import { dialog } from '../../../lib/dialog';
-import { problemsFor, REPORT_KINDS, reportBody, reportLine, reportOutcome, reportPath, type ReportKind, type ReportProblem } from '../../../lib/segmentReport';
+import { problemsFor, REPORT_KINDS, reportBody, reportLine, reportOutcome, reportPath, speedLine, type ReportKind, type ReportProblem } from '../../../lib/segmentReport';
 
 interface NextEpisode {
   id: number;
@@ -76,7 +78,7 @@ const NEXT_COUNTDOWN = 10;
 const DOUBLE_TAP_MS = 300;
 
 export default function Player() {
-  const { kind, id, t: startParam, tv: tvParam, bar, sub, audio, o, n } = useLocalSearchParams<{ kind: string; id: string; t?: string; tv?: string; bar?: string; sub?: string; audio?: string; o?: string; n?: string }>();
+  const { kind, id, t: startParam, tv: tvParam, bar, sub, audio, o, n, resume: resumeParam } = useLocalSearchParams<{ kind: string; id: string; t?: string; tv?: string; bar?: string; sub?: string; audio?: string; o?: string; n?: string; resume?: string }>();
   // Cast to this TV from a phone or browser (Cast Connect): their subtitle and audio track. Each cast
   // (n) starts the player again, also for the title that plays (the sender jumped or chose other audio).
   const given = castGiven({ sub, audio, o });
@@ -119,7 +121,7 @@ export default function Player() {
       {item.error ? (
         <Problem message={errorMessage(item.error, t)} />
       ) : item.data && subtitlePreferencesReady(prefs) ? (
-        <Playback key={`${item.data.kind}-${item.data.id}-${n ?? ''}`} item={item.data} prefs={prefs.data ?? null} startAt={startParam !== undefined ? Number(startParam) : null} onTv={tvParam === '1'} fromBar={bar === '1'} given={given} onCastingChange={setCastActive} />
+        <Playback key={`${item.data.kind}-${item.data.id}-${n ?? ''}`} item={item.data} prefs={prefs.data ?? null} startAt={startParam !== undefined ? Number(startParam) : null} resume={resumeParam === '1'} onTv={tvParam === '1'} fromBar={bar === '1'} given={given} onCastingChange={setCastActive} />
       ) : (
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} size="large" />
@@ -139,7 +141,7 @@ function Problem({ message }: { message: string }) {
   );
 }
 
-function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange }: { item: Item; prefs: Prefs | null; startAt: number | null; /** Opened because the TV started this title itself: it plays there already. */ onTv: boolean; /** Opened from the cast bar: the screen slides up from it (and down when closed). */ fromBar: boolean; /** The subtitle and audio a cast to this TV came with. */ given: ReturnType<typeof castGiven>; onCastingChange: (active: boolean) => void }) {
+function Playback({ item, prefs, startAt, resume, onTv, fromBar, given, onCastingChange }: { item: Item; prefs: Prefs | null; startAt: number | null; /** Opened to resume (Continue watching, a Resume button): no question first. */ resume: boolean; /** Opened because the TV started this title itself: it plays there already. */ onTv: boolean; /** Opened from the cast bar: the screen slides up from it (and down when closed). */ fromBar: boolean; /** The subtitle and audio a cast to this TV came with. */ given: ReturnType<typeof castGiven>; onCastingChange: (active: boolean) => void }) {
   const { api, t, serverUrl, language, cloudServerId, user } = useSession();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
@@ -173,6 +175,10 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   styleRef.current = subStyle;
   const [castStyleFallback, setCastStyleFallback] = useState(false);
   const [subDelay, setSubDelay] = useState(0);
+  /** Playback speed (as on the website); for this playback only. */
+  const [speed, setSpeed] = useState(1);
+  /** Opened without saying where to start, with a point to resume from: resume or start over (null: not asked). */
+  const [resumeAsk, setResumeAsk] = useState<number | null>(null);
   const [screenHeight, setScreenHeight] = useState(360);
   const [styleSaveFailed, setStyleSaveFailed] = useState(false);
   const styleAlive = useRef(true);
@@ -516,10 +522,56 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
 
   // Start: resume where the viewer stopped (unless asked to start elsewhere).
   useEffect(() => {
-    void decide(startAt ?? resumePoint(item.progress) ?? 0, given.audioIndex);
+    const choice = startChoice({ startAt, resume, following: onTv, progress: item.progress });
+    if (choice.ask) {
+      setResumeAsk(choice.at);
+      setLoading(false);
+      return;
+    }
+    void decide(choice.at, given.audioIndex);
     // Once per item.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  /** The answer to the question at the start: from where the viewer stopped, or from the beginning. */
+  const answerResume = (fromStart: boolean) => {
+    if (resumeAsk === null) return;
+    const at = fromStart ? 0 : resumeAsk;
+    setResumeAsk(null);
+    setLoading(true);
+    void decide(at, given.audioIndex);
+  };
+
+  // Playback speed: set again on every new stream (a seek or another audio track loads one).
+  useEffect(() => {
+    if (!casting) player.playbackRate = speed;
+  }, [player, speed, answer, offset, casting]);
+
+  // The sync correction: a fetched subtitle starts at the one saved for it (for everyone who watches the
+  // file with it), as on the website; another subtitle at none. A change to a fetched one is saved
+  // 0.8 s after the last step, and when the player closes.
+  const delays = useRef(new Map<string, number>());
+  const delaySave = useRef<{ path: string; delay: number; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const flushDelay = useCallback(() => {
+    const pending = delaySave.current;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    delaySave.current = null;
+    void api.put(pending.path, { delay: pending.delay }).catch(() => undefined);
+  }, [api]);
+  useEffect(() => {
+    setSubDelay(subtitle ? (delays.current.get(subtitle.key) ?? savedDelay(subtitle)) : 0);
+  }, [subtitle]);
+  useEffect(() => flushDelay, [flushDelay]);
+  const changeDelay = (next: number) => {
+    setSubDelay(next);
+    if (!subtitle) return;
+    delays.current.set(subtitle.key, next);
+    const path = delayPath(subtitle);
+    if (!path) return;
+    if (delaySave.current && delaySave.current.path !== path) flushDelay();
+    if (delaySave.current) clearTimeout(delaySave.current.timer);
+    delaySave.current = { path, delay: next, timer: setTimeout(flushDelay, 800) };
+  };
 
   // The subtitle the account asks for (or the last choice on this device), once the list is known.
   const subtitlePicked = useRef(false);
@@ -1053,15 +1105,33 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
   // ---------------------------------------------------------------- TV remote
   // On Android TV / Google TV the remote drives the player (lib/tvRemote.ts): RemoteKeys passes the
   // arrows, OK and media keys, Back comes through BackHandler.
+  // Searching OpenSubtitles on the TV (the "Online" tab): only once the tab is visited, in the viewer's language first.
+  const onlineCycle = languageCycle([prefs?.subtitleLanguage ?? '', prefs?.subtitleFallback ?? '', language], language);
+  const [onlineLanguage, setOnlineLanguage] = useState(() => defaultOnlineLanguage(prefs?.subtitleLanguage, prefs?.subtitleFallback, language));
+  const [onlineVisited, setOnlineVisited] = useState(false);
+  const pickFetched = (option: SubtitleOption) => {
+    setFetchedSubs((list) => (list.some((x) => x.key === option.key) ? list : [...list, option]));
+    chooseSubtitle(option);
+  };
+  const online = useOnlineSubtitles(answer?.file.id ?? 0, onlineLanguage, TV && onlineVisited && Boolean(answer?.onlineSubtitles), pickFetched);
+  const onlineList = onlineLines(online.q.data?.results, online.q.isError || online.fetch.isError ? 'error' : online.q.data ? 'ready' : 'loading');
+  useEffect(() => {
+    if (tv.open === 'menu' && tv.tab === 'online') setOnlineVisited(true);
+  }, [tv.open, tv.tab]);
+
   const tvContext: TvContext = {
     // The audio menu always has a choice: the file's tracks, then the audio modes.
     buttons: tvButtons({ audioTracks: audioTracks.length + AUDIO_MODES.length, hasNext: Boolean(item.next) }),
-    tabs: tvTabs({ audioTracks: audioTracks.length + AUDIO_MODES.length }),
-    // After the tracks and audio modes, an episode has one more line: reporting an intro or credits that is not right.
-    items: { subtitles: subtitleOptions.length + 1, style: STYLE_LINES.length, audio: audioTracks.length + AUDIO_MODES.length + (episode ? 1 : 0) },
+    tabs: tvTabs({ audioTracks: audioTracks.length + AUDIO_MODES.length, online: Boolean(answer?.onlineSubtitles) && !casting }),
+    // Style: the look, then the timing (earlier, later, none). Audio: tracks, audio modes, the speed,
+    // and for an episode last a line to report an intro or credits that is not right.
+    items: { subtitles: subtitleOptions.length + 1, style: STYLE_LINES.length + SYNC_LINES.length, online: onlineList.length, audio: speedLine(audioTracks.length) + 1 + (episode ? 1 : 0) },
     selected: { subtitles: subtitle ? subtitleOptions.findIndex((o) => o.key === subtitle.key) + 1 : 0, audio: Math.max(0, audioTracks.findIndex((a) => a.index === audioIndex)) },
     skip: Boolean(askSkip && !showNext),
     upNext: showNext,
+    resumeAsk: resumeAsk !== null,
+    // The language line (OK: the next language) and the speed keep the menu open.
+    stays: (tab, index) => (tab === 'online' && onlineList[index]?.kind !== 'result') || (tab === 'audio' && index === speedLine(audioTracks.length)),
   };
   const onRemote = useRef<(key: RemoteKey) => boolean>(() => false);
   onRemote.current = (key) => {
@@ -1077,13 +1147,22 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
     else if (a?.type === 'skip') skipNow();
     else if (a?.type === 'next') goNext();
     else if (a?.type === 'exit') router.back();
+    else if (a?.type === 'resume') answerResume(a.fromStart);
     else if (a?.type === 'dismissNext') {
       setNextDismissed(true);
       setCountdown(null);
     } else if (a?.type === 'pick' && a.tab === 'subtitles') chooseSubtitle(a.index === 0 ? null : subtitleOptions[a.index - 1] ?? null);
     else if (a?.type === 'pick' && a.tab === 'style') {
       const line = STYLE_LINES[a.index];
+      const sync = SYNC_LINES[a.index - STYLE_LINES.length];
       if (line) changeStyle(nextStyleValue(styleRef.current, line));
+      else if (sync) changeDelay(syncPick(subDelay, sync));
+    } else if (a?.type === 'pick' && a.tab === 'online') {
+      const line = onlineList[a.index];
+      if (line?.kind === 'language') setOnlineLanguage(nextLanguage(onlineCycle, onlineLanguage));
+      else if (line?.kind === 'result') online.choose(line.result);
+    } else if (a?.type === 'pick' && a.tab === 'audio' && a.index === speedLine(audioTracks.length)) {
+      setSpeed((v) => nextSpeed(v));
     } else if (a?.type === 'pick' && a.tab === 'audio' && a.index === reportLine(audioTracks.length, episode)) {
       reportProblem();
     } else if (a?.type === 'pick' && a.tab === 'audio') {
@@ -1164,21 +1243,34 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
             playing={playing}
             loading={loading}
             ended={ended}
-            visible={tvBarShown}
+            visible={tvBarShown && resumeAsk === null}
             overlayBottom={tvBarShown ? TV_BAR_HEIGHT + 16 : 48}
             state={tv}
             buttons={tvContext.buttons}
             tabs={tvContext.tabs}
             lines={{
               subtitles: [t('player.off'), ...subtitleOptions.map(subtitleLabel)],
-              style: STYLE_LINES.map((line) => `${t(`subtitleStyle.${line}`)}: ${styleValueLabel(subStyle, line, t)}`),
-              audio: [...audioTracks.map((a) => audioLabel(a, t)), ...AUDIO_MODES.map((m) => `${m === audioMode ? '✓ ' : ''}${t('player.voices')} · ${t(`player.voiceMode.${m}`)}`), ...(episode ? [t('report.title')] : [])],
+              style: [
+                ...STYLE_LINES.map((line) => `${t(`subtitleStyle.${line}`)}: ${styleValueLabel(subStyle, line, t)}`),
+                `${t('subtitleStyle.syncEarlier')} · ${delayText(subDelay, t)}`,
+                t('subtitleStyle.syncLater'),
+                t('subtitleStyle.syncReset'),
+              ],
+              online: onlineList.map((line) =>
+                line.kind === 'language'
+                  ? `${t('onlineSubs.language')}: ${languageName(onlineLanguage, language)}`
+                  : line.kind === 'status'
+                    ? online.q.isError ? errorMessage(online.q.error, t) : online.fetch.isError ? errorMessage(online.fetch.error, t) : online.q.data ? t('onlineSubs.none') : t('onlineSubs.searching')
+                    : `${online.fetch.isPending && online.fetch.variables?.fileId === line.result.fileId ? '… ' : ''}${line.result.release || languageName(line.result.language, language)}${line.result.hashMatch ? ` · ${t('onlineSubs.matches')}` : ''}`,
+              ),
+              audio: [...audioTracks.map((a) => audioLabel(a, t)), ...AUDIO_MODES.map((m) => `${m === audioMode ? '✓ ' : ''}${t('player.voices')} · ${t(`player.voiceMode.${m}`)}`), `${t('player.speed')}: ${speedLabel(speed, language)}`, ...(episode ? [t('report.title')] : [])],
             }}
             selected={tvContext.selected}
             marks={segmentMarks(item.segments, item.fileId, duration)}
             seekStep={seekStep}
             skipLabel={askSkip ? skipLabel(askSkip.kind, t) : null}
             captions={subtitle ? subtitleLabel(subtitle) : null}
+            resume={resumeAsk !== null ? { at: resumeAsk } : null}
             upNext={showNext && item.next ? { label: `${episodeCode(item.next.seasonNumber, item.next.episodeNumber)}${item.next.title ? ` · ${item.next.title}` : ''}`, countdown: countdown ?? 0, ended } : null}
           />
           {/* Over the bar's shading, so they stay readable. */}
@@ -1212,6 +1304,20 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
           </View>
         )}
       </Pressable>
+      )}
+      {/* Opened without saying where to start, with a point to resume from: as on the website, ask first. */}
+      {!TV && resumeAsk !== null && (
+        <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24 }}>
+          <View style={{ position: 'absolute', top: 16 + insets.top, left: 16 + insets.left }}>
+            <IconButton name="arrow-left" label={t('player.back')} onPress={() => router.back()} />
+          </View>
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' }} numberOfLines={2}>{item.title}</Text>
+          <Text style={{ color: colors.muted, textAlign: 'center' }}>{t('player.resumeAsk')}</Text>
+          <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <Button label={t('player.resume', { time: formatClock(resumeAsk) })} onPress={() => answerResume(false)} />
+            <Button label={t('player.fromStart')} variant="ghost" onPress={() => answerResume(true)} />
+          </View>
+        </View>
       )}
       {remote && (
         <CastRemotePanel
@@ -1323,6 +1429,8 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
                 }}
                 options={SEEK_STEPS.map((s) => [String(s), `${s} s`] as [string, string])}
               />
+              <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('player.speed')}</Text>
+              <Segmented label={t('player.speed')} value={String(speed)} onChange={(v) => setSpeed(Number(v))} options={SPEEDS.map((n) => [String(n), speedLabel(n, language)] as [string, string])} />
               </>}
               <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>{t('subtitleStyle.title')}</Text>
               {styleSaveFailed && <Text style={styles.muted}>{t('subtitleStyle.accountSaveFailed')}</Text>}
@@ -1347,10 +1455,10 @@ function Playback({ item, prefs, startAt, onTv, fromBar, given, onCastingChange 
               {!casting && <Stepper
                 label={t('subtitleStyle.sync')}
                 hint={t('subtitleStyle.syncHint')}
-                value={subDelay === 0 ? t('subtitleStyle.inSync') : `${subDelay > 0 ? '+' : ''}${subDelay.toFixed(1)} s`}
-                onMinus={() => setSubDelay((d) => stepDelay(d, -1))}
-                onPlus={() => setSubDelay((d) => stepDelay(d, 1))}
-                onReset={subDelay !== 0 ? () => setSubDelay(0) : undefined}
+                value={delayText(subDelay, t)}
+                onMinus={() => changeDelay(stepDelay(subDelay, -1))}
+                onPlus={() => changeDelay(stepDelay(subDelay, 1))}
+                onReset={subDelay !== 0 ? () => changeDelay(0) : undefined}
               />}
               {episode && (
                 <>
@@ -1566,4 +1674,9 @@ function styleValueLabel(style: SubtitleStyle, line: (typeof STYLE_LINES)[number
   if (line === 'background') return t(`subtitleStyle.${{ none: 'none', translucent: 'dimmed', solid: 'solid' }[style.background] as 'none' | 'dimmed' | 'solid'}`);
   if (line === 'edge') return t(`subtitleStyle.${style.edge}`);
   return style.position === 0 ? '0' : `+${style.position} %`;
+}
+
+/** "In sync", or the correction ("+1.5 s"). */
+function delayText(delay: number, t: Translate): string {
+  return delay === 0 ? t('subtitleStyle.inSync') : `${delay > 0 ? '+' : ''}${delay.toFixed(1)} s`;
 }

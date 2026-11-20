@@ -171,6 +171,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - README beschrijft alleen wat bestaat. Geen andere mediaservers of streamingdiensten noemen in
   projectteksten (Seerr mag). Geen AI-functies. Externe diensten zijn opt-in (uitzondering, besluit eigenaar 30 okt:
   gekoppelde servers delen intro- en aftitelingtijden standaard met vidalune.com; de beheerder kan het uitzetten).
+- **Alles gelijk op website, tv en app** (eigenaar 20 nov: "ik wil dat alle functies die op de website beschikbaar zijn
+  ook volledig beschikbaar zijn op de tv en in de app, zo hou je alles gelijk"; "ik wil vidalune scherp en netjes
+  houden"). Bij elke nieuwe functie op de website ook de telefoon en de tv; verbeterpunten die ik tegenkom melden.
 - OpenSubtitles-gegevens alleen via het Control Center, nooit in compose. De apt-ondertekeningssleutel
   nooit in de chat.
 
@@ -1024,6 +1027,46 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Versie 0.20.9 in alle `package.json`'s, `app/app.json` (versionCode 20009) en beide lockfiles. De app verandert niet.
   Na de release: server en accountservice bijwerken (app.vidalune.com levert de website mee).
 - PR #199 aangemaakt en gemerged 19 nov op verzoek van de eigenaar ("merge het"; alle checks groen). Release niet gevolgd.
+
+## Versie 0.20.10 (speler gelijk aan de website op telefoon en tv)
+
+- Eigenaar (20 nov): online ondertitels zoeken leek te ontbreken (op de telefoon over het hoofd gezien, op de tv echt
+  niet), daarna de wens hierboven ("alles gelijk"). Vergelijking website ↔ app/tv gemaakt en in drie versies
+  verdeeld (eigenaar: "Ja begin in deze volgorde"):
+  - **0.20.10 speler** (deze versie);
+  - **0.20.11 Account en pagina's** op telefoon en tv: talen voor audio en ondertitels, automatisch overslaan,
+    volgende aflevering vanzelf en aftellen, spoelstap, surround, kijkgeschiedenis (de app gebruikt die
+    instellingen al, maar kan ze niet wijzigen); Collecties; "Mijn aanvragen" voor gewone kijkers; "Alles bekijken"
+    bij Trending en Binnenkort;
+  - **0.20.12 Beheer op de telefoon**: wat nu alleen op de website staat (bibliotheken toevoegen/wijzigen, Metadata,
+    Bibliotheekgezondheid, Intro's en aftiteling, Opschonen, Back-up, Logboek, Auditlogboek, instellingen voor
+    afspelen, koppelingen, onderhoud en server). Advies (gemeld): op de tv geen Beheer (formulieren en mappen kiezen
+    met een afstandsbediening werken slecht).
+- Gebouwd (alleen de app):
+  - **Online ondertitels op de tv**: tab "Online" direct na Stijl (alleen als de server gekoppeld is, niet tijdens
+    casten). Eerste regel de taal (OK: volgende taal; eerst de eigen talen, dan Engels, dan de rest:
+    `languageCycle`), daaronder de resultaten (hooguit 12, "Gemaakt voor dit bestand" erbij) of hoe het zoeken gaat;
+    OK haalt de ondertitel op en zet hem aan. Zoekt pas als de tab geopend is. Zelfde zoekfunctie als de telefoon
+    (`useOnlineSubtitles` in `OnlineSubtitles.tsx`; `onlineLines` in `lib/onlineSubtitles.ts`).
+  - **Ondertitel eerder/later op de tv**: onder in Stijl "Ondertitel eerder (−0,5 s) · nu …", "later" en "terug naar
+    gelijk" (`SYNC_LINES`, `syncPick`); het menu blijft open.
+  - **Correctie van een opgehaalde ondertitel bewaard** (telefoon en tv, zoals de website sinds 0.20.8): de app haalt
+    het bestand met `delay=0` op, begint op de bewaarde correctie (`savedDelay`) en slaat een stap 0,8 s na de
+    laatste op (`delayPath`, `PUT /api/online-subtitles/:id/delay`; ook bij sluiten).
+  - **Afspeelsnelheid** 0,5× tot 2× (zoals de website): telefoon in het menu, tv als regel in Audio (OK: volgende
+    snelheid; `lib/speed.ts`); de meldingsregel staat nu ná de snelheid (`speedLine`, `reportLine`). Niet tijdens
+    casten.
+  - **Verder kijken of opnieuw beginnen** (zoals de website): opent een titel zonder te zeggen waar, en is er een
+    hervatpunt, dan eerst die vraag (`startChoice` in `lib/resume.ts`; tv: ←/→ en OK, Terug sluit). Verder kijken
+    (rij en kaart), de knop "Verder vanaf…" op de filmpagina, "Doorgaan met" en een begonnen aflevering in de lijst
+    hervatten zonder vraag (`resumeHref`, `?resume=1`); casten naar de tv (Cast Connect) en wat de tv zelf start ook.
+- Tests: `speed.test.ts`, `resume.test.ts`, `tvRemote.test.ts` (tab Online, menu blijft open op de taalregel,
+  vraag bij het starten), `onlineSubtitles.test.ts`, `subtitleStyle.test.ts`, `segmentReport.test.ts`,
+  `playback.test.ts`. App 297, backend 664, frontend 400, cloud 230 tests; typechecks, lint (0 fouten, 4 bekende
+  waarschuwingen) en de Android-bundel (Hermes-export) slagen. De schermen zelf hebben geen testomgeving: op telefoon
+  en tv te bekijken.
+- Versie 0.20.10 in alle `package.json`'s, `app/app.json` (versionCode 20010) en beide lockfiles. De app verandert,
+  dus de release bouwt de APK en het `.aab`.
 
 ## Versie 0.19.11
 

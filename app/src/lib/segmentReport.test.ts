@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from './api';
 import { AUDIO_MODES, audioMenuPick } from './audioMode';
-import { problemsFor, REPORT_KINDS, reportBody, reportLine, reportOutcome, reportPath } from './segmentReport';
+import { problemsFor, REPORT_KINDS, reportBody, reportLine, reportOutcome, reportPath, speedLine } from './segmentReport';
 
 describe('reporting a recap, intro or credits that is not right', () => {
   it('offers the problems that fit a part that was found, and "missing" for one that was not', () => {
@@ -25,11 +25,13 @@ describe('reporting a recap, intro or credits that is not right', () => {
     expect(reportOutcome(new Error('offline'))).toBe('failed');
   });
 
-  it('puts the report on the TV as the last line of the Audio tab, after tracks and audio modes, for an episode only', () => {
+  it('puts the report on the TV as the last line of the Audio tab, after tracks, audio modes and the speed, for an episode only', () => {
     const line = reportLine(2, true);
-    expect(line).toBe(2 + AUDIO_MODES.length);
-    // The audio choices before it still pick what they did.
-    expect(audioMenuPick(line - 1, 2)).toEqual({ kind: 'mode', mode: AUDIO_MODES[AUDIO_MODES.length - 1] });
+    expect(speedLine(2)).toBe(2 + AUDIO_MODES.length);
+    expect(line).toBe(speedLine(2) + 1);
+    // The audio choices before them still pick what they did.
+    expect(audioMenuPick(speedLine(2) - 1, 2)).toEqual({ kind: 'mode', mode: AUDIO_MODES[AUDIO_MODES.length - 1] });
+    expect(audioMenuPick(speedLine(2), 2)).toBeNull();
     expect(audioMenuPick(line, 2)).toBeNull();
     expect(reportLine(2, false)).toBe(-1);
   });

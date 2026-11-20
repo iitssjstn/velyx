@@ -45,16 +45,19 @@ export const FAST_STEP = 30;
 export const TV_CONTROLS_MS = 6000;
 
 export type TvButton = 'back' | 'play' | 'forward' | 'subtitles' | 'audio' | 'next';
-export type TvTab = 'subtitles' | 'style' | 'audio';
+export type TvTab = 'subtitles' | 'style' | 'online' | 'audio';
 
 /** The buttons in the row, in order: only those that do something for this title. */
 export function tvButtons({ audioTracks = 0, hasNext = false }: { audioTracks?: number; hasNext?: boolean } = {}): TvButton[] {
   return ['back', 'play', 'forward', 'subtitles', ...(audioTracks > 1 ? (['audio'] as const) : []), ...(hasNext ? (['next'] as const) : [])];
 }
 
-/** The menu's tabs: the subtitles and right next to them how they look; audio only when there is a choice. */
-export function tvTabs({ audioTracks = 0 }: { audioTracks?: number } = {}): TvTab[] {
-  return ['subtitles', 'style', ...(audioTracks > 1 ? (['audio'] as const) : [])];
+/**
+ * The menu's tabs: the subtitles and right next to them how they look, then searching online (when the
+ * server can), and audio only when there is a choice.
+ */
+export function tvTabs({ audioTracks = 0, online = false }: { audioTracks?: number; online?: boolean } = {}): TvTab[] {
+  return ['subtitles', 'style', ...(online ? (['online'] as const) : []), ...(audioTracks > 1 ? (['audio'] as const) : [])];
 }
 
 export interface TvState {
@@ -69,9 +72,11 @@ export interface TvState {
   item: number;
   /** On the "Next episode" card: 0 = play now, 1 = watch the credits. */
   nextFocus: 0 | 1;
+  /** On the question at the start: 0 = resume, 1 = start over. */
+  resumeFocus: 0 | 1;
 }
 
-export const initialTvState = (): TvState => ({ open: 'none', focus: 1, top: false, tab: 'subtitles', item: 0, nextFocus: 0 });
+export const initialTvState = (): TvState => ({ open: 'none', focus: 1, top: false, tab: 'subtitles', item: 0, nextFocus: 0, resumeFocus: 0 });
 
 export type TvAction =
   | { type: 'toggle' }
@@ -82,7 +87,8 @@ export type TvAction =
   | { type: 'skip' }
   | { type: 'show' }
   | { type: 'exit' }
-  | { type: 'pick'; tab: TvTab; index: number };
+  | { type: 'pick'; tab: TvTab; index: number }
+  | { type: 'resume'; fromStart: boolean };
 
 export interface TvContext {
   buttons: TvButton[];
@@ -95,6 +101,10 @@ export interface TvContext {
   skip: boolean;
   /** The "Next episode" card is up. */
   upNext: boolean;
+  /** The question at the start is up: resume, or start over. */
+  resumeAsk?: boolean;
+  /** Lines that keep the menu open after OK (the style always does), so the next press follows at once. */
+  stays?: (tab: TvTab, index: number) => boolean;
 }
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
@@ -107,6 +117,15 @@ export function pressKey(state: TvState, key: RemoteKey, ctx: TvContext): { stat
   const s = { ...state };
   const { buttons, tabs } = ctx;
   const done = (action: TvAction | null = null) => ({ state: s, action, handled: true });
+  // The question at the start: ←/→ (or ↑/↓) between the two, OK picks, Back leaves the player.
+  if (ctx.resumeAsk) {
+    if (key === 'left' || key === 'up') s.resumeFocus = 0;
+    else if (key === 'right' || key === 'down') s.resumeFocus = 1;
+    else if (key === 'ok') return done({ type: 'resume', fromStart: s.resumeFocus === 1 });
+    else if (key === 'playpause') return done({ type: 'resume', fromStart: false });
+    else if (key === 'back') return { state: s, action: null, handled: false };
+    return done();
+  }
   if (key === 'playpause') return done({ type: 'toggle' });
   if (key === 'forward' || key === 'rewind') return done({ type: 'seek', by: key === 'forward' ? FAST_STEP : -FAST_STEP });
 
@@ -120,7 +139,7 @@ export function pressKey(state: TvState, key: RemoteKey, ctx: TvContext): { stat
       s.item = ctx.selected[s.tab] ?? 0;
     } else if (key === 'ok') {
       // The style stays open, so the change shows on the subtitles and the next one is a press away.
-      if (s.tab !== 'style') s.open = 'none';
+      if (s.tab !== 'style' && !ctx.stays?.(s.tab, s.item)) s.open = 'none';
       return done({ type: 'pick', tab: s.tab, index: s.item });
     } else if (key === 'back') s.open = 'bar';
     return done();

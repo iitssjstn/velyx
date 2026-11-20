@@ -52,3 +52,29 @@ export interface OnlineSubtitleResult {
   /** Fetched before: it is among the file's subtitles already. */
   fetched: SubtitleOption | null;
 }
+
+/**
+ * The order the TV goes through languages with OK on its language line: the viewer's own ones first
+ * (subtitle language, fallback, the app's), then English, then the rest by name.
+ */
+export function languageCycle(first: string[], appLanguage: string): string[] {
+  const own = [...first, 'en'].map((c) => onlineLanguage(c)).filter((c): c is string => !!c);
+  const rest = ONLINE_SUBTITLE_LANGUAGES.filter((c) => !own.includes(c)).sort((a, b) => languageName(a, appLanguage).localeCompare(languageName(b, appLanguage)));
+  return [...new Set([...own, ...rest])];
+}
+
+/** The language after `current` in `cycle` (after the last: the first again). */
+export function nextLanguage(cycle: string[], current: string): string {
+  const at = cycle.indexOf(current);
+  return cycle[(at + 1) % cycle.length] ?? current;
+}
+
+/** What one line of the TV's "Online" tab does: change the language, fetch a result, or nothing (a status line). */
+export type OnlineLine = { kind: 'language' } | { kind: 'result'; result: OnlineSubtitleResult } | { kind: 'status' };
+
+/** The lines of the TV's "Online" tab: the language, then the results (or one line saying how the search goes). */
+export function onlineLines(results: OnlineSubtitleResult[] | undefined, state: 'loading' | 'error' | 'ready'): OnlineLine[] {
+  const language: OnlineLine = { kind: 'language' };
+  if (state !== 'ready' || !results?.length) return [language, { kind: 'status' }];
+  return [language, ...results.slice(0, 12).map((result) => ({ kind: 'result' as const, result }))];
+}

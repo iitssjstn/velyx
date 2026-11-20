@@ -114,6 +114,18 @@ export function stepDelay(delay: number, direction: 1 | -1): number {
 export const STYLE_LINES = ['size', 'color', 'background', 'edge', 'position'] as const;
 export type StyleLine = (typeof STYLE_LINES)[number];
 
+/**
+ * After the style lines, the "Style" tab has the subtitle timing: earlier, later (0.5 s a press) and
+ * back to none. The tab stays open, so several presses follow one another.
+ */
+export const SYNC_LINES = ['earlier', 'later', 'reset'] as const;
+export type SyncLine = (typeof SYNC_LINES)[number];
+
+/** The timing after OK on a sync line. */
+export function syncPick(delay: number, line: SyncLine): number {
+  return line === 'reset' ? 0 : stepDelay(delay, line === 'later' ? 1 : -1);
+}
+
 const next = <T>(list: readonly T[], value: T): T => list[(list.indexOf(value) + 1) % list.length]!;
 
 /** The change OK makes on a line of the "Style" tab (position goes up in steps of 5, then back to 0). */
