@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Platform, ScrollView, Text, View } from 'react-native';
 import { router, type Href } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
+import { PlaybackSettings } from '../../components/Settings';
 import { Button, Field, FocusPressable, styles } from '../../components/ui';
 import type { Language } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
@@ -11,8 +12,9 @@ import type { User } from '../../lib/types';
 import { dialog } from '../../lib/dialog';
 
 export default function Account() {
-  const { t, api, user, serverName, serverVersion, appVersion, deviceName, signOut, forgetServer, updateUser } = useSession();
+  const { t, api, user, serverName, serverVersion, appVersion, deviceName, signOut, forgetServer, updateUser, serverUrl } = useSession();
   const qc = useQueryClient();
+  const seerr = useQuery({ queryKey: [serverUrl, 'seerr'], queryFn: () => api.get<{ enabled: boolean }>('/api/seerr'), staleTime: 5 * 60_000 });
   const [busy, setBusy] = useState(false);
 
   const leave = async (thenForget: boolean) => {
@@ -57,6 +59,16 @@ export default function Account() {
           ))}
         </View>
       </Section>
+
+      <Section title={t('account.lists')}>
+        <Row icon="bookmark" label={t('lists.watchlist')} href="/list/watchlist" />
+        <Row icon="heart" label={t('lists.favorites')} href="/list/favorites" />
+        <Row icon="layers" label={t('account.collections')} href="/collections" />
+        {seerr.data?.enabled && <Row icon="inbox" label={t('account.requests')} href="/requests" />}
+        <Row icon="clock" label={t('account.history')} href="/account/history" />
+      </Section>
+
+      <PlaybackSettings />
 
       <Section title={t('account.security')}>
         <Row icon="key" label={t('account.password')} href="/account/password" />

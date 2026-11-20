@@ -1088,15 +1088,37 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Eigenaar (20 nov): "De website loopt gelijk nu" (ondertitel na spoelen gelijk op de website; 0.20.9/0.20.10).
   Telefoon en tv nog niet gemeld.
 
-## Versie 0.20.11 (Account en pagina's op telefoon en tv; nog niet begonnen)
+## Versie 0.20.11 (Account en pagina's op telefoon en tv)
 
 - **Play Console: "android.hardware.wifi is vereist"** (eigenaar 20 nov, bij de upload van 0.20.10; "Toch doorgaan" kan).
   `expo-network` (sinds 0.19.65) vraagt `ACCESS_WIFI_STATE`, waaruit Android afleidt dat wifi verplicht is; een tv-box
   met alleen een kabel kon de app dan niet installeren. Eigenaar: "Ja neem het mee in 0.20.11". Gedaan (lokaal, nog geen
   versienummer): `withTv` zet `android.hardware.wifi` op niet verplicht, net als het touchscreen; `tvApp.test.ts`
   bijgewerkt; `expo prebuild` geeft de regel in het manifest. App 297 tests en typecheck slagen.
-- De rest van 0.20.11 (zie 0.20.10: instellingen van Account, kijkgeschiedenis, Collecties, "Mijn aanvragen",
-  "Alles bekijken") wacht op "bouw het" van de eigenaar.
+- Eigenaar (20 nov): "Bouw 0.20.11 maar". Gebouwd (alleen de app; server en website ongewijzigd):
+  - **Account → instellingen** (telefoon en tv; `PlaybackSettings`/`ChoiceRow` in `components/Settings.tsx`, logica in
+    `lib/settings.ts`): elke rij toont de keuze en klapt de opties eronder open (aanraken of pijltjes en OK). Bij het
+    account (zoals de website): audiotaal, ondertiteling tonen, ondertiteltaal en reservetaal (alleen aan te passen
+    waar ze iets doen, `subtitleFields`), terugblikken/intro's/aftiteling overslaan, Stemmen. Op dit toestel (zoals in
+    een browser): volgende aflevering automatisch, aftelling (5-30 s), spoelstap, Geluid stereo/surround 5.1
+    (`storedDevicePrefs` in `remember.ts`). Een audiotaal gekozen in Account wint van het spoor dat laatst in de speler
+    gekozen is (`forgetAudio`), zoals op de website.
+  - **Speler**: aftelling uit de instelling; automatisch uit = geen kaart en geen automatische sprong vanaf de
+    aftiteling (zoals de website); surround stuurt `audioChannels: 'surround'` mee (de server kende dat al).
+  - **Jouw lijsten** op Account: Kijklijst, Favorieten, **Collecties** (`collections/index.tsx`: slimme collecties en
+    die van de bibliotheek; een slimme opent `browse.tsx` met zijn filters; `collections/[id].tsx`), **Mijn aanvragen**
+    (`requests.tsx`, met status en voortgang van ophalen; alleen met Seerr) en **Kijkgeschiedenis**
+    (`account/history.tsx`, 30 per pagina, tik opent de film of serie).
+  - **Alles bekijken** bij elke catalogusrij op Home (telefoon; `discover/[row].tsx`, `discoverHref`/`discoverRowFor`).
+    Op de tv niet: de rijen laden daar verder als je naar rechts gaat, en een extra stop per rij maakt omlaag gaan
+    trager.
+  - Niet in deze versie: collecties maken of bewerken (alleen beheerder; hoort bij 0.20.12), de ondertitelstijl op
+    Account (staat al in het menu van de speler).
+  - Tests: `settings.test.ts`, `collections.test.ts` (ook `historyTarget`), `discover.test.ts` ("Alles bekijken");
+    app 307 tests, typecheck, lint (0 fouten, 4 bekende waarschuwingen) en de Android-bundel (Hermes-export) slagen.
+    De schermen zelf op telefoon en tv te bekijken.
+- Versie 0.20.11 in alle `package.json`'s, `app/app.json` (versionCode 20011) en beide lockfiles. De app verandert,
+  dus de release bouwt de APK en het `.aab`. README bijgewerkt.
 
 ## Versie 0.19.11
 

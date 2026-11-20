@@ -62,6 +62,12 @@ export default function RootLayout() {
             <Stack.Screen name="request/[type]/[id]" options={{ title: '' }} />
             <Stack.Screen name="account/password" options={{ title: '' }} />
             <Stack.Screen name="account/sessions" options={{ title: '' }} />
+            <Stack.Screen name="account/history" options={{ title: '' }} />
+            <Stack.Screen name="collections/index" options={{ title: '' }} />
+            <Stack.Screen name="collections/[id]" options={{ title: '' }} />
+            <Stack.Screen name="browse" options={{ title: '' }} />
+            <Stack.Screen name="requests" options={{ title: '' }} />
+            <Stack.Screen name="discover/[row]" options={{ title: '' }} />
             <Stack.Screen name="admin/requests" options={{ title: '' }} />
             <Stack.Screen name="admin/libraries" options={{ title: '' }} />
             <Stack.Screen name="admin/optimizations" options={{ title: '' }} />

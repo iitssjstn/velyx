@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canRequest, canRequestTitle, catalogOnly, seasonsToRequest, DISCOVER_ROWS, openSeasons, discoverPath, discoverTarget, mergePages, requestTone, toggleSeason, type SeerrResult } from './discover';
+import { canRequest, canRequestTitle, catalogOnly, seasonsToRequest, DISCOVER_ROWS, openSeasons, discoverHref, discoverRowFor, discoverPath, discoverTarget, mergePages, requestTone, toggleSeason, type SeerrResult } from './discover';
 
 const r = (over: Partial<SeerrResult>): SeerrResult => ({ mediaType: 'movie', tmdbId: 1, title: 'X', year: null, overview: '', posterPath: null, state: null, inLibrary: false, local: null, ...over });
 
@@ -76,5 +76,19 @@ describe('the colour of a request on a poster', () => {
     expect(requestTone('partiallyAvailable')).toBe('ok');
     expect(requestTone('declined')).toBe('danger');
     expect(requestTone('failed')).toBe('danger');
+  });
+});
+
+describe('"See all" for a catalog row', () => {
+  it('opens every row on its own screen and finds the row back from its parameters', () => {
+    for (const spec of DISCOVER_ROWS) {
+      const [path, qs] = discoverHref(spec).split('?');
+      const genre = qs ? new URLSearchParams(qs).get('genre') ?? undefined : undefined;
+      expect(discoverRowFor(path!.split('/')[2], genre)).toBe(spec);
+    }
+    expect(discoverHref({ row: 'trending' })).toBe('/discover/trending');
+    expect(discoverHref({ row: 'movies', genre: 28 })).toBe('/discover/movies?genre=28');
+    expect(discoverRowFor('nope', undefined)).toBeNull();
+    expect(discoverRowFor('movies', '99999')).toBeNull();
   });
 });
