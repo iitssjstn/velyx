@@ -22,6 +22,7 @@ import { useSession } from '../../lib/session';
 import { colors, radius } from '../../lib/theme';
 import type { SeasonDetail, ShowDetail } from '../../lib/types';
 import { dialog } from '../../lib/dialog';
+import { resumeHref } from '../../lib/resume';
 
 export default function Show() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -74,7 +75,7 @@ export default function Show() {
   );
   const continueButton = (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-      {s.upNext && <Button label={t('show.continue', { code: episodeCode(s.upNext.seasonNumber, s.upNext.episodeNumber) })} onPress={() => router.push(`/play/episode/${s.upNext!.id}`)} />}
+      {s.upNext && <Button label={t('show.continue', { code: episodeCode(s.upNext.seasonNumber, s.upNext.episodeNumber) })} onPress={() => router.push(resumeHref('episode', s.upNext!.id))} />}
       <TrailerButton type="show" id={s.id} />
       {seerr.data?.enabled && s.tmdbId && openSeasons.data?.open ? <Button label={t('show.requestSeasons')} variant="ghost" busy={loadingSeasons} onPress={() => void askSeasons(s.tmdbId!)} /> : null}
     </View>
@@ -201,7 +202,7 @@ export default function Show() {
             accessibilityRole="button"
             accessibilityLabel={`${t('player.play')} ${episodeCode(e.seasonNumber, e.episodeNumber)}${e.title ? ` ${e.title}` : ''}`}
             // A watched episode starts over; one in progress resumes.
-            onPress={() => router.push(`/play/episode/${e.id}${e.progress?.completed ? '?t=0' : ''}`)}
+            onPress={() => router.push(e.progress?.completed ? `/play/episode/${e.id}?t=0` : resumeHref('episode', e.id))}
             style={({ pressed }) => ({ flexDirection: 'row', gap: 12, opacity: pressed ? 0.7 : 1 })}
           >
             <View style={{ width: thumb }}>

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { onPlaybackEndpoint, pickSubtitle, playHref, preferredAudioIndex, resumePoint, selectDirectPlayback, startPosition, subtitleName, withParam } from './player';
+import { onPlaybackEndpoint, pickSubtitle, playHref, preferredAudioIndex, resumePoint, selectDirectPlayback, startPosition, subtitleDelayUrl, subtitleName, withParam } from './player';
 import type { PlaybackInfo } from './types';
 import { setLanguage } from '../i18n';
 import { detectCapabilities } from './codecs';
@@ -231,5 +231,16 @@ describe('onPlaybackEndpoint', () => {
 
   it('leaves the path as it is when the stream plays from this page’s own server', () => {
     expect(onPlaybackEndpoint(base, '/api/online-subtitles/12.vtt')).toBe('/api/online-subtitles/12.vtt');
+  });
+});
+
+describe('where a sync correction is saved', () => {
+  it('uses the address the server gives, for every kind of subtitle', () => {
+    expect(subtitleDelayUrl({ kind: 'external', url: '/api/subtitles/3.vtt', delayUrl: '/api/media/7/subtitles/ext-3/delay' })).toBe('/api/media/7/subtitles/ext-3/delay');
+    expect(subtitleDelayUrl({ kind: 'online', url: 'https://x.media.vidalune.com/api/online-subtitles/12.vtt?cast=t', delayUrl: '/api/online-subtitles/12/delay' })).toBe('/api/online-subtitles/12/delay');
+  });
+  it('finds it for a fetched subtitle from an older server, and has none otherwise', () => {
+    expect(subtitleDelayUrl({ kind: 'online', url: '/api/online-subtitles/12.vtt' })).toBe('/api/online-subtitles/12/delay');
+    expect(subtitleDelayUrl({ kind: 'embedded', url: '/api/media/7/subtitles/2.vtt' })).toBeNull();
   });
 });

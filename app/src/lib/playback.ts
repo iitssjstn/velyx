@@ -74,6 +74,10 @@ export interface SubtitleOption {
   forced: boolean;
   isDefault: boolean;
   url: string;
+  /** The sync correction saved for it, for everyone who watches the file with it (seconds, later is positive). */
+  delay?: number;
+  /** Where a new correction is saved. */
+  delayUrl?: string;
 }
 
 export interface PlaybackAnswer {
@@ -184,8 +188,27 @@ export async function streamFrom(api: Api, answer: PlaybackAnswer, at: number, f
 export function subtitleUrl(api: Api, option: SubtitleOption, offset: number, media?: { baseUrl: string; token: string }): string {
   const url = media ? new URL(option.url, `${media.baseUrl}/`) : new URL(api.url(option.url));
   if (offset > 0) url.searchParams.set('offset', offset.toFixed(3));
+  // The subtitle comes as it is: the player shifts it by its saved correction itself (savedDelay).
+  url.searchParams.set('delay', '0');
   if (media) url.searchParams.set('cast', media.token);
   return url.toString();
+}
+
+/** The correction a subtitle starts with: the one saved for it, else none. */
+export function savedDelay(option: SubtitleOption | null | undefined): number {
+  return typeof option?.delay === 'number' && Number.isFinite(option.delay) ? option.delay : 0;
+}
+
+/**
+ * Where the correction of a subtitle is saved (for everyone who watches the file with it): the address the
+ * server gives with it, or for a fetched subtitle from an older server the one that follows from its file.
+ */
+export function delayPath(option: SubtitleOption | null | undefined): string | null {
+  if (!option) return null;
+  if (option.delayUrl) return option.delayUrl;
+  if (option.kind !== 'online') return null;
+  const id = /\/online-subtitles\/(\d+)\.vtt/.exec(option.url)?.[1];
+  return id ? `/api/online-subtitles/${id}/delay` : null;
 }
 
 /** The server's direct address for a stream, with the token that opens it there. */

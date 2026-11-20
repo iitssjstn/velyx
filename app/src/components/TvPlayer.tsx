@@ -40,6 +40,8 @@ export interface TvPlayerProps {
   upNext: { label: string; countdown: number; ended: boolean } | null;
   /** Where the skip button and the next-episode card sit (above the bar while it shows). */
   overlayBottom: number;
+  /** The question at the start: resume from `at`, or start over (null: not asked). */
+  resume: { at: number } | null;
 }
 
 /** Width of the menu on the right; subtitles keep to the left of it while it is open. */
@@ -71,7 +73,17 @@ export function TvPlayer(p: TvPlayerProps) {
     b === 'back' ? t('player.backSeconds', { n: p.seekStep }) : b === 'forward' ? t('player.forwardSeconds', { n: p.seekStep }) : b === 'play' ? (p.playing ? t('player.pause') : t('player.play')) : b === 'subtitles' ? t('player.subtitles') : b === 'audio' ? t('player.audio') : t('player.next');
   return (
     <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}>
-      {p.loading ? (
+      {p.resume ? (
+        <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 48 }}>
+          <Text style={{ color: '#fff', fontSize: 30, fontWeight: '700', textAlign: 'center' }} numberOfLines={2}>{p.title}</Text>
+          {p.subtitle ? <Text style={{ color: 'rgba(238,233,255,0.7)', fontSize: 18 }} numberOfLines={1}>{p.subtitle}</Text> : null}
+          <Text style={{ color: colors.muted, fontSize: 18 }}>{t('player.resumeAsk')}</Text>
+          <View style={{ flexDirection: 'row', gap: 14 }}>
+            <Choice label={t('player.resume', { time: formatClock(p.resume.at) })} focused={state.resumeFocus === 0} />
+            <Choice label={t('player.fromStart')} focused={state.resumeFocus === 1} />
+          </View>
+        </View>
+      ) : p.loading ? (
         <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color="#fff" size="large" />
         </View>
@@ -162,8 +174,8 @@ export function TvPlayer(p: TvPlayerProps) {
         <View style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: TV_MENU_WIDTH, backgroundColor: colors.bg, borderLeftWidth: 1, borderLeftColor: colors.line, paddingTop: 32, paddingBottom: 24, paddingHorizontal: 28, gap: 16 }}>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {p.tabs.map((tab) => (
-              <View key={tab} style={{ borderRadius: radius.pill, paddingHorizontal: 18, paddingVertical: 8, backgroundColor: tab === state.tab ? colors.button : 'rgba(255,255,255,0.08)' }}>
-                <Text style={{ color: tab === state.tab ? colors.buttonInk : colors.ink, fontSize: 17, fontWeight: '600' }}>{tab === 'subtitles' ? t('player.subtitles') : tab === 'style' ? t('player.subtitleStyleTab') : t('player.audio')}</Text>
+              <View key={tab} style={{ borderRadius: radius.pill, paddingHorizontal: p.tabs.length > 3 ? 12 : 18, paddingVertical: 8, backgroundColor: tab === state.tab ? colors.button : 'rgba(255,255,255,0.08)' }}>
+                <Text style={{ color: tab === state.tab ? colors.buttonInk : colors.ink, fontSize: p.tabs.length > 3 ? 15 : 17, fontWeight: '600' }}>{tab === 'subtitles' ? t('player.subtitles') : tab === 'style' ? t('player.subtitleStyleTab') : tab === 'online' ? t('player.online') : t('player.audio')}</Text>
               </View>
             ))}
           </View>

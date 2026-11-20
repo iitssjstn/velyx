@@ -30,8 +30,8 @@ const downloadBody = z.object({ fileId: z.number().int().positive().max(2 ** 31)
 /** Largest correction a viewer can save, in seconds either way. */
 const MAX_DELAY_SEC = 600;
 const delayValue = z.number().finite().min(-MAX_DELAY_SEC).max(MAX_DELAY_SEC).transform((d) => Math.round(d * 10) / 10);
-const delayBody = z.object({ delay: delayValue }).strict();
-const vttQuery = z.object({ offset: z.coerce.number().finite().min(0).max(1e6).optional(), delay: z.coerce.number().pipe(delayValue).optional() });
+export const delayBody = z.object({ delay: delayValue }).strict();
+export const vttQuery = z.object({ offset: z.coerce.number().finite().min(0).max(1e6).optional(), delay: z.coerce.number().pipe(delayValue).optional() });
 
 async function requireRemotePlayback(request: import('fastify').FastifyRequest, ctx: AppContext): Promise<void> {
   if (isHomeRequest(request, ctx.settings.get().homeNetworks)) return;
@@ -58,6 +58,8 @@ export function onlineSubtitleOption(row: OnlineRow, user: { id: number; role: '
     url: `/api/online-subtitles/${row.id}.vtt`,
     /** The saved correction (seconds later), already applied to the file unless the player asks `delay=`. */
     delay: row.delaySec,
+    /** Where a new correction is saved. */
+    delayUrl: `/api/online-subtitles/${row.id}/delay`,
     // The person who fetched it (or an administrator) may take it away again.
     removable: user.role === 'admin' || row.createdBy === user.id,
   };

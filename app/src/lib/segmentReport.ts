@@ -38,9 +38,14 @@ export function reportOutcome(err: unknown): 'sent' | 'tooMany' | 'failed' {
 }
 
 /**
- * On the TV the report is the last line of the Audio tab, after the file's tracks and the audio
- * modes (the tab is always there). The index of that line, or -1 when there is none (a movie).
+ * On the TV the Audio tab (always there) has the file's tracks, the audio modes, then the playback
+ * speed (speedLine), and last the report. The index of the speed line.
  */
+export function speedLine(audioTracks: number): number {
+  return audioTracks + AUDIO_MODES.length;
+}
+
+/** The index of the report line, the last of the Audio tab, or -1 when there is none (a movie). */
 export function reportLine(audioTracks: number, episode: boolean): number {
-  return episode ? audioTracks + AUDIO_MODES.length : -1;
+  return episode ? speedLine(audioTracks) + 1 : -1;
 }

@@ -354,8 +354,10 @@ export interface SubtitleOption {
   url: string;
   /** Fetched online: whether this viewer may remove it again. */
   removable?: boolean;
-  /** Fetched online: the saved sync correction in seconds (positive: later). */
+  /** The saved sync correction in seconds (positive: later). */
   delay?: number;
+  /** Where a new correction is saved. */
+  delayUrl?: string;
 }
 
 /** A subtitle found at OpenSubtitles for one media file. */

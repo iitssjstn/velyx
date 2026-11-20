@@ -18,6 +18,7 @@ import { useSession } from '../../lib/session';
 import { colors, radius } from '../../lib/theme';
 import { noReadableFile } from '../../lib/playback';
 import type { MovieDetail } from '../../lib/types';
+import { resumeHref } from '../../lib/resume';
 
 export default function Movie() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -42,7 +43,7 @@ export default function Movie() {
     </View>
   ) : m.files.length ? (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-      <Button label={resume ? t('player.resume', { time: formatClock(resume.positionSec) }) : t('player.play')} onPress={() => router.push(`/play/movie/${m.id}`)} />
+      <Button label={resume ? t('player.resume', { time: formatClock(resume.positionSec) }) : t('player.play')} onPress={() => router.push(resume ? resumeHref('movie', m.id) : `/play/movie/${m.id}`)} />
       {resume && <Button label={t('player.fromStart')} variant="ghost" onPress={() => router.push(`/play/movie/${m.id}?t=0`)} />}
       <TrailerButton type="movie" id={m.id} />
     </View>

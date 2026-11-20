@@ -1,16 +1,16 @@
 import fs from 'node:fs';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { describeUserAgent, type SessionUser } from '../auth/sessions.js';
 import { requireUser } from '../app.js';
-import { libraries, mediaFiles, onlineSubtitles, subtitles, users, type AudioTrackInfo } from '../db/schema.js';
+import { libraries, mediaFiles, onlineSubtitles, subtitleDelays, subtitles, users, type AudioTrackInfo } from '../db/schema.js';
 import { Catalog } from '../services/catalog.js';
 import { localized } from '../services/localize.js';
 import { playbackSegments } from '../services/segments/store.js';
 import { assertEpisode, assertMovie } from '../services/access.js';
-import { onlineSubtitleOption } from './online-subtitles.js';
+import { delayBody, onlineSubtitleOption, vttQuery } from './online-subtitles.js';
 import { resolveMediaPath } from '../services/paths.js';
 import { readSubtitleAsVtt, shiftVtt } from '../services/subtitles.js';
 import { parseRemuxQuery, remuxQueryKey, type RemuxEngine, type RemuxQuery, type VideoEncode } from '../playback/remux.js';
@@ -61,12 +61,21 @@ function isAccountControlUrl(candidate: string, cloudUrl: string): boolean {
 }
 
 /** ?offset= on subtitle URLs: seconds to subtract from every cue (for streams that start later). */
-function offsetParam(query: unknown): number {
-  const raw = (query as { offset?: string } | undefined)?.offset;
-  if (raw === undefined) return 0;
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0 || n > 1e6) throw new HttpError(400, 'Invalid subtitle offset.');
-  return n;
+/** The correction a viewer saved for a subtitle that came with a file (`ext-<id>`, `emb-<index>`), or 0. */
+function storedDelay(db: AppContext['db'], fileId: number, key: string): number {
+  return db.select({ d: subtitleDelays.delaySec }).from(subtitleDelays).where(and(eq(subtitleDelays.mediaFileId, fileId), eq(subtitleDelays.subtitleKey, key))).get()?.d ?? 0;
+}
+
+/**
+ * Where a subtitle file starts and how it is shifted: `offset=` for a stream that starts later, and the saved
+ * correction unless the player asks `delay=` (the website and the app: 0, they shift it themselves). The TV
+ * gets the saved correction applied; that one can change, so the file is not kept in the cache then.
+ */
+function subtitleShift(query: unknown, stored: number): { shift: number; cache: string } {
+  const q = vttQuery.safeParse(query ?? {});
+  if (!q.success) throw new HttpError(400, 'Invalid subtitle offset.');
+  const delay = q.data.delay ?? stored;
+  return { shift: (q.data.offset ?? 0) - delay, cache: q.data.delay === undefined ? 'private, no-cache' : 'private, max-age=3600' };
 }
 
 function needsCompatibilityCopy(decision: PlaybackDecision | null): boolean {
@@ -143,6 +152,9 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
   function subtitleList(file: typeof mediaFiles.$inferSelect, user: SessionUser) {
     const external = db.select().from(subtitles).where(eq(subtitles.mediaFileId, file.id)).all();
     const online = db.select().from(onlineSubtitles).where(eq(onlineSubtitles.mediaFileId, file.id)).all();
+    // The corrections viewers saved, kept with the file; where a step is saved (delayUrl).
+    const delays = new Map(db.select().from(subtitleDelays).where(eq(subtitleDelays.mediaFileId, file.id)).all().map((d) => [d.subtitleKey, d.delaySec]));
+    const timing = (key: string) => ({ delay: delays.get(key) ?? 0, delayUrl: `/api/media/${file.id}/subtitles/${key}/delay` });
     return [
       ...external.map((s) => ({
         key: `ext-${s.id}`,
@@ -155,6 +167,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
         forced: s.forced,
         isDefault: false,
         url: `/api/subtitles/${s.id}.vtt`,
+        ...timing(`ext-${s.id}`),
       })),
       ...(file.subtitleTracks ?? [])
         .filter((t) => t.textBased)
@@ -168,6 +181,7 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
           forced: t.isForced,
           isDefault: t.isDefault,
           url: `/api/media/${file.id}/subtitles/${t.index}.vtt`,
+          ...timing(`emb-${t.index}`),
         })),
       // Fetched from OpenSubtitles by someone before.
       ...online.map((row) => onlineSubtitleOption(row, user)),
@@ -644,8 +658,9 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (!row || !canSee(ctx.access.scope(request.user!), row.f.libraryId)) throw notFound('Subtitle');
     const abs = resolveMediaPath(row.root, row.s.path);
     if (!abs || !fs.existsSync(abs)) throw notFound('Subtitle');
-    const vtt = shiftVtt(await readSubtitleAsVtt(abs, row.s.format), offsetParam(request.query));
-    return reply.type('text/vtt; charset=utf-8').header('Cache-Control', 'private, max-age=3600').send(vtt);
+    const { shift, cache } = subtitleShift(request.query, storedDelay(db, row.f.id, `ext-${row.s.id}`));
+    const vtt = shiftVtt(await readSubtitleAsVtt(abs, row.s.format), shift);
+    return reply.type('text/vtt; charset=utf-8').header('Cache-Control', cache).send(vtt);
   });
 
   app.get<{ Params: { id: string; index: string } }>('/api/media/:id/subtitles/:index.vtt', { preHandler: [requireUser, remoteGate] }, async (request, reply) => {
@@ -656,8 +671,32 @@ export async function mediaRoutes(app: FastifyInstance, ctx: AppContext): Promis
     if (!track.textBased) throw new HttpError(415, 'Image-based subtitles (PGS/VobSub) cannot be shown in the browser without converting them, which Vidalune does not do. Use a text subtitle (SRT/ASS) instead.');
     // The file's other text subtitles come along in the same read of the file.
     const also = (file.subtitleTracks ?? []).filter((t) => t.textBased).map((t) => t.index);
-    const vtt = shiftVtt(await ctx.heavy.track(request.user!.id, `subtitles:${file.id}`, () => ctx.subtitleExtractor.extract(file.id, file.mtimeMs, abs, index, { also, sizeBytes: file.size })), offsetParam(request.query));
-    return reply.type('text/vtt; charset=utf-8').header('Cache-Control', 'private, max-age=3600').send(vtt);
+    const { shift, cache } = subtitleShift(request.query, storedDelay(db, file.id, `emb-${index}`));
+    const vtt = shiftVtt(await ctx.heavy.track(request.user!.id, `subtitles:${file.id}`, () => ctx.subtitleExtractor.extract(file.id, file.mtimeMs, abs, index, { also, sizeBytes: file.size })), shift);
+    return reply.type('text/vtt; charset=utf-8').header('Cache-Control', cache).send(vtt);
+  });
+
+  // The correction that makes a subtitle of this file (next to it or inside it) match the picture: kept with
+  // the file, so it holds for everyone who watches it, on every device. 0 forgets it.
+  app.put<{ Params: { id: string; key: string } }>('/api/media/:id/subtitles/:key/delay', { preHandler: requireUser }, async (request) => {
+    const { delay } = delayBody.parse(request.body);
+    const { file } = loadFile(request.params.id, request.user!, undefined, true);
+    const key = /^(ext|emb)-(\d{1,9})$/.exec(request.params.key);
+    if (!key) throw notFound('Subtitle');
+    const n = Number(key[2]);
+    const known =
+      key[1] === 'ext'
+        ? !!db.select({ id: subtitles.id }).from(subtitles).where(and(eq(subtitles.id, n), eq(subtitles.mediaFileId, file.id))).get()
+        : (file.subtitleTracks ?? []).some((t) => t.index === n && t.textBased);
+    if (!known) throw notFound('Subtitle');
+    const where = and(eq(subtitleDelays.mediaFileId, file.id), eq(subtitleDelays.subtitleKey, request.params.key));
+    if (delay === 0) db.delete(subtitleDelays).where(where).run();
+    else
+      db.insert(subtitleDelays)
+        .values({ mediaFileId: file.id, subtitleKey: request.params.key, delaySec: delay, updatedAt: Date.now() })
+        .onConflictDoUpdate({ target: [subtitleDelays.mediaFileId, subtitleDelays.subtitleKey], set: { delaySec: delay, updatedAt: Date.now() } })
+        .run();
+    return { delay };
   });
 
   app.get<{ Params: { size: string; file: string } }>('/api/images/:size/:file', { preHandler: requireUser }, async (request, reply) => {

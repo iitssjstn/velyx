@@ -137,7 +137,7 @@ describe('subtitles after seeking', () => {
     });
     expect(screen.queryByText('Subtitle before remux seek')).toBeNull();
     expect(newVideo.getAttribute('src')).toBe('/api/media/3/remux?audio=1&start=118.000');
-    expect(newVideo.querySelector('track')?.getAttribute('src')).toBe('/api/subtitles/1.vtt?offset=118.000');
+    expect(newVideo.querySelector('track')?.getAttribute('src')).toBe('/api/subtitles/1.vtt?delay=0&offset=118.000');
     const state = fakeVideo(newVideo);
     state.currentTime = 2;
     const newTrack = { mode: 'disabled', cues: [{ startTime: 1, endTime: 4, text: 'Subtitle after remux seek' }] };
@@ -179,7 +179,7 @@ describe('subtitles after seeking', () => {
     );
     // Started at the asked time; its subtitles are shifted for that.
     expect(newVideo.getAttribute('src')).toBe('/api/media/3/remux?audio=1&start=120.004');
-    expect(newVideo.querySelector('track')?.getAttribute('src')).toBe('/api/subtitles/1.vtt?offset=120.004');
+    expect(newVideo.querySelector('track')?.getAttribute('src')).toBe('/api/subtitles/1.vtt?delay=0&offset=120.004');
     const state = fakeVideo(newVideo);
     // A line at 121–124 s in the file (1–4 s in the shifted file).
     const track = { mode: 'disabled', cues: [{ startTime: 1, endTime: 4, text: 'Line at two minutes one' }] };
@@ -195,7 +195,7 @@ describe('subtitles after seeking', () => {
     // At 122 s in the file (5 s into the stream) it shows, and the subtitle file was not loaded again.
     state.currentTime = 5;
     expect(await screen.findByText('Line at two minutes one')).toBeTruthy();
-    expect(newVideo.querySelector('track')?.getAttribute('src')).toBe('/api/subtitles/1.vtt?offset=120.004');
+    expect(newVideo.querySelector('track')?.getAttribute('src')).toBe('/api/subtitles/1.vtt?delay=0&offset=120.004');
     expect(document.querySelector('video')).toBe(newVideo);
   }, 15000);
 
@@ -351,6 +351,40 @@ describe('subtitles after seeking', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sync up' }));
     expect(screen.getByText('+2.0 s')).toBeTruthy();
     await vi.waitFor(() => expect(saved).toEqual([{ method: 'PUT', body: { delay: 2 } }]), { timeout: 2000 });
+  });
+
+  it('does the same for a subtitle that came with the file, saving where the server says', async () => {
+    const saved: unknown[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      let body: unknown = {};
+      if (url === '/api/movies/3') body = MOVIE;
+      if (url === '/api/media/3/playback') body = { ...PLAYBACK, subtitles: [{ key: 'ext-4', kind: 'external', label: 'English', language: 'eng', forced: false, isDefault: false, url: '/api/subtitles/4.vtt', delay: -1, delayUrl: '/api/media/3/subtitles/ext-4/delay' }] };
+      if (url === '/api/account/preferences') body = { audioLanguage: '', subtitleLanguage: 'eng', subtitleFallback: '', subtitleMode: 'always' };
+      if (url === '/api/media/3/subtitles/ext-4/delay') {
+        saved.push({ method: init?.method, body: JSON.parse(String(init?.body)) });
+        body = JSON.parse(String(init?.body));
+      }
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    renderPlayer();
+    const video = await vi.waitFor(() => {
+      const element = document.querySelector('video');
+      if (!element?.querySelector('track')) throw new Error('subtitle track not mounted');
+      return element;
+    });
+    fakeVideo(video);
+    const element = video.querySelector('track')!;
+    expect(element.getAttribute('src')).toBe('/api/subtitles/4.vtt?delay=0');
+    const tracks = { length: 1, 0: { mode: 'disabled', cues: [] } };
+    Object.defineProperty(video, 'textTracks', { configurable: true, value: tracks });
+    Object.defineProperty(element, 'track', { configurable: true, value: tracks[0] });
+    fireEvent.loadedMetadata(video);
+    await vi.waitFor(() => expect(tracks[0].mode).toBe('hidden'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Subtitles' }));
+    expect(await screen.findByText('-1.0 s')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Sync up' }));
+    await vi.waitFor(() => expect(saved).toEqual([{ method: 'PUT', body: { delay: -0.5 } }]), { timeout: 2000 });
   });
 
   it('reattaches the chosen subtitle when its text track becomes available after video metadata', async () => {

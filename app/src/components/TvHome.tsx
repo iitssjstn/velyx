@@ -14,6 +14,7 @@ import { Lift, OUTLINE_INK, buttonLook } from './ui';
 import { TV_TOP_BAR } from './TvTopBar';
 import { colors, radius } from '../lib/theme';
 import type { Card, ContinueItem, HomeData } from '../lib/types';
+import { resumeHref } from '../lib/resume';
 
 export const SIDE = 48;
 const GAP = 20;
@@ -100,7 +101,7 @@ function Hero({ data, onFocus }: { data: HomeData; onFocus: () => void }) {
   const backdrop = cw ? (cw.imagePath ?? cw.posterPath) : (card!.backdropPath ?? card!.posterPath);
   const detail = cw ? continueLine(cw, t) : (card!.overview ?? '');
   const show = card?.type === 'show';
-  const play = () => (cw ? router.push(`/play/${cw.type}/${cw.id}`) : card!.type === 'movie' ? router.push(`/play/movie/${card!.id}`) : openCard(card!));
+  const play = () => (cw ? router.push(resumeHref(cw.type, cw.id)) : card!.type === 'movie' ? router.push(`/play/movie/${card!.id}`) : openCard(card!));
   return (
     // Taller than before: the top bar lies over its top.
     <View style={{ height: Math.round(height * 0.62) + TV_TOP_BAR, backgroundColor: colors.surface }}>
@@ -167,7 +168,7 @@ function ContinueCard({ item, onFocus }: { item: ContinueItem; onFocus: () => vo
   const { t } = useSession();
   const width = 300;
   return (
-    <Focusable accessibilityRole="button" accessibilityLabel={item.title} onPress={() => router.push(`/play/${item.type}/${item.id}`)} onFocus={onFocus} style={{ width }}>
+    <Focusable accessibilityRole="button" accessibilityLabel={item.title} onPress={() => router.push(resumeHref(item.type, item.id))} onFocus={onFocus} style={{ width }}>
       {(focused) => (
         <>
           <Lift focused={focused} scale={FOCUS_SCALE}>
