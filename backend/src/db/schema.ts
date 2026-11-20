@@ -367,6 +367,26 @@ export const onlineSubtitles = sqliteTable(
   (t) => [index('online_subtitles_media_idx').on(t.mediaFileId), uniqueIndex('online_subtitles_file_idx').on(t.mediaFileId, t.provider, t.providerFileId)],
 );
 
+/**
+ * The sync correction of a subtitle that came with a file (next to it, or inside it), set by a viewer so
+ * the subtitle matches the picture. Kept per file, so it holds for everyone who watches that file, on every
+ * device. Fetched subtitles keep theirs in `online_subtitles.delay_sec`.
+ */
+export const subtitleDelays = sqliteTable(
+  'subtitle_delays',
+  {
+    mediaFileId: integer('media_file_id')
+      .notNull()
+      .references(() => mediaFiles.id, { onDelete: 'cascade' }),
+    /** The subtitle as the player knows it: `ext-<subtitle id>` or `emb-<stream index>`. */
+    subtitleKey: text('subtitle_key').notNull(),
+    /** Seconds the subtitle shows later (positive) or earlier (negative). */
+    delaySec: real('delay_sec').notNull(),
+    updatedAt: integer('updated_at').notNull().default(now),
+  },
+  (t) => [primaryKey({ columns: [t.mediaFileId, t.subtitleKey] })],
+);
+
 export const genres = sqliteTable('genres', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull().unique(),

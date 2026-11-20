@@ -42,7 +42,9 @@ export function OnlineSubtitles({ fileId, defaultLanguage, activeKey, onChosen }
   const { t, language: appLanguage } = useSession();
   const [language, setLanguage] = useState(defaultLanguage);
   const [picking, setPicking] = useState(false);
-  const { q, fetch, choose } = useOnlineSubtitles(fileId, language, true, onChosen);
+  // Only once asked: each search counts at OpenSubtitles, and most people open the menu for something else.
+  const [wanted, setWanted] = useState(false);
+  const { q, fetch, choose } = useOnlineSubtitles(fileId, language, wanted, onChosen);
   const names = ONLINE_SUBTITLE_LANGUAGES.map((code) => ({ code, name: languageName(code, appLanguage) })).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
@@ -76,7 +78,17 @@ export function OnlineSubtitles({ fileId, defaultLanguage, activeKey, onChosen }
           ))}
         </View>
       )}
-      {q.isLoading && (
+      {!wanted && (
+        <FocusPressable
+          accessibilityRole="button"
+          onPress={() => setWanted(true)}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 8, borderRadius: radius.sm }}
+        >
+          <Feather name="search" size={16} color={colors.accent} />
+          <Text style={{ color: colors.ink }}>{t('onlineSubs.start')}</Text>
+        </FocusPressable>
+      )}
+      {wanted && q.isLoading && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8 }}>
           <ActivityIndicator color={colors.muted} size="small" />
           <Text style={{ color: colors.muted }}>{t('onlineSubs.searching')}</Text>

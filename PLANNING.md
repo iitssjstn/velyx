@@ -1065,8 +1065,24 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   `playback.test.ts`. App 297, backend 664, frontend 400, cloud 230 tests; typechecks, lint (0 fouten, 4 bekende
   waarschuwingen) en de Android-bundel (Hermes-export) slagen. De schermen zelf hebben geen testomgeving: op telefoon
   en tv te bekijken.
+- Verbeterpunten gemeld en op verzoek meegenomen (eigenaar 20 nov: "Neem punt 1 en 2 mee en maak de PR"):
+  1. **Telefoon zoekt pas na een tik**: het menu zocht bij elk openen al bij OpenSubtitles (quotum); nu eerst de knop
+     "Ondertitels zoeken" (`OnlineSubtitles.tsx`).
+  2. **Correctie ook voor ondertitels die bij het bestand horen** (naast het bestand of erin), zoals bij opgehaalde:
+     server `subtitle_delays` (migratie `0033_subtitle_delays`, per bestand en `ext-<id>`/`emb-<index>`),
+     `PUT /api/media/:id/subtitles/:key/delay` (Zod strikt, ingelogd, toegang tot de bibliotheek, alleen ondertitels
+     van dat bestand; 0 wist hem). De lijst geeft elke ondertitel `delay` en `delayUrl` (ook opgehaalde); de
+     VTT-bestanden passen de bewaarde correctie toe tenzij de speler `delay=0` vraagt (website en app doen dat en
+     schuiven zelf; casten krijgt hem erin, `no-cache`). Website (`subtitleDelayUrl`) en app (`delayPath`,
+     `savedDelay`) gebruiken dat voor alle soorten; een stap voor een andere ondertitel wordt eerst opgeslagen in
+     plaats van weggegooid.
+  Niet meegenomen (punt 3): de timing een eigen tab op de tv geven; wacht op hoe Stijl op de tv bevalt.
+- Tests: backend `subtitle-delay.test.ts` (opslaan, in de lijst, toegepast met en zonder offset, `delay=0`, terug naar
+  0, controles, geen toegang), website (ondertitel bij het bestand start op de bewaarde correctie en slaat op waar de
+  server zegt; faalt op de oude code; `subtitleDelayUrl`), app (`playback.test.ts`). Backend 667, frontend 403, cloud
+  230, app 297 tests; typechecks, lint (0 fouten, 4 bekende waarschuwingen) en de Android-bundel slagen.
 - Versie 0.20.10 in alle `package.json`'s, `app/app.json` (versionCode 20010) en beide lockfiles. De app verandert,
-  dus de release bouwt de APK en het `.aab`.
+  dus de release bouwt de APK en het `.aab`. Na de release: server, accountservice (website) en app bijwerken.
 
 ## Versie 0.19.11
 

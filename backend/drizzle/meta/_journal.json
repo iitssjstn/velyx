@@ -232,6 +232,13 @@
       "when": 1795052442330,
       "tag": "0032_subtitle_delay",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1795181834680,
+      "tag": "0033_subtitle_delays",
+      "breakpoints": true
     }
   ]
 }

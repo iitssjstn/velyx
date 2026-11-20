@@ -90,17 +90,17 @@ describe('where a stream starts', () => {
 
   it('shifts subtitles along with a stream that starts later', () => {
     const sub = { url: '/api/subtitles/3.vtt' } as SubtitleOption;
-    expect(subtitleUrl(api(), sub, 0)).toBe('http://vidalune.local/api/subtitles/3.vtt');
-    expect(subtitleUrl(api(), sub, 598.5)).toBe('http://vidalune.local/api/subtitles/3.vtt?offset=598.500');
-    expect(subtitleUrl(api(), sub, 598.5, { baseUrl: 'https://server.media.vidalune.com', token: 'scoped-token' })).toBe('https://server.media.vidalune.com/api/subtitles/3.vtt?offset=598.500&cast=scoped-token');
+    expect(subtitleUrl(api(), sub, 0)).toBe('http://vidalune.local/api/subtitles/3.vtt?delay=0');
+    expect(subtitleUrl(api(), sub, 598.5)).toBe('http://vidalune.local/api/subtitles/3.vtt?offset=598.500&delay=0');
+    expect(subtitleUrl(api(), sub, 598.5, { baseUrl: 'https://server.media.vidalune.com', token: 'scoped-token' })).toBe('https://server.media.vidalune.com/api/subtitles/3.vtt?offset=598.500&delay=0&cast=scoped-token');
   });
 
   it('fetches a subtitle only once it is known where the stream comes from', () => {
     const sub = { url: '/api/subtitles/3.vtt' } as SubtitleOption;
     // Still finding the stream's address: through the API it would go via vidalune.com, which refuses it.
     expect(subtitleRequest(api(), sub, undefined)).toBeNull();
-    expect(subtitleRequest(api(), sub, null)).toEqual({ url: 'http://vidalune.local/api/subtitles/3.vtt', headers: expect.objectContaining({ Authorization: 'Bearer t' }) });
-    expect(subtitleRequest(api(), sub, { baseUrl: 'https://server.media.vidalune.com', token: 'scoped-token' })).toEqual({ url: 'https://server.media.vidalune.com/api/subtitles/3.vtt?cast=scoped-token', headers: {} });
+    expect(subtitleRequest(api(), sub, null)).toEqual({ url: 'http://vidalune.local/api/subtitles/3.vtt?delay=0', headers: expect.objectContaining({ Authorization: 'Bearer t' }) });
+    expect(subtitleRequest(api(), sub, { baseUrl: 'https://server.media.vidalune.com', token: 'scoped-token' })).toEqual({ url: 'https://server.media.vidalune.com/api/subtitles/3.vtt?delay=0&cast=scoped-token', headers: {} });
   });
 });
 
@@ -277,10 +277,12 @@ describe('pieces (HLS) instead of a stream that restarts on every seek', () => {
     expect(subtitleUrl(api(), online, 0, { baseUrl: 'https://server.media.vidalune.com', token: 'tok' })).toBe('https://server.media.vidalune.com/api/online-subtitles/12.vtt?delay=0&cast=tok');
     expect(savedDelay(online)).toBe(-1.5);
     expect(delayPath(online)).toBe('/api/online-subtitles/12/delay');
-    // Another subtitle has no saved correction and nowhere to save one.
-    const own = { kind: 'external', url: '/api/subtitles/3.vtt', delay: 2 } as SubtitleOption;
-    expect(savedDelay(own)).toBe(0);
-    expect(delayPath(own)).toBeNull();
+    // A subtitle that came with the file keeps one too, saved where the server says.
+    const own = { kind: 'external', url: '/api/subtitles/3.vtt', delay: 2, delayUrl: '/api/media/7/subtitles/ext-3/delay' } as SubtitleOption;
+    expect(savedDelay(own)).toBe(2);
+    expect(delayPath(own)).toBe('/api/media/7/subtitles/ext-3/delay');
+    // From an older server without that address: nowhere to save it.
+    expect(delayPath({ kind: 'embedded', url: '/api/media/7/subtitles/2.vtt' } as SubtitleOption)).toBeNull();
     expect(savedDelay(null)).toBe(0);
   });
 });

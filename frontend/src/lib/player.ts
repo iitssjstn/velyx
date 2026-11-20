@@ -320,3 +320,13 @@ export function subtitleName(s: Pick<SubtitleOption, 'language' | 'languageName'
   const same = [lang, s.languageName].some((n) => n && title && n.toLowerCase() === title.toLowerCase());
   return title && !same ? `${lang} · ${title}` : lang;
 }
+
+/**
+ * Where a subtitle's sync correction is saved: the address the server gives with it, or for a fetched
+ * subtitle from an older server, the one that follows from its file. Null when it cannot be saved.
+ */
+export function subtitleDelayUrl(option: Pick<SubtitleOption, 'kind' | 'url' | 'delayUrl'>): string | null {
+  if (option.delayUrl) return option.delayUrl;
+  const id = option.kind === 'online' ? /\/online-subtitles\/(\d+)\.vtt/.exec(option.url)?.[1] : undefined;
+  return id ? `/api/online-subtitles/${id}/delay` : null;
+}

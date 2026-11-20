@@ -32,7 +32,7 @@ import { api, ApiError, errorMessage, request } from '../lib/api';
 import { detectCapabilities } from '../lib/codecs';
 import { channelLabel, codecName, episodeCode, formatClock, imageUrl } from '../lib/format';
 import { AUDIO_MODES, audioModeOf, audioModePrefs, getPrefs, normalizeLanguage, sameLanguage, setPrefs, usePrefs, type PlaybackPrefs } from '../lib/prefs';
-import { addSeek, creditsPlaying, initialSubtitle, isTyping, onPlaybackEndpoint, preferredAudioIndex, SEEK_COMBINE_MS, selectDirectPlayback, skipAt, startPosition, subtitleName, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type PendingSeek, type SkipAction } from '../lib/player';
+import { addSeek, creditsPlaying, initialSubtitle, isTyping, onPlaybackEndpoint, preferredAudioIndex, SEEK_COMBINE_MS, selectDirectPlayback, skipAt, startPosition, subtitleDelayUrl, subtitleName, upNextStart, withParam, type EpisodeSegments, type LanguagePreferences, type PendingSeek, type SkipAction } from '../lib/player';
 import type { EpisodeDetail, MediaFileInfo, MovieDetail, PlaybackInfo, SubtitleOption } from '../lib/types';
 import { defaultOnlineLanguage } from '../lib/online-subtitles';
 import { OnlineSubtitles } from '../components/OnlineSubtitles';
@@ -723,32 +723,36 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     onError: (err) => toast.error(err),
   });
 
-  // A fetched subtitle keeps its sync correction: chosen, it starts at the saved one; changed, the new one is saved a
-  // moment after the last step, for everyone who watches this file with it, on every device. Another subtitle starts
-  // in sync: a correction belongs to one subtitle file.
+  // Every subtitle keeps its sync correction (one fetched online, and one next to or inside the file): chosen, it
+  // starts at the saved one; changed, the new one is saved a moment after the last step, for everyone who watches
+  // this file with it, on every device. A correction belongs to one subtitle file.
   const delayFor = useRef<string | null>(null);
   useEffect(() => {
     if (!subKey || subKey === delayFor.current) return;
     delayFor.current = subKey;
     const opt = subs.find((o) => o.key === subKey);
-    setSubDelay(opt?.kind === 'online' ? (opt.delay ?? 0) : 0);
+    setSubDelay(opt?.delay ?? 0);
   }, [subKey, subs]);
-  const pendingDelay = useRef<{ timer: ReturnType<typeof setTimeout>; save: () => void } | null>(null);
+  const pendingDelay = useRef<{ timer: ReturnType<typeof setTimeout>; save: () => void; url: string } | null>(null);
   const changeDelay = useCallback(
     (next: number) => {
       setSubDelay(next);
       const opt = subs.find((o) => o.key === subKeyRef.current);
-      const id = opt?.kind === 'online' ? opt.url.match(/\/online-subtitles\/(\d+)\.vtt/)?.[1] : undefined;
-      if (!opt || !id) return;
-      if (pendingDelay.current) clearTimeout(pendingDelay.current.timer);
+      const url = opt ? subtitleDelayUrl(opt) : null;
+      if (!opt || !url) return;
+      if (pendingDelay.current) {
+        clearTimeout(pendingDelay.current.timer);
+        // A step for another subtitle is saved now, not lost.
+        if (pendingDelay.current.url !== url) pendingDelay.current.save();
+      }
       const save = () => {
         pendingDelay.current = null;
         api
-          .put(`/api/online-subtitles/${id}/delay`, { delay: next })
+          .put(url, { delay: next })
           .then(() => qc.setQueriesData<PlaybackInfo>({ queryKey: ['playback', file?.id] }, (old) => (old ? { ...old, subtitles: old.subtitles.map((s) => (s.key === opt.key ? { ...s, delay: next } : s)) } : old)))
           .catch((err) => toast.error(err));
       };
-      pendingDelay.current = { timer: setTimeout(save, 800), save };
+      pendingDelay.current = { timer: setTimeout(save, 800), save, url };
     },
     [subs, qc, file?.id],
   );
@@ -1364,7 +1368,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
               data-subtitle-key={s.key}
               kind="subtitles"
               // A fetched subtitle comes as it is (`delay=0`): the overlay shifts it by the correction, which can change while watching.
-              src={((url) => (cueOffset > 0 ? withParam(url, 'offset', cueOffset.toFixed(3)) : url))(s.kind === 'online' ? withParam(s.url, 'delay', '0') : s.url)}
+              src={((url) => (cueOffset > 0 ? withParam(url, 'offset', cueOffset.toFixed(3)) : url))(withParam(s.url, 'delay', '0'))}
               label={s.label}
               srcLang={s.language ?? undefined}
               onLoadCapture={(e) => {
