@@ -1083,6 +1083,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   230, app 297 tests; typechecks, lint (0 fouten, 4 bekende waarschuwingen) en de Android-bundel slagen.
 - Versie 0.20.10 in alle `package.json`'s, `app/app.json` (versionCode 20010) en beide lockfiles. De app verandert,
   dus de release bouwt de APK en het `.aab`. Na de release: server, accountservice (website) en app bijwerken.
+- PR #200 aangemaakt 20 nov op verzoek van de eigenaar ("maak de PR"); geen sessielink in de tekst. De eigenaar merget
+  zelf (geen toestemming om te mergen gegeven).
 
 ## Versie 0.19.11
 
