@@ -1088,6 +1088,16 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Eigenaar (20 nov): "De website loopt gelijk nu" (ondertitel na spoelen gelijk op de website; 0.20.9/0.20.10).
   Telefoon en tv nog niet gemeld.
 
+## Versie 0.20.11 (Account en pagina's op telefoon en tv; nog niet begonnen)
+
+- **Play Console: "android.hardware.wifi is vereist"** (eigenaar 20 nov, bij de upload van 0.20.10; "Toch doorgaan" kan).
+  `expo-network` (sinds 0.19.65) vraagt `ACCESS_WIFI_STATE`, waaruit Android afleidt dat wifi verplicht is; een tv-box
+  met alleen een kabel kon de app dan niet installeren. Eigenaar: "Ja neem het mee in 0.20.11". Gedaan (lokaal, nog geen
+  versienummer): `withTv` zet `android.hardware.wifi` op niet verplicht, net als het touchscreen; `tvApp.test.ts`
+  bijgewerkt; `expo prebuild` geeft de regel in het manifest. App 297 tests en typecheck slagen.
+- De rest van 0.20.11 (zie 0.20.10: instellingen van Account, kijkgeschiedenis, Collecties, "Mijn aanvragen",
+  "Alles bekijken") wacht op "bouw het" van de eigenaar.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)

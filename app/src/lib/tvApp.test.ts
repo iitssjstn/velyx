@@ -41,12 +41,13 @@ describe('the app on Android TV / Google TV', () => {
     expect(config.expo.plugins.indexOf('./plugins/withTv')).toBeLessThan(cast);
   });
 
-  it('starts from the TV launcher, needs no touchscreen and has a banner', () => {
+  it('starts from the TV launcher, needs no touchscreen or Wi-Fi and has a banner', () => {
     const m = applyTv(manifest());
     const features = m.manifest['uses-feature'] ?? [];
     expect(features.map((f) => [f.$['android:name'], f.$['android:required']])).toEqual([
       ['android.hardware.touchscreen', 'false'],
       ['android.software.leanback', 'false'],
+      ['android.hardware.wifi', 'false'],
     ]);
     const app = m.manifest.application[0]!;
     expect(app.$['android:banner']).toBe('@drawable/tv_banner');
@@ -70,7 +71,7 @@ describe('the app on Android TV / Google TV', () => {
 
   it('adds nothing twice when it runs again', () => {
     const m = applyTv(applyTv(manifest()));
-    expect(m.manifest['uses-feature']).toHaveLength(2);
+    expect(m.manifest['uses-feature']).toHaveLength(3);
     expect(m.manifest.application[0]!.activity[0]!['intent-filter']).toHaveLength(4);
     expect(m.manifest.application[0]!['meta-data']).toHaveLength(2);
     expect(names(m.manifest.application[0]!.activity[0]!['intent-filter'][0]!.category)).toHaveLength(2);

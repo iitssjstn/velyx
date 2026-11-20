@@ -14,7 +14,9 @@ const CAST_ACTIONS = ['com.google.android.gms.cast.tv.action.LAUNCH', 'com.googl
 function applyTv(manifest) {
   const root = manifest.manifest;
   const features = (root['uses-feature'] = root['uses-feature'] ?? []);
-  for (const name of ['android.software.leanback', 'android.hardware.touchscreen']) {
+  // Wi-Fi: expo-network asks for ACCESS_WIFI_STATE, which makes Android require Wi-Fi; a TV box on a
+  // cable has none, so it is optional (the app works on any network).
+  for (const name of ['android.software.leanback', 'android.hardware.touchscreen', 'android.hardware.wifi']) {
     const feature = features.find((f) => f.$['android:name'] === name);
     if (feature) feature.$['android:required'] = 'false';
     else features.push({ $: { 'android:name': name, 'android:required': 'false' } });
