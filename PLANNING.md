@@ -1085,6 +1085,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   dus de release bouwt de APK en het `.aab`. Na de release: server, accountservice (website) en app bijwerken.
 - PR #200 aangemaakt 20 nov op verzoek van de eigenaar ("maak de PR"); geen sessielink in de tekst. Gemerged 20 nov
   op verzoek van de eigenaar ("Merge het als alles groen is"; alle checks groen). Release niet gevolgd.
+- Eigenaar (20 nov): "De website loopt gelijk nu" (ondertitel na spoelen gelijk op de website; 0.20.9/0.20.10).
+  Telefoon en tv nog niet gemeld.
 
 ## Versie 0.19.11
 
