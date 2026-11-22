@@ -1129,6 +1129,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   Telefoon: ✕ rechtsboven en Terug; tv: alleen Terug (geen knop die de focus pakt). Tests: `trailer.test.ts` (pagina,
   vreemde id, berichten); app 309 tests, typecheck, lint en de Android-bundel slagen. Op de Chromecast te bevestigen:
   speelt hij met geluid, sluit Terug het venster, en blijft de app staan.
+- PR #201 aangemaakt 22 nov op verzoek van de eigenaar ("Maak een PR maar"); geen sessielink in de tekst. De eigenaar
+  merget zelf (geen toestemming om te mergen gegeven).
 
 ## Versie 0.19.11
 
