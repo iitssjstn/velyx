@@ -1119,6 +1119,16 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
     De schermen zelf op telefoon en tv te bekijken.
 - Versie 0.20.11 in alle `package.json`'s, `app/app.json` (versionCode 20011) en beide lockfiles. De app verandert,
   dus de release bouwt de APK en het `.aab`. README bijgewerkt.
+- **Trailer in een venster in de app** (eigenaar 22 nov: "Bouw het maar"; zie "Gemeld tijdens het testen"). Telefoon,
+  tablet en tv: `TrailerButton` opent een venster over de pagina met `react-native-webview` 13.16.1 (nieuw, via
+  `npx expo install`; geen extra rechten in het manifest). Daarin YouTube's ingesloten speler van
+  `youtube-nocookie.com`, zoals op de website, die meteen speelt (`trailerHtml` in `lib/trailer.ts`; herkomst
+  `https://app.vidalune.com` via `baseUrl` en `origin`, anders weigert YouTube; `incognito`, dus geen cookies). Einde
+  van de trailer sluit het venster; mag YouTube hem niet insluiten (fout 150/153 of het script laadt niet), dan gaat het
+  venster dicht en opent de YouTube-app zoals voorheen (`trailerEvent`). Een link in de speler opent buiten de app.
+  Telefoon: ✕ rechtsboven en Terug; tv: alleen Terug (geen knop die de focus pakt). Tests: `trailer.test.ts` (pagina,
+  vreemde id, berichten); app 309 tests, typecheck, lint en de Android-bundel slagen. Op de Chromecast te bevestigen:
+  speelt hij met geluid, sluit Terug het venster, en blijft de app staan.
 
 ## Versie 0.19.11
 
@@ -1294,6 +1304,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   kijken en Terug. Risico's: sommige trailers mogen niet ingesloten worden (YouTube-fout 150/153), dan alsnog de
   YouTube-app; de WebView moet een eigen adres als herkomst meesturen, anders weigert YouTube; alleen op de echte
   Chromecast te bevestigen. Mogelijk in 0.20.11 (die verandert de app al).
+  Eigenaar (22 nov): "Bouw het maar"; gebouwd in 0.20.11 (zie daar).
 
 - **Ondertitels van OpenSubtitles laden nooit** (eigenaar 17 nov; nog niet bouwen tot hij het zegt). Nog onduidelijk welke
   stap: zoeken (lijst komt niet), ophalen (knop na kiezen), of tonen in de speler ("Ondertitel laden…"). Keten: speler →

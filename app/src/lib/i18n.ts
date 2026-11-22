@@ -480,6 +480,7 @@ const en = {
   'requests.none': 'You have not requested anything yet. Find a movie or show in the catalog and request it from its page.',
   'requests.off': 'Requesting is not available on this server.',
   'discover.empty': 'Nothing here right now.',
+  'common.close': 'Close',
   'common.ok': 'OK',
 } as const;
 
@@ -966,6 +967,7 @@ const nl: Record<MessageKey, string> = {
   'requests.none': 'Je hebt nog niets aangevraagd. Zoek een film of serie in de catalogus en vraag hem aan op zijn pagina.',
   'requests.off': 'Aanvragen kan niet op deze server.',
   'discover.empty': 'Hier staat nu niets.',
+  'common.close': 'Sluiten',
   'common.ok': 'OK',
 };
 
