@@ -1284,6 +1284,17 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Trailer in een venster in de app** (vraag eigenaar 22 nov: "trailers [...] in een box op tv laten zien zodat mensen
+  [niet] uit de app gaan, want dat kan de app restarten"; nog niet bouwen tot hij het zegt). Nu opent `TrailerButton`
+  (`app/src/components/TrailerButton.tsx`) de YouTube-app met `Linking.openURL`; op een Chromecast ruimt Android de
+  Vidalune-app dan soms op, dus bij terugkomen start hij opnieuw. De website speelt de trailer al in een venster
+  (`youtube-nocookie.com/embed`, `frontend/src/components/TrailerButton.tsx`). Voorstel: hetzelfde in de app (telefoon
+  en tv) met `react-native-webview` (native, dus nieuwe APK): venster over de pagina, speelt meteen, Terug of Sluiten
+  doet het dicht. Op de tv geen bediening in het venster (YouTube-knoppen zijn met de afstandsbediening lastig): alleen
+  kijken en Terug. Risico's: sommige trailers mogen niet ingesloten worden (YouTube-fout 150/153), dan alsnog de
+  YouTube-app; de WebView moet een eigen adres als herkomst meesturen, anders weigert YouTube; alleen op de echte
+  Chromecast te bevestigen. Mogelijk in 0.20.11 (die verandert de app al).
+
 - **Ondertitels van OpenSubtitles laden nooit** (eigenaar 17 nov; nog niet bouwen tot hij het zegt). Nog onduidelijk welke
   stap: zoeken (lijst komt niet), ophalen (knop na kiezen), of tonen in de speler ("Ondertitel laden…"). Keten: speler →
   server `/api/media/:id/subtitles/online` → vidalune.com (OpenSubtitles-account in Control Center > Ondertitels) →
