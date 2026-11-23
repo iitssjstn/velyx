@@ -1296,6 +1296,15 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Bazarr koppelen om ondertitels te verbeteren** (vraag eigenaar 23 nov: hij draait Bazarr; kijkers zouden bv. een
+  vertaling met Google Translate moeten kunnen aanvragen "zodat de ondertiteling altijd goed is"; nog niet bouwen tot
+  hij het zegt). Kan: Bazarr heeft een API met sleutel en per ondertitel acties (zoeken, synchroniseren met het geluid,
+  vertalen, opschonen). Voorstel: Beheer > Koppelingen > Bazarr (zoals Sonarr/Radarr, alleen beheerder), en in het
+  ondertitelmenu van de speler (website, telefoon, tv) "Ondertitel verbeteren": opnieuw zoeken, gelijk zetten met het
+  geluid, vertalen. Let op: vertalen lost een verkeerde timing niet op (dat doet synchroniseren); machinevertaling botst
+  met de werkafspraak "geen AI-functies" (besluit eigenaar); synchroniseren leest het geluid, op de Athlon minuten;
+  Bazarr schrijft het bestand naast de film, Vidalune moet het daarna oppikken. Navragen wat eerst.
+
 - **Trailer in een venster in de app** (vraag eigenaar 22 nov: "trailers [...] in een box op tv laten zien zodat mensen
   [niet] uit de app gaan, want dat kan de app restarten"; nog niet bouwen tot hij het zegt). Nu opent `TrailerButton`
   (`app/src/components/TrailerButton.tsx`) de YouTube-app met `Linking.openURL`; op een Chromecast ruimt Android de
