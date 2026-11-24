@@ -1131,6 +1131,15 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   speelt hij met geluid, sluit Terug het venster, en blijft de app staan.
 - PR #201 aangemaakt 22 nov op verzoek van de eigenaar ("Maak een PR maar"); geen sessielink in de tekst. De eigenaar
   merget zelf (geen toestemming om te mergen gegeven).
+- **Metadata ophalen in de app** (eigenaar 24 nov: "Doe maar in 0.20.11 bouw het maar"; zie "Gemeld tijdens het testen").
+  `AdminTitleMenu` (`components/AdminTitleMenu.tsx`, logica in `lib/adminItem.ts`): ronde ⋯-knop naast Kijklijst,
+  Favoriet en Gezien op film- en seriepagina, alleen voor beheerders, op telefoon, tablet en tv. Menu: Toevoegen aan
+  collectie (vinkjes bij de collecties van de beheerder; maken blijft op de website), Koppeling herstellen (titel en
+  jaar, zoeken via `/api/admin/match/search`, kiezen met poster en zekerheid; een film die samengevoegd wordt opent de
+  nieuwe pagina) en Metadata vernieuwen (`/api/admin/refresh`, melding na afloop). Server ongewijzigd; `MovieDetail` en
+  `ShowDetail` in de app kregen `match` en `collections` (gaf de server al). README bijgewerkt. Tests:
+  `adminItem.test.ts`; app 315 tests, typecheck, lint (0 fouten, 4 bekende waarschuwingen) en de Android-bundel slagen.
+  Op telefoon en tv te bekijken.
 
 ## Versie 0.19.11
 
@@ -1303,6 +1312,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   laadt de pagina opnieuw maar vraagt TMDB niets. Server-API bestaat al, dus alleen app-werk. Voorstel: een ⋯-knop naast
   de knoppen op film- en seriepagina, alleen voor beheerders, op telefoon én tv (alles gelijk), met dezelfde drie
   acties; na een andere match naar de nieuwe pagina. Collectie-toevoegen hoorde bij 0.20.12.
+  Eigenaar (24 nov): "Doe maar in 0.20.11 bouw het maar"; gebouwd in 0.20.11 (zie daar).
 
 - **Bazarr koppelen om ondertitels te verbeteren** (vraag eigenaar 23 nov: hij draait Bazarr; kijkers zouden bv. een
   vertaling met Google Translate moeten kunnen aanvragen "zodat de ondertiteling altijd goed is"; nog niet bouwen tot

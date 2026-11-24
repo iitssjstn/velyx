@@ -1,5 +1,7 @@
 /** The parts of the Vidalune API the app uses (same shapes as the website's). */
 
+import type { CollectionRef, MatchInfo } from './adminItem';
+
 export interface User {
   id: number;
   username: string;
@@ -97,6 +99,9 @@ export interface MovieDetail {
   title: string;
   /** TMDB id (null when not recognised); asks Seerr whether it is being fetched again. */
   tmdbId?: number | null;
+  /** How it was recognised, and the collections it is in (for the administrator's menu). */
+  match?: MatchInfo;
+  collections?: CollectionRef[];
   year: number | null;
   overview: string | null;
   tagline: string | null;
@@ -134,6 +139,8 @@ export interface ShowDetail {
   posterPath: string | null;
   backdropPath: string | null;
   tmdbId?: number | null;
+  match?: MatchInfo;
+  collections?: CollectionRef[];
   genres: { id: number; name: string }[];
   cast?: Person[];
   crew?: Person[];
