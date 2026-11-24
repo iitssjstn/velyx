@@ -1160,6 +1160,7 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
     zien"; teksten van de website overgenomen (`auditLabel`, 57 acties).
   - Logica in `lib/adminPages.ts` (getest: `adminPages.test.ts`), filterknoppen `Chips` in `components/Admin.tsx`.
     App 324 tests, typecheck, lint (0 fouten, 4 bekende waarschuwingen) en de Android-bundel slagen.
+- Eigenaar (24 nov): "ik ga eerst dit bekijken voordat we verder gaan"; deel 2 pas na zijn reactie.
 - Nog te doen in 0.20.12: bibliotheken toevoegen en wijzigen (met mapkiezer), Bibliotheekgezondheid, Opschonen, Back-up,
   collecties maken, instellingen (afspelen, koppelingen, onderhoud, server), tijden van intro's met de hand.
 
