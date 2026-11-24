@@ -1161,6 +1161,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   - Logica in `lib/adminPages.ts` (getest: `adminPages.test.ts`), filterknoppen `Chips` in `components/Admin.tsx`.
     App 324 tests, typecheck, lint (0 fouten, 4 bekende waarschuwingen) en de Android-bundel slagen.
 - Eigenaar (24 nov): "ik ga eerst dit bekijken voordat we verder gaan"; deel 2 pas na zijn reactie.
+- Eigenaar (24 nov): "Maak wel alvast een PR zodat we het al klaar hebben staan". Versie 0.20.12 in alle `package.json`'s,
+  `app/app.json` (versionCode 20012) en beide lockfiles; PR als concept (draft), zodat hij niet gemerged wordt voordat
+  release `v0.20.11` compleet is en de eigenaar deel 1 bekeken heeft. Geen sessielink in de tekst.
 - Nog te doen in 0.20.12: bibliotheken toevoegen en wijzigen (met mapkiezer), Bibliotheekgezondheid, Opschonen, Back-up,
   collecties maken, instellingen (afspelen, koppelingen, onderhoud, server), tijden van intro's met de hand.
 
