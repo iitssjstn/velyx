@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import type { SubtitleChoice } from './subtitles';
 import { readSeekStep, type SeekStep } from './skip';
+import { readDevicePrefs, type DevicePrefs } from './settings';
 import { DEFAULT_SUBTITLE_STYLE, readSubtitleStyle, type SubtitleStyle } from './subtitleStyle';
 
 const KEY = 'velyx.subtitleChoice';
@@ -79,5 +80,34 @@ export async function rememberAudio(language: string | null | undefined): Promis
     await SecureStore.setItemAsync(AUDIO_KEY, language);
   } catch {
     /* not remembered this time */
+  }
+}
+
+/** The audio language chosen in Account wins over the track last chosen in the player. */
+export async function forgetAudio(): Promise<void> {
+  try {
+    await SecureStore.deleteItemAsync(AUDIO_KEY);
+  } catch {
+    /* nothing remembered */
+  }
+}
+
+const DEVICE_KEY = 'velyx.devicePrefs';
+
+/** Autoplay, the countdown and surround sound on this device. */
+export async function storedDevicePrefs(): Promise<DevicePrefs> {
+  try {
+    const raw = await SecureStore.getItemAsync(DEVICE_KEY);
+    return readDevicePrefs(raw ? JSON.parse(raw) : null);
+  } catch {
+    return readDevicePrefs(null);
+  }
+}
+
+export async function storeDevicePrefs(prefs: DevicePrefs): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(DEVICE_KEY, JSON.stringify(prefs));
+  } catch {
+    /* kept until the app closes */
   }
 }

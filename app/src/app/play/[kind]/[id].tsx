@@ -25,7 +25,8 @@ import { NO_RETRIES, endOfStream, fallbackCaps, withHls, withoutHls, retryAt, pl
 import { defaultOnlineLanguage, languageCycle, languageName, nextLanguage, onlineLines } from '../../../lib/onlineSubtitles';
 import { startChoice } from '../../../lib/resume';
 import { SPEEDS, nextSpeed, speedLabel } from '../../../lib/speed';
-import { rememberAudio, rememberSubtitle, rememberedAudio, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
+import { rememberAudio, rememberSubtitle, rememberedAudio, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedDevicePrefs, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
+import { nextCountdown, type DevicePrefs } from '../../../lib/settings';
 import { DEFAULT_SUBTITLE_STYLE, STYLE_LINES, syncPick, accountStyleField, TV_SUBTITLE_STYLE, castSubtitlePreview, editSubtitleStyle, clampPosition, nextStyleValue, stepDelay, SYNC_LINES, subtitleBottom, subtitleTextStyle, tvSubtitleBottom, TV_BAR_HEIGHT, type SubtitleStyle } from '../../../lib/subtitleStyle';
 import { createSubtitleStyleSync, subtitlePreferencesReady, subtitleStyleAccountScope } from '../../../lib/subtitleStyleSync';
 import { castConnectData, castGiven, castPlayerState, castSubtitleFor, castSubtitleKeys, castTrackIdsFor } from '../../../lib/castConnect';
@@ -105,6 +106,7 @@ export default function Player() {
     },
   });
   const prefs = useQuery({ queryKey: [serverUrl, 'account-prefs'], queryFn: () => api.get<Prefs>('/api/account/preferences') });
+  const device = useQuery({ queryKey: ['device-prefs'], queryFn: storedDevicePrefs, staleTime: 0 });
 
   // Landscape without the navigation bar while watching (a swipe from the edge shows it briefly);
   // back to the app's own orientation when the last player closes.
@@ -120,8 +122,8 @@ export default function Player() {
       <StatusBar hidden={!castActive} />
       {item.error ? (
         <Problem message={errorMessage(item.error, t)} />
-      ) : item.data && subtitlePreferencesReady(prefs) ? (
-        <Playback key={`${item.data.kind}-${item.data.id}-${n ?? ''}`} item={item.data} prefs={prefs.data ?? null} startAt={startParam !== undefined ? Number(startParam) : null} resume={resumeParam === '1'} onTv={tvParam === '1'} fromBar={bar === '1'} given={given} onCastingChange={setCastActive} />
+      ) : item.data && subtitlePreferencesReady(prefs) && device.data ? (
+        <Playback key={`${item.data.kind}-${item.data.id}-${n ?? ''}`} item={item.data} prefs={prefs.data ?? null} device={device.data} startAt={startParam !== undefined ? Number(startParam) : null} resume={resumeParam === '1'} onTv={tvParam === '1'} fromBar={bar === '1'} given={given} onCastingChange={setCastActive} />
       ) : (
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} size="large" />
@@ -141,7 +143,7 @@ function Problem({ message }: { message: string }) {
   );
 }
 
-function Playback({ item, prefs, startAt, resume, onTv, fromBar, given, onCastingChange }: { item: Item; prefs: Prefs | null; startAt: number | null; /** Opened to resume (Continue watching, a Resume button): no question first. */ resume: boolean; /** Opened because the TV started this title itself: it plays there already. */ onTv: boolean; /** Opened from the cast bar: the screen slides up from it (and down when closed). */ fromBar: boolean; /** The subtitle and audio a cast to this TV came with. */ given: ReturnType<typeof castGiven>; onCastingChange: (active: boolean) => void }) {
+function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, onCastingChange }: { item: Item; prefs: Prefs | null; /** Autoplay, the countdown and surround sound on this device. */ device: DevicePrefs; startAt: number | null; /** Opened to resume (Continue watching, a Resume button): no question first. */ resume: boolean; /** Opened because the TV started this title itself: it plays there already. */ onTv: boolean; /** Opened from the cast bar: the screen slides up from it (and down when closed). */ fromBar: boolean; /** The subtitle and audio a cast to this TV came with. */ given: ReturnType<typeof castGiven>; onCastingChange: (active: boolean) => void }) {
   const { api, t, serverUrl, language, cloudServerId, user } = useSession();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
@@ -272,7 +274,9 @@ function Playback({ item, prefs, startAt, resume, onTv, fromBar, given, onCastin
   /** Counts loads: a seek that started later wins, whichever stream answer comes back first. */
   const loads = useRef(0);
   /** The caps of the current stream; after a failed first try, the safer second-try caps. */
-  const capsRef = useRef<PlaybackCaps>(playbackCaps(deviceDecoders()));
+  const capsRef = useRef<PlaybackCaps>({ ...playbackCaps(deviceDecoders()), ...(device.surround ? { audioChannels: 'surround' as const } : {}) });
+  /** The countdown to the next episode, or null when it does not start by itself (Account → Playback). */
+  const autoNext = nextCountdown(device);
   const triedFallback = useRef(false);
   const autoSkipped = useRef(new Set<string>());
   /** The last skip, so its button does not come back while the stream lands just before where it went. */
@@ -724,7 +728,7 @@ function Playback({ item, prefs, startAt, resume, onTv, fromBar, given, onCastin
     setEnded(true);
     setControls(true);
     // While casting, Vidalune's TV player counts down and starts the next episode itself.
-    if (item.next && !nextDismissed && countdown === null && !castingRef.current) setCountdown(NEXT_COUNTDOWN);
+    if (item.next && autoNext !== null && !nextDismissed && countdown === null && !castingRef.current) setCountdown(autoNext);
   };
 
   // Connected to a Chromecast: continue there from here (also when the next episode opens while
@@ -873,7 +877,7 @@ function Playback({ item, prefs, startAt, resume, onTv, fromBar, given, onCastin
 
   // ---------------------------------------------------------------- next episode
   // Offered when the credits begin (or in the last seconds), with a countdown unless dismissed.
-  const upNextAt = item.next ? upNextStart(item.segments, item.fileId, duration, NEXT_COUNTDOWN) : null;
+  const upNextAt = item.next ? upNextStart(item.segments, item.fileId, duration, autoNext ?? NEXT_COUNTDOWN) : null;
   const nearEnd = upNextAt !== null && position >= upNextAt;
   // Only after playing up to that moment: starting (or jumping) straight into the credits does not
   // start the countdown — then it waits for the end of the episode.
@@ -887,11 +891,11 @@ function Playback({ item, prefs, startAt, resume, onTv, fromBar, given, onCastin
     if (position < upNextAt) reachedEnd.current = false;
   }, [position, playing, loading, upNextAt]);
   useEffect(() => {
-    if (!item.next || nextDismissed) return;
-    if (nearEnd && playing && reachedEnd.current && !castingRef.current) setCountdown((c) => c ?? NEXT_COUNTDOWN);
+    if (!item.next || nextDismissed || autoNext === null) return;
+    if (nearEnd && playing && reachedEnd.current && !castingRef.current) setCountdown((c) => c ?? autoNext);
     // Seeking back out of the end cancels it.
     if (!nearEnd && !ended) setCountdown(null);
-  }, [nearEnd, playing, ended, item.next, nextDismissed, position]);
+  }, [nearEnd, playing, ended, item.next, nextDismissed, position, autoNext]);
   useEffect(() => {
     if (countdown === null) return;
     if (countdown <= 0) {
@@ -1006,6 +1010,8 @@ function Playback({ item, prefs, startAt, resume, onTv, fromBar, given, onCastin
   useEffect(() => {
     if (!skip || skip.mode !== 'always' || autoSkipped.current.has(skip.kind)) return;
     if (skip.kind === 'credits' && skip.toNext && item.next) {
+      // Without autoplay (Account → Playback) the episode just plays to its end, as on the website.
+      if (autoNext === null) return;
       // Straight on to the next episode only when the credits were reached by watching, not when
       // playback started inside them.
       if (!reachedEnd.current) return;
@@ -1016,7 +1022,7 @@ function Playback({ item, prefs, startAt, resume, onTv, fromBar, given, onCastin
     autoSkipped.current.add(skip.kind);
     seekTo(skip.to);
     doneSkip.current = { kind: skip.kind, to: skip.to };
-  }, [skip, item.next, goNext, seekTo, position]);
+  }, [skip, item.next, goNext, seekTo, position, autoNext]);
 
   const toggle = () => {
     poke();

@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Artwork, useWide } from './media';
 import { FocusPressable, FocusRing, Lift, shelfPadding, Heading } from './ui';
-import { catalogOnly, DISCOVER_ROWS, discoverPath, discoverTarget, mergePages, requestTone, type DiscoverPage, type DiscoverRow, type RequestState, type SeerrResult } from '../lib/discover';
+import { catalogOnly, DISCOVER_ROWS, discoverHref, discoverPath, discoverTarget, mergePages, requestTone, type DiscoverPage, type DiscoverRow, type RequestState, type SeerrResult } from '../lib/discover';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
 
@@ -107,7 +107,12 @@ function DiscoverShelf({ spec, onOpen }: { spec: DiscoverRow; onOpen: (item: See
   const title = spec.genreName ? t(spec.title, { genre: t(spec.genreName) }) : t(spec.title);
   return (
     <View style={{ marginBottom: 24 }}>
-      <Heading>{title}</Heading>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingRight: 16 }}>
+        <Heading>{title}</Heading>
+        <FocusPressable accessibilityRole="link" accessibilityLabel={`${title}: ${t('home.seeAll')}`} hitSlop={10} onPress={() => router.push(discoverHref(spec) as never)}>
+          <Text style={{ color: colors.accent, fontWeight: '600' }}>{t('home.seeAll')}</Text>
+        </FocusPressable>
+      </View>
       {q.isLoading ? (
         <View style={{ height: width * 1.5, justifyContent: 'center' }}>
           <ActivityIndicator color={colors.accent} />

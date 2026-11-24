@@ -19,6 +19,8 @@ export interface PlaybackCaps {
   audioTrackSwitching: boolean;
   imageSubtitles: boolean;
   audioIndex?: number;
+  /** Surround (5.1) when the server converts the audio; stereo when left out. */
+  audioChannels?: 'stereo' | 'surround';
 }
 
 /** Containers the app's player (Media3/ExoPlayer) reads, whatever the device. */

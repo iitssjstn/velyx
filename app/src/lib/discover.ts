@@ -133,3 +133,14 @@ export function seasonsToRequest(chosen: number[], all: number[]): number[] | nu
 export function catalogOnly(results: SeerrResult[] | undefined): SeerrResult[] {
   return (results ?? []).filter((r) => !r.inLibrary);
 }
+
+/** The screen with all of a catalog row ("See all"). */
+export function discoverHref(spec: Pick<DiscoverRow, 'row' | 'genre'>): string {
+  return `/discover/${spec.row}${spec.genre ? `?genre=${spec.genre}` : ''}`;
+}
+
+/** The row a "See all" screen shows, from its parameters; null for one that does not exist. */
+export function discoverRowFor(row: string | undefined, genre: string | undefined): DiscoverRow | null {
+  const g = genre ? Number(genre) : undefined;
+  return DISCOVER_ROWS.find((r) => r.row === row && r.genre === g) ?? null;
+}

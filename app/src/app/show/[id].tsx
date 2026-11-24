@@ -6,6 +6,7 @@ import { Toggle } from '../../components/actions';
 import { SeasonPicker } from '../../components/SeasonPicker';
 import { DownloadBar, useTitleDownload } from '../../components/DownloadBar';
 import { TrailerButton } from '../../components/TrailerButton';
+import { AdminTitleMenu } from '../../components/AdminTitleMenu';
 import { useFreshMetadata } from '../../components/useFreshMetadata';
 import { Artwork, useWide } from '../../components/media';
 import { Block, DetailSkeleton } from '../../components/Skeleton';
@@ -93,6 +94,7 @@ export default function Show() {
         activeLabel={t('actions.showUnwatched')}
         request={(on) => watchedRequest({ showId: s.id }, on)}
       />
+      <AdminTitleMenu type="show" id={s.id} title={s.title} year={s.year} match={s.match} collections={s.collections} />
     </View>
   );
   const picker = asking && <SeasonPicker details={asking} visible onClose={() => setAsking(null)} onRequested={(title) => dialog.alert('Vidalune', t('request.requested', { title }))} />;

@@ -3,6 +3,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Toggle } from '../../components/actions';
 import { TrailerButton } from '../../components/TrailerButton';
+import { AdminTitleMenu } from '../../components/AdminTitleMenu';
 import { useFreshMetadata } from '../../components/useFreshMetadata';
 import { Artwork, useWide } from '../../components/media';
 import { CastRow } from '../../components/CastRow';
@@ -57,6 +58,7 @@ export default function Movie() {
       <Toggle active={m.watchlist} icon="bookmark" text={t('actions.watchlist')} label={t('actions.addWatchlist')} activeLabel={t('actions.removeWatchlist')} request={(on) => savedRequest('watchlist', 'movie', m.id, on)} />
       <Toggle active={m.favorite} icon="heart" text={t('actions.favorite')} label={t('actions.addFavorite')} activeLabel={t('actions.removeFavorite')} request={(on) => savedRequest('favorites', 'movie', m.id, on)} />
       <Toggle active={Boolean(m.progress?.completed)} icon="check" text={t('actions.watched')} label={t('actions.markWatched')} activeLabel={t('actions.markUnwatched')} request={(on) => watchedRequest({ movieId: m.id }, on)} />
+      <AdminTitleMenu type="movie" id={m.id} title={m.title} year={m.year} match={m.match} collections={m.collections} />
     </View>
   );
   const heading = (
