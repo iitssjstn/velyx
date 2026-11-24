@@ -1296,6 +1296,14 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Metadata ophalen kan niet op de telefoon** (eigenaar 24 nov; nog niet bouwen tot hij het zegt). Op de website heeft
+  een beheerder op de film- en seriepagina een menu (`AdminItemMenu`): Metadata vernieuwen
+  (`POST /api/admin/refresh/:type/:id`), Match corrigeren (`FixMatchModal`: zoeken via `/api/admin/match/search`, kiezen
+  via `POST /api/admin/match`) en Toevoegen aan collectie (`CollectionPicker`). De app heeft alleen omlaag trekken, dat
+  laadt de pagina opnieuw maar vraagt TMDB niets. Server-API bestaat al, dus alleen app-werk. Voorstel: een ⋯-knop naast
+  de knoppen op film- en seriepagina, alleen voor beheerders, op telefoon én tv (alles gelijk), met dezelfde drie
+  acties; na een andere match naar de nieuwe pagina. Collectie-toevoegen hoorde bij 0.20.12.
+
 - **Bazarr koppelen om ondertitels te verbeteren** (vraag eigenaar 23 nov: hij draait Bazarr; kijkers zouden bv. een
   vertaling met Google Translate moeten kunnen aanvragen "zodat de ondertiteling altijd goed is"; nog niet bouwen tot
   hij het zegt). Kan: Bazarr heeft een API met sleutel en per ondertitel acties (zoeken, synchroniseren met het geluid,
