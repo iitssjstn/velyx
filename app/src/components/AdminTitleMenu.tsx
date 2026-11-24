@@ -111,8 +111,11 @@ function MenuRow({ icon, label, onPress, first }: { icon: keyof typeof Feather.g
   );
 }
 
-/** Search TMDB and pick the right entry; a movie merged into another opens that one. */
-function FixMatch({ type, id, query, year, onClose }: { type: TitleType; id: number; query: string; year: number | null; onClose: () => void }) {
+/**
+ * Search TMDB and pick the right entry. On the title's own page a movie merged into another opens
+ * that one (`follow`); from Admin → Metadata the list just loads again.
+ */
+export function FixMatch({ type, id, query, year, onClose, follow = true }: { type: TitleType; id: number; query: string; year: number | null; onClose: () => void; follow?: boolean }) {
   const { api, t, serverUrl } = useSession();
   const qc = useQueryClient();
   const [text, setText] = useState(query);
@@ -127,7 +130,7 @@ function FixMatch({ type, id, query, year, onClose }: { type: TitleType; id: num
     onSuccess: (r) => {
       onClose();
       void qc.invalidateQueries({ queryKey: [serverUrl] });
-      const next = matchedRoute(type, id, r.id);
+      const next = follow ? matchedRoute(type, id, r.id) : null;
       if (next) router.replace(next);
       dialog.alert('Vidalune', t('fixMatch.updated'));
     },

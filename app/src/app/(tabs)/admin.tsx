@@ -90,6 +90,10 @@ export default function Admin() {
         <Row icon="users" label={t('admin.users')} href="/admin/users" />
         <Row icon="bell" label={t('admin.notifications')} href="/admin/notifications" badge={unread.data?.unread ? t('admin.unread', { n: unread.data.unread }) : undefined} />
         <Row icon="activity" label={t('admin.activity')} href="/admin/activity" />
+        <Row icon="tag" label={t('admin.metadata')} href="/admin/metadata" />
+        <Row icon="skip-forward" label={t('admin.segments')} href="/admin/segments" />
+        <Row icon="file-text" label={t('admin.logs')} href="/admin/logs" />
+        <Row icon="shield" label={t('admin.audit')} href="/admin/audit" />
       </Card>
       <Text style={[styles.muted, { textAlign: 'center' }]}>{t('admin.website')}</Text>
     </AdminScreen>

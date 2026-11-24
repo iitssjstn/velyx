@@ -74,6 +74,11 @@ export default function RootLayout() {
             <Stack.Screen name="admin/users" options={{ title: '' }} />
             <Stack.Screen name="admin/notifications" options={{ title: '' }} />
             <Stack.Screen name="admin/activity" options={{ title: '' }} />
+            <Stack.Screen name="admin/metadata" options={{ title: '' }} />
+            <Stack.Screen name="admin/segments/index" options={{ title: '' }} />
+            <Stack.Screen name="admin/segments/[id]" options={{ title: '' }} />
+            <Stack.Screen name="admin/logs" options={{ title: '' }} />
+            <Stack.Screen name="admin/audit" options={{ title: '' }} />
             {/* From the cast bar the remote slides up over the screens (and down again); otherwise the player fades in. */}
             <Stack.Screen name="play/[kind]/[id]" options={({ route }) => ({ headerShown: false, animation: (route.params as { bar?: string } | undefined)?.bar === '1' ? 'slide_from_bottom' : 'fade' })} />
           </Stack>
