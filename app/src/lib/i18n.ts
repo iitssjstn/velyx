@@ -571,6 +571,10 @@ const en = {
   'segments.source.central': 'Vidalune',
   'segments.removeCorrection': 'Remove correction',
   'segments.removeCorrectionText': 'Remove the correction of this episode? It is then found automatically again.',
+  'switch.voices': 'Changing voices…',
+  'switch.audio': 'Changing audio track…',
+  'switch.seek': 'Loading from here…',
+  'switch.load': 'Loading…',
   'common.ok': 'OK',
 } as const;
 
@@ -1148,6 +1152,10 @@ const nl: Record<MessageKey, string> = {
   'segments.source.central': 'Vidalune',
   'segments.removeCorrection': 'Correctie weghalen',
   'segments.removeCorrectionText': 'De correctie van deze aflevering weghalen? Hij wordt dan weer automatisch herkend.',
+  'switch.voices': 'Stemmen aanpassen…',
+  'switch.audio': 'Audiospoor wisselen…',
+  'switch.seek': 'Laden vanaf hier…',
+  'switch.load': 'Laden…',
   'common.ok': 'OK',
 };
 

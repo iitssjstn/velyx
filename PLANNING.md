@@ -1164,6 +1164,16 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Eigenaar (24 nov): "Maak wel alvast een PR zodat we het al klaar hebben staan". Versie 0.20.12 in alle `package.json`'s,
   `app/app.json` (versionCode 20012) en beide lockfiles; PR als concept (draft), zodat hij niet gemerged wordt voordat
   release `v0.20.11` compleet is en de eigenaar deel 1 bekeken heeft. Geen sessielink in de tekst.
+- **Laadmelding bij elke wissel van stream** (eigenaar 25 nov: "Dat laden moet gewoon algemeen wezen"; "Ja bouw het
+  maar in 0.20.12"). Eén gedeelde toestand `nextSwitch`/`switchLabel` (`lib/streamSwitch.ts`, zelfde bestand in `app/` en
+  `frontend/`, getest): start (reden) → nieuwe stream laadt → speelt = weg; mislukt = weg. Bij Stemmen, een ander
+  audiospoor en spoelen dat een nieuwe stream start pauzeert de speler meteen en toont een laadcirkel met "Stemmen
+  aanpassen…", "Audiospoor wisselen…" of "Laden vanaf hier…" tot de nieuwe stream speelt (website, telefoon en tv).
+  Website: een keuze die niets verandert doet niets meer; geeft de server dezelfde stream terug, dan speelt hij verder.
+  App: lukt opslaan van Stemmen niet, dan speelt hij door met een melding. Niet tijdens casten. Tests: website 409
+  (twee nieuwe in `Player.test.tsx`: melding tot de nieuwe stream speelt; zelfde stream speelt door), app 328;
+  typechecks, lint (0 fouten, 4 bekende waarschuwingen), website-build en Android-bundel slagen. Op een echt toestel te
+  bevestigen.
 - Nog te doen in 0.20.12: bibliotheken toevoegen en wijzigen (met mapkiezer), Bibliotheekgezondheid, Opschonen, Back-up,
   collecties maken, instellingen (afspelen, koppelingen, onderhoud, server), tijden van intro's met de hand.
 
@@ -1341,7 +1351,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   stand met een melding. Navragen op welk apparaat hij het zag.
   Eigenaar (25 nov): "Dat laden moet gewoon algemeen wezen zodat je dat overal kan gebruiken". Dus één gedeeld
   laadscherm voor elke wissel van stream (stemmen, audiospoor, spoelen bij een omgepakte stream, later kwaliteit), op
-  website, telefoon en tv, in plaats van iets alleen voor Stemmen.
+  website, telefoon en tv, in plaats van iets alleen voor Stemmen. Gebouwd in 0.20.12 (zie daar).
 
 - **Metadata ophalen kan niet op de telefoon** (eigenaar 24 nov; nog niet bouwen tot hij het zegt). Op de website heeft
   een beheerder op de film- en seriepagina een menu (`AdminItemMenu`): Metadata vernieuwen

@@ -431,6 +431,78 @@ describe('subtitles after seeking', () => {
 });
 
 describe('the loading spinner of the player', () => {
+  it('stops and says so while other voices load, until the new stream plays', async () => {
+    setPrefs({ boostVoices: false, levelVolume: false });
+    // As the server does: other voices are another stream (the sound converted).
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      let body: unknown = {};
+      if (url === '/api/movies/3') body = MOVIE;
+      if (url === '/api/media/3/playback') {
+        const voices = (JSON.parse(String(init?.body ?? '{}')) as { boostVoices?: boolean }).boostVoices;
+        body = voices ? { ...PLAYBACK, decision: { ...PLAYBACK.decision, streamUrl: '/api/media/3/stream?voice=1' } } : PLAYBACK;
+      }
+      if (url === '/api/account/preferences') body = { audioLanguage: '', subtitleLanguage: '', subtitleFallback: '', subtitleMode: 'remember' };
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    renderPlayer();
+    const video = await vi.waitFor(() => {
+      const v = document.querySelector('video');
+      if (!v) throw new Error('no video yet');
+      return v;
+    });
+    const state = fakeVideo(video);
+    state.readyState = 4;
+    fireEvent.loadedMetadata(video);
+    fireEvent.canPlay(video);
+    const pause = vi.mocked(HTMLMediaElement.prototype.pause);
+    pause.mockClear();
+    fireEvent.click(await screen.findByRole('button', { name: 'Audio' }));
+    const voices = await screen.findByRole('radiogroup', { name: 'Voices' });
+    fireEvent.click(Array.from(voices.querySelectorAll('[role="radio"]')).find((b) => b.textContent === 'Voices')!);
+    // The old sound does not play on: the player stops where it was and says what it does.
+    expect(pause).toHaveBeenCalled();
+    expect(await screen.findByText('Changing voices…')).toBeTruthy();
+    // The old stream saying it can play does not end it; only the new one, once it has begun loading.
+    fireEvent.canPlay(video);
+    expect(screen.queryByText('Changing voices…')).toBeTruthy();
+    // The new stream is a new video element.
+    const next = await vi.waitFor(() => {
+      const v = document.querySelector('video');
+      if (!v || v === video) throw new Error('no new video yet');
+      return v;
+    });
+    fakeVideo(next).readyState = 4;
+    fireEvent.loadStart(next);
+    fireEvent.canPlay(next);
+    await vi.waitFor(() => expect(screen.queryByText('Changing voices…')).toBeNull());
+  });
+
+  it('plays on when the change needs no new stream', async () => {
+    setPrefs({ boostVoices: false, levelVolume: false });
+    renderPlayer();
+    const video = await vi.waitFor(() => {
+      const v = document.querySelector('video');
+      if (!v) throw new Error('no video yet');
+      return v;
+    });
+    const state = fakeVideo(video);
+    state.readyState = 4;
+    fireEvent.loadedMetadata(video);
+    fireEvent.canPlay(video);
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    fireEvent.click(await screen.findByRole('button', { name: 'Audio' }));
+    const voices = await screen.findByRole('radiogroup', { name: 'Voices' });
+    vi.mocked(HTMLMediaElement.prototype.pause).mockImplementation(() => {
+      state.paused = true;
+    });
+    play.mockClear();
+    fireEvent.click(Array.from(voices.querySelectorAll('[role="radio"]')).find((b) => b.textContent === 'Voices')!);
+    // The server answers with the same stream: nothing to wait for.
+    await vi.waitFor(() => expect(screen.queryByText('Changing voices…')).toBeNull());
+    expect(play).toHaveBeenCalled();
+  });
+
   it('goes away once the picture moves, also when the browser never reports "playing" again', async () => {
     renderPlayer();
     const video = await vi.waitFor(() => {

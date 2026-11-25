@@ -60,6 +60,12 @@ export const player = {
   },
   miniPlayer: 'Mini player',
   slow: 'This is taking longer than usual. The connection or the server may be slow.',
+  switching: {
+    voices: 'Changing voices…',
+    audio: 'Changing audio track…',
+    seek: 'Loading from here…',
+    load: 'Loading…',
+  },
   problem: 'Playback problem',
   mayNotPlay: 'This file may not play in this browser: {reasons}. Vidalune will try anyway.',
   skipIntro: 'Skip intro',
