@@ -1339,6 +1339,9 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   `playbackKey`, de oude stream speelt door tot de nieuwe er is. Voorstel: meteen pauzeren op de huidige plek, laadcirkel
   met "Stemmen aanpassen…" tot de nieuwe stream speelt, op website, telefoon en tv; mislukt het, dan terug naar de oude
   stand met een melding. Navragen op welk apparaat hij het zag.
+  Eigenaar (25 nov): "Dat laden moet gewoon algemeen wezen zodat je dat overal kan gebruiken". Dus één gedeeld
+  laadscherm voor elke wissel van stream (stemmen, audiospoor, spoelen bij een omgepakte stream, later kwaliteit), op
+  website, telefoon en tv, in plaats van iets alleen voor Stemmen.
 
 - **Metadata ophalen kan niet op de telefoon** (eigenaar 24 nov; nog niet bouwen tot hij het zegt). Op de website heeft
   een beheerder op de film- en seriepagina een menu (`AdminItemMenu`): Metadata vernieuwen
