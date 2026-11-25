@@ -1331,6 +1331,15 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Wisselen van Stemmen (Normaal/versterken/nacht) duurt even en is niet te zien** (eigenaar 25 nov: "dat is niet
+  zichtbaar totdat de stream refreshed wordt"; nog niet bouwen tot hij het zegt). Code nagelopen: de keuze verandert het
+  stream-adres (`voice=1`/`level=1` in de URL), dus de server start een nieuwe omzetting van het geluid. In de app
+  (`chooseAudioMode` in `play/[kind]/[id].tsx`): eerst opslaan bij het account, dan `/playback`, dan de nieuwe stream
+  laden; al die tijd speelt het oude geluid door zonder laadcirkel of melding. Website (`changeAudioPrefs`): nieuwe
+  `playbackKey`, de oude stream speelt door tot de nieuwe er is. Voorstel: meteen pauzeren op de huidige plek, laadcirkel
+  met "Stemmen aanpassen…" tot de nieuwe stream speelt, op website, telefoon en tv; mislukt het, dan terug naar de oude
+  stand met een melding. Navragen op welk apparaat hij het zag.
+
 - **Metadata ophalen kan niet op de telefoon** (eigenaar 24 nov; nog niet bouwen tot hij het zegt). Op de website heeft
   een beheerder op de film- en seriepagina een menu (`AdminItemMenu`): Metadata vernieuwen
   (`POST /api/admin/refresh/:type/:id`), Match corrigeren (`FixMatchModal`: zoeken via `/api/admin/match/search`, kiezen
