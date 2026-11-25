@@ -1202,7 +1202,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Tests: `adminLibraries`, `adminCollections`, `adminCleanup`, `adminSettings`, `segmentEdit`; app 404 tests, typecheck,
   lint (0 fouten, 4 bekende waarschuwingen) en de Android-bundel slagen. De schermen zelf op de telefoon te bekijken.
 - Versie 0.20.13 in alle `package.json`'s, `app/app.json` (versionCode 20013) en beide lockfiles. README bijgewerkt.
-  Nog geen PR (eerst moet release `v0.20.12` compleet zijn en de eigenaar het vragen).
+- PR #203 aangemaakt 25 nov op verzoek van de eigenaar ("Maak de PR maar"); geen sessielink in de tekst. Release
+  `v0.20.12` liep toen nog (Debian klaar bezig, daarna app en Windows): niet mergen voordat die compleet is.
 
 ## Versie 0.19.11
 
