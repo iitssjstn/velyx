@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, BackHandler, Easing, Modal, Pressable, ScrollView, Text, View, type GestureResponderEvent } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -37,6 +37,7 @@ import { addSeek, justSkipped, SEEK_COMBINE_MS, SEEK_STEPS, skipAt, upNextStart,
 import { colors, radius } from '../../../lib/theme';
 import { tvFocus } from '../../../lib/tvFocus';
 import { AUDIO_MODES, audioMenuPick, isAudioMode, type AudioMode } from '../../../lib/audioMode';
+import { nextSwitch, switchLabel } from '../../../lib/streamSwitch';
 import { TV_CONTROLS_MS, initialTvState, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, type RemoteKey, type TvContext } from '../../../lib/tvRemote';
 import { SUBTITLE_ERROR_FOR_MS, SUBTITLE_LOADING_AFTER_MS, cueTextAt, cuesFrom, type Cue } from '../../../lib/vtt';
 import { dialog } from '../../../lib/dialog';
@@ -292,12 +293,15 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
   const noHls = useRef(false);
   /** Where a seek that restarts the stream goes: shown at once, until the new stream is there. */
   const [seekingTo, setSeekingTo] = useState<number | null>(null);
+  /** The note while the player changes to a new stream (voices, audio track, a seek that restarts it). */
+  const [switching, switchEvent] = useReducer(nextSwitch, null);
   const load = useCallback(
     async (a: PlaybackAnswer, at: number, autoplay = true) => {
       // Playing on a Chromecast: the phone stays quiet.
       if (castingRef.current) return;
       const loadId = ++loads.current;
       setLoading(true);
+      switchEvent({ type: 'loading' });
       const reached = reachedRef.current?.token === a.directPlayback?.token ? reachedRef.current?.base : undefined;
       const s = await streamFrom(api, a, at, fetch, reached).catch((err) => {
         if (loadId === loads.current) setSeekingTo(null);
@@ -508,16 +512,21 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
           const pos = playerAudioPosition(a.file.audioTracks, a.decision.audioIndex);
           const track = pos >= 0 ? player.availableAudioTracks[pos] : undefined;
           if (track) player.audioTrack = track;
+          switchEvent({ type: 'done' });
           return;
         }
         wantedStart.current = at;
         // Casting already: the TV gets it (below), the phone does not play it too.
         if (!castingRef.current && castStatus() === 'connected') {
           localSkipped.current = true;
+          switchEvent({ type: 'done' });
           return;
         }
+        // What plays now is replaced: it stops here instead of playing on under the note.
+        player.pause();
         await load(a, at);
       } catch (err) {
+        switchEvent({ type: 'failed' });
         setProblem(errorMessage(err, t));
       }
     },
@@ -661,7 +670,11 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
   useEventListener(player, 'statusChange', ({ status, error }) => {
     if (castingRef.current) return;
     setLoading(status === 'loading');
-    if (status === 'readyToPlay') streamReady.current = true;
+    if (status === 'loading') switchEvent({ type: 'loading' });
+    if (status === 'readyToPlay') {
+      streamReady.current = true;
+      switchEvent({ type: 'ready' });
+    }
     if (status === 'readyToPlay' && pendingSeek.current !== null) {
       player.currentTime = pendingSeek.current;
       pendingSeek.current = null;
@@ -946,8 +959,12 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
         // time jump there now, with the spinner, and the old picture stops instead of playing on.
         setSeekingTo(tt);
         setLoading(true);
+        switchEvent({ type: 'start', reason: 'seek' });
         player.pause();
-        void load(answer, tt).catch((err) => setProblem(errorMessage(err, t)));
+        void load(answer, tt).catch((err) => {
+          switchEvent({ type: 'failed' });
+          setProblem(errorMessage(err, t));
+        });
       }
       else {
         player.currentTime = tt;
@@ -1080,18 +1097,28 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
   const chooseAudio = (index: number) => {
     const track = audioTracks.find((a) => a.index === index);
     if (track) void rememberAudio(track.language);
-    if (index !== audioIndex) void decide(position, index);
+    if (index === audioIndex) return;
+    if (!castingRef.current) switchEvent({ type: 'start', reason: 'audio' });
+    void decide(position, index);
   };
   /** Another audio mode: saved with the account first (the server reads it), then the stream restarts here. */
   const chooseAudioMode = async (mode: AudioMode) => {
     if (mode === audioMode) return;
     const before = audioMode;
     setAudioMode(mode);
+    // The sound changes with a new stream: the player stops here and says so until it plays again.
+    if (!castingRef.current) {
+      switchEvent({ type: 'start', reason: 'voices' });
+      player.pause();
+    }
     try {
       await api.put('/api/account/preferences', { audioMode: mode });
-    } catch {
-      // Not saved (server unreachable): it stays as it was.
+    } catch (err) {
+      // Not saved (server unreachable): it stays as it was, and plays on.
       setAudioMode(before);
+      switchEvent({ type: 'failed' });
+      if (!castingRef.current) player.play();
+      dialog.alert(t('common.error'), errorMessage(err, t));
       return;
     }
     qc.setQueryData<Prefs>([serverUrl, 'account-prefs'], (current) => (current ? { ...current, audioMode: mode } : current));
@@ -1230,6 +1257,14 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
           <View style={{ backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 999, paddingVertical: 14, paddingHorizontal: 18, alignItems: 'center', gap: 4 }}>
             <Feather name={seekFlash.side === 'back' ? 'rotate-ccw' : 'rotate-cw'} size={28} color="#fff" />
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{seekFlash.total > 0 ? `+${seekFlash.total}` : `−${Math.abs(seekFlash.total)}`}</Text>
+          </View>
+        </View>
+      )}
+      {switching && (
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' }}>
+          <View accessibilityLiveRegion="polite" style={{ backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 16, paddingVertical: TV ? 18 : 14, paddingHorizontal: TV ? 28 : 20, alignItems: 'center', gap: 10 }}>
+            <ActivityIndicator color="#fff" size="large" />
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: TV ? 20 : 16 }}>{t(switchLabel(switching.reason))}</Text>
           </View>
         </View>
       )}

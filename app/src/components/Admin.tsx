@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { errorMessage } from '../lib/connection';
 import { useSession } from '../lib/session';
 import { colors, radius } from '../lib/theme';
-import { buttonLook, OUTLINE_INK, styles } from './ui';
+import { buttonLook, FocusPressable, OUTLINE_INK, styles } from './ui';
 import { dialog } from '../lib/dialog';
 
 /** A screen of the Admin tab: scrolls, pulls to refresh, and keeps a readable width on a tablet. */
@@ -90,4 +90,26 @@ export function useAdminAction<V>(run: (vars: V) => Promise<unknown>, keys: unkn
     },
     onError: (err) => dialog.alert(t('common.error'), errorMessage(err, t)),
   });
+}
+
+/** A row of choices (a filter); scrolls sideways when it does not fit. */
+export function Chips<T extends string>({ value, choices, onChange }: { value: T; choices: { value: T; label: string }[]; onChange: (value: T) => void }) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }} accessibilityRole="tablist">
+      {choices.map((c) => {
+        const on = c.value === value;
+        return (
+          <FocusPressable
+            key={c.value || 'all'}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: on }}
+            onPress={() => onChange(c.value)}
+            style={[on ? buttonLook.filled : buttonLook.outlined, { minHeight: 34, paddingHorizontal: 12, justifyContent: 'center', borderRadius: radius.pill }]}
+          >
+            <Text style={{ color: on ? colors.buttonInk : OUTLINE_INK, fontWeight: '600', fontSize: 13 }}>{c.label}</Text>
+          </FocusPressable>
+        );
+      })}
+    </ScrollView>
+  );
 }

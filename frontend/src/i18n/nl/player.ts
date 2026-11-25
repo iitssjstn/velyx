@@ -61,6 +61,12 @@ export const player: Messages['player'] = {
   },
   miniPlayer: 'Minispeler',
   slow: 'Dit duurt langer dan normaal. De verbinding of de server is misschien traag.',
+  switching: {
+    voices: 'Stemmen aanpassen…',
+    audio: 'Audiospoor wisselen…',
+    seek: 'Laden vanaf hier…',
+    load: 'Laden…',
+  },
   problem: 'Probleem bij afspelen',
   mayNotPlay: 'Dit bestand speelt mogelijk niet af in deze browser: {reasons}. Vidalune probeert het toch.',
   skipIntro: 'Intro overslaan',

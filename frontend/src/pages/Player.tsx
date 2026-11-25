@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { nextSwitch, switchLabel } from '../lib/streamSwitch';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -247,6 +248,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
   const [buffering, setBuffering] = useState(true);
+  /** The note while the player changes to a new stream (voices, audio track, a seek that restarts it). */
+  const [switching, switchEvent] = useReducer(nextSwitch, null);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
@@ -258,6 +261,10 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const [subKey, setSubKey] = useState<string | null>(null);
   const [speed, setSpeed] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  // An error ends the note: the player shows what went wrong instead.
+  useEffect(() => {
+    if (error) switchEvent({ type: 'failed' });
+  }, [error]);
   /** The file is gone (removed or unmounted): trying again will not help. */
   const [errorGone, setErrorGone] = useState(false);
   const [warningDismissed, setWarningDismissed] = useState(false);
@@ -364,6 +371,26 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   // The video here gives the length of a direct-play file, but it never loads while casting (0:00 / 0:00): then the server's.
   const totalDuration = live ? (info?.decision.durationSec ?? file?.durationSec ?? 0) : duration || (info?.decision.durationSec ?? file?.durationSec ?? 0);
   const streamSrc = current ? (live && current.seek > 0 ? withParam(current.base, 'start', current.seek.toFixed(3)) : current.base) : null;
+  // A change that the server answers with the same stream (nothing new to load): the note goes and it
+  // plays on, instead of waiting for a stream that never comes.
+  const switchFrom = useRef<{ src: string | null; at: number } | null>(null);
+  useEffect(() => {
+    if (!switching) {
+      switchFrom.current = null;
+      return;
+    }
+    if (switchFrom.current === null) {
+      switchFrom.current = { src: streamSrc, at: playback.dataUpdatedAt };
+      return;
+    }
+    // A new answer came (another time than at the start) with the same stream as before.
+    const from = switchFrom.current;
+    if (!playback.isFetching && playback.dataUpdatedAt !== from.at && streamSrc === from.src && !switching.loading) {
+      switchEvent({ type: 'done' });
+      const v = videoRef.current;
+      if (v && playAfterLoadRef.current && v.paused) void v.play().catch(() => setPlaying(false));
+    }
+  }, [switching, streamSrc, playback.isFetching, playback.dataUpdatedAt]);
 
   // HLS through hls.js: the pieces are loaded into the video element (Safari plays the list itself).
   // It starts loading at the resume position, keeps a minute ahead, and recovers from a lost
@@ -460,6 +487,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         const v = videoRef.current;
         playAfterLoadRef.current = v ? !v.paused || !startedRef.current : true;
         setBuffering(true);
+        if (startedRef.current) switchEvent({ type: 'start', reason: 'seek' });
         // What plays now is about to be replaced (a skip or seek): it must not carry on under the spinner.
         v?.pause();
         const r = await locateStart(info.file.id, target, info.decision.optimized?.id);
@@ -770,14 +798,24 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   /** Changes an audio setting and reloads the stream at the current position when needed. */
   const changeAudioPrefs = useCallback(
     (patch: Partial<Pick<PlaybackPrefs, 'audioOutput' | 'boostVoices' | 'levelVolume'>>) => {
+      // The same choice again: nothing changes, so nothing to load.
+      const now = getPrefs();
+      if ((Object.keys(patch) as (keyof typeof patch)[]).every((k) => now[k] === patch[k])) return;
       const v = videoRef.current;
       if (startedRef.current) {
         resumeAtRef.current = currentTime();
         playAfterLoadRef.current = v ? !v.paused : true;
+        // The sound changes with a new stream: stop here and say so until it plays again, instead of
+        // playing on with the old sound until the new stream is there.
+        if (!cast.active) {
+          switchEvent({ type: 'start', reason: patch.audioOutput !== undefined ? 'load' : 'voices' });
+          setBuffering(true);
+          v?.pause();
+        }
       }
       setPrefs(patch);
     },
-    [currentTime],
+    [currentTime, cast.active],
   );
 
   /** Native switching (Safari) when direct playing; otherwise ask the server for a stream with that track. */
@@ -806,6 +844,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
       resumeAtRef.current = currentTime();
       playAfterLoadRef.current = v ? !v.paused : true;
       setBuffering(true);
+      switchEvent({ type: 'start', reason: 'audio' });
+      v?.pause();
       setAudioChoice(index);
     },
     [cast.active, cast.setAudio, info, currentTime, file],
@@ -1052,7 +1092,8 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     }, 400);
     return () => clearInterval(check);
   }, [streamSrc, reloadKey]);
-  const loading = (buffering || !streamSrc) && !moving;
+  // A change to a new stream keeps the spinner until the new one plays, whatever the old one reports.
+  const loading = ((buffering || !streamSrc) && !moving) || switching !== null;
 
   useEffect(() => {
     if (!loading || error || ended) {
@@ -1342,8 +1383,15 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           }}
           onPause={onPause}
           onWaiting={() => (videoRef.current?.readyState ?? 0) < HAVE_FUTURE_DATA && setBuffering(true)}
-          onPlaying={() => setBuffering(false)}
-          onCanPlay={() => setBuffering(false)}
+          onLoadStart={() => switchEvent({ type: 'loading' })}
+          onPlaying={() => {
+            setBuffering(false);
+            switchEvent({ type: 'ready' });
+          }}
+          onCanPlay={() => {
+            setBuffering(false);
+            switchEvent({ type: 'ready' });
+          }}
           onSeeking={() => setActiveTrack(null)}
           onSeeked={() => {
             selectSubtitle(subKeyRef.current);
@@ -1426,6 +1474,11 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <div className="flex flex-col items-center gap-4">
             <Spinner className="size-10" />
+            {switching && !stalled && (
+              <p className="rounded-lg bg-black/60 px-4 py-2 text-sm font-medium text-ink" role="status">
+                {t(switchLabel(switching.reason))}
+              </p>
+            )}
             {stalled && streamSrc && (
               <div className="pointer-events-auto flex flex-col items-center gap-3 rounded-xl bg-black/70 px-5 py-4 text-center text-sm backdrop-blur" role="status">
                 <p className="text-ink/85">{t('player.slow')}</p>
