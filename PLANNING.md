@@ -1177,8 +1177,32 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - PR #202 gemerged 25 nov op verzoek van de eigenaar ("Merge de PR maar"; alle checks groen, release `v0.20.11`
   compleet: APK, `.aab`, beide `.deb`'s en `setup.exe`). Release `v0.20.12` niet gevolgd. Deel 2 gaat in een volgende
   versie.
-- Nog te doen (Beheer op de telefoon, deel 2): bibliotheken toevoegen en wijzigen (met mapkiezer), Bibliotheekgezondheid, Opschonen, Back-up,
-  collecties maken, instellingen (afspelen, koppelingen, onderhoud, server), tijden van intro's met de hand.
+
+## Versie 0.20.13 (Beheer op de telefoon, deel 2)
+
+- Eigenaar (25 nov): "Begin maar met deel 2", "Je mag meerdere agents gebruiken". Gebouwd met vijf agents (alleen de
+  app; server en website ongewijzigd), telefoon en tablet, Beheer-tab:
+  - **Bibliotheken** (`admin/libraries.tsx`, `admin/library.tsx`): toevoegen en wijzigen (type, naam, map met mapkiezer
+    via `/api/libraries/folders`), verwijderen (bestanden blijven), scannen, metadata vernieuwen, opnieuw analyseren,
+    lege bibliotheek "Titels verwijderen", scaninstellingen (schema, map bewaken, scannen bij start, uitstellen tijdens
+    kijken). **Bibliotheekgezondheid** (`admin/health.tsx`). Logica `lib/adminLibraries.ts`.
+  - **Collecties** (`admin/collections.tsx`, `admin/collection.tsx`): met de hand (titels toevoegen via zoeken,
+    weghalen) en slim (filters zoals Bladeren), naam wijzigen, verwijderen. Filters van een bewaarde slimme collectie
+    wijzigen kan niet (ook niet op de website; server kent alleen naam/omschrijving). Logica `lib/adminCollections.ts`.
+  - **Opschonen** (`admin/cleanup.tsx`: verwijderen aan/uit, regels, eigen regels, bewaarde en geplande bestanden, lijst
+    met selectie en verwijderen met bevestiging) en **Back-up** (`admin/backup.tsx`: schema, nu maken, controleren,
+    terugzetten met dubbele vraag, verwijderen). Downloaden van een back-up alleen op de website (nieuwe pakketten
+    nodig). Logica `lib/adminCleanup.ts`.
+  - **Instellingen**: Afspelen, Koppelingen (Seerr, Sonarr, Radarr), Onderhoud, Server en Vidalune-account (koppelen
+    met code, relay, direct adres); elk paneel slaat alleen zijn eigen velden op. Ontkoppelen en relay uit vragen in de
+    app een extra bevestiging (de app opent de server via het account). `components/AdminSettings.tsx`,
+    `lib/adminSettings.ts`.
+  - **Tijden van intro's met de hand** (`SegmentEditor.tsx` in `admin/segments/[id].tsx`): per aflevering begin/einde per
+    deel (m:ss of seconden), controles zoals de server. Logica `lib/segmentEdit.ts`.
+- Tests: `adminLibraries`, `adminCollections`, `adminCleanup`, `adminSettings`, `segmentEdit`; app 404 tests, typecheck,
+  lint (0 fouten, 4 bekende waarschuwingen) en de Android-bundel slagen. De schermen zelf op de telefoon te bekijken.
+- Versie 0.20.13 in alle `package.json`'s, `app/app.json` (versionCode 20013) en beide lockfiles. README bijgewerkt.
+  Nog geen PR (eerst moet release `v0.20.12` compleet zijn en de eigenaar het vragen).
 
 ## Versie 0.19.11
 

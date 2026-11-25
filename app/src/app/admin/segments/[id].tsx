@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { AdminScreen, Card, Pill, SmallButton, confirmThen, useAdminAction } from '../../../components/Admin';
 import { ErrorState, Loading, styles } from '../../../components/ui';
+import { SegmentEditor } from '../../../components/SegmentEditor';
 import { dialog } from '../../../lib/dialog';
 import { formatClock } from '../../../lib/format';
 import { openReports, type AnalyzeScope, type Part, type SegmentEpisode, type ShowSegments } from '../../../lib/adminPages';
@@ -31,6 +33,7 @@ export default function SegmentShow() {
   );
   const resolve = useAdminAction((reportId: number) => api.post(`/api/admin/segments/reports/${reportId}/resolve`, {}), [key]);
   const reset = useAdminAction((episodeId: number) => api.del(`/api/admin/segments/episodes/${episodeId}`), [key]);
+  const [editing, setEditing] = useState<number | null>(null);
   if (q.isLoading) return <Loading />;
   if (!q.data) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const s = q.data;
@@ -96,15 +99,21 @@ export default function SegmentShow() {
                     {seg.recap ? <Text style={styles.muted}>{partLine(t('report.kind.recap'), seg.recap, t)}</Text> : null}
                     <Text style={styles.muted}>{partLine(t('report.kind.intro'), seg.intro, t)}</Text>
                     <Text style={styles.muted}>{partLine(t('report.kind.credits'), seg.credits, t)}</Text>
+                    {seg.postCredits ? <Text style={styles.muted}>{partLine(t('segmentEdit.postCredits'), seg.postCredits, t)}</Text> : null}
                   </>
                 )}
-                {e.eligible && (
+                {editing === e.id ? (
+                  <SegmentEditor episode={e} onClose={() => setEditing(null)} />
+                ) : (
                   <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                    <SmallButton
-                      label={t('segments.analyzeAgain')}
-                      busy={analyze.isPending && analyze.variables?.scope === 'episode' && analyze.variables.episodeId === e.id}
-                      onPress={() => analyze.mutate({ scope: 'episode', episodeId: e.id })}
-                    />
+                    <SmallButton label={t('segmentEdit.edit')} onPress={() => setEditing(e.id)} />
+                    {e.eligible && (
+                      <SmallButton
+                        label={t('segments.analyzeAgain')}
+                        busy={analyze.isPending && analyze.variables?.scope === 'episode' && analyze.variables.episodeId === e.id}
+                        onPress={() => analyze.mutate({ scope: 'episode', episodeId: e.id })}
+                      />
+                    )}
                     {seg?.manual && (
                       <SmallButton
                         label={t('segments.removeCorrection')}
