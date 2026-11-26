@@ -1407,6 +1407,16 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Hervatpunt na kijken op een ander apparaat klopt niet** (eigenaar 26 nov: "als je bijvoorbeeld op de website hebt
+  gekeken en dan verder gaat kijken hij niet meer goed oppakt waar je gebleven was"; nog niet bouwen tot hij het zegt).
+  Code nagelopen: het openen van een titel haalt het hervatpunt altijd vers op (app en website, `play-item` met
+  `staleTime` 0). Wel gevonden: een speler die open blijft staan (op pauze) bewaart bij sluiten altijd zijn eigen,
+  oude plek (`saveRef` in `play/[kind]/[id].tsx`; website bij `pagehide`/verlaten, `Player.tsx`), ook als er intussen
+  elders verder gekeken is; die overschrijft dan het nieuwe hervatpunt. Met 0.20.14 gebeurt dat op de tv ook na een
+  half uur vanzelf. Voorstel: bij sluiten alleen opslaan als de positie sinds de laatste opslag veranderd is, en een
+  speler die lang op pauze stond eerst het hervatpunt van de server vragen voor hij verder speelt. Gevraagd: waar hij
+  verder keek (tv, telefoon, website) en of de speler daar nog openstond.
+
 - **Tv-app staat na uren nog op dezelfde pagina** (eigenaar 26 nov: "een timer erop zetten dat de app op de tv [...]
   uiteindelijk afsluit of herstart als je een poosje niet gekeken hebt"; na een paar uur stond dezelfde serie nog open;
   nog niet bouwen tot hij het zegt). Android houdt de app in het geheugen als de tv uit/screensaver gaat; de app luistert
