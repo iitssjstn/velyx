@@ -1419,8 +1419,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   één, werkt de website wel, wat Beheer > Vidalune-account zegt over DNS/certificaat/poort, en of internet of de
   router net weg was.
   Eigenaar (26 nov): Beheer > Vidalune-account stond op DNS "Waiting", certificaat "Waiting", poort "Not reachable";
-  daarna "Het heeft wel gewerkt" (vanzelf hersteld, tijdelijk). Past bij de internetuitval: zolang vidalune.com het
-  adres niet kon bijwerken, kon de tv thuis niet afspelen. Oplossing (1) en (2) hierboven blijven het voorstel.
+  "Het heeft wel gewerkt" bedoelde: het directe adres werkte eerder wel (dus nieuw sinds vandaag, niet hersteld).
+  Logboeken van accountservice en server gevraagd om te zien waarom DNS niet meer bijgewerkt wordt.
 
 - **Hervatpunt na kijken op een ander apparaat klopt niet** (eigenaar 26 nov: "als je bijvoorbeeld op de website hebt
   gekeken en dan verder gaat kijken hij niet meer goed oppakt waar je gebleven was"; nog niet bouwen tot hij het zegt).
