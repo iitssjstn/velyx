@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApi } from './api';
-import { NO_RETRIES, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleRequest, subtitleUrl, savedDelay, delayPath, withHls, withoutHls, type PlaybackAnswer, type SubtitleOption, preferredAudio } from './playback';
+import { NO_RETRIES, RECONNECT_FOR_MS, RECONNECT_MS, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleRequest, subtitleUrl, savedDelay, delayPath, withHls, withoutHls, type PlaybackAnswer, type SubtitleOption, preferredAudio } from './playback';
 import { cueTextAt, parseVtt } from './vtt';
 
 const api = (respond: (url: string) => unknown = () => ({})) =>
@@ -179,19 +179,25 @@ describe('endOfStream', () => {
 });
 
 describe('retryAt', () => {
-  it('allows three attempts at the same spot', () => {
+  it('allows three quick attempts at the same spot, then waits for the connection', () => {
     let r = NO_RETRIES;
-    const results: boolean[] = [];
+    const results: Array<[boolean, number]> = [];
     for (let i = 0; i < 4; i++) {
-      const next = retryAt(r, 1200 + i);
+      const next = retryAt(r, 1200 + i, 1000 + i);
       r = next.retries;
-      results.push(next.allowed);
+      results.push([next.allowed, next.delayMs]);
     }
-    expect(results).toEqual([true, true, true, false]);
+    expect(results).toEqual([[true, 0], [true, 0], [true, 0], [true, RECONNECT_MS]]);
+  });
+  it('keeps waiting while the connection is gone, and gives up after ten minutes', () => {
+    let r = NO_RETRIES;
+    for (let i = 0; i < 3; i++) r = retryAt(r, 1200, 0).retries;
+    expect(retryAt(r, 1200, RECONNECT_FOR_MS - 1).allowed).toBe(true);
+    expect(retryAt(r, 1200, RECONNECT_FOR_MS)).toMatchObject({ allowed: false });
   });
   it('starts counting again at another spot', () => {
-    const first = retryAt({ at: 1200, count: 3 }, 1800);
-    expect(first).toEqual({ retries: { at: 1800, count: 1 }, allowed: true });
+    const first = retryAt({ at: 1200, count: 3, since: 0 }, 1800, 5000);
+    expect(first).toEqual({ retries: { at: 1800, count: 1, since: 5000 }, allowed: true, delayMs: 0 });
   });
 });
 

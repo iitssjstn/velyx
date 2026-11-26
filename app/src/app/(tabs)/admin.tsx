@@ -86,6 +86,8 @@ export default function Admin() {
       <Card title={t('admin.manage')}>
         <Row icon="inbox" label={t('admin.requests')} href="/admin/requests" />
         <Row icon="folder" label={t('admin.libraries')} href="/admin/libraries" />
+        <Row icon="heart" label={t('admin.health')} href="/admin/health" />
+        <Row icon="layers" label={t('admin.collections')} href="/admin/collections" />
         <Row icon="cpu" label={t('admin.optimizations')} href="/admin/optimizations" />
         <Row icon="users" label={t('admin.users')} href="/admin/users" />
         <Row icon="bell" label={t('admin.notifications')} href="/admin/notifications" badge={unread.data?.unread ? t('admin.unread', { n: unread.data.unread }) : undefined} />
@@ -94,6 +96,13 @@ export default function Admin() {
         <Row icon="skip-forward" label={t('admin.segments')} href="/admin/segments" />
         <Row icon="file-text" label={t('admin.logs')} href="/admin/logs" />
         <Row icon="shield" label={t('admin.audit')} href="/admin/audit" />
+        <Row icon="trash-2" label={t('admin.cleanup')} href="/admin/cleanup" />
+        <Row icon="archive" label={t('admin.backup')} href="/admin/backup" />
+        <Row icon="play-circle" label={t('admin.playback')} href="/admin/playback" />
+        <Row icon="link" label={t('admin.integrations')} href="/admin/integrations" />
+        <Row icon="clock" label={t('admin.maintenance')} href="/admin/maintenance" />
+        <Row icon="server" label={t('admin.server')} href="/admin/server" />
+        <Row icon="cloud" label={t('admin.cloud')} href="/admin/cloud" />
       </Card>
       <Text style={[styles.muted, { textAlign: 'center' }]}>{t('admin.website')}</Text>
     </AdminScreen>

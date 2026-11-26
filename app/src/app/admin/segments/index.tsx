@@ -46,7 +46,6 @@ export default function Segments() {
           {c.manual > 0 && <Pill text={t('segments.manual', { n: c.manual })} />}
           {c.reports ? <Pill text={t('segments.reportsCount', { n: c.reports })} tone="accent" /> : null}
         </View>
-        <Text style={styles.muted}>{t('segments.webHint')}</Text>
       </Card>
 
       {errors.length > 0 && (
