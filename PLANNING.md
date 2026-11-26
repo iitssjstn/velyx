@@ -1202,6 +1202,18 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Tests: `adminLibraries`, `adminCollections`, `adminCleanup`, `adminSettings`, `segmentEdit`; app 404 tests, typecheck,
   lint (0 fouten, 4 bekende waarschuwingen) en de Android-bundel slagen. De schermen zelf op de telefoon te bekijken.
 - Versie 0.20.13 in alle `package.json`'s, `app/app.json` (versionCode 20013) en beide lockfiles. README bijgewerkt.
+- **Na internetuitval weer verder** (eigenaar 26 nov: na internetuitval tijdens het kijken op de tv moest hij de
+  container herstarten; "bouw het maar"; meegenomen in 0.20.13, PR #203 was nog niet gemerged):
+  - Server: de relaytunnel (`relay-client.ts`) pingt zelf elke 20 s en breekt de tunnel af na 70 s zonder teken van de
+    relay (bericht, ping of pong), waarna hij opnieuw verbindt. Een stil weggevallen verbinding gaf nooit `close`, dus
+    bleef de server op een dode tunnel zitten. Ook: opnieuw starten met andere gegevens opende twee tunnels (de oude
+    `close` plande nog een poging); nu één.
+  - App (telefoon en tv): na de drie snelle pogingen op dezelfde plek wacht de speler op de verbinding ("Verbinding
+    kwijt. Wachten op de server…"), elke 5 s een poging, 10 minuten lang; dan pas de foutmelding (`retryAt`). Ook een
+    stream die opnieuw geopend wordt terwijl het net nog weg is, telt mee.
+  - Tests: `backend/test/relay-client.test.ts` (stille tunnel, levende tunnel blijft, één tunnel na nieuwe gegevens;
+    twee falen op de oude code), `retryAt` in `playback.test.ts`. Backend 670, app 405 tests; typechecks en lint (0
+    fouten, 4 bekende waarschuwingen) slagen. Op de tv te bevestigen: router even uit tijdens het kijken.
 - PR #203 aangemaakt 25 nov op verzoek van de eigenaar ("Maak de PR maar"); geen sessielink in de tekst. Release
   `v0.20.12` liep toen nog (Debian klaar bezig, daarna app en Windows): niet mergen voordat die compleet is.
   26 nov: alle checks groen en release `v0.20.12` compleet (APK, `.aab`, beide `.deb`'s en `setup.exe`); mag gemerged

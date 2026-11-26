@@ -281,18 +281,30 @@ export function endOfStream(streamReady: boolean, position: number, duration: nu
 export interface Retries {
   at: number;
   count: number;
+  /** When it first broke off at this spot (ms). */
+  since: number;
 }
 
-export const NO_RETRIES: Retries = { at: -1, count: 0 };
+export const NO_RETRIES: Retries = { at: -1, count: 0, since: 0 };
+
+/** After the quick attempts: how often to try again while the connection is gone, and for how long. */
+export const RECONNECT_MS = 5000;
+export const RECONNECT_FOR_MS = 10 * 60_000;
 
 /**
- * Whether playback may continue once more at `position`: up to three times at the same spot
- * (within 10 seconds); a new spot starts counting again. A stream that keeps failing at one place
- * is reported instead of being restarted forever.
+ * Whether playback may continue once more at `position`, and after how long. The first three
+ * attempts at the same spot (within 10 seconds) go at once; after that the connection is probably
+ * gone (the internet fell away, the server restarts), so it tries every 5 seconds, for 10 minutes
+ * from the first break at that spot. A new spot starts counting again. A stream that keeps failing
+ * at one place is reported in the end instead of being restarted forever.
  */
-export function retryAt(previous: Retries, position: number): { retries: Retries; allowed: boolean } {
-  const count = Math.abs(position - previous.at) < 10 ? previous.count + 1 : 1;
-  return { retries: { at: position, count }, allowed: count <= 3 };
+export function retryAt(previous: Retries, position: number, now = Date.now()): { retries: Retries; allowed: boolean; delayMs: number } {
+  const same = Math.abs(position - previous.at) < 10;
+  const count = same ? previous.count + 1 : 1;
+  const since = same ? previous.since : now;
+  const retries = { at: position, count, since };
+  if (count <= 3) return { retries, allowed: true, delayMs: 0 };
+  return { retries, allowed: now - since < RECONNECT_FOR_MS, delayMs: RECONNECT_MS };
 }
 
 /**

@@ -253,6 +253,7 @@ const en = {
   'player.playIn': 'Play in {n}',
   'player.watchCredits': 'Watch credits',
   'player.interrupted': 'The stream keeps stopping. Check your connection and try again.',
+  'player.reconnecting': 'Connection lost. Waiting for the server…',
 
   'subtitleStyle.title': 'Subtitle style',
   'subtitleStyle.castMode': 'TV subtitle style',
@@ -1347,6 +1348,7 @@ const nl: Record<MessageKey, string> = {
   'player.playIn': 'Start over {n}',
   'player.watchCredits': 'Aftiteling kijken',
   'player.interrupted': 'De stream blijft stoppen. Controleer je verbinding en probeer het opnieuw.',
+  'player.reconnecting': 'Verbinding kwijt. Wachten op de server…',
 
   'subtitleStyle.title': 'Weergave ondertitels',
   'subtitleStyle.castMode': 'Ondertitelstijl op tv',

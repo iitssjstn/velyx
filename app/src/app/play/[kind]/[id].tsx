@@ -663,6 +663,10 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
     if (castingRef.current) return;
     // Playing on: the spinner goes, also when the player's status did not say so (some devices).
     setLoading((l) => stillLoading(l, lastTime.current, currentTime, player.playing));
+    if (player.playing && currentTime > lastTime.current + 0.05) {
+      retrying.current = false;
+      setReconnecting(false);
+    }
     lastTime.current = currentTime;
     setTime(currentTime);
   });
@@ -692,7 +696,8 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
     if (status === 'error') {
       // It played, then failed (a lost connection; a converted stream the server ended while the
       // app was in the background): continue from the same spot.
-      if (streamReady.current && continueAt(position)) return;
+      // Also a stream opened again while the connection is still gone: keep waiting.
+      if ((streamReady.current || retrying.current) && continueAt(position)) return;
       // The pieces did not play on this device: the live stream from the same spot, for the rest of this title.
       if (answer?.decision.hls && !noHls.current) {
         noHls.current = true;
@@ -714,13 +719,37 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
   // A stream that stops well before the end broke off (connection lost, server stalled): continue
   // from there — a few times at most at the same spot — instead of ending the episode.
   const resumes = useRef(NO_RETRIES);
+  /** Waiting for the connection to come back (the internet fell away, the server restarts). */
+  const [reconnecting, setReconnecting] = useState(false);
+  /** Between a break and the stream playing again. */
+  const retrying = useRef(false);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+  }, []);
   /** Continues the stream at `at` when it broke off; false when it keeps breaking there. */
   const continueAt = (at: number): boolean => {
     if (!answer) return false;
     const next = retryAt(resumes.current, at);
     resumes.current = next.retries;
-    if (!next.allowed) return false;
-    void load(answer, at).catch((err: unknown) => setProblem(errorMessage(err, t)));
+    if (!next.allowed) {
+      retrying.current = false;
+      setReconnecting(false);
+      return false;
+    }
+    retrying.current = true;
+    const attempt = () => {
+      reconnectTimer.current = null;
+      // A stream that cannot be opened yet (no connection): wait and try again, the same way.
+      void load(answer, at).catch((err: unknown) => {
+        if (!continueAt(at)) setProblem(errorMessage(err, t));
+      });
+    };
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+    if (next.delayMs > 0) {
+      setReconnecting(true);
+      reconnectTimer.current = setTimeout(attempt, next.delayMs);
+    } else attempt();
     return true;
   };
   useEventListener(player, 'playToEnd', () => {
@@ -1257,6 +1286,14 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
           <View style={{ backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 999, paddingVertical: 14, paddingHorizontal: 18, alignItems: 'center', gap: 4 }}>
             <Feather name={seekFlash.side === 'back' ? 'rotate-ccw' : 'rotate-cw'} size={28} color="#fff" />
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{seekFlash.total > 0 ? `+${seekFlash.total}` : `−${Math.abs(seekFlash.total)}`}</Text>
+          </View>
+        </View>
+      )}
+      {reconnecting && !switching && (
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' }}>
+          <View accessibilityLiveRegion="polite" style={{ backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 16, paddingVertical: TV ? 18 : 14, paddingHorizontal: TV ? 28 : 20, alignItems: 'center', gap: 10 }}>
+            <ActivityIndicator color="#fff" size="large" />
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: TV ? 20 : 16 }}>{t('player.reconnecting')}</Text>
           </View>
         </View>
       )}

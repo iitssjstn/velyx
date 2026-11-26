@@ -25,10 +25,15 @@ export interface RelayClientStatus {
   error: RelayProblem | null;
 }
 
+/** How often the tunnel is checked, and how long it may stay silent before it counts as gone. */
+const CHECK_MS = 20_000;
+const STALE_MS = 70_000;
+
 /**
  * Keeps a tunnel open to the Vidalune relay and answers what comes through it by asking this
  * server itself, over the loopback address (so everything works as for any other visitor).
- * Reconnects with growing pauses while the relay is on.
+ * Reconnects with growing pauses while the relay is on. A tunnel that goes quiet (the internet fell
+ * away without the connection being closed, so no `close` ever comes) is dropped and opened again.
  */
 export class RelayClient {
   private ws: WebSocket | null = null;
@@ -38,6 +43,9 @@ export class RelayClient {
   private wanted = false;
   private lastError: RelayProblem | null = null;
   private auth: string | null = null;
+  private watch: NodeJS.Timeout | null = null;
+  /** Last sign of life from the relay (a message, ping or pong). */
+  private heard = 0;
 
   constructor(
     private readonly opts: {
@@ -45,6 +53,9 @@ export class RelayClient {
       cloudUrl: string;
       /** Where this server listens (the relay's requests go there). */
       localPort: number;
+      /** For tests: how often to check the tunnel, and after how long without a sign of life it is dropped. */
+      checkMs?: number;
+      staleMs?: number;
     },
   ) {}
 
@@ -57,6 +68,8 @@ export class RelayClient {
     this.wanted = true;
     if (this.auth === auth && this.ws) return;
     this.auth = auth;
+    if (this.retry) clearTimeout(this.retry);
+    this.retry = null;
     this.ws?.terminate();
     this.connect();
   }
@@ -65,6 +78,7 @@ export class RelayClient {
     this.wanted = false;
     if (this.retry) clearTimeout(this.retry);
     this.retry = null;
+    this.stopWatch();
     this.ws?.close();
     this.ws = null;
     this.resetAll();
@@ -79,9 +93,19 @@ export class RelayClient {
     ws.on('open', () => {
       this.delay = 1000;
       this.lastError = null;
+      this.heard = Date.now();
+      this.startWatch(ws);
       log.info('Relay tunnel open');
     });
-    ws.on('message', (data: Buffer) => this.onFrame(data));
+    const alive = () => {
+      if (this.ws === ws) this.heard = Date.now();
+    };
+    ws.on('ping', alive);
+    ws.on('pong', alive);
+    ws.on('message', (data: Buffer) => {
+      alive();
+      this.onFrame(data);
+    });
     ws.on('unexpected-response', (_req, res) => {
       this.lastError = res.statusCode === 402 ? 'subscription' : res.statusCode === 401 || res.statusCode === 403 ? 'refused' : 'unreachable';
       // No remote access: look again every minute (it may be given any moment).
@@ -93,7 +117,9 @@ export class RelayClient {
       this.lastError ??= 'unreachable';
     });
     ws.on('close', () => {
-      if (this.ws === ws) this.ws = null;
+      if (this.ws !== ws) return;
+      this.ws = null;
+      this.stopWatch();
       this.resetAll();
       if (!this.wanted) return;
       this.lastError ??= 'closed';
@@ -101,6 +127,28 @@ export class RelayClient {
       this.retry.unref();
       this.delay = Math.min(this.delay * 2, 60_000);
     });
+  }
+
+  /** Pings the relay and drops the tunnel when nothing came back for too long. */
+  private startWatch(ws: WebSocket) {
+    this.stopWatch();
+    const staleMs = this.opts.staleMs ?? STALE_MS;
+    this.watch = setInterval(() => {
+      if (this.ws !== ws || ws.readyState !== WebSocket.OPEN) return;
+      if (Date.now() - this.heard > staleMs) {
+        log.warn('Relay tunnel went quiet; connecting again');
+        this.lastError = 'closed';
+        ws.terminate();
+        return;
+      }
+      ws.ping();
+    }, this.opts.checkMs ?? CHECK_MS);
+    this.watch.unref();
+  }
+
+  private stopWatch() {
+    if (this.watch) clearInterval(this.watch);
+    this.watch = null;
   }
 
   private send(type: Parameters<typeof encodeFrame>[0], stream: number, payload?: Buffer | string) {
