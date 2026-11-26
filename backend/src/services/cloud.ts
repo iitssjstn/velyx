@@ -41,6 +41,13 @@ export function localEndpoints(port: number, interfaces = os.networkInterfaces()
   return [...new Set(addresses)].map((address) => ({ type: 'lan', address, port, protocol: 'https' }));
 }
 
+/**
+ * Why the direct address is not ready, as vidalune.com saw it: `token`/`cloudflare` vidalune.com could
+ * not update DNS (its side), `no-public-ip` no public address seen (a shared provider address), `port`
+ * the port does not answer from outside.
+ */
+export type DirectProblem = 'token' | 'cloudflare' | 'no-public-ip' | 'port' | null;
+
 /** Whether playing away from home is allowed, and why not. */
 export type RemoteAccess = 'allowed' | 'not_linked' | 'no_subscription';
 
@@ -56,7 +63,9 @@ export interface CloudStatus {
   /** The relay: reachable at `url` without an open port (opt-in, only while linked). */
   relay: { enabled: boolean; url: string | null; connected: boolean; error: RelayProblem | null; allowed: boolean };
   /** Automatically assigned direct hostname; certificate and listener may still be provisioning. */
-  directAccess: { configured: boolean; hostname: string; publicIp: string | null; port: number; dnsReady: boolean; tlsReady: boolean; portOpen: boolean; checkedAt: number | null; url: string | null; localEndpoints: LocalEndpoint[] } | null;
+  directAccess: { configured: boolean; hostname: string; publicIp: string | null; port: number; dnsReady: boolean; tlsReady: boolean; portOpen: boolean; checkedAt: number | null; url: string | null; localEndpoints: LocalEndpoint[]; problem?: DirectProblem } | null;
+  /** Since when this server cannot reach vidalune.com (null: the last report got through). */
+  unreachableSince: number | null;
   /** Playing away from home works (linked, and the owner has remote access as last confirmed). */
   remoteAccess: boolean;
   /** Networks that also count as home, on top of the private ranges. */
@@ -118,6 +127,7 @@ export class CloudService {
         ...link.directAccess,
         localEndpoints: link.directAccess.localEndpoints ?? localEndpoints(this.deps.directTlsPort ?? DEFAULT_DIRECT_TLS_PORT),
       } : null,
+      unreachableSince: link ? this.unreachableSince : null,
       remoteAccess: !!link?.account && link.relayAllowed !== false && !!link.remoteConfirmedAt && this.now() - link.remoteConfirmedAt < REMOTE_GRACE_MS,
       homeNetworks: this.deps.settings.get().homeNetworks,
     };
@@ -260,7 +270,15 @@ export class CloudService {
   async check(): Promise<CloudStatus> {
     const link = this.deps.settings.get().cloud;
     if (!link) return this.status();
-    const r = await this.call<{ linked: boolean; account: string | null; tmdb?: boolean; relay?: { enabled: boolean; url: string | null; allowed?: boolean; usable?: boolean }; directAccess?: CloudStatus['directAccess']; remoteUsers?: unknown[] }>('POST', '/api/server/heartbeat', this.heartbeat());
+    type Answer = { linked: boolean; account: string | null; tmdb?: boolean; relay?: { enabled: boolean; url: string | null; allowed?: boolean; usable?: boolean }; directAccess?: CloudStatus['directAccess']; remoteUsers?: unknown[] };
+    let r: Answer;
+    try {
+      r = await this.call<Answer>('POST', '/api/server/heartbeat', this.heartbeat());
+      this.unreachableSince = null;
+    } catch (err) {
+      if (err instanceof HttpError && err.statusCode === 502) this.unreachableSince ??= this.now();
+      throw err;
+    }
     const current = this.deps.settings.get().cloud;
     // The service decides: an unlinked server (unlinked on vidalune.com) has no relay any more.
     const relay = !!r.relay?.enabled;
@@ -281,6 +299,7 @@ export class CloudService {
   }
 
   private checkedAt = 0;
+  private unreachableSince: number | null = null;
 
   /** Requests a certificate for this server's assigned hostname; its private key is never sent. `pending`: still being issued, ask again. */
   async directCertificate(csr: string, keyId: string): Promise<{ hostname: string; certificate: string } | { pending: true }> {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApi } from './api';
-import { NO_RETRIES, RECONNECT_FOR_MS, RECONNECT_MS, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleRequest, subtitleUrl, savedDelay, delayPath, withHls, withoutHls, type PlaybackAnswer, type SubtitleOption, preferredAudio } from './playback';
+import { NO_RETRIES, NoEndpointError, RECONNECT_FOR_MS, RECONNECT_MS, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleRequest, subtitleUrl, savedDelay, delayPath, withHls, withoutHls, type PlaybackAnswer, type SubtitleOption, preferredAudio } from './playback';
 import { cueTextAt, parseVtt } from './vtt';
 
 const api = (respond: (url: string) => unknown = () => ({})) =>
@@ -72,7 +72,28 @@ describe('where a stream starts', () => {
     // An address that is not one of this playback's: asked as before.
     fetchImpl.mockResolvedValue(new Response(null, { status: 200 }));
     await streamFrom(api(), playback, 600, fetchImpl, 'https://elsewhere.example:32400');
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalled();
+  });
+
+  it('asks all addresses at once: one that hangs does not hold up the one that answers', async () => {
+    const playback = { ...answer('range', '/api/media/7/stream'), directPlayback: { token: 't', endpoints: [
+      { type: 'lan' as const, url: 'https://172.18.0.14:32400' },
+      { type: 'public' as const, url: 'https://server.media.vidalune.com:32400' },
+    ] } };
+    const fetchImpl = vi.fn(async (url: URL, init?: RequestInit) => {
+      if (url.origin.includes('172.18')) return new Promise<Response>((_, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('timeout'))));
+      return new Response(null, { status: 200 });
+    });
+    const started = Date.now();
+    const stream = await streamFrom(api(), playback, 600, fetchImpl as unknown as typeof fetch);
+    expect(stream.mediaBase).toBe('https://server.media.vidalune.com:32400');
+    expect(Date.now() - started).toBeLessThan(3000);
+  });
+
+  it('says no address answered, or that remote access is needed', async () => {
+    const playback = { ...answer('range', '/api/media/7/stream'), directPlayback: { token: 't', endpoints: [{ type: 'public' as const, url: 'https://server.media.vidalune.com:32400' }] } };
+    await expect(streamFrom(api(), playback, 0, vi.fn().mockRejectedValue(new TypeError('offline')))).rejects.toBeInstanceOf(NoEndpointError);
+    await expect(streamFrom(api(), playback, 0, vi.fn().mockResolvedValue(new Response(null, { status: 402 })))).rejects.toThrow(/Remote access/);
   });
 
   it('starts a remux stream at the keyframe the server names, and offsets positions by it', async () => {

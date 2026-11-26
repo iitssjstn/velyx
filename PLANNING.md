@@ -1243,6 +1243,40 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   Gemerged 26 nov op verzoek van de eigenaar ("Merge het maar als alles groen is"; alle checks groen). Release niet
   gevolgd; de app verandert, dus de release bouwt de APK en het `.aab`.
 
+## Versie 0.20.15 (direct adres na een Cloudflare-storing, hervatpunt van een ander apparaat)
+
+- Eigenaar (26 nov): "bouw het maar", na de geweigerde Cloudflare-sleutel en het hervatpunt (zie "Gemeld tijdens het
+  testen"). Zijn vraag of de update de sleutel brak: nee, `cloud/` veranderde sinds 0.20.12 alleen in versienummer, en
+  Cloudflare zei "Unable to authenticate" (sleutel kwam aan, werd geweigerd).
+- **Heartbeat meteen beantwoord** (`cloud/src/app.ts`): naam, versie en adres worden meteen bewaard; DNS bijwerken en
+  de poorttest lopen apart (`checkDirect`, één tegelijk per server) en het antwoord wacht er hooguit 4 s op
+  (`HEARTBEAT_WAIT_MS`). Een trage of weigerende Cloudflare liet de server eerder na 10 s "not reachable" melden.
+- **Bestaand record blijft gelden**: mislukt bijwerken terwijl het publieke adres niet veranderde, dan blijft het
+  directe adres bruikbaar (`recordHolds`). Vandaag stond het record gewoon goed, maar gooide Vidalune het adres weg,
+  waardoor de tv thuis niets kon afspelen.
+- **Reden**: `CloudflareError`/`dnsProblem` (`cloudflare-dns.ts`: `token` bij een geweigerde sleutel, anders
+  `cloudflare`); `directAccess.problem` (`token`, `cloudflare`, `no-public-ip`, `port`) naar de server. De server houdt
+  bij sinds wanneer vidalune.com niet bereikbaar is (`unreachableSince`). Beheer > Vidalune-account toont dat in plaats
+  van alleen "Waiting". Control Center: "Aandacht nodig" bij een geweigerde sleutel (`dnsHealth`).
+- **App**: alle directe adressen tegelijk proberen (`firstInOrder` in `reconnect.ts`, ook voor `findReachable`; een
+  Docker-adres dat niet antwoordt kost geen 4 s meer per start); antwoordt geen enkel adres, dan blijft hij 10 minuten
+  elke 5 s zoeken ("Verbinding kwijt. Wachten op de server…", `NoEndpointError`) en daarna een Nederlandse melding.
+- **Hervatpunt** (app en website, `lib/resumeGuard.ts`): bij sluiten of pauzeren alleen opslaan als de plek sinds de
+  laatste opslag veranderd is; na een pauze van 2 minuten of langer eerst de plek van de server vragen en daarheen gaan
+  als er elders verder gekeken is (niets opslaan zolang dat loopt).
+- Niet gebouwd: **thuis via het eigen netwerk**. De thuisadressen die de server nu meldt zijn kale IP-adressen over
+  https; het certificaat is voor `<id>.media.vidalune.com`, dus Android weigert ze (ook op een gewone installatie), en
+  in Docker is het adres dat van de container. Werkend maken vraagt een tweede naam met het thuisadres (DNS-record
+  naar een privé-adres, certificaat voor beide namen, thuisadres instellen in Beheer); sommige routers blokkeren zo'n
+  antwoord (DNS-rebinding-bescherming). Voorgelegd aan de eigenaar als aparte versie.
+- Tests: cloud (snel antwoord bij trage Cloudflare, sleutel geweigerd, record blijft, geen publiek adres, reden per
+  foutcode, Control Center), backend (`unreachableSince`), website (redenen op de pagina, gepauzeerde speler slaat niet
+  opnieuw op, na lange pauze naar de plek van elders), app (`firstInOrder` via `streamFrom`, `NoEndpointError`,
+  `resumeGuard`). Backend 671, frontend 416, cloud 236, app 415 tests; typechecks en lint (0 fouten, 4 bekende
+  waarschuwingen) slagen.
+- Versie 0.20.15 in alle `package.json`'s, `app/app.json` (versionCode 20015) en beide lockfiles. App, server,
+  website en accountservice veranderen. Na de release: accountservice, server en app bijwerken.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)

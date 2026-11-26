@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { nextSwitch, switchLabel } from '../lib/streamSwitch';
+import { LONG_PAUSE_MS, savesOnLeave, watchedElsewhere } from '../lib/resumeGuard';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -304,6 +305,17 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
   const subPickedFor = useRef<number | null>(null);
   const [subReadyFor, setSubReadyFor] = useState<number | null>(null);
   const lastSaveRef = useRef(0);
+  /** The spot saved last by this player (null: none yet); a player left paused does not save it again. */
+  const savedPosRef = useRef<number | null>(null);
+  /** When playback paused (null: playing); after a long pause the spot saved elsewhere is looked up. */
+  const pausedAtRef = useRef<number | null>(null);
+  /** Looking up the spot saved elsewhere: nothing is saved meanwhile. */
+  const checkingRef = useRef(false);
+  const saveSpot = (data: LoadedItem, position: number, duration: number, keepalive = false) => {
+    if (checkingRef.current) return undefined;
+    savedPosRef.current = Math.floor(position);
+    return saveProgress(data, position, duration, keepalive);
+  };
   const lastTickRef = useRef(-1);
   const pendingSeekRef = useRef<number | null>(null);
   const resumeAtRef = useRef<number | null>(null);
@@ -555,7 +567,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     // Not before the TV got to the resume point (one that begins at 0 first would overwrite it).
     if (!castHere || !cast.settled || !item.data || Date.now() - castSaved.current < SAVE_INTERVAL_MS) return;
     castSaved.current = Date.now();
-    void saveProgress(item.data, cast.time, totalDuration);
+    void saveSpot(item.data, cast.time, totalDuration);
   }, [castHere, cast.settled, cast.time, item.data, totalDuration]);
   // Another file while casting (the next episode): it goes to the TV, from where it should start.
   const castLoading = useRef<number | null>(null);
@@ -972,7 +984,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     const now = Date.now();
     if (!v.paused && now - lastSaveRef.current > SAVE_INTERVAL_MS) {
       lastSaveRef.current = now;
-      void saveProgress(item.data, t, totalDuration || v.duration);
+      void saveSpot(item.data, t, totalDuration || v.duration);
     }
   };
 
@@ -980,7 +992,32 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     setPlaying(false);
     setControlsVisible(true);
     const v = videoRef.current;
-    if (v && item.data && startedRef.current && !v.ended) void saveProgress(item.data, currentTime(), totalDuration || v.duration);
+    if (v && item.data && startedRef.current && !v.ended) {
+      pausedAtRef.current = Date.now();
+      if (savesOnLeave(currentTime(), savedPosRef.current)) void saveSpot(item.data, currentTime(), totalDuration || v.duration);
+    }
+  };
+
+  // Playing again after a long pause: where was this title watched meanwhile, on another device?
+  const checkElsewhere = () => {
+    const since = pausedAtRef.current;
+    pausedAtRef.current = null;
+    if (!item.data || castingRef.current || since === null || Date.now() - since < LONG_PAUSE_MS) return;
+    const key = item.data.kind === 'movie' ? 'movieId' : 'episodeId';
+    const id = item.data.id;
+    checkingRef.current = true;
+    void api
+      .get<Array<{ movieId: number | null; episodeId: number | null; positionSec: number; completed: boolean }>>('/api/progress')
+      .then((rows) => {
+        const target = watchedElsewhere(savedPosRef.current, rows.find((r) => r[key] === id));
+        checkingRef.current = false;
+        if (target === null) return;
+        savedPosRef.current = target;
+        seekTo(target);
+      })
+      .catch(() => {
+        checkingRef.current = false;
+      });
   };
 
   const onEnded = () => {
@@ -989,7 +1026,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     setControlsVisible(true);
     const v = videoRef.current;
     const total = totalDuration || v?.duration || 0;
-    if (v && item.data) void saveProgress(item.data, total, total)?.then(() => qc.invalidateQueries({ queryKey: ['home'] }));
+    if (v && item.data) void saveSpot(item.data, total, total)?.then(() => qc.invalidateQueries({ queryKey: ['home'] }));
     if (next && getPrefs().autoplayNext && !upNextDismissed) setCountdown((c) => c ?? getPrefs().autoplayCountdown);
   };
 
@@ -1178,7 +1215,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
     const onHide = () => {
       const v = videoRef.current;
       const { offset: o, total } = saveStateRef.current;
-      if (v && item.data && startedRef.current && !v.ended) void saveProgress(item.data, o + v.currentTime, total || v.duration, true);
+      if (v && item.data && startedRef.current && !v.ended && savesOnLeave(o + v.currentTime, savedPosRef.current)) void saveSpot(item.data, o + v.currentTime, total || v.duration, true);
     };
     window.addEventListener('pagehide', onHide);
     return () => {
@@ -1376,6 +1413,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           onTimeUpdate={onTimeUpdate}
           onPlay={() => {
             setPlaying(true);
+            checkElsewhere();
             // Playing again after the end cancels the countdown; resuming from a pause continues it.
             if (ended) setCountdown(null);
             setEnded(false);
@@ -1396,7 +1434,7 @@ export default function Player({ kind, id, search, mini, onMinimize, onRestore, 
           onSeeked={() => {
             selectSubtitle(subKeyRef.current);
             const v = videoRef.current;
-            if (v && item.data && startedRef.current) void saveProgress(item.data, offset + v.currentTime, totalDuration || v.duration);
+            if (v && item.data && startedRef.current) void saveSpot(item.data, offset + v.currentTime, totalDuration || v.duration);
           }}
           onEnded={onEnded}
           onError={onError}

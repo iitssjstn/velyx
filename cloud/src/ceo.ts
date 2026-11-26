@@ -71,6 +71,8 @@ export interface CeoDeps {
   fetchImpl?: typeof fetch;
   /** DNS records in use against the zone's limit, as of the last clean-up (null: not known). */
   directDnsUsage?: () => { used: number; limit: number; checkedAt: number } | null;
+  /** Whether Cloudflare took the last DNS update; `token`: it refused the API token (null: not known yet). */
+  directDnsHealth?: () => { ok: boolean; problem: 'token' | 'cloudflare' | null; at: number } | null;
   /** Whether vidalune.com sends mail (only then does an unconfirmed address mean anything). */
   mailEnabled?: () => boolean;
 }
@@ -464,6 +466,7 @@ export function ceoRoutes(app: FastifyInstance, deps: CeoDeps): { monitor: () =>
         connected: live.tunnels,
       },
       dns: deps.directDnsUsage?.() ?? null,
+      dnsHealth: deps.directDnsHealth?.() ?? null,
       activity: db.select().from(ceoEvents).orderBy(desc(ceoEvents.at), desc(ceoEvents.id)).limit(8).all().map(eventView),
     };
   });

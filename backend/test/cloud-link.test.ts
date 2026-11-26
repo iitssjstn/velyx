@@ -145,4 +145,19 @@ describe('linking to a Vidalune account', () => {
     reachable = false;
     expect((await post('/api/admin/cloud/unlink')).json()).toMatchObject({ enabled: false });
   });
+
+  it('says since when vidalune.com cannot be reached, until a report gets through again', async () => {
+    await post('/api/admin/cloud/link');
+    const status = async () => (await env.app.inject({ url: '/api/admin/cloud', headers: { cookie: admin } })).json();
+    expect((await status()).unreachableSince).toBeNull();
+    reachable = false;
+    await post('/api/admin/cloud/check');
+    const since = (await status()).unreachableSince;
+    expect(typeof since).toBe('number');
+    await post('/api/admin/cloud/check');
+    expect((await status()).unreachableSince).toBe(since);
+    reachable = true;
+    await post('/api/admin/cloud/check');
+    expect((await status()).unreachableSince).toBeNull();
+  });
 });

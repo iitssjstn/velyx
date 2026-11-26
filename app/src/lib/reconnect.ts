@@ -49,13 +49,22 @@ async function answers(base: string, fetchImpl: typeof fetch, timeoutMs: number)
  * answered, the ones before it get `graceMs` more.
  */
 export function findReachable(candidates: readonly string[], fetchImpl: typeof fetch, timeoutMs = PROBE_TIMEOUT_MS, graceMs = PREFER_GRACE_MS): Promise<string | null> {
+  return firstInOrder(candidates, (base) => answers(base, fetchImpl, timeoutMs), graceMs);
+}
+
+/**
+ * The first candidate (in list order) for which `ok` holds, or null. All are asked at the same time;
+ * one that hangs does not hold up the rest: once a later one answered, the ones before it get
+ * `graceMs` more.
+ */
+export function firstInOrder<T>(candidates: readonly T[], ok: (candidate: T) => Promise<boolean>, graceMs = PREFER_GRACE_MS): Promise<T | null> {
   if (!candidates.length) return Promise.resolve(null);
   return new Promise((resolve) => {
     // undefined: still asking.
     const state: (boolean | undefined)[] = candidates.map(() => undefined);
     let done = false;
     let grace: ReturnType<typeof setTimeout> | undefined;
-    const finish = (found: string | null) => {
+    const finish = (found: T | null) => {
       if (done) return;
       done = true;
       clearTimeout(grace);
@@ -69,11 +78,17 @@ export function findReachable(candidates: readonly string[], fetchImpl: typeof f
       const best = state.indexOf(true);
       if (best !== -1 && grace === undefined) grace = setTimeout(() => finish(candidates[state.indexOf(true)]), graceMs);
     };
-    candidates.forEach((base, i) => {
-      void answers(base, fetchImpl, timeoutMs).then((ok) => {
-        state[i] = ok;
-        settle();
-      });
+    candidates.forEach((candidate, i) => {
+      void ok(candidate).then(
+        (yes) => {
+          state[i] = yes;
+          settle();
+        },
+        () => {
+          state[i] = false;
+          settle();
+        },
+      );
     });
   });
 }
