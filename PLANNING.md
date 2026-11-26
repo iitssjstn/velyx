@@ -1428,6 +1428,8 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   Read voor vidalune.com) en in de omgeving van `vidalune-cloud` zetten. Voorstel voor Vidalune: heartbeat meteen
   beantwoorden (DNS en poorttest op de achtergrond), waarschuwing in het Control Center bij een geweigerde
   Cloudflare-sleutel, de reden op Beheer > Vidalune-account, thuis via het eigen netwerk, speler probeert opnieuw.
+  Opgelost door de eigenaar (26 nov): nieuwe Cloudflare-sleutel op de VPS, werkt weer. Het secret
+  `CLOUDFLARE_API_TOKEN` in GitHub wordt nergens gebruikt (mag weg). Voorstel hierboven nog niet gebouwd.
 
 - **Hervatpunt na kijken op een ander apparaat klopt niet** (eigenaar 26 nov: "als je bijvoorbeeld op de website hebt
   gekeken en dan verder gaat kijken hij niet meer goed oppakt waar je gebleven was"; nog niet bouwen tot hij het zegt).
