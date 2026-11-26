@@ -1421,6 +1421,13 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   Eigenaar (26 nov): Beheer > Vidalune-account stond op DNS "Waiting", certificaat "Waiting", poort "Not reachable";
   "Het heeft wel gewerkt" bedoelde: het directe adres werkte eerder wel (dus nieuw sinds vandaag, niet hersteld).
   Logboeken van accountservice en server gevraagd om te zien waarom DNS niet meer bijgewerkt wordt.
+  Oorzaak gevonden (26 nov): server meldt "Vidalune account service not reachable: … timeout"; `vidalune-cloud` meldt
+  "Cloudflare DNS request failed: Unable to authenticate request": Cloudflare weigert de API-sleutel
+  (`CLOUDFLARE_API_TOKEN`, verlopen of ingetrokken). Cloudflare zelf antwoordt snel. De heartbeat wacht op Cloudflare
+  en de poorttest en duurt zo langer dan de 10 s van de server. Eigenaar: nieuwe sleutel maken (Zone DNS Edit + Zone
+  Read voor vidalune.com) en in de omgeving van `vidalune-cloud` zetten. Voorstel voor Vidalune: heartbeat meteen
+  beantwoorden (DNS en poorttest op de achtergrond), waarschuwing in het Control Center bij een geweigerde
+  Cloudflare-sleutel, de reden op Beheer > Vidalune-account, thuis via het eigen netwerk, speler probeert opnieuw.
 
 - **Hervatpunt na kijken op een ander apparaat klopt niet** (eigenaar 26 nov: "als je bijvoorbeeld op de website hebt
   gekeken en dan verder gaat kijken hij niet meer goed oppakt waar je gebleven was"; nog niet bouwen tot hij het zegt).
