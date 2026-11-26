@@ -1381,6 +1381,14 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   afbreken en opnieuw verbinden (en zelf ook pingen), met een test die een stil weggevallen verbinding nabootst.
   Gevraagd: waar hij het zag (vidalune.com/app, de app, Beheer > Vidalune-account) en of een herstart van de container
   het oplost.
+  Eigenaar (26 nov): gemerkt tijdens het kijken op de tv. Tweede kandidaat (code nagelopen): de speler van de app
+  (`play/[kind]/[id].tsx`, `continueAt`/`retryAt` in `lib/playback.ts`) probeert een afgebroken stream meteen opnieuw,
+  hooguit 3 keer op dezelfde plek; zolang het internet weg is mislukken die direct en toont hij een foutmelding, zonder
+  te wachten tot de verbinding terug is. Kijkt de tv thuis via het directe adres (`<id>.media.vidalune.com`, via de
+  router), dan breekt de stream ook af als alleen het internet weg is. Voorstel: bij een afgebroken stream wachten
+  (laadcirkel, "Verbinding kwijt, wacht…") en zelf verder gaan zodra de server weer antwoordt, samen met de fix voor
+  de tunnel. Gevraagd: wat de tv toonde (foutmelding, laadcirkel, terug naar inloggen) en of de app opnieuw openen
+  het oploste.
 
 - **Wisselen van Stemmen (Normaal/versterken/nacht) duurt even en is niet te zien** (eigenaar 25 nov: "dat is niet
   zichtbaar totdat de stream refreshed wordt"; nog niet bouwen tot hij het zegt). Code nagelopen: de keuze verandert het
