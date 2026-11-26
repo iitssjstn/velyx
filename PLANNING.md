@@ -1386,6 +1386,14 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Tv-app staat na uren nog op dezelfde pagina** (eigenaar 26 nov: "een timer erop zetten dat de app op de tv [...]
+  uiteindelijk afsluit of herstart als je een poosje niet gekeken hebt"; na een paar uur stond dezelfde serie nog open;
+  nog niet bouwen tot hij het zegt). Android houdt de app in het geheugen als de tv uit/screensaver gaat; de app luistert
+  alleen naar `AppState` voor verversen (`_layout.tsx`, `session.tsx`), niet om terug te gaan. Voorstel (alleen tv):
+  komt de app terug na langer dan een uur weg (of een uur zonder toets terwijl er niets speelt), dan terug naar Home
+  met verse lijsten, zonder de app echt te sluiten of opnieuw te starten (Android raadt afsluiten af, herstarten is
+  trager). Een gepauzeerde speler: positie bewaren en sluiten. Gevraagd: hoe lang, en ook bij een gepauzeerde film.
+
 - **Na internetuitval komt de server niet meer terug** (eigenaar 26 nov: "Nadat de server internet verloren is herpakt
   hij de boel niet meer verder op"; nog niet bouwen tot hij het zegt). Vermoedelijke oorzaak (code nagelopen, niet op zijn
   server gemeten): de relaytunnel (`backend/src/services/relay-client.ts`) herstelt alleen bij een `close`-event. Valt
