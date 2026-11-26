@@ -1204,6 +1204,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 - Versie 0.20.13 in alle `package.json`'s, `app/app.json` (versionCode 20013) en beide lockfiles. README bijgewerkt.
 - PR #203 aangemaakt 25 nov op verzoek van de eigenaar ("Maak de PR maar"); geen sessielink in de tekst. Release
   `v0.20.12` liep toen nog (Debian klaar bezig, daarna app en Windows): niet mergen voordat die compleet is.
+  26 nov: alle checks groen en release `v0.20.12` compleet (APK, `.aab`, beide `.deb`'s en `setup.exe`); mag gemerged
+  worden als de eigenaar het zegt.
 
 ## Versie 0.19.11
 
@@ -1368,6 +1370,17 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
    - Let ook op de Let's Encrypt-limiet van ongeveer 50 nieuwe certificaten per week per hoofddomein (controleer in hun documentatie); die geldt los van DNS en kan bij een piek aan nieuwe klanten eerder knellen.
 
 ## Gemeld tijdens het testen
+
+- **Na internetuitval komt de server niet meer terug** (eigenaar 26 nov: "Nadat de server internet verloren is herpakt
+  hij de boel niet meer verder op"; nog niet bouwen tot hij het zegt). Vermoedelijke oorzaak (code nagelopen, niet op zijn
+  server gemeten): de relaytunnel (`backend/src/services/relay-client.ts`) herstelt alleen bij een `close`-event. Valt
+  het internet stil weg, dan komt dat nooit: de server stuurt zelf niets over de tunnel, dus TCP merkt niets, en de
+  accountservice (die elke 25 s pingt, `cloud/src/relay.ts`) sluit zijn kant terwijl het net plat ligt. De server denkt
+  dat de tunnel open is (`connected: true`) en de heartbeat elke 5 minuten helpt niet: `start()` doet niets als er al
+  een socket is. Voorstel: de server houdt bij wanneer de laatste ping van de relay kwam; na ~60 s zonder ping de tunnel
+  afbreken en opnieuw verbinden (en zelf ook pingen), met een test die een stil weggevallen verbinding nabootst.
+  Gevraagd: waar hij het zag (vidalune.com/app, de app, Beheer > Vidalune-account) en of een herstart van de container
+  het oplost.
 
 - **Wisselen van Stemmen (Normaal/versterken/nacht) duurt even en is niet te zien** (eigenaar 25 nov: "dat is niet
   zichtbaar totdat de stream refreshed wordt"; nog niet bouwen tot hij het zegt). Code nagelopen: de keuze verandert het
