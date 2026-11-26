@@ -1,6 +1,7 @@
 import { useId, useSyncExternalStore } from 'react';
 import { TV } from './screen';
 import { tvFocus } from '../lib/tvFocus';
+import { idle } from '../lib/idleReset';
 
 /**
  * For anything the remote can choose on a TV: remembers it when it gets the focus, and asks for the
@@ -11,7 +12,10 @@ export function useTvFocus(): { remember: () => void; preferred: boolean } {
   const preferred = useSyncExternalStore(tvFocus.subscribe, () => TV && tvFocus.preferred(id));
   return {
     remember: () => {
-      if (TV) tvFocus.remember(id);
+      if (!TV) return;
+      tvFocus.remember(id);
+      // Moving the focus is a key press on the remote: the app is in use.
+      idle.touch();
     },
     preferred,
   };

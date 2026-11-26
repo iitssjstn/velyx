@@ -1222,6 +1222,23 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   gevolgd; de app en de server veranderen, dus de release bouwt de APK en het `.aab`. Na de release: server en app
   bijwerken.
 
+## Versie 0.20.14 (tv: terug naar Home na een half uur niet kijken)
+
+- Eigenaar (26 nov): "Doe maar een half uur, bouw het maar" (zie "Gemeld tijdens het testen"). Alleen de tv; telefoon
+  ongewijzigd, server en website ongewijzigd.
+- `lib/idleReset.ts` (getest): `idleTracker` telt een half uur (`IDLE_RESET_MS`) vanaf de laatste toets of vanaf het
+  moment dat het afspelen stopte; tijdens afspelen nooit. `TvIdleReset` (in de root-layout, alleen op de tv) kijkt elke
+  minuut en bij terugkomen van de app (`AppState`, ook na tv uit of screensaver): tijd om, dan alle schermen dicht,
+  naar Home, alle lijsten opnieuw ophalen en Home begint opnieuw bovenaan (`homeReset`, `key` op `TvHome`). Inloggen en
+  serverkeuze (`/`, `/cloud`) blijven ongemoeid (`resettable`). Een gepauzeerde speler gaat ook dicht; die bewaart bij
+  sluiten zijn plek, dus Verder kijken gaat verder. Toetsen tellen via de focus (`useTvFocus`) en in de speler via
+  `RemoteKeys`. De app wordt niet afgesloten of herstart.
+- Tests: `idleReset.test.ts`; app 411 tests, typecheck en de Android-bundel (Hermes-export) slagen; `expo lint` start
+  hier niet (geen configuratie gevonden, zoals eerder). Op de tv te bevestigen: een half uur niets doen, of de tv uit en
+  na een half uur weer aan.
+- Versie 0.20.14 in alle `package.json`'s, `app/app.json` (versionCode 20014) en beide lockfiles. De app verandert, dus
+  de release bouwt de APK en het `.aab`. README bijgewerkt. PR pas als release `v0.20.13` compleet is.
+
 ## Versie 0.19.11
 
 ### Voortgang bewaren bij casten vanuit de app (ook op de achtergrond)
@@ -1396,6 +1413,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   Eigenaar (26 nov): "een half uur beter, misschien een kwartier zelfs want zo hou je wel de boel schoon". Advies: een
   half uur (een kwartier is kort bij even eten of bellen met de film op pauze; de plek blijft wel bewaard). Nog
   gevraagd: kwartier of half uur, gepauzeerde film ook sluiten, en of het gebouwd mag worden (0.20.14).
+  Eigenaar (26 nov): "Doe maar een half uur, bouw het maar"; gebouwd in 0.20.14 (zie daar).
 
 - **Na internetuitval komt de server niet meer terug** (eigenaar 26 nov: "Nadat de server internet verloren is herpakt
   hij de boel niet meer verder op"; nog niet bouwen tot hij het zegt). Vermoedelijke oorzaak (code nagelopen, niet op zijn
