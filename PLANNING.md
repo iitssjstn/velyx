@@ -1407,6 +1407,18 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Tv: "No direct media endpoint is reachable."** (eigenaar 26 nov, foto; nog niet bouwen tot hij het zegt). De app
+  vraagt elk direct adres van de server (HEAD op `/api/media/:id/stream`, 4 s per adres, `streamFrom` in
+  `app/src/lib/playback.ts`) en geeft op als geen antwoordt. De bediening (via vidalune.com) werkte wel. In Docker is
+  het enige thuisnetwerkadres dat de server meldt het adres van de container (`localEndpoints`, `cloud.ts`; bekend punt
+  onder "Mee te nemen"), dus thuis speelt de tv via het publieke adres (`<id>.media.vidalune.com`, via de router terug
+  naar binnen). Hapert internet, verandert het publieke IP (DNS volgt pas bij de volgende heartbeat, tot 5 min) of
+  staat de poort dicht, dan speelt thuis niets. Voorstel: (1) het echte thuisadres van de host melden (instelbaar in
+  Beheer, of Docker met `network_mode: host`), zodat thuis kijken niet van internet afhangt; (2) de speler wacht en
+  probeert opnieuw ("Server zoeken…") in plaats van meteen de fout; (3) Nederlandse tekst. Gevraagd: alle titels of
+  één, werkt de website wel, wat Beheer > Vidalune-account zegt over DNS/certificaat/poort, en of internet of de
+  router net weg was.
+
 - **Hervatpunt na kijken op een ander apparaat klopt niet** (eigenaar 26 nov: "als je bijvoorbeeld op de website hebt
   gekeken en dan verder gaat kijken hij niet meer goed oppakt waar je gebleven was"; nog niet bouwen tot hij het zegt).
   Code nagelopen: het openen van een titel haalt het hervatpunt altijd vers op (app en website, `play-item` met
