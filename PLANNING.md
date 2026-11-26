@@ -1393,6 +1393,9 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   komt de app terug na langer dan een uur weg (of een uur zonder toets terwijl er niets speelt), dan terug naar Home
   met verse lijsten, zonder de app echt te sluiten of opnieuw te starten (Android raadt afsluiten af, herstarten is
   trager). Een gepauzeerde speler: positie bewaren en sluiten. Gevraagd: hoe lang, en ook bij een gepauzeerde film.
+  Eigenaar (26 nov): "een half uur beter, misschien een kwartier zelfs want zo hou je wel de boel schoon". Advies: een
+  half uur (een kwartier is kort bij even eten of bellen met de film op pauze; de plek blijft wel bewaard). Nog
+  gevraagd: kwartier of half uur, gepauzeerde film ook sluiten, en of het gebouwd mag worden (0.20.14).
 
 - **Na internetuitval komt de server niet meer terug** (eigenaar 26 nov: "Nadat de server internet verloren is herpakt
   hij de boel niet meer verder op"; nog niet bouwen tot hij het zegt). Vermoedelijke oorzaak (code nagelopen, niet op zijn
