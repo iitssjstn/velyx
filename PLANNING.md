@@ -1237,7 +1237,9 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   hier niet (geen configuratie gevonden, zoals eerder). Op de tv te bevestigen: een half uur niets doen, of de tv uit en
   na een half uur weer aan.
 - Versie 0.20.14 in alle `package.json`'s, `app/app.json` (versionCode 20014) en beide lockfiles. De app verandert, dus
-  de release bouwt de APK en het `.aab`. README bijgewerkt. PR pas als release `v0.20.13` compleet is.
+  de release bouwt de APK en het `.aab`. README bijgewerkt.
+- Release `v0.20.13` compleet (26 nov: APK, `.aab`, beide `.deb`'s en `setup.exe`). PR #204 aangemaakt op verzoek van de
+  eigenaar ("Maak de PR maar"); geen sessielink in de tekst.
 
 ## Versie 0.19.11
 
