@@ -8,7 +8,8 @@ import { CastStatusBar } from '../components/CastStatus';
 import { ConnectionBanner } from '../components/ConnectionBanner';
 import { DialogHost } from '../components/Dialog';
 import { LaunchSplash } from '../components/LaunchSplash';
-import { appOrientation } from '../components/screen';
+import { TvIdleReset } from '../components/TvIdleReset';
+import { TV, appOrientation } from '../components/screen';
 import { SessionProvider } from '../lib/session';
 import { colors } from '../lib/theme';
 
@@ -45,6 +46,7 @@ export default function RootLayout() {
       <SessionProvider>
         <ThemeProvider value={theme}>
           <StatusBar style="light" />
+          {TV && <TvIdleReset />}
           <Stack
             screenOptions={{
               headerStyle: { backgroundColor: colors.bg },

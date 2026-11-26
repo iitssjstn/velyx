@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { RefreshControl, ScrollView, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,11 +13,14 @@ import { CastIcon } from '../../components/CastIcon';
 import { useSession } from '../../lib/session';
 import { colors } from '../../lib/theme';
 import type { HomeData } from '../../lib/types';
+import { homeReset } from '../../lib/idleReset';
 
 export default function Home() {
   const { api, t, serverUrl } = useSession();
   const q = useQuery({ queryKey: [serverUrl, 'home'], queryFn: () => api.get<HomeData>('/api/home') });
   const wide = useWide();
+  // After a while without use the TV comes back here: Home starts fresh (top, first row).
+  const resets = useSyncExternalStore(homeReset.subscribe, () => homeReset.count);
   // Catalog rows (with Seerr) load a few at a time, as the screen is scrolled down.
   const [rows, setRows] = useState(4);
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -44,7 +47,7 @@ export default function Home() {
   if (TV && !empty)
     return (
       <View style={styles.screen}>
-        <TvHome data={d} />
+        <TvHome key={resets} data={d} />
       </View>
     );
   return (

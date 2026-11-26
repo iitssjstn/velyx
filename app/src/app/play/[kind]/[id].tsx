@@ -38,6 +38,7 @@ import { colors, radius } from '../../../lib/theme';
 import { tvFocus } from '../../../lib/tvFocus';
 import { AUDIO_MODES, audioMenuPick, isAudioMode, type AudioMode } from '../../../lib/audioMode';
 import { nextSwitch, switchLabel } from '../../../lib/streamSwitch';
+import { idle } from '../../../lib/idleReset';
 import { TV_CONTROLS_MS, initialTvState, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, type RemoteKey, type TvContext } from '../../../lib/tvRemote';
 import { SUBTITLE_ERROR_FOR_MS, SUBTITLE_LOADING_AFTER_MS, cueTextAt, cuesFrom, type Cue } from '../../../lib/vtt';
 import { dialog } from '../../../lib/dialog';
@@ -671,6 +672,13 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
     setTime(currentTime);
   });
   useEventListener(player, 'playingChange', ({ isPlaying }) => !castingRef.current && setPlaying(isPlaying));
+  // On a TV, playing keeps the app from going back to Home after a while (lib/idleReset.ts).
+  useEffect(() => {
+    if (TV) idle.setPlaying(playing);
+  }, [playing]);
+  useEffect(() => () => {
+    if (TV) idle.setPlaying(false);
+  }, []);
   useEventListener(player, 'statusChange', ({ status, error }) => {
     if (castingRef.current) return;
     setLoading(status === 'loading');
@@ -1309,6 +1317,7 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
         <>
           <RemoteKeys style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1 }} onKey={(e) => {
             // A held key repeats quickly: every third repeat counts (each jump may restart a converted stream).
+            idle.touch();
             if (e.nativeEvent.repeat % 3 !== 0) return;
             const key = remoteKey(e.nativeEvent.keyCode);
             if (key) onRemote.current(key);
