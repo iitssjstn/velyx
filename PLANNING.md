@@ -1441,6 +1441,15 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
 
 ## Gemeld tijdens het testen
 
+- **Tv-speler: lange ondertitelnaam duwt de knoppen uit beeld** (eigenaar 27 nov, foto van Shang-Chi op de tv: "CC ·
+  English · GalaxyRG256 - Shang.Chi.and.the.Legend…1080p.BluRay.DDP5…" en rechts geen knoppen meer; nog niet bouwen tot
+  hij het zegt). Oorzaak (`TvPlayer.tsx`, label naast de tijd): de tekst heeft wel `numberOfLines={1}` maar geen
+  `flexShrink`/maximale breedte, dus hij neemt zijn volle breedte en Ondertitels/Audio/Volgende vallen rechts weg. De naam
+  komt uit `subtitleLabel` (taal plus de releasenaam van een opgehaalde ondertitel). Voorstel: in het label alleen de taal
+  ("CC · English", eventueel "· Geforceerd"), en het label mag krimpen met "…" zodat de knoppen altijd in beeld blijven.
+  Ook nakijken: de webspeler op de Chromecast (`ccLabel` in `cloud/web/cast/overlay.js`). Meenemen in 0.20.15 (nog niet
+  gepusht als PR) als de eigenaar het zegt.
+
 - **Tv: "No direct media endpoint is reachable."** (eigenaar 26 nov, foto; nog niet bouwen tot hij het zegt). De app
   vraagt elk direct adres van de server (HEAD op `/api/media/:id/stream`, 4 s per adres, `streamFrom` in
   `app/src/lib/playback.ts`) en geeft op als geen antwoordt. De bediening (via vidalune.com) werkte wel. In Docker is
