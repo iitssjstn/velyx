@@ -38,7 +38,7 @@ import { addSeek, justSkipped, SEEK_COMBINE_MS, SEEK_STEPS, skipAt, upNextStart,
 import { colors, radius } from '../../../lib/theme';
 import { tvFocus } from '../../../lib/tvFocus';
 import { AUDIO_MODES, audioMenuPick, isAudioMode, type AudioMode } from '../../../lib/audioMode';
-import { nextSwitch, switchLabel } from '../../../lib/streamSwitch';
+import { nextSwitch, showsPlainSpinner, switchLabel } from '../../../lib/streamSwitch';
 import { idle } from '../../../lib/idleReset';
 import { TV_CONTROLS_MS, initialTvState, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, type RemoteKey, type TvContext } from '../../../lib/tvRemote';
 import { SUBTITLE_ERROR_FOR_MS, SUBTITLE_LOADING_AFTER_MS, cueTextAt, cuesFrom, type Cue } from '../../../lib/vtt';
@@ -1390,7 +1390,7 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
             position={seekingTo ?? position}
             duration={duration}
             playing={playing}
-            loading={loading}
+            loading={showsPlainSpinner(loading, switching ?? reconnecting)}
             ended={ended}
             visible={tvBarShown && resumeAsk === null}
             overlayBottom={tvBarShown ? TV_BAR_HEIGHT + 16 : 48}
@@ -1440,7 +1440,7 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 40 }}>
               <IconButton name="rotate-ccw" label={t('player.backSeconds', { n: seekStep })} onPress={() => seekBy('back')} size={30} />
-              {loading ? <ActivityIndicator color="#fff" size="large" /> : <IconButton name={playing ? 'pause' : ended ? 'rotate-cw' : 'play'} label={playing ? t('player.pause') : t('player.play')} onPress={toggle} size={44} />}
+              {showsPlainSpinner(loading, switching ?? reconnecting) ? <ActivityIndicator color="#fff" size="large" /> : <IconButton name={playing ? 'pause' : ended ? 'rotate-cw' : 'play'} label={playing ? t('player.pause') : t('player.play')} onPress={toggle} size={44} />}
               <IconButton name="rotate-cw" label={t('player.forwardSeconds', { n: seekStep })} onPress={() => seekBy('forward')} size={30} />
             </View>
             <View style={{ gap: 4 }}>

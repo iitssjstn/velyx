@@ -144,10 +144,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
 ## Werkafspraken
 
 - Alleen bouwen als de eigenaar het zegt. Eén PR per versie.
-- Help de eigenaar actief leren coderen: geef bij geschikte, niet-urgente taken eerst een klein probleem
-  met relevante context, laat hem een oplossing voorstellen en geef daarna concrete feedback en uitleg.
-  Bied hints als dat helpt; bij spoed of een expliciet verzoek om directe implementatie los je het eerst op
-  en bespreek je daarna kort wat ervan te leren valt en waarom de oplossing werkt.
+- **Geen leervragen meer** (eigenaar 27 nov: "haal eruit dat je leervragen moet stellen"): gewoon bouwen en kort
+  uitleggen wat er veranderd is.
 - De eigenaar merget zelf als alles groen is; geen updates sturen tenzij gevraagd.
 - **Geen geplande controles** (eigenaar 12 nov: "doordat jij een scheduled check in had staan was mijn usage op"): geen
   `send_later`/geplande taken en geen PR-abonnement om checks of een release af te wachten; elke keer wakker worden
@@ -1282,6 +1280,11 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   bevestigen.
 - Versie 0.20.15 in alle `package.json`'s, `app/app.json` (versionCode 20015) en beide lockfiles. App, server,
   website en accountservice veranderen. Na de release: accountservice, server en app bijwerken.
+- **Twee laadcirkels bij een wissel** (eigenaar 27 nov: "Als je de audio verandert dan komen er 2 circles in beeld";
+  "Bouw het maar"). In de app (telefoon en tv) stonden de cirkel van de melding ("Audiospoor wisselen…", ook bij Stemmen,
+  spoelen met een nieuwe stream en "Verbinding kwijt…") en de gewone laadcirkel van de speler tegelijk in beeld. Nu
+  verschijnt de gewone alleen als er geen melding staat (`showsPlainSpinner` in `lib/streamSwitch.ts`, getest). De
+  website toonde al één cirkel met de tekst eronder. Op telefoon en tv te bevestigen.
 - PR #205 aangemaakt 27 nov op verzoek van de eigenaar ("Maak de pr aan"); geen sessielink in de tekst. Release
   `v0.20.14` was compleet (APK, `.aab`, beide `.deb`'s, `setup.exe`). De eigenaar merget zelf.
 

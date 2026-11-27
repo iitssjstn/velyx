@@ -37,3 +37,11 @@ export function nextSwitch(state: Switching | null, event: SwitchEvent): Switchi
 export function switchLabel(reason: SwitchReason): `player.switching.${SwitchReason}` {
   return `player.switching.${reason}`;
 }
+
+/**
+ * Whether the player shows its own plain loading circle. Not while a note with words is up (a change of
+ * stream, waiting for the connection): that note already has a circle, and two would be shown at once.
+ */
+export function showsPlainSpinner(loading: boolean, note: Switching | boolean | null): boolean {
+  return loading && !note;
+}
