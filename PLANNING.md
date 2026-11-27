@@ -1282,6 +1282,8 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   bevestigen.
 - Versie 0.20.15 in alle `package.json`'s, `app/app.json` (versionCode 20015) en beide lockfiles. App, server,
   website en accountservice veranderen. Na de release: accountservice, server en app bijwerken.
+- PR #205 aangemaakt 27 nov op verzoek van de eigenaar ("Maak de pr aan"); geen sessielink in de tekst. Release
+  `v0.20.14` was compleet (APK, `.aab`, beide `.deb`'s, `setup.exe`). De eigenaar merget zelf.
 
 ## Versie 0.19.11
 
