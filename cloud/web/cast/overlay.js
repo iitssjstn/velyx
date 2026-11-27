@@ -116,9 +116,21 @@ export class SubtitleLoad {
   }
 }
 
+/** The name of a language code in the TV's own language ("en" → "English"), or '' when unknown. */
+function languageName(code) {
+  try {
+    const lang = (typeof navigator !== 'undefined' && navigator.language) || 'en';
+    const name = new Intl.DisplayNames([lang], { type: 'language' }).of(code);
+    return name && name !== code ? name : '';
+  } catch {
+    return '';
+  }
+}
+
 /** "CC · English" for the subtitle that is on, or nothing when subtitles are off. */
 export function ccLabel(track) {
   if (!track) return '';
-  const name = String(track.name || track.language || '').trim();
+  // The language when the track has one: the name of a downloaded subtitle is its whole release name.
+  const name = String(track.language ? languageName(track.language) || track.name || track.language : track.name || '').trim();
   return name ? `CC · ${name}` : 'CC';
 }

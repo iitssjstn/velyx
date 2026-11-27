@@ -83,6 +83,15 @@ export interface SubtitleOption {
   delayUrl?: string;
 }
 
+/**
+ * The short name of a subtitle beside the time in the TV player: its language (and "Forced"), never the
+ * release name of a downloaded file, which pushed the buttons off the screen.
+ */
+export function captionLabel(s: Pick<SubtitleOption, 'label' | 'language' | 'languageName' | 'forced'>): string {
+  const name = s.languageName || s.language || s.label;
+  return [name, s.forced ? 'Forced' : null].filter(Boolean).join(' · ');
+}
+
 export interface PlaybackAnswer {
   decision: {
     engine: string;

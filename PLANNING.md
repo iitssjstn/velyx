@@ -1274,6 +1274,12 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   opnieuw op, na lange pauze naar de plek van elders), app (`firstInOrder` via `streamFrom`, `NoEndpointError`,
   `resumeGuard`). Backend 671, frontend 416, cloud 236, app 415 tests; typechecks en lint (0 fouten, 4 bekende
   waarschuwingen) slagen.
+- **Lange ondertitelnaam in de tv-speler** (eigenaar 27 nov, zie "Gemeld tijdens het testen"): naast de tijd alleen de
+  taal (`captionLabel` in `lib/playback.ts`: taalnaam, anders code, anders het label; "· Forced"); het label krimpt
+  met "…" (`flexShrink`, hooguit 280 breed), de tijd niet, dus de knoppen blijven in beeld. Webspeler op de Chromecast
+  ook: `ccLabel` noemt de taal als het spoor er een heeft (`Intl.DisplayNames`), en `.cc` hooguit 40 % breed met "…".
+  Tests: `captionLabel` (app), `ccLabel` met een releasenaam (cloud). App 416, cloud 236 tests slagen. Op de tv te
+  bevestigen.
 - Versie 0.20.15 in alle `package.json`'s, `app/app.json` (versionCode 20015) en beide lockfiles. App, server,
   website en accountservice veranderen. Na de release: accountservice, server en app bijwerken.
 
@@ -1449,6 +1455,7 @@ Cloudflare staat in de zone `vidalune.com` **200 DNS-records** toe (16 in gebrui
   ("CC · English", eventueel "· Geforceerd"), en het label mag krimpen met "…" zodat de knoppen altijd in beeld blijven.
   Ook nakijken: de webspeler op de Chromecast (`ccLabel` in `cloud/web/cast/overlay.js`). Meenemen in 0.20.15 (nog niet
   gepusht als PR) als de eigenaar het zegt.
+  Eigenaar (27 nov): "Bouw het maar want dat is wel een belangrijke update"; gebouwd in 0.20.15 (zie daar).
 
 - **Tv: "No direct media endpoint is reachable."** (eigenaar 26 nov, foto; nog niet bouwen tot hij het zegt). De app
   vraagt elk direct adres van de server (HEAD op `/api/media/:id/stream`, 4 s per adres, `streamFrom` in

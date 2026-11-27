@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApi } from './api';
-import { NO_RETRIES, NoEndpointError, RECONNECT_FOR_MS, RECONNECT_MS, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleRequest, subtitleUrl, savedDelay, delayPath, withHls, withoutHls, type PlaybackAnswer, type SubtitleOption, preferredAudio } from './playback';
+import { NO_RETRIES, NoEndpointError, captionLabel, RECONNECT_FOR_MS, RECONNECT_MS, endOfStream, noReadableFile, playbackCaps, retryAt, resumePoint, playerAudioPosition, streamFrom, subtitleRequest, subtitleUrl, savedDelay, delayPath, withHls, withoutHls, type PlaybackAnswer, type SubtitleOption, preferredAudio } from './playback';
 import { cueTextAt, parseVtt } from './vtt';
 
 const api = (respond: (url: string) => unknown = () => ({})) =>
@@ -311,5 +311,14 @@ describe('pieces (HLS) instead of a stream that restarts on every seek', () => {
     // From an older server without that address: nowhere to save it.
     expect(delayPath({ kind: 'embedded', url: '/api/media/7/subtitles/2.vtt' } as SubtitleOption)).toBeNull();
     expect(savedDelay(null)).toBe(0);
+  });
+});
+
+describe('the subtitle beside the time on a TV', () => {
+  it('names only the language, never the release name of a downloaded subtitle', () => {
+    expect(captionLabel({ label: 'GalaxyRG256 - Shang.Chi.and.the.Legend.of.the.Ten.Rings.2021.1080p.BluRay', language: 'eng', languageName: 'English', forced: false })).toBe('English');
+    expect(captionLabel({ label: 'Nederlands', language: 'nld', languageName: 'Nederlands', forced: true })).toBe('Nederlands · Forced');
+    expect(captionLabel({ label: 'Eigen ondertitel', language: null, languageName: null, forced: false })).toBe('Eigen ondertitel');
+    expect(captionLabel({ label: 'x', language: 'fre', languageName: null, forced: false })).toBe('fre');
   });
 });

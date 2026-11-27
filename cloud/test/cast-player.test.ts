@@ -152,7 +152,10 @@ describe('the cast player\'s own bar and subtitles', () => {
   });
   it('shows that subtitles are on, and which, next to the time', () => {
     expect(ccLabel({ name: 'English', language: 'en' })).toBe('CC · English');
-    expect(ccLabel({ name: '', language: 'nl' })).toBe('CC · nl');
+    expect(ccLabel({ name: '', language: 'nl' })).toBe('CC · Dutch');
+    // A downloaded subtitle is named after its release: only the language fits beside the time.
+    expect(ccLabel({ name: 'English · GalaxyRG256 - Shang.Chi.and.the.Legend.of.the.Ten.Rings.2021.1080p.BluRay', language: 'en' })).toBe('CC · English');
+    expect(ccLabel({ name: 'Eigen ondertitel' })).toBe('CC · Eigen ondertitel');
     expect(ccLabel({})).toBe('CC');
     expect(ccLabel(null)).toBe('');
   });

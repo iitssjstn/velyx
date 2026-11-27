@@ -21,7 +21,7 @@ import { Button, styles } from '../../../components/ui';
 import { castSettled, castStartAt, castStatus } from '../../../lib/castStatus';
 import { applyCastTextTrackStyle, castLoadFailed, castLoadRequest, castTrackIds, followTv, loadCastWithCurrentSubtitle, sessionUsable, tvChanged, tvFilePosition, tvMedia, tvSubtitleKey, waitForCastReady, type CastSession, type TvSeen } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
-import { NO_RETRIES, NoEndpointError, RECONNECT_FOR_MS, RECONNECT_MS, endOfStream, fallbackCaps, withHls, withoutHls, retryAt, playbackCaps, playerAudioPosition, preferredAudio, stillLoading, streamFrom, subtitleRequest, delayPath, savedDelay, type MediaEndpoint, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { NO_RETRIES, NoEndpointError, captionLabel, RECONNECT_FOR_MS, RECONNECT_MS, endOfStream, fallbackCaps, withHls, withoutHls, retryAt, playbackCaps, playerAudioPosition, preferredAudio, stillLoading, streamFrom, subtitleRequest, delayPath, savedDelay, type MediaEndpoint, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage, languageCycle, languageName, nextLanguage, onlineLines } from '../../../lib/onlineSubtitles';
 import { startChoice } from '../../../lib/resume';
 import { LONG_PAUSE_MS, savesOnLeave, watchedElsewhere } from '../../../lib/resumeGuard';
@@ -1418,7 +1418,7 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
             marks={segmentMarks(item.segments, item.fileId, duration)}
             seekStep={seekStep}
             skipLabel={askSkip ? skipLabel(askSkip.kind, t) : null}
-            captions={subtitle ? subtitleLabel(subtitle) : null}
+            captions={subtitle ? captionLabel(subtitle) : null}
             resume={resumeAsk !== null ? { at: resumeAsk } : null}
             upNext={showNext && item.next ? { label: `${episodeCode(item.next.seasonNumber, item.next.episodeNumber)}${item.next.title ? ` · ${item.next.title}` : ''}`, countdown: countdown ?? 0, ended } : null}
           />
