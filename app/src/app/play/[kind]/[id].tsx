@@ -21,9 +21,10 @@ import { Button, styles } from '../../../components/ui';
 import { castSettled, castStartAt, castStatus } from '../../../lib/castStatus';
 import { applyCastTextTrackStyle, castLoadFailed, castLoadRequest, castTrackIds, followTv, loadCastWithCurrentSubtitle, sessionUsable, tvChanged, tvFilePosition, tvMedia, tvSubtitleKey, waitForCastReady, type CastSession, type TvSeen } from '../../../lib/cast';
 import { episodeCode, formatClock, imagePath } from '../../../lib/format';
-import { NO_RETRIES, endOfStream, fallbackCaps, withHls, withoutHls, retryAt, playbackCaps, playerAudioPosition, preferredAudio, stillLoading, streamFrom, subtitleRequest, delayPath, savedDelay, type MediaEndpoint, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
+import { NO_RETRIES, NoEndpointError, captionLabel, RECONNECT_FOR_MS, RECONNECT_MS, endOfStream, fallbackCaps, withHls, withoutHls, retryAt, playbackCaps, playerAudioPosition, preferredAudio, stillLoading, streamFrom, subtitleRequest, delayPath, savedDelay, type MediaEndpoint, type PlaybackAnswer, type PlaybackCaps, type SubtitleOption } from '../../../lib/playback';
 import { defaultOnlineLanguage, languageCycle, languageName, nextLanguage, onlineLines } from '../../../lib/onlineSubtitles';
 import { startChoice } from '../../../lib/resume';
+import { LONG_PAUSE_MS, savesOnLeave, watchedElsewhere } from '../../../lib/resumeGuard';
 import { SPEEDS, nextSpeed, speedLabel } from '../../../lib/speed';
 import { rememberAudio, rememberSubtitle, rememberedAudio, rememberedSubtitle, storeSeekStep, storeSubtitleStyle, storedDevicePrefs, storedSeekStep, storedSubtitleStyle } from '../../../lib/remember';
 import { nextCountdown, type DevicePrefs } from '../../../lib/settings';
@@ -37,7 +38,7 @@ import { addSeek, justSkipped, SEEK_COMBINE_MS, SEEK_STEPS, skipAt, upNextStart,
 import { colors, radius } from '../../../lib/theme';
 import { tvFocus } from '../../../lib/tvFocus';
 import { AUDIO_MODES, audioMenuPick, isAudioMode, type AudioMode } from '../../../lib/audioMode';
-import { nextSwitch, switchLabel } from '../../../lib/streamSwitch';
+import { nextSwitch, showsPlainSpinner, switchLabel } from '../../../lib/streamSwitch';
 import { idle } from '../../../lib/idleReset';
 import { TV_CONTROLS_MS, initialTvState, pressKey, remoteKey, segmentMarks, tvButtons, tvTabs, type RemoteKey, type TvContext } from '../../../lib/tvRemote';
 import { SUBTITLE_ERROR_FOR_MS, SUBTITLE_LOADING_AFTER_MS, cueTextAt, cuesFrom, type Cue } from '../../../lib/vtt';
@@ -271,6 +272,13 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
   /** A stream is loaded and ready (the player exists before that, without a video). */
   const streamReady = useRef(false);
   const lastSave = useRef(0);
+  /** The spot saved last by this player (null: none yet). */
+  const savedPos = useRef<number | null>(null);
+  /** When playback paused (null: playing or not started); after a long pause the spot saved elsewhere is looked up. */
+  const pausedAt = useRef<number | null>(null);
+  /** Looking up the spot saved elsewhere: nothing is saved meanwhile. */
+  const checkingElsewhere = useRef(false);
+  const seekToRef = useRef<(target: number) => void>(() => undefined);
   /** The video really played here (or on the TV): before that, the position is not known and is never saved. */
   const begun = useRef(false);
   /** Counts loads: a seek that started later wins, whichever stream answer comes back first. */
@@ -483,6 +491,19 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
   }, [subStyle, casting, client, applyCastStyle, castFailed]);
 
   /** Asks the server how to play the file on this device (for an audio track), then plays from `at`. */
+  /** Waiting for the connection to come back (the internet fell away, the server restarts). */
+  const [reconnecting, setReconnecting] = useState(false);
+  /** Between a break and the stream playing again. */
+  const retrying = useRef(false);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+  }, []);
+  /** Since when no address of the server answered, while still looking (null: not looking). */
+  const searching = useRef<number | null>(null);
+  const decideRef = useRef<(at: number, wantedAudio?: number) => Promise<void>>(async () => undefined);
+  /** The words for a problem: none of the server's addresses answers, or what the error says. */
+  const problemText = (err: unknown) => (err instanceof NoEndpointError ? t('player.noEndpoint') : errorMessage(err, t));
   const decide = useCallback(
     async (at: number, wantedAudio?: number) => {
       try {
@@ -526,13 +547,33 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
         // What plays now is replaced: it stops here instead of playing on under the note.
         player.pause();
         await load(a, at);
+        searching.current = null;
+        setReconnecting(false);
       } catch (err) {
+        // No address of the server answers (its connection or address is gone for a moment): keep
+        // looking every few seconds, for ten minutes, instead of showing an error straight away.
+        if (err instanceof NoEndpointError) {
+          const since = searching.current ?? Date.now();
+          searching.current = since;
+          if (Date.now() - since < RECONNECT_FOR_MS) {
+            setReconnecting(true);
+            if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+            reconnectTimer.current = setTimeout(() => {
+              reconnectTimer.current = null;
+              void decideRef.current(at, wantedAudio);
+            }, RECONNECT_MS);
+            return;
+          }
+          searching.current = null;
+        }
+        setReconnecting(false);
         switchEvent({ type: 'failed' });
-        setProblem(errorMessage(err, t));
+        setProblem(problemText(err));
       }
     },
     [api, item.fileId, answer, load, castLoad, player, t, prefs?.audioLanguage],
   );
+  decideRef.current = decide;
 
   // Start: resume where the viewer stopped (unless asked to start elsewhere).
   useEffect(() => {
@@ -727,14 +768,6 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
   // A stream that stops well before the end broke off (connection lost, server stalled): continue
   // from there — a few times at most at the same spot — instead of ending the episode.
   const resumes = useRef(NO_RETRIES);
-  /** Waiting for the connection to come back (the internet fell away, the server restarts). */
-  const [reconnecting, setReconnecting] = useState(false);
-  /** Between a break and the stream playing again. */
-  const retrying = useRef(false);
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-  }, []);
   /** Continues the stream at `at` when it broke off; false when it keeps breaking there. */
   const continueAt = (at: number): boolean => {
     if (!answer) return false;
@@ -750,7 +783,7 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
       reconnectTimer.current = null;
       // A stream that cannot be opened yet (no connection): wait and try again, the same way.
       void load(answer, at).catch((err: unknown) => {
-        if (!continueAt(at)) setProblem(errorMessage(err, t));
+        if (!continueAt(at)) setProblem(problemText(err));
       });
     };
     if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
@@ -871,10 +904,11 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
   // ---------------------------------------------------------------- progress
   const save = useCallback(
     async (pos: number, force = false) => {
-      if (!duration || (!force && Date.now() - lastSave.current < SAVE_EVERY_MS)) return;
+      if (!duration || checkingElsewhere.current || (!force && Date.now() - lastSave.current < SAVE_EVERY_MS)) return;
       lastSave.current = Date.now();
       try {
         await api.post('/api/progress', { [item.kind === 'movie' ? 'movieId' : 'episodeId']: item.id, positionSec: Math.round(pos), durationSec: Math.round(duration) });
+        savedPos.current = Math.round(pos);
       } catch {
         /* saved again at the next moment */
       }
@@ -904,7 +938,34 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
   // The last known position, for saving when leaving (the native player may be gone by then).
   const saveRef = useRef<() => unknown>(() => undefined);
   // Opened and left (or paused) before anything played: the saved resume point stays as it was.
-  saveRef.current = () => (begun.current ? save(position, true) : undefined);
+  // Only a spot that moved since the last save: a player left paused does not undo what was watched
+  // elsewhere meanwhile (it used to save its own, older spot when it closed).
+  saveRef.current = () => (begun.current && savesOnLeave(position, savedPos.current) ? save(position, true) : undefined);
+  // Playing again after a long pause: where was this title watched meanwhile, on another device?
+  useEffect(() => {
+    if (casting) return;
+    if (!playing) {
+      if (begun.current && pausedAt.current === null) pausedAt.current = Date.now();
+      return;
+    }
+    const since = pausedAt.current;
+    pausedAt.current = null;
+    if (since === null || Date.now() - since < LONG_PAUSE_MS) return;
+    checkingElsewhere.current = true;
+    const key = item.kind === 'movie' ? 'movieId' : 'episodeId';
+    void api
+      .get<Array<{ movieId: number | null; episodeId: number | null; positionSec: number; completed: boolean }>>('/api/progress')
+      .then((rows) => {
+        const target = watchedElsewhere(savedPos.current, rows.find((r) => r[key] === item.id));
+        checkingElsewhere.current = false;
+        if (target === null) return;
+        savedPos.current = target;
+        seekToRef.current(target);
+      })
+      .catch(() => {
+        checkingElsewhere.current = false;
+      });
+  }, [playing, casting, api, item.kind, item.id]);
   useEffect(() => {
     if (!playing && answer) void saveRef.current();
   }, [playing, answer]);
@@ -1011,6 +1072,7 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
     },
     [answer, duration, load, player, client, castLoad, castFailed, t],
   );
+  seekToRef.current = seekTo;
 
   // ---------------------------------------------------------------- Cast Connect (on a TV)
   // A phone or browser cast to this TV: they see what plays here and control it (CastConnect.kt
@@ -1328,7 +1390,7 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
             position={seekingTo ?? position}
             duration={duration}
             playing={playing}
-            loading={loading}
+            loading={showsPlainSpinner(loading, switching ?? reconnecting)}
             ended={ended}
             visible={tvBarShown && resumeAsk === null}
             overlayBottom={tvBarShown ? TV_BAR_HEIGHT + 16 : 48}
@@ -1356,7 +1418,7 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
             marks={segmentMarks(item.segments, item.fileId, duration)}
             seekStep={seekStep}
             skipLabel={askSkip ? skipLabel(askSkip.kind, t) : null}
-            captions={subtitle ? subtitleLabel(subtitle) : null}
+            captions={subtitle ? captionLabel(subtitle) : null}
             resume={resumeAsk !== null ? { at: resumeAsk } : null}
             upNext={showNext && item.next ? { label: `${episodeCode(item.next.seasonNumber, item.next.episodeNumber)}${item.next.title ? ` · ${item.next.title}` : ''}`, countdown: countdown ?? 0, ended } : null}
           />
@@ -1378,7 +1440,7 @@ function Playback({ item, prefs, device, startAt, resume, onTv, fromBar, given, 
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 40 }}>
               <IconButton name="rotate-ccw" label={t('player.backSeconds', { n: seekStep })} onPress={() => seekBy('back')} size={30} />
-              {loading ? <ActivityIndicator color="#fff" size="large" /> : <IconButton name={playing ? 'pause' : ended ? 'rotate-cw' : 'play'} label={playing ? t('player.pause') : t('player.play')} onPress={toggle} size={44} />}
+              {showsPlainSpinner(loading, switching ?? reconnecting) ? <ActivityIndicator color="#fff" size="large" /> : <IconButton name={playing ? 'pause' : ended ? 'rotate-cw' : 'play'} label={playing ? t('player.pause') : t('player.play')} onPress={toggle} size={44} />}
               <IconButton name="rotate-cw" label={t('player.forwardSeconds', { n: seekStep })} onPress={() => seekBy('forward')} size={30} />
             </View>
             <View style={{ gap: 4 }}>

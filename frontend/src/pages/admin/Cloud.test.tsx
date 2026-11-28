@@ -102,6 +102,24 @@ describe('Vidalune account page', () => {
     expect(screen.getByText('Not reachable')).toBeTruthy();
   });
 
+  it('says why the direct address is not ready: vidalune.com side, no public address, or no connection', async () => {
+    const access = { configured: true, hostname: 'server-id.media.vidalune.com', port: 32400, dnsReady: false, tlsReady: false, portOpen: false, url: null };
+    setup({ ...linked, directAccess: { ...access, problem: 'token' } }, {});
+    expect(await screen.findByText(/a problem on vidalune.com, not on your side/)).toBeTruthy();
+  });
+
+  it('says when vidalune.com sees no public address', async () => {
+    const access = { configured: true, hostname: 'server-id.media.vidalune.com', port: 32400, dnsReady: false, tlsReady: false, portOpen: false, url: null };
+    setup({ ...linked, directAccess: { ...access, problem: 'no-public-ip' } }, {});
+    expect(await screen.findByText(/shared address \(CGNAT\)/)).toBeTruthy();
+  });
+
+  it('says when this server cannot reach vidalune.com', async () => {
+    const access = { configured: true, hostname: 'server-id.media.vidalune.com', port: 32400, dnsReady: false, tlsReady: false, portOpen: false, url: null };
+    setup({ ...linked, unreachableSince: Date.now() - 60_000, directAccess: access }, {});
+    expect(await screen.findByText(/This server cannot reach vidalune.com since/)).toBeTruthy();
+  });
+
   it('only describes manual router forwarding and has no UPnP controls', async () => {
     setup(off, {});
     expect(await screen.findByText('Direct connection')).toBeTruthy();

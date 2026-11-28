@@ -118,6 +118,16 @@ describe('the Control Center overview', () => {
     expect(text()).not.toContain('TMDB is not set up');
   });
 
+  it('warns when Cloudflare refuses the API token', async () => {
+    const d = dashboard(10);
+    (d as Record<string, unknown>).dnsHealth = { ok: false, problem: 'token', at: 1 };
+    serve({ '/api/ceo/dashboard': d, '/api/ceo/mail': { configured: true }, '/api/ceo/tmdb': { configured: true }, '/api/ceo/subtitles': { configured: true } });
+    location.hash = '#/overview';
+    openPanel();
+    await vi.waitFor(() => expect(text()).toContain('Needs attention (1)'));
+    expect(text()).toContain('Cloudflare refuses the API token');
+  });
+
   it('says all is fine when nothing needs a look, also when a service cannot be read', async () => {
     serve({ '/api/ceo/dashboard': dashboard(10), '/api/ceo/mail': { configured: true } });
     location.hash = '#/overview';

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AdminScreen, Card, Pill, SmallButton, confirmThen, useAdminAction } from '../../../components/Admin';
 import { ErrorState, FocusPressable, Loading, ProgressLine, styles } from '../../../components/ui';
 import { dialog } from '../../../lib/dialog';
-import { analyzedFraction, segmentShowsByNeed, statusLine, type AnalyzeScope, type SegmentOverview } from '../../../lib/adminPages';
+import { analyzedFraction, segmentShowsByNeed, statusLine, movieLine, type AnalyzeScope, type SegmentOverview } from '../../../lib/adminPages';
 import { useSession } from '../../../lib/session';
 
 /** Admin → Intros and credits: how far the detection is, and per show what it found and what viewers report. */
@@ -40,6 +40,7 @@ export default function Segments() {
           {t('segments.counts', { analyzed: c.analyzed, episodes: c.episodes, intros: c.intros, credits: c.credits })}
           {c.recaps ? ` · ${t('segments.recaps', { n: c.recaps })}` : ''}
         </Text>
+        {movieLine(status, t) ? <Text style={styles.muted}>{movieLine(status, t)}</Text> : null}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
           {c.errors > 0 && <Pill text={t('segments.errors', { n: c.errors })} tone="danger" />}
           {c.lowConfidence > 0 && <Pill text={t('segments.low', { n: c.lowConfidence })} tone="warn" />}

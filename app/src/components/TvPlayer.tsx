@@ -136,11 +136,11 @@ export function TvPlayer(p: TvPlayerProps) {
                   // After back, play and forward: the time, then the rest on the right (as on the website).
                   return i === TIME_AFTER ? [
                     button,
-                    <Text key="time" style={{ color: 'rgba(238,233,255,0.8)', fontSize: 16, marginLeft: 8, marginRight: 'auto' }}>
+                    <Text key="time" style={{ flexShrink: 0, color: 'rgba(238,233,255,0.8)', fontSize: 16, marginLeft: 8, marginRight: 'auto' }}>
                       {formatClock(p.position)} <Text style={{ color: 'rgba(238,233,255,0.4)' }}>/ {formatClock(p.duration)}</Text>
                     </Text>,
                     p.captions ? (
-                      <Text key="cc" accessibilityLabel={`${t('player.subtitles')}: ${p.captions}`} style={{ color: '#fff', fontSize: 14, fontWeight: '700', borderWidth: 2, borderColor: 'rgba(238,233,255,0.7)', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, marginRight: 12 }} numberOfLines={1}>
+                      <Text key="cc" accessibilityLabel={`${t('player.subtitles')}: ${p.captions}`} style={{ flexShrink: 1, maxWidth: 280, color: '#fff', fontSize: 14, fontWeight: '700', borderWidth: 2, borderColor: 'rgba(238,233,255,0.7)', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, marginRight: 12 }} numberOfLines={1} ellipsizeMode="tail">
                         CC · {p.captions}
                       </Text>
                     ) : null,

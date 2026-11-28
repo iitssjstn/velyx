@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextSwitch, switchLabel } from './streamSwitch';
+import { nextSwitch, showsPlainSpinner, switchLabel } from './streamSwitch';
 
 describe('loading note while the stream changes', () => {
   it('shows from the start and goes when the new stream is ready', () => {
@@ -27,5 +27,14 @@ describe('loading note while the stream changes', () => {
   it('says what it does', () => {
     expect(switchLabel('voices')).toBe('switch.voices');
     expect(switchLabel('seek')).toBe('switch.seek');
+  });
+
+  it('shows only one loading circle while a note is up', () => {
+    const s = nextSwitch(null, { type: 'start', reason: 'audio' });
+    expect(showsPlainSpinner(true, s)).toBe(false);
+    expect(showsPlainSpinner(true, true)).toBe(false);
+    expect(showsPlainSpinner(true, null)).toBe(true);
+    expect(showsPlainSpinner(true, false)).toBe(true);
+    expect(showsPlainSpinner(false, null)).toBe(false);
   });
 });

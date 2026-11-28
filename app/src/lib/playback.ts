@@ -1,5 +1,6 @@
 import type { Api } from './api';
 import { sameLanguage } from './subtitles';
+import { firstInOrder } from './reconnect';
 
 /** What the device's decoders report (see modules/vidalune-codecs). */
 export interface Decoders {
@@ -82,6 +83,15 @@ export interface SubtitleOption {
   delayUrl?: string;
 }
 
+/**
+ * The short name of a subtitle beside the time in the TV player: its language (and "Forced"), never the
+ * release name of a downloaded file, which pushed the buttons off the screen.
+ */
+export function captionLabel(s: Pick<SubtitleOption, 'label' | 'language' | 'languageName' | 'forced'>): string {
+  const name = s.languageName || s.language || s.label;
+  return [name, s.forced ? 'Forced' : null].filter(Boolean).join(' · ');
+}
+
 export interface PlaybackAnswer {
   decision: {
     engine: string;
@@ -108,6 +118,13 @@ export interface PlaybackAnswer {
   directPlayback?: { endpoints: { type: 'lan' | 'public'; url: string }[]; token: string };
   /** The server can search subtitles online (OpenSubtitles, with its own key or through vidalune.com). */
   onlineSubtitles?: boolean;
+}
+
+/** None of the server's direct addresses answered (the server is off, its connection or address is gone). */
+export class NoEndpointError extends Error {
+  constructor() {
+    super('No direct media endpoint is reachable.');
+  }
 }
 
 /** Where a stream plays from: its address and the file time its time 0 stands for. */
@@ -152,26 +169,24 @@ export async function streamFrom(api: Api, answer: PlaybackAnswer, at: number, f
   // again, so a seek does not wait for an address that does not answer (up to 4 s each).
   if (answer.directPlayback && reached && answer.directPlayback.endpoints.some((e) => new URL(e.url).origin === reached)) mediaBase = reached;
   else if (answer.directPlayback) {
-    if (!mediaToken || !answer.directPlayback.endpoints.length) throw new Error('No direct media endpoint is available.');
-    for (const endpoint of answer.directPlayback.endpoints) {
-      try {
-        const probe = new URL(`/api/media/${answer.file.id}/stream`, endpoint.url);
-        if (answer.decision.optimized) probe.searchParams.set('optimized', String(answer.decision.optimized.id));
-        probe.searchParams.set('cast', mediaToken);
-        const response = await fetchImpl(probe, { method: 'HEAD', signal: AbortSignal.timeout(4000) });
-        if (response.status === 402) throw new Error('Remote access is required to play this file away from home.');
-        if (!response.ok) continue;
-        mediaBase = new URL(endpoint.url).origin;
-        console.info(`connection_mode=direct_${endpoint.type}`);
-        break;
-      } catch (error) {
-        if (error instanceof Error && error.message.startsWith('Remote access')) throw error;
-      }
-    }
-    if (!mediaBase) {
+    if (!mediaToken || !answer.directPlayback.endpoints.length) throw new NoEndpointError();
+    // All addresses are asked at once (one that does not answer costs up to 4 s); the earliest in the list wins.
+    let needsRemote = false;
+    const found = await firstInOrder(answer.directPlayback.endpoints, async (endpoint) => {
+      const probe = new URL(`/api/media/${answer.file.id}/stream`, endpoint.url);
+      if (answer.decision.optimized) probe.searchParams.set('optimized', String(answer.decision.optimized.id));
+      probe.searchParams.set('cast', mediaToken);
+      const response = await fetchImpl(probe, { method: 'HEAD', signal: AbortSignal.timeout(4000) });
+      if (response.status === 402) needsRemote = true;
+      return response.ok;
+    });
+    if (!found) {
       console.info('connection_mode=failed');
-      throw new Error('No direct media endpoint is reachable.');
+      if (needsRemote) throw new Error('Remote access is required to play this file away from home.');
+      throw new NoEndpointError();
     }
+    mediaBase = new URL(found.url).origin;
+    console.info(`connection_mode=direct_${found.type}`);
   }
   const directUrl = (path: string) => {
     if (!mediaBase || !mediaToken) return api.url(path);

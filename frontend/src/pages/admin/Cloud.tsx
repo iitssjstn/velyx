@@ -6,7 +6,7 @@ import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/Modal';
 import { ErrorState, PageLoader } from '../../components/States';
 import { toast } from '../../components/Toast';
-import { useT } from '../../i18n';
+import { useT, type MessageKey } from '../../i18n';
 
 export interface CloudStatus {
   enabled: boolean;
@@ -22,7 +22,11 @@ export interface CloudStatus {
     tlsReady: boolean;
     portOpen: boolean;
     url: string | null;
+    /** Why it is not ready, as vidalune.com saw it at the last report. */
+    problem?: 'token' | 'cloudflare' | 'no-public-ip' | 'port' | null;
   } | null;
+  /** Since when this server cannot reach vidalune.com (null: the last report got through). */
+  unreachableSince?: number | null;
   /** Playing away from home works (linked, and the owner has remote access). */
   remoteAccess: boolean;
   /** Networks that also count as home. */
@@ -36,9 +40,16 @@ export interface DirectPortStatus {
 
 const KEY = ['admin', 'cloud'];
 
+/** What to say when DNS is not ready, by the reason vidalune.com gave. */
+const DNS_PROBLEM: Record<string, MessageKey> = {
+  token: 'cloud.directDnsServiceSide',
+  cloudflare: 'cloud.directDnsServiceSide',
+  'no-public-ip': 'cloud.directNoPublicIp',
+};
+
 /** Configure the public media port for manual router forwarding. */
-function DirectConnectionSection({ access }: { access: CloudStatus['directAccess'] }) {
-  const { t } = useT();
+function DirectConnectionSection({ access, unreachableSince }: { access: CloudStatus['directAccess']; unreachableSince?: number | null }) {
+  const { t, lang } = useT();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['admin', 'direct-port'], queryFn: () => api.get<DirectPortStatus>('/api/admin/direct-port') });
   const [port, setPort] = useState<string | null>(null);
@@ -57,6 +68,7 @@ function DirectConnectionSection({ access }: { access: CloudStatus['directAccess
         {t('cloud.directTitle')}
       </h2>
       <p className="text-sm text-muted">{t('cloud.directPortIntro', { port: q.data.internalPort })}</p>
+      {unreachableSince ? <p className="text-sm text-amber" role="status">{t('cloud.directServiceUnreachable', { since: new Date(unreachableSince).toLocaleString(lang) })}</p> : null}
       {access && (
         <div className="space-y-2 border-t border-line/60 pt-3 text-sm" role="status" aria-live="polite">
           <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-3">
@@ -65,7 +77,7 @@ function DirectConnectionSection({ access }: { access: CloudStatus['directAccess
             <div><dt className="text-faint">{t('cloud.directReachability')}</dt><dd>{access.portOpen ? t('cloud.directReady') : t('cloud.directNotReachable')}</dd></div>
           </dl>
           {!access.configured ? <p className="text-amber">{t('cloud.directDnsNotConfigured')}</p>
-            : !access.dnsReady ? <p className="text-amber">{t('cloud.directDnsWaiting')}</p>
+            : !access.dnsReady ? <p className="text-amber">{t(DNS_PROBLEM[access.problem ?? ''] ?? 'cloud.directDnsWaiting')}</p>
               : !access.tlsReady ? <p className="text-amber">{t('cloud.directTlsWaiting')}</p>
                 : !access.portOpen ? <p className="text-amber">{t('cloud.directPortNotReachable', { publicPort: q.data.publicPort, internalPort: q.data.internalPort })}</p>
                   : <p className="text-ok">{t('cloud.directReady')}</p>}
@@ -243,7 +255,7 @@ export function CloudPage() {
         </form>
       </section>
 
-      <DirectConnectionSection access={s.directAccess} />
+      <DirectConnectionSection access={s.directAccess} unreachableSince={s.unreachableSince} />
 
       <ConfirmModal open={confirming} title={t('cloud.unlinkTitle')} confirmLabel={t('cloud.unlink')} danger loading={unlink.isPending} onConfirm={() => unlink.mutate()} onClose={() => setConfirming(false)}>
         {t('cloud.unlinkConfirm')}

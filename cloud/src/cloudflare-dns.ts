@@ -50,7 +50,7 @@ function inV6Subnet(address: string, subnet: string): boolean {
 interface CloudflareEnvelope<T> {
   success: boolean;
   result?: T;
-  errors?: Array<{ message?: string }>;
+  errors?: Array<{ code?: number; message?: string }>;
 }
 
 interface Zone {
@@ -66,6 +66,27 @@ interface DNSRecord {
   content: string;
   proxied: boolean;
   comment?: string | null;
+}
+
+/** A refused Cloudflare request; `auth` when Cloudflare refused the token (expired, revoked or without rights). */
+export class CloudflareError extends Error {
+  constructor(message: string, readonly auth: boolean) {
+    super(message);
+  }
+}
+
+/** Cloudflare refused the token itself (codes 6003, 6111, 9106, 9109, 10000, 10001; or a 401/403 without a code). */
+function refusedToken(status: number, errors: Array<{ code?: number; message?: string }>): boolean {
+  const codes = new Set([6003, 6111, 9106, 9109, 10000, 10001]);
+  if (errors.some((e) => (e.code !== undefined && codes.has(e.code)) || /authenticat|invalid (api|access) token/i.test(e.message ?? ''))) return true;
+  return (status === 401 || status === 403) && !errors.some((e) => e.code !== undefined);
+}
+
+/** Why a DNS update failed, in words an owner can act on. */
+export type DnsProblem = 'token' | 'cloudflare';
+
+export function dnsProblem(err: unknown): DnsProblem {
+  return err instanceof CloudflareError && err.auth ? 'token' : 'cloudflare';
 }
 
 /** Marks the address records this service made, so a clean-up never touches the others in the zone. */
@@ -251,7 +272,7 @@ export class CloudflareDns {
     const body = (await response.json().catch(() => null)) as CloudflareEnvelope<T> | null;
     if (!response.ok || !body?.success || body.result === undefined) {
       const reason = body?.errors?.map((error) => error.message).filter(Boolean).join('; ');
-      throw new Error(`Cloudflare DNS request failed${reason ? `: ${reason}` : ` (${response.status})`}.`);
+      throw new CloudflareError(`Cloudflare DNS request failed${reason ? `: ${reason}` : ` (${response.status})`}.`, refusedToken(response.status, body?.errors ?? []));
     }
     return body.result;
   }

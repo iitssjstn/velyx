@@ -22,7 +22,7 @@ import { DetectionError, detectionCeoRoutes, detectionRoutes } from './detection
 import { SubtitleError, SubtitleProxy, subtitleRoutes } from './subtitles.js';
 import { TmdbProxy, TmdbProxyError, questionKey, tmdbRoutes } from './tmdb.js';
 import { CeoError, ceoRoutes } from './ceo.js';
-import { CloudflareDns, publicAddress } from './cloudflare-dns.js';
+import { CloudflareDns, dnsProblem, publicAddress, type DnsProblem } from './cloudflare-dns.js';
 import { DirectCertificateIssuer } from './direct-certificate.js';
 import { sweepDirectDns } from './direct-dns-cleanup.js';
 import { Mailer, MailSettings, MailSettingsError, mailRoutes, mailTemplates, smtpTransport, smtpVerify, type MailMessage, type MailTransport } from './mail.js';
@@ -206,6 +206,8 @@ export interface CloudAppOptions {
   directCertificateIssuer?: Pick<DirectCertificateIssuer, 'issue'>;
   /** How long a certificate request waits for the issuance before answering "pending" (tests: 0). */
   directCertificateWaitMs?: number;
+  /** How long a heartbeat answer waits for DNS and the port check (tests shorten it). */
+  heartbeatWaitMs?: number;
   /** Where mail goes instead of the SMTP service (tests). */
   mailTransport?: MailTransport;
   /** Waits between attempts to send a message (tests: [0]). */
@@ -223,6 +225,18 @@ interface CertificateJob {
   finishedAt?: number;
 }
 
+/** Why a server's direct address is not ready: Cloudflare refused the token, Cloudflare failed, no public address seen, port closed. */
+type DirectProblem = DnsProblem | 'no-public-ip' | 'port' | null;
+/** How long a heartbeat answer waits for DNS and the port check (the server gives up after 10 s). */
+const HEARTBEAT_WAIT_MS = 4000;
+
+/** Waits for `job`, but no longer than `ms` (it carries on after that). */
+async function settleWithin(job: Promise<unknown>, ms: number): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  await Promise.race([job, new Promise<void>((resolve) => { timer = setTimeout(resolve, ms); timer.unref?.(); })]);
+  clearTimeout(timer);
+}
+
 export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppOptions = {}): Promise<FastifyInstance> {
   const now = opts.now ?? Date.now;
   const directDns = config.cloudflareApiToken
@@ -238,6 +252,8 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
       return false;
     }
   };
+  /** Whether Cloudflare took the last DNS update (null: none yet since the start). */
+  let dnsHealth: { ok: boolean; problem: DnsProblem | null; at: number } | null = null;
   /** What the last clean-up found: records in use against what the Cloudflare plan allows. */
   let dnsUsage: { used: number; limit: number; checkedAt: number } | null = null;
   const runDnsSweep = async (): Promise<void> => {
@@ -245,8 +261,10 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     try {
       const result = await sweepDirectDns({ db, dns: directDns, directDomain: config.directDomain, now, probe: probeDirect, log: (message) => console.info(message) });
       dnsUsage = { used: result.used, limit: config.dnsRecordLimit, checkedAt: result.checkedAt };
+      dnsHealth = { ok: true, problem: null, at: now() };
       if (result.used >= config.dnsRecordLimit * 0.8) console.warn(`DNS records: ${result.used} of ${config.dnsRecordLimit} in use; free up space or raise the limit.`);
     } catch (err) {
+      dnsHealth = { ok: false, problem: dnsProblem(err), at: now() };
       console.warn(`DNS clean-up failed: ${(err as Error).message}`);
     }
   };
@@ -1080,8 +1098,55 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     },
   });
 
+  /** Why each server's direct address is not ready, from its last check (kept in memory). */
+  const directProblems = new Map<string, DirectProblem>();
+  const directChecks = new Map<string, Promise<void>>();
+  /** Points this server's hostname at its address and checks the port from outside; one at a time per server. */
+  const checkDirect = (id: string, accountId: number | null, publicIp: string | null, port: number, tlsReady: boolean, recordHolds = false): Promise<void> => {
+    const running = directChecks.get(id);
+    if (running) return running;
+    const job = (async () => {
+      let dnsReady = false;
+      let problem: DirectProblem = null;
+      if (directDns && accountId && publicIp) {
+        try {
+          await directDns.upsertAddress(directHostname(id), publicIp);
+          dnsReady = true;
+          dnsHealth = { ok: true, problem: null, at: now() };
+        } catch (err) {
+          problem = dnsProblem(err);
+          dnsHealth = { ok: false, problem, at: now() };
+          // Cloudflare did not take the update, but the record it has still points at this address.
+          dnsReady = recordHolds;
+          console.warn(`Direct DNS update failed for server ${id}: ${(err as Error).message}`);
+        }
+      } else if (directDns && accountId) {
+        problem = 'no-public-ip';
+      } else if (directDns) {
+        try {
+          await directDns.deleteAddress(directHostname(id));
+        } catch (err) {
+          console.warn(`Direct DNS cleanup failed for server ${id}: ${(err as Error).message}`);
+        }
+      }
+      let portOpen = false;
+      if (dnsReady && tlsReady) {
+        portOpen = await probeDirect(directHostname(id), port);
+        if (!portOpen) problem ??= 'port';
+      }
+      const checkedAt = now();
+      db.update(servers).set({ directDnsReady: dnsReady, directDnsCheckedAt: checkedAt, directPortOpen: portOpen, directPortCheckedAt: checkedAt }).where(eq(servers.id, id)).run();
+      directProblems.set(id, problem);
+    })()
+      .catch((err: unknown) => console.warn(`Direct access check failed for server ${id}: ${(err as Error).message}`))
+      .finally(() => directChecks.delete(id));
+    directChecks.set(id, job);
+    return job;
+  };
+
   const directAccessView = (s: typeof servers.$inferSelect) => ({
     configured: !!directDns,
+    problem: directProblems.get(s.id) ?? null,
     hostname: directHostname(s.id),
     port: s.directPort,
     localEndpoints: storedLocalEndpoints(s.localEndpoints),
@@ -1147,30 +1212,15 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     limiter.check(`heartbeat:${me.id}`, now());
     const body = z.object({ name: serverName, version, url: serverUrl, localEndpoints: z.array(localEndpointSchema).max(16).default([]), directPort: z.number().int().min(1).max(65535).default(DEFAULT_DIRECT_PORT), directTlsReady: z.boolean().default(false) }).parse(request.body);
     const publicIp = publicAddress(request.ip);
-    const checkedAt = now();
-    let dnsReady = false;
-    if (directDns && me.accountId && publicIp) {
-      try {
-        await directDns.upsertAddress(directHostname(me.id), publicIp);
-        dnsReady = true;
-      } catch (err) {
-        console.warn(`Direct DNS update failed for server ${me.id}: ${(err as Error).message}`);
-      }
-    } else if (directDns && !me.accountId) {
-      try {
-        await directDns.deleteAddress(directHostname(me.id));
-      } catch (err) {
-        console.warn(`Direct DNS cleanup failed for server ${me.id}: ${(err as Error).message}`);
-      }
-    }
-    const directPort = body.directPort;
-    const directTlsReady = body.directTlsReady;
-    let directPortOpen = false;
-    if (dnsReady && directTlsReady && config.cloudflareApiToken) directPortOpen = await probeDirect(directHostname(me.id), directPort);
     db.update(servers)
-      .set({ name: body.name, version: body.version, url: body.url ?? null, localEndpoints: JSON.stringify(body.localEndpoints), publicIp, directDnsReady: dnsReady, directDnsCheckedAt: checkedAt, directPort, directTlsReady, directPortOpen, directPortCheckedAt: checkedAt, lastSeenAt: checkedAt })
+      .set({ name: body.name, version: body.version, url: body.url ?? null, localEndpoints: JSON.stringify(body.localEndpoints), publicIp, directPort: body.directPort, directTlsReady: body.directTlsReady, lastSeenAt: now() })
       .where(eq(servers.id, me.id))
       .run();
+    // DNS and the port check run on their own: the answer waits for them a few seconds at most, so a
+    // slow or refusing Cloudflare never makes the server think vidalune.com is unreachable.
+    // The record set before still points here when the address did not change: a failed update keeps it.
+    const recordHolds = me.directDnsReady && !!publicIp && me.publicIp === publicIp;
+    await settleWithin(checkDirect(me.id, me.accountId, publicIp, body.directPort, body.directTlsReady, recordHolds), opts.heartbeatWaitMs ?? HEARTBEAT_WAIT_MS);
     // Whether this server gets its metadata through vidalune.com (linked, and a key is set here).
     return { ...serverStatus(db.select().from(servers).where(eq(servers.id, me.id)).get()!), tmdb: tmdbProxy.available && !!me.accountId };
   });
@@ -1394,6 +1444,7 @@ export async function buildCloudApp(config: CloudConfig, db: DB, opts: CloudAppO
     signOut: (accountId) => void db.delete(accountSessions).where(eq(accountSessions.accountId, accountId)).run(),
     fetchImpl: opts.fetchImpl,
     directDnsUsage: () => dnsUsage,
+    directDnsHealth: () => dnsHealth,
     mailEnabled: () => mailer.enabled,
   });
   app.decorate('ceoMonitor', ceo.monitor);

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CloudflareDns, publicAddress } from '../src/cloudflare-dns.js';
+import { CloudflareDns, dnsProblem, publicAddress } from '../src/cloudflare-dns.js';
 
 const json = (result: unknown) => new Response(JSON.stringify({ success: true, result }), { status: 200 });
 
@@ -213,5 +213,20 @@ describe('Cloudflare direct DNS records', () => {
     const dns = new CloudflareDns({ token: 'secret-test-token', zoneName: 'vidalune.com', fetchImpl, apiBase: 'https://cf.test' });
     await expect(dns.upsertAddress('server.media.vidalune.com', '203.0.113.20')).rejects.toThrow(/permission denied/);
     await expect(dns.upsertAddress('server.media.vidalune.com', '203.0.113.20')).rejects.not.toThrow(/secret-test-token/);
+  });
+});
+describe('why a DNS update failed', () => {
+  const failing = (status: number, errors: unknown[]) => new CloudflareDns({ token: 't', zoneName: 'vidalune.com', apiBase: 'https://cf.test', fetchImpl: async () => new Response(JSON.stringify({ success: false, errors }), { status }) });
+  const problem = async (dns: CloudflareDns) => dnsProblem(await dns.upsertAddress('server.media.vidalune.com', '203.0.113.20').catch((e: unknown) => e));
+
+  it('says the token was refused (expired, revoked, no rights)', async () => {
+    expect(await problem(failing(400, [{ code: 10001, message: 'Unable to authenticate request' }]))).toBe('token');
+    expect(await problem(failing(403, [{ code: 9109, message: 'Invalid access token' }]))).toBe('token');
+    expect(await problem(failing(401, []))).toBe('token');
+  });
+
+  it('says Cloudflare itself failed otherwise', async () => {
+    expect(await problem(failing(500, [{ code: 1000, message: 'internal error' }]))).toBe('cloudflare');
+    expect(dnsProblem(new Error('The operation was aborted due to timeout'))).toBe('cloudflare');
   });
 });

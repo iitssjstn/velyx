@@ -254,6 +254,7 @@ const en = {
   'player.watchCredits': 'Watch credits',
   'player.interrupted': 'The stream keeps stopping. Check your connection and try again.',
   'player.reconnecting': 'Connection lost. Waiting for the server…',
+  'player.noEndpoint': 'The server cannot be reached for video right now. Check that it is on and has internet, then try again.',
 
   'subtitleStyle.title': 'Subtitle style',
   'subtitleStyle.castMode': 'TV subtitle style',
@@ -1050,6 +1051,8 @@ const en = {
   'segments.upToDate': 'Up to date.',
   'segments.counts': '{analyzed} of {episodes} episodes analysed · {intros} intros · {credits} credits',
   'segments.recaps': '{n} recaps',
+  'segments.runningMovie': 'Looking for the credits of {title}',
+  'segments.movies': 'Movies: {analyzed} of {total} analysed · {credits} credits',
   'segments.errors': '{n} errors',
   'segments.low': '{n} unsure',
   'segments.manual': '{n} corrected by hand',
@@ -1349,6 +1352,7 @@ const nl: Record<MessageKey, string> = {
   'player.watchCredits': 'Aftiteling kijken',
   'player.interrupted': 'De stream blijft stoppen. Controleer je verbinding en probeer het opnieuw.',
   'player.reconnecting': 'Verbinding kwijt. Wachten op de server…',
+  'player.noEndpoint': 'De server is nu niet bereikbaar voor video. Kijk of hij aanstaat en internet heeft, en probeer het opnieuw.',
 
   'subtitleStyle.title': 'Weergave ondertitels',
   'subtitleStyle.castMode': 'Ondertitelstijl op tv',
@@ -2145,6 +2149,8 @@ const nl: Record<MessageKey, string> = {
   'segments.upToDate': 'Helemaal bij.',
   'segments.counts': '{analyzed} van {episodes} afleveringen geanalyseerd · {intros} intro\'s · {credits} aftitelingen',
   'segments.recaps': '{n} terugblikken',
+  'segments.runningMovie': 'Aftiteling zoeken in {title}',
+  'segments.movies': 'Films: {analyzed} van {total} geanalyseerd · {credits} aftitelingen',
   'segments.errors': '{n} fouten',
   'segments.low': '{n} onzeker',
   'segments.manual': '{n} met de hand gecorrigeerd',

@@ -21,7 +21,7 @@ afterEach(async () => {
   if (dir) fs.rmSync(dir, { recursive: true, force: true });
 });
 
-async function setup(fetchImpl: typeof fetch, directCertificateIssuer?: { issue(hostname: string, csr: string): Promise<string> }, directCertificateWaitMs?: number) {
+async function setup(fetchImpl: typeof fetch, directCertificateIssuer?: { issue(hostname: string, csr: string): Promise<string> }, directCertificateWaitMs?: number, heartbeatWaitMs?: number) {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidalune-direct-'));
   const config = loadConfig({
     DATA_DIR: dir,
@@ -30,7 +30,7 @@ async function setup(fetchImpl: typeof fetch, directCertificateIssuer?: { issue(
     DIRECT_DOMAIN: 'media.vidalune.com',
   }, { webDir: null, frontendDir: null });
   db = openDatabase(config.dbPath);
-  app = await buildCloudApp(config, db, { fetchImpl, directCertificateIssuer, directCertificateWaitMs });
+  app = await buildCloudApp(config, db, { fetchImpl, directCertificateIssuer, directCertificateWaitMs, heartbeatWaitMs });
   const registration = await app.inject({ method: 'POST', url: '/api/server/register', payload: { name: 'Thuis', version: '0.19.27' } });
   const { id, secret } = registration.json();
   return { id, auth: `Server ${id}:${secret}` };
@@ -91,6 +91,62 @@ describe('automatic direct DNS', () => {
     expect(JSON.stringify(heartbeat.json())).not.toContain('test-token');
   });
 
+  it('answers a server straight away while Cloudflare is slow, and keeps the address once it is set', async () => {
+    let release: () => void = () => undefined;
+    const slow = new Promise<void>((resolve) => { release = resolve; });
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      await slow;
+      if (url.pathname.endsWith('/zones') && !init?.method) return Response.json({ success: true, result: [{ id: 'zone-1', name: 'vidalune.com' }] });
+      if (url.pathname.endsWith('/dns_records') && !init?.method) return Response.json({ success: true, result: [] });
+      if (url.pathname.endsWith('/dns_records') && init?.method === 'POST') return Response.json({ success: true, result: { id: 'record-1' } });
+      throw new Error(`Unexpected request: ${url.pathname}`);
+    };
+    const { auth } = await setup(fetchImpl, undefined, undefined, 50);
+    await linkServer(auth);
+    const beat = () => app.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: auth }, remoteAddress: '8.8.8.8', payload: { name: 'Thuis', version: '0.20.15' } });
+    const started = Date.now();
+    const first = await beat();
+    expect(first.statusCode).toBe(200);
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(first.json()).toMatchObject({ linked: true, directAccess: { dnsReady: false } });
+    release();
+    await new Promise((r) => setTimeout(r, 50));
+    expect((await beat()).json().directAccess).toMatchObject({ dnsReady: true, problem: null });
+  });
+
+  it('says when Cloudflare refuses the token, to the server and in the Control Center', async () => {
+    const fetchImpl: typeof fetch = async () => Response.json({ success: false, errors: [{ code: 10001, message: 'Unable to authenticate request' }] }, { status: 400 });
+    const { auth } = await setup(fetchImpl);
+    await linkServer(auth);
+    const heartbeat = await app.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: auth }, remoteAddress: '8.8.8.8', payload: { name: 'Thuis', version: '0.20.15' } });
+    expect(heartbeat.json().directAccess).toMatchObject({ dnsReady: false, problem: 'token' });
+    expect(JSON.stringify(heartbeat.json())).not.toContain('test-token');
+  });
+
+  it('keeps the direct address when Cloudflare stops taking updates but the record still points here', async () => {
+    let refuse = false;
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.hostname.endsWith('.media.vidalune.com')) return new Response(null, { status: 204 });
+      if (refuse) return Response.json({ success: false, errors: [{ code: 10001, message: 'Unable to authenticate request' }] }, { status: 400 });
+      if (url.pathname.endsWith('/zones') && !init?.method) return Response.json({ success: true, result: [{ id: 'zone-1', name: 'vidalune.com' }] });
+      if (url.pathname.endsWith('/dns_records') && !init?.method) return Response.json({ success: true, result: [] });
+      if (url.pathname.endsWith('/dns_records') && init?.method === 'POST') return Response.json({ success: true, result: { id: 'record-1' } });
+      throw new Error(`Unexpected request: ${url.pathname}`);
+    };
+    const { auth } = await setup(fetchImpl);
+    await linkServer(auth);
+    const beat = async (from: string) => (await app.inject({ method: 'POST', url: '/api/server/heartbeat', headers: { authorization: auth }, remoteAddress: from, payload: { name: 'Thuis', version: '0.20.15', directTlsReady: true } })).json().directAccess;
+    expect(await beat('8.8.8.8')).toMatchObject({ dnsReady: true, portOpen: true });
+    refuse = true;
+    const same = await beat('8.8.8.8');
+    expect(same).toMatchObject({ dnsReady: true, portOpen: true, problem: 'token' });
+    expect(same.url).toMatch(/^https:\/\//);
+    // A new address cannot be set: the old record points elsewhere.
+    expect(await beat('8.8.4.4')).toMatchObject({ dnsReady: false, url: null, problem: 'token' });
+  });
+
   it('does not create DNS for a private heartbeat source address', async () => {
     const fetchImpl: typeof fetch = async () => {
       throw new Error('Cloudflare must not be contacted for a private source address.');
@@ -105,7 +161,7 @@ describe('automatic direct DNS', () => {
       payload: { name: 'Thuis', version: '0.19.27' },
     });
     expect(heartbeat.statusCode).toBe(200);
-    expect(heartbeat.json().directAccess.dnsReady).toBe(false);
+    expect(heartbeat.json().directAccess).toMatchObject({ dnsReady: false, problem: 'no-public-ip' });
   });
 
   it('publishes a direct URL only after the external TLS port answers the health probe', async () => {

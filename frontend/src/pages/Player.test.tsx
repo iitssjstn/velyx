@@ -653,3 +653,53 @@ describe('reporting a wrong intro or credits', () => {
     expect(screen.queryByRole('button', { name: 'Intro or credits wrong?' })).toBeNull();
   });
 });
+
+describe('a player left paused', () => {
+  const saves: number[] = [];
+  beforeEach(() => {
+    saves.length = 0;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      let body: unknown = {};
+      if (url === '/api/movies/3') body = MOVIE;
+      if (url === '/api/media/3/playback') body = PLAYBACK;
+      if (url === '/api/account/preferences') body = { audioLanguage: '', subtitleLanguage: '', subtitleFallback: '', subtitleMode: 'remember' };
+      if (url === '/api/progress' && init?.method === 'POST') saves.push((JSON.parse(String(init.body)) as { positionSec: number }).positionSec);
+      // Meanwhile watched on to 3:00 on another device.
+      if (url === '/api/progress' && (init?.method ?? 'GET') === 'GET') body = [{ movieId: 3, episodeId: null, positionSec: 180, completed: false }];
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+  });
+  const started = async () => {
+    renderPlayer();
+    const video = await vi.waitFor(() => {
+      const v = document.querySelector('video');
+      if (!v) throw new Error('no video');
+      return v;
+    });
+    const state = fakeVideo(video);
+    fireEvent.loadedMetadata(video);
+    state.currentTime = 100;
+    state.paused = true;
+    fireEvent.pause(video);
+    await vi.waitFor(() => expect(saves).toEqual([100]));
+    return { video, state };
+  };
+
+  it('does not save its old spot again when it closes', async () => {
+    await started();
+    cleanup();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(saves).toEqual([100]);
+  });
+
+  it('continues where it was watched elsewhere after a long pause', async () => {
+    const { video, state } = await started();
+    const later = Date.now() + 3 * 60_000;
+    vi.spyOn(Date, 'now').mockReturnValue(later);
+    state.paused = false;
+    fireEvent.play(video);
+    await vi.waitFor(() => expect(state.currentTime).toBe(180));
+    expect(saves).toEqual([100]);
+  });
+});

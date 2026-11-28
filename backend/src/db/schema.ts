@@ -685,6 +685,29 @@ export const episodeSegments = sqliteTable('episode_segments', {
 });
 
 /**
+ * End credits of a movie: from its chapter markers or the picture of the closing part. Used to count
+ * a movie as watched from where the credits start.
+ */
+export const movieSegments = sqliteTable('movie_segments', {
+  movieId: integer('movie_id')
+    .primaryKey()
+    .references(() => movies.id, { onDelete: 'cascade' }),
+  /** The file that was analysed; a different file (or size) means analyse again. */
+  mediaFileId: integer('media_file_id').references(() => mediaFiles.id, { onDelete: 'set null' }),
+  fileSize: integer('file_size'),
+  creditsStart: real('credits_start'),
+  creditsEnd: real('credits_end'),
+  creditsConfidence: text('credits_confidence', { enum: ['high', 'medium', 'low'] }),
+  creditsSource: text('credits_source', { enum: ['chapters', 'video'] }),
+  postCreditsStart: real('post_credits_start'),
+  postCreditsEnd: real('post_credits_end'),
+  status: text('status', { enum: ['analyzed', 'error'] }).notNull(),
+  error: text('error'),
+  version: integer('version').notNull(),
+  detectedAt: integer('detected_at').notNull().default(now),
+});
+
+/**
  * Shared detection profiles from vidalune.com (a season: timings servers agree on, fingerprints),
  * kept so detection works the same when vidalune.com cannot be reached.
  */

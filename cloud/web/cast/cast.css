@@ -26,6 +26,7 @@ html, body { margin: 0; height: 100%; background: #0f0d15; overflow: hidden; col
 #marks i { position: absolute; top: -6px; bottom: -6px; width: 4px; margin-left: -2px; border-radius: 2px; background: rgba(238, 233, 255, 0.55); }
 .times { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: 22px; color: #b9b0d4; font-variant-numeric: tabular-nums; }
 /* Which subtitle is on (CC), between the times; empty when off. */
+.cc { min-width: 0; max-width: 40%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .cc:not(:empty) { padding: 4px 14px; border: 2px solid rgba(238, 233, 255, 0.7); border-radius: 8px; color: #eee9ff; font-size: 18px; font-weight: 600; }
 
 /* Buttons the remote moves between: the chosen one white and a little bigger, to see from the couch. */
