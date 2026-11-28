@@ -2,7 +2,7 @@ import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { DB } from '../../db/client.js';
-import { episodes, episodeSegments, libraries, mediaFiles, segmentFingerprints, segmentReferences, shows } from '../../db/schema.js';
+import { episodes, episodeSegments, libraries, mediaFiles, movies, movieSegments, segmentFingerprints, segmentReferences, shows } from '../../db/schema.js';
 import { createLogger } from '../../logger.js';
 import { longestCommonSegment, SAMPLE_RATE, type Fingerprint } from './fingerprint.js';
 import { inlineFingerprintRunner, inlineSeasonRunner, type FingerprintRunner, type SeasonRunner } from './season-runner.js';
@@ -11,6 +11,7 @@ import { diagnoseSeason, type SeasonDiagnosis } from './diagnose.js';
 import { chapterSegments, type ChapterSegments } from './chapters.js';
 import { cutNear, findCredits, isTitleLeadIn, pictureEdge, refineStart, type FrameStats, type VisualCredits } from './visual.js';
 import type { ChapterReader, FrameReader } from './readers.js';
+import { MOVIE_DETECTION_VERSION, MOVIE_MIN_SEC, movieCredits, movieTailWindow } from './movie-credits.js';
 import { overridesFor, sharedFor, sharedReferences, type SharedProfile } from './shared.js';
 import { LOCAL_ONLY } from '../../playback/local-input.js';
 
@@ -89,7 +90,12 @@ export interface DetectorStatus {
   state: 'idle' | 'running' | 'waiting' | 'disabled';
   waitingFor: 'playback' | 'scan' | null;
   running: { showId: number; showTitle: string; seasonNumber: number; done: number; total: number } | null;
+  /** The movie being looked at for its credits. */
+  runningMovie: { movieId: number; title: string } | null;
   queuedSeasons: number;
+  queuedMovies: number;
+  /** Movies: credits from their chapters or the picture. */
+  movies: { total: number; analyzed: number; credits: number; pending: number; errors: number };
   counts: {
     episodes: number;
     analyzed: number;
@@ -114,6 +120,14 @@ interface EpisodeFile {
   showId: number;
   seasonNumber: number;
   episodeNumber: number;
+  fileId: number;
+  path: string;
+  size: number;
+  duration: number;
+}
+
+interface MovieFile {
+  movieId: number;
   fileId: number;
   path: string;
   size: number;
@@ -146,7 +160,9 @@ const toBlob = (fp: Fingerprint) => Buffer.from(fp.words.buffer, fp.words.byteOf
  */
 export class SegmentDetector {
   private queue: SeasonJob[] = [];
+  private movieQueue: number[] = [];
   private running: DetectorStatus['running'] = null;
+  private runningMovie: DetectorStatus['runningMovie'] = null;
   private waitingFor: DetectorStatus['waitingFor'] = null;
   private pumping = false;
   private stopped = false;
@@ -244,13 +260,101 @@ export class SegmentDetector {
       seasons.add(key);
       this.add({ showId: f.showId, seasonNumber: f.seasonNumber, force: new Set() });
     }
+    for (const m of this.pendingMovies(this.movieFiles())) this.addMovie(m.movieId);
     return seasons.size;
+  }
+
+  /** Every movie file of a movie library long enough to have credits, with the file playback picks first. */
+  private movieFiles(movieIds?: number[]): MovieFile[] {
+    const conds = [eq(libraries.type, 'movies')];
+    if (movieIds) conds.push(inArray(movies.id, movieIds.length ? movieIds : [-1]));
+    const rows = this.db
+      .select({ movieId: movies.id, fileId: mediaFiles.id, path: mediaFiles.path, size: mediaFiles.size, duration: mediaFiles.durationSec })
+      .from(movies)
+      .innerJoin(mediaFiles, eq(mediaFiles.movieId, movies.id))
+      .innerJoin(libraries, eq(libraries.id, movies.libraryId))
+      .where(and(...conds))
+      .orderBy(movies.id, desc(mediaFiles.height), mediaFiles.id)
+      .all();
+    const seen = new Set<number>();
+    const out: MovieFile[] = [];
+    for (const r of rows) {
+      if (seen.has(r.movieId)) continue;
+      seen.add(r.movieId);
+      if (r.duration && r.duration >= MOVIE_MIN_SEC) out.push({ ...r, duration: r.duration });
+    }
+    return out;
+  }
+
+  /** Movies never looked at, with a different file since, or looked at by an older version. */
+  private pendingMovies(files: MovieFile[]): MovieFile[] {
+    if (!files.length) return [];
+    const rows = new Map(this.db.select().from(movieSegments).where(inArray(movieSegments.movieId, files.map((f) => f.movieId))).all().map((r) => [r.movieId, r]));
+    return files.filter((f) => {
+      const row = rows.get(f.movieId);
+      return !row || row.mediaFileId !== f.fileId || row.fileSize !== f.size || row.version < MOVIE_DETECTION_VERSION;
+    });
+  }
+
+  private addMovie(movieId: number): void {
+    if (this.stopped || this.movieQueue.includes(movieId)) return;
+    this.movieQueue.push(movieId);
+    void this.pump();
+  }
+
+  /** Chapters first; without them the picture of the closing part (when picture analysis is on). */
+  private async runMovie(movieId: number): Promise<void> {
+    const f = this.movieFiles([movieId])[0];
+    if (!f) return;
+    if (!(await this.gate())) return;
+    const title = this.db.select({ title: movies.title }).from(movies).where(eq(movies.id, movieId)).get()?.title ?? `Movie ${movieId}`;
+    this.runningMovie = { movieId, title };
+    try {
+      const chapters = this.readers.chapters ? chapterSegments(await this.readers.chapters(f.path).catch(() => []), f.duration) : null;
+      const visual = chapters?.credits ? null : await this.readVisualCredits(f, movieTailWindow(f.duration).start);
+      if (this.stopped) return;
+      const found = movieCredits(chapters, visual, f.duration);
+      const values = {
+        movieId,
+        mediaFileId: f.fileId,
+        fileSize: f.size,
+        creditsStart: found?.start ?? null,
+        creditsEnd: found?.end ?? null,
+        creditsConfidence: found?.confidence ?? null,
+        creditsSource: found?.source ?? null,
+        postCreditsStart: found?.postCredits?.start ?? null,
+        postCreditsEnd: found?.postCredits?.end ?? null,
+        status: 'analyzed' as const,
+        error: null,
+        version: MOVIE_DETECTION_VERSION,
+        detectedAt: Date.now(),
+      };
+      this.db.insert(movieSegments).values(values).onConflictDoUpdate({ target: movieSegments.movieId, set: values }).run();
+      log.info(found ? `${title}: credits from ${Math.round(found.start)} s (${found.source})` : `${title}: no credits found`);
+    } catch (err) {
+      const values = { movieId, mediaFileId: f.fileId, fileSize: f.size, status: 'error' as const, error: ((err as Error).message || 'Could not analyse').slice(0, 500), version: MOVIE_DETECTION_VERSION, detectedAt: Date.now() };
+      this.db.insert(movieSegments).values(values).onConflictDoUpdate({ target: movieSegments.movieId, set: values }).run();
+    } finally {
+      this.runningMovie = null;
+    }
   }
 
   /**
    * Analyses again on request (manual corrections stay). Returns how many episodes were queued.
    */
-  reanalyze(scope: { episodeId: number } | { showId: number; seasonNumber?: number } | 'all'): number {
+  reanalyze(scope: { episodeId: number } | { showId: number; seasonNumber?: number } | { movieId: number } | 'all'): number {
+    if (scope !== 'all' && 'movieId' in scope) {
+      if (!this.movieFiles([scope.movieId]).length) return 0;
+      this.addMovie(scope.movieId);
+      return 1;
+    }
+    let movieCount = 0;
+    if (scope === 'all') {
+      for (const m of this.movieFiles()) {
+        this.addMovie(m.movieId);
+        movieCount++;
+      }
+    }
     const files =
       scope === 'all'
         ? this.episodeFiles()
@@ -283,7 +387,7 @@ export class SegmentDetector {
       }
       this.add(job);
     }
-    return count;
+    return count + movieCount;
   }
 
   private add(job: SeasonJob): void {
@@ -301,12 +405,24 @@ export class SegmentDetector {
     const have = new Set(files.map((f) => f.episodeId));
     const current = rows.filter((r) => have.has(r.episodeId));
     const usable = (c: string | null, manual: boolean) => manual || c === 'high' || c === 'medium';
+    const movieFiles = this.movieFiles();
+    const movieIds = new Set(movieFiles.map((m) => m.movieId));
+    const movieRows = movieFiles.length ? this.db.select().from(movieSegments).all().filter((r) => movieIds.has(r.movieId)) : [];
     return {
       enabled,
-      state: !enabled ? 'disabled' : this.waitingFor ? 'waiting' : this.running ? 'running' : 'idle',
+      state: !enabled ? 'disabled' : this.waitingFor ? 'waiting' : this.running || this.runningMovie ? 'running' : 'idle',
       waitingFor: this.waitingFor,
       running: this.running ? { ...this.running } : null,
+      runningMovie: this.runningMovie ? { ...this.runningMovie } : null,
       queuedSeasons: this.queue.length,
+      queuedMovies: this.movieQueue.length,
+      movies: {
+        total: movieFiles.length,
+        analyzed: movieRows.filter((r) => r.status === 'analyzed').length,
+        credits: movieRows.filter((r) => r.creditsStart !== null).length,
+        pending: this.pendingMovies(movieFiles).length,
+        errors: movieRows.filter((r) => r.status === 'error').length,
+      },
       counts: {
         episodes: files.length,
         analyzed: current.filter((r) => r.status === 'analyzed').length,
@@ -327,7 +443,7 @@ export class SegmentDetector {
 
   /** Resolves when nothing is queued or running (tests). */
   whenIdle(): Promise<void> {
-    if (!this.pumping && !this.queue.length) return Promise.resolve();
+    if (!this.pumping && !this.queue.length && !this.movieQueue.length) return Promise.resolve();
     return new Promise((resolve) => this.idleWaiters.push(resolve));
   }
 
@@ -339,6 +455,7 @@ export class SegmentDetector {
   stop(): void {
     this.stopped = true;
     this.queue = [];
+    this.movieQueue = [];
     this.wake?.();
   }
 
@@ -369,7 +486,17 @@ export class SegmentDetector {
     if (this.pumping) return;
     this.pumping = true;
     try {
-      while (this.queue.length && !this.stopped) {
+      while ((this.queue.length || this.movieQueue.length) && !this.stopped) {
+        // Seasons first (skipping intros is used most); movies after.
+        if (!this.queue.length) {
+          const movieId = this.movieQueue.shift()!;
+          try {
+            await this.runMovie(movieId);
+          } catch (err) {
+            log.error(`Credits detection failed for movie ${movieId}`, err);
+          }
+          continue;
+        }
         const job = this.queue.shift()!;
         try {
           await this.runSeason(job);
@@ -380,6 +507,7 @@ export class SegmentDetector {
     } finally {
       this.pumping = false;
       this.running = null;
+      this.runningMovie = null;
       this.waitingFor = null;
       this.idleWaiters.splice(0).forEach((w) => w());
     }
@@ -763,7 +891,7 @@ export class SegmentDetector {
    * around the start that was found, to place it precisely. Problems with the video (an unusual
    * codec, no video track) only mean this source is not used.
    */
-  private async readVisualCredits(f: EpisodeFile, from: number) {
+  private async readVisualCredits(f: { path: string; duration: number }, from: number) {
     if (!this.readers.frames || !(this.hooks.video?.() ?? true)) return null;
     try {
       if (!(await this.gate())) return null;

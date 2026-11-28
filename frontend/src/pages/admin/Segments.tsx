@@ -18,6 +18,9 @@ export interface SegmentStatus {
   waitingFor: 'playback' | 'scan' | null;
   running: { showId: number; showTitle: string; seasonNumber: number; done: number; total: number } | null;
   queuedSeasons: number;
+  /** Movies: only their credits are looked for (older servers: absent). */
+  runningMovie?: { movieId: number; title: string } | null;
+  movies?: { total: number; analyzed: number; credits: number; pending: number; errors: number };
   counts: { episodes: number; analyzed: number; recaps?: number; intros: number; credits: number; pending: number; errors: number; manual: number; lowConfidence: number; fromShared?: number; confirmed?: number; reports?: number };
 }
 
@@ -96,6 +99,7 @@ function statusLine(s: SegmentStatus): string {
     const now = t('segments.status.running', { show: s.running.showTitle, season: s.running.seasonNumber, done: s.running.done, total: s.running.total });
     return s.queuedSeasons ? `${now} · ${t('segments.status.queued', { count: s.queuedSeasons })}` : now;
   }
+  if (s.state === 'running' && s.runningMovie) return t('segments.status.runningMovie', { title: s.runningMovie.title });
   return s.counts.pending ? t('segments.status.pending', { count: s.counts.pending }) : t('segments.status.upToDate');
 }
 
@@ -376,6 +380,15 @@ export function SegmentsPage() {
         {(c.fromShared ?? 0) + (c.confirmed ?? 0) > 0 && <Stat label={t('segments.stats.fromShared')} value={c.fromShared ?? 0} />}
         {(c.fromShared ?? 0) + (c.confirmed ?? 0) > 0 && <Stat label={t('segments.stats.confirmed')} value={c.confirmed ?? 0} />}
       </div>
+
+      {status.movies && status.movies.total > 0 && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label={t('nav.movies')} value={status.movies.total} />
+          <Stat label={t('segments.stats.moviesAnalysed')} value={status.movies.analyzed} />
+          <Stat label={t('segments.stats.movieCredits')} value={status.movies.credits} />
+          <Stat label={t('segments.stats.waiting')} value={status.movies.pending} />
+        </div>
+      )}
 
       {shows.length === 0 ? (
         <EmptyState icon={<SkipForward className="size-6" />} title={t('browse.noShows')}>{t('segments.noShowsText')}</EmptyState>

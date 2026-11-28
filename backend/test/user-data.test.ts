@@ -45,8 +45,10 @@ describe('watch progress', () => {
     expect(home.continueWatching[0]).toMatchObject({ type: 'movie', id: movieId, progress: { positionSec: 2244 } });
   });
 
-  it('marks items watched at 90% and resets the resume point', async () => {
+  it('marks items watched at 95% and resets the resume point', async () => {
     await post('/api/progress', { movieId, positionSec: 9200, durationSec: 10000 });
+    expect((await get(`/api/movies/${movieId}`)).progress).toMatchObject({ completed: false, positionSec: 9200 });
+    await post('/api/progress', { movieId, positionSec: 9600, durationSec: 10000 });
     const m = await get(`/api/movies/${movieId}`);
     expect(m.progress).toMatchObject({ completed: true, positionSec: 0 });
     const home = await get('/api/home');

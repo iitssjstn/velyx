@@ -154,6 +154,9 @@ export interface SegmentStatus {
   waitingFor: 'playback' | 'scan' | null;
   running: { showId: number; showTitle: string; seasonNumber: number; done: number; total: number } | null;
   queuedSeasons: number;
+  /** Movies: only their credits are looked for (older servers: absent). */
+  runningMovie?: { movieId: number; title: string } | null;
+  movies?: { total: number; analyzed: number; credits: number; pending: number; errors: number };
   counts: { episodes: number; analyzed: number; recaps?: number; intros: number; credits: number; pending: number; errors: number; manual: number; lowConfidence: number; reports?: number };
 }
 
@@ -242,10 +245,17 @@ export function openReports(s: ShowSegments | undefined): { report: SegmentRepor
   return s.seasons.flatMap((season) => season.episodes.flatMap((episode) => (episode.reports ?? []).map((report) => ({ report, seasonNumber: season.seasonNumber, episode }))));
 }
 
+/** The movies line: how many were looked at and how many have credits; null without movies. */
+export function movieLine(s: SegmentStatus, t: Translate): string | null {
+  if (!s.movies || s.movies.total === 0) return null;
+  return t('segments.movies', { analyzed: s.movies.analyzed, total: s.movies.total, credits: s.movies.credits });
+}
+
 /** What the detection is doing now, in one line. */
 export function statusLine(s: SegmentStatus, t: Translate): string {
   if (!s.enabled || s.state === 'disabled') return t('segments.off');
   if (s.state === 'running' && s.running) return t('segments.running', { show: s.running.showTitle, season: s.running.seasonNumber, done: s.running.done, total: s.running.total });
+  if (s.state === 'running' && s.runningMovie) return t('segments.runningMovie', { title: s.runningMovie.title });
   if (s.state === 'waiting') return s.waitingFor === 'scan' ? t('segments.waitingScan') : t('segments.waitingPlayback');
   return s.counts.pending > 0 ? t('segments.pending', { n: s.counts.pending }) : t('segments.upToDate');
 }

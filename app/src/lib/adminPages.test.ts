@@ -9,6 +9,7 @@ import {
   reviewList,
   segmentShowsByNeed,
   statusLine,
+  movieLine,
   type LogEntry,
   type ReviewItem,
   type SegmentShow,
@@ -100,5 +101,12 @@ describe('detection status', () => {
     expect(statusLine({ ...base, enabled: false }, t)).toBe('segments.off');
     expect(statusLine({ ...base, state: 'waiting', waitingFor: 'scan' }, t)).toBe('segments.waitingScan');
     expect(statusLine({ ...base, state: 'running', running: { showId: 1, showTitle: 'Lupin', seasonNumber: 2, done: 1, total: 5 } }, t)).toBe('segments.running{"show":"Lupin","season":2,"done":1,"total":5}');
+  });
+
+  it('says which movie it looks at, and how far the movies are', () => {
+    expect(statusLine({ ...base, state: 'running', runningMovie: { movieId: 5, title: 'Interstellar' } }, t)).toBe('segments.runningMovie{"title":"Interstellar"}');
+    expect(movieLine(base, t)).toBeNull();
+    expect(movieLine({ ...base, movies: { total: 0, analyzed: 0, credits: 0, pending: 0, errors: 0 } }, t)).toBeNull();
+    expect(movieLine({ ...base, movies: { total: 12, analyzed: 9, credits: 7, pending: 3, errors: 0 } }, t)).toBe('segments.movies{"analyzed":9,"total":12,"credits":7}');
   });
 });

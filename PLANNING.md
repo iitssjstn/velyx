@@ -1285,6 +1285,19 @@ Eén PR per versie; een nieuwe versie pas als de vorige release compleet is.
   spoelen met een nieuwe stream en "Verbinding kwijt…") en de gewone laadcirkel van de speler tegelijk in beeld. Nu
   verschijnt de gewone alleen als er geen melding staat (`showsPlainSpinner` in `lib/streamSwitch.ts`, getest). De
   website toonde al één cirkel met de tekst eronder. Op telefoon en tv te bevestigen.
+- **Gezien bij 95 % of bij de aftiteling; aftiteling van films** (eigenaar 28 nov: "95% is beter denk ik", daarna "Ja
+  laten we films ook scannen zodat we altijd de juiste timing hebben voor films"). Een titel telt als gezien bij 95 % (was
+  90 %, `COMPLETION_THRESHOLD`), of eerder vanaf het begin van de aftiteling als die zeker (hoog/gemiddeld) gevonden of met
+  de hand gezet is, en na de helft van de titel ligt (`creditsStartOf` in `routes/user-data.ts`). Geldt voor website, app,
+  tv en casten (de server beslist). Films: nieuwe tabel `movie_segments` (migratie `0034_movie_segments`); de
+  achtergrondtaak (`SegmentDetector`) pakt na de seizoenen elke film één keer (opnieuw bij een ander bestand of
+  `MOVIE_DETECTION_VERSION`): eerst hoofdstukken, anders (met beeldanalyse aan) het beeld van de laatste 20 minuten (hooguit
+  een kwart), zelfde herkenning als bij afleveringen (`movie-credits.ts`); aftiteling vóór 70 % telt niet. Films korter dan
+  20 minuten niet. Beheer > Intro's en aftiteling (website en app) toont hoeveel films geanalyseerd zijn en met aftiteling,
+  en welke film bezig is. Nog niet: "Aftiteling overslaan"/knop bij films in de speler en tijden met de hand voor films.
+  Tests: backend `movie-credits.test.ts` (beeld, hoofdstukken, één keer, gezien bij aftiteling/95 %, aflevering met zekere
+  en zwakke aftiteling) en `user-data.test.ts` (92 % niet meer gezien; faalt op de oude code), website `Segments.test.tsx`,
+  app `adminPages.test.ts`. Backend 677, frontend 418, app 418 tests; typechecks en lint (0 fouten, 4 bekende waarschuwingen) slagen. Op de server van de eigenaar te bevestigen.
 - PR #205 aangemaakt 27 nov op verzoek van de eigenaar ("Maak de pr aan"); geen sessielink in de tekst. Release
   `v0.20.14` was compleet (APK, `.aab`, beide `.deb`'s, `setup.exe`). De eigenaar merget zelf.
 

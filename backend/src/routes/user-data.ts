@@ -1,15 +1,27 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { requireUser } from '../app.js';
-import { episodes, favorites, mediaFiles, watchlist, watchProgress } from '../db/schema.js';
+import { episodes, episodeSegments, favorites, mediaFiles, movieSegments, watchlist, watchProgress } from '../db/schema.js';
 import { Catalog } from '../services/catalog.js';
 import { HttpError, notFound, parseId } from '../http-error.js';
 import { assertEpisode, assertMovie, assertShow } from '../services/access.js';
 
-/** Fraction of the runtime after which an item counts as watched. */
-export const COMPLETION_THRESHOLD = 0.9;
+/** Fraction of the runtime after which an item counts as watched (or earlier: where its credits start). */
+export const COMPLETION_THRESHOLD = 0.95;
+
+/**
+ * Where the end credits start, when they were found surely (or set by hand): from there an item
+ * counts as watched. Credits found in the first half are not trusted for this.
+ */
+export function creditsStartOf(ctx: AppContext, target: { movieId?: number; episodeId?: number }, durationSec: number): number | null {
+  const row = target.movieId
+    ? ctx.db.select({ start: movieSegments.creditsStart, confidence: movieSegments.creditsConfidence, manual: sql<boolean>`0` }).from(movieSegments).where(eq(movieSegments.movieId, target.movieId)).get()
+    : ctx.db.select({ start: episodeSegments.creditsStart, confidence: episodeSegments.creditsConfidence, manual: episodeSegments.manual }).from(episodeSegments).where(eq(episodeSegments.episodeId, target.episodeId!)).get();
+  if (!row || row.start === null || !(row.manual || row.confidence === 'high' || row.confidence === 'medium')) return null;
+  return row.start >= durationSec * 0.5 ? row.start : null;
+}
 
 const progressBody = z
   .object({
@@ -46,7 +58,8 @@ export function saveProgress(
     ? and(eq(watchProgress.userId, userId), eq(watchProgress.movieId, target.movieId))
     : and(eq(watchProgress.userId, userId), eq(watchProgress.episodeId, target.episodeId!));
   const existing = db.select().from(watchProgress).where(where).get();
-  const reached = durationSec > 0 && positionSec / durationSec >= COMPLETION_THRESHOLD;
+  const credits = durationSec > 0 ? creditsStartOf(ctx, target, durationSec) : null;
+  const reached = durationSec > 0 && (positionSec / durationSec >= COMPLETION_THRESHOLD || (credits !== null && positionSec >= credits));
   const completed = reached || (existing?.completed ?? false);
   // Finished for the first time, or finished again after watching it once more from an earlier point.
   const justCompleted = reached && (!existing?.completed || existing.positionSec > 0);

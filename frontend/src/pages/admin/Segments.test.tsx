@@ -31,14 +31,14 @@ const show = {
   ],
 };
 
-function setup(initial = '/admin/intros') {
+function setup(initial = '/admin/intros', data: SegmentOverview = overview) {
   const calls: { method: string; url: string; body: unknown }[] = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
       calls.push({ method, url, body: init?.body ? JSON.parse(String(init.body)) : null });
-      if (url === '/api/admin/segments') return new Response(JSON.stringify(overview), { status: 200 });
+      if (url === '/api/admin/segments') return new Response(JSON.stringify(data), { status: 200 });
       if (url === '/api/admin/segments/shows/3') return new Response(JSON.stringify(show), { status: 200 });
       if (url === '/api/admin/segments/analyze') return new Response(JSON.stringify({ queued: 3 }), { status: 200 });
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
@@ -64,6 +64,13 @@ describe('Intros & credits admin page', () => {
     expect(screen.getByRole('button', { name: 'Severance' })).toBeTruthy();
     expect(screen.getByText('Invalid data found when processing input')).toBeTruthy();
     expect(screen.getByText(/Severance · S02E04/)).toBeTruthy();
+  });
+
+  it('shows how far the credits of movies are, and which movie is being looked at', async () => {
+    setup('/admin/intros', { ...overview, status: { ...overview.status, state: 'running', waitingFor: null, runningMovie: { movieId: 5, title: 'Interstellar' }, movies: { total: 12, analyzed: 9, credits: 7, pending: 3, errors: 0 } } });
+    expect(await screen.findByText('Looking for the credits of Interstellar')).toBeTruthy();
+    expect(screen.getByText('Movies analysed').nextSibling?.textContent).toBe('9');
+    expect(screen.getByText('Movie credits found').nextSibling?.textContent).toBe('7');
   });
 
   it('lists results per episode and re-analyses a season', async () => {
